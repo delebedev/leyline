@@ -76,7 +76,7 @@ sealed interface GameEvent {
      * [altCostAbilityGrpId] — when non-zero, the spell was cast for an alternate
      * cost (Madness, Flashback, Warp, Cycling, Impending). Carries the client
      * ability grpId for that alt-cost. Used to emit the persistent
-     * `CastingTimeOption type=13` annotation and the `alternativeGrpId` detail
+     * `CastingTimeOption CastThroughAbility` annotation and the `alternativeGrpId` detail
      * key on UserActionTaken. Zero means a regular hardcast.
      */
     data class SpellCast(

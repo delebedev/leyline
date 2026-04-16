@@ -52,18 +52,31 @@ object AnnotationBuilder {
     /** DamageDealt `markDamage` flag — always 1; the client requires the detail key present. */
     private const val MARK_DAMAGE_FLAG = 1
 
+    /**
+     * Set `affectorId` on the builder iff [id] is non-null and non-zero.
+     * Many annotations treat `affectorId` as optional — a null or zero value means
+     * "no affector", and the client expects the proto field to be omitted (default 0).
+     */
+    private fun AnnotationInfo.Builder.setOptionalAffector(id: InstanceId?): AnnotationInfo.Builder = apply {
+        if (id != null && id.value != 0) setAffectorId(id.value)
+    }
+
     fun zoneTransfer(
         instanceId: InstanceId,
         srcZoneId: Int,
         destZoneId: Int,
         category: String,
-        actingSeatId: SeatId = SeatId(0),
-        affectorId: InstanceId = InstanceId(0),
+        actingSeatId: SeatId? = null,
+        affectorId: InstanceId? = null,
     ): AnnotationInfo = AnnotationInfo.newBuilder()
         .addType(AnnotationType.ZoneTransfer_af5a)
         .apply {
             // affectorId takes precedence (ability instance); fall back to actingSeatId (player seat)
-            val aff = if (affectorId.value != 0) affectorId.value else actingSeatId.value
+            val aff = when {
+                affectorId != null && affectorId.value != 0 -> affectorId.value
+                actingSeatId != null && actingSeatId.value != 0 -> actingSeatId.value
+                else -> 0
+            }
             if (aff != 0) setAffectorId(aff)
         }
         .addAffectedIds(instanceId.value)
@@ -101,11 +114,11 @@ object AnnotationBuilder {
             .build()
 
     /** Card's instanceId changed (e.g. zone move creates new object).
-     *  [affectorId] = ability instance that caused the change (0 = unset). */
-    fun objectIdChanged(origId: InstanceId, newId: InstanceId, affectorId: InstanceId = InstanceId(0)): AnnotationInfo =
+     *  [affectorId] = ability instance that caused the change (null = unset). */
+    fun objectIdChanged(origId: InstanceId, newId: InstanceId, affectorId: InstanceId? = null): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ObjectIdChanged)
-            .apply { if (affectorId.value != 0) setAffectorId(affectorId.value) }
+            .setOptionalAffector(affectorId)
             .addAffectedIds(origId.value)
             .addDetails(int32Detail(DetailKeys.ORIG_ID, origId.value))
             .addDetails(int32Detail(DetailKeys.NEW_ID, newId.value))
@@ -214,18 +227,18 @@ object AnnotationBuilder {
      * Ability instance created on the stack.
      * [abilityInstanceId] = the ability/spell instance being created (affectedIds).
      * [affectorId] = the land or permanent that triggered this ability creation (e.g. tapping a land for mana).
-     *   Pass [InstanceId(0)] when not applicable (e.g. casting a spell from hand).
+     *   Pass null when not applicable (e.g. casting a spell from hand).
      * [sourceZoneId] = zone the ability/spell came from (e.g. Hand=31).
      * Client expects this field; client may use it for animation origin.
      */
     fun abilityInstanceCreated(
         abilityInstanceId: InstanceId,
-        affectorId: InstanceId = InstanceId(0),
+        affectorId: InstanceId? = null,
         sourceZoneId: Int = 0,
     ): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.AbilityInstanceCreated)
-            .setAffectorId(affectorId.value)
+            .setAffectorId(affectorId?.value ?: 0)
             .addAffectedIds(abilityInstanceId.value)
             .addDetails(int32Detail(DetailKeys.SOURCE_ZONE, sourceZoneId))
             .build()
@@ -235,12 +248,12 @@ object AnnotationBuilder {
      * or a mana ability instance cleared after payment).
      * [abilityInstanceId] = the ability/spell instance being removed (affectedIds).
      * [affectorId] = the permanent that owns the ability, when applicable (e.g. tapped land).
-     *   Pass [InstanceId(0)] when not applicable.
+     *   Pass null when not applicable.
      */
-    fun abilityInstanceDeleted(abilityInstanceId: InstanceId, affectorId: InstanceId = InstanceId(0)): AnnotationInfo =
+    fun abilityInstanceDeleted(abilityInstanceId: InstanceId, affectorId: InstanceId? = null): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.AbilityInstanceDeleted)
-            .setAffectorId(affectorId.value)
+            .setAffectorId(affectorId?.value ?: 0)
             .addAffectedIds(abilityInstanceId.value)
             .build()
 
@@ -273,10 +286,10 @@ object AnnotationBuilder {
             .build()
 
     /** Player life total changed. Client uses this for life counter animation. */
-    fun modifiedLife(playerSeatId: SeatId, lifeDelta: Int, affectorId: InstanceId = InstanceId(0)): AnnotationInfo =
+    fun modifiedLife(playerSeatId: SeatId, lifeDelta: Int, affectorId: InstanceId? = null): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ModifiedLife)
-            .apply { if (affectorId.value != 0) setAffectorId(affectorId.value) }
+            .setOptionalAffector(affectorId)
             .addAffectedIds(playerSeatId.value)
             .addDetails(int32Detail(DetailKeys.LIFE, lifeDelta))
             .build()
@@ -613,15 +626,12 @@ object AnnotationBuilder {
      *  Transient — fires once when the effect begins. No detail keys on this annotation;
      *  all metadata lives on the companion LayeredEffect persistent annotation.
      *  [affectorId] = ability instance on stack that created the effect (optional — ~35% omitted). */
-    fun layeredEffectCreated(effectId: EffectId, affectorId: InstanceId? = null): AnnotationInfo {
-        val builder = AnnotationInfo.newBuilder()
+    fun layeredEffectCreated(effectId: EffectId, affectorId: InstanceId? = null): AnnotationInfo =
+        AnnotationInfo.newBuilder()
             .addType(AnnotationType.LayeredEffectCreated)
             .addAffectedIds(effectId.value)
-        if (affectorId != null) {
-            builder.affectorId = affectorId.value
-        }
-        return builder.build()
-    }
+            .setOptionalAffector(affectorId)
+            .build()
 
     /** Layered effect state (continuous effects). client type 51 (LayeredEffect).
      *  Persistent — present in every GSM while the effect is active.
@@ -637,22 +647,24 @@ object AnnotationBuilder {
         effectId: EffectId,
         powerDelta: Int = 0,
         toughnessDelta: Int = 0,
-        affectorId: InstanceId = InstanceId(0),
+        affectorId: InstanceId? = null,
         sourceAbilityGrpId: GrpId? = null,
-    ): AnnotationInfo {
-        val builder = AnnotationInfo.newBuilder()
+    ): AnnotationInfo = AnnotationInfo.newBuilder()
         // Multi-type: co-type with ModifiedPower/ModifiedToughness for P/T buffs
-        if (toughnessDelta != 0) builder.addType(AnnotationType.ModifiedToughness)
-        if (powerDelta != 0) builder.addType(AnnotationType.ModifiedPower)
-        builder.addType(AnnotationType.LayeredEffect)
-        builder.addAffectedIds(instanceId.value)
-        if (affectorId.value != 0) builder.affectorId = affectorId.value
-        builder.addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
-        if (sourceAbilityGrpId != null) {
-            builder.addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
+        .apply {
+            if (toughnessDelta != 0) addType(AnnotationType.ModifiedToughness)
+            if (powerDelta != 0) addType(AnnotationType.ModifiedPower)
         }
-        return builder.build()
-    }
+        .addType(AnnotationType.LayeredEffect)
+        .addAffectedIds(instanceId.value)
+        .setOptionalAffector(affectorId)
+        .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+        .apply {
+            if (sourceAbilityGrpId != null) {
+                addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
+            }
+        }
+        .build()
 
     // -- Tier 2 detail-carrying annotations --
 
@@ -699,12 +711,12 @@ object AnnotationBuilder {
         instanceId: InstanceId,
         power: Int,
         toughness: Int,
-        affectorId: InstanceId = InstanceId(0),
+        affectorId: InstanceId? = null,
     ): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.PowerToughnessModCreated)
             .addAffectedIds(instanceId.value)
-            .apply { if (affectorId.value != 0) setAffectorId(affectorId.value) }
+            .setOptionalAffector(affectorId)
             .addDetails(int32Detail(DetailKeys.POWER, power))
             .addDetails(int32Detail(DetailKeys.TOUGHNESS, toughness))
             .build()
@@ -761,10 +773,10 @@ object AnnotationBuilder {
 
     /** Layered effect ended. [affectorId] = source of the destruction (e.g. aura iid for
      *  SBA_UnattachedAura; 0/omitted for EOT expiry). client type 19. */
-    fun layeredEffectDestroyed(effectId: EffectId, affectorId: InstanceId = InstanceId(0)): AnnotationInfo =
+    fun layeredEffectDestroyed(effectId: EffectId, affectorId: InstanceId? = null): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.LayeredEffectDestroyed)
-            .apply { if (affectorId.value != 0) setAffectorId(affectorId.value) }
+            .setOptionalAffector(affectorId)
             .addAffectedIds(effectId.value)
             .build()
 
@@ -802,20 +814,20 @@ object AnnotationBuilder {
     fun modifiedTypeLayeredEffect(
         instanceId: InstanceId,
         effectId: EffectId,
-        affectorId: InstanceId = InstanceId(0),
+        affectorId: InstanceId? = null,
         sourceAbilityGrpId: GrpId? = null,
-    ): AnnotationInfo {
-        val builder = AnnotationInfo.newBuilder()
-            .addType(AnnotationType.ModifiedType)
-            .addType(AnnotationType.LayeredEffect)
-            .addAffectedIds(instanceId.value)
-            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
-        if (affectorId.value != 0) builder.setAffectorId(affectorId.value)
-        if (sourceAbilityGrpId != null) {
-            builder.addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
+    ): AnnotationInfo = AnnotationInfo.newBuilder()
+        .addType(AnnotationType.ModifiedType)
+        .addType(AnnotationType.LayeredEffect)
+        .addAffectedIds(instanceId.value)
+        .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+        .setOptionalAffector(affectorId)
+        .apply {
+            if (sourceAbilityGrpId != null) {
+                addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
+            }
         }
-        return builder.build()
-    }
+        .build()
 
     /** Creature was dealt damage this turn. Persistent state badge. client type 90. */
     fun damagedThisTurn(instanceId: InstanceId): AnnotationInfo =

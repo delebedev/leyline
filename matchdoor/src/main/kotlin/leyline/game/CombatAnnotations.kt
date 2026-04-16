@@ -115,7 +115,7 @@ object CombatAnnotations {
                     AnnotationBuilder.modifiedLife(
                         SeatId(seat),
                         delta,
-                        affectorId = firstPlayerDamageAttacker ?: InstanceId(0),
+                        affectorId = firstPlayerDamageAttacker,
                     ),
                 )
             }

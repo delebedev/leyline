@@ -35,7 +35,7 @@ class CombatZoneAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             annotations.size shouldBe 2
             annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
@@ -54,7 +54,7 @@ class CombatZoneAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Sacrifice"
         }
 
@@ -77,7 +77,7 @@ class CombatZoneAnnotationPipelineTest :
                     ),
                 ),
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             assertSoftly {
                 annotations.size shouldBe 7
@@ -106,7 +106,7 @@ class CombatZoneAnnotationPipelineTest :
                 ownerSeatId = 1,
                 manaPayments = emptyList(),
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             annotations.size shouldBe 2
             annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
@@ -132,7 +132,7 @@ class CombatZoneAnnotationPipelineTest :
                     ),
                 ),
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             val uat = annotations[4]
             assertSoftly {
@@ -152,7 +152,7 @@ class CombatZoneAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Bounce"
         }
 
@@ -166,7 +166,7 @@ class CombatZoneAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Exile"
         }
 
@@ -180,7 +180,7 @@ class CombatZoneAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Discard"
         }
 
@@ -194,7 +194,7 @@ class CombatZoneAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Draw"
         }
 
@@ -208,7 +208,7 @@ class CombatZoneAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Mill"
         }
 
@@ -224,7 +224,7 @@ class CombatZoneAnnotationPipelineTest :
                 ownerSeatId = 1,
                 affectorId = abilityInstanceId.value,
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.size shouldBe 2
 
             // ObjectIdChanged carries affectorId
@@ -256,7 +256,7 @@ class CombatZoneAnnotationPipelineTest :
                 ownerSeatId = 1,
                 // no affectorId
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             // Without affectorId, annotations should still work but have 0 affector
             annotations[0].affectorId shouldBe 0
             annotations[1].affectorId shouldBe 0
@@ -272,7 +272,7 @@ class CombatZoneAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Countered"
         }
 
@@ -288,7 +288,7 @@ class CombatZoneAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             annotations.size shouldBe 2
             annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
@@ -307,7 +307,7 @@ class CombatZoneAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             annotations.last().detailString("category") shouldBe "Return"
             persistent.shouldBeEmpty()
@@ -325,7 +325,7 @@ class CombatZoneAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             annotations.size shouldBe 2
             annotations[1].detailString("category") shouldBe "Search"
@@ -344,7 +344,7 @@ class CombatZoneAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             annotations.size shouldBe 2
             annotations[1].detailString("category") shouldBe "Put"

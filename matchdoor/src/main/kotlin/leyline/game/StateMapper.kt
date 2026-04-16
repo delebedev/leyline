@@ -704,7 +704,7 @@ object StateMapper {
         val annotations = mutableListOf<AnnotationInfo>()
         val transferPersistent = mutableListOf<AnnotationInfo>()
         for (transfer in transferResult.transfers) {
-            val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat)
+            val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, SeatId(actingSeat))
             annotations.addAll(transient)
             transferPersistent.addAll(persistent)
         }
