@@ -327,8 +327,8 @@
     <ID>MissingAssertSoftly:SearchReqConformanceTest.kt$SearchReqConformanceTest$searchReq.searchReq.maxFind shouldBe 1</ID>
     <ID>MissingAssertSoftly:SearchReqTest.kt$SearchReqTest$msg.type shouldBe GREMessageType.SearchReq_695e</ID>
     <ID>MissingAssertSoftly:SearchReqTest.kt$SearchReqTest$sr.maxFind shouldBe 1</ID>
-    <ID>MissingAssertSoftly:ShapeIntegrationTest.kt$ShapeIntegrationTest$captured.size shouldBe 1</ID>
-    <ID>MissingAssertSoftly:ShapeIntegrationTest.kt$ShapeIntegrationTest$captured.size shouldBe 2</ID>
+    <ID>MissingAssertSoftly:ShapeIntegrationTest.kt$ShapeIntegrationTest$messages.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:ShapeIntegrationTest.kt$ShapeIntegrationTest$messages.size shouldBe 2</ID>
     <ID>MissingAssertSoftly:StackCastResolveTest.kt$StackCastResolveTest$(aicIdx &lt; tupIdx) shouldBe true</ID>
     <ID>MissingAssertSoftly:StackCastResolveTest.kt$StackCastResolveTest$types shouldContain AnnotationType.ObjectIdChanged</ID>
     <ID>MissingAssertSoftly:StackCastResolveTest.kt$StackCastResolveTest$zt.detailString("category") shouldBe "CastSpell"</ID>
@@ -336,8 +336,6 @@
     <ID>MissingAssertSoftly:StateMapperShapeTest.kt$StateMapperShapeTest$handZone.shouldNotBeNull()</ID>
     <ID>MissingAssertSoftly:StateMapperShapeTest.kt$StateMapperShapeTest$timer1.type shouldBe Messages.TimerType.Inactivity_a5e2</ID>
     <ID>MissingAssertSoftly:StopTypeMappingTest.kt$StopTypeMappingTest$enabled shouldContain PhaseType.MAIN1</ID>
-    <ID>MissingAssertSoftly:StructuralFingerprintTest.kt$StructuralFingerprintTest$fp.greMessageType shouldBe "ActionsAvailableReq"</ID>
-    <ID>MissingAssertSoftly:StructuralFingerprintTest.kt$StructuralFingerprintTest$fp.greMessageType shouldBe "GameStateMessage"</ID>
     <ID>MissingAssertSoftly:TargetSpecAnnotationTest.kt$TargetSpecAnnotationTest$targetAnn shouldNotBe null</ID>
     <ID>MissingAssertSoftly:TargetingFlowTest.kt$TargetingFlowTest$(creature.netPower &gt;= 4).shouldBeTrue()</ID>
     <ID>MissingAssertSoftly:TargetingFlowTest.kt$TargetingFlowTest$(creatureIid in legalTargetIds).shouldBeTrue()</ID>
