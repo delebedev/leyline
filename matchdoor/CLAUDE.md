@@ -26,7 +26,7 @@ ArchUnit enforces: bridge → game → match (no reverse deps within the module)
 
 ## Mental Model
 
-**Outbound (engine → client):** Forge `Game` → `StateMapper.buildFromGame()` snapshots zones/objects/players → `GameEventCollector.drainEvents()` feeds `AnnotationBuilder.categoryFromEvents()` for transfer categories → `annotationsForTransfer()` builds per-event proto annotations → `BundleBuilder` assembles GRE messages (Diff/Full GSM + ActionsAvailableReq) → `MessageSink` → client.
+**Outbound (engine → client):** Forge `Game` → `StateMapper.buildFromGame()` snapshots zones/objects/players → `GameEventCollector.drainEvents()` feeds `TransferCategoryResolver.categoryFromEvents()` for transfer categories → `annotationsForTransfer()` builds per-event proto annotations → `BundleBuilder` assembles GRE messages (Diff/Full GSM + ActionsAvailableReq) → `MessageSink` → client.
 
 **Inbound (client → engine):** client proto (`PerformActionResp`, `DeclareAttackersResp`, etc.) → `MatchHandler` dispatches unconditionally to session (`SessionOps`) → `MatchSession` translates to `PlayerAction` or prompt response → submits through `GameActionBridge.submitAction()` or `InteractivePromptBridge.submitResponse()` (both `CompletableFuture.complete()`) → engine thread unblocks. `FamiliarSession` no-ops all action methods.
 
@@ -36,7 +36,7 @@ ArchUnit enforces: bridge → game → match (no reverse deps within the module)
 
 **Threading:** Engine runs on a dedicated daemon thread, blocks on `CompletableFuture.get()` at every priority stop / prompt. `MatchSession` receives client messages on Netty I/O thread, completes the future. All session entry points synchronized on `sessionLock`. Timeout = engine blocked waiting for a response MatchSession never submitted.
 
-**Event-driven annotations:** Forge fires `GameEvent` on its Guava EventBus → `GameEventCollector` (subscribes synchronously on engine thread) translates to `GameEvent` sealed variants → queued in `ConcurrentLinkedQueue` → `StateMapper` drains at diff-build time → `AnnotationBuilder.categoryFromEvents()` picks most-specific category (LandPlayed > ZoneChanged) → builder methods construct proto `AnnotationInfo` with the expected type numbers and detail keys.
+**Event-driven annotations:** Forge fires `GameEvent` on its Guava EventBus → `GameEventCollector` (subscribes synchronously on engine thread) translates to `GameEvent` sealed variants → queued in `ConcurrentLinkedQueue` → `StateMapper` drains at diff-build time → `TransferCategoryResolver.categoryFromEvents()` picks most-specific category (LandPlayed > ZoneChanged) → builder methods construct proto `AnnotationInfo` with the expected type numbers and detail keys.
 
 **Five-stage annotation pipeline** (4 files, each an `object` in `game/`): (1) `ZoneTransferDetector.detectZoneTransfers` → `TransferResult` — realloc instanceIds, patched objects/zones, stack ability lifecycle. (2) `TransferAnnotations.annotationsForTransfer` — pure function, proto annotations per transfer. (3) `CombatAnnotations.combatAnnotations` — damage/life/phase annotations. (4) `MechanicAnnotations.mechanicAnnotations` — counters, tokens, attachments, controller change. (5) `MechanicAnnotations.effectAnnotations` — P/T boosts, keyword grants from EffectTracker. All numbered after assembly.
 
@@ -73,7 +73,7 @@ Mana cost reaches the client through two paths depending on the action type. `Ma
 
 1. `game/TransferCategory.kt` — add variant if needed (with `.label` matching Arena's reason string)
 2. `game/GameEventCollector` — ensure the right Forge event is emitted (e.g. `GameEventCardDestroyed` → `CardDestroyed`)
-3. `game/AnnotationBuilder.categoryFromEvents()` — add match arm; specific events take priority over generic `ZoneChanged`
+3. `game/TransferCategoryResolver.categoryFromEvents()` — add match arm; specific events take priority over generic `ZoneChanged`
 4. `game/StateMapper.annotationsForTransfer()` — add `when` branch for the new category (ObjectIdChanged, ZoneTransfer, etc.)
 5. Test: `CategoryFromEventsTest` for event→category mapping, conformance test for full proto output
 

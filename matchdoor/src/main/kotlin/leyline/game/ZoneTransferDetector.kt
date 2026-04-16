@@ -163,7 +163,7 @@ object ZoneTransferDetector {
             if (prevZone != null && prevZone != obj.zoneId) {
                 val forgeCardId = forgeIdLookup(InstanceId(obj.instanceId))
                 val category = if (forgeCardId != null && events.isNotEmpty()) {
-                    AnnotationBuilder.categoryFromEvents(forgeCardId, events)
+                    TransferCategoryResolver.categoryFromEvents(forgeCardId, events)
                         ?: inferCategory(obj, prevZone, obj.zoneId)
                 } else {
                     inferCategory(obj, prevZone, obj.zoneId)
@@ -189,7 +189,7 @@ object ZoneTransferDetector {
                 // For surveil (and future mechanics), the source card's ability on the
                 // stack has instanceId = getOrAlloc(sourceCardId + STACK_ABILITY_ID_OFFSET).
                 val affectorId = if (forgeCardId != null && events.isNotEmpty()) {
-                    val sourceCardId = AnnotationBuilder.affectorSourceFromEvents(forgeCardId, events)
+                    val sourceCardId = TransferCategoryResolver.affectorSourceFromEvents(forgeCardId, events)
                     if (sourceCardId != null) {
                         idLookup(ForgeCardId(sourceCardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET)).value
                     } else {

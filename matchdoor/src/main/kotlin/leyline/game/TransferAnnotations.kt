@@ -1,7 +1,9 @@
 package leyline.game
 
 import leyline.game.mapper.ZoneIds
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 
 /**
  * Stage 2 of the annotation pipeline: generate annotations for zone transfers.
@@ -43,7 +45,7 @@ object TransferAnnotations {
             TransferCategory.PlayLand -> {
                 annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
-                annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 3))
+                annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = ActionType.Play_add3))
             }
             TransferCategory.CastSpell -> {
                 annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
@@ -67,7 +69,7 @@ object TransferAnnotations {
                         AnnotationBuilder.userActionTaken(
                             instanceId = mp.manaAbilityInstanceId,
                             seatId = actingSeat,
-                            actionType = 4,
+                            actionType = ActionType.ActivateMana,
                             abilityGrpId = mp.abilityGrpId,
                         ),
                     )
@@ -86,7 +88,7 @@ object TransferAnnotations {
                         ),
                     )
                 }
-                val castActionType = if (transfer.isAdventureCast) 16 else 1
+                val castActionType = if (transfer.isAdventureCast) ActionType.CastAdventure else ActionType.Cast
                 annotations.add(
                     AnnotationBuilder.userActionTaken(
                         instanceId = newId,
@@ -139,7 +141,7 @@ object TransferAnnotations {
             persistent.add(
                 AnnotationBuilder.castingTimeOption(
                     stackInstanceId = newId,
-                    type = 13, // CastThroughAbility
+                    type = CastingTimeOptionType.CastThroughAbility,
                     alternateCostGrpId = transfer.altCostAbilityGrpId,
                 ),
             )
@@ -173,7 +175,7 @@ object TransferAnnotations {
         if (origId != newId) annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
         annotations.add(AnnotationBuilder.zoneTransfer(newId, transfer.srcZoneId, transfer.destZoneId, transfer.category.label))
         for ((i, mp) in transfer.manaPayments.withIndex()) {
-            annotations.add(AnnotationBuilder.userActionTaken(mp.manaAbilityInstanceId, actingSeat, actionType = 4, abilityGrpId = mp.abilityGrpId))
+            annotations.add(AnnotationBuilder.userActionTaken(mp.manaAbilityInstanceId, actingSeat, actionType = ActionType.ActivateMana, abilityGrpId = mp.abilityGrpId))
             annotations.add(AnnotationBuilder.manaPaid(mp.spellInstanceId, origId, i + MANA_ID_BASE, mp.color))
             annotations.add(AnnotationBuilder.abilityInstanceDeleted(mp.manaAbilityInstanceId, origId))
         }

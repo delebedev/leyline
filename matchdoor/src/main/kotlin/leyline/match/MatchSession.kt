@@ -9,6 +9,7 @@ import leyline.bridge.SeatId
 import leyline.bridge.findCard
 import leyline.bridge.getAllCastableAbilities
 import leyline.frontdoor.service.MatchCoordinator
+import leyline.game.AnnotationLossReason
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
@@ -673,7 +674,7 @@ class MatchSession(
         val humanWon = humanPlayer?.getOutcome()?.hasWon() ?: false
         val winningTeam = if (humanWon) 1 else 2
         val losingPlayerSeatId = if (humanWon) 2 else 1
-        val lossReason = if (reason == ResultReason.Concede) 3 else 0
+        val lossReason = if (reason == ResultReason.Concede) AnnotationLossReason.Concede else AnnotationLossReason.LifeTotal
 
         // If there are pending events (e.g. mana-ability sacrifice during resolution),
         // build a final diff GSM to emit those annotations before the game-over bundle.

@@ -12,8 +12,6 @@
     <ID>ReturnCount:WebPlayerController.kt$WebPlayerController$override fun chooseSpellAbilityToPlay(): List&lt;SpellAbility&gt;?</ID>
     <ID>CyclomaticComplexMethod:ActionMapper.kt$ActionMapper$internal fun buildActionList( seatId: Int, bridge: GameBridge, checkLegality: Boolean, ): ActionsAvailableReq</ID>
     <ID>CyclomaticComplexMethod:ActionMapper.kt$ActionMapper$private fun buildAutoTapSolution( manaCost: List&lt;Pair&lt;ManaColor, Int&gt;&gt;, player: Player, bridge: GameBridge, ): AutoTapSolution?</ID>
-    <ID>CyclomaticComplexMethod:AnnotationBuilder.kt$AnnotationBuilder$fun categoryFromEvents(forgeCardId: Int, events: List&lt;GameEvent&gt;): TransferCategory?</ID>
-    <ID>CyclomaticComplexMethod:AnnotationBuilder.kt$AnnotationBuilder$private fun zoneChangedCategory(ev: GameEvent.ZoneChanged): TransferCategory</ID>
     <ID>CyclomaticComplexMethod:AnnotationPipeline.kt$AnnotationPipeline$fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): TransferCategory</ID>
     <ID>CyclomaticComplexMethod:MatchSession.kt$MatchSession$override fun onPerformAction(greMsg: ClientToGREMessage)</ID>
     <ID>CyclomaticComplexMethod:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
@@ -54,7 +52,6 @@
   </ManuallySuppressedIssues>
   <CurrentIssues>
     <ID>ComplexCondition:WebPlayerController.kt$WebPlayerController$!fullControl &amp;&amp; smartPhaseSkip &amp;&amp; !bridge.consumePromptResolved() &amp;&amp; handler.playerTurn?.id == player.id &amp;&amp; game.stack.isEmpty &amp;&amp; !PlayableActionQuery.hasPlayableNonManaAction(game, player)</ID>
-    <ID>CyclomaticComplexMethod:AnnotationBuilder.kt$AnnotationBuilder$private fun zoneChangedCategory(ev: GameEvent.ZoneChanged): TransferCategory</ID>
     <ID>CyclomaticComplexMethod:AnnotationPipeline.kt$AnnotationPipeline$fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): TransferCategory</ID>
     <ID>CyclomaticComplexMethod:MatchSession.kt$MatchSession$override fun onPerformAction(greMsg: ClientToGREMessage)</ID>
     <ID>CyclomaticComplexMethod:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>

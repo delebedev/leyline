@@ -94,7 +94,7 @@ object MechanicAnnotations {
                         annotations.add(AnnotationBuilder.counterRemoved(instanceId, ev.counterType, -delta))
                     }
                     // Persistent: Counter state annotation with current count
-                    persistent.add(AnnotationBuilder.counter(instanceId, AnnotationBuilder.counterTypeId(ev.counterType), ev.newCount))
+                    persistent.add(AnnotationBuilder.counter(instanceId, CounterTypes.counterTypeId(ev.counterType), ev.newCount))
                     log.debug("mechanic: counter {} {} on iid={}", if (delta > 0) "added" else "removed", ev.counterType, instanceId)
                 }
                 is GameEvent.LibraryShuffled -> {

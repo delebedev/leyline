@@ -11,7 +11,9 @@ import leyline.conformance.detailString
 import leyline.conformance.detailUint
 import leyline.conformance.hasDetail
 import leyline.game.mapper.ZoneIds
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 
 @Suppress("LargeClass")
 class AnnotationBuilderTest :
@@ -128,7 +130,7 @@ class AnnotationBuilderTest :
             val ann = AnnotationBuilder.userActionTaken(
                 instanceId = 300,
                 seatId = 1,
-                actionType = 3,
+                actionType = ActionType.Play_add3,
                 abilityGrpId = 0,
             )
             ann.typeList shouldContain AnnotationType.UserActionTaken
@@ -136,14 +138,14 @@ class AnnotationBuilderTest :
             ann.affectedIdsList shouldContain 300
 
             assertSoftly {
-                ann.detailInt("actionType") shouldBe 3
+                ann.detailInt("actionType") shouldBe ActionType.Play_add3.number
                 ann.detailInt("abilityGrpId") shouldBe 0
             }
         }
 
         test("userActionTakenCastType") {
-            val ann = AnnotationBuilder.userActionTaken(instanceId = 400, seatId = 2, actionType = 1)
-            ann.detailInt("actionType") shouldBe 1
+            val ann = AnnotationBuilder.userActionTaken(instanceId = 400, seatId = 2, actionType = ActionType.Cast)
+            ann.detailInt("actionType") shouldBe ActionType.Cast.number
             ann.affectorId shouldBe 2
         }
 
@@ -151,7 +153,7 @@ class AnnotationBuilderTest :
             val ann = AnnotationBuilder.userActionTaken(
                 instanceId = 400,
                 seatId = 1,
-                actionType = 1,
+                actionType = ActionType.Cast,
                 abilityGrpId = 0,
             )
             // Hardcast / land-play / regular cast: no alternativeGrpId detail emitted
@@ -163,12 +165,12 @@ class AnnotationBuilderTest :
             val ann = AnnotationBuilder.userActionTaken(
                 instanceId = 375,
                 seatId = 1,
-                actionType = 1,
+                actionType = ActionType.Cast,
                 abilityGrpId = 5658,
                 alternativeGrpId = 5658,
             )
             assertSoftly {
-                ann.detailInt("actionType") shouldBe 1
+                ann.detailInt("actionType") shouldBe ActionType.Cast.number
                 ann.detailInt("abilityGrpId") shouldBe 5658
                 ann.detailInt("alternativeGrpId") shouldBe 5658
             }
@@ -176,20 +178,20 @@ class AnnotationBuilderTest :
 
         // --- CastingTimeOption ---
 
-        test("castingTimeOptionType13MadnessShape") {
-            // Client-visible type=13 alt-cost shape for a madness cast.
+        test("castingTimeOptionCastThroughAbilityMadnessShape") {
+            // Client-visible CastThroughAbility alt-cost shape for a madness cast.
             val ann = AnnotationBuilder.castingTimeOption(
                 stackInstanceId = 361,
-                type = 13,
+                type = CastingTimeOptionType.CastThroughAbility,
                 alternateCostGrpId = 5658,
             )
             ann.typeList shouldContain AnnotationType.CastingTimeOption
             ann.affectorId shouldBe 361
             ann.affectedIdsList shouldContain 361
             assertSoftly {
-                ann.detailInt("type") shouldBe 13
+                ann.detailInt("type") shouldBe CastingTimeOptionType.CastThroughAbility.number
                 ann.detailInt("alternateCostGrpId") shouldBe 5658
-                // castAbilityGrpId defaults to alternateCostGrpId for type=13
+                // castAbilityGrpId defaults to alternateCostGrpId for CastThroughAbility
                 ann.detailInt("castAbilityGrpId") shouldBe 5658
             }
         }
@@ -197,7 +199,7 @@ class AnnotationBuilderTest :
         test("castingTimeOptionAllowsDistinctCastAbilityGrpId") {
             val ann = AnnotationBuilder.castingTimeOption(
                 stackInstanceId = 100,
-                type = 13,
+                type = CastingTimeOptionType.CastThroughAbility,
                 alternateCostGrpId = 5658,
                 castAbilityGrpId = 9999,
             )
@@ -530,18 +532,18 @@ class AnnotationBuilderTest :
 
         test("counterTypeIdMapsForgeNames") {
             // Exact matches (P1P1, M1M1 already uppercase in both)
-            AnnotationBuilder.counterTypeId("P1P1") shouldBe 1
-            AnnotationBuilder.counterTypeId("M1M1") shouldBe 2
+            CounterTypes.counterTypeId("P1P1") shouldBe 1
+            CounterTypes.counterTypeId("M1M1") shouldBe 2
             // Forge UPPERCASE → proto PascalCase
-            AnnotationBuilder.counterTypeId("LOYALTY") shouldBe 7
-            AnnotationBuilder.counterTypeId("CHARGE") shouldBe 19
-            AnnotationBuilder.counterTypeId("AGE") shouldBe 9
-            AnnotationBuilder.counterTypeId("BLOOD") shouldBe 15
-            AnnotationBuilder.counterTypeId("STUN") shouldBe 172
-            AnnotationBuilder.counterTypeId("POISON") shouldBe 3
-            AnnotationBuilder.counterTypeId("LORE") shouldBe 108
+            CounterTypes.counterTypeId("LOYALTY") shouldBe 7
+            CounterTypes.counterTypeId("CHARGE") shouldBe 19
+            CounterTypes.counterTypeId("AGE") shouldBe 9
+            CounterTypes.counterTypeId("BLOOD") shouldBe 15
+            CounterTypes.counterTypeId("STUN") shouldBe 172
+            CounterTypes.counterTypeId("POISON") shouldBe 3
+            CounterTypes.counterTypeId("LORE") shouldBe 108
             // Unknown falls back to 0
-            AnnotationBuilder.counterTypeId("NONEXISTENT") shouldBe 0
+            CounterTypes.counterTypeId("NONEXISTENT") shouldBe 0
         }
 
         // --- AddAbility (Tier 1) ---

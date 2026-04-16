@@ -150,7 +150,7 @@ sealed interface GameEvent {
 
     // -- Group A: zone-transition disambiguation --
     // These replace generic ZoneChanged for specific zone pairs, enabling
-    // direct category mapping without the zoneChangedCategory() fallback.
+    // direct category mapping without the TransferCategoryResolver zone-pair fallback.
 
     /** A legendary permanent was put into graveyard by the legend rule SBA.
      *  More specific than [CardDestroyed] — produces `SBA_LegendRule` category. */
@@ -332,7 +332,7 @@ sealed interface GameEvent {
 
     /** A permanent's controller changed (steal effect or revert).
      *  Fires both on steal (Claim the Firstborn) and on revert (end of turn).
-     *  [sourceCardId] resolved later from events list (affectorSourceFromEvents pattern). */
+     *  [sourceCardId] resolved later from events list (TransferCategoryResolver.affectorSourceFromEvents pattern). */
     data class ControllerChanged(
         val cardId: ForgeCardId,
         val oldControllerSeatId: SeatId,

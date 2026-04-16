@@ -4,6 +4,7 @@ import io.kotest.assertions.fail
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 
 /**
@@ -64,7 +65,7 @@ class AnnotationShapeConformanceTest :
         }
 
         test("UserActionTaken shape: {actionType, abilityGrpId}") {
-            val ann = AnnotationBuilder.userActionTaken(1, 1, 1, 0)
+            val ann = AnnotationBuilder.userActionTaken(1, 1, ActionType.Cast, 0)
             detailKeys(ann) shouldBe setOf("actionType", "abilityGrpId")
         }
 
@@ -99,7 +100,7 @@ class AnnotationShapeConformanceTest :
         }
 
         test("LossOfGame shape: {reason}") {
-            val ann = AnnotationBuilder.lossOfGame(1, 0)
+            val ann = AnnotationBuilder.lossOfGame(1, AnnotationLossReason.LifeTotal)
             detailKeys(ann) shouldBe setOf("reason")
         }
 
@@ -276,7 +277,7 @@ class AnnotationShapeConformanceTest :
             "PhaseOrStepModified" to detailKeys(AnnotationBuilder.phaseOrStepModified(1, 1, 2)),
             "ZoneTransfer" to detailKeys(AnnotationBuilder.zoneTransfer(1, 31, 28, "PlayLand")),
             "EnteredZoneThisTurn" to detailKeys(AnnotationBuilder.enteredZoneThisTurn(28, 1)),
-            "UserActionTaken" to detailKeys(AnnotationBuilder.userActionTaken(1, 1, 1, 0)),
+            "UserActionTaken" to detailKeys(AnnotationBuilder.userActionTaken(1, 1, ActionType.Cast, 0)),
             "ObjectIdChanged" to detailKeys(AnnotationBuilder.objectIdChanged(1, 2)),
             "TappedUntappedPermanent" to detailKeys(AnnotationBuilder.tappedUntappedPermanent(1, 2)),
             "AbilityInstanceCreated" to detailKeys(AnnotationBuilder.abilityInstanceCreated(1, sourceZoneId = 31)),

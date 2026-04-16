@@ -833,14 +833,14 @@ class BundleBuilder(
      *
      * @param reason Game_ae0a for natural game end, Concede for concession
      * @param losingPlayerSeatId seat of the losing player (for LossOfGame annotation)
-     * @param lossReason 0=LifeTotal, 3=Concede (maps to Arena's LossOfGame detail)
+     * @param lossReason wire-level loss reason for the LossOfGame annotation
      */
     fun gameOverBundle(
         winningTeam: Int,
         counter: MessageCounter,
         reason: ResultReason = ResultReason.Game_ae0a,
         losingPlayerSeatId: Int = 0,
-        lossReason: Int = 0,
+        lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal,
     ): BundleResult {
         val prevGsId = counter.currentGsId()
         val losingTeam = if (winningTeam == 1) 2 else 1

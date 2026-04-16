@@ -3,6 +3,7 @@ package leyline.game
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class AnnotationOrderEnforcerTest :
@@ -18,7 +19,7 @@ class AnnotationOrderEnforcerTest :
                 destZoneId = 28,
                 category = "PlayLand",
             )
-            val uat = AnnotationBuilder.userActionTaken(instanceId = 200, seatId = 1, actionType = 3)
+            val uat = AnnotationBuilder.userActionTaken(instanceId = 200, seatId = 1, actionType = ActionType.Play_add3)
 
             val result = AnnotationOrderEnforcer.enforce(listOf(oic, zt, uat))
 
@@ -135,7 +136,7 @@ class AnnotationOrderEnforcerTest :
             val ann = AnnotationBuilder.userActionTaken(
                 instanceId = 200,
                 seatId = 1,
-                actionType = 1,
+                actionType = ActionType.Cast,
             )
 
             // Wrong order: UAT (which has affectedIds containing 200) before OIC

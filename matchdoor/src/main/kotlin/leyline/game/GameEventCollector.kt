@@ -34,7 +34,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
  *
  * Events fire in Forge engine execution order, which may differ from the
  * annotation ordering the client expects. The downstream annotation pipeline
- * ([AnnotationBuilder.categoryFromEvents]) re-prioritizes: specific events
+ * ([TransferCategoryResolver.categoryFromEvents]) re-prioritizes: specific events
  * (LandPlayed, CardSacrificed) take precedence over generic ZoneChanged when
  * both fire for the same card in the same GSM.
  *
@@ -407,8 +407,8 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     }
 
     // Per-card surveil event — fired from Player.surveil() in our Forge fork
-    // for each card moved to graveyard. Allows categoryFromEvents to distinguish
-    // surveil (Library→GY) from mill (Library→GY).
+    // for each card moved to graveyard. Allows TransferCategoryResolver.categoryFromEvents
+    // to distinguish surveil (Library→GY) from mill (Library→GY).
     override fun visit(ev: GameEventCardSurveiled) {
         val seat = seatOf(ev.card().controller) ?: return
         val sourceId = ev.causeCard()?.id

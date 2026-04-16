@@ -1,9 +1,9 @@
 package leyline.game
 
-import leyline.bridge.ForgeCardId
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.CounterType
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairInfo
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
@@ -36,166 +36,16 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
  * - Tier 2 (visual fidelity): [colorProduction], [targetSpec],
  *   [powerToughnessModCreated], [attachmentCreated] — affect client UX
  *
- * [categoryFromEvents] bridges Forge's event model to Arena's annotation
- * categories — resolves which [TransferCategory] label to stamp on each
- * zone transfer annotation based on captured [GameEvent]s.
- *
  * Authoritative client parser reference: from protocol analysis (annotation registry)
  *
  * @see ZoneTransferDetector for zone transfer detection
+ * @see TransferCategoryResolver for event-to-category resolution
  * @see TransferAnnotations for transfer-stage annotation generation
  * @see CombatAnnotations for combat-stage annotations
  * @see MechanicAnnotations for mechanic and effect annotations
- * @see GameEvent for the Forge→protocol event translation layer
- * @see TransferCategory for the category label enum
  */
 @Suppress("LargeClass")
 object AnnotationBuilder {
-
-    /**
-     * Resolve the annotation category for a zone transfer using captured events.
-     *
-     * Looks up the forge card ID in the event list and returns the category
-     * based on the **most specific** event (LandPlayed > ZoneChanged, etc.).
-     * Returns null if no matching event was found — caller should fall back
-     * to [ZoneTransferDetector.inferCategory].
-     *
-     * Priority: specific mechanic events > CardSacrificed override > zone-pair inference.
-     */
-    @Suppress("CyclomaticComplexMethod") // flat dispatch table, not actual complexity
-    fun categoryFromEvents(forgeCardId: ForgeCardId, events: List<GameEvent>): TransferCategory? {
-        var generic: GameEvent.ZoneChanged? = null
-        var sacrificed = false
-        var zoneCategory: TransferCategory? = null
-
-        for (ev in events) {
-            when (ev) {
-                // Highest priority — mechanic-specific events (immediate return).
-                // TODO: scope SpellCast by dstZone==Stack to avoid tagging Madness's
-                // Hand→Exile discard-replacement transfer as CastSpell. Blocked on
-                // a fallback for Exile→Stack alt-cost correlation when the
-                // SpellCast event lands in a separate GSM cycle from the zone
-                // transfer (Forge PlayEffect-driven casts). See
-                // docs/protocol/mechanics/Madness.md § Wiring assessment.
-                is GameEvent.LandPlayed -> if (ev.cardId == forgeCardId) return TransferCategory.PlayLand
-                is GameEvent.SpellCast -> if (ev.cardId == forgeCardId) return TransferCategory.CastSpell
-                is GameEvent.SpellResolved -> if (ev.cardId == forgeCardId) {
-                    // Fizzled spells (countered) go Stack→GY — not a successful resolve
-                    if (ev.hasFizzled) {
-                        zoneCategory = TransferCategory.Countered
-                    } else {
-                        return TransferCategory.Resolve
-                    }
-                }
-                // Legend rule SBA — highest zone-specific priority (immediate return)
-                is GameEvent.LegendRuleDeath -> if (ev.cardId == forgeCardId) return TransferCategory.SbaLegendRule
-                // Sacrifice flag — overrides Destroy when both fire for same card
-                is GameEvent.CardSacrificed -> if (ev.cardId == forgeCardId) sacrificed = true
-                // Zone-specific events (emitted by enriched ZoneChanged handler)
-                is GameEvent.CardDestroyed -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Destroy
-                is GameEvent.CardBounced -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Bounce
-                is GameEvent.CardExiled -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Exile
-                is GameEvent.CardDiscarded -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Discard
-                is GameEvent.CardMilled -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Mill
-                is GameEvent.CardSurveiled -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Surveil
-                is GameEvent.CardSearchedToHand -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Put
-                is GameEvent.SpellCountered -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Countered
-                // Generic zone change — fallback, infer category from zone pair
-                is GameEvent.ZoneChanged -> if (ev.cardId == forgeCardId) generic = ev
-                // Other events (tapped, damage, life, counters, etc.) don't affect transfer category
-                else -> {}
-            }
-        }
-
-        // Zone-specific events take priority over generic ZoneChanged
-        if (zoneCategory != null) {
-            // CardSacrificed overrides CardDestroyed (BF→GY) when both fire
-            return if (sacrificed && zoneCategory == TransferCategory.Destroy) {
-                TransferCategory.Sacrifice
-            } else {
-                zoneCategory
-            }
-        }
-
-        // Fallback: generic ZoneChanged → zone-pair heuristic
-        return when {
-            generic != null && sacrificed -> TransferCategory.Sacrifice
-            generic != null -> zoneChangedCategory(generic)
-            else -> null
-        }
-    }
-
-    /**
-     * Extract the source Forge card ID for the ability that caused a zone transfer.
-     *
-     * Used to resolve the affectorId on annotations. Currently only CardSurveiled
-     * carries source info; extend for other mechanics as needed.
-     *
-     * @return Forge card ID of the causing ability's host card, or null if unknown.
-     */
-    fun affectorSourceFromEvents(forgeCardId: ForgeCardId, events: List<GameEvent>): ForgeCardId? {
-        for (ev in events) {
-            when {
-                ev is GameEvent.CardMilled && ev.cardId == forgeCardId -> return ev.sourceCardId
-                ev is GameEvent.CardSurveiled && ev.cardId == forgeCardId -> return ev.sourceCardId
-                ev is GameEvent.CardDestroyed && ev.cardId == forgeCardId -> return ev.sourceCardId
-            }
-        }
-        return null
-    }
-
-    /**
-     * Map a generic ZoneChanged event to an annotation category using zone-pair heuristics.
-     *
-     * This covers Group A categories that lack dedicated Forge events:
-     * Destroy (BF→GY), Bounce (BF→Hand), Draw (Lib→Hand), Discard (Hand→GY),
-     * Mill (Lib→GY), Countered (Stack→GY), and Exile (any→Exile).
-     */
-    private fun zoneChangedCategory(ev: GameEvent.ZoneChanged): TransferCategory = when {
-        ev.from == Zone.Hand -> when (ev.to) {
-            Zone.Battlefield -> TransferCategory.PlayLand
-            Zone.Stack -> TransferCategory.CastSpell
-            Zone.Graveyard -> TransferCategory.Discard
-            Zone.Exile -> TransferCategory.Exile
-            else -> TransferCategory.ZoneTransfer
-        }
-        ev.from == Zone.Stack -> when (ev.to) {
-            Zone.Battlefield -> TransferCategory.Resolve
-            Zone.Graveyard -> TransferCategory.Countered
-            Zone.Exile -> TransferCategory.Exile
-            else -> TransferCategory.ZoneTransfer
-        }
-        ev.from == Zone.Battlefield -> when (ev.to) {
-            Zone.Graveyard -> TransferCategory.Destroy
-            Zone.Exile -> TransferCategory.Exile
-            Zone.Hand -> TransferCategory.Bounce
-            Zone.Library -> TransferCategory.Bounce
-            else -> TransferCategory.ZoneTransfer
-        }
-        ev.from == Zone.Library -> when (ev.to) {
-            Zone.Hand -> TransferCategory.Draw
-            Zone.Battlefield -> TransferCategory.Search
-            Zone.Graveyard -> TransferCategory.Mill
-            Zone.Exile -> TransferCategory.Exile
-            else -> TransferCategory.ZoneTransfer
-        }
-        ev.from == Zone.Graveyard -> when (ev.to) {
-            Zone.Hand, Zone.Battlefield -> TransferCategory.Return
-            Zone.Exile -> TransferCategory.Exile
-            else -> TransferCategory.ZoneTransfer
-        }
-        ev.from == Zone.Exile -> when (ev.to) {
-            Zone.Hand, Zone.Battlefield -> TransferCategory.Return
-            // Exile → Graveyard. Primary case: declined Madness — the madness
-            // ability resolves without the player electing to cast, so the card
-            // exits exile to its owner's graveyard. Tag as `Put`. Generic
-            // enough to also cover cleanup of an exiled card moving to graveyard.
-            Zone.Graveyard -> TransferCategory.Put
-            else -> TransferCategory.ZoneTransfer
-        }
-        ev.to == Zone.Exile -> TransferCategory.Exile
-        else -> TransferCategory.ZoneTransfer
-    }
 
     fun zoneTransfer(
         instanceId: Int,
@@ -259,7 +109,7 @@ object AnnotationBuilder {
     /**
      * Ties a game state change back to a player interaction.
      * [seatId] = acting player's seat (affectorId).
-     * [actionType] = client ActionType ordinal (1=Cast, 3=Play, 4=ActivateMana).
+     * [actionType] = client [ActionType] enum (Cast, Play_add3, ActivateMana, CastAdventure, …).
      * [abilityGrpId] = ability group ID (0 for land play).
      * [alternativeGrpId] = alt-cost ability grpId (Madness, Flashback, Warp, Cycling, etc.).
      *   Pass 0 (default) when the spell was cast for its regular cost. When non-zero, the
@@ -268,7 +118,7 @@ object AnnotationBuilder {
     fun userActionTaken(
         instanceId: Int,
         seatId: Int,
-        actionType: Int = 0,
+        actionType: ActionType = ActionType.None_add3,
         abilityGrpId: Int = 0,
         alternativeGrpId: Int = 0,
     ): AnnotationInfo =
@@ -276,7 +126,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.UserActionTaken)
             .setAffectorId(seatId)
             .addAffectedIds(instanceId)
-            .addDetails(int32Detail(DetailKeys.ACTION_TYPE, actionType))
+            .addDetails(int32Detail(DetailKeys.ACTION_TYPE, actionType.number))
             .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId))
             .apply {
                 if (alternativeGrpId != 0) {
@@ -289,25 +139,24 @@ object AnnotationBuilder {
      * CastingTimeOption — persistent annotation marking how a spell on the stack was cast.
      *
      * Most common shape (and the one used by the alt-cost mechanic family):
-     * **type=13 CastThroughAbility** — spell cast via an alternate cost ability
+     * **CastThroughAbility** — spell cast via an alternate cost ability
      * (Madness, Flashback, Warp, Cycling, Impending). [alternateCostGrpId] and
-     * [castAbilityGrpId] both carry the alt-cost ability's grpId for type=13.
+     * [castAbilityGrpId] both carry the alt-cost ability's grpId.
      *
      * Persistent while the spell is on the stack; deleted via
      * `diffDeletedPersistentAnnotationIds` when the spell resolves or leaves the stack.
      *
-     * Other type values exist (3=Kicker, 5=AdditionalCost, 2=ChooseX) but are
-     * not exercised by alt-cost mechanics.
+     * Other [CastingTimeOptionType] values (Kicker, AdditionalCost, ChooseX_a7b4, …) exist but
+     * are not exercised by alt-cost mechanics.
      *
      * [stackInstanceId] = the spell instance currently on the stack (affector AND affected,
      *   since the annotation is self-attached).
-     * [type] = CastingTimeOptionType ordinal — pass 13 for alt-cost.
      * [alternateCostGrpId] = the alt-cost ability grpId.
-     * [castAbilityGrpId] = same as [alternateCostGrpId] for type=13.
+     * [castAbilityGrpId] = same as [alternateCostGrpId] for CastThroughAbility.
      */
     fun castingTimeOption(
         stackInstanceId: Int,
-        type: Int,
+        type: CastingTimeOptionType,
         alternateCostGrpId: Int,
         castAbilityGrpId: Int = alternateCostGrpId,
     ): AnnotationInfo =
@@ -315,7 +164,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.CastingTimeOption)
             .setAffectorId(stackInstanceId)
             .addAffectedIds(stackInstanceId)
-            .addDetails(int32Detail(DetailKeys.TYPE, type))
+            .addDetails(int32Detail(DetailKeys.TYPE, type.number))
             .addDetails(int32Detail(DetailKeys.ALTERNATE_COST_GRP_ID, alternateCostGrpId))
             .addDetails(int32Detail(DetailKeys.CAST_ABILITY_GRP_ID, castAbilityGrpId))
             .build()
@@ -415,8 +264,7 @@ object AnnotationBuilder {
             .build()
 
     /** Card's power changed. State parser — P/T values from gameObject fields, not annotation.
-     *  Optional details (context needed): effect_id, counter_type, count, sourceAbilityGRPID
-     *  (seen in session 09-33-05, grp:93848 with aura/counter effects). */
+     *  Optional details (context needed): effect_id, counter_type, count, sourceAbilityGRPID. */
     fun modifiedPower(instanceId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ModifiedPower)
@@ -434,13 +282,13 @@ object AnnotationBuilder {
     /**
      * Player lost the game. Arena annotation type 2 (LossOfGame_af5a).
      * [affectedPlayerSeatId] = seat of the losing player.
-     * [reason] = 0 (LifeTotal), 3 (Concede).
+     * [reason] = [AnnotationLossReason] (LifeTotal, Concede).
      */
-    fun lossOfGame(affectedPlayerSeatId: Int, reason: Int): AnnotationInfo =
+    fun lossOfGame(affectedPlayerSeatId: Int, reason: AnnotationLossReason): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.LossOfGame_af5a)
             .addAffectedIds(affectedPlayerSeatId)
-            .addDetails(int32Detail(DetailKeys.REASON, reason))
+            .addDetails(int32Detail(DetailKeys.REASON, reason.wireValue))
             .build()
 
     /** Generic combat result marker. Client dispatches synthetic GameRulesEvent based on type. */
@@ -565,8 +413,7 @@ object AnnotationBuilder {
 
     /** Counter state: authoritative counter count on a permanent. Arena type 14 (Counter_803b).
      *  Three-parser pattern: type 14 (this, state) + 16 (CounterAdded, event) + 17 (CounterRemoved, event).
-     *  [counterType] = numeric counter type (1 = +1/+1).
-     *  Real card: grp:93848 with +1/+1 counter (session 09-33-05). */
+     *  [counterType] = numeric counter type (1 = +1/+1). */
     fun counter(instanceId: Int, counterType: Int, count: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.Counter_803b)
@@ -578,7 +425,7 @@ object AnnotationBuilder {
     /**
      * Persistent annotation for ability word condition tracking.
      *
-     * Wire shape from game sessions:
+     * Wire shape:
      * - types: [AbilityWordActive]
      * - affectorId: creature instanceId (or seat=1 for Descended)
      * - affectedIds: [creature instanceId]
@@ -609,7 +456,6 @@ object AnnotationBuilder {
      * Types: [AddAbility_af5a, LayeredEffect]. One pAnn covers all affected creatures.
      *
      * Wire shape: flat affectedIds list, one UniqueAbilityId per creature, shared grpId.
-     * Confirmed from Overrun sessions 2026-03-29_16-55-19 and 2026-03-29_17-04-26.
      */
     fun addAbilityMulti(
         affectedIds: List<Int>,
@@ -660,17 +506,16 @@ object AnnotationBuilder {
 
     /**
      * Persistent annotation marking a card as eligible for an alternate cast
-     * (adventure from exile, etc.). Wire shape from 2026-03-25 session.
+     * (adventure from exile, etc.).
      *
-     * grpId=196 appears universal for adventure Qualification — observed on
-     * Ratcatcher Trainee (86845). Likely a fixed ability ID, not per-card.
-     * Verify against a second adventure card session if issues arise.
+     * grpId=196 appears universal for adventure Qualification — likely a
+     * fixed ability ID, not per-card.
      */
     fun qualification(
         instanceId: Int,
         qualificationType: Int = 47,
         qualificationSubtype: Int = 0,
-        grpId: Int = 196,
+        grpId: Int = AnnotationConstants.ADVENTURE_QUALIFICATION_GRP_ID,
         sourceParent: Int = 0,
     ): AnnotationInfo = AnnotationInfo.newBuilder()
         .addType(AnnotationType.Qualification)
@@ -681,31 +526,9 @@ object AnnotationBuilder {
         .addDetails(uint32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType))
         .build()
 
-    /** Map Forge counter type name to proto CounterType numeric value.
-     *  Forge's CounterEnumType.getName() returns display names ("+1/+1", "LOYAL")
-     *  which differ from both the Java enum constant ("P1P1", "LOYALTY") and the
-     *  proto enum name. We index both proto names and known Forge display names. */
-    private val forgeNameToProtoNumber: Map<String, Int> by lazy {
-        val map = mutableMapOf<String, Int>()
-        for (ct in CounterType.entries) {
-            if (ct == CounterType.UNRECOGNIZED) continue
-            val base = ct.name.removeSuffix("_a40e").uppercase()
-            map[base] = ct.number
-        }
-        // Forge display names that differ from proto enum names
-        map["+1/+1"] = CounterType.P1P1.number
-        map["-1/-1"] = CounterType.M1M1.number
-        map["LOYAL"] = CounterType.Loyalty_a40e.number
-        map
-    }
-
-    fun counterTypeId(forgeName: String): Int =
-        forgeNameToProtoNumber[forgeName.uppercase()] ?: 0
-
     // -- Tier 1 state annotations (abilities, effects, designations) --
 
-    /** Granted ability state. Arena type 9 (AddAbility_af5a).
-     *  Real card: grp:92081 via effect 7005 (session 14-15-29). */
+    /** Granted ability state. Arena type 9 (AddAbility_af5a). */
     fun addAbility(
         instanceId: Int,
         grpId: Int,
@@ -722,8 +545,7 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID, originalAbilityObjectZcid))
             .build()
 
-    /** Ability removed by effect. Arena type 23 (RemoveAbility).
-     *  Real card: effect cleanup (session 2026-03-01, grp:92196). */
+    /** Ability removed by effect. Arena type 23 (RemoveAbility). */
     fun removeAbility(instanceId: Int, effectId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.RemoveAbility)
@@ -731,8 +553,7 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId))
             .build()
 
-    /** Per-ability use tracking. Arena type 82 (AbilityExhausted).
-     *  Real card: grp:95039 activated ability exhausted (session 09-33-05). */
+    /** Per-ability use tracking. Arena type 82 (AbilityExhausted). */
     fun abilityExhausted(
         instanceId: Int,
         abilityGrpId: Int,
@@ -748,8 +569,7 @@ object AnnotationBuilder {
             .build()
 
     /** Designation gained (Monarch, City's Blessing, Initiative). Arena type 46 (GainDesignation).
-     *  Event parser — emits DesignationCreatedEvent.
-     *  Real card: grp:92196, DesignationType=19 (session 2026-03-01). */
+     *  Event parser — emits DesignationCreatedEvent. */
     fun gainDesignation(seatId: Int, designationType: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.GainDesignation)
@@ -759,8 +579,7 @@ object AnnotationBuilder {
 
     /** Designation state (persistent). Arena type 45 (Designation).
      *  Stub — always-present key only. Full version needs PromptMessage, CostIncrease,
-     *  grpid, ActivePlayerSpellCount, value, ColorIdentity (context needed).
-     *  Real card: grp:92196 (session 2026-03-01). */
+     *  grpid, ActivePlayerSpellCount, value, ColorIdentity (context needed). */
     fun designation(seatId: Int, designationType: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.Designation)
@@ -816,8 +635,7 @@ object AnnotationBuilder {
     // -- Tier 2 detail-carrying annotations --
 
     /** Land color production for card frame rendering. Arena type 110 (ColorProduction).
-     *  [colors] = Arena ManaColor ordinals (W=1, U=2, B=3, R=4, G=5).
-     *  Real card: grp:96188, colors=3 (Swamp, session 09-33-05). */
+     *  [colors] = Arena ManaColor ordinals (W=1, U=2, B=3, R=4, G=5). */
     fun colorProduction(instanceId: Int, colors: List<Int>): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ColorProduction)
@@ -826,8 +644,7 @@ object AnnotationBuilder {
             .addDetails(int32ListDetail(DetailKeys.COLORS, colors))
             .build()
 
-    /** Which object triggered an ability + source zone. Arena type 32 (TriggeringObject).
-     *  Real card: grp:95039, zone=27 (session 09-33-05). */
+    /** Which object triggered an ability + source zone. Arena type 32 (TriggeringObject). */
     fun triggeringObject(instanceId: Int, sourceZone: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.TriggeringObject)
@@ -835,8 +652,7 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.SOURCE_ZONE, sourceZone))
             .build()
 
-    /** Target specification for spells/abilities. Arena type 26 (TargetSpec).
-     *  Real card: grp:75479, promptId=1330 (session 11-50-40). */
+    /** Target specification for spells/abilities. Arena type 26 (TargetSpec). */
     fun targetSpec(
         instanceId: Int,
         affectorId: Int,
@@ -856,7 +672,6 @@ object AnnotationBuilder {
             .build()
 
     /** P/T modification event (buff animation). Arena type 71 (PowerToughnessModCreated).
-     *  Real card: grp:91865, +1/+1 (session 09-33-05).
      *  [affectorId] = source of the P/T change (ability instance or card). */
     fun powerToughnessModCreated(instanceId: Int, power: Int, toughness: Int, affectorId: Int = 0): AnnotationInfo =
         AnnotationInfo.newBuilder()
@@ -879,8 +694,7 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.TEMPORARY_ZONE_TRANSFER, temporaryZoneTransfer))
             .build()
 
-    /** Predicted direct damage preview text. Arena type 66 (PredictedDirectDamage).
-     *  Real card: grp:58445, value=2 (session 2026-03-01). */
+    /** Predicted direct damage preview text. Arena type 66 (PredictedDirectDamage). */
     fun predictedDirectDamage(instanceId: Int, value: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.PredictedDirectDamage)
@@ -985,7 +799,7 @@ object AnnotationBuilder {
      */
     fun temporaryPermanent(
         tokenInstanceId: Int,
-        abilityGrpId: Int = 192424,
+        abilityGrpId: Int = AnnotationConstants.EOT_SACRIFICE_GRP_ID,
     ): AnnotationInfo = AnnotationInfo.newBuilder()
         .addType(AnnotationType.TemporaryPermanent)
         .setAffectorId(tokenInstanceId)
