@@ -125,6 +125,16 @@ dev: check-java
 
 # --- Bootstrap ---
 
+# install repo-tracked git hooks for this clone
+[group('setup')]
+hooks-install:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{project_dir}}"
+    git config core.hooksPath .githooks
+    chmod +x .githooks/pre-push
+    echo "Git hooks installed."
+
 # one-command setup: submodules → forge install → build → seed DB
 [group('setup')]
 bootstrap:
@@ -200,6 +210,9 @@ bootstrap:
     mkdir -p data
     echo "==> Seeding database..."
     just seed-db
+
+    echo "==> Installing git hooks..."
+    just hooks-install
 
     echo ""
     echo "Bootstrap complete. You can now:"
