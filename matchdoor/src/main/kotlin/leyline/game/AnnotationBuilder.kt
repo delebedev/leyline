@@ -537,7 +537,7 @@ object AnnotationBuilder {
         instanceId: InstanceId,
         qualificationType: QualificationType = QualificationType.Adventure,
         qualificationSubtype: Int = 0,
-        grpId: GrpId = GrpId(AnnotationConstants.ADVENTURE_QUALIFICATION_GRP_ID),
+        grpId: GrpId = AnnotationConstants.ADVENTURE_QUALIFICATION_GRP_ID,
         sourceParent: InstanceId = InstanceId(0),
     ): AnnotationInfo = AnnotationInfo.newBuilder()
         .addType(AnnotationType.Qualification)
@@ -831,7 +831,7 @@ object AnnotationBuilder {
      */
     fun temporaryPermanent(
         tokenInstanceId: InstanceId,
-        abilityGrpId: GrpId = GrpId(AnnotationConstants.EOT_SACRIFICE_GRP_ID),
+        abilityGrpId: GrpId = AnnotationConstants.EOT_SACRIFICE_GRP_ID,
     ): AnnotationInfo = AnnotationInfo.newBuilder()
         .addType(AnnotationType.TemporaryPermanent)
         .setAffectorId(tokenInstanceId.value)

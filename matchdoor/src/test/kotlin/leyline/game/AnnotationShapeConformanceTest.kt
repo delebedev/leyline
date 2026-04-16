@@ -13,9 +13,8 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
  * Two concerns:
  * 1. **Per-builder shape tests** — assert each builder produces the exact
  *    set of detail keys the client expects.
- * 2. **Reference conformance** — cross-check all builders against
- *    always-present keys from reference sessions
- *    (`just proto-annotation-variance`).
+ * 2. **Reference conformance** — cross-check all builders against the
+ *    baseline set of always-present detail keys per annotation type.
  *
  * See also: `AnnotationBuilderTest` for per-field value/type assertions.
  */
@@ -31,20 +30,20 @@ class AnnotationShapeConformanceTest :
         // Per-builder detail-key shape tests
         //
         // Verify each builder method produces the exact set of detail keys
-        // the client sends (from reference session data).
+        // the client expects.
         // =======================================================================
 
-        test("DamageDealt shape: {damage, type, markDamage} — matches reference combat-damage.bin gsId=126") {
+        test("DamageDealt shape: {damage, type, markDamage}") {
             val ann = AnnotationBuilder.damageDealt(sourceInstanceId = 1.iid, targetId = 2.wid, amount = 3)
             detailKeys(ann) shouldBe setOf("damage", "type", "markDamage")
         }
 
-        test("ManaPaid shape: {id, color} — matches reference stack-resolve.bin gsId=66") {
+        test("ManaPaid shape: {id, color}") {
             val ann = AnnotationBuilder.manaPaid(spellInstanceId = 1.iid, landInstanceId = 2.iid, manaId = 1, color = 4)
             detailKeys(ann) shouldBe setOf("id", "color")
         }
 
-        test("AbilityInstanceCreated shape: {source_zone} — matches reference stack-resolve.bin gsId=66") {
+        test("AbilityInstanceCreated shape: {source_zone}") {
             val ann = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 1.iid, sourceZoneId = 31)
             detailKeys(ann) shouldBe setOf("source_zone")
         }
@@ -202,53 +201,46 @@ class AnnotationShapeConformanceTest :
         // =======================================================================
         // Reference conformance
         //
-        // Always-present detail keys from reference sessions, extracted by
-        // `just proto-annotation-variance` across 14 sessions / 1898
-        // annotation instances. This test fails on ANY change to our builder
-        // output vs the reference set, forcing triage.
+        // Cross-check builders against the baseline detail-key set per type.
+        // The baseline is what the client always expects to see; any drift
+        // between our builder output and this reference fails the test and
+        // forces triage.
         //
         // Workflow after fixing a builder:
         //   1. Fix the builder method in AnnotationBuilder.kt
         //   2. Run `just test-gate` — this test fails
         //   3. Remove the type from expectedMismatch (or update referenceAlwaysKeys)
-        //   4. Run `just proto-annotation-variance --summary` to confirm OK
         // =======================================================================
 
-        /**
-         * Reference set: always-present detail keys per annotation type,
-         * observed in 100% of instances across all saved reference sessions.
-         *
-         * Source: `just proto-annotation-variance --summary` (2026-02-28,
-         * 14 sessions, 1898 instances, 39 types).
-         */
+        /** Baseline: always-present detail keys per annotation type. */
         val referenceAlwaysKeys: Map<String, Set<String>> = mapOf(
-            // --- High-frequency types (>50 instances) ---
-            "PhaseOrStepModified" to setOf("phase", "step"), // 449 instances, 3 sessions
-            "ZoneTransfer" to setOf("category", "zone_dest", "zone_src"), // 181 instances
-            "EnteredZoneThisTurn" to emptySet(), // 177 instances — persistent, no details
-            "UserActionTaken" to setOf("abilityGrpId", "actionType"), // 153 instances
-            "ObjectIdChanged" to setOf("new_id", "orig_id"), // 152 instances
-            "TappedUntappedPermanent" to setOf("tapped"), // 148 instances
-            "AbilityInstanceCreated" to setOf("source_zone"), // 102 instances
-            "AbilityInstanceDeleted" to emptySet(), // 97 instances
-            "ManaPaid" to setOf("color", "id"), // 77 instances
-            "ResolutionComplete" to setOf("grpid"), // 54 instances
-            "ResolutionStart" to setOf("grpid"), // 53 instances
+            // --- Most-common types ---
+            "PhaseOrStepModified" to setOf("phase", "step"),
+            "ZoneTransfer" to setOf("category", "zone_dest", "zone_src"),
+            "EnteredZoneThisTurn" to emptySet(), // persistent, no details
+            "UserActionTaken" to setOf("abilityGrpId", "actionType"),
+            "ObjectIdChanged" to setOf("new_id", "orig_id"),
+            "TappedUntappedPermanent" to setOf("tapped"),
+            "AbilityInstanceCreated" to setOf("source_zone"),
+            "AbilityInstanceDeleted" to emptySet(),
+            "ManaPaid" to setOf("color", "id"),
+            "ResolutionComplete" to setOf("grpid"),
+            "ResolutionStart" to setOf("grpid"),
 
-            // --- Medium-frequency types (5-50 instances) ---
-            "NewTurnStarted" to emptySet(), // 44 instances
-            "DamageDealt" to setOf("damage", "markDamage", "type"), // 12 instances
-            "ModifiedToughness" to emptySet(), // 10 instances — all detail keys are optional
-            "ModifiedPower" to emptySet(), // 10 instances — all detail keys are optional
-            "ModifiedLife" to setOf("life"), // 8 instances
-            "SyntheticEvent" to setOf("type"), // 7 instances
+            // --- Medium frequency ---
+            "NewTurnStarted" to emptySet(),
+            "DamageDealt" to setOf("damage", "markDamage", "type"),
+            "ModifiedToughness" to emptySet(), // all detail keys are optional
+            "ModifiedPower" to emptySet(), // all detail keys are optional
+            "ModifiedLife" to setOf("life"),
+            "SyntheticEvent" to setOf("type"),
 
-            // --- Low-frequency types (1-5 instances) ---
-            "TokenCreated" to emptySet(), // 4 instances
-            "AttachmentCreated" to emptySet(), // 4 instances
-            "Attachment" to emptySet(), // 4 instances
-            "CounterAdded" to setOf("counter_type", "transaction_amount"), // 3 instances
-            "TokenDeleted" to emptySet(), // 1 instance
+            // --- Rare types ---
+            "TokenCreated" to emptySet(),
+            "AttachmentCreated" to emptySet(),
+            "Attachment" to emptySet(),
+            "CounterAdded" to setOf("counter_type", "transaction_amount"),
+            "TokenDeleted" to emptySet(),
             "Counter" to setOf("count", "counter_type"),
             "AddAbility" to setOf("grpid", "effect_id", "UniqueAbilityId", "originalAbilityObjectZcid"),
             "RemoveAbility" to setOf("effect_id"),
@@ -363,8 +355,6 @@ class AnnotationShapeConformanceTest :
                     appendLine("Golden reference conformance failures:")
                     appendLine()
                     for (f in failures) appendLine("  - $f")
-                    appendLine()
-                    appendLine("Run `just proto-annotation-variance --summary` for current state.")
                 }
                 fail(msg)
             }

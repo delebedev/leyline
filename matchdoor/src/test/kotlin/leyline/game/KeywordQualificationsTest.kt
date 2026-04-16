@@ -6,6 +6,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.GrpId
 
 class KeywordQualificationsTest :
     FunSpec({
@@ -15,7 +16,7 @@ class KeywordQualificationsTest :
         test("Menace has known QualInfo") {
             val info = KeywordQualifications.forKeyword("Menace")
             info.shouldNotBeNull()
-            info.grpId shouldBe 142
+            info.grpId shouldBe GrpId(142)
             info.qualificationType shouldBe QualificationType.CombatKeyword
             info.qualificationSubtype shouldBe 0
         }

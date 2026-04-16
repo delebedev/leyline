@@ -1,5 +1,7 @@
 package leyline.game
 
+import leyline.bridge.GrpId
+
 /**
  * Mapping table: keyword name → client Qualification annotation parameters.
  *
@@ -10,13 +12,13 @@ package leyline.game
 object KeywordQualifications {
 
     data class QualInfo(
-        val grpId: Int,
+        val grpId: GrpId,
         val qualificationType: QualificationType,
         val qualificationSubtype: Int = 0,
     )
 
     private val table: Map<String, QualInfo> = mapOf(
-        "Menace" to QualInfo(grpId = 142, qualificationType = QualificationType.CombatKeyword),
+        "Menace" to QualInfo(grpId = GrpId(142), qualificationType = QualificationType.CombatKeyword),
         // Add entries as more keywords are observed in protocol output:
         // "Flying" to QualInfo(grpId = ?, qualificationType = ?),
         // "Trample" to QualInfo(grpId = ?, qualificationType = ?),

@@ -188,7 +188,7 @@ object MechanicAnnotations {
                                 AnnotationBuilder.qualification(
                                     affectorId = instanceId,
                                     instanceId = instanceId,
-                                    grpId = GrpId(menace.grpId),
+                                    grpId = menace.grpId,
                                     qualificationType = menace.qualificationType,
                                     qualificationSubtype = menace.qualificationSubtype,
                                     sourceParent = instanceId,
