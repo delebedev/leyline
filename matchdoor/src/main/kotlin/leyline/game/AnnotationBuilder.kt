@@ -47,6 +47,12 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 @Suppress("LargeClass")
 object AnnotationBuilder {
 
+    /** DamageDealt `type` wire value for combat damage. Non-combat (0) isn't exercised yet. */
+    private const val COMBAT_DAMAGE_TYPE = 1
+
+    /** DamageDealt `markDamage` flag — always 1; the client requires the detail key present. */
+    private const val MARK_DAMAGE_FLAG = 1
+
     fun zoneTransfer(
         instanceId: Int,
         srcZoneId: Int,
@@ -241,17 +247,18 @@ object AnnotationBuilder {
 
     /**
      * Combat damage dealt by a creature. Client uses this for damage flash animation.
-     * [type] = damage type: 1=combat, 0=non-combat (client expects this field).
-     * [markDamage] = always 1 (flag, not amount).
+     * Emits `type=1` (combat) and `markDamage=1` (flag, not amount); the client
+     * requires both detail keys to be present. Non-combat damage isn't exercised
+     * yet; add a parameter if/when a non-combat call site appears.
      */
-    fun damageDealt(sourceInstanceId: Int, targetId: Int, amount: Int, type: Int = 1, markDamage: Int = 1): AnnotationInfo =
+    fun damageDealt(sourceInstanceId: Int, targetId: Int, amount: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.DamageDealt_af5a)
             .setAffectorId(sourceInstanceId)
             .addAffectedIds(targetId)
             .addDetails(uint32Detail(DetailKeys.DAMAGE, amount))
-            .addDetails(uint32Detail(DetailKeys.TYPE, type))
-            .addDetails(uint32Detail(DetailKeys.MARK_DAMAGE, markDamage))
+            .addDetails(uint32Detail(DetailKeys.TYPE, COMBAT_DAMAGE_TYPE))
+            .addDetails(uint32Detail(DetailKeys.MARK_DAMAGE, MARK_DAMAGE_FLAG))
             .build()
 
     /** Player life total changed. Client uses this for life counter animation. */
@@ -513,7 +520,7 @@ object AnnotationBuilder {
      */
     fun qualification(
         instanceId: Int,
-        qualificationType: Int = 47,
+        qualificationType: QualificationType = QualificationType.Adventure,
         qualificationSubtype: Int = 0,
         grpId: Int = AnnotationConstants.ADVENTURE_QUALIFICATION_GRP_ID,
         sourceParent: Int = 0,
@@ -523,7 +530,7 @@ object AnnotationBuilder {
         .addDetails(uint32Detail(DetailKeys.SOURCE_PARENT, sourceParent))
         .addDetails(uint32Detail(DetailKeys.GRPID, grpId))
         .addDetails(uint32Detail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
-        .addDetails(uint32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType))
+        .addDetails(uint32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType.wireValue))
         .build()
 
     // -- Tier 1 state annotations (abilities, effects, designations) --
@@ -816,13 +823,13 @@ object AnnotationBuilder {
 
     /** Keyword qualification badge on a permanent. Persistent. client type 42.
      *  [grpId] = keyword grpId (e.g. 142 for Menace).
-     *  [qualificationType] = client qualification subtype (e.g. 40 for combat keyword).
+     *  [qualificationType] = [QualificationType] enum (e.g. CombatKeyword for Menace).
      *  [sourceParent] = instanceId of the permanent granting the keyword (usually self). */
     fun qualification(
         affectorId: Int,
         instanceId: Int,
         grpId: Int,
-        qualificationType: Int,
+        qualificationType: QualificationType,
         qualificationSubtype: Int = 0,
         sourceParent: Int,
     ): AnnotationInfo =
@@ -831,7 +838,7 @@ object AnnotationBuilder {
             .setAffectorId(affectorId)
             .addAffectedIds(instanceId)
             .addDetails(uint32Detail(DetailKeys.GRPID, grpId))
-            .addDetails(uint32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType))
+            .addDetails(uint32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType.wireValue))
             .addDetails(uint32Detail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
             .addDetails(uint32Detail(DetailKeys.SOURCE_PARENT, sourceParent))
             .build()

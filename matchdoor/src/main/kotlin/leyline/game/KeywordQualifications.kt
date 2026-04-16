@@ -11,12 +11,12 @@ object KeywordQualifications {
 
     data class QualInfo(
         val grpId: Int,
-        val qualificationType: Int,
+        val qualificationType: QualificationType,
         val qualificationSubtype: Int = 0,
     )
 
     private val table: Map<String, QualInfo> = mapOf(
-        "Menace" to QualInfo(grpId = 142, qualificationType = 40),
+        "Menace" to QualInfo(grpId = 142, qualificationType = QualificationType.CombatKeyword),
         // Add entries as more keywords are observed in protocol output:
         // "Flying" to QualInfo(grpId = ?, qualificationType = ?),
         // "Trample" to QualInfo(grpId = ?, qualificationType = ?),

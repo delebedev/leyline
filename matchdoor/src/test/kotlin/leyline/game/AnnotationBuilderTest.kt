@@ -356,19 +356,6 @@ class AnnotationBuilderTest :
             }
         }
 
-        test("damageDealtNonCombat") {
-            val ann = AnnotationBuilder.damageDealt(
-                sourceInstanceId = 1000,
-                targetId = 500, // creature
-                amount = 2,
-                type = 0,
-                markDamage = 2,
-            )
-            ann.affectorId shouldBe 1000
-            ann.affectedIdsList shouldBe listOf(500)
-            ann.detailUint("type") shouldBe 0
-        }
-
         // --- ModifiedLife ---
 
         test("modifiedLifePositiveDelta") {
@@ -896,7 +883,7 @@ class AnnotationBuilderTest :
                 affectorId = 287,
                 instanceId = 287,
                 grpId = 142,
-                qualificationType = 40,
+                qualificationType = QualificationType.CombatKeyword,
                 qualificationSubtype = 0,
                 sourceParent = 287,
             )
@@ -905,7 +892,7 @@ class AnnotationBuilderTest :
             ann.affectedIdsList shouldContain 287
             assertSoftly {
                 ann.detailUint("grpid") shouldBe 142
-                ann.detailUint("QualificationType") shouldBe 40
+                ann.detailUint("QualificationType") shouldBe QualificationType.CombatKeyword.wireValue
                 ann.detailUint("QualificationSubtype") shouldBe 0
                 ann.detailUint("SourceParent") shouldBe 287
             }
