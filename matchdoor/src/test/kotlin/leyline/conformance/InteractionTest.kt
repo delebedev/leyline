@@ -174,6 +174,12 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
     fun passUntil(maxPasses: Int = 20, stopWhen: () -> Boolean) =
         harness.passUntil(maxPasses) { stopWhen() }
 
+    fun passUntilTurn(targetTurn: Int, maxPasses: Int = 30) =
+        harness.passUntilTurn(targetTurn, maxPasses)
+
+    fun installScriptedAi(script: List<ScriptedAction>) =
+        harness.installScriptedAi(script)
+
     /**
      * Pass priority until the stack is empty. Use after cast + target to resolve.
      * Always passes at least once (the stack may already be empty before the
