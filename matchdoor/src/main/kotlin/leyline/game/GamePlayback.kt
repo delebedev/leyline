@@ -115,6 +115,14 @@ class GamePlayback(
         captureAndPause(COMBAT_DELAY)
     }
 
+    override fun visit(ev: GameEventCombatEnded) {
+        // Local turn needs a post-damage combat snapshot too. Without this,
+        // damage/life/death annotations can sit in the collector queue until the
+        // next later priority stop and get folded into a post-combat action GSM.
+        if (isRemoteActing()) return
+        captureAndPause(0)
+    }
+
     // -- Queue access (called from MatchHandler / Netty thread) --
 
     /** Drain all queued message batches. Returns empty list if nothing queued. */

@@ -28,14 +28,21 @@ class GsIdChainTest :
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("remoteActionDiff produces single GSM with no pendingMessageCount") {
+        test("remoteActionDiff produces content GSM plus echo with chained gsIds and no pendingMessageCount") {
             val (b, game, counter) = base.startWithBoard { _, human, _ ->
                 base.addCard("Plains", human, ZoneType.Hand)
             }
 
             val result = base.bundleBuilder(b).remoteActionDiff(game, counter)
-            result.messages.size shouldBe 1
-            result.messages[0].gameStateMessage.pendingMessageCount shouldBe 0
+            result.messages.size shouldBe 2
+            val content = result.messages[0].gameStateMessage
+            val echo = result.messages[1].gameStateMessage
+            assertSoftly {
+                content.pendingMessageCount shouldBe 0
+                echo.pendingMessageCount shouldBe 0
+                echo.prevGameStateId shouldBe content.gameStateId
+                echo.gameStateId shouldBe content.gameStateId + 1
+            }
         }
 
         test("postAction GSM has pendingMessageCount=1 (AAR follows)") {

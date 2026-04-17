@@ -24,6 +24,7 @@ data class AppliedTransfer(
     val category: TransferCategory,
     val srcZoneId: Int,
     val destZoneId: Int,
+    val forgeCardId: ForgeCardId? = null,
     val grpId: Int,
     val ownerSeatId: Int,
     /** InstanceId of the ability/spell that caused this transfer (for affectorId). */
@@ -233,9 +234,19 @@ object ZoneTransferDetector {
 
                 transfers.add(
                     AppliedTransfer(
-                        origId, newId, category, prevZone, obj.zoneId, obj.grpId,
-                        obj.ownerSeatId, affectorId, colorOrdinals, manaPayments, isAdventureCast,
-                        altCostAbilityGrpId,
+                        origId = origId,
+                        newId = newId,
+                        category = category,
+                        srcZoneId = prevZone,
+                        destZoneId = obj.zoneId,
+                        forgeCardId = forgeCardId,
+                        grpId = obj.grpId,
+                        ownerSeatId = obj.ownerSeatId,
+                        affectorId = affectorId,
+                        colorOrdinals = colorOrdinals,
+                        manaPayments = manaPayments,
+                        isAdventureCast = isAdventureCast,
+                        altCostAbilityGrpId = altCostAbilityGrpId,
                     ),
                 )
                 zoneRecordings.add(newId to obj.zoneId)
@@ -503,6 +514,7 @@ object ZoneTransferDetector {
                     category = TransferCategory.Exile,
                     srcZoneId = ZoneIds.BATTLEFIELD,
                     destZoneId = ZoneIds.EXILE,
+                    forgeCardId = ev.cardId,
                     grpId = currentObj.grpId,
                     ownerSeatId = currentObj.ownerSeatId,
                     affectorId = 0,
@@ -515,6 +527,7 @@ object ZoneTransferDetector {
                     category = TransferCategory.Return,
                     srcZoneId = ZoneIds.EXILE,
                     destZoneId = ZoneIds.BATTLEFIELD,
+                    forgeCardId = ev.cardId,
                     grpId = currentObj.grpId,
                     ownerSeatId = currentObj.ownerSeatId,
                     affectorId = 0,
@@ -623,13 +636,14 @@ object ZoneTransferDetector {
 
             transfers.add(
                 AppliedTransfer(
-                    origId,
-                    newId,
-                    TransferCategory.Sacrifice,
-                    ZoneIds.BATTLEFIELD,
-                    destZone,
-                    resolvedGrpId,
-                    ownerSeat.value,
+                    origId = origId,
+                    newId = newId,
+                    category = TransferCategory.Sacrifice,
+                    srcZoneId = ZoneIds.BATTLEFIELD,
+                    destZoneId = destZone,
+                    forgeCardId = forgeCardId,
+                    grpId = resolvedGrpId,
+                    ownerSeatId = ownerSeat.value,
                     manaPayments = manaPayments,
                 ),
             )

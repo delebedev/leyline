@@ -1,8 +1,10 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.ForgeCardId
@@ -235,6 +237,32 @@ class PurePipelineTest :
             damageAnnotation.affectedIdsList.contains(1020) shouldBe true
         }
 
+        test("combatAnnotations can keep pre-transfer battlefield ids for lethal combat") {
+            val events = listOf(
+                GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3),
+                GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(20), targetCardId = ForgeCardId(10), amount = 2),
+            )
+
+            val result = CombatAnnotations.combatAnnotations(
+                events = events,
+                idResolver = { fid ->
+                    when (fid.value) {
+                        10 -> InstanceId(121)
+                        20 -> InstanceId(125)
+                        else -> InstanceId(fid.value + 1000)
+                    }
+                },
+                previousLifeTotals = emptyMap(),
+                currentLifeTotals = emptyMap(),
+            )
+
+            result.annotations.filter { it.getType(0) == AnnotationType.DamageDealt_af5a }
+                .map { it.affectorId to it.affectedIdsList.single() } shouldBe listOf(
+                121 to 125,
+                125 to 121,
+            )
+        }
+
         // Test 3: creature-to-player damage + life change → ModifiedLife for seat 2
         test("combatAnnotations produces ModifiedLife when life changes") {
             val events = listOf(
@@ -250,6 +278,159 @@ class PurePipelineTest :
 
             val lifeAnnotation = result.annotations.first { it.getType(0) == AnnotationType.ModifiedLife }
             lifeAnnotation.affectedIdsList.contains(2) shouldBe true
+        }
+
+        test("assembleTransferAndCombatAnnotations defers lethal-damage destroy transfer until after DamageDealt") {
+            val transferResult = TransferResult(
+                transfers = listOf(
+                    AppliedTransfer(
+                        origId = 200,
+                        newId = 300,
+                        category = TransferCategory.Destroy,
+                        srcZoneId = ZoneIds.BATTLEFIELD,
+                        destZoneId = ZoneIds.P1_GRAVEYARD,
+                        forgeCardId = ForgeCardId(20),
+                        grpId = 12345,
+                        ownerSeatId = 1,
+                    ),
+                ),
+                patchedObjects = emptyList(),
+                patchedZones = emptyList(),
+                retiredIds = emptyList(),
+                zoneRecordings = emptyList(),
+            )
+            val combatResult = CombatAnnotations.combatAnnotations(
+                events = listOf(GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3)),
+                idResolver = { fid -> InstanceId(fid.value + 1000) },
+                previousLifeTotals = emptyMap(),
+                currentLifeTotals = emptyMap(),
+            )
+
+            val (annotations, _) = StateMapper.assembleTransferAndCombatAnnotations(
+                events = listOf(GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3)),
+                transferResult = transferResult,
+                actingSeat = 1,
+                combatResult = combatResult,
+            )
+
+            val types = annotations.map { it.getType(0) }
+            val damageIdx = types.indexOf(AnnotationType.DamageDealt_af5a)
+            val oicIdx = types.indexOf(AnnotationType.ObjectIdChanged)
+            val ztIdx = types.indexOf(AnnotationType.ZoneTransfer_af5a)
+            assertSoftly {
+                damageIdx shouldBe 0
+                oicIdx shouldBe 2
+                ztIdx shouldBe 3
+            }
+        }
+
+        test("assembleTransferAndCombatAnnotations keeps non-damage destroy transfer before combat block") {
+            val transferResult = TransferResult(
+                transfers = listOf(
+                    AppliedTransfer(
+                        origId = 200,
+                        newId = 300,
+                        category = TransferCategory.Destroy,
+                        srcZoneId = ZoneIds.BATTLEFIELD,
+                        destZoneId = ZoneIds.P1_GRAVEYARD,
+                        forgeCardId = ForgeCardId(20),
+                        grpId = 12345,
+                        ownerSeatId = 1,
+                    ),
+                ),
+                patchedObjects = emptyList(),
+                patchedZones = emptyList(),
+                retiredIds = emptyList(),
+                zoneRecordings = emptyList(),
+            )
+            val combatResult = CombatAnnotations.combatAnnotations(
+                events = listOf(GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(99), amount = 3)),
+                idResolver = { fid -> InstanceId(fid.value + 1000) },
+                previousLifeTotals = emptyMap(),
+                currentLifeTotals = emptyMap(),
+            )
+
+            val (annotations, _) = StateMapper.assembleTransferAndCombatAnnotations(
+                events = listOf(GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(99), amount = 3)),
+                transferResult = transferResult,
+                actingSeat = 1,
+                combatResult = combatResult,
+            )
+
+            val types = annotations.map { it.getType(0) }
+            assertSoftly {
+                types.indexOf(AnnotationType.ObjectIdChanged) shouldBe 0
+                types.indexOf(AnnotationType.ZoneTransfer_af5a) shouldBe 1
+                types.indexOf(AnnotationType.DamageDealt_af5a) shouldBe 2
+            }
+        }
+
+        test("computeAnnotations keeps damage on pre-transfer ids for lethal combat") {
+            val bridge = GameBridge(cardRepository = InMemoryCardRepository())
+            val attackerFid = ForgeCardId(10)
+            val blockerFid = ForgeCardId(20)
+            val oldAttacker = bridge.getOrAllocInstanceId(attackerFid).value
+            val oldBlocker = bridge.getOrAllocInstanceId(blockerFid).value
+            val newAttacker = bridge.reallocInstanceId(attackerFid).new.value
+            val newBlocker = bridge.reallocInstanceId(blockerFid).new.value
+
+            val transferResult = TransferResult(
+                transfers = listOf(
+                    AppliedTransfer(
+                        origId = oldAttacker,
+                        newId = newAttacker,
+                        category = TransferCategory.Destroy,
+                        srcZoneId = ZoneIds.BATTLEFIELD,
+                        destZoneId = ZoneIds.P1_GRAVEYARD,
+                        forgeCardId = attackerFid,
+                        grpId = 111,
+                        ownerSeatId = 1,
+                    ),
+                    AppliedTransfer(
+                        origId = oldBlocker,
+                        newId = newBlocker,
+                        category = TransferCategory.Destroy,
+                        srcZoneId = ZoneIds.BATTLEFIELD,
+                        destZoneId = ZoneIds.P2_GRAVEYARD,
+                        forgeCardId = blockerFid,
+                        grpId = 222,
+                        ownerSeatId = 2,
+                    ),
+                ),
+                patchedObjects = emptyList(),
+                patchedZones = emptyList(),
+                retiredIds = emptyList(),
+                zoneRecordings = emptyList(),
+            )
+            val events = listOf(
+                GameEvent.DamageDealtToCard(sourceCardId = attackerFid, targetCardId = blockerFid, amount = 3),
+                GameEvent.DamageDealtToCard(sourceCardId = blockerFid, targetCardId = attackerFid, amount = 5),
+            )
+
+            val pipeline = StateMapper.computeAnnotations(events, transferResult, actingSeat = 1, bridge = bridge)
+            val ordered = AnnotationOrderEnforcer.enforce(pipeline.annotations)
+
+            ordered.filter { it.getType(0) == AnnotationType.DamageDealt_af5a }
+                .map { it.affectorId to it.affectedIdsList.single() } shouldBe listOf(
+                oldAttacker to oldBlocker,
+                oldBlocker to oldAttacker,
+            )
+
+            val damageIndices = ordered.mapIndexedNotNull { index, ann ->
+                if (ann.getType(0) == AnnotationType.DamageDealt_af5a) index else null
+            }
+            val firstOicIdx = ordered.indexOfFirst { it.getType(0) == AnnotationType.ObjectIdChanged }
+            assertSoftly {
+                damageIndices.first() shouldBe 0
+                damageIndices.last() shouldBe 1
+                firstOicIdx shouldBeGreaterThan damageIndices.last()
+            }
+
+            ordered.filter { it.getType(0) == AnnotationType.ObjectIdChanged }
+                .map { it.detailInt("orig_id") to it.detailInt("new_id") } shouldBe listOf(
+                oldAttacker to newAttacker,
+                oldBlocker to newBlocker,
+            )
         }
 
         // Test 4: non-combat events only → empty result

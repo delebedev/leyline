@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
@@ -28,7 +29,7 @@ class ShapeIntegrationTest :
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("remoteActionDiff produces single SendHiFi GSM (no echo)") {
+        test("remoteActionDiff produces content SendHiFi GSM plus bare SendHiFi echo") {
             val (b, game, counter) = base.startWithBoard { _, human, _ ->
                 base.addCard("Plains", human, ZoneType.Hand)
                 base.addCard("Forest", human, ZoneType.Battlefield)
@@ -36,9 +37,18 @@ class ShapeIntegrationTest :
 
             val messages = base.bundleBuilder(b).remoteActionDiff(game, counter).messages
 
-            messages.size shouldBe 1
-            messages[0].type shouldBe GREMessageType.GameStateMessage_695e
-            messages[0].gameStateMessage.update shouldBe GameStateUpdate.SendHiFi
+            messages.size shouldBe 2
+            val echo = messages[1].gameStateMessage
+            assertSoftly {
+                messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+                messages[1].type shouldBe GREMessageType.GameStateMessage_695e
+                messages[0].gameStateMessage.update shouldBe GameStateUpdate.SendHiFi
+                messages[1].gameStateMessage.update shouldBe GameStateUpdate.SendHiFi
+                echo.annotationsCount shouldBe 0
+                echo.persistentAnnotationsCount shouldBe 0
+                echo.gameObjectsCount shouldBe 0
+                echo.zonesCount shouldBe 0
+            }
         }
 
         test("declareAttackersBundle produces GS + DeclareAttackersReq with promptId=6") {

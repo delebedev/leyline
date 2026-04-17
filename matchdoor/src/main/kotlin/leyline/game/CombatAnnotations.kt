@@ -40,6 +40,7 @@ object CombatAnnotations {
     internal fun combatAnnotations(
         events: List<GameEvent>,
         bridge: GameBridge,
+        transferredIds: Map<ForgeCardId, Int> = emptyMap(),
     ): CombatAnnotationResult {
         val prev = bridge.getDiffBaselineState()
         val previousLifeTotals = prev?.playersList
@@ -49,7 +50,10 @@ object CombatAnnotations {
         }
         return combatAnnotations(
             events = events,
-            idResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
+            idResolver = { fid ->
+                val transferred = transferredIds[fid]
+                if (transferred != null) InstanceId(transferred) else bridge.getOrAllocInstanceId(fid)
+            },
             previousLifeTotals = previousLifeTotals,
             currentLifeTotals = currentLifeTotals,
         )

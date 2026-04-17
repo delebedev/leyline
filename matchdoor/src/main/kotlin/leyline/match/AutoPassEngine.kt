@@ -74,6 +74,7 @@ class AutoPassEngine(
      * Auto-pass through phases where the player has no meaningful actions.
      * Detects combat phases and sends appropriate combat prompts.
      */
+    @Suppress("CyclomaticComplexMethod", "ReturnCount") // linear check-and-return pipeline; splitting obscures flow
     fun autoPassAndAdvance(bridge: GameBridge) {
         repeat(MAX_ITERATIONS) {
             val game = bridge.getGame() ?: return
@@ -91,6 +92,12 @@ class AutoPassEngine(
             val isHumanTurn = human != null && game.phaseHandler.playerTurn == human
             val isAiTurn = human != null && !isHumanTurn
 
+            // Damage assignment prompt (dedicated future, not action bridge).
+            // Must run before combat phase SEND_STATE handling: COMBAT_DAMAGE on the
+            // human turn emits a visual checkpoint, but manual assignment takes
+            // precedence and should surface AssignDamageReq immediately.
+            if (combatHandler.checkPendingDamageAssignment(bridge)) return
+
             // Combat phase handling
             when (combatHandler.checkCombatPhase(bridge, game, phase, isHumanTurn, isAiTurn)) {
                 CombatHandler.Signal.STOP -> return
@@ -102,26 +109,26 @@ class AutoPassEngine(
                     // provides the visual state update.
                     if (isAiTurn) {
                         log.debug("SEND_STATE downgraded: AI turn at {}, skipping action offer", phase)
-                        // fall through to action check / auto-pass
                     } else {
                         // Human turn: only send state if human has meaningful actions.
                         // SEND_STATE bypasses checkHumanActions, so without this guard
                         // the client can get stuck showing "My Turn" with only Pass.
+                        // Still emit a state-only diff when actions are pass-only so
+                        // combat/death animations don't collapse into the next later
+                        // priority-stop packet on the human turn.
                         val bb = ops.bundleBuilder!!
                         val actions = bb.buildActions()
                         if (!BundleBuilder.shouldAutoPass(actions)) {
                             ops.sendRealGameState(bridge)
                             return
                         }
-                        log.debug("SEND_STATE downgraded: only pass actions at {}", phase)
-                        // fall through to action check / auto-pass
+                        log.debug("SEND_STATE: emitting state-only diff at {}", phase)
+                        ops.sendBundle(bb.stateOnlyDiff(game, ops.counter))
+                        return
                     }
                 }
                 CombatHandler.Signal.CONTINUE -> {} // fall through to action check
             }
-
-            // Damage assignment prompt (dedicated future, not action bridge)
-            if (combatHandler.checkPendingDamageAssignment(bridge)) return
 
             // Optional action prompt — "you may" trigger (dedicated future)
             if (optionalActionHandler.checkPendingOptionalAction(bridge)) return
@@ -136,6 +143,7 @@ class AutoPassEngine(
             // Action check — prompt human if meaningful actions exist
             val decision = checkHumanActions(game, isAiTurn)
             if (decision is PriorityDecision.Grant) {
+                if (drainPlayback(bridge)) return@repeat
                 ops.sendRealGameState(bridge)
                 return
             }

@@ -2,6 +2,7 @@ package leyline.unit
 
 import forge.game.GameEndReason
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -259,5 +260,33 @@ class AutoPassEngineTest :
             // Human turn + real actions → sendRealGameState from SEND_STATE path
             ops.sendRealGameStateCount shouldBe 1
             ops.sendGameOverCount shouldBe 0
+        }
+
+        test("autoPassAndAdvance — SEND_STATE with pass-only actions emits state-only bundle") {
+            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+
+            val stubCombat = object : CombatHandler(ops) {
+                override fun checkCombatPhase(
+                    bridge: GameBridge,
+                    game: forge.game.Game,
+                    phase: forge.game.phase.PhaseType?,
+                    isHumanTurn: Boolean,
+                    isAiTurn: Boolean,
+                ): Signal = Signal.SEND_STATE
+            }
+
+            val engine = AutoPassEngine(ops, stubCombat, TargetingHandler(ops), OptionalActionHandler(ops))
+            engine.autoPassAndAdvance(bridge)
+
+            val bundle = ops.sentGRE.single()
+            assertSoftly {
+                ops.sendRealGameStateCount shouldBe 0
+                ops.sendGameOverCount shouldBe 0
+                ops.sentGRE.size shouldBe 1
+                bundle.size shouldBe 1
+                bundle.single().hasGameStateMessage() shouldBe true
+                bundle.single().hasActionsAvailableReq() shouldBe false
+            }
         }
     })
