@@ -32,7 +32,10 @@ import leyline.bridge.SeatId
  * })
  * ```
  */
-open class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
+// `abstract` keeps Kotest's auto-discovery from trying to instantiate the base
+// class directly (no zero-arg constructor — only the `body` lambda variant).
+@Suppress("UnnecessaryAbstractClass")
+abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
 
     private var _harness: MatchFlowHarness? = null
 
