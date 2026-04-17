@@ -37,7 +37,13 @@ class PuzzleCardRegistrar(
      * Checks [clientRepo] first for a real grpId (with art), then falls back to synthetic.
      */
     fun ensureCardRegistered(card: Card): Int {
-        repo.findGrpIdByName(card.name)?.let { return it }
+        val existing = repo.findGrpIdByName(card.name)
+        if (existing != null) {
+            // Primary face already registered — alt faces may not be if an
+            // earlier path (e.g. CardDataDeriver) registered only the primary.
+            registerAlternateFaces(card)
+            return existing
+        }
 
         // Try client DB for real grpId (has art/text assets)
         val clientGrpId = clientRepo?.findGrpIdByName(card.name)
