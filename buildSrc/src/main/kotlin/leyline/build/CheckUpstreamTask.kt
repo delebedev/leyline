@@ -30,15 +30,27 @@ abstract class CheckUpstreamTask : DefaultTask() {
         }
         val stampHash = stamp.readText().trim()
         val proc = ProcessBuilder(
-            "git", "log", "-1", "--format=%H", "--",
+            "git", "-C", forgeDir.get(), "log", "-1", "--format=%H", "--",
             "forge-core/src", "forge-game/src", "forge-ai/src", "forge-gui/src", "pom.xml",
         )
-            .directory(File(forgeDir.get()))
+            .redirectErrorStream(true)
+            .also {
+                // A Gradle daemon inherits env from whichever shell started it;
+                // if GIT_DIR / GIT_WORK_TREE are set (common in worktree shells)
+                // they override `-C` and make git look at the wrong repo.
+                it.environment().keys.removeIf { k -> k.startsWith("GIT_") }
+            }
             .start()
         val upstreamHash = proc.inputStream.bufferedReader().readText().trim()
         proc.waitFor()
         if (stampHash != upstreamHash) {
-            throw GradleException("Upstream sources changed. Run: just install-forge")
+            throw GradleException(
+                "Upstream sources changed. Run: just install-forge\n" +
+                    "  forgeDir=${forgeDir.get()}\n" +
+                    "  stamp=$stampHash\n" +
+                    "  actual=$upstreamHash\n" +
+                    "  git exit=${proc.exitValue()}",
+            )
         }
     }
 }
