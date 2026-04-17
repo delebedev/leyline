@@ -42,7 +42,7 @@ class MatchmakingService(
     /**
      * Create a match for any event. Validates deck legality against the event's format.
      */
-    fun startMatch(playerId: PlayerId, deckId: DeckId, eventName: String): MatchInfo {
+    fun startMatch(deckId: DeckId, eventName: String): MatchInfo {
         val deck = decks.findById(deckId)
             ?: throw IllegalArgumentException("Deck not found: ${deckId.value}")
 
@@ -71,5 +71,5 @@ class MatchmakingService(
 
     /** Convenience: delegates to [startMatch]. */
     fun startAiMatch(@Suppress("UnusedParameter") playerId: PlayerId, deckId: DeckId, eventName: String = "AIBotMatch"): MatchInfo =
-        startMatch(playerId, deckId, eventName)
+        startMatch(deckId, eventName)
 }

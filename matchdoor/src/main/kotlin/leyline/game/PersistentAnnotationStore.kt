@@ -295,7 +295,7 @@ class PersistentAnnotationStore {
         private fun abilityWordKey(ann: AnnotationInfo): Pair<Int, String> {
             val iid = ann.affectedIdsList.firstOrNull() ?: 0
             val name = ann.detailsList.firstOrNull { it.key == DetailKeys.ABILITY_WORD_NAME }
-                ?.let { if (it.valueStringCount > 0) it.getValueString(0) else null } ?: ""
+                ?.let { if (it.valueStringCount > 0) it.getValueString(0) else null }.orEmpty()
             return iid to name
         }
 

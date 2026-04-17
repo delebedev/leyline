@@ -137,7 +137,7 @@ object HandshakeMessages {
 
         // Full initial GameState
         val pendingCount = if (seatId == 2) 1 else 0 // ChooseStartingPlayerReq follows
-        val gsm = GsmBuilder.buildInitialGameState(matchId, gameStateId, seatId, bridge, pendingCount)
+        val gsm = GsmBuilder.buildInitialGameState(matchId, gameStateId, bridge, pendingCount)
         messages.add(
             GREToClientMessage.newBuilder()
                 .setType(GREMessageType.GameStateMessage_695e)
@@ -289,7 +289,7 @@ object HandshakeMessages {
 
         // 1) Thin GSM Diff: player with mulliganCount + hand actions
         val game = bridge.getGame()!!
-        val actions = ActionMapper.buildActions(game, seatId, bridge)
+        val actions = ActionMapper.buildActions(seatId, bridge)
         val gsm = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
@@ -401,7 +401,7 @@ object HandshakeMessages {
         bridge: GameBridge,
     ): Pair<MatchServiceToClientMessage, Int> {
         val game = bridge.getGame()!!
-        val actions = ActionMapper.buildActions(game, seatId, bridge)
+        val actions = ActionMapper.buildActions(seatId, bridge)
         val gre = GREToClientMessage.newBuilder()
             .setType(GREMessageType.ActionsAvailableReq_695e)
             .addSystemSeatIds(seatId)

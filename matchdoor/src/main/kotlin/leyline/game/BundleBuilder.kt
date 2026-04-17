@@ -75,7 +75,7 @@ class BundleBuilder(
             viewingSeatId = seatId,
             revealForSeat = revealForSeat,
         )
-        val actions = ActionMapper.buildActions(game, seatId, bridge)
+        val actions = ActionMapper.buildActions(seatId, bridge)
 
         // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
         // in StateMapper Stage 2b — no injection needed here.
@@ -245,8 +245,8 @@ class BundleBuilder(
     // keeping RequestBuilder as an internal dependency of the bundle layer.
 
     /** Build playable actions for a seat (with legality checks). */
-    fun buildActions(game: Game): ActionsAvailableReq =
-        ActionMapper.buildActions(game, seatId, bridge)
+    fun buildActions(): ActionsAvailableReq =
+        ActionMapper.buildActions(seatId, bridge)
 
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
     fun buildSelectNReq(
@@ -293,8 +293,8 @@ class BundleBuilder(
     }
 
     /** Build a [DeclareAttackersReq] listing legal attackers. */
-    fun buildDeclareAttackersReq(game: Game): DeclareAttackersReq =
-        RequestBuilder.buildDeclareAttackersReq(game, seatId, bridge)
+    fun buildDeclareAttackersReq(): DeclareAttackersReq =
+        RequestBuilder.buildDeclareAttackersReq(seatId, bridge)
 
     /**
      * Phase transition bundle matching expected client-facing message pattern (5 messages):
@@ -450,7 +450,6 @@ class BundleBuilder(
         }
 
         val req = RequestBuilder.buildDeclareAttackersReq(
-            game,
             seatId,
             bridge,
             committedAttackerIds = selectedAttackerIds.toSet(),
@@ -479,7 +478,7 @@ class BundleBuilder(
             it.gameStateMessage = gs
         }
 
-        val req = prebuiltReq ?: RequestBuilder.buildDeclareAttackersReq(game, seatId, bridge)
+        val req = prebuiltReq ?: RequestBuilder.buildDeclareAttackersReq(seatId, bridge)
         val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, counter.nextMsgId()) {
             it.declareAttackersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())

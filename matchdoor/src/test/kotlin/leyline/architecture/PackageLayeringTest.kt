@@ -18,7 +18,6 @@ import java.nio.file.Path
  * Tier 0 — foundation (leaves, import nothing from matchdoor):
  *   bridge         Forge adapter (WebPlayerController, cost decisions, bootstrap)
  *   config         MatchConfig TOML data class
- *   conformance    StructuralFingerprint, StructuralDiff (proto shape analysis)
  *
  * Tier 1 — game engine (imports Tier 0):
  *   game           StateMapper, BundleBuilder, annotations, events, card data
@@ -67,7 +66,6 @@ class PackageLayeringTest :
                     "leyline.protocol..",
                     "leyline.infra..",
                     "leyline.config..",
-                    "leyline.conformance..",
                 ).check(classes)
         }
 
@@ -82,22 +80,6 @@ class PackageLayeringTest :
                     "leyline.match..",
                     "leyline.protocol..",
                     "leyline.infra..",
-                    "leyline.conformance..",
-                ).check(classes)
-        }
-
-        // ── Tier 0: conformance is a pure leaf ─────────────────────
-
-        test("conformance does not depend on any matchdoor package") {
-            noClasses().that().resideInAPackage("leyline.conformance..")
-                .should().dependOnClassesThat()
-                .resideInAnyPackage(
-                    "leyline.bridge..",
-                    "leyline.game..",
-                    "leyline.match..",
-                    "leyline.protocol..",
-                    "leyline.infra..",
-                    "leyline.config..",
                 ).check(classes)
         }
 
@@ -110,7 +92,6 @@ class PackageLayeringTest :
                     "leyline.match..",
                     "leyline.protocol..",
                     "leyline.infra..",
-                    "leyline.conformance..",
                 ).check(classes)
         }
 
@@ -133,7 +114,6 @@ class PackageLayeringTest :
                     "leyline.game..",
                     "leyline.bridge..",
                     "leyline.config..",
-                    "leyline.conformance..",
                 ).check(classes)
         }
     })

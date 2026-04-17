@@ -30,6 +30,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  * })
  * ```
  */
+// `abstract` keeps Kotest's auto-discovery from trying to instantiate the base
+// class directly (no zero-arg constructor — only the `body` lambda variant).
+@Suppress("UnnecessaryAbstractClass")
 abstract class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
 
     private val base = ConformanceTestBase()

@@ -8,12 +8,14 @@ import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.InMemoryCardRepository
 import leyline.game.MessageCounter
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 
 /**
  * Validates BundleBuilder output shape matches client patterns.
  *
- * Structural fingerprinting: message types, updateType, annotation presence,
- * prompt IDs — all against known client expectations.
+ * Message types, update type, prompt IDs — all asserted directly against the
+ * raw GRE messages.
  *
  * Uses startWithBoard for fast synchronous setup (~0.01s).
  */
@@ -32,12 +34,11 @@ class ShapeIntegrationTest :
                 base.addCard("Forest", human, ZoneType.Battlefield)
             }
 
-            val result = base.bundleBuilder(b).remoteActionDiff(game, counter)
-            val captured = base.fingerprint(result.messages)
+            val messages = base.bundleBuilder(b).remoteActionDiff(game, counter).messages
 
-            captured.size shouldBe 1
-            captured[0].greMessageType shouldBe "GameStateMessage"
-            captured[0].updateType shouldBe "SendHiFi"
+            messages.size shouldBe 1
+            messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+            messages[0].gameStateMessage.update shouldBe GameStateUpdate.SendHiFi
         }
 
         test("declareAttackersBundle produces GS + DeclareAttackersReq with promptId=6") {
@@ -45,22 +46,21 @@ class ShapeIntegrationTest :
                 base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
             }
 
-            val result = base.bundleBuilder(b).declareAttackersBundle(game, counter)
-            val captured = base.fingerprint(result.messages)
+            val messages = base.bundleBuilder(b).declareAttackersBundle(game, counter).messages
 
-            captured.size shouldBe 2
-            captured[0].greMessageType shouldBe "GameStateMessage"
-            captured[1].greMessageType shouldBe "DeclareAttackersReq"
-            captured[1].promptId shouldBe 6
+            messages.size shouldBe 2
+            messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+            messages[1].type shouldBe GREMessageType.DeclareAttackersReq_695e
+            messages[1].prompt.promptId shouldBe 6
         }
 
         test("edictalPass produces single EdictalMessage") {
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
-            val result = BundleBuilder(bridge, "test-match", 1)
+            val messages = BundleBuilder(bridge, "test-match", 1)
                 .edictalPass(MessageCounter(initialGsId = 10, initialMsgId = 0))
-            val captured = base.fingerprint(result.messages)
+                .messages
 
-            captured.size shouldBe 1
-            captured[0].greMessageType shouldBe "EdictalMessage"
+            messages.size shouldBe 1
+            messages[0].type shouldBe GREMessageType.EdictalMessage_695e
         }
     })

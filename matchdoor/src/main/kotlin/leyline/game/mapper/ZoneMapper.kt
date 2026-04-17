@@ -34,8 +34,7 @@ object ZoneMapper {
      */
     @Suppress("detekt:LongParameterList")
     internal fun addPlayerZones(
-        game: Game,
-        player: Player?,
+        player: Player,
         seatId: Int,
         bridge: GameBridge,
         zones: MutableList<ZoneInfo>,
@@ -47,8 +46,6 @@ object ZoneMapper {
         revealForSeat: Int? = null,
         revealHand: Boolean = false,
     ) {
-        if (player == null) return
-
         // Hand — objectInstanceIds always (for card count), GameObjectInfo only for viewer.
         // Client expects no GameObjectInfo for opponent's hand → renders face-down.
         // Exception: during reveal-choose, opponent's hand becomes Public with viewers=[1,2].
@@ -106,8 +103,7 @@ object ZoneMapper {
 
     /** Hand + library only (no graveyard) — used for deal-hand at mulligan time. */
     internal fun addHandAndLibrary(
-        game: Game,
-        player: Player?,
+        player: Player,
         seatId: Int,
         bridge: GameBridge,
         zones: MutableList<ZoneInfo>,
@@ -116,8 +112,6 @@ object ZoneMapper {
         libZoneId: Int,
         viewingSeatId: Int = 0,
     ) {
-        if (player == null) return
-
         val hand = player.getZone(ForgeZoneType.Hand)
         val handBuilder = ZoneInfo.newBuilder()
             .setZoneId(handZoneId).setType(ZoneType.Hand)
@@ -161,7 +155,6 @@ object ZoneMapper {
         zones: MutableList<ZoneInfo>,
         gameObjects: MutableList<GameObjectInfo>,
         human: Player?,
-        ai: Player?,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ) {
         // Find the zone builder we already added
@@ -291,7 +284,7 @@ object ZoneMapper {
 
     /** Player zones for initial bundle: empty hand, full library, empty graveyard/sideboard. */
     internal fun addInitialPlayerZones(
-        player: Player?,
+        player: Player,
         seatId: Int,
         bridge: GameBridge,
         zones: MutableList<ZoneInfo>,
@@ -300,7 +293,6 @@ object ZoneMapper {
         gyZoneId: Int,
         sbZoneId: Int,
     ) {
-        if (player == null) return
         // Hand — empty, with viewer
         zones.add(
             ZoneInfo.newBuilder().setZoneId(handZoneId).setType(ZoneType.Hand)

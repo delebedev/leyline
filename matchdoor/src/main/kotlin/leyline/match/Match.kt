@@ -47,7 +47,6 @@ class Match(
         onStateChanged?.invoke(MatchState.FINISHED)
     }
 
-    /** @deprecated Use [close] instead. */
     @Deprecated("Use close() for deterministic lifecycle", replaceWith = ReplaceWith("close()"))
     fun shutdown() = close()
 }

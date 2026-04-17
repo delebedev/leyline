@@ -1,5 +1,6 @@
 package leyline.frontdoor.service
 
+import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -117,7 +118,7 @@ class DraftServiceTest :
 
         test("drop on non-existent session is a no-op") {
             val service = createService()
-            service.drop(playerId, eventName) // should not throw
+            shouldNotThrowAny { service.drop(playerId, eventName) }
         }
 
         test("variable pack sizes complete correctly") {

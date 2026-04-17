@@ -84,7 +84,7 @@ fun chooseCastAbility(card: Card, player: Player): SpellAbility? {
 
 /** Human-readable label for a castable ability (e.g. "Overload — {1}{R}"). */
 internal fun describeCastAbility(sa: SpellAbility): String {
-    val cost = sa.payCosts?.toSimpleString() ?: ""
+    val cost = sa.payCosts?.toSimpleString().orEmpty()
     val altCost = sa.alternativeCost
     return if (altCost != null) {
         "$altCost — $cost"

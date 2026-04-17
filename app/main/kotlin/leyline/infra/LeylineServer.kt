@@ -173,7 +173,7 @@ class LeylineServer(
             courseService = courseService,
         )
 
-        frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
+        frontDoorChannel = bindServer(fdSsl, frontDoorPort) { ch ->
             ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
             ch.pipeline().addLast(
                 "handler",
@@ -213,7 +213,7 @@ class LeylineServer(
     }
 
     private fun bindMatchDoor(mdSsl: SslContext, coordinator: AppMatchCoordinator): Channel {
-        val ch = bindServer(mdSsl, matchDoorPort, "MatchDoor") { ch ->
+        val ch = bindServer(mdSsl, matchDoorPort) { ch ->
             ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
             ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
             ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
@@ -263,7 +263,6 @@ class LeylineServer(
     private fun bindServer(
         sslCtx: SslContext,
         port: Int,
-        name: String,
         initChannel: (SocketChannel) -> Unit,
     ): Channel {
         val bootstrap = ServerBootstrap()

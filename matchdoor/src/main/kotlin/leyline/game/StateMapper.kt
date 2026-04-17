@@ -142,26 +142,30 @@ object StateMapper {
         val revealedHandSeat = activeReveal?.ownerSeatId?.value
 
         // Player 1 zones
-        ZoneMapper.addPlayerZones(
-            game, human, 1, bridge, zones, gameObjects,
-            ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, viewingSeatId, revealForSeat,
-            revealHand = revealedHandSeat == 1,
-        )
+        if (human != null) {
+            ZoneMapper.addPlayerZones(
+                human, 1, bridge, zones, gameObjects,
+                ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, viewingSeatId, revealForSeat,
+                revealHand = revealedHandSeat == 1,
+            )
+        }
         zones.add(ZoneMapper.makePrivateZone(ZoneIds.P1_SIDEBOARD, ZoneType.Sideboard, 1))
 
         // Player 2 zones
-        ZoneMapper.addPlayerZones(
-            game, ai, 2, bridge, zones, gameObjects,
-            ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, viewingSeatId, revealForSeat,
-            revealHand = revealedHandSeat == 2,
-        )
+        if (ai != null) {
+            ZoneMapper.addPlayerZones(
+                ai, 2, bridge, zones, gameObjects,
+                ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, viewingSeatId, revealForSeat,
+                revealHand = revealedHandSeat == 2,
+            )
+        }
         zones.add(ZoneMapper.makePrivateZone(ZoneIds.P2_SIDEBOARD, ZoneType.Sideboard, 2))
 
         // Populate shared zones with any cards
-        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Battlefield, ZoneIds.BATTLEFIELD, bridge, zones, gameObjects, human, ai, keywordSnapshot)
-        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects, human, ai)
-        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects, human, ai)
-        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects, human, ai)
+        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Battlefield, ZoneIds.BATTLEFIELD, bridge, zones, gameObjects, human, keywordSnapshot)
+        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects, human)
+        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects, human)
+        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects, human)
 
         // Stack abilities (triggers, activated abilities not represented as zone cards)
         ZoneMapper.addStackAbilities(game, bridge, zones, gameObjects, human)
@@ -649,6 +653,9 @@ object StateMapper {
      * schedule proxy cleanup when the reveal ends. Modifies [zones], [gameObjects],
      * and [events] in place.
      */
+    // Nullable `activeReveal` is intentional: the function has two branches —
+    // synthesize proxies when non-null, cleanup-and-clear when null.
+    @Suppress("CanBeNonNullable")
     private fun applyRevealProxies(
         activeReveal: InteractivePromptBridge.ActiveReveal?,
         game: Game,

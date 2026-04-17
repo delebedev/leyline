@@ -1,5 +1,6 @@
 package leyline.unit
 
+import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -47,10 +48,11 @@ class AutoPassCancelTest :
 
         test("WebGuiGame without actionBridge does not throw") {
             val promptBridge = InteractivePromptBridge(timeoutMs = 0)
-            val gui = WebGuiGame(promptBridge)
-            // These methods should be safe no-ops (playerView param not used)
-            // We can't call them directly due to non-null PlayerView,
-            // but verify the constructor works without actionBridge
-            gui.toString() // just verify it's constructed
+            shouldNotThrowAny {
+                val gui = WebGuiGame(promptBridge)
+                // Methods take PlayerView (non-null) so we can't call them directly here —
+                // verify the constructor path at least completes without actionBridge.
+                gui.toString()
+            }
         }
     })

@@ -1,0 +1,28 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val CommandZone: List&lt;CardEntry&gt; = emptyList()</ID>
+    <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val Companions: List&lt;CardEntry&gt; = emptyList()</ID>
+    <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val MainDeck: List&lt;CardEntry&gt; = emptyList()</ID>
+    <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val Sideboard: List&lt;CardEntry&gt; = emptyList()</ID>
+    <ID>CyclomaticComplexMethod:FrontDoorHandler.kt$FrontDoorHandler$@Suppress("CanBeNonNullable") // `json` comes from the decoder which may emit null for empty bodies. private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun activeMatches()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun boosters()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun cosmetics()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun currencies()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun netDeckFolders()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun periodicRewards()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun playerInbox()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun preferredPrintings()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun prizeWalls()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun quests()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun rankInfo()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun rankSeasonDetails()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun staticContent()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun storeStatus()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun telemetryAck()</ID>
+    <ID>LongMethod:FrontDoorHandler.kt$FrontDoorHandler$@Suppress("CanBeNonNullable") // `json` comes from the decoder which may emit null for empty bodies. private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
+    <ID>MaxLineLength:LobbyStubs.kt$LobbyStubs$fun rankInfo()</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -2,7 +2,6 @@ package leyline.game.mapper
 
 import forge.ai.ComputerUtilMana
 import forge.card.CardStateName
-import forge.game.Game
 import forge.game.card.Card
 import forge.game.card.CardLists
 import forge.game.card.CardPredicates
@@ -35,7 +34,7 @@ object ActionMapper {
 
     private const val INITIAL_MANA_ID = 10
 
-    fun buildActions(game: Game, seatId: Int, bridge: GameBridge): ActionsAvailableReq =
+    fun buildActions(seatId: Int, bridge: GameBridge): ActionsAvailableReq =
         buildActionList(seatId, bridge, checkLegality = true)
 
     /**
@@ -359,7 +358,7 @@ object ActionMapper {
         val registry = abilityRegistryLookup(card, cardData)
         val abilityGrpId = registry?.forSpellAbility(sa.id) ?: 0
         val mana = sa.manaPart
-        val produced = if (mana != null && mana.isComboMana) mana.getComboColors(sa) else mana?.origProduced ?: ""
+        val produced = if (mana != null && mana.isComboMana) mana.getComboColors(sa) else mana?.origProduced.orEmpty()
         val manaColor = produced.split(" ").firstNotNullOfOrNull { producedToManaColor(it) } ?: ManaColor.Generic
 
         val actionBuilder = Action.newBuilder()

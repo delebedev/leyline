@@ -185,6 +185,7 @@ class FrontDoorHandler(
         CmdType.CHALLENGE_RECONNECT_ALL.value to { FdResponse.TypedProto("Wizards.Arena.Models.Network.ChallengeReconnectAllResp") },
     )
 
+    @Suppress("CanBeNonNullable") // `json` comes from the decoder which may emit null for empty bodies.
     private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?) {
         // Fast path: table-driven stubs (no logic, just data)
         stubs[cmdType]?.let { supplier ->
@@ -216,7 +217,7 @@ class FrontDoorHandler(
                 val deckId = req?.deckId
                 if (deckId != null) coordinator.selectDeck(deckId)
                 coordinator.selectEvent("AIBotMatch")
-                val match = matchmaking.startAiMatch(playerId, DeckId(deckId ?: ""), "AIBotMatch")
+                val match = matchmaking.startAiMatch(playerId, DeckId(deckId.orEmpty()), "AIBotMatch")
                 log.info("Front Door: Event_AiBotMatch deckId={} botDeckId={} → ack + pushing MatchCreated", deckId, req?.botDeckId)
                 writer.send(ctx, txId, FdResponse.Empty)
                 sendMatchCreated(ctx, match)
@@ -346,7 +347,7 @@ class FrontDoorHandler(
                     writer.send(ctx, txId, FdResponse.Json("""{"CurrentModule":"CreateMatch","Payload":"Success"}"""))
 
                     val match = if (courseDeckId != null) {
-                        matchmaking.createMatchInfo(eventName ?: "")
+                        matchmaking.createMatchInfo(eventName.orEmpty())
                     } else if (eventName != null) {
                         MatchInfo(
                             matchmaking.createMatchId(eventName),
@@ -355,7 +356,7 @@ class FrontDoorHandler(
                             eventName,
                         )
                     } else {
-                        matchmaking.startMatch(playerId, DeckId(deckId ?: ""), "")
+                        matchmaking.startMatch(DeckId(deckId.orEmpty()), "")
                     }
                     sendMatchCreated(ctx, match)
                 } catch (e: IllegalArgumentException) {

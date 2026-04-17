@@ -1,0 +1,360 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>BooleanAssertion:AiCombatAutoPassTest.kt$AiCombatAutoPassTest$(humanPlayer.life &lt; 20).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:AiFirstTurnShapeTest.kt$AiFirstTurnShapeTest$(fullWithZones.size &lt;= 1).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:AiFirstTurnShapeTest.kt$AiFirstTurnShapeTest$(gsms.size &gt;= ptStart + 3).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:AiFirstTurnShapeTest.kt$AiFirstTurnShapeTest$phaseChanges.isNotEmpty().shouldBeTrue()</ID>
+    <ID>BooleanAssertion:AiLandPlayOrderTest.kt$AiLandPlayOrderTest$(playLandGsId &lt; castSpellGsId).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:AiLandPlayOrderTest.kt$AiLandPlayOrderTest$turn1PlayLand.isEmpty().shouldBeFalse()</ID>
+    <ID>BooleanAssertion:AiTurnConformanceTest.kt$AiTurnConformanceTest$(gsm.annotationsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:AiTurnConformanceTest.kt$AiTurnConformanceTest$gsmsWithObjects.isNotEmpty().shouldBeTrue()</ID>
+    <ID>BooleanAssertion:AiTurnConformanceTest.kt$AiTurnConformanceTest$gsmsWithZoneChanges.isNotEmpty().shouldBeTrue()</ID>
+    <ID>BooleanAssertion:AiTurnConformanceTest.kt$AiTurnConformanceTest$zoneTransfers.isNotEmpty().shouldBeTrue()</ID>
+    <ID>BooleanAssertion:AnnotationOrderEnforcerTest.kt$AnnotationOrderEnforcerTest$(oic1Idx &lt; zt1Idx) shouldBe true</ID>
+    <ID>BooleanAssertion:AnnotationOrderEnforcerTest.kt$AnnotationOrderEnforcerTest$(oic2Idx &lt; zt2Idx) shouldBe true</ID>
+    <ID>BooleanAssertion:BlockerDeclarationTest.kt$BlockerDeclarationTest$(blockReq.blockersCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:BlockerDeclarationTest.kt$BlockerDeclarationTest$(blocker.attackerInstanceIdsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:BundleBuilderTest.kt$BundleBuilderTest$(gs1.annotationsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:BundleBuilderTest.kt$BundleBuilderTest$(gs1.teamsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:BundleBuilderTest.kt$BundleBuilderTest$(gsm.actionsCount &gt;= 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:BundleBuilderTest.kt$BundleBuilderTest$(gsm.gameObjectsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:ClientSettingsTest.kt$ClientSettingsTest$(before == after).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:CombatFlowTest.kt$CombatFlowTest$(allMsgs.size &gt;= 3).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:CombatFlowTest.kt$CombatFlowTest$(attackerIids.size &gt;= 2).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:CombatFlowTest.kt$CombatFlowTest$(creatures.size &gt;= 2).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:CombatFlowTest.kt$CombatFlowTest$(echoReq.declareAttackersReq.manaCostCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:CombatFlowTest.kt$CombatFlowTest$(lifeAfter &lt; lifeBefore).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:CombatFlowTest.kt$CombatFlowTest$(lifeAnn.affectorId &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:CombatFlowTest.kt$CombatFlowTest$(ourEligible.size &gt;= 2).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:CombatFlowTest.kt$CombatFlowTest$(req.attackersCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:CopyTokenIntegrationTest.kt$CopyTokenIntegrationTest$(tempPerm == null) shouldBe true</ID>
+    <ID>BooleanAssertion:DealHandConformanceTest.kt$DealHandConformanceTest$(gsm.gameObjectsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:DealHandConformanceTest.kt$DealHandConformanceTest$(gsm.gameStateMessage.gameObjectsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:DeckConverterTest.kt$DeckConverterTest$(boltIdx &lt; deckIdx) shouldBe true</ID>
+    <ID>BooleanAssertion:DeckConverterTest.kt$DeckConverterTest$(commanderIdx &lt; boltIdx) shouldBe true</ID>
+    <ID>BooleanAssertion:DeckConverterTest.kt$DeckConverterTest$(deckIdx &lt; counterspellIdx) shouldBe true</ID>
+    <ID>BooleanAssertion:DiffDiagnosticTest.kt$DiffDiagnosticTest$(obj.zoneId &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:DiffDiagnosticTest.kt$DiffDiagnosticTest$gsm.diffDeletedInstanceIdsList.contains(origId).shouldBeFalse()</ID>
+    <ID>BooleanAssertion:GameBridgeTest.kt$GameBridgeTest$(cast.manaCostCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameBridgeTest.kt$GameBridgeTest$(gre2.gameStateMessage.gameStateId &gt; gre1.gameStateMessage.gameStateId).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameBridgeTest.kt$GameBridgeTest$(gre5.actionsAvailableReq.actionsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameBridgeTest.kt$GameBridgeTest$(gs.actionsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameBridgeTest.kt$GameBridgeTest$(gs.gameObjectsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameBridgeTest.kt$GameBridgeTest$(gs.playersCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameBridgeTest.kt$GameBridgeTest$(gs.turnInfo.turnNumber &gt;= 1).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameBridgeTest.kt$GameBridgeTest$(gs.zonesCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameBridgeTest.kt$GameBridgeTest$(gsId &gt; prevGsId).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameBridgeTest.kt$GameBridgeTest$(gsIds[i] &gt; gsIds[i - 1]).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameBridgeTest.kt$GameBridgeTest$(phaseAnnotations1 &gt;= 2).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameEndTest.kt$GameEndTest$(finalResult.resultListCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameEndTest.kt$GameEndTest$(gsmCount &gt;= 3).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameEndTest.kt$GameEndTest$(gsms.size &gt;= 3).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameEndTest.kt$GameEndTest$(intermissionIdx &gt;= 3).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameEndTest.kt$GameEndTest$(req.intermissionPrompt.parametersCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameEndTest.kt$GameEndTest$(req.optionsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameEndTest.kt$GameEndTest$(req.optionsCount &gt;= 2).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GameEndTest.kt$GameEndTest$(req.result.winningTeamId &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:GamePlaybackTest.kt$GamePlaybackTest$(allMsgIds.last() &gt; allMsgIds.first()).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:LandManaTest.kt$LandManaTest$gsm.diffDeletedInstanceIdsList.contains(origId).shouldBeFalse()</ID>
+    <ID>BooleanAssertion:LandManaTest.kt$LandManaTest$handZone.objectInstanceIdsList.contains(origId.value).shouldBeFalse()</ID>
+    <ID>BooleanAssertion:LibraryOrderInteractionTest.kt$LibraryOrderInteractionTest$(surveilZt.affectorId != 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:MatchFlowHarnessTest.kt$MatchFlowHarnessTest$(aars.size &lt;= 3).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:MatchFlowHarnessTest.kt$MatchFlowHarnessTest$(diffs.size &gt;= 2).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:MatchFlowHarnessTest.kt$MatchFlowHarnessTest$(h.allMessages.size &gt;= 4).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:MatchFlowHarnessTest.kt$MatchFlowHarnessTest$(newTurnAnno.affectorId &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:MatchFlowHarnessTest.kt$MatchFlowHarnessTest$acc.objects.isNotEmpty().shouldBeTrue()</ID>
+    <ID>BooleanAssertion:MatchFlowHarnessTest.kt$MatchFlowHarnessTest$missing.isEmpty().shouldBeTrue()</ID>
+    <ID>BooleanAssertion:MatchFlowHarnessTest.kt$MatchFlowHarnessTest$missingAfterLand.isEmpty().shouldBeTrue()</ID>
+    <ID>BooleanAssertion:MatchFlowHarnessTest.kt$MatchFlowHarnessTest$missingAfterTurn.isEmpty().shouldBeTrue()</ID>
+    <ID>BooleanAssertion:PlaneswalkerSacrificeTest.kt$PlaneswalkerSacrificeTest$ai.getZone(ZoneType.Battlefield).cards .filter { it.isCreature }.isEmpty().shouldBeTrue()</ID>
+    <ID>BooleanAssertion:PromptIdsTest.kt$PromptIdsTest$(PromptIds.DECLARE_ATTACKERS != PromptIds.SELECT_TARGETS) shouldBe true</ID>
+    <ID>BooleanAssertion:PurePipelineTest.kt$PurePipelineTest$damageAnnotation.affectedIdsList.contains(1020) shouldBe true</ID>
+    <ID>BooleanAssertion:PurePipelineTest.kt$PurePipelineTest$lifeAnnotation.affectedIdsList.contains(2) shouldBe true</ID>
+    <ID>BooleanAssertion:PuzzleBridgeTest.kt$PuzzleBridgeTest$(gsm.gameObjectsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:PuzzleBridgeTest.kt$PuzzleBridgeTest$(instanceId.value &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:PuzzleHandlerTest.kt$PuzzleHandlerTest$sink.messages.isNotEmpty().shouldBeTrue()</ID>
+    <ID>BooleanAssertion:SagaCreatureTypeTest.kt$SagaCreatureTypeTest$(saga != null).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:SagaCreatureTypeTest.kt$SagaCreatureTypeTest$(saga.currentPower &gt;= 2).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:SagaCreatureTypeTest.kt$SagaCreatureTypeTest$(saga.currentToughness &gt;= 1).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:SagaCreatureTypeTest.kt$SagaCreatureTypeTest$(sagaAccObj != null).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:StackCastResolveTest.kt$StackCastResolveTest$(aicIdx &lt; tupIdx) shouldBe true</ID>
+    <ID>BooleanAssertion:StackCastResolveTest.kt$StackCastResolveTest$(mpIdx &lt; aidIdx) shouldBe true</ID>
+    <ID>BooleanAssertion:StackCastResolveTest.kt$StackCastResolveTest$(tupIdx &lt; mpIdx) shouldBe true</ID>
+    <ID>BooleanAssertion:StateMapperShapeTest.kt$StateMapperShapeTest$land.subtypesList.contains(Messages.SubType.Forest).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:StateMapperShapeTest.kt$StateMapperShapeTest$land.superTypesList.contains(Messages.SuperType.Basic).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:TargetingFlowTest.kt$TargetingFlowTest$(creature.netPower &gt;= 4).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:TargetingFlowTest.kt$TargetingFlowTest$(creature.netPower &gt;= 7).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:TargetingFlowTest.kt$TargetingFlowTest$(creature.netToughness &gt;= 4).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:TargetingFlowTest.kt$TargetingFlowTest$(req.targetsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>BooleanAssertion:TargetingFlowTest.kt$TargetingFlowTest$(targetSelection.targetsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:ClientAccumulator.kt$ClientAccumulator$when (gs.type) { GameStateType.Full -&gt; { objects.clear() zones.clear() gs.gameObjectsList.forEach { objects[it.instanceId] = it } gs.zonesList.forEach { zones[it.zoneId] = it } } GameStateType.Diff -&gt; { // Remove deleted instances first (client sends these for retired IDs) gs.diffDeletedInstanceIdsList.forEach { objects.remove(it) } gs.gameObjectsList.forEach { objects[it.instanceId] = it } gs.zonesList.forEach { zones[it.zoneId] = it } } else -&gt; {} // ignore }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:ScriptedPlayerController.kt$ScriptedPlayerController$when (action) { is ScriptedAction.Attack -&gt; { nextAction() val bf = attacker.getZone(ZoneType.Battlefield) val defender = attacker.opponents.firstOrNull() ?: return for (name in action.cardNames) { val card = bf.cards.firstOrNull { it.name.equals(name, ignoreCase = true) &amp;&amp; it.isCreature } if (card != null) { combat.addAttacker(card, defender) } else { log.warn("Script: Attack({}) — creature not found on battlefield", name) } } } is ScriptedAction.DeclareNoAttackers -&gt; { nextAction() // Do nothing — no attackers declared } else -&gt; { // No script instruction for this combat → delegate to AI super.declareAttackers(attacker, combat) } }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:ScriptedPlayerController.kt$ScriptedPlayerController$when (action) { is ScriptedAction.DeclareNoBlockers -&gt; { nextAction() } is ScriptedAction.Block -&gt; { nextAction() val bf = defender.getZone(ZoneType.Battlefield) for ((blockerName, attackerName) in action.assignments) { val blocker = bf.cards.firstOrNull { it.name.equals(blockerName, ignoreCase = true) &amp;&amp; it.isCreature } val attacker = combat.attackers.firstOrNull { it.name.equals(attackerName, ignoreCase = true) } if (blocker != null &amp;&amp; attacker != null) { combat.addBlocker(attacker, blocker) } else { log.warn( "Script: Block({} → {}) — not found (blocker={}, attacker={})", blockerName, attackerName, blocker?.name, attacker?.name, ) } } } else -&gt; { super.declareBlockers(defender, combat) } }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:ScriptedPlayerController.kt$ScriptedPlayerController$when (action) { is ScriptedAction.PlayLand -&gt; { val sa = findLandAbility(action.cardName) if (sa != null) { nextAction() // consume listOf(sa) } else { // Don't consume — card may become playable on a later turn. // Returning null passes priority; engine advances. null } } is ScriptedAction.CastSpell -&gt; { val sa = findCastAbility(action.cardName) if (sa != null) { nextAction() // consume listOf(sa) } else { null // don't consume — try again when castable } } is ScriptedAction.PassPriority -&gt; { nextAction() null } null -&gt; null // script exhausted → pass else -&gt; null // combat actions handled in declare* methods }</ID>
+    <ID>MaxLineLength:CardInjectionTest.kt$CardInjectionTest$val handZone = checkNotNull(gsm.zonesList.firstOrNull { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand &amp;&amp; it.ownerSeatId == 1 }) { "Hand zone should exist for seat 1" }</ID>
+    <ID>MaxLineLength:CardInjectionTest.kt$CardInjectionTest$val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected card should appear in gameObjectsList" }</ID>
+    <ID>MaxLineLength:CardInjectionTest.kt$CardInjectionTest$val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected land should appear in gameObjectsList" }</ID>
+    <ID>MissingAssertSoftly:AbilityWordPipelineTest.kt$AbilityWordPipelineTest$awAnns shouldHaveSize 1</ID>
+    <ID>MissingAssertSoftly:AbilityWordPipelineTest.kt$AbilityWordPipelineTest$qAnns shouldHaveSize 1</ID>
+    <ID>MissingAssertSoftly:AbilityWordScannerTest.kt$AbilityWordScannerTest$morbidEntry.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:AbilityWordScannerTest.kt$AbilityWordScannerTest$r.instanceId shouldBe iid</ID>
+    <ID>MissingAssertSoftly:ActionMapperPureTest.kt$ActionMapperPureTest$s.instanceId shouldBe 100</ID>
+    <ID>MissingAssertSoftly:ActionMapperPureTest.kt$ActionMapperPureTest$s.instanceId shouldBe 200</ID>
+    <ID>MissingAssertSoftly:AdventureCastActionTest.kt$ProducedToManaColorTest$ActionMapper.producedToManaColor("R") shouldBe ManaColor.Red_afc9</ID>
+    <ID>MissingAssertSoftly:AiFirstTurnShapeTest.kt$AiFirstTurnShapeTest$gsm0.type shouldBe GameStateType.Diff</ID>
+    <ID>MissingAssertSoftly:AiFirstTurnShapeTest.kt$AiFirstTurnShapeTest$gsm1.type shouldBe GameStateType.Diff</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$CounterTypes.counterTypeId("P1P1") shouldBe 1</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldBe listOf(AnnotationType.PowerToughnessModCreated)</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.AbilityExhausted</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.AbilityInstanceCreated</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.AbilityInstanceDeleted</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.AbilityWordActive</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.AddAbility_af5a</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.Attachment</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.AttachmentCreated</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.CastingTimeOption</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.ColorProduction</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.CounterAdded</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.CounterRemoved</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.Counter_803b</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.DamageDealt_af5a</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.DamagedThisTurn</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.Designation</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.DisplayCardUnderCard</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.EnteredZoneThisTurn</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.GainDesignation</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.InstanceRevealedToOpponent</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.LayeredEffect</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.LayeredEffectDestroyed</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.ManaPaid</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.ModifiedLife</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.ModifiedPower</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.ModifiedToughness</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.ObjectIdChanged</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.PlayerSelectingTargets</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.PlayerSubmittedTargets</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.PowerToughnessModCreated</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.PredictedDirectDamage</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.Qualification</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.RemoveAbility</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.RemoveAttachment</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.ResolutionComplete</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.ResolutionStart</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.Scry_af5a</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.SyntheticEvent</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.TappedUntappedPermanent</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.TargetSpec</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.TemporaryPermanent</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.TokenCreated</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.TokenDeleted</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.TriggeringObject</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.UserActionTaken</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.ZoneTransfer_af5a</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$colors.valueInt32Count shouldBe 2</ID>
+    <ID>MissingAssertSoftly:AnnotationOrderingTest.kt$AnnotationOrderingTest$ids.shouldNotBeEmpty()</ID>
+    <ID>MissingAssertSoftly:AnnotationShapeConformanceTest.kt$AnnotationShapeConformanceTest$detailKeys(AnnotationBuilder.newTurnStarted(1.sid)) shouldBe emptySet()</ID>
+    <ID>MissingAssertSoftly:AssignDamageTest.kt$AssignDamageTest$defenderSlot.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:AttachmentAnnotationTest.kt$AttachmentAnnotationTest$attachCreated.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:AttachmentAnnotationTest.kt$AttachmentAnnotationTest$attachPersistent.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:AttackerTapStateTest.kt$AttackerTapStateTest$h.playLand().shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:AutoPassEngineTest.kt$AutoPassEngineTest$decision.shouldBeInstanceOf&lt;PriorityDecision.Grant&gt;()</ID>
+    <ID>MissingAssertSoftly:AutoPassEngineTest.kt$AutoPassEngineTest$decision.shouldBeInstanceOf&lt;PriorityDecision.Skip&gt;()</ID>
+    <ID>MissingAssertSoftly:AutoPassEngineTest.kt$AutoPassEngineTest$ops.sendGameOverCount shouldBe 1</ID>
+    <ID>MissingAssertSoftly:AutoPassEngineTest.kt$AutoPassEngineTest$ops.sendRealGameStateCount shouldBe 0</ID>
+    <ID>MissingAssertSoftly:BiteDownTest.kt$BiteDownTest$damageAnn.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:BlockerDeclarationTest.kt$BlockerDeclarationTest$humanGoblinDead.shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:BrawlMatchFlowTest.kt$BrawlMatchFlowTest$commandCards.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:BundleBuilderTest.kt$BundleBuilderTest$(gsm.gameObjectsCount &gt; 0).shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:BundleBuilderTest.kt$BundleBuilderTest$gs1.hasGameInfo().shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:BundleBuilderTest.kt$BundleBuilderTest$gsm.type shouldBe GameStateType.Diff</ID>
+    <ID>MissingAssertSoftly:BundleBuilderTest.kt$BundleBuilderTest$gsms.size shouldBe 3</ID>
+    <ID>MissingAssertSoftly:BundleBuilderTest.kt$BundleBuilderTest$intermission.type shouldBe GREMessageType.IntermissionReq_695e</ID>
+    <ID>MissingAssertSoftly:BundleBuilderTest.kt$BundleBuilderTest$msg.type shouldBe GREMessageType.QueuedGameStateMessage</ID>
+    <ID>MissingAssertSoftly:BundleBuilderTest.kt$BundleBuilderTest$req.context shouldBe Messages.SelectionContext.Resolution_a163</ID>
+    <ID>MissingAssertSoftly:BundleBuilderTest.kt$BundleBuilderTest$result.messages.size shouldBe 2</ID>
+    <ID>MissingAssertSoftly:CardInjectionTest.kt$CardInjectionTest$b.cardRepository.findGrpIdByName("Plains").shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:CardInjectionTest.kt$CardInjectionTest$first.grpId shouldBe second.grpId</ID>
+    <ID>MissingAssertSoftly:CardInjectionTest.kt$CardInjectionTest$obj.grpId shouldBe injected.grpId</ID>
+    <ID>MissingAssertSoftly:CardRepositoryTest.kt$CardRepositoryTest$parseTokenGrpIds(null) shouldBe emptyMap&lt;Int, Int&gt;()</ID>
+    <ID>MissingAssertSoftly:CategoryFromEventsTest.kt$CategoryFromEventsTest$TransferCategoryResolver.categoryFromEvents(ForgeCardId(42), events) shouldBe TransferCategory.PlayLand</ID>
+    <ID>MissingAssertSoftly:ChannelPuzzleTest.kt$ChannelPuzzleTest$h.passUntil(maxPasses = 20) { isGameOver() || ai.life &lt;= 0 }.shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:ClientAccumulatorTest.kt$ClientAccumulatorTest$acc.objects.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:ClientAccumulatorTest.kt$ClientAccumulatorTest$acc.objects.size shouldBe 2</ID>
+    <ID>MissingAssertSoftly:ClientSettingsMergeTest.kt$ClientSettingsMergeTest$merged.stopsCount shouldBe 2</ID>
+    <ID>MissingAssertSoftly:ClientSettingsTest.kt$ClientSettingsTest$profile.isEnabled(humanId, PhaseType.DRAW).shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:CombatFlowTest.kt$CombatFlowTest$(allMsgs.size &gt;= 3).shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:CombatFlowTest.kt$CombatFlowTest$attackerObj.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:CombatFlowTest.kt$CombatFlowTest$damageGsm.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:CombatFlowTest.kt$CombatFlowTest$h.playLand().shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:CombatFlowTest.kt$CombatFlowTest$postAttack.shouldNotBeEmpty()</ID>
+    <ID>MissingAssertSoftly:CombatFlowTest.kt$CombatFlowTest$postCombat.shouldNotBeEmpty()</ID>
+    <ID>MissingAssertSoftly:CombatZoneAnnotationPipelineTest.kt$CombatZoneAnnotationPipelineTest$annotations.size shouldBe 2</ID>
+    <ID>MissingAssertSoftly:CombatZoneAnnotationPipelineTest.kt$CombatZoneAnnotationPipelineTest$assertSoftly { annotations.size shouldBe 7 annotations[0].typeList.first() shouldBe AnnotationType.AbilityInstanceCreated annotations[1].typeList.first() shouldBe AnnotationType.TappedUntappedPermanent annotations[2].typeList.first() shouldBe AnnotationType.ObjectIdChanged annotations[3].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a annotations[4].typeList.first() shouldBe AnnotationType.UserActionTaken annotations[5].typeList.first() shouldBe AnnotationType.ManaPaid annotations[6].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted }</ID>
+    <ID>MissingAssertSoftly:CommanderPuzzleTest.kt$CommanderPuzzleTest$freshGsm.gameInfo.variant shouldBe GameVariant.Brawl</ID>
+    <ID>MissingAssertSoftly:CopyTokenIntegrationTest.kt$CopyTokenIntegrationTest$human.getZone(ZoneType.Hand).cards.any { it.name == "Quick Study" }.shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:DealHandConformanceTest.kt$DealHandConformanceTest$gre.type shouldBe GREMessageType.SetSettingsResp_695e</ID>
+    <ID>MissingAssertSoftly:DealHandConformanceTest.kt$DealHandConformanceTest$gsm.type shouldBe GREMessageType.GameStateMessage_695e</ID>
+    <ID>MissingAssertSoftly:DealHandConformanceTest.kt$DealHandConformanceTest$gsm.type shouldBe GameStateType.Diff</ID>
+    <ID>MissingAssertSoftly:DealHandConformanceTest.kt$DealHandConformanceTest$gsm.type shouldBe GameStateType.Full</ID>
+    <ID>MissingAssertSoftly:DealHandConformanceTest.kt$DealHandConformanceTest$messages.size shouldBe 3</ID>
+    <ID>MissingAssertSoftly:DealHandConformanceTest.kt$DealHandConformanceTest$messages[0].type shouldBe GREMessageType.GameStateMessage_695e</ID>
+    <ID>MissingAssertSoftly:DealHandConformanceTest.kt$DealHandConformanceTest$mull.type shouldBe GREMessageType.MulliganReq_aa0d</ID>
+    <ID>MissingAssertSoftly:DealHandConformanceTest.kt$DealHandConformanceTest$prompt.type shouldBe GREMessageType.PromptReq</ID>
+    <ID>MissingAssertSoftly:DeckConverterTest.kt$DeckConverterTest$(commanderIdx &lt; boltIdx) shouldBe true</ID>
+    <ID>MissingAssertSoftly:DeckConverterTest.kt$DeckConverterTest$text shouldContain "[Commander]"</ID>
+    <ID>MissingAssertSoftly:DfcTransformTest.kt$DfcTransformTest$curtains.isBackSide shouldBe true</ID>
+    <ID>MissingAssertSoftly:DfcTransformTest.kt$DfcTransformTest$pending3.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:DiscardInteractionTest.kt$DiscardInteractionTest$assertSoftly { // Outrider on battlefield val outriders = human.getZone(ForgeZoneType.Battlefield).cards .filter { it.name == "Mardu Outrider" } outriders shouldHaveSize 1 outriders.first().netPower shouldBe 5 outriders.first().netToughness shouldBe 5 // Discarded Mountain in graveyard human.getZone(ForgeZoneType.Graveyard).cards .any { it.name == "Mountain" } shouldBe true // Original hand cards consumed val hand = human.getZone(ForgeZoneType.Hand).cards hand.none { it.name == "Mardu Outrider" } shouldBe true hand.none { it.name == "Mountain" } shouldBe true }</ID>
+    <ID>MissingAssertSoftly:EffectAnnotationPipelineTest.kt$EffectAnnotationPipelineTest$persistentBoth[0].typeList shouldContain AnnotationType.ModifiedPower</ID>
+    <ID>MissingAssertSoftly:EffectAnnotationPipelineTest.kt$EffectAnnotationPipelineTest$persistentPower[0].typeList shouldContain AnnotationType.ModifiedPower</ID>
+    <ID>MissingAssertSoftly:EffectAnnotationPipelineTest.kt$EffectAnnotationPipelineTest$persistentTough[0].typeList shouldContain AnnotationType.ModifiedToughness</ID>
+    <ID>MissingAssertSoftly:EffectAnnotationPipelineTest.kt$EffectAnnotationPipelineTest$transient.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:EffectLifecycleTest.kt$EffectLifecycleTest$effectIdDetail.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:EffectLifecycleTest.kt$EffectLifecycleTest$ptEffect.typeList shouldContain AnnotationType.ModifiedToughness</ID>
+    <ID>MissingAssertSoftly:EffectTrackerTest.kt$EffectTrackerTest$diff.created.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:EffectTrackerTest.kt$EffectTrackerTest$result.created.shouldBeEmpty()</ID>
+    <ID>MissingAssertSoftly:EffectTrackerTest.kt$EffectTrackerTest$result.created.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:EffectTrackerTest.kt$EffectTrackerTest$result.created.size shouldBe 3</ID>
+    <ID>MissingAssertSoftly:EffectTrackerTest.kt$EffectTrackerTest$tracker.nextEffectId() shouldBe 7002</ID>
+    <ID>MissingAssertSoftly:FamiliarSessionTest.kt$FamiliarSessionTest$gre.type shouldBe GREMessageType.GameStateMessage_695e</ID>
+    <ID>MissingAssertSoftly:FlashbackTest.kt$FlashbackTest$player.getZone(ZoneType.Hand).size() shouldBe handBefore</ID>
+    <ID>MissingAssertSoftly:FlashbackTest.kt$FlashbackTest$player.getZone(ZoneType.Hand).size() shouldBe handBefore2 + 1</ID>
+    <ID>MissingAssertSoftly:FrameCodecTest.kt$FrameCodecTest$ack.getByte(0) shouldBe VERSION</ID>
+    <ID>MissingAssertSoftly:FrameCodecTest.kt$FrameCodecTest$framed.getByte(0) shouldBe VERSION</ID>
+    <ID>MissingAssertSoftly:GameActionBridgeTest.kt$GameActionBridgeTest$pending.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:GameBridgeApiContractTest.kt$GameBridgeApiContractTest$bridge.drainReveals(1).map { it.ownerSeatId } shouldBe listOf(SeatId(1))</ID>
+    <ID>MissingAssertSoftly:GameBridgeApiContractTest.kt$GameBridgeApiContractTest$methodNames shouldContain "seat"</ID>
+    <ID>MissingAssertSoftly:GameBridgeTest.kt$GameBridgeTest$(gs.zonesCount &gt; 0).shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:GameBridgeTest.kt$GameBridgeTest$a.grpId shouldBe 0</ID>
+    <ID>MissingAssertSoftly:GameBridgeTest.kt$GameBridgeTest$actionInfo.actionId shouldBe 0</ID>
+    <ID>MissingAssertSoftly:GameBridgeTest.kt$GameBridgeTest$cast.abilityGrpId shouldBe 0</ID>
+    <ID>MissingAssertSoftly:GameBridgeTest.kt$GameBridgeTest$gre2.gameStateMessage.type shouldBe Messages.GameStateType.Diff</ID>
+    <ID>MissingAssertSoftly:GameBridgeTest.kt$GameBridgeTest$gs.type shouldBe Messages.GameStateType.Diff</ID>
+    <ID>MissingAssertSoftly:GameBridgeTest.kt$GameBridgeTest$gs3.update shouldBe Messages.GameStateUpdate.SendAndRecord</ID>
+    <ID>MissingAssertSoftly:GameEndTest.kt$GameEndTest$(gsms.size &gt;= 3).shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:GameEndTest.kt$GameEndTest$finalResult.matchCompletedReason shouldBe MatchCompletedReasonType.Success_a26d</ID>
+    <ID>MissingAssertSoftly:GameEndTest.kt$GameEndTest$firstGsm.hasGameInfo().shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:GameEndTest.kt$GameEndTest$lossAnnotation.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:GameEndTest.kt$GameEndTest$req.hasResult().shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:GameEndTest.kt$GameEndTest$req.result.reason shouldBe ResultReason.Game_ae0a</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$attached.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$cc.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$destroyed.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$dmg.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$lc.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$lp.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$pt.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$sac.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$sc.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$scry.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$sr.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$sv.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$tapped.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$transformed.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GameEventCollectorTest.kt$GameEventCollectorTest$zc.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:GamePlaybackCounterTest.kt$GamePlaybackCounterTest$all.size shouldBe iterations * 2</ID>
+    <ID>MissingAssertSoftly:GamePlaybackCounterTest.kt$GamePlaybackCounterTest$counter.currentGsId() shouldBe 42</ID>
+    <ID>MissingAssertSoftly:GamePlaybackCounterTest.kt$GamePlaybackCounterTest$counter.nextGsId() shouldBe 11</ID>
+    <ID>MissingAssertSoftly:GamePlaybackCounterTest.kt$GamePlaybackCounterTest$counter.nextMsgId() shouldBe 6</ID>
+    <ID>MissingAssertSoftly:GamePlaybackCounterTest.kt$GamePlaybackCounterTest$playback.drainQueue().shouldBeEmpty()</ID>
+    <ID>MissingAssertSoftly:GsmFrameTest.kt$GsmFrameTest$ann.id shouldBe 100</ID>
+    <ID>MissingAssertSoftly:GsmFrameTest.kt$GsmFrameTest$ti.activePlayer shouldBe 1</ID>
+    <ID>MissingAssertSoftly:HandshakeMessagesTest.kt$HandshakeMessagesTest$rolls.getValue(1) shouldBeInRange 1..20</ID>
+    <ID>MissingAssertSoftly:InstanceIdRegistryTest.kt$InstanceIdRegistryTest$deleted.shouldContainExactlyInAnyOrder(id1, id2, id3)</ID>
+    <ID>MissingAssertSoftly:KeywordGrantAnnotationTest.kt$KeywordGrantAnnotationTest$pAnn.affectedIdsList shouldHaveSize 2</ID>
+    <ID>MissingAssertSoftly:KeywordGrantAnnotationTest.kt$KeywordGrantAnnotationTest$pAnn.affectedIdsList shouldHaveSize 3</ID>
+    <ID>MissingAssertSoftly:KeywordGrantAnnotationTest.kt$KeywordGrantAnnotationTest$transient.filter { it.typeList.contains(AnnotationType.LayeredEffectCreated) } shouldHaveSize 2</ID>
+    <ID>MissingAssertSoftly:KeywordQualificationsTest.kt$KeywordQualificationsTest$info.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:LandManaTest.kt$LandManaTest$a.instanceId shouldNotBe 0</ID>
+    <ID>MissingAssertSoftly:LandManaTest.kt$LandManaTest$b.getLimboInstanceIds().shouldHaveSize(2)</ID>
+    <ID>MissingAssertSoftly:LandManaTest.kt$LandManaTest$cast.shouldHaveSize(1)</ID>
+    <ID>MissingAssertSoftly:LandManaTest.kt$LandManaTest$ids shouldBe ids.sorted()</ID>
+    <ID>MissingAssertSoftly:LegendRuleTest.kt$LegendRuleTest$h.accumulator.assertConsistent("after legend rule")</ID>
+    <ID>MissingAssertSoftly:LibraryOrderInteractionTest.kt$LibraryOrderInteractionTest$surveilZt.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:LibrarySearchConformanceTest.kt$LibrarySearchConformanceTest$mountain.type shouldBe GameObjectType.Card</ID>
+    <ID>MissingAssertSoftly:LibrarySearchConformanceTest.kt$LibrarySearchConformanceTest$obj.type shouldBe GameObjectType.Card</ID>
+    <ID>MissingAssertSoftly:MadnessTest.kt$MadnessTest$cto shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:MadnessTest.kt$MadnessTest$h.passUntil(maxPasses = 6) { h.bridge.getGame()!!.stack.isEmpty } .shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:MadnessTest.kt$MadnessTest$madnessAbilityGrpId shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:MatchFlowHarnessTest.kt$MatchFlowHarnessTest$h.isGameOver().shouldBeFalse()</ID>
+    <ID>MissingAssertSoftly:MatchFlowHarnessTest.kt$MatchFlowHarnessTest$h.turn() shouldBe 1</ID>
+    <ID>MissingAssertSoftly:MatchRegistryTest.kt$MatchRegistryTest$match.state shouldBe MatchState.FINISHED</ID>
+    <ID>MissingAssertSoftly:MatchRegistryTest.kt$MatchRegistryTest$recreated.state shouldBe MatchState.WAITING</ID>
+    <ID>MissingAssertSoftly:MechanicAnnotationPipelineTest.kt$MechanicAnnotationPipelineTest$annotations.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:MechanicAnnotationPipelineTest.kt$MechanicAnnotationPipelineTest$annotations.size shouldBe 2</ID>
+    <ID>MissingAssertSoftly:ModalETBFlowTest.kt$ModalETBFlowTest$abilityObj.parentId shouldBe cardInstanceId</ID>
+    <ID>MissingAssertSoftly:ModalETBFlowTest.kt$ModalETBFlowTest$modalReq.abilityGrpId shouldBe parentAbilityGrpId</ID>
+    <ID>MissingAssertSoftly:ModalETBFlowTest.kt$ModalETBFlowTest$modalReq.abilityGrpId shouldBe princeAbilityGrpId</ID>
+    <ID>MissingAssertSoftly:ModalETBFlowTest.kt$ModalETBFlowTest$option.affectedId shouldBe abilityInstanceId</ID>
+    <ID>MissingAssertSoftly:ModalETBFlowTest.kt$ModalETBFlowTest$option.castingTimeOptionType shouldBe CastingTimeOptionType.Modal_a7b4</ID>
+    <ID>MissingAssertSoftly:NoviceInspectorTest.kt$NoviceInspectorTest$h.activateAbility(clueCard.name).shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:PersistentAnnotationPipelineTest.kt$PersistentAnnotationPipelineTest$ann.typeList shouldContain AnnotationType.DisplayCardUnderCard</ID>
+    <ID>MissingAssertSoftly:PhaseStopProfileTest.kt$PhaseStopProfileTest$PhaseStopProfile.forPhaseKey("MAIN1") shouldBe PhaseType.MAIN1</ID>
+    <ID>MissingAssertSoftly:PhaseStopProfileTest.kt$PhaseStopProfileTest$profile.isEnabled(1, PhaseType.MAIN1) shouldBe true</ID>
+    <ID>MissingAssertSoftly:PlaneswalkerSacrificeTest.kt$PlaneswalkerSacrificeTest$h.isGameOver().shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:PriorityDecisionTest.kt$PriorityDecisionTest$state.hasOpponentStop(forge.game.phase.PhaseType.COMBAT_BEGIN) shouldBe false</ID>
+    <ID>MissingAssertSoftly:PriorityDecisionTest.kt$PriorityDecisionTest$state.hasOpponentStop(forge.game.phase.PhaseType.MAIN1) shouldBe true</ID>
+    <ID>MissingAssertSoftly:PriorityDecisionTest.kt$PriorityDecisionTest$state.shouldAutoPass() shouldBe false</ID>
+    <ID>MissingAssertSoftly:PromptIdsTest.kt$PromptIdsTest$PromptIds.PASS_PRIORITY shouldBe 2</ID>
+    <ID>MissingAssertSoftly:ProtocolTest.kt$ProtocolTest$cards.findGrpIdByName("Llanowar Elves") shouldBe 93940</ID>
+    <ID>MissingAssertSoftly:ProtocolTest.kt$ProtocolTest$cards.findNameByGrpId(12345) shouldBe "Lightning Bolt"</ID>
+    <ID>MissingAssertSoftly:ProtocolTest.kt$ProtocolTest$innerGre.type shouldBe GREMessageType.GameStateMessage_695e</ID>
+    <ID>MissingAssertSoftly:ProtocolTest.kt$ProtocolTest$msg.deckCardsCount shouldBe 5</ID>
+    <ID>MissingAssertSoftly:ProtocolTest.kt$ProtocolTest$parsed.requestId shouldBe 42</ID>
+    <ID>MissingAssertSoftly:ProtocolTest.kt$ProtocolTest$parsed.type shouldBe GREMessageType.ConnectResp_695e</ID>
+    <ID>MissingAssertSoftly:PurePipelineTest.kt$PurePipelineTest$a.abilityInstanceId shouldBe abilityIid</ID>
+    <ID>MissingAssertSoftly:PurePipelineTest.kt$PurePipelineTest$ann.typeList shouldBe listOf(AnnotationType.AbilityInstanceCreated)</ID>
+    <ID>MissingAssertSoftly:PurePipelineTest.kt$PurePipelineTest$ann.typeList shouldBe listOf(AnnotationType.AbilityInstanceDeleted)</ID>
+    <ID>MissingAssertSoftly:PurePipelineTest.kt$PurePipelineTest$d.abilityInstanceId shouldBe abilityIid</ID>
+    <ID>MissingAssertSoftly:PurePipelineTest.kt$PurePipelineTest$transfer.category shouldBe TransferCategory.PlayLand</ID>
+    <ID>MissingAssertSoftly:PurePipelineTest.kt$PurePipelineTest$transfer.category shouldBe TransferCategory.Resolve</ID>
+    <ID>MissingAssertSoftly:PuzzleBridgeTest.kt$PuzzleBridgeTest$b.getGame()!!.phaseHandler.turn shouldBe turnBefore</ID>
+    <ID>MissingAssertSoftly:PuzzleHandlerTest.kt$PuzzleHandlerTest$first shouldBeSameInstanceAs second</ID>
+    <ID>MissingAssertSoftly:PuzzleHandlerTest.kt$PuzzleHandlerTest$gre.map { it.type } shouldContain GREMessageType.ConnectResp_695e</ID>
+    <ID>MissingAssertSoftly:PuzzleSourceTest.kt$PuzzleSourceTest$meta.name shouldBe "Lightning Bolt Test"</ID>
+    <ID>MissingAssertSoftly:PuzzleSourceTest.kt$PuzzleSourceTest$meta.name shouldBe "Minimal"</ID>
+    <ID>MissingAssertSoftly:SagaCreatureTypeTest.kt$SagaCreatureTypeTest$types shouldContain "Enchantment"</ID>
+    <ID>MissingAssertSoftly:SagaTransformPuzzleTest.kt$SagaTransformPuzzleTest$("Exile" in zoneCategories).shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:ScryETBFlowTest.kt$ScryETBFlowTest$bf.any { it.name == "Wall of Runes" }.shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:ScryETBFlowTest.kt$ScryETBFlowTest$oic.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:ScryETBFlowTest.kt$ScryETBFlowTest$scryAnn.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:SearchReqConformanceTest.kt$SearchReqConformanceTest$searchReq.searchReq.maxFind shouldBe 1</ID>
+    <ID>MissingAssertSoftly:SearchReqTest.kt$SearchReqTest$msg.type shouldBe GREMessageType.SearchReq_695e</ID>
+    <ID>MissingAssertSoftly:SearchReqTest.kt$SearchReqTest$sr.maxFind shouldBe 1</ID>
+    <ID>MissingAssertSoftly:ShapeIntegrationTest.kt$ShapeIntegrationTest$messages.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:ShapeIntegrationTest.kt$ShapeIntegrationTest$messages.size shouldBe 2</ID>
+    <ID>MissingAssertSoftly:StackCastResolveTest.kt$StackCastResolveTest$(aicIdx &lt; tupIdx) shouldBe true</ID>
+    <ID>MissingAssertSoftly:StackCastResolveTest.kt$StackCastResolveTest$types shouldContain AnnotationType.ObjectIdChanged</ID>
+    <ID>MissingAssertSoftly:StackCastResolveTest.kt$StackCastResolveTest$zt.detailString("category") shouldBe "CastSpell"</ID>
+    <ID>MissingAssertSoftly:StateMapperShapeTest.kt$StateMapperShapeTest$byId[ZoneIds.SUPPRESSED]!!.visibility shouldBe Messages.Visibility.Public</ID>
+    <ID>MissingAssertSoftly:StateMapperShapeTest.kt$StateMapperShapeTest$handZone.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:StateMapperShapeTest.kt$StateMapperShapeTest$timer1.type shouldBe Messages.TimerType.Inactivity_a5e2</ID>
+    <ID>MissingAssertSoftly:StopTypeMappingTest.kt$StopTypeMappingTest$enabled shouldContain PhaseType.MAIN1</ID>
+    <ID>MissingAssertSoftly:TargetSpecAnnotationTest.kt$TargetSpecAnnotationTest$targetAnn shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:TargetingFlowTest.kt$TargetingFlowTest$(creature.netPower &gt;= 4).shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:TargetingFlowTest.kt$TargetingFlowTest$(creatureIid in legalTargetIds).shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:TargetingFlowTest.kt$TargetingFlowTest$targetCount shouldBeGreaterThanOrEqual 4</ID>
+    <ID>MissingAssertSoftly:TimerMessageTest.kt$TimerMessageTest$msg.type shouldBe GREMessageType.TimerStateMessage_695e</ID>
+    <ID>MissingAssertSoftly:TimerMessageTest.kt$TimerMessageTest$timer.type shouldBe TimerType.Decision</ID>
+    <ID>MissingAssertSoftly:TransferAnnotationPipelineTest.kt$TransferAnnotationPipelineTest$annotations.size shouldBe 2</ID>
+    <ID>MissingAssertSoftly:TransferAnnotationPipelineTest.kt$TransferAnnotationPipelineTest$assertSoftly { annotations.size shouldBe 8 annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a annotations[2].typeList.first() shouldBe AnnotationType.AbilityInstanceCreated annotations[3].typeList.first() shouldBe AnnotationType.TappedUntappedPermanent annotations[4].typeList.first() shouldBe AnnotationType.UserActionTaken annotations[5].typeList.first() shouldBe AnnotationType.ManaPaid annotations[6].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted annotations[7].typeList.first() shouldBe AnnotationType.UserActionTaken }</ID>
+    <ID>MissingAssertSoftly:TransferAnnotationPipelineTest.kt$TransferAnnotationPipelineTest$persistent.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:TreasureTokenTest.kt$TreasureTokenTest$human.getZone(ZoneType.Hand).cards.map { it.name } shouldContain "Prosperous Innkeeper"</ID>
+    <ID>MissingAssertSoftly:TreasureTokenTest.kt$TreasureTokenTest$manaActivateAnnotations.shouldNotBeEmpty()</ID>
+    <ID>MissingAssertSoftly:TwoPhaseTargetingTest.kt$TwoPhaseTargetingTest$ai.life shouldBe 3</ID>
+    <ID>MissingAssertSoftly:TwoPhaseTargetingTest.kt$TwoPhaseTargetingTest$targetGroup.targetsList.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:ValidatingMessageSinkTest.kt$ValidatingMessageSinkTest$inner.messages.size shouldBe 1</ID>
+    <ID>MissingAssertSoftly:ValidatingMessageSinkTest.kt$ValidatingMessageSinkTest$sink.violations.shouldBeEmpty()</ID>
+    <ID>MissingAssertSoftly:VehicleCrewAnnotationTest.kt$VehicleCrewAnnotationTest$ann.typeList shouldContain AnnotationType.ModifiedType</ID>
+    <ID>MissingAssertSoftly:VehicleCrewAnnotationTest.kt$VehicleCrewAnnotationTest$ann.typeList shouldHaveSize 1</ID>
+    <ID>MissingAssertSoftly:VehicleCrewAnnotationTest.kt$VehicleCrewAnnotationTest$ann.typeList shouldHaveSize 2</ID>
+    <ID>MissingAssertSoftly:VehicleCrewAnnotationTest.kt$VehicleCrewAnnotationTest$creatureObj.cardTypesList shouldContain CardType.Creature</ID>
+    <ID>MissingAssertSoftly:VehicleCrewPuzzleTest.kt$VehicleCrewPuzzleTest$h.phase() shouldBe "MAIN1"</ID>
+    <ID>MissingAssertSoftly:ZoneMapperChapterGrpIdTest.kt$ZoneMapperChapterGrpIdTest$ZoneMapper.chapterGrpIdFromCardData(data, 1) shouldBe 10001</ID>
+    <ID>MissingAssertSoftly:ZoneMapperChapterGrpIdTest.kt$ZoneMapperChapterGrpIdTest$ZoneMapper.chapterGrpIdFromCardData(data, 1) shouldBe 147926</ID>
+    <ID>SleepInsteadOfDelay:GameActionBridgeTest.kt$GameActionBridgeTest$sleep(10)</ID>
+    <ID>SleepInsteadOfDelay:SearchReqConformanceTest.kt$SearchReqConformanceTest$sleep(500)</ID>
+  </CurrentIssues>
+</SmellBaseline>

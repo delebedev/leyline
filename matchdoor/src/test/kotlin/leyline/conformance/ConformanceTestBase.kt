@@ -17,7 +17,6 @@ import leyline.game.StateMapper
 import leyline.game.advanceToMain1
 import leyline.game.awaitFreshPending
 import leyline.game.snapshotFromGame
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
@@ -218,9 +217,6 @@ open class ConformanceTestBase {
         if (checkSba) game.action.checkStateEffects(true)
         return stateOnlyDiff(game, b, counter)
     }
-
-    fun fingerprint(messages: List<GREToClientMessage>): List<StructuralFingerprint> =
-        messages.map { StructuralFingerprint.fromGRE(it) }
 
     fun playLand(b: GameBridge): PlayerAction? {
         val player = b.getPlayer(SeatId(1)) ?: return null

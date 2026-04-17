@@ -72,8 +72,8 @@ class DebugLogAppender : AppenderBase<ILoggingEvent>() {
             ts = event.timeStamp,
             level = event.level.toString(),
             logger = event.loggerName.substringAfterLast('.'),
-            message = event.formattedMessage ?: "",
-            thread = event.threadName ?: "",
+            message = event.formattedMessage.orEmpty(),
+            thread = event.threadName.orEmpty(),
         )
     }
 }

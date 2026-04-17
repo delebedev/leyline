@@ -25,7 +25,7 @@ class ActivatedAbilityTest :
                 addCard("Gingerbrute", human, ZoneType.Battlefield)
             }
 
-            val activate = ActionMapper.buildActions(game, 1, b).ofType(ActionType.Activate_add3)
+            val activate = ActionMapper.buildActions(1, b).ofType(ActionType.Activate_add3)
             activate.shouldHaveSize(2) // {1}: evasion + {2},{T},Sac: gain 3 life
 
             assertSoftly {

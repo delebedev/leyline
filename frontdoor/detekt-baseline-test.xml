@@ -1,0 +1,42 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"clone-1","Name":"Imported Deck (4)","DeckTileId":55,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":200,"quantity":2}],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Cloned"}"""</ID>
+    <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"Explorer Deck","DeckTileId":0,"Attributes":[{"name":"Format","value":"Explorer"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""</ID>
+    <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"Fav","DeckTileId":0,"Attributes":[{"name":"IsFavorite","value":"true"},{"name":"Format","value":"Standard"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""</ID>
+    <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"My Deck","DeckTileId":99,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":100,"quantity":4}],"Sideboard":[],"CommandZone":[],"Companions":[],"CardSkins":[]},"ActionType":"CreatedNew"}"""</ID>
+    <ID>MissingAssertSoftly:CourseServiceTest.kt$CourseServiceTest$course.module shouldBe CourseModule.DeckSelect</ID>
+    <ID>MissingAssertSoftly:CourseServiceTest.kt$CourseServiceTest$course.wins shouldBe 1</ID>
+    <ID>MissingAssertSoftly:DeckTest.kt$DeckTest$Format.fromString("standard") shouldBe Format.Standard</ID>
+    <ID>MissingAssertSoftly:DeckWireBuilderTest.kt$DeckWireBuilderTest$attrs shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:DeckWireBuilderTest.kt$DeckWireBuilderTest$entry["MainDeck"]?.jsonArray shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:DeckWireBuilderTest.kt$DeckWireBuilderTest$legalities["Standard"]?.jsonPrimitive?.boolean shouldBe true</ID>
+    <ID>MissingAssertSoftly:DeckWireBuilderTest.kt$DeckWireBuilderTest$parsed shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$after.pickNumber shouldBe 1</ID>
+    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$session.packNumber shouldBe 1</ID>
+    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$session.status shouldBe DraftStatus.Completed</ID>
+    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$session.status shouldBe DraftStatus.PickNext</ID>
+    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$status shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:DraftWireBuilderTest.kt$DraftWireBuilderTest$inner["Result"]?.jsonPrimitive?.content shouldBe "Success"</ID>
+    <ID>MissingAssertSoftly:FormatServiceTest.kt$FormatServiceTest$EventRegistry.mapArenaFormat("Timeless").shouldBeNull()</ID>
+    <ID>MissingAssertSoftly:FormatServiceTest.kt$FormatServiceTest$EventRegistry.mapArenaFormat("TraditionalStandard") shouldBe "Standard"</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$course.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$courses.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$deck["DeckId"].shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$deck["MainDeck"].shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$draftCourse.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$matchInfo.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$obj["DeckSummariesV2"].shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$outer["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$payload["PickNumber"]?.jsonPrimitive?.int shouldBe 1</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$payload["Result"]?.jsonPrimitive?.content shouldBe "Success"</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$prefs.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$saved.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$summary.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:SqliteCourseRepositoryTest.kt$SqliteCourseRepositoryTest$found shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:SqliteCourseRepositoryTest.kt$SqliteCourseRepositoryTest$found.wins shouldBe 2</ID>
+    <ID>MissingAssertSoftly:SqlitePlayerStoreTest.kt$SqlitePlayerStoreTest$found shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:SqlitePlayerStoreTest.kt$SqlitePlayerStoreTest$found.name shouldBe "Updated Weenie"</ID>
+  </CurrentIssues>
+</SmellBaseline>

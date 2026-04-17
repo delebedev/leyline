@@ -211,7 +211,6 @@ object RequestBuilder {
      *   Initial request passes empty set (no pre-selection).
      */
     fun buildDeclareAttackersReq(
-        game: Game,
         seatId: Int,
         bridge: GameBridge,
         committedAttackerIds: Set<Int> = emptySet(),

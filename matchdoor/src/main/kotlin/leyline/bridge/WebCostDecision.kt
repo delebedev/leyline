@@ -53,7 +53,7 @@ class WebCostDecision(
     // Helpers
     // ═══════════════════════════════════════════════════════════════════
 
-    private fun confirmAction(cost: CostPart, message: String): Boolean {
+    private fun confirmAction(message: String): Boolean {
         val cardView = ability.cardView
         return controller.gui.confirm(cardView, message)
     }
@@ -129,7 +129,7 @@ class WebCostDecision(
 
     override fun visit(cost: CostDamage): PaymentDecision? {
         val c = cost.getAbilityAmount(ability)
-        return if (confirmAction(cost, Localizer.getInstance().getMessage("lblDoYouWantCardDealNDamageToYou", source.translatedName, c.toString()))) {
+        return if (confirmAction(Localizer.getInstance().getMessage("lblDoYouWantCardDealNDamageToYou", source.translatedName, c.toString()))) {
             PaymentDecision.number(c)
         } else {
             null
@@ -149,7 +149,7 @@ class WebCostDecision(
         } else {
             Localizer.getInstance().getMessage("lblDrawNCardsConfirm", c.toString())
         }
-        if (!confirmAction(cost, message)) return null
+        if (!confirmAction(message)) return null
         val decision = PaymentDecision.players(res)
         decision.c = c
         return decision
@@ -157,7 +157,7 @@ class WebCostDecision(
 
     override fun visit(cost: CostFlipCoin): PaymentDecision? {
         val c = cost.getAbilityAmount(ability)
-        return if (confirmAction(cost, Localizer.getInstance().getMessage("lblDoYouWantFlipNCoinAction", c.toString()))) {
+        return if (confirmAction(Localizer.getInstance().getMessage("lblDoYouWantFlipNCoinAction", c.toString()))) {
             PaymentDecision.number(c)
         } else {
             null
@@ -166,7 +166,7 @@ class WebCostDecision(
 
     override fun visit(cost: CostRollDice): PaymentDecision? {
         val c = cost.getAbilityAmount(ability)
-        return if (confirmAction(cost, Localizer.getInstance().getMessage("lblDoYouWantRollNDiceAction", c.toString(), "d${cost.type}"))) {
+        return if (confirmAction(Localizer.getInstance().getMessage("lblDoYouWantRollNDiceAction", c.toString(), "d${cost.type}"))) {
             PaymentDecision.number(c)
         } else {
             null
@@ -180,7 +180,7 @@ class WebCostDecision(
         } else {
             Localizer.getInstance().getMessage("lblMillNCardsFromYourLibraryConfirm", c.toString())
         }
-        return if (confirmAction(cost, message)) PaymentDecision.number(c) else null
+        return if (confirmAction(message)) PaymentDecision.number(c) else null
     }
 
     override fun visit(cost: CostPayLife): PaymentDecision? {
@@ -191,7 +191,7 @@ class WebCostDecision(
         } else {
             Localizer.getInstance().getMessage("lblPayNLifeConfirm", c.toString())
         }
-        if (player.canPayLife(c, isEffect, ability) && confirmAction(cost, message)) {
+        if (player.canPayLife(c, isEffect, ability) && confirmAction(message)) {
             if (!player.game.EXPERIMENTAL_RESTORE_SNAPSHOT) {
                 mandatory = true
             }
@@ -203,7 +203,7 @@ class WebCostDecision(
     override fun visit(cost: CostPayEnergy): PaymentDecision? {
         val c = cost.getAbilityAmount(ability)
         if (player.canPayEnergy(c) &&
-            confirmAction(cost, Localizer.getInstance().getMessage("lblPayEnergyConfirm", cost.toString(), player.getCounters(CounterEnumType.ENERGY).toString(), "{E}"))
+            confirmAction(Localizer.getInstance().getMessage("lblPayEnergyConfirm", cost.toString(), player.getCounters(CounterEnumType.ENERGY).toString(), "{E}"))
         ) {
             return PaymentDecision.number(c)
         }
@@ -213,7 +213,7 @@ class WebCostDecision(
     override fun visit(cost: CostPayShards): PaymentDecision? {
         val c = cost.getAbilityAmount(ability)
         if (player.canPayShards(c) &&
-            confirmAction(cost, Localizer.getInstance().getMessage("lblPayShardsConfirm", cost.toString(), player.numManaShards.toString(), "{M} (Mana Shards)"))
+            confirmAction(Localizer.getInstance().getMessage("lblPayShardsConfirm", cost.toString(), player.numManaShards.toString(), "{M} (Mana Shards)"))
         ) {
             return PaymentDecision.number(c)
         }
@@ -352,7 +352,7 @@ class WebCostDecision(
             return if (hand.contains(source)) PaymentDecision.card(source) else null
         }
         if (discardType == "Hand") {
-            if (!mandatory && !confirmAction(cost, Localizer.getInstance().getMessage("lblDoYouWantDiscardYourHand"))) {
+            if (!mandatory && !confirmAction(Localizer.getInstance().getMessage("lblDoYouWantDiscardYourHand"))) {
                 return null
             }
             if (hand.size > 1 && ability.activatingPlayer != null) {
@@ -442,7 +442,7 @@ class WebCostDecision(
         if (onlyPayable != null) {
             if (onlyPayable.canExiledBy(ability, isEffect) &&
                 onlyPayable.zone == player.getZone(cost.from[0]) &&
-                confirmAction(cost, Localizer.getInstance().getMessage("lblExileConfirm", onlyPayable.translatedName))
+                confirmAction(Localizer.getInstance().getMessage("lblExileConfirm", onlyPayable.translatedName))
             ) {
                 return PaymentDecision.card(onlyPayable)
             }
@@ -493,7 +493,7 @@ class WebCostDecision(
         }
 
         if (type == "All") {
-            return if (confirmAction(cost, Localizer.getInstance().getMessage("lblExileNCardsFromYourZone", list.size, cost.from[0].translatedName))) {
+            return if (confirmAction(Localizer.getInstance().getMessage("lblExileNCardsFromYourZone", list.size, cost.from[0].translatedName))) {
                 PaymentDecision.card(list)
             } else {
                 null
@@ -566,7 +566,7 @@ class WebCostDecision(
                 return PaymentDecision.card(selected)
             }
             if (fromZone == ZoneType.Library) {
-                return if (confirmAction(cost, Localizer.getInstance().getMessage("lblExileNCardFromYourTopLibraryConfirm"))) {
+                return if (confirmAction(Localizer.getInstance().getMessage("lblExileNCardFromYourTopLibraryConfirm"))) {
                     PaymentDecision.card(player.getCardsIn(ZoneType.Library, c))
                 } else {
                     null
@@ -581,7 +581,7 @@ class WebCostDecision(
 
         if (cost.zoneRestriction != 0) {
             if (cost.zoneRestriction == -1 && ability.isTrigger && c == 1 && list.size == 1) {
-                return if (confirmAction(cost, Localizer.getInstance().getMessage("lblExileConfirm", list.first.translatedName))) {
+                return if (confirmAction(Localizer.getInstance().getMessage("lblExileConfirm", list.first.translatedName))) {
                     PaymentDecision.card(list.first)
                 } else {
                     null
@@ -647,7 +647,7 @@ class WebCostDecision(
         if (cost.payCostFromSource()) {
             return if (source.controller == ability.activatingPlayer &&
                 source.isInPlay &&
-                confirmAction(cost, Localizer.getInstance().getMessage("lblExertCardConfirm", source.translatedName))
+                confirmAction(Localizer.getInstance().getMessage("lblExertCardConfirm", source.translatedName))
             ) {
                 PaymentDecision.card(source)
             } else {
@@ -690,7 +690,7 @@ class WebCostDecision(
             player.getCardsIn(ZoneType.Graveyard),
             CardPredicates.canExiledBy(ability, isEffect),
         )
-        if (!food.isEmpty() && confirmAction(cost, "Sacrifice Food")) {
+        if (!food.isEmpty() && confirmAction("Sacrifice Food")) {
             val selected = selectCards(
                 Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", "Food", "%d"),
                 food,
@@ -742,7 +742,6 @@ class WebCostDecision(
         if (cost.payCostFromSource()) {
             if (ability.hasParam("UnlessCost") &&
                 !confirmAction(
-                    cost,
                     Localizer.getInstance().getMessage("lblPutNTypeCounterOnTarget", c.toString(), cost.counter.name, ability.hostCard.displayName),
                 )
             ) {
@@ -775,7 +774,7 @@ class WebCostDecision(
             val card = ability.hostCard
             return if (card.controller == player &&
                 card.isInPlay &&
-                confirmAction(cost, Localizer.getInstance().getMessage("lblReturnCardToHandConfirm", CardTranslation.getTranslatedName(CardView.get(card).name)))
+                confirmAction(Localizer.getInstance().getMessage("lblReturnCardToHandConfirm", CardTranslation.getTranslatedName(CardView.get(card).name)))
             ) {
                 PaymentDecision.card(card)
             } else {
@@ -941,12 +940,11 @@ class WebCostDecision(
             if (amount == "All") {
                 val prompt = Localizer.getInstance().getMessage("lblRemoveAllCountersConfirm") +
                     if (anyCounters) "" else " (${cntrs!!.name})"
-                if (!confirmAction(cost, prompt)) return null
+                if (!confirmAction(prompt)) return null
                 cntRemoved = maxCounters
             } else if (ability != null && !ability.isPwAbility) {
                 if (maxCounters < cntRemoved) return null
                 if (!confirmAction(
-                        cost,
                         Localizer.getInstance().getMessage(
                             "lblRemoveNTargetCounterFromCardPayCostConfirm",
                             amount,
@@ -1053,7 +1051,7 @@ class WebCostDecision(
         if (cost.payCostFromSource()) {
             return if (source.controller == ability.activatingPlayer &&
                 source.canBeSacrificedBy(ability, isEffect) &&
-                (mandatory || confirmAction(cost, Localizer.getInstance().getMessage("lblSacrificeCardConfirm", source.translatedName)))
+                (mandatory || confirmAction(Localizer.getInstance().getMessage("lblSacrificeCardConfirm", source.translatedName)))
             ) {
                 PaymentDecision.card(source)
             } else {
@@ -1064,7 +1062,7 @@ class WebCostDecision(
             val host = ability.originalHost
             return if (host.controller == ability.activatingPlayer &&
                 host.canBeSacrificedBy(ability, isEffect) &&
-                confirmAction(cost, Localizer.getInstance().getMessage("lblSacrificeCardConfirm", host.translatedName))
+                confirmAction(Localizer.getInstance().getMessage("lblSacrificeCardConfirm", host.translatedName))
             ) {
                 PaymentDecision.card(host)
             } else {
@@ -1237,7 +1235,7 @@ class WebCostDecision(
 
     override fun visit(cost: CostUnattach): PaymentDecision? {
         val cardToUnattach = cost.findCardToUnattach(source, player, ability)
-        if (cardToUnattach.size == 1 && confirmAction(cost, Localizer.getInstance().getMessage("lblUnattachCardConfirm", cardToUnattach.first.translatedName))) {
+        if (cardToUnattach.size == 1 && confirmAction(Localizer.getInstance().getMessage("lblUnattachCardConfirm", cardToUnattach.first.translatedName))) {
             return PaymentDecision.card(cardToUnattach.first)
         }
         if (cardToUnattach.size > 1) {
@@ -1267,7 +1265,7 @@ class WebCostDecision(
 
         if (cost.payCostFromSource()) {
             return if (source.zone == player.getZone(cost.from) &&
-                confirmAction(cost, Localizer.getInstance().getMessage("lblPutCardToLibraryConfirm", source.translatedName))
+                confirmAction(Localizer.getInstance().getMessage("lblPutCardToLibraryConfirm", source.translatedName))
             ) {
                 PaymentDecision.card(source)
             } else {

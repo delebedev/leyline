@@ -2,6 +2,7 @@ package leyline.protocol
 
 import forge.util.MyRandom
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
@@ -52,9 +53,9 @@ class HandshakeMessagesTest :
             repeat(10) { i ->
                 MyRandom.setRandom(Random(i.toLong()))
                 val rolls = extractDieRolls(b, winner = 2)
-                rolls[1]!! shouldBeInRange 1..20
-                rolls[2]!! shouldBeInRange 1..20
-                (rolls[2]!! > rolls[1]!!) shouldBe true
+                rolls.getValue(1) shouldBeInRange 1..20
+                rolls.getValue(2) shouldBeInRange 1..20
+                rolls.getValue(2) shouldBeGreaterThan rolls.getValue(1)
             }
         }
 
