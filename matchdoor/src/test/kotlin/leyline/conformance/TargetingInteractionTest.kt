@@ -133,8 +133,9 @@ class TargetingInteractionTest :
 
             assertSoftly {
                 game().stack.isEmpty.shouldBeTrue()
+                // Puzzle has exactly 1 Giant Growth; cancel returns it to hand.
                 human.getZone(ForgeZoneType.Hand).cards
-                    .filter { it.name == "Giant Growth" }.shouldNotBeEmpty()
+                    .filter { it.name == "Giant Growth" } shouldHaveSize 1
                 messagesSince(snap).any { it.hasActionsAvailableReq() }.shouldBeTrue()
             }
 
