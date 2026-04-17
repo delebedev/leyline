@@ -7,6 +7,8 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.ints.shouldBeLessThan
+import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -50,7 +52,7 @@ class AiTurnInteractionTest :
 
             assertSoftly {
                 fullWithZones.size shouldBeGreaterThanOrEqual 0
-                (fullWithZones.size <= 1).shouldBeTrue()
+                fullWithZones.size shouldBeLessThanOrEqual 1
 
                 ptStart shouldBeGreaterThanOrEqual 0
                 gsms.size shouldBeGreaterThanOrEqual (ptStart + 3)
@@ -272,7 +274,7 @@ class AiTurnInteractionTest :
             assertSoftly {
                 // PlayLand has own gsId, precedes CastSpell
                 playLandGsm.gameStateId shouldNotBe castSpellGsm.gameStateId
-                (playLandGsm.gameStateId < castSpellGsm.gameStateId).shouldBeTrue()
+                playLandGsm.gameStateId shouldBeLessThan castSpellGsm.gameStateId
 
                 // PlayLand annotation triple
                 annTypes shouldContain AnnotationType.ObjectIdChanged

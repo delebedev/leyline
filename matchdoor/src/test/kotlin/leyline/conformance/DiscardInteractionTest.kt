@@ -69,10 +69,10 @@ class DiscardInteractionTest :
 
                 // Original hand cards consumed — hand empty (started with 2, both gone)
                 human.getZone(ForgeZoneType.Hand).cards shouldHaveSize 0
-            }
 
-            assertAccumulatorConsistent("after mandatory discard cost")
-            assertGsIdChain(allMessages, context = "mandatory discard cost flow")
+                assertAccumulatorConsistent("after mandatory discard cost")
+                assertGsIdChain(allMessages, context = "mandatory discard cost flow")
+            }
         }
 
         // --- Cleanup discard (hand exceeds max hand size) ---

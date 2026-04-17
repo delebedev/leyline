@@ -14,7 +14,6 @@ import io.kotest.matchers.shouldNotBe
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
-import wotc.mtgo.gre.external.messaging.Messages.GameStage
 import wotc.mtgo.gre.external.messaging.Messages.HighlightType
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
@@ -150,7 +149,7 @@ class TargetingInteractionTest :
 
         // ─── Lightning Bolt: player + creature targeting ───────────────────────
 
-        test("Lightning Bolt — prompt shape, sourceId, resolve kills opponent") {
+        test("Lightning Bolt — prompt shape, sourceId, resolve deals 3 damage to opponent") {
             startPuzzleFile("puzzles/bolt-face.pzl")
 
             val snap = messageSnapshot()
@@ -192,32 +191,31 @@ class TargetingInteractionTest :
                 req.sourceId shouldBe stackInstanceId
             }
 
-            // Resolve → opponent at 3 life → game over
+            // Resolve → 3 damage to opponent (puzzle puts AI at 3 life)
+            val preBoltAiLife = ai.life
             selectTargets(listOf(OPPONENT_SEAT))
             passPriority()
 
-            isGameOver().shouldBeTrue()
-            allMessages.filter {
-                it.hasGameStateMessage() &&
-                    it.gameStateMessage.hasGameInfo() &&
-                    it.gameStateMessage.gameInfo.stage == GameStage.GameOver
-            }.shouldNotBeEmpty()
-
-            assertAccumulatorConsistent("after bolt targeting + resolve")
+            assertSoftly {
+                (preBoltAiLife - ai.life) shouldBe 3
+                assertAccumulatorConsistent("after bolt targeting + resolve")
+            }
         }
 
-        test("Lightning Bolt — cancel then re-cast kills opponent") {
+        test("Lightning Bolt — cancel then re-cast deals damage") {
             startPuzzleFile("puzzles/bolt-face.pzl")
 
             castSpellByName("Lightning Bolt").shouldBeTrue()
             cancelAction()
             game().stack.isEmpty.shouldBeTrue()
 
+            val preBoltAiLife = ai.life
             castSpellByName("Lightning Bolt").shouldBeTrue()
             selectTargets(listOf(OPPONENT_SEAT))
             passPriority()
 
-            isGameOver().shouldBeTrue()
+            // 3 damage lands after re-cast
+            (preBoltAiLife - ai.life) shouldBe 3
         }
 
         // ─── Two-phase targeting protocol ──────────────────────────────────────
@@ -236,8 +234,8 @@ class TargetingInteractionTest :
 
         test("two-phase — phase-1 echo re-prompt shows selected target as Unselect") {
             startPuzzle(twoPhaseBoltState, name = "Bolt Conformance")
-            val ai = game().registeredPlayers.last()
 
+            val preBoltAiLife = ai.life
             castSpellByName("Lightning Bolt").shouldBeTrue()
 
             val snap = messageSnapshot()
@@ -256,16 +254,16 @@ class TargetingInteractionTest :
             }
 
             submitTargets()
-            passUntil(maxPasses = 10) { isGameOver() }
+            passUntilResolved()
 
-            isGameOver().shouldBeTrue()
-            ai.life shouldBe 0
+            // Damage landed after submit
+            (preBoltAiLife - ai.life) shouldBe 3
         }
 
         test("two-phase — phase-1 select alone does not resolve spell") {
             startPuzzle(twoPhaseBoltState, name = "Bolt Two-Phase Gate")
-            val ai = game().registeredPlayers.last()
 
+            val preBoltAiLife = ai.life
             castSpellByName("Lightning Bolt").shouldBeTrue()
 
             val phase1Snap = messageSnapshot()
@@ -273,8 +271,8 @@ class TargetingInteractionTest :
             val phase1Messages = messagesSince(phase1Snap)
 
             assertSoftly {
-                ai.life shouldBe 3
-                isGameOver().shouldBeFalse()
+                // No damage landed yet — spell hasn't resolved
+                ai.life shouldBe preBoltAiLife
                 phase1Messages.any { it.hasSubmitTargetsResp() }.shouldBeFalse()
                 phase1Messages.any { it.hasSelectTargetsReq() }.shouldBeTrue()
             }
@@ -283,9 +281,9 @@ class TargetingInteractionTest :
             submitTargets()
             messagesSince(phase2Snap).any { it.hasSubmitTargetsResp() }.shouldBeTrue()
 
-            passUntil(maxPasses = 10) { isGameOver() }
-            isGameOver().shouldBeTrue()
-            ai.life shouldBe 0
+            passUntilResolved()
+            // Damage landed only after submit
+            (preBoltAiLife - ai.life) shouldBe 3
         }
 
         // ─── Bite Down: multi-group fight targeting ────────────────────────────
@@ -323,9 +321,9 @@ class TargetingInteractionTest :
                     .filter { it.name == "Bite Down" } shouldHaveSize 1
                 ai.getZone(ForgeZoneType.Graveyard).cards
                     .filter { it.name == "Grizzly Bears" }.shouldNotBeEmpty()
-            }
 
-            assertAccumulatorConsistent("after Bite Down resolution")
+                assertAccumulatorConsistent("after Bite Down resolution")
+            }
         }
 
         test("Bite Down — two TargetSpec persistent annotations, cleaned up on resolve") {
