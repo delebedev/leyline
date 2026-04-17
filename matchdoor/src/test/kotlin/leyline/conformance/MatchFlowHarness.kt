@@ -31,10 +31,14 @@ class MatchFlowHarness(
     validating: Boolean = true,
     private val matchConfig: MatchConfig = MatchConfig(
         ai = AiConfig(speed = 0.0),
-        // Fail fast in tests — 5s vs the 120s production default. Tests that
-        // legitimately wait for client responses never take >2s, so 5s is
-        // ample; a hang surfaces cleanly instead of burning minutes.
-        server = ServerConfig(bridgeTimeoutMs = 5_000L),
+        // Fail fast in tests. Production defaults are tuned for real clients
+        // (120s bridge, 30s AI-turn wait, 10s mulligan); here the engine
+        // responds in <100ms so aggressive timeouts surface hangs quickly.
+        server = ServerConfig(
+            bridgeTimeoutMs = 5_000L,
+            aiTurnWaitMs = 2_000L,
+            mulliganWaitMs = 2_000L,
+        ),
     ),
     private val variant: String? = null,
 ) {

@@ -243,7 +243,7 @@ class InteractivePromptBridge(
             record(request, PromptOutcome.ALREADY_PENDING, fallback, 0)
             return fallback
         }
-        prioritySignal?.signal()
+        prioritySignal?.signal("promptBridge.requestChoice")
 
         val startMs = System.currentTimeMillis()
         return try {
