@@ -16,13 +16,8 @@ import java.util.concurrent.TimeUnit
 class PrioritySignal {
     private val semaphore = Semaphore(0)
 
-    /**
-     * Notify that a waiter should re-check its exit conditions. The [tag] is
-     * kept in the signature so call sites self-document why they signal — it
-     * has no runtime effect.
-     */
-    @Suppress("UNUSED_PARAMETER")
-    fun signal(tag: String = "unspecified") {
+    /** Notify that a waiter should re-check its exit conditions. */
+    fun signal() {
         semaphore.release()
     }
 

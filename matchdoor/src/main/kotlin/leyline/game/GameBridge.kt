@@ -435,11 +435,6 @@ class GameBridge(
         g.subscribeToEvents(collector)
         log.info("GameBridge: registered GameEventCollector for event-driven annotations")
 
-        // Fire priority signal on every Forge priority-player transition —
-        // ensures awaitPriorityWithTimeout wakes even when no human-facing
-        // bridge call fires (e.g. AI turn transitioning through cleanup).
-        g.subscribeToEvents(leyline.bridge.PrioritySignalDispatcher(prioritySignal))
-
         // Register action playback subscriber (after collector)
         val pb = GamePlayback(this, "forge-match-1", 1, messageCounter, matchConfig.aiDelayMultiplier)
         playbacks[SeatId(1)] = pb
@@ -744,8 +739,6 @@ class GameBridge(
         val collector = GameEventCollector(this)
         eventCollector = collector
         g.subscribeToEvents(collector)
-
-        g.subscribeToEvents(leyline.bridge.PrioritySignalDispatcher(prioritySignal))
 
         val pb = GamePlayback(this, "forge-match-1", 1, messageCounter, matchConfig.aiDelayMultiplier)
         playbacks[SeatId(1)] = pb

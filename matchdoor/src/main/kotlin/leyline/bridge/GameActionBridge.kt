@@ -119,7 +119,7 @@ class GameActionBridge(
             DevCheck.failOnAutoPass { "Action bridge already has a pending action" }
             return PlayerAction.PassPriority
         }
-        prioritySignal?.signal("actionBridge.awaitAction")
+        prioritySignal?.signal()
 
         val effectiveTimeout = if (paused) Long.MAX_VALUE else timeoutMs
         deadlineMs = if (paused) null else System.currentTimeMillis() + effectiveTimeout

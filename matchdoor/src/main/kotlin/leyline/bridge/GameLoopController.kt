@@ -89,7 +89,7 @@ class GameLoopController(
                 // Wake up any awaitPriority() blocked on the semaphore — game over
                 // means no more priority stops, so without this signal the caller
                 // waits the full 15s timeout before detecting isGameOver.
-                prioritySignal?.signal("gameLoop.finally")
+                prioritySignal?.signal()
                 started.countDown()
             }
         }, name)
