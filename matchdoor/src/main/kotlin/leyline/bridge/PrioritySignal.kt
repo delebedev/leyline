@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 class PrioritySignal {
     private val semaphore = Semaphore(0)
 
-    /** Notify that a bridge has a pending item. Safe to call multiple times. */
+    /** Notify that a waiter should re-check its exit conditions. */
     fun signal() {
         semaphore.release()
     }

@@ -7,6 +7,7 @@ import leyline.bridge.GameBootstrap
 import leyline.bridge.SeatId
 import leyline.config.AiConfig
 import leyline.config.MatchConfig
+import leyline.config.ServerConfig
 import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
@@ -28,7 +29,17 @@ class MatchFlowHarness(
     private val seed: Long = 42L,
     private val deckList: String? = null,
     validating: Boolean = true,
-    private val matchConfig: MatchConfig = MatchConfig(ai = AiConfig(speed = 0.0)),
+    private val matchConfig: MatchConfig = MatchConfig(
+        ai = AiConfig(speed = 0.0),
+        // Fail fast in tests. Production defaults are tuned for real clients
+        // (120s bridge, 30s AI-turn wait, 10s mulligan); here the engine
+        // responds in <100ms so aggressive timeouts surface hangs quickly.
+        server = ServerConfig(
+            bridgeTimeoutMs = 5_000L,
+            aiTurnWaitMs = 2_000L,
+            mulliganWaitMs = 2_000L,
+        ),
+    ),
     private val variant: String? = null,
 ) {
 

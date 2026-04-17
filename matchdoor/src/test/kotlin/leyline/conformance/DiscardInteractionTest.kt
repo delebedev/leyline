@@ -18,13 +18,7 @@ class DiscardInteractionTest :
 
         // --- Discard-as-cost (Mardu Outrider: {1}{B}{B} + discard a card) ---
 
-        val marduPuzzle = """
-            [metadata]
-            Name:Mandatory Cost - Mardu Outrider
-            Goal:Win
-            Turns:2
-
-            [state]
+        val marduState = """
             ActivePlayer=Human
             ActivePhase=Main1
             HumanLife=20
@@ -37,11 +31,11 @@ class DiscardInteractionTest :
         """.trimIndent()
 
         test("discard-as-cost — SelectNReq proto shape") {
-            startPuzzle(marduPuzzle)
+            startPuzzle(marduState, name = "Mardu Outrider", turns = 2)
 
             castSpellByName("Mardu Outrider") shouldBe true
 
-            val req = harness.allMessages.last { it.hasSelectNReq() }.selectNReq
+            val req = lastSelectNReq()
             assertSoftly {
                 req.context shouldBe SelectionContext.Discard_a163
                 req.listType shouldBe SelectionListType.Static
@@ -53,12 +47,12 @@ class DiscardInteractionTest :
         }
 
         test("discard-as-cost — spell resolves after responding") {
-            startPuzzle(marduPuzzle)
+            startPuzzle(marduState, name = "Mardu Outrider", turns = 2)
 
             castSpellByName("Mardu Outrider") shouldBe true
-            val req = harness.allMessages.last { it.hasSelectNReq() }.selectNReq
+            val req = lastSelectNReq()
             val mountainId = findInstanceId(req.idsList, "Mountain")
-            harness.respondToSelectN(listOf(mountainId))
+            respondToSelectN(listOf(mountainId))
             passPriority()
 
             assertSoftly {
@@ -69,18 +63,16 @@ class DiscardInteractionTest :
                 outriders.first().netPower shouldBe 5
                 outriders.first().netToughness shouldBe 5
 
-                // Discarded Mountain in graveyard
+                // Discarded Mountain in graveyard — exactly one
                 human.getZone(ForgeZoneType.Graveyard).cards
-                    .any { it.name == "Mountain" } shouldBe true
+                    .filter { it.name == "Mountain" } shouldHaveSize 1
 
-                // Original hand cards consumed
-                val hand = human.getZone(ForgeZoneType.Hand).cards
-                hand.none { it.name == "Mardu Outrider" } shouldBe true
-                hand.none { it.name == "Mountain" } shouldBe true
+                // Original hand cards consumed — hand empty (started with 2, both gone)
+                human.getZone(ForgeZoneType.Hand).cards shouldHaveSize 0
+
+                assertAccumulatorConsistent("after mandatory discard cost")
+                assertGsIdChain(allMessages, context = "mandatory discard cost flow")
             }
-
-            harness.accumulator.assertConsistent("after mandatory discard cost")
-            assertGsIdChain(harness.allMessages, context = "mandatory discard cost flow")
         }
 
         // --- Cleanup discard (hand exceeds max hand size) ---
@@ -92,23 +84,19 @@ class DiscardInteractionTest :
         test("cleanup discard — hand size enforced at end of turn") {
             startPuzzle(
                 """
-            [metadata]
-            Name:Cleanup Discard
-            Goal:Win
-            Turns:2
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
 
-            [state]
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=20
-
-            humanhand=Divination;Island;Island;Island;Island;Island;Island
-            humanbattlefield=Island;Island;Island
-            humanlibrary=Island;Island;Island;Island;Island
-            aibattlefield=Centaur Courser
-            ailibrary=Island;Island;Island;Island;Island
-                """.trimIndent(),
+                humanhand=Divination;Island;Island;Island;Island;Island;Island
+                humanbattlefield=Island;Island;Island
+                humanlibrary=Island;Island;Island;Island;Island
+                aibattlefield=Centaur Courser
+                ailibrary=Island;Island;Island;Island;Island
+                """,
+                name = "Cleanup Discard",
+                turns = 2,
             )
 
             human.getZone(ForgeZoneType.Hand).size() shouldBe 7

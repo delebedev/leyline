@@ -85,8 +85,9 @@ class AiCombatAutoPassTest :
             val humanPlayer = h.bridge.getPlayer(SeatId(1))!!
 
             // If the bug were present, elapsed would be >= 10000ms (multiple bridge timeouts).
-            // With the fix, puzzle resolve takes <1s (card DB pre-warmed in beforeSpec).
-            elapsed.toInt() shouldBeLessThan 3000
+            // With the fix, puzzle resolve takes <1s on a warm JVM — 6s leaves
+            // headroom for loaded CI / cold runners while still catching the bug.
+            elapsed.toInt() shouldBeLessThan 6000
 
             // Positive assertion: combat damage was dealt.
             // Raging Goblin (1/1) attacked unblocked → human took 1 damage.

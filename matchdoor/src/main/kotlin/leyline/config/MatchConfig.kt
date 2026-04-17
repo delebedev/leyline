@@ -121,6 +121,18 @@ data class ServerConfig(
     @SerialName("bridge_timeout_ms")
     val bridgeTimeoutMs: Long = 120_000L,
 
+    /**
+     * How long `advanceOrWait` waits for the AI's turn to return priority
+     * before giving up and suppressing [ActionsAvailableReq]. Large in production
+     * (real clients may pace AI animations); tests override to fail fast.
+     */
+    @SerialName("ai_turn_wait_ms")
+    val aiTurnWaitMs: Long = 30_000L,
+
+    /** How long the engine waits for a mulligan decision from the client. */
+    @SerialName("mulligan_wait_ms")
+    val mulliganWaitMs: Long = 10_000L,
+
     /** Player database path (absolute, or relative to CWD). */
     @SerialName("player_db")
     val playerDb: String = "",

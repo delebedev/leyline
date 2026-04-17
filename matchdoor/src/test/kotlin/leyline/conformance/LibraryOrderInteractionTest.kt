@@ -1,10 +1,10 @@
 package leyline.conformance
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -22,13 +22,7 @@ class LibraryOrderInteractionTest :
 
         // --- Surveil 1 (Wary Thespian: ETB surveil 1) ---
 
-        val surveil1Puzzle = """
-            [metadata]
-            Name:Surveil 1
-            Goal:Win
-            Turns:1
-
-            [state]
+        val surveil1State = """
             ActivePlayer=Human
             ActivePhase=Main1
             HumanLife=20
@@ -41,10 +35,12 @@ class LibraryOrderInteractionTest :
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
         """.trimIndent()
 
-        test("surveil 1 — GroupReq shape and revealed card") {
-            startPuzzle(surveil1Puzzle)
+        fun startSurveil1() = startPuzzle(surveil1State, name = "Surveil 1")
 
-            val req = harness.castSpellUntilGroupReq("Wary Thespian")
+        test("surveil 1 — GroupReq shape and revealed card") {
+            startSurveil1()
+
+            val req = castSpellUntilGroupReq("Wary Thespian")
             assertSoftly {
                 req.context shouldBe GroupingContext.Surveil
                 req.instanceIdsList shouldHaveSize 1
@@ -59,23 +55,23 @@ class LibraryOrderInteractionTest :
         }
 
         test("surveil 1 — keep on top leaves card on library top") {
-            startPuzzle(surveil1Puzzle)
+            startSurveil1()
 
-            val cardIds = harness.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
+            val cardIds = castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
-            harness.respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
+            respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
 
             human.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Grizzly Bears"
         }
 
         // Suspected flaky in CI — passes locally, null annotation intermittently on GH runners
         test("surveil 1 — put in graveyard moves card and produces Surveil annotation") {
-            startPuzzle(surveil1Puzzle)
+            startSurveil1()
 
-            val snap = harness.messageSnapshot()
-            val cardIds = harness.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
+            val snap = messageSnapshot()
+            val cardIds = castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
-            harness.respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
+            respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
 
             // Grizzly Bears in graveyard
             val gyBears = human.getZone(ForgeZoneType.Graveyard).cards
@@ -86,16 +82,16 @@ class LibraryOrderInteractionTest :
             human.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Forest"
 
             // ZoneTransfer annotation with Surveil category and non-zero affectorId
-            val annotations = harness.annotationsSince(snap)
+            val annotations = annotationsSince(snap)
             val surveilZt = annotations.firstOrNull { ann ->
                 ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
                     ann.detailString("category") == "Surveil"
             }
             surveilZt.shouldNotBeNull()
             surveilZt.affectedIdsList shouldHaveSize 1
-            (surveilZt.affectorId != 0).shouldBeTrue()
+            surveilZt.affectorId shouldNotBe 0
 
-            harness.accumulator.assertConsistent("after surveil to graveyard")
+            assertAccumulatorConsistent("after surveil to graveyard")
         }
 
         // --- Surveil 2 (Sterling Hound: ETB surveil 2) ---
@@ -103,30 +99,25 @@ class LibraryOrderInteractionTest :
         test("surveil 2 — multi-card to graveyard") {
             startPuzzle(
                 """
-            [metadata]
-            Name:Surveil 2
-            Goal:Win
-            Turns:1
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
 
-            [state]
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=20
-
-            humanhand=Sterling Hound
-            humanbattlefield=Plains;Plains;Plains
-            humanlibrary=Mountain;Forest;Island;Swamp;Plains
-            ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-                """.trimIndent(),
+                humanhand=Sterling Hound
+                humanbattlefield=Plains;Plains;Plains
+                humanlibrary=Mountain;Forest;Island;Swamp;Plains
+                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+                """,
+                name = "Surveil 2",
             )
 
-            val groupReq = harness.castSpellUntilGroupReq("Sterling Hound")
+            val groupReq = castSpellUntilGroupReq("Sterling Hound")
             groupReq.context shouldBe GroupingContext.Surveil
             groupReq.instanceIdsList shouldHaveSize 2
 
             val allIds = groupReq.instanceIdsList
-            harness.respondToGroupReq(awayInstanceIds = allIds, allInstanceIds = allIds)
+            respondToGroupReq(awayInstanceIds = allIds, allInstanceIds = allIds)
 
             // Sterling Hound resolved to BF, 2 surveiled cards in graveyard
             human.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
@@ -134,13 +125,7 @@ class LibraryOrderInteractionTest :
 
         // --- Scry 1 (Wall of Runes: ETB scry 1) ---
 
-        val scryPuzzle = """
-            [metadata]
-            Name:Scry 1
-            Goal:Win
-            Turns:1
-
-            [state]
+        val scryState = """
             ActivePlayer=Human
             ActivePhase=Main1
             HumanLife=20
@@ -153,10 +138,12 @@ class LibraryOrderInteractionTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
         """.trimIndent()
 
-        test("scry 1 — GroupReq shape") {
-            startPuzzle(scryPuzzle)
+        fun startScry1() = startPuzzle(scryState, name = "Scry 1")
 
-            val req = harness.castSpellUntilGroupReq("Wall of Runes")
+        test("scry 1 — GroupReq shape") {
+            startScry1()
+
+            val req = castSpellUntilGroupReq("Wall of Runes")
             assertSoftly {
                 req.context shouldBe GroupingContext.Scry_a0f6
                 req.instanceIdsList shouldHaveSize 1
@@ -169,18 +156,18 @@ class LibraryOrderInteractionTest :
         }
 
         test("scry 1 — put on bottom") {
-            startPuzzle(scryPuzzle)
+            startScry1()
 
-            val cardIds = harness.castSpellUntilGroupReq("Wall of Runes").instanceIdsList
+            val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
-            harness.respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
+            respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
             // Wall of Runes on battlefield
             human.getZone(ForgeZoneType.Battlefield).cards
                 .filter { it.name == "Wall of Runes" } shouldHaveSize 1
 
             // Scry annotation emitted
-            val scryAnn = harness.allMessages
+            val scryAnn = allMessages
                 .flatMap { if (it.hasGameStateMessage()) it.gameStateMessage.annotationsList else emptyList() }
                 .firstOrNull { ann -> ann.typeList.any { it == AnnotationType.Scry_af5a } }
             scryAnn.shouldNotBeNull()
@@ -190,11 +177,11 @@ class LibraryOrderInteractionTest :
         }
 
         test("scry 1 — keep on top") {
-            startPuzzle(scryPuzzle)
+            startScry1()
 
-            val cardIds = harness.castSpellUntilGroupReq("Wall of Runes").instanceIdsList
+            val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
-            harness.respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = cardIds)
+            respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = cardIds)
 
             // Grizzly Bears still on library top
             human.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Grizzly Bears"

@@ -269,7 +269,7 @@ class AutoPassEngine(
             bridge.awaitPriority()
         } else if (isAiTurn) {
             ops.traceEvent(MatchEventType.AI_TURN_WAIT, game, "waiting for AI")
-            val reachedPriority = bridge.awaitPriorityWithTimeout(GameBridge.AI_TURN_WAIT_MS)
+            val reachedPriority = bridge.awaitPriorityWithTimeout(bridge.matchConfig.server.aiTurnWaitMs)
             if (!reachedPriority) {
                 val g = bridge.getGame()
                 if (g != null && g.isGameOver) {

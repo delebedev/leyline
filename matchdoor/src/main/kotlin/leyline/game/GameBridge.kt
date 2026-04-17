@@ -310,12 +310,7 @@ class GameBridge(
 32 Forest
 """
 
-        /** Max time to wait for engine to reach mulligan after start/mull. */
-        private const val MULLIGAN_WAIT_MS = 10_000L
         private const val DEFAULT_PRIORITY_WAIT_MS = 15_000L
-
-        /** Longer timeout for AI turns (AI plays full turn: lands, spells, combat). */
-        const val AI_TURN_WAIT_MS = 30_000L
 
         /** Short settle delay after detecting pending state — lets engine thread finish
          *  in-flight zone moves before we snapshot. */
@@ -607,7 +602,7 @@ class GameBridge(
             mulliganBridge(1).submitMull()
             // London: engine draws 7 then calls tuckCardsViaMulligan() → WaitingTuck.
             // Wait for a NEW prompt (higher sequence) that's either WaitingTuck or WaitingKeep.
-            val deadline = System.currentTimeMillis() + MULLIGAN_WAIT_MS
+            val deadline = System.currentTimeMillis() + matchConfig.server.mulliganWaitMs
             while (System.currentTimeMillis() < deadline) {
                 val phase = mulliganBridge(1).pendingPhase
                 val seqNow = mulliganBridge(1).promptSequence
@@ -641,7 +636,7 @@ class GameBridge(
      * setting pendingPhase to [MulliganPhase.WaitingTuck].
      */
     fun awaitTuckReady() {
-        val deadline = System.currentTimeMillis() + MULLIGAN_WAIT_MS
+        val deadline = System.currentTimeMillis() + matchConfig.server.mulliganWaitMs
         while (System.currentTimeMillis() < deadline) {
             if (mulliganBridge(1).pendingPhase == MulliganPhase.WaitingTuck) return
             Thread.sleep(POLL_INTERVAL_MS)
@@ -1038,7 +1033,7 @@ class GameBridge(
      * meaning the engine has dealt the hand and is blocking.
      */
     private fun awaitMulliganReady() {
-        val deadline = System.currentTimeMillis() + MULLIGAN_WAIT_MS
+        val deadline = System.currentTimeMillis() + matchConfig.server.mulliganWaitMs
         while (System.currentTimeMillis() < deadline) {
             if (mulliganBridge(1).pendingPhase == MulliganPhase.WaitingKeep) return
             Thread.sleep(POLL_INTERVAL_MS)
