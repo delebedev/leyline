@@ -108,10 +108,6 @@ class TargetingHandler(private val ops: SessionOps) {
 
         bridge.seat(ops.seatId.value).prompt.submitResponse(pending.promptId, pending.selectedIndices)
         bridge.awaitPriority()
-        // Real server emits a post-submit GSM before priority/autopass continues.
-        // This keeps targeting confirmation (for example TargetSpec / PlayerSubmittedTargets)
-        // in its own frame instead of collapsing straight into resolution.
-        ops.sendRealGameState(bridge)
         autoPass(bridge)
     }
 
