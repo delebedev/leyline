@@ -20,10 +20,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * No side effects, no Netty, no mutable handler state — takes everything as params,
  * returns messages. The shared [MessageCounter] advances atomically on each call.
  *
- * **Ordering invariant:** every method that includes actions calls
- * [StateMapper.buildDiffFromGame] *first*. Diff-building triggers instanceId
- * reallocation for zone transfers — if actions were built before the diff,
- * they'd reference pre-realloc instanceIds and the client couldn't match them.
+ * Captures a [GsmSnapshot] at entry; every stage reads from the snapshot.
  *
  * **Update types** (what the client does with each GSM):
  * - [GameStateUpdate.SendAndRecord] — checkpoint; client persists state.

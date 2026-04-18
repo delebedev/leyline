@@ -221,6 +221,9 @@ object StateMapper {
      * since the current diff baseline. Falls back to Full if no baseline exists.
      * Updates the bridge's diff baseline after building so the next diff is relative
      * to this state.
+     *
+     * Tech debt: compares [GameStateMessage] vs [GameStateMessage] (proto-level diff).
+     * Full snapshot-vs-snapshot diff rewrite is a separate follow-up migration.
      */
     fun buildDiffFromGame(
         game: Game,
