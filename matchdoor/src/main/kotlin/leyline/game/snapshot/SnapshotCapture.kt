@@ -3,6 +3,7 @@ package leyline.game.snapshot
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
+import forge.game.spellability.SpellAbilityStackInstance
 import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.game.GameBridge
@@ -27,6 +28,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  */
 internal object SnapshotCapture {
     fun run(game: Game, bridge: GameBridge, matchId: String): GsmSnapshot {
+        val human = bridge.getPlayer(SeatId(1))
         val seats = listOf(1, 2).mapNotNull { seatNum ->
             val player = bridge.getPlayer(SeatId(seatNum)) ?: return@mapNotNull null
             SeatSnapshot(
@@ -38,16 +40,101 @@ internal object SnapshotCapture {
         }
         val zones = captureZones(game, bridge)
         val objects = captureObjects(game, bridge, zones)
+        val phase = capturePhase(game, human)
+        val stack = captureStack(game, bridge, human)
         return GsmSnapshot.forTest(
             matchId = matchId,
             seats = seats,
             zones = zones,
             objects = objects,
+            phase = phase,
+            stack = stack,
             capturedAt = CaptureMarker(
                 gsIdBeforeCapture = -1,
                 wallClockMs = System.currentTimeMillis(),
             ),
         )
+    }
+
+    // --- Task 10: phase + stack capture ---
+
+    /**
+     * Snapshot turn/phase/priority state from [game.phaseHandler].
+     * [PhaseType] is a Forge enum value; safe to hold as immutable data.
+     */
+    private fun capturePhase(game: Game, human: Player?): PhaseSnapshot {
+        val handler = game.phaseHandler
+        return PhaseSnapshot(
+            turn = handler.turn.coerceAtLeast(1),
+            activePlayer = SeatId(if (handler.playerTurn == human) 1 else 2),
+            priorityPlayer = handler.priorityPlayer?.let { SeatId(if (it == human) 1 else 2) },
+            phase = handler.phase,
+        )
+    }
+
+    /**
+     * Snapshot stack entries from [game.getStack()].
+     *
+     * Each entry captures the source card ID, owner/controller seats, and a pre-resolved
+     * grpId so that [leyline.game.mapper.ZoneMapper.addStackAbilitiesFromSnapshot] never
+     * needs a live Forge reference.
+     */
+    private fun captureStack(game: Game, bridge: GameBridge, human: Player?): StackSnapshot {
+        val stack = game.getStack()
+        if (stack.isEmpty) return StackSnapshot(emptyList())
+        val entries = mutableListOf<StackEntry>()
+        for (entry in stack) {
+            val sourceCard = entry.sourceCard ?: continue
+            val fid = ForgeCardId(sourceCard.id)
+            val controller = entry.activatingPlayer
+            val ownerSeat = SeatId(if (sourceCard.owner == human) 1 else 2)
+            val controllerSeat = SeatId(if (controller == human) 1 else 2)
+            val grpId = resolveEntryGrpId(entry, sourceCard, bridge)
+            val targets = entry.targetChoices?.targetCards?.map { ForgeCardId(it.id) } ?: emptyList()
+            entries.add(
+                StackEntry(
+                    forgeCardId = fid,
+                    controller = controllerSeat,
+                    owner = ownerSeat,
+                    grpId = grpId,
+                    targets = targets,
+                ),
+            )
+        }
+        return StackSnapshot(entries)
+    }
+
+    /**
+     * Resolve grpId for a stack entry: try saga-chapter lookup first, then card name.
+     * Returns 0 on failure — callers apply [leyline.game.GameBridge.FALLBACK_GRPID].
+     */
+    private fun resolveEntryGrpId(
+        entry: SpellAbilityStackInstance,
+        sourceCard: forge.game.card.Card,
+        bridge: GameBridge,
+    ): Int {
+        resolveChapterGrpId(entry, sourceCard, bridge)?.let { return it }
+        return bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: 0
+    }
+
+    /**
+     * If [entry] is a Saga chapter trigger, return the chapter-specific ability grpId.
+     * Mirrors [leyline.game.mapper.ZoneMapper.resolveChapterAbilityGrpId] logic but
+     * calls [leyline.game.mapper.ZoneMapper.chapterGrpIdFromCardData] directly.
+     */
+    private fun resolveChapterGrpId(
+        entry: SpellAbilityStackInstance,
+        sourceCard: forge.game.card.Card,
+        bridge: GameBridge,
+    ): Int? {
+        if (!entry.isTrigger) return null
+        val sa = entry.spellAbility ?: return null
+        val trigger = sa.trigger ?: return null
+        val chapterParam = trigger.getParam("Chapter") ?: return null
+        val chapterIdx = chapterParam.toIntOrNull()?.takeIf { it >= 1 } ?: return null
+        val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
+        val cardData = bridge.cardRepository.findByGrpId(sourceGrpId) ?: return null
+        return leyline.game.mapper.ZoneMapper.chapterGrpIdFromCardData(cardData, chapterIdx)
     }
 
     private fun captureZones(game: Game, bridge: GameBridge): Map<Int, ZoneSnapshot> {

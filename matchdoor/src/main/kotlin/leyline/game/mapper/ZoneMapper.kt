@@ -1,10 +1,6 @@
 package leyline.game.mapper
 
-import forge.game.Game
-import forge.game.card.Card
 import forge.game.player.Player
-import forge.game.spellability.SpellAbilityStackInstance
-import leyline.DevCheck
 import leyline.bridge.ForgeCardId
 import leyline.game.CardData
 import leyline.game.EffectTracker
@@ -168,18 +164,18 @@ object ZoneMapper {
 
     /**
      * Add [GameObjectType.Ability] entries for stack items not already represented
-     * as cards in the stack zone. Uses the stack instance's unique ID + offset for
-     * stable instance IDs.
+     * as cards in the stack zone. Reads from [snap.stack] — no live Forge reference needed.
+     *
+     * Uses the source card's ID + [STACK_ABILITY_ID_OFFSET] for stable instance IDs
+     * (same scheme as the legacy game-based variant).
      */
-    internal fun addStackAbilities(
-        game: Game,
+    internal fun addStackAbilitiesFromSnapshot(
+        snap: GsmSnapshot,
         bridge: GameBridge,
         zones: MutableList<ZoneInfo>,
         gameObjects: MutableList<GameObjectInfo>,
-        human: Player?,
     ) {
-        val stack = game.getStack()
-        if (stack.isEmpty) return
+        if (snap.stack.entries.isEmpty()) return
 
         val zoneBuilder = zones.find { it.zoneId == ZoneIds.STACK }?.toBuilder() ?: return
         zones.removeIf { it.zoneId == ZoneIds.STACK }
@@ -187,75 +183,21 @@ object ZoneMapper {
         // Track which source cards are already in the zone (from addSharedZoneCardsFromSnapshot)
         val existingIds = zoneBuilder.objectInstanceIdsList.toSet()
 
-        for (entry in stack) {
-            val sourceCard = entry.sourceCard ?: continue
-            val cardInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceCard.id)).value
+        for (entry in snap.stack.entries) {
+            val cardInstanceId = bridge.getOrAllocInstanceId(entry.forgeCardId).value
             // Skip if the source card is already represented in the stack zone
             if (cardInstanceId in existingIds) continue
 
             // Use a separate instance ID for the ability on the stack
-            val abilityInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceCard.id + STACK_ABILITY_ID_OFFSET)).value
-            val ownerSeatId = if (sourceCard.owner == human) 1 else 2
-            val grpId = resolveStackAbilityGrpId(entry, sourceCard, bridge)
-                ?: GameBridge.FALLBACK_GRPID
+            val abilityInstanceId = bridge.getOrAllocInstanceId(
+                ForgeCardId(entry.forgeCardId.value + STACK_ABILITY_ID_OFFSET),
+            ).value
+            val grpId = entry.grpId.takeIf { it != 0 } ?: GameBridge.FALLBACK_GRPID
 
             zoneBuilder.addObjectInstanceIds(abilityInstanceId)
-            gameObjects.add(ObjectMapper.buildAbilityObject(grpId, abilityInstanceId, ownerSeatId, bridge.cardProto))
+            gameObjects.add(ObjectMapper.buildAbilityObject(grpId, abilityInstanceId, entry.owner.value, bridge.cardProto))
         }
         zones.add(zoneBuilder.build())
-    }
-
-    /**
-     * Resolve the grpId for a stack ability object.
-     *
-     * Multi-ability cards (Sagas, planeswalkers, modal triggers) have per-ability
-     * grpIds in the Arena client DB. When a chapter trigger or similar
-     * sub-ability is on the stack, we need the specific ability's grpId, not the
-     * host card's. Saga example: Tribute to Horobi (79552) — Ch I→147926,
-     * Ch II→147927, Ch III→147760.
-     *
-     * Falls back to the source card's grpId when sub-ability resolution doesn't
-     * apply (plain spell cast, activated ability without a distinct grpId, DB
-     * entry missing).
-     */
-    internal fun resolveStackAbilityGrpId(
-        entry: SpellAbilityStackInstance,
-        sourceCard: Card,
-        bridge: GameBridge,
-    ): Int? {
-        resolveChapterAbilityGrpId(entry, sourceCard, bridge)?.let { return it }
-        return DevCheck.requireOrNull(bridge.cardRepository.findGrpIdByName(sourceCard.name)) {
-            "stack ability grpId miss: '${sourceCard.name}'"
-        }
-    }
-
-    /**
-     * If [entry] is a Saga chapter trigger, return the chapter-specific ability
-     * grpId from the source card's [CardData].
-     *
-     * Resolution order:
-     *   1. [CardData.chapterAbilityGrpIds] — populated by [AbilityIdDeriver] from
-     *      live Forge triggers. Always correct when present (tests, puzzles, prod
-     *      once `ExposedCardRepository` is taught to populate it).
-     *   2. Fall back to positional lookup in [CardData.abilityIds] — covers the
-     *      current production shape where Arena's SQLite `Cards.AbilityIds`
-     *      column lists chapter grpIds at the leading positions.
-     *
-     * Returns null for non-chapter triggers or when both lookups miss.
-     */
-    private fun resolveChapterAbilityGrpId(
-        entry: SpellAbilityStackInstance,
-        sourceCard: Card,
-        bridge: GameBridge,
-    ): Int? {
-        if (!entry.isTrigger) return null
-        val sa = entry.spellAbility ?: return null
-        val trigger = sa.trigger ?: return null
-        val chapterParam = trigger.getParam("Chapter") ?: return null
-        val chapterIdx = chapterParam.toIntOrNull()?.takeIf { it >= 1 } ?: return null
-        val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
-        val cardData = bridge.cardRepository.findByGrpId(sourceGrpId) ?: return null
-        return chapterGrpIdFromCardData(cardData, chapterIdx)
     }
 
     /**

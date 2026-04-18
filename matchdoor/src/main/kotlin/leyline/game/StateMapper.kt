@@ -63,7 +63,6 @@ object StateMapper {
         revealForSeat: Int? = null,
     ): BuildResult {
         val snap = leyline.game.snapshot.GsmSnapshot.capture(game, bridge, matchId)
-        val handler = game.phaseHandler
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
         val frame = GsmFrame.from(game, bridge)
@@ -171,15 +170,15 @@ object StateMapper {
         ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects, human)
 
         // Stack abilities (triggers, activated abilities not represented as zone cards)
-        ZoneMapper.addStackAbilities(game, bridge, zones, gameObjects, human)
+        ZoneMapper.addStackAbilitiesFromSnapshot(snap, bridge, zones, gameObjects)
 
         // RevealedCard proxy synthesis / cleanup
         applyRevealProxies(activeReveal, snap, bridge, zones, gameObjects, events)
 
         log.info(
             "buildFromGame: phase={} turn={} hand={} objects={} zones={}",
-            handler.phase,
-            handler.turn,
+            snap.phase.phase,
+            snap.phase.turn,
             human?.getZone(ForgeZoneType.Hand)?.size() ?: 0,
             gameObjects.size,
             zones.size,
@@ -187,7 +186,7 @@ object StateMapper {
 
         // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
         val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, events)
-        val actingSeat = if (handler.priorityPlayer == human) 1 else 2
+        val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
             computeAnnotations(events, transferResult, actingSeat, bridge)
 
@@ -201,7 +200,7 @@ object StateMapper {
         val built = assembleGsm(
             gameStateId, gameInfo.build(), frame, transferResult, remaining,
             combatResult, team1.build(), team2.build(), player1, player2,
-            updateType, actions, handler, human, bridge,
+            updateType, actions, actingSeat, bridge,
         )
 
         // ═══ APPLY: deferred tracking effects (for next GSM) ═══
@@ -304,9 +303,8 @@ object StateMapper {
         // Embed stripped-down actions + set pendingMessageCount when AAR follows
         if (actions != null) {
             builder.setPendingMessageCount(1)
-            val handler = game.phaseHandler
-            val human = bridge.getPlayer(SeatId(1))
-            val activeSeat = if (handler.priorityPlayer == human) 1 else 2
+            // Priority player was already resolved during buildFromGame — read from the built GSM.
+            val activeSeat = current.turnInfo.priorityPlayer
             for (action in actions.actionsList) {
                 builder.addActions(
                     ActionInfo.newBuilder()
@@ -367,8 +365,7 @@ object StateMapper {
         player2: PlayerInfo,
         updateType: GameStateUpdate,
         actions: ActionsAvailableReq?,
-        handler: forge.game.phase.PhaseHandler,
-        human: forge.game.player.Player?,
+        prioritySeat: Int,
         bridge: GameBridge,
     ): GameStateMessage {
         val prevState = bridge.getDiffBaselineState()
@@ -396,11 +393,10 @@ object StateMapper {
         }
 
         if (actions != null) {
-            val activeSeat = if (handler.priorityPlayer == human) 1 else 2
             for (action in actions.actionsList) {
                 builder.addActions(
                     ActionInfo.newBuilder()
-                        .setSeatId(activeSeat)
+                        .setSeatId(prioritySeat)
                         .setAction(ActionMapper.stripActionForGsm(action)),
                 )
             }
