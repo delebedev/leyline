@@ -77,12 +77,6 @@ class BundleBuilder(
         )
         val snap = GsmSnapshot.capture(game, bridge, matchId)
         val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
-        if (leyline.DevCheck.strict) {
-            val actionsLegacy = ActionMapper.buildActions(seatId, bridge)
-            check(actions == actionsLegacy) {
-                "ActionMapper drift: snapshot path differs from legacy path for seat $seatId"
-            }
-        }
 
         // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
         // in StateMapper Stage 2b — no injection needed here.
@@ -252,8 +246,11 @@ class BundleBuilder(
     // keeping RequestBuilder as an internal dependency of the bundle layer.
 
     /** Build playable actions for a seat (with legality checks). */
-    fun buildActions(): ActionsAvailableReq =
-        ActionMapper.buildActions(seatId, bridge)
+    fun buildActions(): ActionsAvailableReq {
+        val game = bridge.getGame() ?: return ActionMapper.passOnlyActions()
+        val snap = GsmSnapshot.capture(game, bridge, matchId)
+        return ActionMapper.buildFromSnapshot(seatId, snap, bridge)
+    }
 
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
     fun buildSelectNReq(

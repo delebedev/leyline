@@ -10,12 +10,11 @@ import leyline.bridge.ForgeCardId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
 import leyline.game.snapshot.SnapshotCapture
-import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Verifies that [ActionMapper.buildFromSnapshot] produces the same shape as
- * [ActionMapper.buildActions] for representative board states.
+ * Verifies that [ActionMapper.buildFromSnapshot] produces correct action shapes
+ * for representative board states.
  *
  * Uses [ConformanceTestBase.startWithBoard] — synchronous board setup, no game loop.
  * Cost-legality routes through the live Forge bridge, so these are ConformanceTag tests.
@@ -36,7 +35,6 @@ class ActionMapperSnapshotTest :
         test("empty hand and battlefield yields only Pass and FloatMana") {
             val (b, game, _) = base.startWithBoard { _, _, _ -> }
 
-            b.snapshotFromGame(game)
             val snap = SnapshotCapture.run(game, b, "test")
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
 
@@ -53,88 +51,73 @@ class ActionMapperSnapshotTest :
         }
 
         // -----------------------------------------------------------------------
-        // Test 2: land in hand → inactive Play (can't play first land in Main1 w/o priority)
-        //   Note: in startWithBoard the game is devMode MAIN1 but hasn't gone through
-        //   advanceToMain1, so canPlayLand may be false — we assert the action shape matches
-        //   legacy buildActions.
+        // Test 2: land in hand → Play action appears (active or inactive)
         // -----------------------------------------------------------------------
 
-        test("land in hand — snapshot path matches legacy buildActions") {
+        test("land in hand — Play action present") {
             val (b, game, _) = base.startWithBoard { _, human, _ ->
                 base.addCard("Island", human, ZoneType.Hand)
             }
 
-            b.snapshotFromGame(game)
             val snap = SnapshotCapture.run(game, b, "test")
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
-            val legacy = ActionMapper.buildActions(1, b)
 
-            fromSnap.actionsList.map { it.actionType } shouldBe legacy.actionsList.map { it.actionType }
-            fromSnap.inactiveActionsList.map { it.actionType } shouldBe
-                legacy.inactiveActionsList.map { it.actionType }
+            val hasPlay = fromSnap.actionsList.any { it.actionType == ActionType.Play_add3 } ||
+                fromSnap.inactiveActionsList.any { it.actionType == ActionType.Play_add3 }
+            hasPlay.shouldBeTrue()
         }
 
         // -----------------------------------------------------------------------
-        // Test 3: non-land spell in hand — Cast shape matches legacy
+        // Test 3: non-land spell in hand — Cast action present
         // -----------------------------------------------------------------------
 
-        test("non-land spell in hand — snapshot Cast shape matches legacy") {
+        test("non-land spell in hand — Cast action present (active or inactive)") {
             val (b, game, _) = base.startWithBoard { _, human, _ ->
                 base.addCard("Llanowar Elves", human, ZoneType.Hand)
             }
 
-            b.snapshotFromGame(game)
             val snap = SnapshotCapture.run(game, b, "test")
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
-            val legacy = ActionMapper.buildActions(1, b)
 
-            // Cast action present in same slot (actions vs inactiveActions)
-            val snapHasActiveCast = fromSnap.actionsList.any { it.actionType == ActionType.Cast }
-            val legacyHasActiveCast = legacy.actionsList.any { it.actionType == ActionType.Cast }
-            snapHasActiveCast shouldBe legacyHasActiveCast
-
-            val snapHasInactiveCast = fromSnap.inactiveActionsList.any { it.actionType == ActionType.Cast }
-            val legacyHasInactiveCast = legacy.inactiveActionsList.any { it.actionType == ActionType.Cast }
-            snapHasInactiveCast shouldBe legacyHasInactiveCast
+            val hasCast = fromSnap.actionsList.any { it.actionType == ActionType.Cast } ||
+                fromSnap.inactiveActionsList.any { it.actionType == ActionType.Cast }
+            hasCast.shouldBeTrue()
         }
 
         // -----------------------------------------------------------------------
-        // Test 4: untapped land on battlefield → ActivateMana matches legacy
+        // Test 4: untapped land on battlefield → ActivateMana present
         // -----------------------------------------------------------------------
 
-        test("untapped land on battlefield — ActivateMana matches legacy") {
+        test("untapped land on battlefield — ActivateMana present") {
             val (b, game, _) = base.startWithBoard { _, human, _ ->
                 base.addCard("Island", human, ZoneType.Battlefield)
             }
 
-            b.snapshotFromGame(game)
             val snap = SnapshotCapture.run(game, b, "test")
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
-            val legacy = ActionMapper.buildActions(1, b)
 
-            fromSnap.actionsList.count { it.actionType == ActionType.ActivateMana } shouldBe
-                legacy.actionsList.count { it.actionType == ActionType.ActivateMana }
+            fromSnap.actionsList.count { it.actionType == ActionType.ActivateMana } shouldBe 1
         }
 
         // -----------------------------------------------------------------------
-        // Test 5: affordable spell → full snapshot == legacy (count + action types)
+        // Test 5: affordable spell → Cast in active list
         // -----------------------------------------------------------------------
 
-        test("affordable Llanowar Elves — full action lists match legacy") {
+        test("affordable Llanowar Elves — Cast in active actions") {
             val (b, game, _) = base.startWithBoard { _, human, _ ->
                 base.addCard("Llanowar Elves", human, ZoneType.Hand)
                 base.addCard("Forest", human, ZoneType.Battlefield)
             }
 
-            b.snapshotFromGame(game)
             val snap = SnapshotCapture.run(game, b, "test")
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
-            val legacy = ActionMapper.buildActions(1, b)
 
             assertSoftly {
-                fromSnap.actionsCount shouldBe legacy.actionsCount
-                fromSnap.inactiveActionsCount shouldBe legacy.inactiveActionsCount
-                fromSnap.actionsList.map { it.actionType } shouldBe legacy.actionsList.map { it.actionType }
+                fromSnap.actionsCount shouldBe 4 // ActivateMana + Cast + Pass + FloatMana
+                fromSnap.actionsList.any { it.actionType == ActionType.Cast }.shouldBeTrue()
+                fromSnap.actionsList.any { it.actionType == ActionType.ActivateMana }.shouldBeTrue()
+                fromSnap.actionsList.any { it.actionType == ActionType.Pass }.shouldBeTrue()
+                fromSnap.actionsList.any { it.actionType == ActionType.FloatMana }.shouldBeTrue()
             }
         }
 
@@ -148,7 +131,6 @@ class ActionMapperSnapshotTest :
                 base.addCard("Llanowar Elves", human, ZoneType.Hand)
             }
 
-            b.snapshotFromGame(game)
             val snap = SnapshotCapture.run(game, b, "test")
             val humanCards = game.humanPlayer.getZone(ZoneType.Hand).cards
 

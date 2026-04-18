@@ -36,9 +36,6 @@ object ActionMapper {
 
     private const val INITIAL_MANA_ID = 10
 
-    fun buildActions(seatId: Int, bridge: GameBridge): ActionsAvailableReq =
-        buildActionList(seatId, bridge, checkLegality = true)
-
     /**
      * Naive action list: Cast for all non-lands, Play for all lands in hand,
      * ActivateMana for untapped permanents — no canPlay/canPay checks.

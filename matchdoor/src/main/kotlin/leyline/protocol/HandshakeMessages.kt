@@ -291,7 +291,7 @@ object HandshakeMessages {
         // 1) Thin GSM Diff: player with mulliganCount + hand actions
         val game = bridge.getGame()!!
         val mulliganRespSnap = GsmSnapshot.capture(game, bridge, "")
-        val actions = ActionMapper.buildActions(seatId, bridge)
+        val actions = ActionMapper.buildFromSnapshot(seatId, mulliganRespSnap, bridge)
         val gsm = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
@@ -403,7 +403,8 @@ object HandshakeMessages {
         bridge: GameBridge,
     ): Pair<MatchServiceToClientMessage, Int> {
         val game = bridge.getGame()!!
-        val actions = ActionMapper.buildActions(seatId, bridge)
+        val snap = GsmSnapshot.capture(game, bridge, "")
+        val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
         val gre = GREToClientMessage.newBuilder()
             .setType(GREMessageType.ActionsAvailableReq_695e)
             .addSystemSeatIds(seatId)

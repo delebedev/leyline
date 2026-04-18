@@ -7,6 +7,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.game.mapper.ActionMapper
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
@@ -38,7 +39,7 @@ class AbilityGrpIdConformanceTest :
                 // AbilityRegistry is lazily built by GameBridge.abilityRegistryFor on first access
 
                 // Build actions for seat 1
-                val actions = ActionMapper.buildActions(1, b)
+                val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test"), b)
 
                 // Find all Activate_add3 actions for the planeswalker
                 val activateActions = actions.actionsList

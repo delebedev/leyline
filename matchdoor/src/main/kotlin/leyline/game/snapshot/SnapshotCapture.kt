@@ -163,8 +163,10 @@ internal object SnapshotCapture {
         val currentStateNameIsBackside =
             card.currentState?.stateName == forge.card.CardStateName.Backside
 
-        // grpId — delegate to the same resolution used by buildCardObject
-        val grpId = ObjectMapper.resolveGrpId(card, bridge.cardRepository, instanceId = 0, bridge.tokenRegistry)
+        // grpId — delegate to the same resolution used by buildCardObject.
+        // Pass the live instanceId so that copy/token registry entries are populated.
+        val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+        val grpId = ObjectMapper.resolveGrpId(card, bridge.cardRepository, instanceId = instanceId, bridge.tokenRegistry)
 
         // Owner/controller seats: seat 1 = human
         val ownerSeat = SeatId(if (card.owner == human) 1 else 2)

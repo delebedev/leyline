@@ -21,6 +21,7 @@ import leyline.conformance.TestCardRegistry
 import leyline.conformance.detailString
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ZoneIds
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages
 import java.util.Random
 
@@ -188,7 +189,7 @@ class GameBridgeTest :
             val game = b.getGame()!!
             game.phaseHandler.phase shouldBe PhaseType.MAIN1
 
-            val actions = ActionMapper.buildActions(1, b)
+            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test"), b)
 
             val hasPass = actions.actionsList.any {
                 it.actionType == Messages.ActionType.Pass
@@ -418,7 +419,7 @@ class GameBridgeTest :
                 awaitFreshPending(b, pending.actionId)
             }
 
-            val actions = ActionMapper.buildActions(1, b)
+            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test"), b)
             val castActions = actions.actionsList.filter {
                 it.actionType == Messages.ActionType.Cast
             }
@@ -441,7 +442,7 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val actions = ActionMapper.buildActions(1, b)
+            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test"), b)
             val gs = StateMapper.buildFromGame(game, 1, "test-match", b, actions).gsm
 
             (gs.actionsCount > 0).shouldBeTrue()

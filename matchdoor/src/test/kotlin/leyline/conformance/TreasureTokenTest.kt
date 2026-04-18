@@ -16,6 +16,7 @@ import leyline.bridge.SeatId
 import leyline.game.StateMapper
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ObjectMapper
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -134,7 +135,7 @@ class TreasureTokenTest :
             treasureObj.shouldNotBeNull()
 
             // --- Regression: buildActions must not crash, Treasure has ActivateMana ---
-            val actions = ActionMapper.buildActions(1, h.bridge)
+            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(h.game(), h.bridge, "test"), h.bridge)
             val manaActions = actions.actionsList.filter { it.actionType == ActionType.ActivateMana }
             manaActions.size shouldBeGreaterThan 0
 

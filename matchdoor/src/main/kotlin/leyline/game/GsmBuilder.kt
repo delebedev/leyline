@@ -119,7 +119,7 @@ object GsmBuilder {
             .setActivePlayer(2).setDecisionPlayer(2)
 
         // Build actions for the viewing seat's opening hand (Cast/Play from hand)
-        val actions = ActionMapper.buildActions(seatId, bridge)
+        val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
 
         val gsm = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
