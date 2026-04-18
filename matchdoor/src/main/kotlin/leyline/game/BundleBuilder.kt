@@ -1,7 +1,6 @@
 package leyline.game
 
 import forge.game.Game
-import leyline.DevCheck
 import leyline.bridge.ForgeCardId
 import leyline.bridge.PromptCandidateRefDto
 import leyline.bridge.SeatId
@@ -75,20 +74,6 @@ class BundleBuilder(
             viewingSeatId = seatId,
             revealForSeat = revealForSeat,
         )
-        if (DevCheck.snapDiffDualCheck) {
-            val oldResult = StateMapper.buildDiffFromGame(
-                game,
-                nextGs,
-                matchId,
-                bridge,
-                updateType = updateType,
-                viewingSeatId = seatId,
-                revealForSeat = revealForSeat,
-            )
-            check(result.gsm == oldResult.gsm) {
-                "snap-diff drift in postAction:\n  new=${result.gsm}\n  old=${oldResult.gsm}"
-            }
-        }
         val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
 
         // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
@@ -148,12 +133,6 @@ class BundleBuilder(
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         val result = StateMapper.buildDiffFromSnapshot(bridge.lastSent, snap, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
-        if (DevCheck.snapDiffDualCheck) {
-            val oldResult = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
-            check(result.gsm == oldResult.gsm) {
-                "snap-diff drift in stateOnlyDiff:\n  new=${result.gsm}\n  old=${oldResult.gsm}"
-            }
-        }
 
         // QueuedGSM split disabled (see postAction comment above).
         @Suppress("UnusedPrivateProperty")
@@ -211,19 +190,6 @@ class BundleBuilder(
             updateType = GameStateUpdate.SendHiFi,
             viewingSeatId = seatId,
         )
-        if (DevCheck.snapDiffDualCheck) {
-            val oldResult = StateMapper.buildDiffFromGame(
-                game,
-                nextGs,
-                matchId,
-                bridge,
-                updateType = GameStateUpdate.SendHiFi,
-                viewingSeatId = seatId,
-            )
-            check(remoteResult.gsm == oldResult.gsm) {
-                "snap-diff drift in remoteActionDiff:\n  new=${remoteResult.gsm}\n  old=${oldResult.gsm}"
-            }
-        }
         val gsBase = remoteResult.gsm
         // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
         // Client expects human's potential actions embedded during AI turn.
@@ -523,12 +489,6 @@ class BundleBuilder(
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         val attackersResult = StateMapper.buildDiffFromSnapshot(bridge.lastSent, snap, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
-        if (DevCheck.snapDiffDualCheck) {
-            val oldResult = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
-            check(attackersResult.gsm == oldResult.gsm) {
-                "snap-diff drift in declareAttackersBundle:\n  new=${attackersResult.gsm}\n  old=${oldResult.gsm}"
-            }
-        }
         val gs = attackersResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -619,12 +579,6 @@ class BundleBuilder(
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         val blockersResult = StateMapper.buildDiffFromSnapshot(bridge.lastSent, snap, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
-        if (DevCheck.snapDiffDualCheck) {
-            val oldResult = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
-            check(blockersResult.gsm == oldResult.gsm) {
-                "snap-diff drift in declareBlockersBundle:\n  new=${blockersResult.gsm}\n  old=${oldResult.gsm}"
-            }
-        }
         val gs = blockersResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -670,19 +624,6 @@ class BundleBuilder(
             updateType = GameStateUpdate.Send,
             viewingSeatId = seatId,
         )
-        if (DevCheck.snapDiffDualCheck) {
-            val oldResult = StateMapper.buildDiffFromGame(
-                game,
-                nextGs,
-                matchId,
-                bridge,
-                updateType = GameStateUpdate.Send,
-                viewingSeatId = seatId,
-            )
-            check(targetsResult.gsm == oldResult.gsm) {
-                "snap-diff drift in selectTargetsBundle:\n  new=${targetsResult.gsm}\n  old=${oldResult.gsm}"
-            }
-        }
         val gs = targetsResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -724,19 +665,6 @@ class BundleBuilder(
             updateType = GameStateUpdate.Send,
             viewingSeatId = seatId,
         )
-        if (DevCheck.snapDiffDualCheck) {
-            val oldResult = StateMapper.buildDiffFromGame(
-                game,
-                nextGs,
-                matchId,
-                bridge,
-                updateType = GameStateUpdate.Send,
-                viewingSeatId = seatId,
-            )
-            check(selectNResult.gsm == oldResult.gsm) {
-                "snap-diff drift in selectNBundle:\n  new=${selectNResult.gsm}\n  old=${oldResult.gsm}"
-            }
-        }
         val gs = selectNResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -807,19 +735,6 @@ class BundleBuilder(
             updateType = GameStateUpdate.Send,
             viewingSeatId = seatId,
         )
-        if (DevCheck.snapDiffDualCheck) {
-            val oldResult = StateMapper.buildDiffFromGame(
-                game,
-                nextGs,
-                matchId,
-                bridge,
-                updateType = GameStateUpdate.Send,
-                viewingSeatId = seatId,
-            )
-            check(ctoResult.gsm == oldResult.gsm) {
-                "snap-diff drift in castingTimeOptionsBundle:\n  new=${ctoResult.gsm}\n  old=${oldResult.gsm}"
-            }
-        }
         val gsResult = ctoResult
         val gsBuilder = gsResult.gsm.toBuilder()
             .setPendingMessageCount(1)
@@ -924,19 +839,6 @@ class BundleBuilder(
             updateType = GameStateUpdate.Send,
             viewingSeatId = seatId,
         )
-        if (DevCheck.snapDiffDualCheck) {
-            val oldResult = StateMapper.buildDiffFromGame(
-                game,
-                nextGs,
-                matchId,
-                bridge,
-                updateType = GameStateUpdate.Send,
-                viewingSeatId = seatId,
-            )
-            check(payCostsResult.gsm == oldResult.gsm) {
-                "snap-diff drift in payCostsBundle:\n  new=${payCostsResult.gsm}\n  old=${oldResult.gsm}"
-            }
-        }
         val gs = payCostsResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs

@@ -168,7 +168,8 @@ class CopyTokenIntegrationTest :
             h.passPriority()
 
             // Second GSM — diff from baseline
-            val gsm2 = StateMapper.buildDiffFromGame(h.game(), 2, "test-copy", h.bridge, viewingSeatId = 1).gsm
+            val snapCopy4 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 2)
+            val gsm2 = StateMapper.buildDiffFromSnapshot(h.bridge.lastSent, snapCopy4, 2, "test-copy", h.bridge, viewingSeatId = 1).gsm
 
             // If the copy token appears in the diff, its fields must be intact
             val copyInDiff = gsm2.gameObjectsList.firstOrNull { it.instanceId == copyIid }

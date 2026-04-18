@@ -58,20 +58,4 @@ object DevCheck {
     inline fun failOnAutoPass(message: () -> String) {
         if (strictPass) error("[strict-pass] ${message()}")
     }
-
-    /**
-     * Optional opt-in for the snap-diff dual-check window (arena-lab-9d8 migration).
-     * When true, BundleBuilder bundles run BOTH the new buildDiffFromSnapshot and
-     * the legacy buildDiffFromGame, asserting proto equality. Defaults false because
-     * mutable drain semantics (drainEvents, drainDeletions) make a perfect assertion
-     * fragile — Task 8's full integration suite is the production safety net.
-     * Remove this field with the dual-check scaffolding once Task 11 ships.
-     */
-    @Volatile var snapDiffDualCheck: Boolean = false
-        private set
-
-    /** Set the snap-diff dual-check flag (used by tests that exercise the dual-path). */
-    fun setSnapDiffDualCheck(enabled: Boolean) {
-        this.snapDiffDualCheck = enabled
-    }
 }

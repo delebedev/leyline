@@ -1,6 +1,5 @@
 package leyline.game
 
-import forge.game.Game
 import leyline.bridge.EffectId
 import leyline.bridge.ForgeCardId
 import leyline.bridge.GrpId
@@ -25,7 +24,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Two core methods:
  * - [buildFromSnapshot]: Full [GameStateMessage] from an immutable [GsmSnapshot] (zones, objects,
  *   players, annotations via [ZoneTransferDetector], [TransferAnnotations], [CombatAnnotations], [MechanicAnnotations])
- * - [buildDiffFromGame]: Diff GSM containing only changes since the current diff baseline
+ * - [buildDiffFromSnapshot]: Diff GSM by snap-vs-snap field comparison
  *
  * Lifecycle GSM factories (deal-hand, mulligan, transitions) live in [GsmBuilder].
  * Interactive request builders (targeting, combat) live in [RequestBuilder].
@@ -238,126 +237,6 @@ object StateMapper {
     }
 
     /**
-     * Build a Diff [GameStateMessage] containing only zones/objects that changed
-     * since the current diff baseline. Falls back to Full if no baseline exists.
-     * Updates the bridge's diff baseline after building so the next diff is relative
-     * to this state.
-     *
-     * Tech debt: compares [GameStateMessage] vs [GameStateMessage] (proto-level diff).
-     * Full snapshot-vs-snapshot diff rewrite is a separate follow-up migration.
-     */
-    fun buildDiffFromGame(
-        game: Game,
-        gameStateId: Int,
-        matchId: String,
-        bridge: GameBridge,
-        actions: ActionsAvailableReq? = null,
-        updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
-        viewingSeatId: Int = 0,
-        revealForSeat: Int? = null,
-    ): BuildResult {
-        val prev = bridge.getDiffBaselineState()
-        val snap = GsmSnapshot.capture(game, bridge, matchId, gameStateId)
-        if (prev == null) {
-            // No baseline exists — fall back to Full, but snapshot it so the next
-            // buildDiffFromGame call has a baseline and produces a real Diff.
-            val result = buildFromSnapshot(snap, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat)
-            bridge.snapshotDiffBaseline(result.gsm)
-            return result
-        }
-
-        // Build current full state (for comparison + to seed next diff).
-        // Pass actions=null to avoid redundant action embedding (we embed below).
-        // Use viewingSeatId=0 for the comparison base (needs all objects for accurate diff).
-        val fullResult = buildFromSnapshot(snap, gameStateId, matchId, bridge, revealForSeat = revealForSeat)
-        val current = fullResult.gsm
-
-        // Compute changed zones (by objectInstanceIds)
-        val prevZoneMap = prev.zonesList.associateBy { it.zoneId }
-        val changedZones = current.zonesList.filter { zone ->
-            val prevZone = prevZoneMap[zone.zoneId]
-            prevZone == null ||
-                prevZone.objectInstanceIdsList != zone.objectInstanceIdsList ||
-                prevZone.visibility != zone.visibility ||
-                prevZone.viewersList != zone.viewersList
-        }
-
-        // Compute changed/new objects, filtering out opponent hand objects
-        // (except RevealedCard proxies and real hand cards during active reveal)
-        val prevObjMap = prev.gameObjectsList.associateBy { it.instanceId }
-        val opponentHandZoneId = ZoneMapper.opponentHandZone(viewingSeatId)
-        val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(it).journal.activeReveal() != null }
-        val changedObjects = current.gameObjectsList.filter { obj ->
-            if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
-                // During reveal-choose: include RevealedCard proxies and Public hand cards
-                if (hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)) {
-                    // fall through to normal change detection
-                } else {
-                    return@filter false
-                }
-            }
-            val prevObj = prevObjMap[obj.instanceId]
-            prevObj == null || prevObj != obj
-        }
-
-        // Detect objects in prev but not in current (e.g. abilities leaving stack).
-        // Limbo-retired IDs still appear in zone objectInstanceIds, so exclude those.
-        val currentObjIds = current.gameObjectsList.map { it.instanceId }.toSet()
-        val currentZoneTrackedIds = current.zonesList.flatMap { it.objectInstanceIdsList }.toSet()
-        val deletedIds = prev.gameObjectsList
-            .map { it.instanceId }
-            .filter { it !in currentObjIds && it !in currentZoneTrackedIds }
-
-        val builder = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff)
-            .setGameStateId(gameStateId)
-            .setTurnInfo(current.turnInfo)
-            .addAllPlayers(current.playersList)
-            .addAllZones(changedZones.sortedBy { it.zoneId })
-            .addAllGameObjects(changedObjects)
-            .addAllAnnotations(current.annotationsList)
-            .addAllPersistentAnnotations(current.persistentAnnotationsList)
-            .addAllDiffDeletedPersistentAnnotationIds(bridge.annotations.drainDeletions())
-            .addAllTimers(PlayerMapper.buildTimers())
-            .setUpdate(updateType)
-            .setPrevGameStateId(prev.gameStateId)
-
-        if (deletedIds.isNotEmpty()) {
-            builder.addAllDiffDeletedInstanceIds(deletedIds)
-        }
-
-        // Embed stripped-down actions + set pendingMessageCount when AAR follows
-        if (actions != null) {
-            builder.setPendingMessageCount(1)
-            // Priority player was already resolved during buildFromSnapshot — read from the built GSM.
-            val activeSeat = current.turnInfo.priorityPlayer
-            for (action in actions.actionsList) {
-                builder.addActions(
-                    ActionInfo.newBuilder()
-                        .setSeatId(activeSeat)
-                        .setAction(ActionMapper.stripActionForGsm(action)),
-                )
-            }
-        }
-
-        // Update snapshot for next diff (reuse the full GSM already built above)
-        bridge.snapshotDiffBaseline(current)
-
-        val built = builder.build()
-        if (built.gameStateId != 0 && built.gameStateId == built.prevGameStateId) {
-            log.error(
-                "SELF-REF gsId={} prev.gsId={} prev.prevGsId={} param={} caller={}",
-                built.gameStateId,
-                prev.gameStateId,
-                prev.prevGameStateId,
-                gameStateId,
-                Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
-            )
-        }
-        return BuildResult(built, fullResult.hasCastSpell)
-    }
-
-    /**
      * Build a Diff [GameStateMessage] by snap-vs-snap field comparison.
      *
      * `prev == null` → returns the Full GSM built from `cur` (first bundle, post-handshake).
@@ -371,6 +250,7 @@ object StateMapper {
      * (snap-vs-snap), not on outputs (still mutates bridge). Pulling output side-effects
      * out as data is a separate follow-up.
      */
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
     fun buildDiffFromSnapshot(
         prev: GsmSnapshot?,
         cur: GsmSnapshot,
@@ -446,7 +326,9 @@ object StateMapper {
             }
             if (obj.instanceId !in changedInstanceIds) {
                 // During active reveal, always include opponent hand cards (visibility changed outside CardSnapshot)
-                if (hasActiveReveal && opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId &&
+                if (hasActiveReveal &&
+                    opponentHandZoneId != 0 &&
+                    obj.zoneId == opponentHandZoneId &&
                     (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)
                 ) {
                     return@filter true
@@ -489,7 +371,7 @@ object StateMapper {
             builder.addAllDiffDeletedInstanceIds(deletedIds)
         }
 
-        // Embed stripped actions (mirror buildDiffFromGame's behavior)
+        // Embed stripped actions + set pendingMessageCount when AAR follows
         if (actions != null) {
             builder.setPendingMessageCount(1)
             val activeSeat = current.turnInfo.priorityPlayer
