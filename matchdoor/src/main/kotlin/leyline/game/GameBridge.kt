@@ -207,13 +207,14 @@ class GameBridge(
 
     // ── Reveal proxy lifecycle ──────────────────────────────────────────────
     // RevealedCard proxies exist during an active reveal-choose effect.
-    // StateMapper reads activeRevealProxies to inject them into the GSM.
-    // After the choice resolves, proxy IDs move to pendingProxyDeletions
-    // so the next diff emits RevealedCardDeleted + diffDeletedInstanceIds.
+    // StateMapper drives RevealProxyTracker (allocate/lookup/drain) during
+    // GSM assembly. After the choice resolves, proxy IDs move to
+    // pendingProxyDeletions so the next diff emits RevealedCardDeleted +
+    // diffDeletedInstanceIds.
 
-    /** Currently active RevealedCard proxy IDs (populated during buildFromGame).
+    /** Currently active RevealedCard proxy IDs, managed via [RevealProxyTracker].
      *  Written on engine thread (during buildFromGame), read serially — not concurrent. */
-    val activeRevealProxies: MutableMap<ForgeCardId, InstanceId> = mutableMapOf()
+    val revealProxies: RevealProxyTracker = RevealProxyTracker()
 
     /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */
     val effects = EffectTracker()
@@ -770,7 +771,7 @@ class GameBridge(
         activeCrewEffects.clear()
         abilityRegistries.clear()
         tokenRegistry.clear()
-        activeRevealProxies.clear()
+        revealProxies.clear()
 
         // Drain bridge state from previous game
         for (bridge in promptBridges.values) bridge.resetForPuzzle()

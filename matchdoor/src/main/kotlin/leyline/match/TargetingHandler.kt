@@ -5,6 +5,7 @@ import leyline.DevCheck
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.PromptSideEffect
 import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
@@ -16,12 +17,16 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 /**
  * Handles targeting-related client messages and prompt detection.
  *
- * Extracted from [MatchSession] for independent testability.
- * Uses [SessionOps] for message sending and tracing. Protocol sequencing
- * uses the shared [MessageCounter][leyline.game.MessageCounter] via
- * `ops.counter` — no seeding or syncing needed.
+ * Protocol sequencing uses the shared
+ * [MessageCounter][leyline.game.MessageCounter] via `counters.counter` —
+ * no seeding or syncing needed.
  */
-class TargetingHandler(private val ops: SessionOps) {
+class TargetingHandler(
+    private val sink: GreMessageSink,
+    private val counters: SessionCounters,
+    private val tracer: SessionTracer,
+    private val bundles: BundleBuilderHolder,
+) {
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
 
     @Volatile
@@ -45,7 +50,7 @@ class TargetingHandler(private val ops: SessionOps) {
         greMsg: ClientToGREMessage,
         bridge: GameBridge,
     ) {
-        val seatBridge = bridge.seat(ops.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId.value)
         val resp = greMsg.selectTargetsResp
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: run {
             log.warn("TargetingHandler: SelectTargetsResp but no pending prompt")
@@ -69,14 +74,14 @@ class TargetingHandler(private val ops: SessionOps) {
 
         // Echo-back: actions-only GSM diff + re-prompt with selection reflected
         val game = bridge.getGame() ?: return
-        val echoDiff = ops.bundleBuilder!!.buildEchoDiffGsm(ops.counter)
-        val gsId = ops.counter.currentGsId()
-        val rePrompt = RequestBuilder.buildSelectTargetsRePrompt(pendingPrompt, bridge, selectedInstanceIds, ops.seatId.value)
-        val rePromptMsg = ops.makeGRE(GREMessageType.SelectTargetsReq_695e, gsId, ops.counter.nextMsgId()) {
+        val echoDiff = bundles.bundleBuilder!!.buildEchoDiffGsm(counters.counter)
+        val gsId = counters.counter.currentGsId()
+        val rePrompt = RequestBuilder.buildSelectTargetsRePrompt(pendingPrompt, bridge, selectedInstanceIds, counters.seatId.value)
+        val rePromptMsg = sink.makeGRE(GREMessageType.SelectTargetsReq_695e, gsId, counters.counter.nextMsgId()) {
             it.selectTargetsReq = rePrompt
         }
-        Tap.outboundTemplate("SelectTargetsReq re-prompt seat=${ops.seatId}")
-        ops.sendBundledGRE(listOf(echoDiff, rePromptMsg))
+        Tap.outboundTemplate("SelectTargetsReq re-prompt seat=${counters.seatId}")
+        sink.sendBundledGRE(listOf(echoDiff, rePromptMsg))
     }
 
     /**
@@ -98,15 +103,15 @@ class TargetingHandler(private val ops: SessionOps) {
 
         log.info("TargetingHandler: SubmitTargetsReq — submitting indices={}", pending.selectedIndices)
 
-        ops.sendBundledGRE(
+        sink.sendBundledGRE(
             listOf(
-                ops.makeGRE(GREMessageType.SubmitTargetsResp_695e, ops.counter.currentGsId(), ops.counter.nextMsgId()) {
+                sink.makeGRE(GREMessageType.SubmitTargetsResp_695e, counters.counter.currentGsId(), counters.counter.nextMsgId()) {
                     it.submitTargetsResp = SubmitTargetsResp.newBuilder().setResult(ResultCode.Success_a500).build()
                 },
             ),
         )
 
-        bridge.seat(ops.seatId.value).prompt.submitResponse(pending.promptId, pending.selectedIndices)
+        bridge.seat(counters.seatId.value).prompt.submitResponse(pending.promptId, pending.selectedIndices)
         bridge.awaitPriority()
         autoPass(bridge)
     }
@@ -120,7 +125,7 @@ class TargetingHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val seatBridge = bridge.seat(ops.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId.value)
         val resp = greMsg.selectNResp
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: run {
             log.warn("TargetingHandler: SelectNResp but no pending prompt")
@@ -151,19 +156,19 @@ class TargetingHandler(private val ops: SessionOps) {
      */
     @Suppress("ReturnCount")
     fun handlePostCastPrompt(bridge: GameBridge, clientAutoResolve: Boolean = false): Boolean {
-        val pendingPrompt = bridge.seat(ops.seatId.value).prompt.getPendingPrompt()
+        val pendingPrompt = bridge.seat(counters.seatId.value).prompt.getPendingPrompt()
         if (pendingPrompt != null) {
             when (val classified = PromptClassifier.classify(pendingPrompt)) {
                 is ClassifiedPrompt.ModalChoice -> {
                     val game = bridge.getGame() ?: return false
-                    ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "post-cast modal: ${pendingPrompt.request.message}")
+                    tracer.traceEvent(MatchEventType.TARGET_PROMPT, game, "post-cast modal: ${pendingPrompt.request.message}")
                     sendCastingTimeOptionsReq(bridge, classified.pendingPrompt)
                     return true
                 }
 
                 is ClassifiedPrompt.Targeting -> {
                     val game = bridge.getGame() ?: return false
-                    ops.traceEvent(
+                    tracer.traceEvent(
                         MatchEventType.TARGET_PROMPT,
                         game,
                         "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
@@ -174,7 +179,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
                 is ClassifiedPrompt.SelectN -> {
                     val game = bridge.getGame() ?: return false
-                    ops.traceEvent(
+                    tracer.traceEvent(
                         MatchEventType.TARGET_PROMPT,
                         game,
                         "post-cast selectN reason=${classified.reason} candidates=${pendingPrompt.request.candidateRefs.size}",
@@ -185,7 +190,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
                 is ClassifiedPrompt.Search -> {
                     val game = bridge.getGame() ?: return false
-                    ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "post-cast search")
+                    tracer.traceEvent(MatchEventType.TARGET_PROMPT, game, "post-cast search")
                     sendSearchReq(bridge, classified.pendingPrompt)
                     return true
                 }
@@ -198,10 +203,10 @@ class TargetingHandler(private val ops: SessionOps) {
             // When auto-resolve is active and the player has no meaningful responses
             // (only Pass), skip the prompt — let autoPassAndAdvance() handle stack
             // resolution transparently, matching client behavior (#92).
-            if (clientAutoResolve && BundleBuilder.shouldAutoPass(ops.bundleBuilder!!.buildActions())) {
+            if (clientAutoResolve && BundleBuilder.shouldAutoPass(bundles.bundleBuilder!!.buildActions())) {
                 return false
             }
-            ops.sendRealGameState(bridge)
+            sink.sendRealGameState(bridge)
             return true
         }
         return false
@@ -227,7 +232,7 @@ class TargetingHandler(private val ops: SessionOps) {
      *   defaultIndex. Covers discard-to-hand-size at Cleanup and similar engine prompts.
      */
     fun checkPendingPrompt(bridge: GameBridge, game: Game): PromptResult {
-        val seatBridge = bridge.seat(ops.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId.value)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return PromptResult.NONE
         val classified = PromptClassifier.classify(pendingPrompt)
 
@@ -238,13 +243,13 @@ class TargetingHandler(private val ops: SessionOps) {
             }
 
             is ClassifiedPrompt.ModalChoice -> {
-                ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "modal: ${pendingPrompt.request.message}")
+                tracer.traceEvent(MatchEventType.TARGET_PROMPT, game, "modal: ${pendingPrompt.request.message}")
                 sendCastingTimeOptionsReq(bridge, classified.pendingPrompt)
                 PromptResult.SENT_TO_CLIENT
             }
 
             is ClassifiedPrompt.SelectN -> {
-                ops.traceEvent(
+                tracer.traceEvent(
                     MatchEventType.TARGET_PROMPT,
                     game,
                     "legend_rule candidates=${pendingPrompt.request.candidateRefs.size}",
@@ -254,13 +259,13 @@ class TargetingHandler(private val ops: SessionOps) {
             }
 
             is ClassifiedPrompt.Targeting -> {
-                ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
+                tracer.traceEvent(MatchEventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
                 sendSelectTargetsReq(bridge, classified.pendingPrompt)
                 PromptResult.SENT_TO_CLIENT
             }
 
             is ClassifiedPrompt.Search -> {
-                ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "search: ${pendingPrompt.request.message}")
+                tracer.traceEvent(MatchEventType.TARGET_PROMPT, game, "search: ${pendingPrompt.request.message}")
                 sendSearchReq(bridge, classified.pendingPrompt)
                 PromptResult.SENT_TO_CLIENT
             }
@@ -274,7 +279,7 @@ class TargetingHandler(private val ops: SessionOps) {
                     req.options.size,
                     req.defaultIndex,
                 )
-                ops.traceEvent(
+                tracer.traceEvent(
                     MatchEventType.AUTO_PASS,
                     game,
                     "auto-resolve prompt [${req.promptType}] default=${req.defaultIndex}",
@@ -301,7 +306,7 @@ class TargetingHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val seatBridge = bridge.seat(ops.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId.value)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: run {
             log.warn("TargetingHandler: GroupResp but no pending prompt")
             DevCheck.fail { "GroupResp but no pending prompt" }
@@ -347,7 +352,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
         // Send intermediate state so the client sees the zone transfer
         // (card moving to graveyard or staying on top of library).
-        ops.sendRealGameState(bridge)
+        sink.sendRealGameState(bridge)
         autoPass(bridge)
     }
 
@@ -364,7 +369,7 @@ class TargetingHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val seatBridge = bridge.seat(ops.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId.value)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt()
         if (pendingPrompt == null) {
             log.warn("TargetingHandler: CancelActionReq but no pending prompt")
@@ -398,7 +403,7 @@ class TargetingHandler(private val ops: SessionOps) {
         }
         pendingInteraction = null
 
-        val seatBridge = bridge.seat(ops.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId.value)
         val prompt = seatBridge.prompt.getPendingPrompt()
         if (prompt != null && prompt.promptId == pending.promptId) {
             val responseIndex = if (itemsFound.isEmpty()) {
@@ -434,7 +439,7 @@ class TargetingHandler(private val ops: SessionOps) {
         // Protocol handles this via Shuffle (OldIds→NewIds), which we don't
         // implement yet (#42). This is the workaround.
         bridge.clearDiffBaseline()
-        ops.sendRealGameState(bridge)
+        sink.sendRealGameState(bridge)
         autoPass(bridge)
     }
 
@@ -516,7 +521,7 @@ class TargetingHandler(private val ops: SessionOps) {
             ctoId = 2
         }
 
-        val ctoReq = ops.bundleBuilder!!.buildModalCastingTimeOptionsReq(
+        val ctoReq = bundles.bundleBuilder!!.buildModalCastingTimeOptionsReq(
             parentGrpId = modalInfo.parentGrpId,
             childGrpIds = modalInfo.childGrpIds,
             minSel = req.min,
@@ -524,7 +529,7 @@ class TargetingHandler(private val ops: SessionOps) {
             sourceInstanceId = sourceInstanceId,
             grpId = ctoGrpId,
             ctoId = ctoId,
-            playerIdToPrompt = if (isTriggered) ops.seatId.value else null,
+            playerIdToPrompt = if (isTriggered) counters.seatId.value else null,
         )
 
         // Save pending state for response mapping
@@ -538,15 +543,15 @@ class TargetingHandler(private val ops: SessionOps) {
             null
         }
 
-        val result = ops.bundleBuilder!!.castingTimeOptionsBundle(
+        val result = bundles.bundleBuilder!!.castingTimeOptionsBundle(
             game,
-            ops.counter,
+            counters.counter,
             ctoReq,
             sourceCardInstanceId = cardInstanceId,
             sourceCardGrpId = if (isTriggered) cardGrpId else null,
         )
-        Tap.outboundTemplate("CastingTimeOptionsReq seat=${ops.seatId} card=$cardName")
-        ops.sendBundledGRE(result.messages)
+        Tap.outboundTemplate("CastingTimeOptionsReq seat=${counters.seatId} card=$cardName")
+        sink.sendBundledGRE(result.messages)
     }
 
     /**
@@ -574,7 +579,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
                 log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={} → indices={}", chosenGrpIds, selectedIndices)
 
-                bridge.seat(ops.seatId.value).prompt.submitResponse(pending.promptId, selectedIndices)
+                bridge.seat(counters.seatId.value).prompt.submitResponse(pending.promptId, selectedIndices)
                 pendingInteraction = null
                 bridge.awaitPriority()
                 autoPass(bridge)
@@ -603,7 +608,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
         // Find the castable SpellAbility to check for optional costs
         val sa = card.spellAbilities?.firstOrNull { it.isSpell && !it.isLandAbility } ?: return false
-        sa.setActivatingPlayer(bridge.getPlayer(ops.seatId) ?: return false)
+        sa.setActivatingPlayer(bridge.getPlayer(counters.seatId) ?: return false)
 
         val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
         if (optionalCosts.isEmpty()) return false
@@ -627,7 +632,7 @@ class TargetingHandler(private val ops: SessionOps) {
             Pair(ctoType, abilityGrpId)
         }
 
-        val (ctoReq, costCtoIds) = ops.bundleBuilder!!.buildOptionalCostCastingTimeOptionsReq(
+        val (ctoReq, costCtoIds) = bundles.bundleBuilder!!.buildOptionalCostCastingTimeOptionsReq(
             instanceId = action.instanceId,
             optionalCosts = costEntries,
         )
@@ -640,13 +645,13 @@ class TargetingHandler(private val ops: SessionOps) {
         )
 
         // Send prompt
-        val result = ops.bundleBuilder!!.castingTimeOptionsBundle(
+        val result = bundles.bundleBuilder!!.castingTimeOptionsBundle(
             game,
-            ops.counter,
+            counters.counter,
             ctoReq,
         )
-        Tap.outboundTemplate("CastingTimeOptionsReq (optional costs) seat=${ops.seatId} card=${card.name}")
-        ops.sendBundledGRE(result.messages)
+        Tap.outboundTemplate("CastingTimeOptionsReq (optional costs) seat=${counters.seatId} card=${card.name}")
+        sink.sendBundledGRE(result.messages)
         return true
     }
 
@@ -677,8 +682,8 @@ class TargetingHandler(private val ops: SessionOps) {
         log.info("TargetingHandler: optional cost response ctoId={} accepted={} indices={}", chosenCtoId, accepted, acceptedIndices)
 
         // Stash decision for WebPlayerController.chooseOptionalCosts to read
-        val seatBridge = bridge.seat(ops.seatId.value)
-        seatBridge.prompt.stashedOptionalCostIndices = acceptedIndices
+        val seatBridge = bridge.seat(counters.seatId.value)
+        TargetingHandler.stashOptionalCostIndices(seatBridge.prompt, acceptedIndices)
 
         // Now submit the Cast action to the engine
         val actionBridge = seatBridge.action
@@ -699,13 +704,13 @@ class TargetingHandler(private val ops: SessionOps) {
     ) {
         // Reveal library contents so the client can populate the search picker.
         // The GSM sent by sendRealGameState will include full card objects for the library.
-        ops.sendRealGameState(bridge, revealForSeat = ops.seatId.value)
+        sink.sendRealGameState(bridge, revealForSeat = counters.seatId.value)
 
         // Extract search parameters from the Forge prompt.
         val req = pendingPrompt.request
-        val player = bridge.getPlayer(ops.seatId)
+        val player = bridge.getPlayer(counters.seatId)
         val library = player?.getZone(forge.game.zone.ZoneType.Library)
-        val libZoneId = if (ops.seatId.value == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
+        val libZoneId = if (counters.seatId.value == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
 
         // All library card instanceIds
         val allLibIds = library?.cards?.map {
@@ -724,9 +729,9 @@ class TargetingHandler(private val ops: SessionOps) {
             bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value
         } ?: 0
 
-        val msgId = ops.counter.nextMsgId()
-        val gsId = ops.counter.currentGsId()
-        val msg = ops.bundleBuilder!!.buildSearchReq(
+        val msgId = counters.counter.nextMsgId()
+        val gsId = counters.counter.currentGsId()
+        val msg = bundles.bundleBuilder!!.buildSearchReq(
             msgId = msgId,
             gsId = gsId,
             sourceInstanceId = sourceId,
@@ -736,7 +741,7 @@ class TargetingHandler(private val ops: SessionOps) {
             maxFind = req.max,
             allowFailToFind = req.min == 0,
         )
-        ops.sendBundledGRE(listOf(msg))
+        sink.sendBundledGRE(listOf(msg))
         pendingInteraction = PendingClientInteraction.Search(pendingPrompt.promptId)
         log.info(
             "SearchReq sent: lib={} valid={} source={}, awaiting SearchResp",
@@ -751,9 +756,9 @@ class TargetingHandler(private val ops: SessionOps) {
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
     ) {
         val game = bridge.getGame() ?: return
-        val result = ops.bundleBuilder!!.selectTargetsBundle(game, ops.counter, pendingPrompt)
-        Tap.outboundTemplate("SelectTargetsReq seat=${ops.seatId}")
-        ops.sendBundledGRE(result.messages)
+        val result = bundles.bundleBuilder!!.selectTargetsBundle(game, counters.counter, pendingPrompt)
+        Tap.outboundTemplate("SelectTargetsReq seat=${counters.seatId}")
+        sink.sendBundledGRE(result.messages)
     }
 
     private fun sendSelectNReq(
@@ -762,17 +767,17 @@ class TargetingHandler(private val ops: SessionOps) {
         reason: ClassifiedPrompt.SelectN.Reason,
     ) {
         val game = bridge.getGame() ?: return
-        val bb = ops.bundleBuilder!!
+        val bb = bundles.bundleBuilder!!
         val req = bb.buildSelectNReq(pendingPrompt)
         val result = bb.selectNBundle(
             game,
-            ops.counter,
+            counters.counter,
             req,
             isLegendRule = reason == ClassifiedPrompt.SelectN.Reason.LegendRule,
             isRevealChoose = reason == ClassifiedPrompt.SelectN.Reason.RevealChoose,
         )
-        Tap.outboundTemplate("SelectNReq seat=${ops.seatId}")
-        ops.sendBundledGRE(result.messages)
+        Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
+        sink.sendBundledGRE(result.messages)
     }
 
     /**
@@ -792,10 +797,10 @@ class TargetingHandler(private val ops: SessionOps) {
         val req = pendingPrompt.request
 
         // Resolve candidateRefs → cards + build bundle. Returns null if game unavailable or no cards resolved.
-        val result = ops.bundleBuilder!!.resolveSurveilScryBundle(req.candidateRefs, context, ops.counter)
+        val result = bundles.bundleBuilder!!.resolveSurveilScryBundle(req.candidateRefs, context, counters.counter)
         if (result == null) {
             log.warn("TargetingHandler: surveil/scry resolve failed — game={} candidateRefs={} (falling back)", game != null, req.candidateRefs.size)
-            bridge.seat(ops.seatId.value).prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
+            bridge.seat(counters.seatId.value).prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
             bridge.awaitPriority()
             return
         }
@@ -803,15 +808,22 @@ class TargetingHandler(private val ops: SessionOps) {
         val contextLabel = if (context == GroupingContext.Surveil) "Surveil" else "Scry"
         val msgCount = result.messages.size
         log.info("TargetingHandler: sending GroupReq for {} messages={}", contextLabel, msgCount)
-        ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "$contextLabel GroupReq messages=$msgCount")
+        tracer.traceEvent(MatchEventType.TARGET_PROMPT, game, "$contextLabel GroupReq messages=$msgCount")
 
-        Tap.outboundTemplate("GroupReq($contextLabel) seat=${ops.seatId}")
-        ops.sendBundledGRE(result.messages)
+        Tap.outboundTemplate("GroupReq($contextLabel) seat=${counters.seatId}")
+        sink.sendBundledGRE(result.messages)
     }
 
     /** Submit default response and wait — used when modal lookup fails. */
     private fun autoResolvePrompt(bridge: GameBridge, prompt: InteractivePromptBridge.PendingPrompt) {
-        bridge.seat(ops.seatId.value).prompt.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
+        bridge.seat(counters.seatId.value).prompt.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
         bridge.awaitPriority()
+    }
+
+    companion object {
+        /** Stash optional cost indices after client response — writes to journal only. */
+        fun stashOptionalCostIndices(prompt: InteractivePromptBridge, indices: List<Int>) {
+            prompt.journal.record(PromptSideEffect.OptionalCostStash(indices))
+        }
     }
 }

@@ -16,6 +16,25 @@ import java.util.concurrent.TimeUnit
 class PrioritySignal {
     private val semaphore = Semaphore(0)
 
+    /**
+     * Set after a prompt resolves so the next priority check skips smart-phase-skip
+     * and lets the player see the updated board. Consumed by [consumePromptResolved].
+     */
+    @Volatile
+    private var promptJustResolved: Boolean = false
+
+    /** Marked after a prompt resolves so the next priority check skips smart-phase-skip. */
+    fun markPromptResolved() {
+        promptJustResolved = true
+    }
+
+    /** Single-consumer check-and-clear for the priority loop. */
+    fun consumePromptResolved(): Boolean {
+        if (!promptJustResolved) return false
+        promptJustResolved = false
+        return true
+    }
+
     /** Notify that a waiter should re-check its exit conditions. */
     fun signal() {
         semaphore.release()

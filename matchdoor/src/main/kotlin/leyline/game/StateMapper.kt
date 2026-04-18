@@ -5,8 +5,9 @@ import leyline.bridge.EffectId
 import leyline.bridge.ForgeCardId
 import leyline.bridge.GrpId
 import leyline.bridge.InstanceId
-import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.PromptSideEffect
 import leyline.bridge.SeatId
+import leyline.bridge.TargetingCoordinator
 import leyline.bridge.findCard
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ObjectMapper
@@ -259,7 +260,7 @@ object StateMapper {
         // (except RevealedCard proxies and real hand cards during active reveal)
         val prevObjMap = prev.gameObjectsList.associateBy { it.instanceId }
         val opponentHandZoneId = ZoneMapper.opponentHandZone(viewingSeatId)
-        val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(it).activeReveal != null }
+        val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(it).journal.activeReveal() != null }
         val changedObjects = current.gameObjectsList.filter { obj ->
             if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
                 // During reveal-choose: include RevealedCard proxies and Public hand cards
@@ -691,12 +692,12 @@ object StateMapper {
      * proxies were synthesized but the engine skipped the choice method
      * (e.g., Duress vs all-creature hand → DiscardEffect short-circuits at max==0).
      */
-    private fun detectActiveReveal(bridge: GameBridge): InteractivePromptBridge.ActiveReveal? =
+    private fun detectActiveReveal(bridge: GameBridge): PromptSideEffect.RevealStarted? =
         bridge.allSeatIds().firstNotNullOfOrNull { seatId ->
             val prompt = bridge.promptBridge(seatId)
-            val reveal = prompt.activeReveal ?: return@firstNotNullOfOrNull null
-            if (bridge.activeRevealProxies.isNotEmpty() && prompt.getPendingPrompt() == null) {
-                prompt.activeReveal = null // stale — engine skipped choice
+            val reveal = prompt.journal.activeReveal() ?: return@firstNotNullOfOrNull null
+            if (!bridge.revealProxies.isEmpty && prompt.getPendingPrompt() == null) {
+                TargetingCoordinator.endReveal(prompt) // stale — engine skipped choice
                 null
             } else {
                 reveal
@@ -712,7 +713,7 @@ object StateMapper {
     // synthesize proxies when non-null, cleanup-and-clear when null.
     @Suppress("CanBeNonNullable")
     private fun applyRevealProxies(
-        activeReveal: InteractivePromptBridge.ActiveReveal?,
+        activeReveal: PromptSideEffect.RevealStarted?,
         game: Game,
         bridge: GameBridge,
         zones: MutableList<ZoneInfo>,
@@ -733,15 +734,15 @@ object StateMapper {
             }
 
             // Re-use proxy IDs across diffs during the same reveal (stable instanceIds).
-            val needsAlloc = bridge.activeRevealProxies.isEmpty()
+            val needsAlloc = bridge.revealProxies.isEmpty
             for (forgeCardId in activeReveal.allHandCardIds) {
                 val card = findCard(game, forgeCardId) ?: continue
                 val proxyId = if (needsAlloc) {
                     val id = bridge.ids.allocSynthetic()
-                    bridge.activeRevealProxies[forgeCardId] = id
+                    bridge.revealProxies.allocate(forgeCardId, id)
                     id
                 } else {
-                    bridge.activeRevealProxies[forgeCardId] ?: continue
+                    bridge.revealProxies.lookup(forgeCardId) ?: continue
                 }
                 revealedZoneBuilder.addObjectInstanceIds(proxyId.value)
                 gameObjects.add(
@@ -749,11 +750,10 @@ object StateMapper {
                 )
             }
             zones.add(revealedZoneBuilder.build())
-        } else if (bridge.activeRevealProxies.isNotEmpty()) {
+        } else if (!bridge.revealProxies.isEmpty) {
             // Reveal ended — emit cleanup annotations and clear tracking.
             // Diff naturally detects missing proxy objects via snapshot-compare.
-            val deletedProxies = bridge.activeRevealProxies.values.toList()
-            bridge.activeRevealProxies.clear()
+            val deletedProxies = bridge.revealProxies.drain()
             events.add(GameEvent.RevealProxiesDeleted(deletedProxies))
         }
     }

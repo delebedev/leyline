@@ -19,7 +19,10 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * 4. [MatchHandler] dispatches to [onOptionalActionResp] → completes future →
  *    engine unblocks → ability resolves or is deleted
  */
-class OptionalActionHandler(private val ops: SessionOps) {
+class OptionalActionHandler(
+    private val sink: GreMessageSink,
+    private val counters: SessionCounters,
+) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     /**
@@ -93,7 +96,7 @@ class OptionalActionHandler(private val ops: SessionOps) {
         // prompt arrives. Without this the client renders the prompt while the
         // card is still in hand.
         if (prompt.forceSnapshotBeforePrompt) {
-            ops.sendRealGameState(bridge)
+            sink.sendRealGameState(bridge)
         }
 
         val optionalMsg = OptionalActionMessage.newBuilder()
@@ -115,8 +118,8 @@ class OptionalActionHandler(private val ops: SessionOps) {
         // Bare GSM diff with pendingMessageCount=1 — signals the client that
         // OptionalActionMessage follows. Without this, the client may process
         // the preceding GSM before the prompt arrives.
-        val prevGsId = ops.counter.currentGsId()
-        val gsId = ops.counter.nextGsId()
+        val prevGsId = counters.counter.currentGsId()
+        val gsId = counters.counter.nextGsId()
         val pendingGsm = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(gsId)
@@ -125,11 +128,11 @@ class OptionalActionHandler(private val ops: SessionOps) {
             .setUpdate(GameStateUpdate.SendAndRecord)
             .build()
 
-        val gsmGre = ops.makeGRE(GREMessageType.GameStateMessage_695e, gsId, ops.counter.nextMsgId()) {
+        val gsmGre = sink.makeGRE(GREMessageType.GameStateMessage_695e, gsId, counters.counter.nextMsgId()) {
             it.gameStateMessage = pendingGsm
         }
 
-        val optionalGre = ops.makeGRE(GREMessageType.OptionalActionMessage_695e, gsId, ops.counter.nextMsgId()) {
+        val optionalGre = sink.makeGRE(GREMessageType.OptionalActionMessage_695e, gsId, counters.counter.nextMsgId()) {
             it.optionalActionMessage = optionalMsg
             it.prompt = promptProto
             // Controls Cancel button visibility, NOT whether declining is allowed.
@@ -137,6 +140,6 @@ class OptionalActionHandler(private val ops: SessionOps) {
             it.allowCancel = AllowCancel.No_a526
         }
 
-        ops.sendBundledGRE(listOf(gsmGre, optionalGre))
+        sink.sendBundledGRE(listOf(gsmGre, optionalGre))
     }
 }

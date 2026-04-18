@@ -30,7 +30,6 @@ class PriorityLoopCoordinator(
     private val owner: OwnerContext,
     private val game: Game,
     private val player: Player,
-    private val bridge: InteractivePromptBridge,
     private val actionBridge: GameActionBridge,
     private val phaseStopProfile: PhaseStopProfile?,
     private val smartPhaseSkip: Boolean,
@@ -69,9 +68,9 @@ class PriorityLoopCoordinator(
         // Never skip when stack has items — player should see stack state.
         // Never skip right after a prompt resolved — player needs to see the result.
         // Never skip when full control is on.
-        if (!fullControl &&
-            smartPhaseSkip &&
-            !bridge.consumePromptResolved() &&
+        val promptJustResolved = actionBridge.prioritySignal?.consumePromptResolved() == true
+        val smartSkipAllowed = !fullControl && smartPhaseSkip && !promptJustResolved
+        if (smartSkipAllowed &&
             handler.playerTurn?.id == player.id &&
             game.stack.isEmpty &&
             !PlayableActionQuery.hasPlayableNonManaAction(game, player)

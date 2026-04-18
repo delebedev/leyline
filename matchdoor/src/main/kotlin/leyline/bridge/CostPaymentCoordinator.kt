@@ -125,9 +125,9 @@ class CostPaymentCoordinator(
 
     /**
      * Optional cost resolution (kicker, buyback, flashback, cycling, warp,
-     * Madness alt-cost). Reads the stashed decision set by
+     * Madness alt-cost). Reads the stashed decision from [PromptJournal] (set by
      * [TargetingHandler.onCastingTimeOptionsResp][leyline.match.TargetingHandler]
-     * after the client responded to `CastingTimeOptionsReq`. Falls back to
+     * after the client responded to `CastingTimeOptionsReq`). Falls back to
      * auto-accepting all optional costs when no stash is present (e.g. test
      * harness paths that bypass the castingTimeOptions flow).
      */
@@ -135,9 +135,8 @@ class CostPaymentCoordinator(
         chosenSa: SpellAbility,
         optionalCosts: MutableList<OptionalCostValue>,
     ): MutableList<OptionalCostValue> {
-        val stashed = bridge.stashedOptionalCostIndices
+        val stashed = consumeStashFor(bridge)
         if (stashed != null) {
-            bridge.stashedOptionalCostIndices = null
             val chosen = stashed.mapNotNull { optionalCosts.getOrNull(it) }.toMutableList()
             log.info(
                 "chooseOptionalCosts: using stashed decision — chose {} of {} for {}",
@@ -187,5 +186,11 @@ class CostPaymentCoordinator(
         if (colors.hasGreen() && (colorCounts[ManaCostShard.GREEN] ?: 0) > 0) return ManaCostShard.GREEN
         if (genericRemaining > 0) return ManaCostShard.GENERIC
         return null
+    }
+
+    companion object {
+        /** Drain the optional cost stash from [bridge]'s journal, or null if none recorded. */
+        fun consumeStashFor(bridge: InteractivePromptBridge): List<Int>? =
+            bridge.journal.consumeOptionalCostStash()
     }
 }

@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicReference
@@ -26,35 +25,12 @@ class InteractivePromptBridge(
     private val prioritySignal: PrioritySignal? = null,
 ) {
     /**
-     * Stashed optional cost decision (kicker, buyback, etc.).
-     * Set by session layer (TargetingHandler) after client responds to CastingTimeOptionsReq.
-     * Consumed by [WebPlayerController.chooseOptionalCosts]. Indices into OptionalCostValue list.
-     * Null = no stash (auto-accept fallback). Empty list = decline all.
+     * Typed per-seat journal of prompt side-effects. Coordinators record
+     * [PromptSideEffect] entries on the engine thread; consumers
+     * ([GameEventCollector], [StateMapper], [CostPaymentCoordinator]) drain
+     * them during GSM assembly.
      */
-    @Volatile
-    var stashedOptionalCostIndices: List<Int>? = null
-
-    /**
-     * Forge card IDs of legendaries about to die to the legend rule SBA.
-     *
-     * Populated by [WebPlayerController.autoResolveLegendRule] before returning
-     * (while still on the engine thread). [GameEventCollector] checks this set
-     * during BF→GY zone transitions to emit [GameEvent.LegendRuleDeath] instead
-     * of [GameEvent.CardDestroyed]. Thread-safe — WPC writes on engine thread,
-     * collector reads on the same thread (events fire synchronously during SBA).
-     */
-    val legendRuleVictims: MutableSet<ForgeCardId> = CopyOnWriteArraySet()
-
-    /**
-     * Forge card IDs of cards moved Library→Hand via a search effect (ChangeZone tutor).
-     *
-     * Populated by [WebPlayerController.chooseSingleEntityForEffect] when semantic=Search
-     * and the chosen entity is a Card. [GameEventCollector] checks this set during
-     * Library→Hand zone transitions to emit [GameEvent.CardSearchedToHand] instead of
-     * [GameEvent.ZoneChanged], yielding [TransferCategory.Put] instead of [TransferCategory.Draw].
-     * Thread-safe — WPC writes on engine thread; collector reads on the same thread.
-     */
-    val searchedToHandCards: MutableSet<ForgeCardId> = CopyOnWriteArraySet()
+    val journal: PromptJournal = PromptJournal()
 
     // --- Pending TargetSpec data (captured during selectTargetsInteractively) ---
 
@@ -94,13 +70,13 @@ class InteractivePromptBridge(
     // a trace it's impossible to tell WHAT prompted and WHETHER it timed out.
     // Tests inspect `history` to diagnose unexpected blocking calls.
 
-    enum class PromptOutcome { RESPONDED, TIMEOUT, ERROR, ALREADY_PENDING }
+    enum class PromptCallStatus { RESPONDED, TIMEOUT, ERROR, ALREADY_PENDING }
 
     data class PromptRecord(
         val promptType: String,
         val message: String,
         val options: List<String>,
-        val outcome: PromptOutcome,
+        val outcome: PromptCallStatus,
         val result: List<Int>,
         val callerFrames: List<String>,
     ) {
@@ -113,7 +89,7 @@ class InteractivePromptBridge(
     /** Immutable snapshot of recent prompt calls (oldest first, capped at [HISTORY_CAP]). */
     val history: List<PromptRecord> get() = synchronized(_history) { _history.toList() }
 
-    private fun record(request: PromptRequest, outcome: PromptOutcome, result: List<Int>, elapsedMs: Long) {
+    private fun record(request: PromptRequest, outcome: PromptCallStatus, result: List<Int>, elapsedMs: Long) {
         val frames = Thread.currentThread().stackTrace
             .drop(3) // skip getStackTrace, record, requestChoice
             .filter { it.className.startsWith("forge.") }
@@ -126,8 +102,8 @@ class InteractivePromptBridge(
         val secs = "%.1f".format(elapsedMs / 1000.0)
         val msg = "Prompt [${request.promptType}] \"${request.message}\" → $outcome $result (${secs}s)"
         when (outcome) {
-            PromptOutcome.RESPONDED -> log.info(msg)
-            PromptOutcome.TIMEOUT, PromptOutcome.ERROR, PromptOutcome.ALREADY_PENDING -> log.warn(msg)
+            PromptCallStatus.RESPONDED -> log.info(msg)
+            PromptCallStatus.TIMEOUT, PromptCallStatus.ERROR, PromptCallStatus.ALREADY_PENDING -> log.warn(msg)
         }
     }
     // ────────────────────────────────────────────────────────────────────────
@@ -146,21 +122,6 @@ class InteractivePromptBridge(
         diagnosticThread = engineThread
     }
 
-    /**
-     * Set after a prompt resolves so the next priority check skips smart-phase-skip
-     * and lets the player see the updated board. Cleared by [consumePromptResolved].
-     */
-    @Volatile
-    var promptJustResolved: Boolean = false
-        private set
-
-    /** Check and clear the resolved flag (single consumer). */
-    fun consumePromptResolved(): Boolean {
-        if (!promptJustResolved) return false
-        promptJustResolved = false
-        return true
-    }
-
     // ── Reveal tracking ─────────────────────────────────────────────────────
     // Engine calls PlayerController.reveal() → WebPlayerController.reveal()
     // pushes forge card IDs here. Leyline drains at diff-build time to
@@ -171,24 +132,6 @@ class InteractivePromptBridge(
      * who revealed them.
      */
     data class RevealRecord(val forgeCardIds: List<ForgeCardId>, val ownerSeatId: SeatId)
-
-    /**
-     * Snapshot of the full revealed hand during a reveal-choose effect (Duress, Revealing Eye, etc.).
-     *
-     * Set by [WebPlayerController.reveal] on the engine thread before the choice method
-     * is called. Read by [WebPlayerController.chooseCardsToDiscardFrom] /
-     * [WebPlayerController.chooseCardsForEffect] to populate `unfilteredRefs` on the prompt.
-     * Cleared after the choice completes.
-     *
-     * Threading: engine thread writes, annotation-build thread reads (`@Volatile`).
-     */
-    data class ActiveReveal(
-        val allHandCardIds: List<ForgeCardId>,
-        val ownerSeatId: SeatId,
-    )
-
-    @Volatile
-    var activeReveal: ActiveReveal? = null
 
     private val revealQueue = ConcurrentLinkedQueue<RevealRecord>()
 
@@ -205,11 +148,7 @@ class InteractivePromptBridge(
         revealQueue.clear()
         pendingTargetSpecs.clear()
         targetSpecIndexCounter.set(0)
-        stashedOptionalCostIndices = null
-        legendRuleVictims.clear()
-        searchedToHandCards.clear()
-        activeReveal = null
-        promptJustResolved = false
+        journal.resetForPuzzle()
         pending.set(null)
     }
 
@@ -240,7 +179,7 @@ class InteractivePromptBridge(
 
         if (!pending.compareAndSet(null, prompt)) {
             val fallback = listOf(request.defaultIndex)
-            record(request, PromptOutcome.ALREADY_PENDING, fallback, 0)
+            record(request, PromptCallStatus.ALREADY_PENDING, fallback, 0)
             return fallback
         }
         prioritySignal?.signal()
@@ -248,8 +187,8 @@ class InteractivePromptBridge(
         val startMs = System.currentTimeMillis()
         return try {
             val result = future.get(timeoutMs, TimeUnit.MILLISECONDS)
-            record(request, PromptOutcome.RESPONDED, result, System.currentTimeMillis() - startMs)
-            promptJustResolved = true
+            record(request, PromptCallStatus.RESPONDED, result, System.currentTimeMillis() - startMs)
+            prioritySignal?.markPromptResolved()
             result
         } catch (_: TimeoutException) {
             val diagnostic = BridgeTimeoutDiagnostic.buildMessage(
@@ -263,13 +202,13 @@ class InteractivePromptBridge(
             log.warn("Prompt timed out, using default\n{}", diagnostic)
             DevCheck.failOnAutoPass { "Prompt timed out (type=${request.promptType}, msg=${request.message})" }
             val fallback = listOf(request.defaultIndex)
-            record(request, PromptOutcome.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
             fallback
         } catch (ex: Exception) {
             log.error("Prompt failed with exception, using default", ex)
             DevCheck.failOnAutoPass { "Prompt failed: ${ex.message}" }
             val fallback = listOf(request.defaultIndex)
-            record(request, PromptOutcome.ERROR, fallback, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.ERROR, fallback, System.currentTimeMillis() - startMs)
             fallback
         } finally {
             pending.set(null)

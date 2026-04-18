@@ -120,6 +120,6 @@ class DiscardInteractionTest :
             val discardPrompts = harness.bridge.promptBridge(1).history
                 .filter { it.message.contains("iscard", ignoreCase = true) }
             discardPrompts shouldHaveSize 1
-            discardPrompts.first().outcome shouldBe InteractivePromptBridge.PromptOutcome.RESPONDED
+            discardPrompts.first().outcome shouldBe InteractivePromptBridge.PromptCallStatus.RESPONDED
         }
     })

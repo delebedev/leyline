@@ -49,7 +49,16 @@ class AutoPassEngineTest :
         test("checkHumanActions — AI turn always returns Skip(OnlyPassActions)") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops),
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+            )
 
             val decision = engine.checkHumanActions(game, isAiTurn = true)
 
@@ -64,7 +73,17 @@ class AutoPassEngineTest :
             val autoPassState = ClientAutoPassState()
             autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops), autoPassState)
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops),
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+                autoPassState = autoPassState,
+            )
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
@@ -80,7 +99,17 @@ class AutoPassEngineTest :
             val autoPassState = ClientAutoPassState()
             autoPassState.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops), autoPassState)
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops),
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+                autoPassState = autoPassState,
+            )
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
@@ -98,7 +127,17 @@ class AutoPassEngineTest :
             val autoPassState = ClientAutoPassState()
             autoPassState.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops), autoPassState)
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops),
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+                autoPassState = autoPassState,
+            )
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
@@ -110,7 +149,16 @@ class AutoPassEngineTest :
         test("checkHumanActions — no autoPass + pass-only → Skip(OnlyPassActions)") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops),
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+            )
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
@@ -125,7 +173,16 @@ class AutoPassEngineTest :
                 base.addCard("Forest", human, ZoneType.Battlefield)
             }
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops),
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+            )
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
@@ -140,7 +197,16 @@ class AutoPassEngineTest :
         test("checkHumanActions records decisions in decisionLog") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops),
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+            )
 
             engine.decisionLog().size shouldBe 0
             engine.checkHumanActions(game, isAiTurn = false)
@@ -151,7 +217,16 @@ class AutoPassEngineTest :
         test("AI turn skip does not record in decisionLog") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops),
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+            )
 
             engine.checkHumanActions(game, isAiTurn = true)
             engine.decisionLog().size shouldBe 0
@@ -163,7 +238,16 @@ class AutoPassEngineTest :
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             game.setGameOver(GameEndReason.AllOpposingTeamsLost)
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops),
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+            )
 
             engine.autoPassAndAdvance(bridge)
 
@@ -179,7 +263,16 @@ class AutoPassEngineTest :
                 base.addCard("Forest", human, ZoneType.Battlefield)
             }
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops),
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+            )
 
             engine.autoPassAndAdvance(bridge)
 
@@ -192,7 +285,17 @@ class AutoPassEngineTest :
             val autoPassState = ClientAutoPassState()
             autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops), autoPassState)
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops),
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+                autoPassState = autoPassState,
+            )
 
             engine.autoPassAndAdvance(bridge)
 
@@ -203,7 +306,16 @@ class AutoPassEngineTest :
         test("autoPassAndAdvance — null game returns immediately") {
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             val ops = SessionTraceOps()
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops),
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+            )
 
             engine.autoPassAndAdvance(bridge)
 
@@ -219,7 +331,13 @@ class AutoPassEngineTest :
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
 
-            val stubCombat = object : CombatHandler(ops) {
+            val stubCombat = object : CombatHandler(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+            ) {
                 override fun checkCombatPhase(
                     bridge: GameBridge,
                     game: forge.game.Game,
@@ -229,7 +347,16 @@ class AutoPassEngineTest :
                 ): Signal = Signal.STOP
             }
 
-            val engine = AutoPassEngine(ops, stubCombat, TargetingHandler(ops), OptionalActionHandler(ops))
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = stubCombat,
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+            )
             engine.autoPassAndAdvance(bridge)
 
             ops.sendRealGameStateCount shouldBe 0
@@ -244,7 +371,13 @@ class AutoPassEngineTest :
             }
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
 
-            val stubCombat = object : CombatHandler(ops) {
+            val stubCombat = object : CombatHandler(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+            ) {
                 override fun checkCombatPhase(
                     bridge: GameBridge,
                     game: forge.game.Game,
@@ -254,7 +387,16 @@ class AutoPassEngineTest :
                 ): Signal = Signal.SEND_STATE
             }
 
-            val engine = AutoPassEngine(ops, stubCombat, TargetingHandler(ops), OptionalActionHandler(ops))
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = stubCombat,
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+            )
             engine.autoPassAndAdvance(bridge)
 
             // Human turn + real actions → sendRealGameState from SEND_STATE path
@@ -266,7 +408,13 @@ class AutoPassEngineTest :
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(bridge = bridge, counter = counter)
 
-            val stubCombat = object : CombatHandler(ops) {
+            val stubCombat = object : CombatHandler(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+            ) {
                 override fun checkCombatPhase(
                     bridge: GameBridge,
                     game: forge.game.Game,
@@ -276,7 +424,16 @@ class AutoPassEngineTest :
                 ): Signal = Signal.SEND_STATE
             }
 
-            val engine = AutoPassEngine(ops, stubCombat, TargetingHandler(ops), OptionalActionHandler(ops))
+            val engine = AutoPassEngine(
+                sink = ops,
+                counters = ops,
+                tracer = ops,
+                bundles = ops,
+                pacing = ops,
+                combatHandler = stubCombat,
+                targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
+                optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
+            )
             engine.autoPassAndAdvance(bridge)
 
             val bundle = ops.sentGRE.single()

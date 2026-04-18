@@ -2,12 +2,8 @@ package leyline.match
 
 import forge.game.Game
 import leyline.bridge.ClientAutoPassState
-import leyline.bridge.InstanceId
 import leyline.bridge.PhaseStopProfile
-import leyline.bridge.PlayerAction
 import leyline.bridge.SeatId
-import leyline.bridge.findCard
-import leyline.bridge.getAllCastableAbilities
 import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.AnnotationLossReason
 import leyline.game.BundleBuilder
@@ -75,10 +71,40 @@ class MatchSession(
     val autoPassState = ClientAutoPassState()
 
     /** Sub-handlers for combat, targeting, optional actions, and auto-pass flows. */
-    val combatHandler = CombatHandler(this)
-    val targetingHandler = TargetingHandler(this)
-    val optionalActionHandler = OptionalActionHandler(this)
-    val autoPassEngine = AutoPassEngine(this, combatHandler, targetingHandler, optionalActionHandler, autoPassState)
+    val combatHandler = CombatHandler(
+        sink = this,
+        counters = this,
+        tracer = this,
+        bundles = this,
+        pacing = this,
+    )
+    val targetingHandler = TargetingHandler(
+        sink = this,
+        counters = this,
+        tracer = this,
+        bundles = this,
+    )
+    val optionalActionHandler = OptionalActionHandler(sink = this, counters = this)
+    val autoPassEngine = AutoPassEngine(
+        sink = this,
+        counters = this,
+        tracer = this,
+        bundles = this,
+        pacing = this,
+        combatHandler = combatHandler,
+        targetingHandler = targetingHandler,
+        optionalActionHandler = optionalActionHandler,
+        autoPassState = autoPassState,
+    )
+    val actionPerformer = ActionPerformer(
+        sink = this,
+        counters = this,
+        tracer = this,
+        bundles = this,
+        targetingHandler = targetingHandler,
+        autoPassEngine = autoPassEngine,
+        autoPassState = autoPassState,
+    )
 
     /**
      * Wire the game bridge (called by [MatchHandler] after bridge creation).
@@ -187,182 +213,12 @@ class MatchSession(
 
     /**
      * Handle a client action (land play, spell cast, pass) and advance the engine.
+     * Delegates to [ActionPerformer] — this method is just the session-lock boundary
+     * and context resolver.
      */
     override fun onPerformAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val ctx = resolveContext() ?: return
-        val bridge = ctx.bridge
-        val seatBridge = bridge.seat(seatId.value)
-        log.info("MatchSession: onPerformAction enter gsId={} (current={})", greMsg.gameStateId, counter.currentGsId())
-
-        // Reject stale actions — client may resend with outdated gameStateId
-        val clientGsId = greMsg.gameStateId
-        if (clientGsId != 0 && clientGsId < counter.currentGsId()) {
-            log.warn("MatchSession: stale PerformActionResp gsId={} (current={}), ignoring", clientGsId, counter.currentGsId())
-            return
-        }
-
-        val pending = seatBridge.action.getPending() ?: run {
-            log.warn("MatchSession: PerformActionResp but no pending action — resyncing current state")
-            sendRealGameState(bridge)
-            return
-        }
-
-        // Track autoPassPriority from PerformActionResp (full control / auto-pass OK)
-        val autoPassPriority = greMsg.performActionResp.autoPassPriority
-        if (autoPassPriority != AutoPassPriority.None_a099) {
-            autoPassState.updateAutoPassPriority(autoPassPriority)
-            log.debug("MatchSession: autoPassPriority={}", autoPassPriority)
-        }
-
-        val action = greMsg.performActionResp.actionsList.firstOrNull()
-        if (action == null) {
-            log.warn("MatchSession: PerformActionResp with no actions")
-            return
-        }
-
-        // Stop decision timer — client responded
-        if (bridge.matchConfig.game.timer) {
-            val timerStop = bundleBuilder!!.timerStop(counter)
-            sendBundledGRE(timerStop.messages)
-        }
-
-        Tap.inboundAction(action)
-        recorder?.recordClientAction(greMsg)
-
-        val isCastOrActivate = action.actionType == ActionType.Cast ||
-            action.actionType == ActionType.Activate_add3 ||
-            action.actionType == ActionType.CastAdventure
-        val game = ctx.game
-        val stackWasNonEmpty = !game.stack.isEmpty
-        val actionName = action.actionType.name.removeSuffix("_add3")
-        val cardName = if (action.instanceId != 0) {
-            bridge.cardRepository.findNameByGrpId(action.grpId)?.let { " ($it)" } ?: ""
-        } else {
-            ""
-        }
-        traceEvent(MatchEventType.CLIENT_ACTION, game, "$actionName iid=${action.instanceId}$cardName")
-
-        when (action.actionType) {
-            ActionType.Pass -> {
-                seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
-            }
-            ActionType.Play_add3 -> {
-                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                val submitted = if (cardId != null) {
-                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PlayLand(cardId))
-                } else {
-                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
-                }
-                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
-            }
-            ActionType.Cast -> {
-                // Check for optional costs (kicker, buyback, etc.) before submitting.
-                // If found, sends CastingTimeOptionsReq to client and returns without
-                // submitting to engine. onCastingTimeOptions resumes the cast.
-                if (targetingHandler.checkOptionalCosts(action, pending.actionId, bridge)) {
-                    Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
-                    // Don't submit to engine yet — wait for CastingTimeOptionsResp
-                } else {
-                    val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                    val submitted = if (cardId != null) {
-                        seatBridge.action.submitAction(pending.actionId, PlayerAction.CastSpell(cardId))
-                    } else {
-                        seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
-                    }
-                    Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
-                }
-            }
-            ActionType.Activate_add3 -> {
-                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                val abilityIndex = resolveAbilityIndex(action, bridge)
-                val submitted = if (cardId != null) {
-                    seatBridge.action.submitAction(
-                        pending.actionId,
-                        PlayerAction.ActivateAbility(cardId, abilityIndex),
-                    )
-                } else {
-                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
-                }
-                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
-            }
-            ActionType.ActivateMana -> {
-                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                val submitted = if (cardId != null) {
-                    seatBridge.action.submitAction(
-                        pending.actionId,
-                        PlayerAction.ActivateMana(cardId),
-                    )
-                } else {
-                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
-                }
-                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
-            }
-            ActionType.CastAdventure -> {
-                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                val submitted = if (cardId != null) {
-                    val card = findCard(game, cardId)
-                    val player = bridge.getPlayer(seatId)
-                    val adventureIndex = if (card != null && player != null) {
-                        getAllCastableAbilities(card, player)
-                            .indexOfFirst { it.isAdventure }
-                            .takeIf { it >= 0 }
-                    } else {
-                        null
-                    }
-                    if (adventureIndex == null) {
-                        log.warn("CastAdventure: no adventure SA found for card={} iid={}", card?.name, action.instanceId)
-                    }
-                    seatBridge.action.submitAction(
-                        pending.actionId,
-                        PlayerAction.CastSpell(cardId, adventureIndex),
-                    )
-                } else {
-                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
-                }
-                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
-            }
-            else -> {
-                log.info("MatchSession: unhandled action type {}, passing", action.actionType)
-                seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
-            }
-        }
-
-        // Wait for engine to reach next priority stop
-        bridge.awaitPriority()
-
-        // After a cast or activate, check for targeting prompt or intermediate stack state.
-        // Pass clientAutoResolve when the client opts in to auto-resolving stack effects (#92).
-        if (isCastOrActivate && targetingHandler.handlePostCastPrompt(bridge, autoPassState.shouldAutoPass())) return
-
-        // After stack resolution: check for modal ETB prompt before sending state.
-        // The engine may have fired a modal trigger (e.g. Charming Prince ETB)
-        // during resolution, blocking in chooseModeForAbility.
-        if (stackWasNonEmpty) {
-            val g = bridge.getGame()
-            if (g != null) {
-                // Check for pending modal prompt from ETB trigger
-                when (targetingHandler.checkPendingPrompt(bridge, g)) {
-                    TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
-                    TargetingHandler.PromptResult.AUTO_RESOLVED -> {
-                        // Fall through to autoPass
-                    }
-                    TargetingHandler.PromptResult.NONE -> {
-                        if (g.stack.isEmpty) {
-                            log.info("MatchSession: stack resolved, sending intermediate resolution state")
-                            sendRealGameState(bridge)
-                            if (g.isGameOver) {
-                                log.info("MatchSession: game over after stack resolution")
-                                sendGameOver()
-                                return
-                            }
-                            return
-                        }
-                    }
-                }
-            }
-        }
-
-        autoPassEngine.autoPassAndAdvance(bridge)
+        actionPerformer.perform(ctx, greMsg)
     }
 
     /** Handle DeclareAttackersResp — delegates to [CombatHandler]. */
@@ -541,40 +397,6 @@ class MatchSession(
 
         for (phase in enabled) profile.setEnabled(playerId, phase, true)
         for (phase in disabled) profile.setEnabled(playerId, phase, false)
-    }
-
-    /**
-     * Map client abilityGrpId → Forge ability index via [SlotLayout].
-     *
-     * Uses the AbilityRegistry's SlotLayout as the single source of truth
-     * for keyword/activated slot positions. Falls back to 0 if lookup fails.
-     */
-    private fun resolveAbilityIndex(action: Action, bridge: GameBridge): Int {
-        val abilityGrpId = action.abilityGrpId
-        if (abilityGrpId == 0) return 0
-
-        // Resolve grpId: prefer action.grpId, fall back to instanceId lookup
-        // (hand-zone Activate_add3 actions omit grpId to match client wire)
-        val grpId = if (action.grpId != 0) {
-            action.grpId
-        } else {
-            val forgeId = bridge.getForgeCardId(InstanceId(action.instanceId))
-            val game = bridge.getGame()
-            val card = if (forgeId != null && game != null) findCard(game, forgeId) else null
-            if (card != null) {
-                bridge.resolveGrpId(card, action.instanceId)
-            } else {
-                return 0
-            }
-        }
-        val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return 0
-        val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return 0
-        val game = bridge.getGame() ?: return 0
-        val forgeCard = game.findById(forgeCardId.value) ?: return 0
-        val registry = bridge.abilityRegistryFor(forgeCard, cardData) ?: return 0
-
-        val index = registry.slotLayout.forgeIndexFor(abilityGrpId)
-        return if (index != null && index >= 0) index else 0
     }
 
     /**
