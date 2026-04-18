@@ -94,18 +94,21 @@ object GsmBuilder {
         val zones = mutableListOf<ZoneInfo>()
         val gameObjects = mutableListOf<GameObjectInfo>()
 
+        // Capture snapshot first — used for both zone mapping and player info.
+        val snap = GsmSnapshot.capture(game, bridge, "")
+
         // Both seats' hand + library only (client expects no graveyard at deal-hand).
+        // gyZoneId=null omits the graveyard zone — protocol shape requires exactly 4 zones here.
         // Only include GameObjectInfo for the viewing seat's hand — opponent's hand
         // cards appear in objectInstanceIds (for count) but render face-down.
         if (human != null) {
-            ZoneMapper.addHandAndLibrary(human, 1, bridge, zones, gameObjects, ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, viewingSeatId = seatId)
+            ZoneMapper.addPlayerZonesFromSnapshot(1, snap, bridge, zones, gameObjects, ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, viewingSeatId = seatId)
         }
         if (ai != null) {
-            ZoneMapper.addHandAndLibrary(ai, 2, bridge, zones, gameObjects, ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, viewingSeatId = seatId)
+            ZoneMapper.addPlayerZonesFromSnapshot(2, snap, bridge, zones, gameObjects, ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, viewingSeatId = seatId)
         }
 
         // Players — both have pendingMessageType: MulliganResp during mulligan
-        val snap = GsmSnapshot.capture(game, bridge, "")
         val player1 = PlayerMapper.buildFromSnapshot(snap, 1).toBuilder()
             .setPendingMessageType(ClientMessageType.MulliganResp_097b).build()
         val player2 = PlayerMapper.buildFromSnapshot(snap, 2).toBuilder()
@@ -360,10 +363,28 @@ object GsmBuilder {
         zones.add(ZoneMapper.makeZone(ZoneIds.LIMBO, ZoneType.Limbo, 0, Visibility.Public))
         // Per-player zones (4 each = 8)
         if (human != null) {
-            ZoneMapper.addInitialPlayerZones(human, 1, bridge, zones, ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, ZoneIds.P1_SIDEBOARD)
+            ZoneMapper.addInitialPlayerZonesFromSnapshot(
+                1,
+                initSnap,
+                bridge,
+                zones,
+                ZoneIds.P1_HAND,
+                ZoneIds.P1_LIBRARY,
+                ZoneIds.P1_GRAVEYARD,
+                ZoneIds.P1_SIDEBOARD,
+            )
         }
         if (ai != null) {
-            ZoneMapper.addInitialPlayerZones(ai, 2, bridge, zones, ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, ZoneIds.P2_SIDEBOARD)
+            ZoneMapper.addInitialPlayerZonesFromSnapshot(
+                2,
+                initSnap,
+                bridge,
+                zones,
+                ZoneIds.P2_HAND,
+                ZoneIds.P2_LIBRARY,
+                ZoneIds.P2_GRAVEYARD,
+                ZoneIds.P2_SIDEBOARD,
+            )
         }
 
         // Brawl: populate zone 26 with commander cards as full game objects.
@@ -371,20 +392,15 @@ object GsmBuilder {
         // needs both objectInstanceIds on the zone AND GameObjectInfo entries.
         val gameObjects = mutableListOf<GameObjectInfo>()
         if (isBrawl) {
-            val game = bridge.getGame()
-            if (game != null) {
-                ZoneMapper.addSharedZoneCards(
-                    game,
-                    forge.game.zone.ZoneType.Command,
-                    ZoneIds.COMMAND,
-                    bridge,
-                    zones,
-                    gameObjects,
-                    human,
-                )
-            } else {
-                log.warn("buildInitialGameState: Brawl game but bridge.getGame() is null — command zone will be empty")
-            }
+            ZoneMapper.addSharedZoneCardsFromSnapshot(
+                initSnap,
+                forge.game.zone.ZoneType.Command,
+                ZoneIds.COMMAND,
+                bridge,
+                zones,
+                gameObjects,
+                human,
+            )
         }
 
         val builder = GameStateMessage.newBuilder()

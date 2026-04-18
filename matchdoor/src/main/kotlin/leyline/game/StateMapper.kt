@@ -146,80 +146,29 @@ object StateMapper {
 
         // Player 1 zones
         if (human != null) {
-            val zonesFromSnap1 = mutableListOf<ZoneInfo>()
-            val objsFromSnap1 = mutableListOf<GameObjectInfo>()
             ZoneMapper.addPlayerZonesFromSnapshot(
-                1, snap, bridge, zonesFromSnap1, objsFromSnap1,
+                1, snap, bridge, zones, gameObjects,
                 ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, viewingSeatId, revealForSeat,
                 revealHand = revealedHandSeat == 1,
             )
-            if (leyline.DevCheck.strict) {
-                val zonesFromGame1 = mutableListOf<ZoneInfo>()
-                val objsFromGame1 = mutableListOf<GameObjectInfo>()
-                ZoneMapper.addPlayerZones(
-                    human, 1, bridge, zonesFromGame1, objsFromGame1,
-                    ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, viewingSeatId, revealForSeat,
-                    revealHand = revealedHandSeat == 1,
-                )
-                check(zonesFromSnap1 == zonesFromGame1) { "ZoneMapper zones drift (p1)" }
-                check(objsFromSnap1 == objsFromGame1) { "ZoneMapper objects drift (p1)" }
-            }
-            zones += zonesFromSnap1
-            gameObjects += objsFromSnap1
         }
         zones.add(ZoneMapper.makePrivateZone(ZoneIds.P1_SIDEBOARD, ZoneType.Sideboard, 1))
 
         // Player 2 zones
         if (ai != null) {
-            val zonesFromSnap2 = mutableListOf<ZoneInfo>()
-            val objsFromSnap2 = mutableListOf<GameObjectInfo>()
             ZoneMapper.addPlayerZonesFromSnapshot(
-                2, snap, bridge, zonesFromSnap2, objsFromSnap2,
+                2, snap, bridge, zones, gameObjects,
                 ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, viewingSeatId, revealForSeat,
                 revealHand = revealedHandSeat == 2,
             )
-            if (leyline.DevCheck.strict) {
-                val zonesFromGame2 = mutableListOf<ZoneInfo>()
-                val objsFromGame2 = mutableListOf<GameObjectInfo>()
-                ZoneMapper.addPlayerZones(
-                    ai, 2, bridge, zonesFromGame2, objsFromGame2,
-                    ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, viewingSeatId, revealForSeat,
-                    revealHand = revealedHandSeat == 2,
-                )
-                check(zonesFromSnap2 == zonesFromGame2) { "ZoneMapper zones drift (p2)" }
-                check(objsFromSnap2 == objsFromGame2) { "ZoneMapper objects drift (p2)" }
-            }
-            zones += zonesFromSnap2
-            gameObjects += objsFromSnap2
         }
         zones.add(ZoneMapper.makePrivateZone(ZoneIds.P2_SIDEBOARD, ZoneType.Sideboard, 2))
 
-        // Populate shared zones with any cards.
-        // Dual-check pattern: capture zone stub before snapshot call, run snapshot path
-        // on main lists, then in strict mode re-run the game path on an independent copy
-        // that has the same stub and compare game objects.
-        fun addSharedDualCheck(
-            forgeZone: ForgeZoneType,
-            arenaZoneId: Int,
-            keywordSnap: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
-        ) {
-            // Capture the stub zone before snapshot call so we can replay it for game path.
-            val stubZone = zones.find { it.zoneId == arenaZoneId }
-            val snapObjs = mutableListOf<GameObjectInfo>()
-            ZoneMapper.addSharedZoneCardsFromSnapshot(snap, forgeZone, arenaZoneId, bridge, zones, snapObjs, human, keywordSnap)
-            gameObjects += snapObjs
-            if (leyline.DevCheck.strict && stubZone != null) {
-                val zonesCopy = mutableListOf(stubZone)
-                val gameObjs = mutableListOf<GameObjectInfo>()
-                ZoneMapper.addSharedZoneCards(game, forgeZone, arenaZoneId, bridge, zonesCopy, gameObjs, human, keywordSnap)
-                check(snapObjs == gameObjs) { "ZoneMapper objects drift (${forgeZone.name.lowercase()})" }
-            }
-        }
-
-        addSharedDualCheck(ForgeZoneType.Battlefield, ZoneIds.BATTLEFIELD, keywordSnapshot)
-        addSharedDualCheck(ForgeZoneType.Stack, ZoneIds.STACK)
-        addSharedDualCheck(ForgeZoneType.Exile, ZoneIds.EXILE)
-        addSharedDualCheck(ForgeZoneType.Command, ZoneIds.COMMAND)
+        // Populate shared zones with cards.
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Battlefield, ZoneIds.BATTLEFIELD, bridge, zones, gameObjects, human, keywordSnapshot)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects, human)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects, human)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects, human)
 
         // Stack abilities (triggers, activated abilities not represented as zone cards)
         ZoneMapper.addStackAbilities(game, bridge, zones, gameObjects, human)
