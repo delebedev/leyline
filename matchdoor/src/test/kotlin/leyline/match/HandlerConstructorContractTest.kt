@@ -99,4 +99,30 @@ class HandlerConstructorContractTest :
                 autoPassState = ClientAutoPassState(),
             )
         }
+
+        test("ActionPerformer accepts four narrow interfaces + handler collaborators") {
+            val combat = CombatHandler(SinkOnly(), CountersOnly(), TracerOnly(), BundlesOnly(), PacingOnly())
+            val targeting = TargetingHandler(SinkOnly(), CountersOnly(), TracerOnly(), BundlesOnly())
+            val optional = OptionalActionHandler(SinkOnly(), CountersOnly())
+            val engine = AutoPassEngine(
+                sink = SinkOnly(),
+                counters = CountersOnly(),
+                tracer = TracerOnly(),
+                bundles = BundlesOnly(),
+                pacing = PacingOnly(),
+                combatHandler = combat,
+                targetingHandler = targeting,
+                optionalActionHandler = optional,
+                autoPassState = ClientAutoPassState(),
+            )
+            ActionPerformer(
+                sink = SinkOnly(),
+                counters = CountersOnly(),
+                tracer = TracerOnly(),
+                bundles = BundlesOnly(),
+                targetingHandler = targeting,
+                autoPassEngine = engine,
+                autoPassState = ClientAutoPassState(),
+            )
+        }
     })
