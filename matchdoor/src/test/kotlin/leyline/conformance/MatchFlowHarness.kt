@@ -399,6 +399,17 @@ class MatchFlowHarness(
     }
 
     /**
+     * Send DeclareBlockersResp deselecting a single blocker (wire shape: Blocker
+     * entry with blockerInstanceId and empty selectedAttackerInstanceIds).
+     */
+    fun deselectBlocker(blockerInstanceId: Int): List<GREToClientMessage> {
+        val snap = messageSnapshot()
+        session.onDeclareBlockers(declareBlockersRespDeselect(blockerInstanceId))
+        drainSink()
+        return messagesSince(snap)
+    }
+
+    /**
      * Send SubmitBlockersReq (type-only, no payload) — the reference client's "Done" button.
      */
     fun submitBlockers() {
