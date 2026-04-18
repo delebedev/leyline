@@ -3,8 +3,7 @@
   <ManuallySuppressedIssues></ManuallySuppressedIssues>
   <CurrentIssues>
     <ID>CanBeNonNullable:TargetingCoordinator.kt$TargetingCoordinator$sa: SpellAbility?</ID>
-    <ID>CanBeNonNullable:WebPlayerController.kt$WebPlayerController$private val priorityLoopCoordinator: PriorityLoopCoordinator? = actionBridge?.let { ab -&gt; PriorityLoopCoordinator( owner = this, game = game, player = player, bridge = bridge, actionBridge = ab, phaseStopProfile = phaseStopProfile, smartPhaseSkip = smartPhaseSkip, spellExecutor = spellExecutor, ) }</ID>
-    <ID>ComplexCondition:PriorityLoopCoordinator.kt$PriorityLoopCoordinator$!fullControl &amp;&amp; smartPhaseSkip &amp;&amp; !bridge.consumePromptResolved() &amp;&amp; handler.playerTurn?.id == player.id &amp;&amp; game.stack.isEmpty &amp;&amp; !PlayableActionQuery.hasPlayableNonManaAction(game, player)</ID>
+    <ID>CanBeNonNullable:WebPlayerController.kt$WebPlayerController$private val priorityLoopCoordinator: PriorityLoopCoordinator? = actionBridge?.let { ab -&gt; PriorityLoopCoordinator( owner = this, game = game, player = player, actionBridge = ab, phaseStopProfile = phaseStopProfile, smartPhaseSkip = smartPhaseSkip, spellExecutor = spellExecutor, ) }</ID>
     <ID>CyclomaticComplexMethod:ActionPerformer.kt$ActionPerformer$fun perform(ctx: SessionContext, greMsg: ClientToGREMessage)</ID>
     <ID>CyclomaticComplexMethod:PriorityLoopCoordinator.kt$PriorityLoopCoordinator$fun chooseSpellAbility(): List&lt;SpellAbility&gt;?</ID>
     <ID>CyclomaticComplexMethod:TargetingCoordinator.kt$TargetingCoordinator$fun selectTargets( validTargets: List&lt;Card&gt;, sa: SpellAbility, mandatory: Boolean, numTargets: Int?, divisionValues: Collection&lt;Int&gt;?, ): TargetSelectionResult</ID>

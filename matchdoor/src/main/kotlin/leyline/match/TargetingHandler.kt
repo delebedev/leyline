@@ -5,6 +5,7 @@ import leyline.DevCheck
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.PromptSideEffect
 import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
@@ -16,10 +17,9 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 /**
  * Handles targeting-related client messages and prompt detection.
  *
- * Extracted from [MatchSession] for independent testability.
- * Uses [GreMessageSink], [SessionCounters], [SessionTracer], and [BundleBuilderHolder]
- * for message sending and tracing. Protocol sequencing uses the shared [MessageCounter]
- * [leyline.game.MessageCounter] via `counters.counter` — no seeding or syncing needed.
+ * Protocol sequencing uses the shared
+ * [MessageCounter][leyline.game.MessageCounter] via `counters.counter` —
+ * no seeding or syncing needed.
  */
 class TargetingHandler(
     private val sink: GreMessageSink,
@@ -683,7 +683,7 @@ class TargetingHandler(
 
         // Stash decision for WebPlayerController.chooseOptionalCosts to read
         val seatBridge = bridge.seat(counters.seatId.value)
-        seatBridge.prompt.stashedOptionalCostIndices = acceptedIndices
+        TargetingHandler.stashOptionalCostIndices(seatBridge.prompt, acceptedIndices)
 
         // Now submit the Cast action to the engine
         val actionBridge = seatBridge.action
@@ -818,5 +818,12 @@ class TargetingHandler(
     private fun autoResolvePrompt(bridge: GameBridge, prompt: InteractivePromptBridge.PendingPrompt) {
         bridge.seat(counters.seatId.value).prompt.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
         bridge.awaitPriority()
+    }
+
+    companion object {
+        /** Stash optional cost indices after client response — writes to journal only. */
+        fun stashOptionalCostIndices(prompt: InteractivePromptBridge, indices: List<Int>) {
+            prompt.journal.record(PromptSideEffect.OptionalCostStash(indices))
+        }
     }
 }

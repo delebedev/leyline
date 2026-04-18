@@ -21,8 +21,6 @@ import kotlin.collections.iterator
 /**
  * Handles combat-related client messages and auto-pass combat phase detection.
  *
- * Extracted from [MatchSession] for independent testability.
- * Uses five focused sub-interfaces for message sending, tracing, and pacing.
  * Protocol sequencing uses the shared [MessageCounter][leyline.game.MessageCounter]
  * via `counters.counter` — no seeding or syncing needed.
  */

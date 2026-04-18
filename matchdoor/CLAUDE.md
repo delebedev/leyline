@@ -104,7 +104,7 @@ Shape invariants to know:
 
 - **42 overrides, pinned by `WebPlayerControllerStructureTest`.** Adding or removing one requires updating the test and the table below in the same commit.
 - **Cross-class state stays on the class.** `pendingOptionalAction`, `pendingDamageAssignment`, `damageAssignCache`, `autoPassState`, `recentDecisions` have external readers (`GameBridge`, `CombatHandler`, `OptionalActionHandler`, `DebugServer`, `MatchFlowHarness`).
-- **Flag-contract fields stay on `InteractivePromptBridge`.** `searchedToHandCards`, `legendRuleVictims`, `stashedOptionalCostIndices`, `activeReveal`, `promptJustResolved` — see the bridge's KDoc for their single-use lifecycles.
+- **Prompt side-effects flow through `PromptJournal`.** `InteractivePromptBridge.journal` carries typed `PromptSideEffect` entries (`SearchedToHand`, `LegendVictim`, `RevealStarted`/`RevealEnded`, `OptionalCostStash`); producers record, consumers (`GameEventCollector`, `CostPaymentCoordinator`, `StateMapper`) drain. `promptJustResolved` lives on `PrioritySignal`. Reveal proxy IDs are encapsulated as `GameBridge.revealProxies: RevealProxyTracker`.
 - **The `pendingOptionalAction` future lifecycle belongs to `OptionalActionGate`.** The three override sites (`confirmTrigger`, `playSaFromPlayEffect`, `payCostToPreventEffect`) delegate to `gate.await(...)`.
 
 ### Override reference

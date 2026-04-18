@@ -91,10 +91,10 @@ import org.slf4j.LoggerFactory
  *   `DebugServer.servePriorityTrace`.
  *
  * Coordinators read and write these through [OwnerContext]; external callers use
- * the public field path. [InteractivePromptBridge] carries a separate set of
- * single-use flag-contract fields (`searchedToHandCards`, `legendRuleVictims`,
- * `stashedOptionalCostIndices`, `activeReveal`, `promptJustResolved`); those stay
- * on the bridge — see its KDoc.
+ * the public field path. Prompt side-effects (reveal lifecycle, legend-rule
+ * victims, searched-to-hand cards, optional-cost stash) flow through the typed
+ * [PromptJournal] on [InteractivePromptBridge]; the priority-loop "prompt just
+ * resolved" flag lives on [PrioritySignal].
  *
  * ## Anti-patterns (enforced)
  *
@@ -229,7 +229,6 @@ class WebPlayerController(
             owner = this,
             game = game,
             player = player,
-            bridge = bridge,
             actionBridge = ab,
             phaseStopProfile = phaseStopProfile,
             smartPhaseSkip = smartPhaseSkip,

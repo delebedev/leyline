@@ -14,6 +14,7 @@ import leyline.bridge.PromptCandidateRefDto
 import leyline.bridge.PromptRequest
 import leyline.bridge.PromptSemantic
 import leyline.bridge.SeatId
+import leyline.bridge.TargetingCoordinator
 import leyline.game.RequestBuilder
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -136,13 +137,13 @@ class RevealTest :
             capture(b, game, counter) {
                 activateReveal(b, cardIds, ownerSeat = SeatId(2))
             }
-            b.activeRevealProxies.size shouldBe 1
+            b.revealProxies.size shouldBe 1
 
             // Second build: no prompt pending → stale guard clears activeReveal + proxies
             capture(b, game, counter) {}
 
-            b.promptBridge(1).activeReveal.shouldBeNull()
-            b.activeRevealProxies.size shouldBe 0
+            b.promptBridge(1).journal.activeReveal().shouldBeNull()
+            b.revealProxies.size shouldBe 0
         }
 
         test("clearing activeReveal triggers proxy cleanup in next GSM") {
@@ -154,14 +155,14 @@ class RevealTest :
             capture(b, game, counter) {
                 activateReveal(b, cardIds, ownerSeat = SeatId(2))
             }
-            b.activeRevealProxies.size shouldBe 1
+            b.revealProxies.size shouldBe 1
 
             // Clear reveal (simulates choice completion)
-            b.promptBridge(1).activeReveal = null
+            TargetingCoordinator.endReveal(b.promptBridge(1))
 
             val gsm = capture(b, game, counter) {}
 
-            b.activeRevealProxies.size shouldBe 0
+            b.revealProxies.size shouldBe 0
             gsm.revealedCardProxies().shouldBeEmpty()
         }
 
@@ -257,8 +258,7 @@ class RevealTest :
             cardIds: List<ForgeCardId>,
             ownerSeat: SeatId,
         ) {
-            b.promptBridge(1).activeReveal =
-                InteractivePromptBridge.ActiveReveal(cardIds, ownerSeat)
+            TargetingCoordinator.startReveal(b.promptBridge(1), cardIds, ownerSeat)
             b.promptBridge(1).recordReveal(cardIds, ownerSeat)
         }
 

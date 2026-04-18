@@ -15,10 +15,8 @@ import org.slf4j.LoggerFactory
  * meaningful actions, drains AI-action playback diffs, and delegates to
  * [CombatHandler] / [TargetingHandler] when interactive prompts arise.
  *
- * Extracted from [MatchSession] for independent testability.
- * Uses five focused interfaces for message sending and tracing. Protocol sequencing
- * uses the shared [MessageCounter][leyline.game.MessageCounter] via
- * `counters.counter` — no seeding or syncing needed.
+ * Protocol sequencing uses the shared [MessageCounter][leyline.game.MessageCounter]
+ * via `counters.counter` — no seeding or syncing needed.
  */
 class AutoPassEngine(
     private val sink: GreMessageSink,

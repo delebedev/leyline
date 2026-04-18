@@ -14,12 +14,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * submit the appropriate [PlayerAction] to the engine, and drive the post-action
  * flow (awaitPriority → post-cast prompt → modal ETB check → auto-pass advance).
  *
- * Extracted from [MatchSession.onPerformAction] for independent testability and
- * to isolate the action-type `when` dispatch (the only real branching in the
- * whole session class) from session-lifecycle concerns.
- *
- * **Threading:** Callers (only [MatchSession.onPerformAction]) invoke inside
- * the session lock. This class adds no locking of its own.
+ * **Threading:** Callers invoke inside the session lock. This class adds no
+ * locking of its own.
  *
  * **State:** Stateless between calls. [autoPassState] is a shared reference —
  * reads and writes flow through it to stay visible to other handlers.

@@ -44,13 +44,13 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * [WebPlayerController][leyline.bridge.WebPlayerController] on the
  * [InteractivePromptBridge][leyline.bridge.InteractivePromptBridge]:
  *
- * - [isSearchedToHand]: consumes `searchedToHandCards` flag → emits
+ * - [isSearchedToHand]: drains `SearchedToHand` effects from the prompt journal → emits
  *   [GameEvent.CardSearchedToHand] instead of generic ZoneChanged for
- *   Library→Hand tutors. Set by WPC's `chooseSingleEntityForEffect`.
+ *   Library→Hand tutors. Written by `TargetingCoordinator.recordSearchedToHand`.
  *
- * - [isLegendRuleVictim]: consumes `legendRuleVictims` flag → emits
+ * - [isLegendRuleVictim]: drains `LegendVictim` effects from the prompt journal → emits
  *   [GameEvent.LegendRuleDeath] instead of generic ZoneChanged for
- *   BF→GY legend rule deaths. Set by WPC's `chooseSingleEntityForEffect`.
+ *   BF→GY legend rule deaths. Written by `TargetingCoordinator.recordLegendVictim`.
  *
  * Both flags are written and consumed on the engine thread (events fire
  * synchronously during the engine operation that triggered the zone change).
@@ -493,13 +493,12 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
 
     /**
      * Check if a card was chosen via a search effect (ChangeZone tutor) and is moving
-     * Library→Hand. Consumes the flag so it doesn't fire again for subsequent zone events.
+     * Library→Hand. Drains from the prompt journal so it doesn't fire again for subsequent zone events.
      */
     private fun isSearchedToHand(forgeCardId: Int): Boolean {
         val id = ForgeCardId(forgeCardId)
         for (seat in bridge.allSeatIds()) {
-            val searched = bridge.promptBridge(seat).searchedToHandCards
-            if (searched.remove(id)) return true
+            if (bridge.promptBridge(seat).journal.consumeSearched(id)) return true
         }
         return false
     }
@@ -507,16 +506,14 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     /**
      * Check if a card is marked as a legend rule SBA victim.
      *
-     * [WebPlayerController.autoResolveLegendRule] populates
-     * [InteractivePromptBridge.legendRuleVictims] with forge card IDs of
-     * legendaries that will die. We check all seats' prompt bridges.
-     * Consuming on match (remove) so the flag doesn't leak to future SBAs.
+     * [TargetingCoordinator.recordLegendVictim] records [PromptSideEffect.LegendVictim]
+     * events into the [PromptJournal] of the active prompt bridge. We drain all seats'
+     * journals via [PromptJournal.consumeLegendVictim] so the entry doesn't leak to future SBAs.
      */
     private fun isLegendRuleVictim(forgeCardId: Int): Boolean {
         val id = ForgeCardId(forgeCardId)
         for (seat in bridge.allSeatIds()) {
-            val victims = bridge.promptBridge(seat).legendRuleVictims
-            if (victims.remove(id)) return true
+            if (bridge.promptBridge(seat).journal.consumeLegendVictim(id)) return true
         }
         return false
     }

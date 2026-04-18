@@ -18,9 +18,10 @@ import org.slf4j.LoggerFactory
  *
  * Every method emits one or more [PromptRequest]s via [InteractivePromptBridge]
  * and translates the client response back into Forge types. A few methods also
- * write the bridge's flag-contract fields (`searchedToHandCards`,
- * `legendRuleVictims`, `activeReveal`) that downstream classes
- * (`GameEventCollector`, `TargetingHandler`) consume.
+ * record typed [PromptSideEffect]s on the bridge's [PromptJournal]
+ * ([PromptSideEffect.LegendVictim], [PromptSideEffect.SearchedToHand],
+ * [PromptSideEffect.RevealStarted]/[PromptSideEffect.RevealEnded]) that downstream
+ * classes (`GameEventCollector`, `StateMapper`, `TargetingHandler`) consume.
  *
  * PCHuman's `super.<method>` calls stay on `WebPlayerController` — the
  * overrides that need them pass the call-through as a lambda or perform the
@@ -76,23 +77,26 @@ class TargetingCoordinator(
 
         // Search: mark chosen card so GameEventCollector emits CardSearchedToHand (Put category).
         if (isSearch && chosen is Card) {
-            bridge.searchedToHandCards.add(ForgeCardId(chosen.id))
+            TargetingCoordinator.recordSearchedToHand(bridge, ForgeCardId(chosen.id))
             log.debug("search to hand: marked card {} (id={})", chosen.name, chosen.id)
         }
 
         // Legend rule: mark all unchosen legendaries as victims for SBA_LegendRule annotation.
         if (isLegendRule && chosen != null) {
             val cards = optionList.filterIsInstance<Card>()
+            val victimIds = mutableListOf<ForgeCardId>()
             for (card in cards) {
                 if (card !== chosen) {
-                    bridge.legendRuleVictims.add(ForgeCardId(card.id))
+                    val id = ForgeCardId(card.id)
+                    TargetingCoordinator.recordLegendVictim(bridge, id)
+                    victimIds += id
                 }
             }
             log.info(
                 "legend rule: player chose {} (id={}), victims={}",
                 (chosen as? Card)?.name,
                 (chosen as? Card)?.id,
-                bridge.legendRuleVictims,
+                victimIds,
             )
         }
 
@@ -132,7 +136,7 @@ class TargetingCoordinator(
         isOptional: Boolean,
     ): CardCollectionView {
         if (sourceList.isEmpty()) return CardCollection()
-        val reveal = bridge.activeReveal
+        val reveal = bridge.journal.activeReveal()
         if (reveal != null) {
             val effectiveMin = if (isOptional) 0 else min
             return chooseCardsViaBridgeForReveal(sourceList, effectiveMin, max, sa, reveal)
@@ -169,7 +173,7 @@ class TargetingCoordinator(
         min: Int,
         max: Int,
     ): CardCollection {
-        val reveal = bridge.activeReveal
+        val reveal = bridge.journal.activeReveal()
         if (reveal != null) {
             // Reveal-choose path (Duress, Thoughtseize): validCards is filtered,
             // reveal.allHandCardIds has the full hand for unfilteredIds.
@@ -232,9 +236,9 @@ class TargetingCoordinator(
         val cardIds = cards.mapNotNull { card -> (card as? Card)?.let { ForgeCardId(it.id) } }
         val ownerSeat = if (owner.lobbyPlayer is forge.ai.LobbyPlayerAi) SeatId(2) else SeatId(1)
         bridge.recordReveal(cardIds, ownerSeat)
-        // Only set activeReveal for hand reveals. Library reveals must not trigger proxy synthesis.
+        // Only record RevealStarted for hand reveals. Library reveals must not trigger proxy synthesis.
         if (zone == ZoneType.Hand) {
-            bridge.activeReveal = InteractivePromptBridge.ActiveReveal(cardIds, ownerSeat)
+            TargetingCoordinator.startReveal(bridge, cardIds, ownerSeat)
         }
     }
 
@@ -504,7 +508,7 @@ class TargetingCoordinator(
         min: Int,
         max: Int,
         sa: SpellAbility?,
-        reveal: InteractivePromptBridge.ActiveReveal,
+        reveal: PromptSideEffect.RevealStarted,
     ): CardCollection {
         try {
             val candidateRefs = filteredCards.mapIndexedNotNull { idx, card ->
@@ -539,7 +543,7 @@ class TargetingCoordinator(
             }
             return result
         } finally {
-            bridge.activeReveal = null
+            TargetingCoordinator.endReveal(bridge)
         }
     }
 
@@ -556,5 +560,23 @@ class TargetingCoordinator(
         is Card -> name
         is forge.game.player.Player -> name
         else -> toString()
+    }
+
+    companion object {
+        fun recordLegendVictim(prompt: InteractivePromptBridge, cardId: ForgeCardId) {
+            prompt.journal.record(PromptSideEffect.LegendVictim(cardId))
+        }
+
+        fun recordSearchedToHand(prompt: InteractivePromptBridge, cardId: ForgeCardId) {
+            prompt.journal.record(PromptSideEffect.SearchedToHand(cardId))
+        }
+
+        fun startReveal(prompt: InteractivePromptBridge, cardIds: List<ForgeCardId>, ownerSeat: SeatId) {
+            prompt.journal.record(PromptSideEffect.RevealStarted(cardIds, ownerSeat))
+        }
+
+        fun endReveal(prompt: InteractivePromptBridge) {
+            prompt.journal.endActiveReveal()
+        }
     }
 }

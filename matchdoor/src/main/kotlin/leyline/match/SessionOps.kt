@@ -51,7 +51,7 @@ interface SessionTracer {
  *
  * Non-null only after [MatchSession.connectBridge]. Handlers that build
  * bundles read this via `bundles.bundleBuilder!!` in code paths that are
- * only reachable after bridge connection (same pattern as before).
+ * only reachable after bridge connection.
  */
 interface BundleBuilderHolder {
     val bundleBuilder: BundleBuilder? get() = null
@@ -93,16 +93,16 @@ interface ActionReceiver {
  * [MatchSession] and [FamiliarSession].
  *
  * Extends six focused interfaces so **handlers should take the
- * sub-interfaces they need**, not `SessionOps` as a whole. Handler
- * narrowing to the pattern lands in follow-up commits; see
- * [CombatHandler], [TargetingHandler], [OptionalActionHandler],
- * [AutoPassEngine].
+ * sub-interfaces they need**, not `SessionOps` as a whole. The only
+ * code that should still accept `SessionOps` is:
  *
- * The only code that should still accept `SessionOps` is:
  * - `MatchRegistry` (stores sessions as a single value type)
  * - `MatchHandler` (dispatches all inbound message types, needs
  *   the full [ActionReceiver] surface)
  * - Whole-surface test doubles (e.g. `SessionTraceOps`).
+ *
+ * [HandlerConstructorContractTest] pins each narrow handler contract
+ * at compile time.
  */
 interface SessionOps :
     GreMessageSink,
