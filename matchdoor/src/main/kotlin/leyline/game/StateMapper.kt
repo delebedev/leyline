@@ -34,11 +34,13 @@ import forge.game.zone.ZoneType as ForgeZoneType
 object StateMapper {
     private val log = LoggerFactory.getLogger(StateMapper::class.java)
 
-    /** Result of [buildFromSnapshot] — GSM plus metadata for message framing. */
+    /** Result of [buildFromSnapshot] / [buildDiff] — GSM plus metadata for message framing. */
     data class BuildResult(
         val gsm: GameStateMessage,
         /** True if a CastSpell zone transfer was detected (triggers QueuedGSM split). */
         val hasCastSpell: Boolean = false,
+        /** Ordering-sensitive bridge mutations computed during the build. Caller applies via [GameBridge.applyMutations]. */
+        val mutations: BridgeMutations = BridgeMutations.EMPTY,
     )
 
     /**
@@ -249,9 +251,11 @@ object StateMapper {
      * inside `buildFromSnapshot`'s `transferResult` apply loop — diff is pure on inputs
      * (snap-vs-snap), not on outputs (still mutates bridge). Pulling output side-effects
      * out as data is a separate follow-up.
+     *
+     * @see buildDiff for the newer signature that also returns [BridgeMutations].
      */
     @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
-    fun buildDiff(
+    fun buildDiffLegacy(
         prev: GsmSnapshot?,
         cur: GsmSnapshot,
         gameStateId: Int,
@@ -396,6 +400,29 @@ object StateMapper {
         }
         return BuildResult(built, fullResult.hasCastSpell)
     }
+
+    /**
+     * Pure-output diff. Takes prev + cur snapshots + events as input (caller drains
+     * events via bridge.drainEvents()). Returns GSM + BridgeMutations; the caller
+     * applies mutations via bridge.applyMutations(result.mutations).
+     *
+     * Current implementation delegates to [buildDiffLegacy] — genuine pure body
+     * lands in a subsequent task once BundleBuilder has adopted this signature.
+     */
+    @Suppress("LongParameterList")
+    fun buildDiff(
+        prev: GsmSnapshot?,
+        cur: GsmSnapshot,
+        @Suppress("UNUSED_PARAMETER") events: List<GameEvent>,
+        gameStateId: Int,
+        matchId: String,
+        bridge: GameBridge,
+        actions: ActionsAvailableReq? = null,
+        updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
+        viewingSeatId: Int = 0,
+        revealForSeat: Int? = null,
+    ): BuildResult =
+        buildDiffLegacy(prev, cur, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat)
 
     /**
      * Resolve the correct updateType for a game state message.

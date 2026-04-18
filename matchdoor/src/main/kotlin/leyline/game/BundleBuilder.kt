@@ -67,6 +67,7 @@ class BundleBuilder(
         val result = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
+            emptyList(), // events drained inside buildDiffLegacy for now; T6 moves drain here
             nextGs,
             matchId,
             bridge,
@@ -132,7 +133,16 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
-        val result = StateMapper.buildDiff(bridge.lastSent, snap, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
+        val result = StateMapper.buildDiff(
+            bridge.lastSent,
+            snap,
+            emptyList(),
+            nextGs,
+            matchId,
+            bridge,
+            updateType = updateType,
+            viewingSeatId = seatId,
+        )
 
         // QueuedGSM split disabled (see postAction comment above).
         @Suppress("UnusedPrivateProperty")
@@ -184,6 +194,7 @@ class BundleBuilder(
         val remoteResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
+            emptyList(), // events drained inside buildDiffLegacy for now; T6 moves drain here
             nextGs,
             matchId,
             bridge,
@@ -488,7 +499,16 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
-        val attackersResult = StateMapper.buildDiff(bridge.lastSent, snap, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
+        val attackersResult = StateMapper.buildDiff(
+            bridge.lastSent,
+            snap,
+            emptyList(),
+            nextGs,
+            matchId,
+            bridge,
+            updateType = updateType,
+            viewingSeatId = seatId,
+        )
         val gs = attackersResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -578,7 +598,16 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
-        val blockersResult = StateMapper.buildDiff(bridge.lastSent, snap, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
+        val blockersResult = StateMapper.buildDiff(
+            bridge.lastSent,
+            snap,
+            emptyList(),
+            nextGs,
+            matchId,
+            bridge,
+            updateType = updateType,
+            viewingSeatId = seatId,
+        )
         val gs = blockersResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -618,6 +647,7 @@ class BundleBuilder(
         val targetsResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
+            emptyList(), // events drained inside buildDiffLegacy for now; T6 moves drain here
             nextGs,
             matchId,
             bridge,
@@ -659,6 +689,7 @@ class BundleBuilder(
         val selectNResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
+            emptyList(), // events drained inside buildDiffLegacy for now; T6 moves drain here
             nextGs,
             matchId,
             bridge,
@@ -729,6 +760,7 @@ class BundleBuilder(
         val ctoResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
+            emptyList(), // events drained inside buildDiffLegacy for now; T6 moves drain here
             nextGs,
             matchId,
             bridge,
@@ -829,6 +861,7 @@ class BundleBuilder(
         val payCostsResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
+            emptyList(), // events drained inside buildDiffLegacy for now; T6 moves drain here
             nextGs,
             matchId,
             bridge,

@@ -595,7 +595,7 @@ class GameBridgeTest :
             b.lastSent.shouldBeNull()
 
             val snapFull = GsmSnapshot.capture(game, b, "test-match", 1)
-            val gs = StateMapper.buildDiff(null, snapFull, 1, "test-match", b).gsm
+            val gs = StateMapper.buildDiff(null, snapFull, emptyList(), 1, "test-match", b).gsm
             gs.type shouldBe Messages.GameStateType.Full
             (gs.zonesCount > 0).shouldBeTrue()
         }
