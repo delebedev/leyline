@@ -17,7 +17,7 @@ data class CardSnapshot(
     val owner: SeatId,
     val controller: SeatId,
 
-    // --- Task 6 fields: ObjectMapper.applyCardFields + applyCombatState ---
+    // --- Task 6 fields: ObjectMapper live state (applyFieldsFromSnapshot + applyCombatFromSnapshot) ---
 
     /** True when the card is in the Battlefield zone. */
     val isOnBattlefield: Boolean = false,

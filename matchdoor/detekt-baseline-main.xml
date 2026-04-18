@@ -40,7 +40,6 @@
     <ID>MaxLineLength:WebGuiGame.kt$WebGuiGame$override fun showConfirmDialog(message: String, title: String, yesText: String, noText: String): Boolean</ID>
     <ID>MaxLineLength:WebGuiGame.kt$WebGuiGame$override fun showInputDialog(message: String, title: String, icon: FSkinProp?, initialInput: String?): String</ID>
     <ID>NoGameInMappers:GsmBuilder.kt$import forge.game.Game</ID>
-    <ID>NoGameInMappers:ObjectMapper.kt$import forge.game.Game</ID>
     <ID>NoGameInMappers:StateMapper.kt$import forge.game.Game</ID>
     <ID>NoGameInMappers:ZoneMapper.kt$import forge.game.Game</ID>
     <ID>NoNameShadowing:MatchSession.kt$MatchSession$filtered</ID>

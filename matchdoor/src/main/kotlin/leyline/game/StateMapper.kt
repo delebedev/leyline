@@ -174,7 +174,7 @@ object StateMapper {
         ZoneMapper.addStackAbilities(game, bridge, zones, gameObjects, human)
 
         // RevealedCard proxy synthesis / cleanup
-        applyRevealProxies(activeReveal, game, bridge, zones, gameObjects, events)
+        applyRevealProxies(activeReveal, snap, bridge, zones, gameObjects, events)
 
         log.info(
             "buildFromGame: phase={} turn={} hand={} objects={} zones={}",
@@ -715,7 +715,7 @@ object StateMapper {
     @Suppress("CanBeNonNullable")
     private fun applyRevealProxies(
         activeReveal: PromptSideEffect.RevealStarted?,
-        game: Game,
+        snap: leyline.game.snapshot.GsmSnapshot,
         bridge: GameBridge,
         zones: MutableList<ZoneInfo>,
         gameObjects: MutableList<GameObjectInfo>,
@@ -737,7 +737,7 @@ object StateMapper {
             // Re-use proxy IDs across diffs during the same reveal (stable instanceIds).
             val needsAlloc = bridge.revealProxies.isEmpty
             for (forgeCardId in activeReveal.allHandCardIds) {
-                val card = findCard(game, forgeCardId) ?: continue
+                val cardSnap = snap.objects[forgeCardId] ?: continue
                 val proxyId = if (needsAlloc) {
                     val id = bridge.ids.allocSynthetic()
                     bridge.revealProxies.allocate(forgeCardId, id)
@@ -747,7 +747,7 @@ object StateMapper {
                 }
                 revealedZoneBuilder.addObjectInstanceIds(proxyId.value)
                 gameObjects.add(
-                    ObjectMapper.buildRevealedCardProxy(card, proxyId.value, handZoneId, ownerSeat, viewerSeat, bridge),
+                    ObjectMapper.buildRevealedCardProxy(cardSnap, proxyId.value, handZoneId, ownerSeat, viewerSeat, bridge),
                 )
             }
             zones.add(revealedZoneBuilder.build())

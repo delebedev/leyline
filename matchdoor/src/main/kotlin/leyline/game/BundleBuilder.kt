@@ -1,7 +1,6 @@
 package leyline.game
 
 import forge.game.Game
-import forge.game.card.Card
 import leyline.bridge.ForgeCardId
 import leyline.bridge.PromptCandidateRefDto
 import leyline.bridge.SeatId
@@ -413,22 +412,24 @@ class BundleBuilder(
     ): BundleResult {
         val nextGs = counter.nextGsId()
         val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
+        val snap = GsmSnapshot.capture(game, bridge, matchId)
 
         // Build provisional creature objects for ALL legal attackers.
         // Echo objects carry NO combat state — only base card fields.
         val objects = mutableListOf<GameObjectInfo>()
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
-            val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val fid = ForgeCardId(card.id)
+            val iid = bridge.getOrAllocInstanceId(fid).value
             if (iid !in allLegalAttackerIds) continue
+            val cardSnap = snap.objects[fid] ?: continue
 
             objects.add(
                 ObjectMapper.buildProvisionalCombatObject(
-                    card,
+                    cardSnap,
                     iid,
                     ZoneIds.BATTLEFIELD,
                     ownerSeatId = seatId,
-                    controllerSeatId = seatId,
                     bridge = bridge,
                 ),
             )
@@ -502,6 +503,7 @@ class BundleBuilder(
     ): BundleResult {
         val nextGs = counter.nextGsId()
         val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
+        val snap = GsmSnapshot.capture(game, bridge, matchId)
 
         // Build provisional creature objects for assigned blockers.
         // Echo objects carry NO combat state — only base card fields.
@@ -509,16 +511,17 @@ class BundleBuilder(
         val blockerSet = blockAssignments.keys
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
-            val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val fid = ForgeCardId(card.id)
+            val iid = bridge.getOrAllocInstanceId(fid).value
             if (iid !in blockerSet) continue
+            val cardSnap = snap.objects[fid] ?: continue
 
             objects.add(
                 ObjectMapper.buildProvisionalCombatObject(
-                    card,
+                    cardSnap,
                     iid,
                     ZoneIds.BATTLEFIELD,
                     ownerSeatId = seatId,
-                    controllerSeatId = seatId,
                     bridge = bridge,
                 ),
             )
@@ -1120,10 +1123,12 @@ class BundleBuilder(
                 if (card != null) card to bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value else null
             }
         if (resolved.isEmpty()) return null
-        val topCards = resolved.map { it.first }
+        val snap = GsmSnapshot.capture(game, bridge, matchId)
+        val topCardSnaps = resolved.mapNotNull { (card, _) -> snap.objects[ForgeCardId(card.id)] }
+        if (topCardSnaps.size != resolved.size) return null
         val cardInstanceIds = resolved.map { it.second }
         val sourceId = game.stack.firstOrNull()?.let { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value } ?: 0
-        return surveilScryBundle(topCards, cardInstanceIds, sourceId, context, counter)
+        return surveilScryBundle(topCardSnaps, cardInstanceIds, sourceId, context, counter)
     }
 
     /**
@@ -1132,22 +1137,22 @@ class BundleBuilder(
      * Builds a GSM diff that exposes library top card(s) as `visibility=Private, viewers=[seatId]`
      * so the client shows them face-up in the surveil/scry modal, followed by a GroupReq.
      *
-     * @param topCards the cards being surveilled/scryed
-     * @param cardInstanceIds instanceIds corresponding to [topCards]
+     * @param topCardSnaps snapshots for the cards being surveilled/scryed
+     * @param cardInstanceIds instanceIds corresponding to [topCardSnaps]
      * @param sourceId instanceId of the triggering spell
      * @param context whether this is surveil or scry
      * @param counter message counter for sequencing
      */
     fun surveilScryBundle(
-        topCards: List<Card>,
+        topCardSnaps: List<leyline.game.snapshot.CardSnapshot>,
         cardInstanceIds: List<Int>,
         sourceId: Int,
         context: GroupingContext,
         counter: MessageCounter,
     ): BundleResult {
         val libZoneId = if (seatId == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
-        val revealedObjects = topCards.map { card ->
-            ObjectMapper.buildCardObject(card, bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value, libZoneId, seatId, bridge, Visibility.Private)
+        val revealedObjects = topCardSnaps.zip(cardInstanceIds).map { (cardSnap, iid) ->
+            ObjectMapper.buildFromSnapshot(cardSnap, iid, libZoneId, seatId, bridge, Visibility.Private)
                 .toBuilder().addViewers(seatId).build()
         }
         val gsId = counter.nextGsId()

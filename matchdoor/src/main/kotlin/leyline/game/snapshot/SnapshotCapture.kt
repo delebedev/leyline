@@ -8,10 +8,8 @@ import leyline.bridge.SeatId
 import leyline.game.GameBridge
 import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.ZoneIds
-import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
-import forge.card.CardType.CoreType as ForgeCoreType
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
@@ -129,8 +127,7 @@ internal object SnapshotCapture {
     }
 
     /**
-     * Read all fields from a live Forge [Card] that [ObjectMapper.applyCardFields] and
-     * [ObjectMapper.applyCombatState] consume, and pack them into an immutable [CardSnapshot].
+     * Read all live Forge [Card] fields and pack them into an immutable [CardSnapshot].
      *
      * This is the single point where Forge Card reads occur for the ObjectMapper path.
      * [bridge] is needed to resolve instance IDs for combat targets/blockers.
@@ -229,19 +226,8 @@ internal object SnapshotCapture {
         return null
     }
 
-    // --- Forge CoreType → proto CardType mapping (mirrors ObjectMapper.coreTypeToProto) ---
-
-    private val coreTypeToProto: Map<ForgeCoreType, CardType> = mapOf(
-        ForgeCoreType.Artifact to CardType.Artifact_a80b,
-        ForgeCoreType.Creature to CardType.Creature,
-        ForgeCoreType.Enchantment to CardType.Enchantment,
-        ForgeCoreType.Instant to CardType.Instant,
-        ForgeCoreType.Land to CardType.Land_a80b,
-        ForgeCoreType.Planeswalker to CardType.Planeswalker,
-        ForgeCoreType.Sorcery to CardType.Sorcery,
-        ForgeCoreType.Kindred to CardType.Kindred,
-        ForgeCoreType.Battle to CardType.Battle,
-    )
+    // Delegate to the canonical mapping in ObjectMapper — single source of truth.
+    private val coreTypeToProto get() = leyline.game.mapper.ObjectMapper.coreTypeToProto
 
     // --- Zone ID helpers (unchanged from before) ---
 

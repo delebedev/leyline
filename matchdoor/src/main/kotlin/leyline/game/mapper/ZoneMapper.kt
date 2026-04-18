@@ -63,11 +63,11 @@ object ZoneMapper {
             .addViewers(seatId)
         if (revealHand) handBuilder.addViewers(if (seatId == 1) 2 else 1)
         for (fid in snap.zones[handZoneId]?.contents ?: emptyList()) {
-            val card = bridge.findCard(fid) ?: continue
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             handBuilder.addObjectInstanceIds(instanceId)
             if (canSeeHand) {
-                gameObjects.add(buildPlayerCard(snap, fid, card, instanceId, handZoneId, seatId, bridge, cardVisibility, "hand"))
+                buildPlayerCard(snap, fid, instanceId, handZoneId, seatId, bridge, cardVisibility, "hand")
+                    ?.let { gameObjects.add(it) }
             }
         }
         zones.add(handBuilder.build())
@@ -77,12 +77,11 @@ object ZoneMapper {
             .setZoneId(libZoneId).setType(ZoneType.Library)
             .setOwnerSeatId(seatId).setVisibility(Visibility.Hidden)
         for (fid in snap.zones[libZoneId]?.contents ?: emptyList()) {
-            val card = bridge.findCard(fid) ?: continue
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             libBuilder.addObjectInstanceIds(instanceId)
             if (revealLib) {
-                val base = buildPlayerCard(snap, fid, card, instanceId, libZoneId, seatId, bridge, Visibility.Private, "library")
-                gameObjects.add(base.toBuilder().addViewers(seatId).build())
+                buildPlayerCard(snap, fid, instanceId, libZoneId, seatId, bridge, Visibility.Private, "library")
+                    ?.let { gameObjects.add(it.toBuilder().addViewers(seatId).build()) }
             }
         }
         zones.add(libBuilder.build())
@@ -92,42 +91,36 @@ object ZoneMapper {
                 .setZoneId(gyZoneId).setType(ZoneType.Graveyard)
                 .setOwnerSeatId(seatId).setVisibility(Visibility.Public)
             for (fid in snap.zones[gyZoneId]?.contents ?: emptyList()) {
-                val card = bridge.findCard(fid) ?: continue
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
                 gyBuilder.addObjectInstanceIds(instanceId)
-                gameObjects.add(buildPlayerCard(snap, fid, card, instanceId, gyZoneId, seatId, bridge, Visibility.Public, "graveyard"))
+                buildPlayerCard(snap, fid, instanceId, gyZoneId, seatId, bridge, Visibility.Public, "graveyard")
+                    ?.let { gameObjects.add(it) }
             }
             zones.add(gyBuilder.build())
         }
     }
 
     /**
-     * Build [GameObjectInfo] for a card in a player zone (hand/library/graveyard) using the
-     * snapshot path with legacy fallback and optional dual-check under [DevCheck.strict].
+     * Build [GameObjectInfo] for a card in a player zone (hand/library/graveyard) from snapshot.
+     * Returns null when the snapshot has no entry for [fid] (card not findable at capture time —
+     * e.g. freshly-moved cards whose Forge IDs are not yet bridged). Callers skip nulls.
      */
     @Suppress("detekt:LongParameterList")
     private fun buildPlayerCard(
         snap: GsmSnapshot,
         fid: ForgeCardId,
-        card: forge.game.card.Card,
         instanceId: Int,
         zoneId: Int,
         seatId: Int,
         bridge: GameBridge,
         visibility: Visibility,
         zoneName: String,
-    ): GameObjectInfo {
-        val cardSnap = snap.objects[fid]
-        if (cardSnap == null) {
-            log.warn("ObjectMapper T6 drift: no snapshot for {} card {}", zoneName, fid)
-            return ObjectMapper.buildCardObject(card, instanceId, zoneId, seatId, bridge, visibility)
+    ): GameObjectInfo? {
+        val cardSnap = snap.objects[fid] ?: run {
+            log.warn("no snapshot for {} card {} — skipping game object", zoneName, fid)
+            return null
         }
-        val objFromSnap = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, seatId, bridge, visibility)
-        if (DevCheck.strict) {
-            val objFromGame = ObjectMapper.buildCardObject(card, instanceId, zoneId, seatId, bridge, visibility)
-            check(objFromSnap == objFromGame) { "ObjectMapper drift for $fid ($zoneName)" }
-        }
-        return objFromSnap
+        return ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, seatId, bridge, visibility)
     }
 
     // --- Snapshot-based shared zones ---
@@ -154,42 +147,21 @@ object ZoneMapper {
         val zoneBuilder = zones.find { it.zoneId == arenaZoneId }?.toBuilder() ?: return
         zones.removeIf { it.zoneId == arenaZoneId }
 
-        val game = bridge.getGame() ?: run {
-            zones.add(zoneBuilder.build())
-            return
-        }
         for (fid in snap.zones[arenaZoneId]?.contents ?: emptyList()) {
             val card = bridge.findCard(fid) ?: continue
             // Filter synthetic engine objects (DetachedCardEffect etc.) — not real cards
             if (card.gamePieceType != forge.card.GamePieceType.CARD && !card.isToken) continue
             val ownerSeatId = if (card.owner == human) 1 else 2
-            val controllerSeatId = if (card.controller == human) 1 else 2
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             zoneBuilder.addObjectInstanceIds(instanceId)
 
-            val cardSnap = snap.objects[fid]
-            if (cardSnap == null) {
-                log.warn("ObjectMapper T6 drift: no snapshot for shared card {}", fid)
-                gameObjects.add(
-                    ObjectMapper.buildSharedCardObject(card, instanceId, arenaZoneId, ownerSeatId, controllerSeatId, bridge, game, keywordSnapshot),
-                )
-            } else {
-                val objFromSnap = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, arenaZoneId, ownerSeatId, bridge, Visibility.Public, keywordSnapshot)
-                if (DevCheck.strict) {
-                    val objFromGame = ObjectMapper.buildSharedCardObject(
-                        card,
-                        instanceId,
-                        arenaZoneId,
-                        ownerSeatId,
-                        controllerSeatId,
-                        bridge,
-                        game,
-                        keywordSnapshot,
-                    )
-                    check(objFromSnap == objFromGame) { "ObjectMapper drift for $fid (shared zone $arenaZoneId)" }
-                }
-                gameObjects.add(objFromSnap)
+            val cardSnap = snap.objects[fid] ?: run {
+                log.warn("no snapshot for shared card {} in zone {} — skipping game object", fid, arenaZoneId)
+                continue
             }
+            gameObjects.add(
+                ObjectMapper.buildFromSnapshot(cardSnap, instanceId, arenaZoneId, ownerSeatId, bridge, Visibility.Public, keywordSnapshot),
+            )
         }
         zones.add(zoneBuilder.build())
     }

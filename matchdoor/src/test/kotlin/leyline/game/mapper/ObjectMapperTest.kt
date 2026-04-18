@@ -8,6 +8,7 @@ import leyline.bridge.ForgeCardId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.TestCardRegistry
 import leyline.conformance.humanPlayer
+import leyline.game.snapshot.SnapshotCapture
 
 class ObjectMapperTest :
     FunSpec({
@@ -26,10 +27,13 @@ class ObjectMapperTest :
                 base.addCard("Concealing Curtains", human, ZoneType.Battlefield)
             }
             val card = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.name == "Concealing Curtains" }
-            val instanceId = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val fid = ForgeCardId(card.id)
+            val instanceId = b.getOrAllocInstanceId(fid).value
             val zoneId = ZoneIds.BATTLEFIELD
 
-            val obj = ObjectMapper.buildSharedCardObject(card, instanceId, zoneId, 1, 1, b, game)
+            val snap = SnapshotCapture.run(game, b, "test")
+            val cardSnap = snap.objects.getValue(fid)
+            val obj = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, 1, b)
 
             val frontGrpId = b.cardRepository.findGrpIdByName("Concealing Curtains")!!
             val backGrpId = b.cardRepository.findGrpIdByName("Revealing Eye")!!
@@ -42,10 +46,13 @@ class ObjectMapperTest :
                 base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
             }
             val card = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
-            val instanceId = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val fid = ForgeCardId(card.id)
+            val instanceId = b.getOrAllocInstanceId(fid).value
             val zoneId = ZoneIds.BATTLEFIELD
 
-            val obj = ObjectMapper.buildSharedCardObject(card, instanceId, zoneId, 1, 1, b, game)
+            val snap = SnapshotCapture.run(game, b, "test")
+            val cardSnap = snap.objects.getValue(fid)
+            val obj = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, 1, b)
 
             obj.othersideGrpId shouldBe 0
         }
