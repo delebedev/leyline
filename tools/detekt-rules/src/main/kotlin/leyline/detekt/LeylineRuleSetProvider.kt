@@ -17,6 +17,7 @@ class LeylineRuleSetProvider : RuleSetProvider {
                 EmptyAssertion(config),
                 MissingAssertSoftly(config),
                 FunSpecMissingTags(config),
+                NoGameInMappers(config),
             ),
         )
 }

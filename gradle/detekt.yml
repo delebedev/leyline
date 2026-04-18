@@ -96,3 +96,5 @@ leyline:
     threshold: 3
   FunSpecMissingTags:
     active: true
+  NoGameInMappers:
+    active: true
