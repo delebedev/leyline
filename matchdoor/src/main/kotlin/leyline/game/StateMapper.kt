@@ -113,12 +113,6 @@ object StateMapper {
 
         val player1 = PlayerMapper.buildFromSnapshot(snap, 1)
         val player2 = PlayerMapper.buildFromSnapshot(snap, 2)
-        if (leyline.DevCheck.strict) {
-            val p1Game = PlayerMapper.buildPlayerInfo(human, 1)
-            val p2Game = PlayerMapper.buildPlayerInfo(ai, 2)
-            check(player1 == p1Game) { "PlayerMapper snapshot drift p1:\n  snap=$player1\n  game=$p1Game" }
-            check(player2 == p2Game) { "PlayerMapper snapshot drift p2:\n  snap=$player2\n  game=$p2Game" }
-        }
 
         val team1 = TeamInfo.newBuilder().setId(1).addPlayerIds(1).setStatus(TeamStatus.InGame_a458)
         val team2 = TeamInfo.newBuilder().setId(2).addPlayerIds(2).setStatus(TeamStatus.InGame_a458)

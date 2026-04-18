@@ -1,12 +1,12 @@
 package leyline.protocol
 
-import leyline.bridge.SeatId
 import leyline.game.GameBridge
 import leyline.game.GsmBuilder
 import leyline.game.StateMapper
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.PromptIds
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -221,11 +221,12 @@ object HandshakeMessages {
         var msgId = msgIdStart
 
         // 1) Thin GSM Diff: seat 2 no longer pending, decisionPlayer=1
+        val mulliganSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "")
         val gsm = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
             .addPlayers(
-                PlayerMapper.buildPlayerInfo(bridge.getPlayer(SeatId(2)), 2),
+                PlayerMapper.buildFromSnapshot(mulliganSnap, 2),
             )
             .setTurnInfo(
                 TurnInfo.newBuilder().setActivePlayer(2).setDecisionPlayer(1),
@@ -289,12 +290,13 @@ object HandshakeMessages {
 
         // 1) Thin GSM Diff: player with mulliganCount + hand actions
         val game = bridge.getGame()!!
+        val mulliganRespSnap = GsmSnapshot.capture(game, bridge, "")
         val actions = ActionMapper.buildActions(seatId, bridge)
         val gsm = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
             .addPlayers(
-                PlayerMapper.buildPlayerInfo(bridge.getPlayer(SeatId(1)), 1).toBuilder()
+                PlayerMapper.buildFromSnapshot(mulliganRespSnap, 1).toBuilder()
                     .setMulliganCount(mulliganCount)
                     .build(),
             )

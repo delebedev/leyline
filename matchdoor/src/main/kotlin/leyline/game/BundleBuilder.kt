@@ -11,6 +11,7 @@ import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.PromptIds
 import leyline.game.mapper.ShouldStopEvaluator
 import leyline.game.mapper.ZoneIds
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -883,10 +884,13 @@ class BundleBuilder(
         // Teams with PendingLoss for losing team
         gs1.addTeams(TeamInfo.newBuilder().setId(losingTeam).addPlayerIds(losingPlayerSeatId).setStatus(TeamStatus.PendingLoss_a458))
         // Players: loser with full state (lifeTotal, maxHandSize, etc.) + PendingLoss status
-        val loserPlayer = bridge.getPlayer(SeatId(losingPlayerSeatId))
-        val loserInfo = PlayerMapper.buildPlayerInfo(loserPlayer, losingPlayerSeatId).toBuilder()
-            .setStatus(PlayerStatus.PendingLoss_a1c6)
-        gs1.addPlayers(loserInfo)
+        val game = bridge.getGame()
+        if (game != null) {
+            val gameOverSnap = GsmSnapshot.capture(game, bridge, matchId)
+            val loserInfo = PlayerMapper.buildFromSnapshot(gameOverSnap, losingPlayerSeatId).toBuilder()
+                .setStatus(PlayerStatus.PendingLoss_a1c6)
+            gs1.addPlayers(loserInfo)
+        }
         // Timers — inactivity timer on gs1
         gs1.addAllTimers(PlayerMapper.buildTimers())
         // LossOfGame annotation

@@ -7,6 +7,7 @@ import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.PromptIds
 import leyline.game.mapper.ZoneIds
 import leyline.game.mapper.ZoneMapper
+import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -104,9 +105,10 @@ object GsmBuilder {
         }
 
         // Players — both have pendingMessageType: MulliganResp during mulligan
-        val player1 = PlayerMapper.buildPlayerInfo(human, 1).toBuilder()
+        val snap = GsmSnapshot.capture(game, bridge, "")
+        val player1 = PlayerMapper.buildFromSnapshot(snap, 1).toBuilder()
             .setPendingMessageType(ClientMessageType.MulliganResp_097b).build()
-        val player2 = PlayerMapper.buildPlayerInfo(ai, 2).toBuilder()
+        val player2 = PlayerMapper.buildFromSnapshot(snap, 2).toBuilder()
             .setPendingMessageType(ClientMessageType.MulliganResp_097b).build()
 
         // activePlayer=2 (seat 2 won die roll in template), decisionPlayer=2
@@ -339,8 +341,9 @@ object GsmBuilder {
             .setDeckConstraintInfo(deckConstraints)
 
         // Seat 2 has pending ChooseStartingPlayerResp
-        val player1 = PlayerMapper.buildPlayerInfo(human, 1)
-        val player2 = PlayerMapper.buildPlayerInfo(ai, 2).toBuilder()
+        val initSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId)
+        val player1 = PlayerMapper.buildFromSnapshot(initSnap, 1)
+        val player2 = PlayerMapper.buildFromSnapshot(initSnap, 2).toBuilder()
             .setPendingMessageType(ClientMessageType.ChooseStartingPlayerResp_097b)
             .build()
 
@@ -415,13 +418,14 @@ object GsmBuilder {
         actions: ActionsAvailableReq? = null,
         actionSeatId: Int = 0,
     ): GameStateMessage {
+        val transSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId)
         val builder = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
             .setPrevGameStateId(prevGameStateId)
             .setTurnInfo(frame.turnInfo())
-            .addPlayers(PlayerMapper.buildPlayerInfo(bridge.getPlayer(SeatId(1)), 1))
-            .addPlayers(PlayerMapper.buildPlayerInfo(bridge.getPlayer(SeatId(2)), 2))
+            .addPlayers(PlayerMapper.buildFromSnapshot(transSnap, 1))
+            .addPlayers(PlayerMapper.buildFromSnapshot(transSnap, 2))
             .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() }) // phase change
             .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() }) // step change
             .addAllTimers(PlayerMapper.buildTimers())
