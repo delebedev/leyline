@@ -21,6 +21,7 @@ import leyline.game.snapshot.GsmSnapshot
 fun GameBridge.snapshotFromGame(game: Game, gameStateId: Int = 0) {
     val snap = GsmSnapshot.capture(game, this, "", gameStateId)
     snapshotDiffBaseline(StateMapper.buildFromSnapshot(snap, gameStateId, "", this).gsm)
+    lastSent = snap
 }
 
 /**

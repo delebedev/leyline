@@ -162,6 +162,7 @@ class MatchSession(
         // Seed state snapshot for subsequent diff computation.
         val snap1 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
         ctx.bridge.snapshotDiffBaseline(StateMapper.buildFromSnapshot(snap1, counter.currentGsId(), matchId, ctx.bridge).gsm)
+        ctx.bridge.lastSent = snap1
 
         // Auto-pass through phases where human has no real actions
         autoPassEngine.autoPassAndAdvance(ctx.bridge)
@@ -209,6 +210,7 @@ class MatchSession(
         // needs a matching snapshot for the first Diff to be correct.
         val snap2 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
         ctx.bridge.snapshotDiffBaseline(StateMapper.buildFromSnapshot(snap2, counter.currentGsId(), matchId, ctx.bridge).gsm)
+        ctx.bridge.lastSent = snap2
 
         // Auto-pass through phases where human has no real actions
         autoPassEngine.autoPassAndAdvance(ctx.bridge)

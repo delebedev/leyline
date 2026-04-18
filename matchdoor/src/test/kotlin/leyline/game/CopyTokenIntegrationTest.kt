@@ -162,6 +162,7 @@ class CopyTokenIntegrationTest :
             val snapCopy3 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 1)
             val gsm1 = StateMapper.buildFromSnapshot(snapCopy3, 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
             h.bridge.snapshotDiffBaseline(gsm1)
+            h.bridge.lastSent = snapCopy3
 
             // Trigger a state change (pass priority) so a diff is generated
             h.passPriority()

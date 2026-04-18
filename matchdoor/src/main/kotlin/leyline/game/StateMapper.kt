@@ -396,18 +396,54 @@ object StateMapper {
         val changedZoneIds = cur.zones.keys.asSequence()
             .filter { id -> prev.zones[id] != cur.zones[id] }
             .toSet()
-        val changedZones = current.zonesList.filter { it.zoneId in changedZoneIds }
+        val opponentHandZoneId = ZoneMapper.opponentHandZone(viewingSeatId)
+        val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(it).journal.activeReveal() != null }
+        // Protocol-only zones not tracked in GsmSnapshot must always be included when non-empty:
+        //   - Limbo (id=30): grows monotonically; always send when it has content.
+        //   - REVEALED_P1/P2 (id=18/19): synthesized by applyRevealProxies during active reveal.
+        //   - Hand zone of revealed seat: visibility flipped to Public by buildFromSnapshot but
+        //     ZoneSnapshot still records Private, so snap equality check misses the change.
+        val opponentRevealedHandZoneId: Int? = when {
+            hasActiveReveal -> {
+                val ownerSeat = bridge.allSeatIds()
+                    .firstNotNullOfOrNull { bridge.promptBridge(it).journal.activeReveal()?.ownerSeatId?.value }
+                if (ownerSeat == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
+            }
+            else -> null
+        }
+        val changedZones = current.zonesList.filter { zone ->
+            zone.zoneId in changedZoneIds ||
+                (zone.zoneId == ZoneIds.LIMBO && zone.objectInstanceIdsCount > 0) ||
+                (zone.zoneId == ZoneIds.REVEALED_P1 || zone.zoneId == ZoneIds.REVEALED_P2) ||
+                (opponentRevealedHandZoneId != null && zone.zoneId == opponentRevealedHandZoneId)
+        }
 
         // Snap-vs-snap object delta: any card whose CardSnapshot field-equality differs.
         // Plus opponent-hand filter + active-reveal exception preserved.
-        val opponentHandZoneId = ZoneMapper.opponentHandZone(viewingSeatId)
-        val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(it).journal.activeReveal() != null }
         val changedFids = cur.objects.keys.asSequence()
             .filter { fid -> prev.objects[fid] != cur.objects[fid] }
             .toSet()
         val changedInstanceIds = changedFids.map { bridge.getOrAllocInstanceId(it).value }.toSet()
+        // instanceIds tracked in the prev snapshot (to detect truly new objects like RevealedCard proxies)
+        val prevInstanceIds = prev.objects.keys.map { bridge.getOrAllocInstanceId(it).value }.toSet()
         val changedObjects = current.gameObjectsList.filter { obj ->
-            if (obj.instanceId !in changedInstanceIds) return@filter false
+            // Always include new objects absent from prev (e.g. RevealedCard proxies synthesized mid-diff).
+            if (obj.instanceId !in prevInstanceIds) {
+                // Still apply opponent-hand filter unless reveal is active
+                if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
+                    return@filter hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)
+                }
+                return@filter true
+            }
+            if (obj.instanceId !in changedInstanceIds) {
+                // During active reveal, always include opponent hand cards (visibility changed outside CardSnapshot)
+                if (hasActiveReveal && opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId &&
+                    (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)
+                ) {
+                    return@filter true
+                }
+                return@filter false
+            }
             if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
                 if (hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)) {
                     // fall through
