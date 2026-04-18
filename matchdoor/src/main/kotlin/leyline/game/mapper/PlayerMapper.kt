@@ -2,6 +2,7 @@ package leyline.game.mapper
 
 import forge.game.phase.PhaseType
 import forge.game.player.Player
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -33,6 +34,33 @@ object PlayerMapper {
             //     val color = mapManaColor(mana.color)
             //     builder.addManaPool(ManaInfo.newBuilder().setManaId(manaId++).setColor(color))
             // }
+        }
+        return builder.build()
+    }
+
+    /**
+     * Snapshot-based alternative to [buildPlayerInfo]. Reads seat state from
+     * [GsmSnapshot] instead of live [forge.game.player.Player]. Sets exactly the
+     * same fields so the two paths produce equal [PlayerInfo] values.
+     *
+     * When [seatId] is not present in [snap.seats] (e.g. player disconnected or
+     * snapshot taken before seats were populated), returns a bare proto with only
+     * the fixed fields (systemSeatNumber, teamId, status, controllerSeatId,
+     * controllerType, timerIds) — life/startingLife/maxHandSize default to 0.
+     */
+    fun buildFromSnapshot(snap: GsmSnapshot, seatId: Int): PlayerInfo {
+        val builder = PlayerInfo.newBuilder()
+            .setSystemSeatNumber(seatId)
+            .setTeamId(seatId)
+            .setStatus(PlayerStatus.InGame_a1c6)
+            .setControllerSeatId(seatId)
+            .setControllerType(ControllerType.Player_abfa)
+            .addTimerIds(seatId)
+        val seat = snap.seats.firstOrNull { it.seatId.value == seatId }
+        if (seat != null) {
+            builder.setLifeTotal(seat.life)
+                .setStartingLifeTotal(seat.startingLife)
+                .setMaxHandSize(seat.maxHandSize)
         }
         return builder.build()
     }
