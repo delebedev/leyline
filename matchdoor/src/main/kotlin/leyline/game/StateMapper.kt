@@ -14,6 +14,7 @@ import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.ZoneIds
 import leyline.game.mapper.ZoneMapper
+import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -65,7 +66,7 @@ object StateMapper {
         val snap = leyline.game.snapshot.GsmSnapshot.capture(game, bridge, matchId)
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
-        val frame = GsmFrame.from(game, bridge)
+        val frame = GsmFrame.from(snap)
 
         // ═══ GATHER: drain queues, snapshot mutable state ═══
         val events = bridge.drainEvents().events.toMutableList()
@@ -340,9 +341,8 @@ object StateMapper {
      * of whose turn it is. This heuristic (acting == viewing) is an approximation
      * used by postAction; remoteActionDiff hardcodes SendHiFi directly.
      */
-    fun resolveUpdateType(game: Game, bridge: GameBridge, viewingSeatId: Int): GameStateUpdate {
-        val human = bridge.getPlayer(SeatId(1))
-        val actingSeat = if (game.phaseHandler.priorityPlayer == human) 1 else 2
+    fun resolveUpdateType(snap: GsmSnapshot, viewingSeatId: Int): GameStateUpdate {
+        val actingSeat = snap.phase.priorityPlayer?.value ?: snap.phase.activePlayer.value
         return if (actingSeat == viewingSeatId) {
             GameStateUpdate.SendAndRecord
         } else {

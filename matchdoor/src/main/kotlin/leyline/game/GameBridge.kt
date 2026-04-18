@@ -27,6 +27,7 @@ import leyline.bridge.isCommander
 import leyline.bridge.isCommanderVariant
 import leyline.config.MatchConfig
 import leyline.game.mapper.ObjectMapper
+import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.lang.reflect.InvocationTargetException
@@ -211,6 +212,16 @@ class GameBridge(
 
     /** Zone tracking + diff baseline/client-seen state tracking. */
     val diff = DiffSnapshotter(ids)
+
+    /**
+     * Previous [GsmSnapshot] sent to the client.
+     * Replaces [DiffSnapshotter.diffBaselineState] for GSM diffing in a future task
+     * (T14) once [StateMapper.buildDiffFromGame] is rewritten to diff snapshot-vs-snapshot.
+     * For now, this is set alongside the legacy [DiffSnapshotter] flow so the migration
+     * path is in place. See arena-lab-mba for cutover plan.
+     */
+    @Volatile
+    var lastSent: GsmSnapshot? = null
 
     // ── Reveal proxy lifecycle ──────────────────────────────────────────────
     // RevealedCard proxies exist during an active reveal-choose effect.
@@ -773,6 +784,7 @@ class GameBridge(
         val deletedIds = ids.resetAll().map { it.value }
         limbo.clear()
         diff.resetAll()
+        lastSent = null
         effects.resetAll()
         annotations.resetAll()
         activeCrewEffects.clear()

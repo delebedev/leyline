@@ -137,7 +137,8 @@ object HandshakeMessages {
 
         // Full initial GameState
         val pendingCount = if (seatId == 2) 1 else 0 // ChooseStartingPlayerReq follows
-        val gsm = GsmBuilder.buildInitialGameState(matchId, gameStateId, bridge, pendingCount)
+        val initSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId)
+        val gsm = GsmBuilder.buildInitialGameState(matchId, gameStateId, bridge, initSnap, pendingCount)
         messages.add(
             GREToClientMessage.newBuilder()
                 .setType(GREMessageType.GameStateMessage_695e)
@@ -177,7 +178,8 @@ object HandshakeMessages {
         seatId: Int,
         diffDeletedInstanceIds: List<Int> = emptyList(),
     ): Pair<MatchServiceToClientMessage, Int> {
-        val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, seatId, diffDeletedInstanceIds)
+        val dealSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "")
+        val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, seatId, dealSnap, diffDeletedInstanceIds)
         val gre = GREToClientMessage.newBuilder()
             .setType(GREMessageType.GameStateMessage_695e)
             .addSystemSeatIds(seatId)
@@ -195,7 +197,8 @@ object HandshakeMessages {
         bridge: GameBridge,
     ): Pair<MatchServiceToClientMessage, Int> {
         var msgId = msgIdStart
-        val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, 2)
+        val deal2Snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "")
+        val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, 2, deal2Snap)
             .toBuilder().setPendingMessageCount(1).build()
         val greGsm = GREToClientMessage.newBuilder()
             .setType(GREMessageType.GameStateMessage_695e)
