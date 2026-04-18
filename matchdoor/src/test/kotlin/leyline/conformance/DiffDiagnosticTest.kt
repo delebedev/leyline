@@ -11,7 +11,7 @@ import leyline.ConformanceTag
 import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.game.mapper.ZoneIds
-import leyline.game.snapshotFromGame
+import leyline.game.seedDiffBaseline
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -64,7 +64,7 @@ class DiffDiagnosticTest :
 
             val startResult = base.gameStart(game, b, counter)
             acc.processAll(startResult.messages)
-            b.snapshotFromGame(game)
+            b.seedDiffBaseline(game)
 
             base.playLand(b) ?: error("playLand failed at seed 42")
             val afterLand = base.postAction(game, b, counter)

@@ -11,6 +11,7 @@ import leyline.config.ServerConfig
 import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
+import leyline.game.snapshot.GsmSnapshot
 import leyline.infra.ListMessageSink
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
@@ -99,7 +100,8 @@ class MatchFlowHarness(
         // buildFromGame calls would race on drainEvents/nextAnnotationId.
         val game = bridge.getGame()
         if (game != null) {
-            val fullGsm = StateMapper.buildFromGame(game, 0, matchId, bridge, viewingSeatId = seatId).gsm
+            val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
+            val fullGsm = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId).gsm
             accumulator.seedFull(fullGsm)
             validatingSink?.seedFull(fullGsm)
         }
@@ -160,7 +162,8 @@ class MatchFlowHarness(
 
         val game = bridge.getGame()
         if (game != null) {
-            val fullGsm = StateMapper.buildFromGame(game, 0, matchId, bridge, viewingSeatId = seatId).gsm
+            val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
+            val fullGsm = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId).gsm
             accumulator.seedFull(fullGsm)
             validatingSink?.seedFull(fullGsm)
         }

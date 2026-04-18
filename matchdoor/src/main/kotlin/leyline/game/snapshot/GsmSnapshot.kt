@@ -13,12 +13,14 @@ import org.jetbrains.annotations.VisibleForTesting
  */
 class GsmSnapshot internal constructor(
     val matchId: String,
+    val gameStateId: Int,
     val seats: List<SeatSnapshot>,
     val zones: Map<Int, ZoneSnapshot>,
     val objects: Map<ForgeCardId, CardSnapshot>,
     val stack: StackSnapshot,
     val phase: PhaseSnapshot,
     val combat: CombatSnapshot?,
+    val abilityWordEntries: List<leyline.game.AbilityWordScanner.AbilityWordEntry>,
     val capturedAt: CaptureMarker,
 ) {
     override fun equals(other: Any?): Boolean {
@@ -26,34 +28,40 @@ class GsmSnapshot internal constructor(
         if (other !is GsmSnapshot) return false
         // CaptureMarker excluded — wallClock is non-deterministic.
         return matchId == other.matchId &&
+            gameStateId == other.gameStateId &&
             seats == other.seats &&
             zones == other.zones &&
             objects == other.objects &&
             stack == other.stack &&
             phase == other.phase &&
-            combat == other.combat
+            combat == other.combat &&
+            abilityWordEntries == other.abilityWordEntries
     }
 
     override fun hashCode(): Int {
         var h = matchId.hashCode()
+        h = 31 * h + gameStateId
         h = 31 * h + seats.hashCode()
         h = 31 * h + zones.hashCode()
         h = 31 * h + objects.hashCode()
         h = 31 * h + stack.hashCode()
         h = 31 * h + phase.hashCode()
         h = 31 * h + (combat?.hashCode() ?: 0)
+        h = 31 * h + abilityWordEntries.hashCode()
         return h
     }
 
     companion object {
         /** Production capture — reads game + bridge. */
-        fun capture(game: Game, bridge: GameBridge, matchId: String): GsmSnapshot =
-            SnapshotCapture.run(game, bridge, matchId)
+        fun capture(game: Game, bridge: GameBridge, matchId: String, gameStateId: Int): GsmSnapshot =
+            SnapshotCapture.run(game, bridge, matchId, gameStateId)
 
         /** Test fixture builder — named args with sensible defaults. */
         @VisibleForTesting
+        @Suppress("LongParameterList")
         fun forTest(
             matchId: String = "test-match",
+            gameStateId: Int = 0,
             seats: List<SeatSnapshot> = emptyList(),
             zones: Map<Int, ZoneSnapshot> = emptyMap(),
             objects: Map<ForgeCardId, CardSnapshot> = emptyMap(),
@@ -65,7 +73,8 @@ class GsmSnapshot internal constructor(
                 phase = null,
             ),
             combat: CombatSnapshot? = null,
+            abilityWordEntries: List<leyline.game.AbilityWordScanner.AbilityWordEntry> = emptyList(),
             capturedAt: CaptureMarker = CaptureMarker.unknown(),
-        ): GsmSnapshot = GsmSnapshot(matchId, seats, zones, objects, stack, phase, combat, capturedAt)
+        ): GsmSnapshot = GsmSnapshot(matchId, gameStateId, seats, zones, objects, stack, phase, combat, abilityWordEntries, capturedAt)
     }
 }

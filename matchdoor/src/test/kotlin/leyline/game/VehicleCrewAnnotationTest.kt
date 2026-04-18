@@ -14,6 +14,7 @@ import leyline.conformance.ConformanceTestBase
 import leyline.conformance.detailInt
 import leyline.conformance.gsm
 import leyline.game.mapper.ZoneIds
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 
@@ -38,7 +39,8 @@ class VehicleCrewAnnotationTest :
                 vehicle.addType("Creature")
             }
 
-            val gs = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
+            val snap1 = GsmSnapshot.capture(game, b, ConformanceTestBase.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snap1, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
 
             val vehicleObj = gs.gameObjectsList.first { obj ->
                 obj.zoneId == ZoneIds.BATTLEFIELD &&
@@ -54,7 +56,8 @@ class VehicleCrewAnnotationTest :
                 base.addCard("Sol Ring", human, ZoneType.Battlefield)
             }
 
-            val gs = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
+            val snap2 = GsmSnapshot.capture(game, b, ConformanceTestBase.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snap2, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
 
             val artifactObj = gs.gameObjectsList.first { obj ->
                 obj.zoneId == ZoneIds.BATTLEFIELD &&
@@ -69,7 +72,8 @@ class VehicleCrewAnnotationTest :
                 base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
             }
 
-            val gs = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
+            val snap3 = GsmSnapshot.capture(game, b, ConformanceTestBase.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snap3, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
 
             val creatureObj = gs.gameObjectsList.first { obj ->
                 obj.zoneId == ZoneIds.BATTLEFIELD &&
@@ -138,7 +142,8 @@ class VehicleCrewAnnotationTest :
                 vehicle.addCrewedByThisTurn(CardCollection(listOf(crew1, crew2)))
             }
 
-            val gs = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
+            val snap4 = GsmSnapshot.capture(game, b, ConformanceTestBase.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snap4, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
 
             val crewedAnn = gs.persistentAnnotationsList.firstOrNull { ann ->
                 AnnotationType.CrewedThisTurn in ann.typeList
@@ -156,7 +161,8 @@ class VehicleCrewAnnotationTest :
                 vehicle.addCrewedByThisTurn(CardCollection(listOf(crew)))
             }
 
-            val gs = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
+            val snap5 = GsmSnapshot.capture(game, b, ConformanceTestBase.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snap5, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
 
             val typeAnn = gs.persistentAnnotationsList.firstOrNull { ann ->
                 AnnotationType.ModifiedType in ann.typeList &&
@@ -171,7 +177,8 @@ class VehicleCrewAnnotationTest :
                 base.addCard("Smuggler's Copter", human, ZoneType.Battlefield)
             }
 
-            val gs = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
+            val snap6 = GsmSnapshot.capture(game, b, ConformanceTestBase.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snap6, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
 
             gs.persistentAnnotationsList.none { ann ->
                 AnnotationType.CrewedThisTurn in ann.typeList
@@ -190,7 +197,8 @@ class VehicleCrewAnnotationTest :
             }
 
             // First GSM: crew active
-            val gs1 = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b)
+            val snapCrew1 = GsmSnapshot.capture(game, b, ConformanceTestBase.TEST_MATCH_ID, 1)
+            val gs1 = StateMapper.buildFromSnapshot(snapCrew1, 1, ConformanceTestBase.TEST_MATCH_ID, b)
             gs1.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.ModifiedType in ann.typeList
             } shouldBe true
@@ -202,7 +210,8 @@ class VehicleCrewAnnotationTest :
             vehicle.resetCrewed()
 
             // Second GSM: crew expired
-            val gs2 = StateMapper.buildFromGame(game, 2, ConformanceTestBase.TEST_MATCH_ID, b)
+            val snapCrew2 = GsmSnapshot.capture(game, b, ConformanceTestBase.TEST_MATCH_ID, 2)
+            val gs2 = StateMapper.buildFromSnapshot(snapCrew2, 2, ConformanceTestBase.TEST_MATCH_ID, b)
             gs2.gsm.persistentAnnotationsList.none { ann ->
                 AnnotationType.ModifiedType in ann.typeList
             } shouldBe true

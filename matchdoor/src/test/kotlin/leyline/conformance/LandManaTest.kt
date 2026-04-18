@@ -14,8 +14,8 @@ import io.kotest.matchers.shouldNotBe
 import leyline.bridge.ForgeCardId
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ZoneIds
+import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
-import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -103,7 +103,7 @@ class LandManaTest :
             val acc = ClientAccumulator()
             acc.seedFull(handshakeFull(game, b, counter.currentGsId()))
             acc.processAll(startResult.messages)
-            b.snapshotFromGame(game)
+            b.seedDiffBaseline(game)
 
             val player = humanPlayer(b)
             val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand")
@@ -159,7 +159,7 @@ class LandManaTest :
                 addCard("Grizzly Bears", human, ZoneType.Hand)
             }
 
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test"), b)
+            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
             val playActions = actions.ofType(ActionType.Play_add3)
             playActions.shouldHaveSize(2)
 
@@ -192,7 +192,7 @@ class LandManaTest :
             val land = player.getZone(ZoneType.Hand).cards.first { it.isLand }
             capture(b, game, counter) { moveToBattlefield(land, game) }
 
-            val manaActions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test"), b).ofType(ActionType.ActivateMana)
+            val manaActions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b).ofType(ActionType.ActivateMana)
             manaActions.shouldHaveSize(2)
 
             assertSoftly {
@@ -219,7 +219,7 @@ class LandManaTest :
             val land = player.getZone(ZoneType.Hand).cards.first { it.isLand }
             capture(b, game, counter) { moveToBattlefield(land, game) }
 
-            val cast = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test"), b).ofType(ActionType.Cast)
+            val cast = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b).ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 
             val a = cast[0]
@@ -250,7 +250,7 @@ class LandManaTest :
                 addCard("Grizzly Bears", human, ZoneType.Hand)
             }
 
-            val cast = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test"), b).ofType(ActionType.Cast)
+            val cast = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b).ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 
             val a = cast[0]
@@ -337,7 +337,7 @@ class LandManaTest :
                 addCard("Pacifism", human, ZoneType.Hand)
             }
 
-            val cast = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test"), b).ofType(ActionType.Cast)
+            val cast = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b).ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 
             val autoTap = cast[0].autoTapSolution

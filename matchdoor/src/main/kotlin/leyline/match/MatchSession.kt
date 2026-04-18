@@ -9,8 +9,8 @@ import leyline.game.AnnotationLossReason
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
-import leyline.game.StateMapper
 import leyline.game.mapper.StopTypeMapping
+import leyline.game.snapshot.GsmSnapshot
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
@@ -159,7 +159,8 @@ class MatchSession(
         sendBundle(result)
 
         // Seed state snapshot for subsequent diff computation.
-        ctx.bridge.snapshotDiffBaseline(StateMapper.buildFromGame(ctx.game, counter.currentGsId(), matchId, ctx.bridge).gsm)
+        val snap1 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
+        ctx.bridge.lastSent = snap1
 
         // Auto-pass through phases where human has no real actions
         autoPassEngine.autoPassAndAdvance(ctx.bridge)
@@ -205,7 +206,8 @@ class MatchSession(
         // Seed state snapshot for subsequent diff computation.
         // The puzzle initial bundle already sent the Full GSM, so the bridge
         // needs a matching snapshot for the first Diff to be correct.
-        ctx.bridge.snapshotDiffBaseline(StateMapper.buildFromGame(ctx.game, counter.currentGsId(), matchId, ctx.bridge).gsm)
+        val snap2 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
+        ctx.bridge.lastSent = snap2
 
         // Auto-pass through phases where human has no real actions
         autoPassEngine.autoPassAndAdvance(ctx.bridge)

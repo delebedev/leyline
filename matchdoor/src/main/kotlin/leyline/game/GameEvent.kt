@@ -38,7 +38,7 @@ enum class Zone {
 /**
  * Protocol-oriented game events captured from the Forge engine's EventBus.
  *
- * These replace the "infer from diff" heuristic in [StateMapper.buildFromGame]:
+ * These replace the "infer from diff" heuristic in [StateMapper.buildFromSnapshot]:
  * instead of comparing zone snapshots and guessing what happened, the
  * [GameEventCollector] captures rich events as they fire and the annotation
  * builder converts them directly into client protocol annotations.

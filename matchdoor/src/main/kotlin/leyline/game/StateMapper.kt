@@ -1,6 +1,5 @@
 package leyline.game
 
-import forge.game.Game
 import leyline.bridge.EffectId
 import leyline.bridge.ForgeCardId
 import leyline.bridge.GrpId
@@ -8,7 +7,6 @@ import leyline.bridge.InstanceId
 import leyline.bridge.PromptSideEffect
 import leyline.bridge.SeatId
 import leyline.bridge.TargetingCoordinator
-import leyline.bridge.findCard
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.PlayerMapper
@@ -24,9 +22,9 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Orchestrates the Forge→proto state mapping pipeline.
  *
  * Two core methods:
- * - [buildFromGame]: Full [GameStateMessage] from live engine state (zones, objects,
+ * - [buildFromSnapshot]: Full [GameStateMessage] from an immutable [GsmSnapshot] (zones, objects,
  *   players, annotations via [ZoneTransferDetector], [TransferAnnotations], [CombatAnnotations], [MechanicAnnotations])
- * - [buildDiffFromGame]: Diff GSM containing only changes since the current diff baseline
+ * - [buildDiff]: Diff GSM by snap-vs-snap field comparison
  *
  * Lifecycle GSM factories (deal-hand, mulligan, transitions) live in [GsmBuilder].
  * Interactive request builders (targeting, combat) live in [RequestBuilder].
@@ -36,7 +34,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
 object StateMapper {
     private val log = LoggerFactory.getLogger(StateMapper::class.java)
 
-    /** Result of [buildFromGame] — GSM plus metadata for message framing. */
+    /** Result of [buildFromSnapshot] — GSM plus metadata for message framing. */
     data class BuildResult(
         val gsm: GameStateMessage,
         /** True if a CastSpell zone transfer was detected (triggers QueuedGSM split). */
@@ -44,17 +42,16 @@ object StateMapper {
     )
 
     /**
-     * Build a full [GameStateMessage] from live Forge [forge.game.Game] state.
-     * Reads zones, players, phase info from the engine and maps cards
-     * to client instanceIds via the bridge's card ID mapping.
+     * Build a Full [GameStateMessage] from an immutable [GsmSnapshot].
+     * Maps cards to client instanceIds via the bridge's card ID mapping.
      *
      * [viewingSeatId] controls hand visibility: opponent's hand cards get
      * objectInstanceIds (for card count) but no GameObjectInfo (renders face-down).
      * Use 0 to include all objects (internal snapshots for diffing).
      */
     @Suppress("LongMethod")
-    fun buildFromGame(
-        game: Game,
+    fun buildFromSnapshot(
+        snap: GsmSnapshot,
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
@@ -62,8 +59,8 @@ object StateMapper {
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
+        prev: GsmSnapshot? = null,
     ): BuildResult {
-        val snap = leyline.game.snapshot.GsmSnapshot.capture(game, bridge, matchId)
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
         val frame = GsmFrame.from(snap)
@@ -177,7 +174,7 @@ object StateMapper {
         applyRevealProxies(activeReveal, snap, bridge, zones, gameObjects, events)
 
         log.info(
-            "buildFromGame: phase={} turn={} hand={} objects={} zones={}",
+            "buildFromSnapshot: phase={} turn={} hand={} objects={} zones={}",
             snap.phase.phase,
             snap.phase.turn,
             human?.getZone(ForgeZoneType.Hand)?.size() ?: 0,
@@ -189,25 +186,47 @@ object StateMapper {
         val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, events)
         val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
-            computeAnnotations(events, transferResult, actingSeat, bridge)
+            computeAnnotations(events, transferResult, actingSeat, bridge, prev = prev ?: bridge.lastSent)
+
+        // Snap-derived pAnn inputs — computed here where snap is in scope.
+        val qualificationPersistentFromSnap = snap.objects.values
+            .filter { it.isOnAdventure }
+            .map { AnnotationBuilder.qualification(instanceId = bridge.getOrAllocInstanceId(it.forgeCardId)) }
+        val temporaryPermanentPersistentFromSnap = snap.objects.values
+            .filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
+            .map { AnnotationBuilder.temporaryPermanent(bridge.getOrAllocInstanceId(it.forgeCardId)) }
+        val abilityWordPersistentFromSnap = snap.abilityWordEntries.map { entry ->
+            AnnotationBuilder.abilityWordActive(
+                instanceId = InstanceId(entry.instanceId),
+                abilityWordName = entry.abilityWordName,
+                value = entry.value,
+                threshold = entry.threshold,
+                abilityGrpId = entry.abilityGrpId?.let { GrpId(it) },
+                affectorId = InstanceId(entry.affectorId ?: entry.instanceId),
+                affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
+            )
+        }
 
         // Stages 4-5 + persistent computation
         val remaining = computeRemainingAnnotations(
             events, annotations, transferPersistent, initEffectDiff, effectDiff,
             persistSnapshot, startPersistentId, startAnnotationId, bridge, keywordDiff,
             combatResult,
+            qualificationPersistentFromSnap = qualificationPersistentFromSnap,
+            temporaryPermanentPersistentFromSnap = temporaryPermanentPersistentFromSnap,
+            abilityWordPersistentFromSnap = abilityWordPersistentFromSnap,
         )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
         val built = assembleGsm(
             gameStateId, gameInfo.build(), frame, transferResult, remaining,
             combatResult, team1.build(), team2.build(), player1, player2,
-            updateType, actions, actingSeat, bridge,
+            updateType, actions, actingSeat, prev?.gameStateId,
         )
 
         // ═══ APPLY: deferred tracking effects (for next GSM) ═══
         // Must run AFTER assembleGsm — the GSM already embedded batch.allAnnotations.
-        // applyBatchResult replaces the live store so the next buildFromGame sees updated state.
+        // applyBatchResult replaces the live store so the next buildFromSnapshot sees updated state.
         for (id in transferResult.retiredIds) bridge.retireToLimbo(InstanceId(id))
         for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(InstanceId(iid), zid)
         bridge.annotations.applyBatchResult(remaining.batch)
@@ -218,16 +237,23 @@ object StateMapper {
     }
 
     /**
-     * Build a Diff [GameStateMessage] containing only zones/objects that changed
-     * since the current diff baseline. Falls back to Full if no baseline exists.
-     * Updates the bridge's diff baseline after building so the next diff is relative
-     * to this state.
+     * Build a Diff [GameStateMessage] by snap-vs-snap field comparison.
      *
-     * Tech debt: compares [GameStateMessage] vs [GameStateMessage] (proto-level diff).
-     * Full snapshot-vs-snapshot diff rewrite is a separate follow-up migration.
+     * `prev == null` → returns the Full GSM built from `cur` (first bundle, post-handshake).
+     * Otherwise emits only zones/objects whose CardSnapshot/ZoneSnapshot field-equality
+     * differs between `prev` and `cur`. Player/turn/annotation/persistent-annotation
+     * lists are taken from the freshly-built current full GSM (current-bundle events
+     * already applied).
+     *
+     * `bridge.ids` reallocation, limbo retires, and zone recordings continue to fire
+     * inside `buildFromSnapshot`'s `transferResult` apply loop — diff is pure on inputs
+     * (snap-vs-snap), not on outputs (still mutates bridge). Pulling output side-effects
+     * out as data is a separate follow-up.
      */
-    fun buildDiffFromGame(
-        game: Game,
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
+    fun buildDiff(
+        prev: GsmSnapshot?,
+        cur: GsmSnapshot,
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
@@ -236,55 +262,95 @@ object StateMapper {
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
     ): BuildResult {
-        val prev = bridge.getDiffBaselineState()
         if (prev == null) {
-            // No baseline exists — fall back to Full, but snapshot it so the next
-            // buildDiffFromGame call has a baseline and produces a real Diff.
-            val result = buildFromGame(game, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat)
-            bridge.snapshotDiffBaseline(result.gsm)
-            return result
+            return buildFromSnapshot(cur, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat, prev = null)
         }
 
-        // Build current full state (for comparison + to seed next diff).
-        // Pass actions=null to avoid redundant action embedding (we embed below).
-        // Use viewingSeatId=0 for the comparison base (needs all objects for accurate diff).
-        val fullResult = buildFromGame(game, gameStateId, matchId, bridge, revealForSeat = revealForSeat)
+        // Build current full GSM (also drives event drain + side-effect apply).
+        // Match the existing dual-pass shape: pass actions=null + viewingSeatId=0 for
+        // the comparison base (needs all objects for accurate diff).
+        val fullResult = buildFromSnapshot(cur, gameStateId, matchId, bridge, revealForSeat = revealForSeat, prev = prev)
         val current = fullResult.gsm
 
-        // Compute changed zones (by objectInstanceIds)
-        val prevZoneMap = prev.zonesList.associateBy { it.zoneId }
-        val changedZones = current.zonesList.filter { zone ->
-            val prevZone = prevZoneMap[zone.zoneId]
-            prevZone == null ||
-                prevZone.objectInstanceIdsList != zone.objectInstanceIdsList ||
-                prevZone.visibility != zone.visibility ||
-                prevZone.viewersList != zone.viewersList
-        }
-
-        // Compute changed/new objects, filtering out opponent hand objects
-        // (except RevealedCard proxies and real hand cards during active reveal)
-        val prevObjMap = prev.gameObjectsList.associateBy { it.instanceId }
+        // Snap-vs-snap zone delta: any zone whose snapshot field-equality differs.
+        val changedZoneIds = cur.zones.keys.asSequence()
+            .filter { id -> prev.zones[id] != cur.zones[id] }
+            .toSet()
         val opponentHandZoneId = ZoneMapper.opponentHandZone(viewingSeatId)
         val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(it).journal.activeReveal() != null }
+        // Protocol-only zones not tracked in GsmSnapshot must always be included when non-empty:
+        //   - Limbo (id=30): grows monotonically; always send when it has content.
+        //   - REVEALED_P1/P2 (id=18/19): synthesized by applyRevealProxies during active reveal.
+        //   - Hand zone of revealed seat: visibility flipped to Public by buildFromSnapshot but
+        //     ZoneSnapshot still records Private, so snap equality check misses the change.
+        val opponentRevealedHandZoneId: Int? = when {
+            hasActiveReveal -> {
+                val ownerSeat = bridge.allSeatIds()
+                    .firstNotNullOfOrNull { bridge.promptBridge(it).journal.activeReveal()?.ownerSeatId?.value }
+                if (ownerSeat == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
+            }
+            else -> null
+        }
+        val changedZones = current.zonesList.filter { zone ->
+            zone.zoneId in changedZoneIds ||
+                (zone.zoneId == ZoneIds.LIMBO && zone.objectInstanceIdsCount > 0) ||
+                (zone.zoneId == ZoneIds.REVEALED_P1 || zone.zoneId == ZoneIds.REVEALED_P2) ||
+                (opponentRevealedHandZoneId != null && zone.zoneId == opponentRevealedHandZoneId)
+        }
+
+        // Snap-vs-snap object delta: any card whose CardSnapshot field-equality differs.
+        // Plus opponent-hand filter + active-reveal exception preserved.
+        val cardSnapshotChangedFids = cur.objects.keys.asSequence()
+            .filter { fid -> prev.objects[fid] != cur.objects[fid] }
+            .toSet()
+
+        // Cards whose zone changed (CardSnapshot doesn't carry zoneId; ZoneSnapshot.contents does).
+        val prevZoneOf: Map<ForgeCardId, Int> = prev.zones.values.flatMap { z -> z.contents.map { it to z.id } }.toMap()
+        val curZoneOf: Map<ForgeCardId, Int> = cur.zones.values.flatMap { z -> z.contents.map { it to z.id } }.toMap()
+        val zoneMovedFids = (prevZoneOf.keys + curZoneOf.keys).asSequence()
+            .filter { fid -> prevZoneOf[fid] != curZoneOf[fid] }
+            .toSet()
+
+        val changedFids = cardSnapshotChangedFids + zoneMovedFids
+        val changedInstanceIds = changedFids.map { bridge.getOrAllocInstanceId(it).value }.toSet()
+        // instanceIds tracked in the prev snapshot (to detect truly new objects like RevealedCard proxies)
+        val prevInstanceIds = prev.objects.keys.map { bridge.getOrAllocInstanceId(it).value }.toSet()
         val changedObjects = current.gameObjectsList.filter { obj ->
+            // Always include new objects absent from prev (e.g. RevealedCard proxies synthesized mid-diff).
+            if (obj.instanceId !in prevInstanceIds) {
+                // Still apply opponent-hand filter unless reveal is active
+                if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
+                    return@filter hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)
+                }
+                return@filter true
+            }
+            if (obj.instanceId !in changedInstanceIds) {
+                // During active reveal, always include opponent hand cards (visibility changed outside CardSnapshot)
+                if (hasActiveReveal &&
+                    opponentHandZoneId != 0 &&
+                    obj.zoneId == opponentHandZoneId &&
+                    (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)
+                ) {
+                    return@filter true
+                }
+                return@filter false
+            }
             if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
-                // During reveal-choose: include RevealedCard proxies and Public hand cards
                 if (hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)) {
-                    // fall through to normal change detection
+                    // fall through
                 } else {
                     return@filter false
                 }
             }
-            val prevObj = prevObjMap[obj.instanceId]
-            prevObj == null || prevObj != obj
+            true
         }
 
-        // Detect objects in prev but not in current (e.g. abilities leaving stack).
-        // Limbo-retired IDs still appear in zone objectInstanceIds, so exclude those.
+        // Deleted IDs: in prev.objects but not in cur.objects, minus IDs still tracked
+        // in cur zone listings (limbo-retired IDs that still appear in zone contents).
         val currentObjIds = current.gameObjectsList.map { it.instanceId }.toSet()
         val currentZoneTrackedIds = current.zonesList.flatMap { it.objectInstanceIdsList }.toSet()
-        val deletedIds = prev.gameObjectsList
-            .map { it.instanceId }
+        val deletedIds = (prev.objects.keys - cur.objects.keys)
+            .map { bridge.getOrAllocInstanceId(it).value }
             .filter { it !in currentObjIds && it !in currentZoneTrackedIds }
 
         val builder = GameStateMessage.newBuilder()
@@ -305,10 +371,9 @@ object StateMapper {
             builder.addAllDiffDeletedInstanceIds(deletedIds)
         }
 
-        // Embed stripped-down actions + set pendingMessageCount when AAR follows
+        // Embed stripped actions + set pendingMessageCount when AAR follows
         if (actions != null) {
             builder.setPendingMessageCount(1)
-            // Priority player was already resolved during buildFromGame — read from the built GSM.
             val activeSeat = current.turnInfo.priorityPlayer
             for (action in actions.actionsList) {
                 builder.addActions(
@@ -319,16 +384,12 @@ object StateMapper {
             }
         }
 
-        // Update snapshot for next diff (reuse the full GSM already built above)
-        bridge.snapshotDiffBaseline(current)
-
         val built = builder.build()
         if (built.gameStateId != 0 && built.gameStateId == built.prevGameStateId) {
             log.error(
-                "SELF-REF gsId={} prev.gsId={} prev.prevGsId={} param={} caller={}",
+                "SELF-REF gsId={} prev.gsId={} param={} caller={}",
                 built.gameStateId,
                 prev.gameStateId,
-                prev.prevGameStateId,
                 gameStateId,
                 Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
             )
@@ -370,9 +431,8 @@ object StateMapper {
         updateType: GameStateUpdate,
         actions: ActionsAvailableReq?,
         prioritySeat: Int,
-        bridge: GameBridge,
+        prevGsId: Int?,
     ): GameStateMessage {
-        val prevState = bridge.getDiffBaselineState()
         val effectiveTurnInfo = if (combatResult.hasCombatDamage) {
             frame.turnInfo().toBuilder().setPhase(Phase.Combat_a549).setStep(Step.CombatDamage_a2cb)
         } else {
@@ -392,8 +452,8 @@ object StateMapper {
             .addAllPersistentAnnotations(remaining.persistent)
             .addAllTimers(PlayerMapper.buildTimers())
             .setUpdate(updateType)
-        if (prevState != null && prevState.gameStateId > 0) {
-            builder.setPrevGameStateId(prevState.gameStateId)
+        if (prevGsId != null && prevGsId > 0) {
+            builder.setPrevGameStateId(prevGsId)
         }
 
         if (actions != null) {
@@ -430,6 +490,9 @@ object StateMapper {
         bridge: GameBridge,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
+        qualificationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        temporaryPermanentPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        abilityWordPersistentFromSnap: List<AnnotationInfo> = emptyList(),
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds = events
             .filterIsInstance<GameEvent.SpellCast>()
@@ -449,40 +512,15 @@ object StateMapper {
         )
         annotations.addAll(mechanicResult.transient)
 
-        // AbilityWordActive: scan all battlefield permanents (both seats)
-        val game = bridge.getPlayer(SeatId(1))?.game
-        val bfCards = if (game != null) {
-            game.registeredPlayers.flatMap { it.getZone(forge.game.zone.ZoneType.Battlefield).cards.toList() }
-        } else {
-            log.info("AbilityWordActive scan skipped — no game available")
-            emptyList()
-        }
-        val abilityWordPersistent = AbilityWordScanner.scan(
-            battlefieldCards = bfCards,
-            instanceIdResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
-            registryResolver = { card ->
-                val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
-                val cardData = bridge.cardRepository.findByGrpId(grpId)
-                bridge.abilityRegistryFor(card, cardData)
-            },
-        ).map { entry ->
-            AnnotationBuilder.abilityWordActive(
-                instanceId = InstanceId(entry.instanceId),
-                abilityWordName = entry.abilityWordName,
-                value = entry.value,
-                threshold = entry.threshold,
-                abilityGrpId = entry.abilityGrpId?.let { GrpId(it) },
-                affectorId = InstanceId(entry.affectorId ?: entry.instanceId),
-                affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
-            )
-        }
+        // AbilityWordActive: consumed from pre-computed snap entries
+        val abilityWordPersistent = abilityWordPersistentFromSnap
 
         if (initEffectDiff.created.isNotEmpty()) {
             val (initTransient, _) = MechanicAnnotations.effectAnnotations(initEffectDiff)
             annotations.addAll(initTransient)
         }
 
-        val sourceAbilityResolver = buildSourceAbilityResolver(bridge)
+        val sourceAbilityResolver = SourceAbilityResolverFactory.build(bridge)
         val (effectTransient, effectPersistent) = MechanicAnnotations.effectAnnotations(
             diff = effectDiff,
             sourceAbilityResolver = sourceAbilityResolver,
@@ -500,28 +538,10 @@ object StateMapper {
         annotations.addAll(effectTransient)
 
         // Qualification pAnn for adventure-exiled cards (cast-from-exile eligibility marker)
-        val qualificationPersistent = if (game != null) {
-            game.registeredPlayers
-                .flatMap { it.getZone(forge.game.zone.ZoneType.Exile).cards.toList() }
-                .filter { it.isOnAdventure }
-                .map { card ->
-                    val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id))
-                    AnnotationBuilder.qualification(instanceId = iid)
-                }
-        } else {
-            emptyList()
-        }
+        val qualificationPersistent = qualificationPersistentFromSnap
 
         // TemporaryPermanent pAnn for any token with EOT-sacrifice (copy or otherwise)
-        val temporaryPermanentPersistent = if (game != null) {
-            bfCards.filter { it.isToken && it.hasSVar("EndOfTurnLeavePlay") }
-                .map { card ->
-                    val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id))
-                    AnnotationBuilder.temporaryPermanent(iid)
-                }
-        } else {
-            emptyList()
-        }
+        val temporaryPermanentPersistent = temporaryPermanentPersistentFromSnap
 
         // TargetSpec pAnn for each targeted spell/ability on the stack
         val targetSpecPersistent = buildTargetSpecAnnotations(bridge)
@@ -765,6 +785,7 @@ object StateMapper {
         transferResult: TransferResult,
         actingSeat: Int,
         bridge: GameBridge,
+        prev: GsmSnapshot? = null,
     ): AnnotationPipelineResult {
         val combatTransferredIds = transferResult.transfers
             .mapNotNull { transfer -> transfer.forgeCardId?.let { it to transfer.origId } }
@@ -772,6 +793,7 @@ object StateMapper {
         val combatResult = CombatAnnotations.combatAnnotations(
             events = events,
             bridge = bridge,
+            prev = prev,
             transferredIds = combatTransferredIds,
         )
         val (annotations, transferPersistent) = assembleTransferAndCombatAnnotations(
@@ -781,61 +803,5 @@ object StateMapper {
             combatResult = combatResult,
         )
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
-    }
-
-    /** Keywords whose triggered/resolved effects produce P/T boosts with staticId=0. */
-    private val PT_BOOST_KEYWORDS = setOf("PROWESS")
-
-    /**
-     * Build a resolver: (cardInstanceId, staticId) → sourceAbilityGRPID.
-     *
-     * Two resolution paths:
-     * - **staticId > 0**: continuous effect from a StaticAbility — use [AbilityRegistry]
-     *   to look up the specific ability. Falls back to keyword parent tracing for
-     *   non-intrinsic temporaries.
-     * - **staticId == 0**: resolved spell/trigger pump (e.g. Prowess) — falls back to
-     *   [CardData.keywordAbilityGrpIds] heuristic since Forge doesn't tag these with
-     *   a source ability ID.
-     */
-    private fun buildSourceAbilityResolver(
-        bridge: GameBridge,
-    ): (InstanceId, Long) -> Int? {
-        val game = bridge.getGame() ?: return { _, _ -> null }
-        return resolver@{ instanceId, staticId ->
-            val cardId = bridge.getForgeCardId(instanceId) ?: return@resolver null
-            val card = findCard(game, cardId) ?: return@resolver null
-            val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return@resolver null
-            val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return@resolver null
-
-            // Resolved pump effects (Prowess, Giant Growth): staticId = 0
-            // Fall back to keyword heuristic — best we can do without Forge tagging
-            if (staticId == 0L) {
-                for (keyword in PT_BOOST_KEYWORDS) {
-                    cardData.keywordAbilityGrpIds[keyword]?.let { return@resolver it }
-                }
-                return@resolver null
-            }
-
-            if (staticId > Int.MAX_VALUE) return@resolver null
-
-            // Continuous effects: use AbilityRegistry for precise lookup
-            val registry = bridge.abilityRegistryFor(card, cardData) ?: return@resolver null
-            registry.forStaticAbility(staticId.toInt())?.let { return@resolver it }
-
-            // Keyword fallback: temporary statics from keyword triggers
-            // trace back to parent keyword via Forge's StaticAbility.getKeyword()
-            val sourceStatic = card.staticAbilities?.firstOrNull { it.id == staticId.toInt() }
-            val parentKeyword = sourceStatic?.keyword ?: return@resolver null
-            for (sa in parentKeyword.abilities) {
-                registry.forSpellAbility(sa.id)?.let { return@resolver it }
-            }
-            for (trig in parentKeyword.triggers) {
-                registry.forTrigger(trig.id)?.let { return@resolver it }
-            }
-            for (st in parentKeyword.staticAbilities) {
-                registry.forStaticAbility(st.id)?.let { return@resolver it }
-            }
-            null
-        }
     }
 }

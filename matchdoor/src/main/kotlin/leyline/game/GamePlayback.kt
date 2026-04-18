@@ -160,7 +160,7 @@ class GamePlayback(
             queue.add(result.messages)
 
             // No need to snapshot here — buildDiffFromGame (called by remoteActionDiff)
-            // snapshots internally after computing the diff. A redundant buildFromGame
+            // snapshots internally after computing the diff. A redundant buildFromSnapshot
             // with the same gsId creates a self-referential snapshot.
 
             log.debug(

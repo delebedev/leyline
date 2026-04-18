@@ -56,7 +56,7 @@ data class GsmFrame(
  * game-over, and utility GSMs.
  *
  * Pure proto construction. No session state, no bridge mutation.
- * Extracted from [StateMapper] which retains [StateMapper.buildFromGame] and
+ * Extracted from [StateMapper] which retains [StateMapper.buildFromSnapshot] and
  * [StateMapper.buildDiffFromGame] (the stateful diff pipeline).
  */
 object GsmBuilder {

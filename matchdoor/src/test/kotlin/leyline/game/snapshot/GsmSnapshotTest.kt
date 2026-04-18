@@ -2,6 +2,7 @@ package leyline.game.snapshot
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.ForgeCardId
@@ -40,5 +41,22 @@ class GsmSnapshotTest :
             val c1 = CardSnapshot(ForgeCardId(1), "Grizzly Bears", grpId = 123, owner = SeatId(1), controller = SeatId(1))
             val c2 = CardSnapshot(ForgeCardId(1), "Grizzly Bears", grpId = 123, owner = SeatId(1), controller = SeatId(1))
             c1 shouldBe c2
+        }
+
+        test("CardSnapshot snap-diff fields default to false") {
+            val card = CardSnapshot(
+                forgeCardId = ForgeCardId(1),
+                name = "Test",
+                grpId = 0,
+                owner = SeatId(1),
+                controller = SeatId(1),
+            )
+            card.isOnAdventure shouldBe false
+            card.endOfTurnLeavePlay shouldBe false
+        }
+
+        test("GsmSnapshot.forTest defaults abilityWordEntries to empty") {
+            val snap = GsmSnapshot.forTest()
+            snap.abilityWordEntries.shouldBeEmpty()
         }
     })

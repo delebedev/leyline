@@ -4,6 +4,7 @@ import forge.game.Game
 import leyline.bridge.GameActionBridge
 import leyline.bridge.InteractivePromptBridge
 import leyline.bridge.PlayerAction
+import leyline.game.snapshot.GsmSnapshot
 
 /**
  * Shared test helpers for GameBridge-based tests.
@@ -13,12 +14,16 @@ import leyline.bridge.PlayerAction
  */
 
 /**
- * Convenience: build a full GSM snapshot from the live game and store it.
- * Production code passes pre-built GSMs to [GameBridge.snapshotDiffBaseline] directly;
- * this wrapper avoids boilerplate in tests.
+ * Seed [GameBridge.lastSent] from live game state — establishes the diff baseline for tests.
+ *
+ * Calls [StateMapper.buildFromSnapshot] to trigger zone-recording side-effects
+ * (populates [GameBridge.diff] previousZones so [ZoneTransferDetector] can detect
+ * zone changes on the next diff).
  */
-fun GameBridge.snapshotFromGame(game: Game, gameStateId: Int = 0) {
-    snapshotDiffBaseline(StateMapper.buildFromGame(game, gameStateId, "", this).gsm)
+fun GameBridge.seedDiffBaseline(game: Game, gameStateId: Int = 0) {
+    val snap = GsmSnapshot.capture(game, this, "", gameStateId)
+    StateMapper.buildFromSnapshot(snap, gameStateId, "", this)
+    lastSent = snap
 }
 
 /**

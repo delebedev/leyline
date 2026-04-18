@@ -12,6 +12,7 @@ import leyline.ConformanceTag
 import leyline.IntegrationTag
 import leyline.bridge.InstanceId
 import leyline.game.StateMapper
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 
 /**
@@ -33,7 +34,9 @@ class CardInjectionTest :
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, "Serra Angel", ZoneType.Battlefield, sick = false)
 
-            val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1).gsm
+            val gsId1 = counter.nextGsId()
+            val snap1 = GsmSnapshot.capture(game, b, "test", gsId1)
+            val gsm = StateMapper.buildFromSnapshot(snap1, gsId1, "test", b, viewingSeatId = 1).gsm
             val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected card should appear in gameObjectsList" }
             obj.grpId shouldBe injected.grpId
             obj.cardTypesList.shouldContain(CardType.Creature)
@@ -56,7 +59,9 @@ class CardInjectionTest :
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, "Lightning Bolt", ZoneType.Hand)
 
-            val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1).gsm
+            val gsId2 = counter.nextGsId()
+            val snap2 = GsmSnapshot.capture(game, b, "test", gsId2)
+            val gsm = StateMapper.buildFromSnapshot(snap2, gsId2, "test", b, viewingSeatId = 1).gsm
             val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected card should appear in gameObjectsList" }
             obj.cardTypesList.shouldContain(CardType.Instant)
 
@@ -89,7 +94,9 @@ class CardInjectionTest :
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, "Plains", ZoneType.Battlefield, tapped = true)
 
-            val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1).gsm
+            val gsId3 = counter.nextGsId()
+            val snap3 = GsmSnapshot.capture(game, b, "test", gsId3)
+            val gsm = StateMapper.buildFromSnapshot(snap3, gsId3, "test", b, viewingSeatId = 1).gsm
             val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected land should appear in gameObjectsList" }
             obj.cardTypesList.shouldContain(CardType.Land_a80b)
         }

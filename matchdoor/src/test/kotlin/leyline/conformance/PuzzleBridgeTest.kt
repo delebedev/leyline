@@ -131,27 +131,30 @@ class PuzzleBridgeTest :
             hand shouldContain "Giant Growth"
         }
 
-        test("puzzle buildFromGame has stage Play") {
+        test("puzzle buildFromSnapshot has stage Play") {
             val b = startPuzzle("puzzles/lands-only.pzl")
             val game = b.getGame()!!
-            val gsm = StateMapper.buildFromGame(game, 1, "test-puzzle", b, viewingSeatId = 1).gsm
+            val snap = GsmSnapshot.capture(game, b, "test-puzzle", 1)
+            val gsm = StateMapper.buildFromSnapshot(snap, 1, "test-puzzle", b, viewingSeatId = 1).gsm
             gsm.gameInfo.stage shouldBe ProtoGameStage.Play_a920
         }
 
-        test("puzzle buildFromGame has correct life totals") {
+        test("puzzle buildFromSnapshot has correct life totals") {
             val b = startPuzzle("puzzles/custom-life.pzl")
             val game = b.getGame()!!
-            val gsm = StateMapper.buildFromGame(game, 1, "test-puzzle", b, viewingSeatId = 1).gsm
+            val snap = GsmSnapshot.capture(game, b, "test-puzzle", 1)
+            val gsm = StateMapper.buildFromSnapshot(snap, 1, "test-puzzle", b, viewingSeatId = 1).gsm
             val p1 = gsm.playersList.first { it.systemSeatNumber == 1 }
             val p2 = gsm.playersList.first { it.systemSeatNumber == 2 }
             p1.lifeTotal shouldBe 7
             p2.lifeTotal shouldBe 1
         }
 
-        test("puzzle buildFromGame has battlefield objects") {
+        test("puzzle buildFromSnapshot has battlefield objects") {
             val b = startPuzzle("puzzles/simple-attack.pzl")
             val game = b.getGame()!!
-            val gsm = StateMapper.buildFromGame(game, 1, "test-puzzle", b, viewingSeatId = 1).gsm
+            val snap = GsmSnapshot.capture(game, b, "test-puzzle", 1)
+            val gsm = StateMapper.buildFromSnapshot(snap, 1, "test-puzzle", b, viewingSeatId = 1).gsm
             (gsm.gameObjectsCount > 0).shouldBeTrue()
         }
 
@@ -191,7 +194,8 @@ class PuzzleBridgeTest :
         test("web test 00 produces valid GSM") {
             val b = startPuzzle("puzzles/bolt-face.pzl")
             val game = b.getGame()!!
-            val gsm = StateMapper.buildFromGame(game, 1, "test-puzzle", b, viewingSeatId = 1).gsm
+            val snap = GsmSnapshot.capture(game, b, "test-puzzle", 1)
+            val gsm = StateMapper.buildFromSnapshot(snap, 1, "test-puzzle", b, viewingSeatId = 1).gsm
             gsm.gameInfo.stage shouldBe ProtoGameStage.Play_a920
             // Should have game objects (Mountain on bf, Lightning Bolt in hand)
             gsm.gameObjectsCount shouldBeGreaterThanOrEqual 2
@@ -205,7 +209,7 @@ class PuzzleBridgeTest :
         test("web test 00 actions include Cast") {
             val b = startPuzzle("puzzles/bolt-face.pzl")
             val game = b.getGame()!!
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test"), b)
+            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
             val actionTypes = actions.actionsList.map { it.actionType.name }
             actionTypes.any { it == "Cast" }.shouldBeTrue()
         }

@@ -16,7 +16,8 @@ import leyline.game.PuzzleSource
 import leyline.game.StateMapper
 import leyline.game.advanceToMain1
 import leyline.game.awaitFreshPending
-import leyline.game.snapshotFromGame
+import leyline.game.seedDiffBaseline
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
@@ -79,7 +80,7 @@ open class ConformanceTestBase {
         check(game.phaseHandler.phase == PhaseType.MAIN1) {
             "Game should be at Main1 after advanceToMain1 (actual: ${game.phaseHandler.phase})"
         }
-        b.snapshotFromGame(game, counter.currentGsId())
+        b.seedDiffBaseline(game, counter.currentGsId())
         return Triple(b, game, counter)
     }
 
@@ -111,7 +112,7 @@ open class ConformanceTestBase {
         check(game.phaseHandler.phase == PhaseType.MAIN1) {
             "Puzzle game should be at Main1 (actual: ${game.phaseHandler.phase})"
         }
-        b.snapshotFromGame(game, counter.currentGsId())
+        b.seedDiffBaseline(game, counter.currentGsId())
         return Triple(b, game, counter)
     }
 
@@ -148,7 +149,7 @@ open class ConformanceTestBase {
             }
         }
 
-        b.snapshotFromGame(game, counter.currentGsId())
+        b.seedDiffBaseline(game, counter.currentGsId())
         return Triple(b, game, counter)
     }
 
@@ -212,7 +213,7 @@ open class ConformanceTestBase {
         checkSba: Boolean = false,
         action: () -> Unit,
     ): GameStateMessage {
-        b.snapshotFromGame(game, counter.currentGsId())
+        b.seedDiffBaseline(game, counter.currentGsId())
         action()
         if (checkSba) game.action.checkStateEffects(true)
         return stateOnlyDiff(game, b, counter)
@@ -290,8 +291,10 @@ open class ConformanceTestBase {
         game: Game,
         b: GameBridge,
         gsId: Int,
-    ): GameStateMessage =
-        StateMapper.buildFromGame(game, gsId, TEST_MATCH_ID, b, viewingSeatId = SEAT_ID).gsm
+    ): GameStateMessage {
+        val snap = GsmSnapshot.capture(game, b, TEST_MATCH_ID, gsId)
+        return StateMapper.buildFromSnapshot(snap, gsId, TEST_MATCH_ID, b, viewingSeatId = SEAT_ID).gsm
+    }
 
     /** Play a land and capture the resulting GSM. */
     fun playLandAndCapture(): GameStateMessage? {
@@ -327,7 +330,7 @@ open class ConformanceTestBase {
     fun castSpellBundle(): BundleBuilder.BundleResult? {
         val (b, game, counter) = startGameAtMain1()
         playLand(b) ?: return null
-        b.snapshotFromGame(game)
+        b.seedDiffBaseline(game)
         castCreature(b) ?: return null
         return postAction(game, b, counter)
     }
@@ -346,7 +349,7 @@ open class ConformanceTestBase {
     fun castSpellAndCaptureWithIds(): Triple<GameStateMessage, Int, Int>? {
         val (b, game, counter) = startGameAtMain1()
         playLand(b) ?: return null
-        b.snapshotFromGame(game)
+        b.seedDiffBaseline(game)
 
         val player = b.getPlayer(SeatId(1)) ?: return null
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
@@ -368,11 +371,11 @@ open class ConformanceTestBase {
     fun resolveAndCapture(): GameStateMessage? {
         val (b, game, counter) = startGameAtMain1()
         playLand(b) ?: return null
-        b.snapshotFromGame(game)
+        b.seedDiffBaseline(game)
 
         castCreature(b) ?: return null
         postAction(game, b, counter) // capture cast result (advances counter)
-        b.snapshotFromGame(game)
+        b.seedDiffBaseline(game)
 
         passPriority(b)
         return postAction(game, b, counter).gsmOrNull

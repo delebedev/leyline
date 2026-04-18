@@ -5,7 +5,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.game.mapper.ZoneIds
-import leyline.game.snapshotFromGame
+import leyline.game.seedDiffBaseline
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -36,7 +36,7 @@ class AiTurnConformanceTest :
 
             // Play a land to have mana, then snapshot
             base.playLand(b) ?: error("playLand failed at seed 42")
-            b.snapshotFromGame(game)
+            b.seedDiffBaseline(game)
 
             // Pass through the rest of the human's turn until AI gets priority
             val maxPasses = 30
@@ -74,7 +74,7 @@ class AiTurnConformanceTest :
             val playback = checkNotNull(b.playback) { "GamePlayback should be registered" }
 
             base.playLand(b) ?: error("playLand failed at seed 42")
-            b.snapshotFromGame(game)
+            b.seedDiffBaseline(game)
 
             val allBatches = mutableListOf<List<GREToClientMessage>>()
             val maxPasses = 100
@@ -84,10 +84,13 @@ class AiTurnConformanceTest :
                 if (playback.hasPendingMessages()) {
                     val drained = playback.drainQueue()
                     allBatches.addAll(drained)
-                    val hasZoneChanges = drained.flatten()
+                    // Snap-vs-snap diffs: break only when we see actual card movements
+                    // (objects present in diff), not just phase-transition diffs that
+                    // carry zones (Limbo) but no cards.
+                    val hasCardMovements = drained.flatten()
                         .filter { it.hasGameStateMessage() }
-                        .any { it.gameStateMessage.zonesCount > 0 }
-                    if (hasZoneChanges) break
+                        .any { it.gameStateMessage.gameObjectsCount > 0 }
+                    if (hasCardMovements) break
                 }
             }
 

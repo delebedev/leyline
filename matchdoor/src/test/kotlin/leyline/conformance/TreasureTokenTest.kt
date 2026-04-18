@@ -122,9 +122,10 @@ class TreasureTokenTest :
             val treasureGrpId = ObjectMapper.resolveGrpId(treasure, h.bridge.cardRepository)
             treasureGrpId shouldBeGreaterThan 0
 
-            // --- Regression: buildFromGame must not crash (was NPE) ---
-            val gsm = StateMapper.buildFromGame(
-                h.game(),
+            // --- Regression: buildFromSnapshot must not crash (was NPE) ---
+            val snapTreasure = GsmSnapshot.capture(h.game(), h.bridge, "test-treasure", 1)
+            val gsm = StateMapper.buildFromSnapshot(
+                snapTreasure,
                 1,
                 "test-treasure",
                 h.bridge,
@@ -135,7 +136,7 @@ class TreasureTokenTest :
             treasureObj.shouldNotBeNull()
 
             // --- Regression: buildActions must not crash, Treasure has ActivateMana ---
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(h.game(), h.bridge, "test"), h.bridge)
+            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(h.game(), h.bridge, "test", 0), h.bridge)
             val manaActions = actions.actionsList.filter { it.actionType == ActionType.ActivateMana }
             manaActions.size shouldBeGreaterThan 0
 

@@ -31,7 +31,7 @@ class ObjectMapperTest :
             val instanceId = b.getOrAllocInstanceId(fid).value
             val zoneId = ZoneIds.BATTLEFIELD
 
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
             val obj = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, 1, b)
 
@@ -50,7 +50,7 @@ class ObjectMapperTest :
             val instanceId = b.getOrAllocInstanceId(fid).value
             val zoneId = ZoneIds.BATTLEFIELD
 
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
             val obj = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, 1, b)
 

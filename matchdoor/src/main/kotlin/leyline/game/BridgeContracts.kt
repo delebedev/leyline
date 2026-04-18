@@ -5,7 +5,6 @@ import forge.game.player.Player
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
  * Focused interfaces for [GameBridge] capabilities.
@@ -51,15 +50,6 @@ interface ZoneTracking {
 
     /** All retired instanceIds in order. */
     fun getLimboInstanceIds(): List<InstanceId>
-}
-
-/** Diff baselines for snapshot-compare diffing. */
-interface StateSnapshot {
-    /** Store a full GSM snapshot as the next diff baseline. */
-    fun snapshotDiffBaseline(state: GameStateMessage)
-
-    /** Current diff baseline (null before first state). */
-    fun getDiffBaselineState(): GameStateMessage?
 }
 
 /** Monotonic annotation ID counters. */

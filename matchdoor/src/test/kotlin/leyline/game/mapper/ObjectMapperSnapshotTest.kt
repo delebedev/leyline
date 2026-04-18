@@ -12,8 +12,8 @@ import leyline.conformance.ConformanceTestBase
 import leyline.conformance.TestCardRegistry
 import leyline.conformance.aiPlayer
 import leyline.conformance.humanPlayer
+import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.SnapshotCapture
-import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 /**
@@ -38,8 +38,8 @@ class ObjectMapperSnapshotTest :
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
-            b.snapshotFromGame(game)
-            val snap = SnapshotCapture.run(game, b, "test")
+            b.seedDiffBaseline(game)
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
             val fromSnap = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, ZoneIds.P1_HAND, 1, b)
@@ -61,8 +61,8 @@ class ObjectMapperSnapshotTest :
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
-            b.snapshotFromGame(game)
-            val snap = SnapshotCapture.run(game, b, "test")
+            b.seedDiffBaseline(game)
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
             assertSoftly {
@@ -95,8 +95,8 @@ class ObjectMapperSnapshotTest :
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
-            b.snapshotFromGame(game)
-            val snap = SnapshotCapture.run(game, b, "test")
+            b.seedDiffBaseline(game)
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
             cardSnap.isOnBattlefield shouldBe false
@@ -127,8 +127,8 @@ class ObjectMapperSnapshotTest :
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
-            b.snapshotFromGame(game)
-            val snap = SnapshotCapture.run(game, b, "test")
+            b.seedDiffBaseline(game)
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
             val frontGrpId = b.cardRepository.findGrpIdByName("Concealing Curtains")!!
@@ -160,8 +160,8 @@ class ObjectMapperSnapshotTest :
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
-            b.snapshotFromGame(game)
-            val snap = SnapshotCapture.run(game, b, "test")
+            b.seedDiffBaseline(game)
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
             val fromSnap = ObjectMapper.buildFromSnapshot(
@@ -184,8 +184,8 @@ class ObjectMapperSnapshotTest :
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
-            b.snapshotFromGame(game)
-            val snap = SnapshotCapture.run(game, b, "test")
+            b.seedDiffBaseline(game)
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
             assertSoftly {

@@ -27,7 +27,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *   Later tasks populate each section as the corresponding mapper migrates.
  */
 object SnapshotCapture {
-    fun run(game: Game, bridge: GameBridge, matchId: String): GsmSnapshot {
+    fun run(game: Game, bridge: GameBridge, matchId: String, gameStateId: Int): GsmSnapshot {
         val human = bridge.getPlayer(SeatId(1))
         val seats = listOf(1, 2).mapNotNull { seatNum ->
             val player = bridge.getPlayer(SeatId(seatNum)) ?: return@mapNotNull null
@@ -42,13 +42,16 @@ object SnapshotCapture {
         val objects = captureObjects(game, bridge, zones)
         val phase = capturePhase(game, human)
         val stack = captureStack(game, bridge, human)
+        val abilityWordEntries = computeAbilityWordEntries(game, bridge)
         return GsmSnapshot.forTest(
             matchId = matchId,
+            gameStateId = gameStateId,
             seats = seats,
             zones = zones,
             objects = objects,
             phase = phase,
             stack = stack,
+            abilityWordEntries = abilityWordEntries,
             capturedAt = CaptureMarker(
                 gsIdBeforeCapture = -1,
                 wallClockMs = System.currentTimeMillis(),
@@ -285,6 +288,8 @@ object SnapshotCapture {
             hasSickness = onBf && type.isCreature && card.hasSickness(),
             damage = if (onBf && type.isCreature) card.damage else 0,
             currentLoyalty = if (onBf && type.isPlaneswalker) card.currentLoyalty else 0,
+            isOnAdventure = card.isOnAdventure,
+            endOfTurnLeavePlay = card.isToken && card.hasSVar("EndOfTurnLeavePlay"),
             isToken = card.isToken,
             isCopyToken = card.isToken && card.copiedPermanent != null,
             attachedTo = attachedTo,
@@ -423,5 +428,27 @@ object SnapshotCapture {
         ForgeZoneType.ExtraHand,
         ForgeZoneType.None,
         -> Visibility.Public
+    }
+
+    /**
+     * Pre-run [leyline.game.AbilityWordScanner] at capture time so the diff
+     * pipeline reads from snap instead of `game.registeredPlayers`.
+     */
+    private fun computeAbilityWordEntries(
+        game: Game,
+        bridge: GameBridge,
+    ): List<leyline.game.AbilityWordScanner.AbilityWordEntry> {
+        val bfCards = game.registeredPlayers.flatMap {
+            it.getZone(ForgeZoneType.Battlefield).cards.toList()
+        }
+        return leyline.game.AbilityWordScanner.scan(
+            battlefieldCards = bfCards,
+            instanceIdResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
+            registryResolver = { card ->
+                val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+                val cardData = bridge.cardRepository.findByGrpId(grpId)
+                bridge.abilityRegistryFor(card, cardData)
+            },
+        )
     }
 }
