@@ -2,6 +2,7 @@ package leyline.game
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
@@ -319,9 +320,10 @@ class PurePipelineTest :
             val ztIdx = types.indexOf(AnnotationType.ZoneTransfer_af5a)
             assertSoftly {
                 damageIdx shouldBe 0
-                oicIdx shouldBe 2
-                ztIdx shouldBe 3
+                oicIdx shouldBe 1
+                ztIdx shouldBe 2
             }
+            types.none { it == AnnotationType.DamagedThisTurn }.shouldBeTrue()
         }
 
         test("assembleTransferAndCombatAnnotations keeps non-damage destroy transfer before combat block") {

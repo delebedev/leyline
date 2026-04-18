@@ -107,6 +107,7 @@ class PersistentAnnotationStore {
             effectDiff: EffectTracker.DiffResult,
             transferPersistent: List<AnnotationInfo>,
             mechanicResult: MechanicAnnotationResult,
+            combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
             resolveInstanceId: (ForgeCardId) -> InstanceId,
             resolveForgeCardId: (InstanceId) -> ForgeCardId? = { null },
         ): BatchResult {
@@ -209,6 +210,15 @@ class PersistentAnnotationStore {
                 },
             )
 
+            // 3h. DamagedThisTurn — grow-in-place within a turn, clear at Upkeep
+            nextId = updateDamagedThisTurn(
+                active,
+                deletions,
+                nextId,
+                combatResult.damagedThisTurnPersistent,
+                combatResult.clearDamagedThisTurn,
+            )
+
             // 4-6. Cleanup: detached auras, exile sources, controller reverts
             val cleanupReverts = cleanupDetachedAndReverted(
                 active,
@@ -266,6 +276,59 @@ class PersistentAnnotationStore {
             }
 
             return revertedEffectIds
+        }
+
+        private fun findDamagedThisTurn(active: Map<Int, AnnotationInfo>): Int? =
+            active.entries.firstOrNull { (_, ann) ->
+                ann.typeList.any { it == AnnotationType.DamagedThisTurn }
+            }?.key
+
+        /**
+         * Grow-in-place, or clear, the per-turn `DamagedThisTurn` annotation.
+         *
+         * Semantics:
+         *  - [clear] = true: delete the active annotation (no merge, no re-create).
+         *  - New victims + none active: allocate a fresh ID, create.
+         *  - New victims + active: merge into existing `affectedIds` (dedup,
+         *    stable order), keep the same ID.
+         */
+        private fun updateDamagedThisTurn(
+            active: MutableMap<Int, AnnotationInfo>,
+            deletions: MutableList<Int>,
+            startId: Int,
+            newAnnotations: List<AnnotationInfo>,
+            clear: Boolean,
+        ): Int {
+            var nextId = startId
+            if (clear) {
+                val existingId = findDamagedThisTurn(active)
+                if (existingId != null) {
+                    active.remove(existingId)
+                    deletions.add(existingId)
+                }
+                return nextId
+            }
+            if (newAnnotations.isEmpty()) return nextId
+            val incomingIds = newAnnotations.flatMap { it.affectedIdsList }
+            val existingId = findDamagedThisTurn(active)
+            if (existingId != null) {
+                val existing = active.getValue(existingId)
+                val merged = (existing.affectedIdsList + incomingIds).distinct()
+                active[existingId] = existing.toBuilder()
+                    .clearAffectedIds()
+                    .addAllAffectedIds(merged)
+                    .build()
+            } else {
+                val template = newAnnotations.first()
+                val merged = incomingIds.distinct()
+                val numbered = template.toBuilder()
+                    .setId(nextId++)
+                    .clearAffectedIds()
+                    .addAllAffectedIds(merged)
+                    .build()
+                active[numbered.id] = numbered
+            }
+            return nextId
         }
 
         private fun findByEffectId(active: Map<Int, AnnotationInfo>, effectId: Int): Int? =

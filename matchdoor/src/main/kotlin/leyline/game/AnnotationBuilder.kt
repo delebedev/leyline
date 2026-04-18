@@ -829,11 +829,17 @@ object AnnotationBuilder {
         }
         .build()
 
-    /** Creature was dealt damage this turn. Persistent state badge. client type 90. */
-    fun damagedThisTurn(instanceId: InstanceId): AnnotationInfo =
+    /** Creatures dealt damage this turn. Persistent badge. client type 90.
+     *  `affectorId` defaults to the shared Battlefield zone.
+     *  `affectedIds` is the cumulative set of victims for the current turn. */
+    fun damagedThisTurn(
+        affectedIds: List<InstanceId>,
+        affectorId: InstanceId = AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR,
+    ): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.DamagedThisTurn)
-            .addAffectedIds(instanceId.value)
+            .setAffectorId(affectorId.value)
+            .addAllAffectedIds(affectedIds.map { it.value })
             .build()
 
     /**

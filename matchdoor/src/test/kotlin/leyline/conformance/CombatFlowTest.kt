@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -8,6 +9,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.SeatId
+import leyline.game.AnnotationConstants
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -252,6 +254,33 @@ class CombatFlowTest :
             h.isGameOver().shouldBeFalse()
         }
 
+        test("combat damage frame carries persistent DamagedThisTurn badge") {
+            val attackerIid = setupWithAiBlocker()
+            val h = harness!!
+
+            h.passPriority()
+            h.playLand()
+            val snap = h.messageSnapshot()
+            h.passUntil { messagesSince(snap).any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
+
+            val attackTurn = h.turn()
+            h.declareAttackers(listOf(attackerIid))
+            h.passThroughCombat(attackTurn)
+
+            val damageGsm = h.allMessages
+                .filter { it.hasGameStateMessage() }
+                .map { it.gameStateMessage }
+                .firstOrNull { it.turnInfo.step == Step.CombatDamage_a2cb && it.annotationsList.any { ann -> AnnotationType.DamageDealt_af5a in ann.typeList } }
+            damageGsm.shouldNotBeNull()
+
+            val badge = damageGsm.persistentAnnotationsList.single { AnnotationType.DamagedThisTurn in it.typeList }
+            assertSoftly {
+                badge.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR.value
+                badge.affectedIdsList.shouldNotBeEmpty()
+                damageGsm.annotationsList.none { AnnotationType.DamagedThisTurn in it.typeList }.shouldBeTrue()
+            }
+        }
+
         test("combat damage resolves correctly") {
             val attackerIid = setupSingleAttacker()
             val h = harness!!
@@ -323,6 +352,10 @@ class CombatFlowTest :
             if (lifeAnn != null) {
                 (lifeAnn.affectorId > 0).shouldBeTrue()
             }
+
+            damageGsm.annotationsList.none { ann ->
+                ann.typeList.any { it == AnnotationType.DamagedThisTurn }
+            }.shouldBeTrue()
 
             // Human-turn combat animation checkpoint must not reopen priority.
             h.allMessages.none { it.hasActionsAvailableReq() && it.gameStateId == damageGsm.gameStateId }.shouldBeTrue()
