@@ -24,6 +24,9 @@ interface IdMapping {
     /** Allocate a fresh instanceId for a card that changed zones. */
     fun reallocInstanceId(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation
 
+    /** Compute a planned reallocation without committing — see [InstanceIdRegistry.planRealloc]. */
+    fun planReallocInstanceId(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation
+
     /** Reverse lookup: client instanceId → Forge card ID. */
     fun getForgeCardId(instanceId: InstanceId): ForgeCardId?
 }
