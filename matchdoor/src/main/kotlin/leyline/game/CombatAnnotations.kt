@@ -4,6 +4,7 @@ import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
 import leyline.bridge.toWireId
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.Step
 
@@ -48,11 +49,10 @@ object CombatAnnotations {
     internal fun combatAnnotations(
         events: List<GameEvent>,
         bridge: GameBridge,
+        prev: GsmSnapshot?,
         transferredIds: Map<ForgeCardId, Int> = emptyMap(),
     ): CombatAnnotationResult {
-        val prev = bridge.getDiffBaselineState()
-        val previousLifeTotals = prev?.playersList
-            ?.associate { it.systemSeatNumber to it.lifeTotal } ?: emptyMap()
+        val previousLifeTotals = prev?.seats?.associate { it.seatId.value to it.life } ?: emptyMap()
         val currentLifeTotals = previousLifeTotals.keys.associateWith { seat ->
             bridge.getPlayer(SeatId(seat))?.life ?: 0
         }

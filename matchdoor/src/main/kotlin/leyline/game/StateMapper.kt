@@ -60,6 +60,7 @@ object StateMapper {
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
+        prev: GsmSnapshot? = null,
     ): BuildResult {
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
@@ -186,7 +187,7 @@ object StateMapper {
         val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, events)
         val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
-            computeAnnotations(events, transferResult, actingSeat, bridge)
+            computeAnnotations(events, transferResult, actingSeat, bridge, prev = prev ?: bridge.lastSent)
 
         // Snap-derived pAnn inputs — computed here where snap is in scope.
         val qualificationPersistentFromSnap = snap.objects.values
@@ -745,6 +746,7 @@ object StateMapper {
         transferResult: TransferResult,
         actingSeat: Int,
         bridge: GameBridge,
+        prev: GsmSnapshot? = null,
     ): AnnotationPipelineResult {
         val combatTransferredIds = transferResult.transfers
             .mapNotNull { transfer -> transfer.forgeCardId?.let { it to transfer.origId } }
@@ -752,6 +754,7 @@ object StateMapper {
         val combatResult = CombatAnnotations.combatAnnotations(
             events = events,
             bridge = bridge,
+            prev = prev,
             transferredIds = combatTransferredIds,
         )
         val (annotations, transferPersistent) = assembleTransferAndCombatAnnotations(
