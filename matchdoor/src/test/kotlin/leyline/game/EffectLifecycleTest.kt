@@ -64,7 +64,7 @@ class EffectLifecycleTest :
 
             // Build a diff — should not crash even with no state changes
             val snapEff2 = GsmSnapshot.capture(game, b, "test", 2)
-            val gsm2 = StateMapper.buildDiffFromSnapshot(b.lastSent, snapEff2, 2, "test", b).gsm
+            val gsm2 = StateMapper.buildDiff(b.lastSent, snapEff2, 2, "test", b).gsm
             gsm2 shouldNotBe null
             gsm2.gameStateId shouldBe 2
 

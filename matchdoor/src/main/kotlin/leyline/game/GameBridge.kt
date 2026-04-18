@@ -214,7 +214,7 @@ class GameBridge(
     /**
      * Previous [GsmSnapshot] sent to the client — the diff baseline.
      * Set after every bundle; null before first state is sent.
-     * [StateMapper.buildDiffFromSnapshot] reads this as `prev` to compute snap-vs-snap diffs.
+     * [StateMapper.buildDiff] reads this as `prev` to compute snap-vs-snap diffs.
      */
     @Volatile
     var lastSent: GsmSnapshot? = null

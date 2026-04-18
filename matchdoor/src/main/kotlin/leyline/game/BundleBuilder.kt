@@ -64,7 +64,7 @@ class BundleBuilder(
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
-        val result = StateMapper.buildDiffFromSnapshot(
+        val result = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
             nextGs,
@@ -132,7 +132,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
-        val result = StateMapper.buildDiffFromSnapshot(bridge.lastSent, snap, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
+        val result = StateMapper.buildDiff(bridge.lastSent, snap, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
 
         // QueuedGSM split disabled (see postAction comment above).
         @Suppress("UnusedPrivateProperty")
@@ -181,7 +181,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
         val frame = GsmFrame.from(snap)
         // Build state first (triggers instanceId realloc), then actions with new IDs
-        val remoteResult = StateMapper.buildDiffFromSnapshot(
+        val remoteResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
             nextGs,
@@ -196,7 +196,7 @@ class BundleBuilder(
         val actions = ActionMapper.buildNaiveActions(seatId, bridge)
 
         // Inject turn-start annotation when applicable. PhaseOrStepModified is now
-        // emitted event-driven in Stage 2b (inside buildDiffFromSnapshot above).
+        // emitted event-driven in Stage 2b (inside buildDiff above).
         val gsWithAnnotations = if (turnStarted) {
             gsBase.toBuilder().apply {
                 addAnnotations(
@@ -488,7 +488,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
-        val attackersResult = StateMapper.buildDiffFromSnapshot(bridge.lastSent, snap, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
+        val attackersResult = StateMapper.buildDiff(bridge.lastSent, snap, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
         val gs = attackersResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -578,7 +578,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
-        val blockersResult = StateMapper.buildDiffFromSnapshot(bridge.lastSent, snap, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
+        val blockersResult = StateMapper.buildDiff(bridge.lastSent, snap, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
         val gs = blockersResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -615,7 +615,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         // Build diff first — triggers instanceId reallocs for zone transfers
-        val targetsResult = StateMapper.buildDiffFromSnapshot(
+        val targetsResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
             nextGs,
@@ -656,7 +656,7 @@ class BundleBuilder(
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
-        val selectNResult = StateMapper.buildDiffFromSnapshot(
+        val selectNResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
             nextGs,
@@ -726,7 +726,7 @@ class BundleBuilder(
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
-        val ctoResult = StateMapper.buildDiffFromSnapshot(
+        val ctoResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
             nextGs,
@@ -826,7 +826,7 @@ class BundleBuilder(
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
-        val payCostsResult = StateMapper.buildDiffFromSnapshot(
+        val payCostsResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
             nextGs,

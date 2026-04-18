@@ -24,7 +24,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Two core methods:
  * - [buildFromSnapshot]: Full [GameStateMessage] from an immutable [GsmSnapshot] (zones, objects,
  *   players, annotations via [ZoneTransferDetector], [TransferAnnotations], [CombatAnnotations], [MechanicAnnotations])
- * - [buildDiffFromSnapshot]: Diff GSM by snap-vs-snap field comparison
+ * - [buildDiff]: Diff GSM by snap-vs-snap field comparison
  *
  * Lifecycle GSM factories (deal-hand, mulligan, transitions) live in [GsmBuilder].
  * Interactive request builders (targeting, combat) live in [RequestBuilder].
@@ -251,7 +251,7 @@ object StateMapper {
      * out as data is a separate follow-up.
      */
     @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
-    fun buildDiffFromSnapshot(
+    fun buildDiff(
         prev: GsmSnapshot?,
         cur: GsmSnapshot,
         gameStateId: Int,

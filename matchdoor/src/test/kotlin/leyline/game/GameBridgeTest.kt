@@ -570,7 +570,7 @@ class GameBridgeTest :
 
             val game = b.getGame()!!
 
-            // Seed snapshot — subsequent buildDiffFromSnapshot should produce Diff
+            // Seed snapshot — subsequent buildDiff should produce Diff
             b.seedDiffBaseline(game)
 
             val result = BundleBuilder(b, "test-match", 1).postAction(game, MessageCounter(initialGsId = 10, initialMsgId = 0))
@@ -591,11 +591,11 @@ class GameBridgeTest :
 
             val game = b.getGame()!!
 
-            // No diff baseline yet — buildDiffFromSnapshot with null prev falls back to Full
+            // No diff baseline yet — buildDiff with null prev falls back to Full
             b.lastSent.shouldBeNull()
 
             val snapFull = GsmSnapshot.capture(game, b, "test-match", 1)
-            val gs = StateMapper.buildDiffFromSnapshot(null, snapFull, 1, "test-match", b).gsm
+            val gs = StateMapper.buildDiff(null, snapFull, 1, "test-match", b).gsm
             gs.type shouldBe Messages.GameStateType.Full
             (gs.zonesCount > 0).shouldBeTrue()
         }
