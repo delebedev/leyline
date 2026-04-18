@@ -26,7 +26,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Task 6: populates [GsmSnapshot.objects] — one [CardSnapshot] per card in any zone.
  *   Later tasks populate each section as the corresponding mapper migrates.
  */
-internal object SnapshotCapture {
+object SnapshotCapture {
     fun run(game: Game, bridge: GameBridge, matchId: String): GsmSnapshot {
         val human = bridge.getPlayer(SeatId(1))
         val seats = listOf(1, 2).mapNotNull { seatNum ->

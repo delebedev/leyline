@@ -12,6 +12,7 @@ import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
 import leyline.game.mapper.ActionMapper
+import leyline.game.snapshot.SnapshotCapture
 import leyline.match.MatchSession
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -389,7 +390,8 @@ class DebugServer(
             .setGameStateMessage(fullGsm)
             .build()
 
-        val actions = ActionMapper.buildActions(session.seatId.value, bridge)
+        val snap = SnapshotCapture.run(game, bridge, session.matchId)
+        val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
         val greActions = GREToClientMessage.newBuilder()
             .setType(GREMessageType.ActionsAvailableReq_695e)
             .setMsgId(counter.nextMsgId())
@@ -505,7 +507,8 @@ class DebugServer(
             .setGameStateMessage(gsmWithDeletes)
             .build()
 
-        val actions = ActionMapper.buildActions(session.seatId.value, bridge)
+        val snap = SnapshotCapture.run(game, bridge, session.matchId)
+        val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
         val greActions = GREToClientMessage.newBuilder()
             .setType(GREMessageType.ActionsAvailableReq_695e)
             .setMsgId(counter.nextMsgId())
