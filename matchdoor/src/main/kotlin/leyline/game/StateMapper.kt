@@ -420,9 +420,18 @@ object StateMapper {
 
         // Snap-vs-snap object delta: any card whose CardSnapshot field-equality differs.
         // Plus opponent-hand filter + active-reveal exception preserved.
-        val changedFids = cur.objects.keys.asSequence()
+        val cardSnapshotChangedFids = cur.objects.keys.asSequence()
             .filter { fid -> prev.objects[fid] != cur.objects[fid] }
             .toSet()
+
+        // Cards whose zone changed (CardSnapshot doesn't carry zoneId; ZoneSnapshot.contents does).
+        val prevZoneOf: Map<ForgeCardId, Int> = prev.zones.values.flatMap { z -> z.contents.map { it to z.id } }.toMap()
+        val curZoneOf: Map<ForgeCardId, Int> = cur.zones.values.flatMap { z -> z.contents.map { it to z.id } }.toMap()
+        val zoneMovedFids = (prevZoneOf.keys + curZoneOf.keys).asSequence()
+            .filter { fid -> prevZoneOf[fid] != curZoneOf[fid] }
+            .toSet()
+
+        val changedFids = cardSnapshotChangedFids + zoneMovedFids
         val changedInstanceIds = changedFids.map { bridge.getOrAllocInstanceId(it).value }.toSet()
         // instanceIds tracked in the prev snapshot (to detect truly new objects like RevealedCard proxies)
         val prevInstanceIds = prev.objects.keys.map { bridge.getOrAllocInstanceId(it).value }.toSet()
