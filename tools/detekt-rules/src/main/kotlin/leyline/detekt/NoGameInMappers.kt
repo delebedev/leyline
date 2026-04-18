@@ -19,8 +19,17 @@ import org.jetbrains.kotlin.psi.KtImportDirective
  *
  * Allowed: `leyline/game/BundleBuilder.kt`, `leyline/game/snapshot/` (all files).
  * Denied: `leyline/game/mapper/` (all files), `leyline/game/StateMapper.kt`,
- * `leyline/game/GameEventCollector.kt`, `leyline/game/AnnotationBuilder.kt`,
- * `leyline/game/AnnotationOrderEnforcer.kt`, `leyline/game/GsmBuilder.kt`.
+ * `leyline/game/AnnotationBuilder.kt`, `leyline/game/AnnotationOrderEnforcer.kt`,
+ * `leyline/game/GsmBuilder.kt`.
+ *
+ * **`GameEventCollector` is intentionally excluded from the denied set.**
+ * It is a Guava EventBus subscriber: event-handler methods fire synchronously
+ * on the engine thread with live Forge objects in hand (e.g. `SpellAbilityView`,
+ * live stack). Some reads (stack peek for `SpellAbility` alt-cost / mill source)
+ * inherently need the live engine and cannot be served by a snapshot. Card-by-id
+ * lookups have been migrated to `bridge.findCard(fid)`. The remaining
+ * `bridge.getGame()` calls are scoped to stack-peek reads that are structurally
+ * outside the GSM pipeline's snapshot discipline.
  */
 class NoGameInMappers(config: Config = Config.empty) : Rule(config) {
     override val issue = Issue(
@@ -38,7 +47,6 @@ class NoGameInMappers(config: Config = Config.empty) : Rule(config) {
     private val deniedPathFragments = listOf(
         "/leyline/game/mapper/",
         "/leyline/game/StateMapper.kt",
-        "/leyline/game/GameEventCollector.kt",
         "/leyline/game/AnnotationBuilder.kt",
         "/leyline/game/AnnotationOrderEnforcer.kt",
         "/leyline/game/GsmBuilder.kt",

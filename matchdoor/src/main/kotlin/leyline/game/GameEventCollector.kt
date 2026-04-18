@@ -117,8 +117,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
 
     override fun visit(ev: GameEventLandPlayed) {
         val seat = seatOf(ev.player()) ?: return
-        val colorOrdinals = bridge.getGame()
-            ?.findById(ev.land().id)
+        val colorOrdinals = bridge.findCard(ForgeCardId(ev.land().id))
             ?.let(::computeColorOrdinals)
             ?: emptyList()
         queue.add(GameEvent.LandPlayed(ForgeCardId(ev.land().id), seat, colorOrdinals))
@@ -134,7 +133,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
                 color = mp.color().toInt() and 0xFF,
             )
         }
-        val realCard = bridge.getGame()?.findById(card.id)
+        val realCard = bridge.findCard(ForgeCardId(card.id))
         val isAdventure = realCard != null &&
             realCard.isAdventureCard &&
             realCard.currentStateName == forge.card.CardStateName.Secondary

@@ -63,6 +63,15 @@ class NoGameInMappersTest :
             lintAt(code, "/tmp/leyline/game/snapshot/SnapshotCapture.kt") shouldBe 0
         }
 
+        test("forge.game.Game import inside GameEventCollector is allowed (EventBus subscriber)") {
+            val code = """
+                package leyline.game
+                import forge.game.Game
+                class GameEventCollector
+            """.trimIndent()
+            lintAt(code, "/tmp/leyline/game/GameEventCollector.kt") shouldBe 0
+        }
+
         test("unrelated import inside a mapper is not flagged") {
             val code = """
                 package leyline.game.mapper
