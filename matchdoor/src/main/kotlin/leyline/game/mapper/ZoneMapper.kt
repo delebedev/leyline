@@ -9,6 +9,7 @@ import leyline.bridge.ForgeCardId
 import leyline.game.CardData
 import leyline.game.EffectTracker
 import leyline.game.GameBridge
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -168,6 +169,123 @@ object ZoneMapper {
             val ownerSeatId = if (card.owner == human) 1 else 2
             val controllerSeatId = if (card.controller == human) 1 else 2
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            zoneBuilder.addObjectInstanceIds(instanceId)
+
+            gameObjects.add(
+                ObjectMapper.buildSharedCardObject(card, instanceId, arenaZoneId, ownerSeatId, controllerSeatId, bridge, game, keywordSnapshot),
+            )
+        }
+        zones.add(zoneBuilder.build())
+    }
+
+    // --- Snapshot-based player zones ---
+
+    /**
+     * Snapshot-based equivalent of [addPlayerZones].
+     *
+     * Reads card lists from [snap]'s zones map (keyed by arena zone ID) and looks up
+     * each Forge [Card] via [bridge.findCard]. Cards not resolved (null) are skipped —
+     * same behaviour as legacy when a card isn't found. ObjectMapper still takes a
+     * live [Card]; per-card state migration is Task 6.
+     */
+    @Suppress("detekt:LongParameterList")
+    internal fun addPlayerZonesFromSnapshot(
+        seatId: Int,
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+        zones: MutableList<ZoneInfo>,
+        gameObjects: MutableList<GameObjectInfo>,
+        handZoneId: Int,
+        libZoneId: Int,
+        gyZoneId: Int,
+        viewingSeatId: Int = 0,
+        revealForSeat: Int? = null,
+        revealHand: Boolean = false,
+    ) {
+        val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId || revealHand
+        val handVisibility = if (revealHand) Visibility.Public else Visibility.Private
+        val handBuilder = ZoneInfo.newBuilder()
+            .setZoneId(handZoneId).setType(ZoneType.Hand)
+            .setOwnerSeatId(seatId).setVisibility(handVisibility)
+            .addViewers(seatId)
+        if (revealHand) {
+            val viewerSeat = if (seatId == 1) 2 else 1
+            handBuilder.addViewers(viewerSeat)
+        }
+        val cardVisibility = if (revealHand) Visibility.Public else Visibility.Private
+        for (fid in snap.zones[handZoneId]?.contents ?: emptyList()) {
+            val card = bridge.findCard(fid) ?: continue
+            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            handBuilder.addObjectInstanceIds(instanceId)
+            if (canSeeHand) {
+                gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, handZoneId, seatId, bridge, cardVisibility))
+            }
+        }
+        zones.add(handBuilder.build())
+
+        val revealLib = revealForSeat == seatId
+        val libBuilder = ZoneInfo.newBuilder()
+            .setZoneId(libZoneId).setType(ZoneType.Library)
+            .setOwnerSeatId(seatId).setVisibility(Visibility.Hidden)
+        for (fid in snap.zones[libZoneId]?.contents ?: emptyList()) {
+            val card = bridge.findCard(fid) ?: continue
+            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            libBuilder.addObjectInstanceIds(instanceId)
+            if (revealLib) {
+                val obj = ObjectMapper.buildCardObject(card, instanceId, libZoneId, seatId, bridge, Visibility.Private)
+                    .toBuilder().addViewers(seatId).build()
+                gameObjects.add(obj)
+            }
+        }
+        zones.add(libBuilder.build())
+
+        val gyBuilder = ZoneInfo.newBuilder()
+            .setZoneId(gyZoneId).setType(ZoneType.Graveyard)
+            .setOwnerSeatId(seatId).setVisibility(Visibility.Public)
+        for (fid in snap.zones[gyZoneId]?.contents ?: emptyList()) {
+            val card = bridge.findCard(fid) ?: continue
+            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            gyBuilder.addObjectInstanceIds(instanceId)
+            gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, gyZoneId, seatId, bridge, Visibility.Public))
+        }
+        zones.add(gyBuilder.build())
+    }
+
+    // --- Snapshot-based shared zones ---
+
+    /**
+     * Snapshot-based equivalent of [addSharedZoneCards].
+     *
+     * Reads the card list from [snap]'s zones map for [arenaZoneId] and looks up
+     * each Forge [Card] via [bridge.findCard]. Cards not resolved (null) are skipped.
+     * The [forgeZone] and [human] params are retained for signature parity with the
+     * legacy method; [human] is still needed to determine owner/controller seat.
+     */
+    @Suppress("detekt:LongParameterList", "detekt:UnusedParameter") // forgeZone kept for signature parity with legacy addSharedZoneCards; used by T5+
+    internal fun addSharedZoneCardsFromSnapshot(
+        snap: GsmSnapshot,
+        forgeZone: ForgeZoneType,
+        arenaZoneId: Int,
+        bridge: GameBridge,
+        zones: MutableList<ZoneInfo>,
+        gameObjects: MutableList<GameObjectInfo>,
+        human: Player?,
+        keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
+    ) {
+        val zoneBuilder = zones.find { it.zoneId == arenaZoneId }?.toBuilder() ?: return
+        zones.removeIf { it.zoneId == arenaZoneId }
+
+        val game = bridge.getGame() ?: run {
+            zones.add(zoneBuilder.build())
+            return
+        }
+        for (fid in snap.zones[arenaZoneId]?.contents ?: emptyList()) {
+            val card = bridge.findCard(fid) ?: continue
+            // Filter synthetic engine objects (DetachedCardEffect etc.) — not real cards
+            if (card.gamePieceType != forge.card.GamePieceType.CARD && !card.isToken) continue
+            val ownerSeatId = if (card.owner == human) 1 else 2
+            val controllerSeatId = if (card.controller == human) 1 else 2
+            val instanceId = bridge.getOrAllocInstanceId(fid).value
             zoneBuilder.addObjectInstanceIds(instanceId)
 
             gameObjects.add(

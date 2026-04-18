@@ -182,6 +182,13 @@ class GameBridge(
         private set
 
     /**
+     * Look up a Forge [Card] by [ForgeCardId]. Used by snapshot-based pipeline stages
+     * that need per-card Forge state while [ObjectMapper] and downstream callers
+     * migrate to [GsmSnapshot]. Returns null if the card is not in any zone.
+     */
+    fun findCard(fid: ForgeCardId): Card? = game?.findById(fid.value)
+
+    /**
      * Resolve a Forge [Card] to its client grpId — single entry point for all callers.
      *
      * Encapsulates the full token resolution chain (registry cache → copy permanent →
