@@ -12,6 +12,7 @@ import leyline.bridge.GameBootstrap
 import leyline.bridge.SeatId
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.TestCardRegistry
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.SubType
 
@@ -115,7 +116,8 @@ class TokenDiffStabilityTest :
 
             val clueIid = castInspectorAndWaitForClue(h)
 
-            val gsm = StateMapper.buildFromGame(h.game(), 1, "test-clue", h.bridge, viewingSeatId = 1).gsm
+            val snapClue1 = GsmSnapshot.capture(h.game(), h.bridge, "test-clue", 1)
+            val gsm = StateMapper.buildFromSnapshot(snapClue1, 1, "test-clue", h.bridge, viewingSeatId = 1).gsm
             val clueObj = gsm.gameObjectsList.firstOrNull { it.instanceId == clueIid }
                 .shouldNotBeNull()
 
@@ -133,7 +135,8 @@ class TokenDiffStabilityTest :
             val clueIid = castInspectorAndWaitForClue(h)
 
             // First GSM — baseline
-            val gsm1 = StateMapper.buildFromGame(h.game(), 1, "test-clue", h.bridge, viewingSeatId = 1).gsm
+            val snapClue2 = GsmSnapshot.capture(h.game(), h.bridge, "test-clue", 1)
+            val gsm1 = StateMapper.buildFromSnapshot(snapClue2, 1, "test-clue", h.bridge, viewingSeatId = 1).gsm
             h.bridge.snapshotDiffBaseline(gsm1)
 
             val clueObj1 = gsm1.gameObjectsList.first { it.instanceId == clueIid }

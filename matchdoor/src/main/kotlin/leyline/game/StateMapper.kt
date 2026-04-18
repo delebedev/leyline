@@ -23,7 +23,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Orchestrates the Forge→proto state mapping pipeline.
  *
  * Two core methods:
- * - [buildFromGame]: Full [GameStateMessage] from live engine state (zones, objects,
+ * - [buildFromSnapshot]: Full [GameStateMessage] from an immutable [GsmSnapshot] (zones, objects,
  *   players, annotations via [ZoneTransferDetector], [TransferAnnotations], [CombatAnnotations], [MechanicAnnotations])
  * - [buildDiffFromGame]: Diff GSM containing only changes since the current diff baseline
  *
@@ -35,7 +35,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
 object StateMapper {
     private val log = LoggerFactory.getLogger(StateMapper::class.java)
 
-    /** Result of [buildFromGame] — GSM plus metadata for message framing. */
+    /** Result of [buildFromSnapshot] — GSM plus metadata for message framing. */
     data class BuildResult(
         val gsm: GameStateMessage,
         /** True if a CastSpell zone transfer was detected (triggers QueuedGSM split). */
@@ -43,17 +43,16 @@ object StateMapper {
     )
 
     /**
-     * Build a full [GameStateMessage] from live Forge [forge.game.Game] state.
-     * Reads zones, players, phase info from the engine and maps cards
-     * to client instanceIds via the bridge's card ID mapping.
+     * Build a Full [GameStateMessage] from an immutable [GsmSnapshot].
+     * Maps cards to client instanceIds via the bridge's card ID mapping.
      *
      * [viewingSeatId] controls hand visibility: opponent's hand cards get
      * objectInstanceIds (for card count) but no GameObjectInfo (renders face-down).
      * Use 0 to include all objects (internal snapshots for diffing).
      */
     @Suppress("LongMethod")
-    fun buildFromGame(
-        game: Game,
+    fun buildFromSnapshot(
+        snap: GsmSnapshot,
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
@@ -62,7 +61,6 @@ object StateMapper {
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
     ): BuildResult {
-        val snap = leyline.game.snapshot.GsmSnapshot.capture(game, bridge, matchId, gameStateId)
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
         val frame = GsmFrame.from(snap)
@@ -176,7 +174,7 @@ object StateMapper {
         applyRevealProxies(activeReveal, snap, bridge, zones, gameObjects, events)
 
         log.info(
-            "buildFromGame: phase={} turn={} hand={} objects={} zones={}",
+            "buildFromSnapshot: phase={} turn={} hand={} objects={} zones={}",
             snap.phase.phase,
             snap.phase.turn,
             human?.getZone(ForgeZoneType.Hand)?.size() ?: 0,
@@ -228,7 +226,7 @@ object StateMapper {
 
         // ═══ APPLY: deferred tracking effects (for next GSM) ═══
         // Must run AFTER assembleGsm — the GSM already embedded batch.allAnnotations.
-        // applyBatchResult replaces the live store so the next buildFromGame sees updated state.
+        // applyBatchResult replaces the live store so the next buildFromSnapshot sees updated state.
         for (id in transferResult.retiredIds) bridge.retireToLimbo(InstanceId(id))
         for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(InstanceId(iid), zid)
         bridge.annotations.applyBatchResult(remaining.batch)
@@ -258,10 +256,11 @@ object StateMapper {
         revealForSeat: Int? = null,
     ): BuildResult {
         val prev = bridge.getDiffBaselineState()
+        val snap = GsmSnapshot.capture(game, bridge, matchId, gameStateId)
         if (prev == null) {
             // No baseline exists — fall back to Full, but snapshot it so the next
             // buildDiffFromGame call has a baseline and produces a real Diff.
-            val result = buildFromGame(game, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat)
+            val result = buildFromSnapshot(snap, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat)
             bridge.snapshotDiffBaseline(result.gsm)
             return result
         }
@@ -269,7 +268,7 @@ object StateMapper {
         // Build current full state (for comparison + to seed next diff).
         // Pass actions=null to avoid redundant action embedding (we embed below).
         // Use viewingSeatId=0 for the comparison base (needs all objects for accurate diff).
-        val fullResult = buildFromGame(game, gameStateId, matchId, bridge, revealForSeat = revealForSeat)
+        val fullResult = buildFromSnapshot(snap, gameStateId, matchId, bridge, revealForSeat = revealForSeat)
         val current = fullResult.gsm
 
         // Compute changed zones (by objectInstanceIds)
@@ -329,7 +328,7 @@ object StateMapper {
         // Embed stripped-down actions + set pendingMessageCount when AAR follows
         if (actions != null) {
             builder.setPendingMessageCount(1)
-            // Priority player was already resolved during buildFromGame — read from the built GSM.
+            // Priority player was already resolved during buildFromSnapshot — read from the built GSM.
             val activeSeat = current.turnInfo.priorityPlayer
             for (action in actions.actionsList) {
                 builder.addActions(

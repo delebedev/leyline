@@ -26,7 +26,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  *
  * **Carry forward:** [computeBatch] starts from the current [snapshot] — all
  * existing pAnns survive unless a step explicitly removes them. The snapshot
- * is taken *before* the COMPUTE phase in [StateMapper.buildFromGame], so the
+ * is taken *before* the COMPUTE phase in [StateMapper.buildFromSnapshot], so the
  * batch sees the previous GSM's state.
  *
  * **Replace-on-update:** Counters use upsert semantics — when a counter of
@@ -92,7 +92,7 @@ class PersistentAnnotationStore {
          * in step 3 if the aura was simultaneously destroyed.
          *
          * **Snapshot timing:** [currentActive] must be a snapshot taken *before*
-         * the annotation pipeline runs. [StateMapper.buildFromGame] captures it
+         * the annotation pipeline runs. [StateMapper.buildFromSnapshot] captures it
          * in the GATHER phase so the COMPUTE phase (which calls this) is pure.
          *
          * @param resolveForgeCardId reverse-resolves instanceId → forgeCardId.
@@ -531,7 +531,7 @@ class PersistentAnnotationStore {
      *
      * **Must be called in the APPLY phase** (after GSM assembly), not during
      * COMPUTE. The GSM embeds [BatchResult.allAnnotations] directly — applying
-     * before assembly would double-count. [StateMapper.buildFromGame] enforces
+     * before assembly would double-count. [StateMapper.buildFromSnapshot] enforces
      * this: GATHER → COMPUTE → ASSEMBLE → APPLY.
      */
     fun applyBatchResult(result: BatchResult) {

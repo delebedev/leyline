@@ -16,6 +16,7 @@ import leyline.game.PuzzleSource
 import leyline.game.StateMapper
 import leyline.game.advanceToMain1
 import leyline.game.awaitFreshPending
+import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
@@ -290,8 +291,10 @@ open class ConformanceTestBase {
         game: Game,
         b: GameBridge,
         gsId: Int,
-    ): GameStateMessage =
-        StateMapper.buildFromGame(game, gsId, TEST_MATCH_ID, b, viewingSeatId = SEAT_ID).gsm
+    ): GameStateMessage {
+        val snap = GsmSnapshot.capture(game, b, TEST_MATCH_ID, gsId)
+        return StateMapper.buildFromSnapshot(snap, gsId, TEST_MATCH_ID, b, viewingSeatId = SEAT_ID).gsm
+    }
 
     /** Play a land and capture the resulting GSM. */
     fun playLandAndCapture(): GameStateMessage? {

@@ -15,6 +15,7 @@ import leyline.bridge.SeatId
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.TestCardRegistry
 import leyline.conformance.detailInt
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -116,7 +117,8 @@ class CopyTokenIntegrationTest :
             copyToken.isToken.shouldBeTrue()
 
             // Build GSM and find the copy token object
-            val gsm = StateMapper.buildFromGame(h.game(), 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
+            val snapCopy1 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 1)
+            val gsm = StateMapper.buildFromSnapshot(snapCopy1, 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
             val copyObj = gsm.gameObjectsList.firstOrNull { it.instanceId == copyIid }
                 .shouldNotBeNull()
 
@@ -137,7 +139,8 @@ class CopyTokenIntegrationTest :
 
             val (_, copyIid) = castAndResolveCopy(h)
 
-            val gsm = StateMapper.buildFromGame(h.game(), 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
+            val snapCopy2 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 1)
+            val gsm = StateMapper.buildFromSnapshot(snapCopy2, 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
             val copyObj = gsm.gameObjectsList.first { it.instanceId == copyIid }
 
             assertSoftly {
@@ -156,7 +159,8 @@ class CopyTokenIntegrationTest :
             val (_, copyIid) = castAndResolveCopy(h)
 
             // First GSM — establishes baseline
-            val gsm1 = StateMapper.buildFromGame(h.game(), 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
+            val snapCopy3 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 1)
+            val gsm1 = StateMapper.buildFromSnapshot(snapCopy3, 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
             h.bridge.snapshotDiffBaseline(gsm1)
 
             // Trigger a state change (pass priority) so a diff is generated
@@ -192,7 +196,8 @@ class CopyTokenIntegrationTest :
             copyToken.hasSVar("EndOfTurnLeavePlay").shouldBeTrue()
 
             // Build GSM — should have TemporaryPermanent persistent annotation
-            val gsm = StateMapper.buildFromGame(h.game(), 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
+            val snapCopy4 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 1)
+            val gsm = StateMapper.buildFromSnapshot(snapCopy4, 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
             val tempPerm = gsm.persistentAnnotationsList
                 .firstOrNull { ann ->
                     ann.typeList.contains(AnnotationType.TemporaryPermanent) &&
@@ -260,7 +265,8 @@ class CopyTokenIntegrationTest :
             copyToken.copiedPermanent.shouldNotBeNull()
             copyToken.isToken.shouldBeTrue()
 
-            val gsm = StateMapper.buildFromGame(h.game(), 1, "test-homunculus", h.bridge, viewingSeatId = 1).gsm
+            val snapHom1 = GsmSnapshot.capture(h.game(), h.bridge, "test-homunculus", 1)
+            val gsm = StateMapper.buildFromSnapshot(snapHom1, 1, "test-homunculus", h.bridge, viewingSeatId = 1).gsm
             val copyObj = gsm.gameObjectsList.firstOrNull { it.instanceId == copyIid }
                 .shouldNotBeNull()
 
@@ -286,7 +292,8 @@ class CopyTokenIntegrationTest :
             // Permanent copy — no EOT sacrifice SVar
             copyToken.hasSVar("EndOfTurnLeavePlay") shouldBe false
 
-            val gsm = StateMapper.buildFromGame(h.game(), 1, "test-homunculus", h.bridge, viewingSeatId = 1).gsm
+            val snapHom2 = GsmSnapshot.capture(h.game(), h.bridge, "test-homunculus", 1)
+            val gsm = StateMapper.buildFromSnapshot(snapHom2, 1, "test-homunculus", h.bridge, viewingSeatId = 1).gsm
             val tempPerm = gsm.persistentAnnotationsList
                 .firstOrNull { ann ->
                     ann.typeList.contains(AnnotationType.TemporaryPermanent) &&

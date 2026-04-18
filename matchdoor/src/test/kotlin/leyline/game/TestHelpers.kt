@@ -4,6 +4,7 @@ import forge.game.Game
 import leyline.bridge.GameActionBridge
 import leyline.bridge.InteractivePromptBridge
 import leyline.bridge.PlayerAction
+import leyline.game.snapshot.GsmSnapshot
 
 /**
  * Shared test helpers for GameBridge-based tests.
@@ -18,7 +19,8 @@ import leyline.bridge.PlayerAction
  * this wrapper avoids boilerplate in tests.
  */
 fun GameBridge.snapshotFromGame(game: Game, gameStateId: Int = 0) {
-    snapshotDiffBaseline(StateMapper.buildFromGame(game, gameStateId, "", this).gsm)
+    val snap = GsmSnapshot.capture(game, this, "", gameStateId)
+    snapshotDiffBaseline(StateMapper.buildFromSnapshot(snap, gameStateId, "", this).gsm)
 }
 
 /**

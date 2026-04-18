@@ -13,6 +13,7 @@ import leyline.bridge.GameBootstrap
 import leyline.bridge.PlayerAction
 import leyline.bridge.SeatId
 import leyline.conformance.TestCardRegistry
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -54,7 +55,8 @@ class EffectLifecycleTest :
             val game = b.getGame()!!
 
             // Build full state — exercises snapshotBoosts + diffBoosts + effectAnnotations
-            val gsm1 = StateMapper.buildFromGame(game, 1, "test", b).gsm
+            val snapEff1 = GsmSnapshot.capture(game, b, "test", 1)
+            val gsm1 = StateMapper.buildFromSnapshot(snapEff1, 1, "test", b).gsm
             b.snapshotDiffBaseline(gsm1)
 
             gsm1 shouldNotBe null
@@ -90,7 +92,8 @@ class EffectLifecycleTest :
             val swiftspearIid = b.getOrAllocInstanceId(ForgeCardId(swiftspear.id)).value
 
             // Take initial snapshot (gsId=1)
-            val gsm1 = StateMapper.buildFromGame(game, 1, "test", b).gsm
+            val snapEff2 = GsmSnapshot.capture(game, b, "test", 1)
+            val gsm1 = StateMapper.buildFromSnapshot(snapEff2, 1, "test", b).gsm
             b.snapshotDiffBaseline(gsm1)
 
             // Cast Giant Growth targeting Swiftspear
@@ -128,7 +131,8 @@ class EffectLifecycleTest :
             swiftspear.netToughness shouldBeGreaterThan 2
 
             // Build full GSM to capture all annotations including effects
-            val gsm2 = StateMapper.buildFromGame(game, 2, "test", b).gsm
+            val snapEff3 = GsmSnapshot.capture(game, b, "test", 2)
+            val gsm2 = StateMapper.buildFromSnapshot(snapEff3, 2, "test", b).gsm
 
             val allTransient = gsm2.annotationsList
             val allPersistent = gsm2.persistentAnnotationsList

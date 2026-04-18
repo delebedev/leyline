@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * atomically empties the queue and returns events in firing order, wrapped in
  * [DrainedEvents] to make single-use visible in the type system.
  *
- * **Drain exactly once per GSM build.** [StateMapper.buildFromGame] drains in
+ * **Drain exactly once per GSM build.** [StateMapper.buildFromSnapshot] drains in
  * the GATHER phase. Double-draining silently loses events — the second drain
  * returns an empty list with no error. The [DrainedEvents] wrapper prevents
  * accidental re-drain of the same result but cannot prevent calling
@@ -91,7 +91,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
      * Drain all queued events since last drain. Returns events in engine firing order.
      *
      * **Call exactly once per GSM build** — second call returns empty (events are gone).
-     * [StateMapper.buildFromGame] calls this in the GATHER phase before any annotation
+     * [StateMapper.buildFromSnapshot] calls this in the GATHER phase before any annotation
      * pipeline stages run.
      */
     fun drainEvents(): DrainedEvents = DrainedEvents(

@@ -372,8 +372,9 @@ object HandshakeMessages {
         }
 
         // Full GSM built from live game state (stage=Play, cards in zones)
-        val gsm = StateMapper.buildFromGame(
-            game = bridge.getGame()!!,
+        val snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, gameStateId)
+        val gsm = StateMapper.buildFromSnapshot(
+            snap = snap,
             gameStateId = gameStateId,
             matchId = matchId,
             bridge = bridge,

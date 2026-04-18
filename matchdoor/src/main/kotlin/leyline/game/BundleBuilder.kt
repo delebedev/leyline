@@ -869,7 +869,7 @@ class BundleBuilder(
         val prevGsId = counter.currentGsId()
         val losingTeam = if (winningTeam == 1) 2 else 1
 
-        // Shared GameInfo fields matching initial bundle (StateMapper.buildFromGame)
+        // Shared GameInfo fields matching initial bundle (StateMapper.buildFromSnapshot)
         fun baseGameInfo() = GameInfo.newBuilder()
             .setMatchID(matchId)
             .setGameNumber(1)

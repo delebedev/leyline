@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.SeatId
 import leyline.game.mapper.ZoneIds
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.GameVariant
 
 class CommanderPuzzleTest :
@@ -50,8 +51,9 @@ class CommanderPuzzleTest :
             zone26.objectInstanceIdsList.shouldNotBeEmpty()
 
             // Build a fresh GSM and check gameInfo has Brawl variant
-            val freshGsm = leyline.game.StateMapper.buildFromGame(
-                game,
+            val snapCommander = GsmSnapshot.capture(game, h.bridge, "test", 999)
+            val freshGsm = leyline.game.StateMapper.buildFromSnapshot(
+                snapCommander,
                 999,
                 "test",
                 h.bridge,

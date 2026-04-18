@@ -6,6 +6,7 @@ import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.game.StateMapper
 import leyline.game.mapper.ZoneIds
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.SuperType
@@ -59,9 +60,11 @@ class LibrarySearchConformanceTest :
 
             // Simulate what TargetingHandler.sendSearchReq does:
             // reveal library for seat 1, then build a GSM
-            val gsm = StateMapper.buildFromGame(
-                game,
-                counter.nextGsId(),
+            val gsId1 = counter.nextGsId()
+            val snapLib1 = GsmSnapshot.capture(game, bridge, ConformanceTestBase.TEST_MATCH_ID, gsId1)
+            val gsm = StateMapper.buildFromSnapshot(
+                snapLib1,
+                gsId1,
                 ConformanceTestBase.TEST_MATCH_ID,
                 bridge,
                 viewingSeatId = 1,
@@ -137,9 +140,11 @@ class LibrarySearchConformanceTest :
 
             val (bridge, game, counter) = base.startPuzzleAtMain1(puzzleText)
 
-            val gsm = StateMapper.buildFromGame(
-                game,
-                counter.nextGsId(),
+            val gsId2 = counter.nextGsId()
+            val snapLib2 = GsmSnapshot.capture(game, bridge, ConformanceTestBase.TEST_MATCH_ID, gsId2)
+            val gsm = StateMapper.buildFromSnapshot(
+                snapLib2,
+                gsId2,
                 ConformanceTestBase.TEST_MATCH_ID,
                 bridge,
                 viewingSeatId = 1,
