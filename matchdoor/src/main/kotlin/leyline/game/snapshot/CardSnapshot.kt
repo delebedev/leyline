@@ -9,6 +9,7 @@ import leyline.bridge.SeatId
  * Task 4 (ZoneMapper): adds `zone: ZoneId`.
  * Task 6 (ObjectMapper): adds power/toughness/tapped/keywords/counters/attachedTo/combat-state.
  * Task 8 (ActionMapper): adds flags ActionMapper reads (abilities, cost materials).
+ * Snap-diff (arena-lab-9d8): adds `isOnAdventure` + `endOfTurnLeavePlay` for pAnn paths.
  */
 data class CardSnapshot(
     val forgeCardId: ForgeCardId,
@@ -91,6 +92,20 @@ data class CardSnapshot(
      * Combat role for battlefield creatures; null for non-creatures or non-combat cards.
      */
     val combatRole: CombatRole? = null,
+
+    /**
+     * True when this card is currently in Exile and was exiled "on Adventure"
+     * (Forge's `card.isOnAdventure`). Drives Qualification pAnn for the
+     * cast-from-exile eligibility marker.
+     */
+    val isOnAdventure: Boolean = false,
+
+    /**
+     * True when the card is a token with the `EndOfTurnLeavePlay` SVar set
+     * (Forge's `card.isToken && card.hasSVar("EndOfTurnLeavePlay")`). Drives
+     * TemporaryPermanent pAnn so the client renders EOT-sacrifice tokens.
+     */
+    val endOfTurnLeavePlay: Boolean = false,
 )
 
 /**

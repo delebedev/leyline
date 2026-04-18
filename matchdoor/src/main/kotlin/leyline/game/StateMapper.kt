@@ -191,11 +191,21 @@ object StateMapper {
         val (annotations, transferPersistent, combatResult) =
             computeAnnotations(events, transferResult, actingSeat, bridge)
 
+        // Snap-derived pAnn inputs — computed here where snap is in scope.
+        val qualificationPersistentFromSnap = snap.objects.values
+            .filter { it.isOnAdventure }
+            .map { AnnotationBuilder.qualification(instanceId = bridge.getOrAllocInstanceId(it.forgeCardId)) }
+        val temporaryPermanentPersistentFromSnap = snap.objects.values
+            .filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
+            .map { AnnotationBuilder.temporaryPermanent(bridge.getOrAllocInstanceId(it.forgeCardId)) }
+
         // Stages 4-5 + persistent computation
         val remaining = computeRemainingAnnotations(
             events, annotations, transferPersistent, initEffectDiff, effectDiff,
             persistSnapshot, startPersistentId, startAnnotationId, bridge, keywordDiff,
             combatResult,
+            qualificationPersistentFromSnap = qualificationPersistentFromSnap,
+            temporaryPermanentPersistentFromSnap = temporaryPermanentPersistentFromSnap,
         )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
@@ -430,6 +440,8 @@ object StateMapper {
         bridge: GameBridge,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
+        qualificationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        temporaryPermanentPersistentFromSnap: List<AnnotationInfo> = emptyList(),
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds = events
             .filterIsInstance<GameEvent.SpellCast>()
@@ -500,28 +512,10 @@ object StateMapper {
         annotations.addAll(effectTransient)
 
         // Qualification pAnn for adventure-exiled cards (cast-from-exile eligibility marker)
-        val qualificationPersistent = if (game != null) {
-            game.registeredPlayers
-                .flatMap { it.getZone(forge.game.zone.ZoneType.Exile).cards.toList() }
-                .filter { it.isOnAdventure }
-                .map { card ->
-                    val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id))
-                    AnnotationBuilder.qualification(instanceId = iid)
-                }
-        } else {
-            emptyList()
-        }
+        val qualificationPersistent = qualificationPersistentFromSnap
 
         // TemporaryPermanent pAnn for any token with EOT-sacrifice (copy or otherwise)
-        val temporaryPermanentPersistent = if (game != null) {
-            bfCards.filter { it.isToken && it.hasSVar("EndOfTurnLeavePlay") }
-                .map { card ->
-                    val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id))
-                    AnnotationBuilder.temporaryPermanent(iid)
-                }
-        } else {
-            emptyList()
-        }
+        val temporaryPermanentPersistent = temporaryPermanentPersistentFromSnap
 
         // TargetSpec pAnn for each targeted spell/ability on the stack
         val targetSpecPersistent = buildTargetSpecAnnotations(bridge)

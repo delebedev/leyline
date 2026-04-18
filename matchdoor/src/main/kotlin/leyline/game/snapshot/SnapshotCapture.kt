@@ -285,6 +285,8 @@ object SnapshotCapture {
             hasSickness = onBf && type.isCreature && card.hasSickness(),
             damage = if (onBf && type.isCreature) card.damage else 0,
             currentLoyalty = if (onBf && type.isPlaneswalker) card.currentLoyalty else 0,
+            isOnAdventure = card.isOnAdventure,
+            endOfTurnLeavePlay = card.isToken && card.hasSVar("EndOfTurnLeavePlay"),
             isToken = card.isToken,
             isCopyToken = card.isToken && card.copiedPermanent != null,
             attachedTo = attachedTo,
