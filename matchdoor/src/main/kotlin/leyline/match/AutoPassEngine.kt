@@ -16,12 +16,16 @@ import org.slf4j.LoggerFactory
  * [CombatHandler] / [TargetingHandler] when interactive prompts arise.
  *
  * Extracted from [MatchSession] for independent testability.
- * Uses [SessionOps] for message sending and tracing. Protocol sequencing
+ * Uses five focused interfaces for message sending and tracing. Protocol sequencing
  * uses the shared [MessageCounter][leyline.game.MessageCounter] via
- * `ops.counter` — no seeding or syncing needed.
+ * `counters.counter` — no seeding or syncing needed.
  */
 class AutoPassEngine(
-    private val ops: SessionOps,
+    private val sink: GreMessageSink,
+    private val counters: SessionCounters,
+    private val tracer: SessionTracer,
+    private val bundles: BundleBuilderHolder,
+    private val pacing: Pacing,
     private val combatHandler: CombatHandler,
     private val targetingHandler: TargetingHandler,
     private val optionalActionHandler: OptionalActionHandler,
@@ -79,15 +83,15 @@ class AutoPassEngine(
         repeat(MAX_ITERATIONS) {
             val game = bridge.getGame() ?: return
             if (game.isGameOver) {
-                ops.traceEvent(MatchEventType.GAME_OVER, game, "game over detected")
-                ops.sendGameOver()
+                tracer.traceEvent(MatchEventType.GAME_OVER, game, "game over detected")
+                sink.sendGameOver()
                 return
             }
 
             // Drain pending AI-action diffs
             if (drainPlayback(bridge)) return@repeat
 
-            val human = bridge.getPlayer(ops.seatId)
+            val human = bridge.getPlayer(counters.seatId)
             val phase = game.phaseHandler.phase
             val isHumanTurn = human != null && game.phaseHandler.playerTurn == human
             val isAiTurn = human != null && !isHumanTurn
@@ -116,14 +120,14 @@ class AutoPassEngine(
                         // Still emit a state-only diff when actions are pass-only so
                         // combat/death animations don't collapse into the next later
                         // priority-stop packet on the human turn.
-                        val bb = ops.bundleBuilder!!
+                        val bb = bundles.bundleBuilder!!
                         val actions = bb.buildActions()
                         if (!BundleBuilder.shouldAutoPass(actions)) {
-                            ops.sendRealGameState(bridge)
+                            sink.sendRealGameState(bridge)
                             return
                         }
                         log.debug("SEND_STATE: emitting state-only diff at {}", phase)
-                        ops.sendBundle(bb.stateOnlyDiff(game, ops.counter))
+                        sink.sendBundle(bb.stateOnlyDiff(game, counters.counter))
                         return
                     }
                 }
@@ -144,7 +148,7 @@ class AutoPassEngine(
             val decision = checkHumanActions(game, isAiTurn)
             if (decision is PriorityDecision.Grant) {
                 if (drainPlayback(bridge)) return@repeat
-                ops.sendRealGameState(bridge)
+                sink.sendRealGameState(bridge)
                 return
             }
 
@@ -159,12 +163,12 @@ class AutoPassEngine(
         val phase2 = game2?.phaseHandler?.phase?.name ?: "?"
         val turn2 = game2?.phaseHandler?.turn ?: -1
         log.warn("autoPassAndAdvance: hit max iterations ({}) at phase={} turn={}", MAX_ITERATIONS, phase2, turn2)
-        val human2 = game2?.let { bridge.getPlayer(ops.seatId) }
+        val human2 = game2?.let { bridge.getPlayer(counters.seatId) }
         val stillAiTurn = human2 != null && game2.phaseHandler.playerTurn != human2
         if (stillAiTurn) {
             log.debug("max-iterations: AI turn, suppressing ActionsAvailableReq")
         } else {
-            ops.sendRealGameState(bridge)
+            sink.sendRealGameState(bridge)
         }
     }
 
@@ -176,12 +180,12 @@ class AutoPassEngine(
      * produced by [GamePlayback] already have correct sequence numbers.
      */
     private fun drainPlayback(bridge: GameBridge): Boolean {
-        val playback = bridge.playbacks[ops.seatId] ?: return false
+        val playback = bridge.playbacks[counters.seatId] ?: return false
         if (!playback.hasPendingMessages()) return false
         val batches = playback.drainQueue()
         for ((idx, batch) in batches.withIndex()) {
-            if (idx > 0) ops.paceDelay(1)
-            ops.sendBundledGRE(batch) // sendBundledGRE records client-seen turn info
+            if (idx > 0) pacing.paceDelay(1)
+            sink.sendBundledGRE(batch) // sendBundledGRE records client-seen turn info
         }
         log.debug("drainPlayback: drained {} batches", batches.size)
         // Do NOT snapshot current engine state here — the playback diffs represent
@@ -205,7 +209,7 @@ class AutoPassEngine(
         if (isAiTurn) {
             return PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
         }
-        val actions = ops.bundleBuilder!!.buildActions()
+        val actions = bundles.bundleBuilder!!.buildActions()
 
         // Full control: always grant priority (never auto-pass on session side)
         if (autoPassState.isFullControl) {
@@ -214,7 +218,7 @@ class AutoPassEngine(
                 actionCount = actions.actionsCount,
             )
             recordDecision(game, decision)
-            ops.traceEvent(MatchEventType.SEND_STATE, game, "fullControl: grant")
+            tracer.traceEvent(MatchEventType.SEND_STATE, game, "fullControl: grant")
             return decision
         }
 
@@ -222,7 +226,7 @@ class AutoPassEngine(
         if (autoPassState.shouldAutoPass() && BundleBuilder.shouldAutoPass(actions)) {
             val decision = PriorityDecision.Skip(AutoPassReason.ClientAutoPass)
             recordDecision(game, decision)
-            ops.traceEvent(MatchEventType.AUTO_PASS, game, "clientAutoPass: ${autoPassState.autoPassOption}")
+            tracer.traceEvent(MatchEventType.AUTO_PASS, game, "clientAutoPass: ${autoPassState.autoPassOption}")
             return decision
         }
 
@@ -241,7 +245,7 @@ class AutoPassEngine(
             actionCount = actions.actionsCount,
         )
         recordDecision(game, decision)
-        ops.traceEvent(MatchEventType.SEND_STATE, game, "actions: $actionSummary")
+        tracer.traceEvent(MatchEventType.SEND_STATE, game, "actions: $actionSummary")
         return decision
     }
 
@@ -251,7 +255,7 @@ class AutoPassEngine(
      * (priority granted to client, game over, or timeout).
      */
     private fun advanceOrWait(bridge: GameBridge, game: Game, phase: PhaseType?, isAiTurn: Boolean): LoopSignal {
-        val pending = bridge.seat(ops.seatId.value).action.getPending()
+        val pending = bridge.seat(counters.seatId.value).action.getPending()
         log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, game.phaseHandler.turn, isAiTurn, pending != null)
 
         if (pending != null) {
@@ -260,37 +264,37 @@ class AutoPassEngine(
             // Engine-internal AI_DEFAULTS in PhaseStopProfile are NOT checked
             // here — they're for the AI's own combat logic.
             if (isAiTurn && phase != null && autoPassState.hasOpponentStop(phase)) {
-                ops.traceEvent(MatchEventType.SEND_STATE, game, "opponentStop: ${phase.name}")
-                ops.sendRealGameState(bridge)
+                tracer.traceEvent(MatchEventType.SEND_STATE, game, "opponentStop: ${phase.name}")
+                sink.sendRealGameState(bridge)
                 return LoopSignal.EXIT // client will respond via onPerformAction
             }
 
-            ops.traceEvent(MatchEventType.AUTO_PASS, game, "human priority, pass-only")
+            tracer.traceEvent(MatchEventType.AUTO_PASS, game, "human priority, pass-only")
             // During AI turn, skip sending EdictalMessage — client never
             // sends edictal passes during AI turn. Sending them interrupts the
             // client's animation pipeline (enters post-pass "waiting" state).
             if (!isAiTurn) {
-                val edictal = ops.bundleBuilder!!.edictalPass(ops.counter)
-                ops.sendBundledGRE(edictal.messages)
+                val edictal = bundles.bundleBuilder!!.edictalPass(counters.counter)
+                sink.sendBundledGRE(edictal.messages)
             }
-            bridge.seat(ops.seatId.value).action.submitAction(pending.actionId, PlayerAction.PassPriority)
+            bridge.seat(counters.seatId.value).action.submitAction(pending.actionId, PlayerAction.PassPriority)
             bridge.awaitPriority()
         } else if (isAiTurn) {
-            ops.traceEvent(MatchEventType.AI_TURN_WAIT, game, "waiting for AI")
+            tracer.traceEvent(MatchEventType.AI_TURN_WAIT, game, "waiting for AI")
             val reachedPriority = bridge.awaitPriorityWithTimeout(bridge.matchConfig.server.aiTurnWaitMs)
             if (!reachedPriority) {
                 val g = bridge.getGame()
                 if (g != null && g.isGameOver) {
-                    ops.traceEvent(MatchEventType.GAME_OVER, game, "game over during AI wait")
-                    ops.sendGameOver()
+                    tracer.traceEvent(MatchEventType.GAME_OVER, game, "game over during AI wait")
+                    sink.sendGameOver()
                     return LoopSignal.EXIT
                 }
-                ops.traceEvent(MatchEventType.AI_TURN_TIMEOUT, game, "AI turn timed out")
+                tracer.traceEvent(MatchEventType.AI_TURN_TIMEOUT, game, "AI turn timed out")
                 log.warn("autoPass: AI turn timed out, suppressing ActionsAvailableReq")
                 return LoopSignal.EXIT
             }
         } else {
-            ops.traceEvent(MatchEventType.PRIORITY_GRANT, game, "waiting for engine")
+            tracer.traceEvent(MatchEventType.PRIORITY_GRANT, game, "waiting for engine")
             log.warn("autoPass: no pending action, waiting for priority")
             bridge.awaitPriority()
         }

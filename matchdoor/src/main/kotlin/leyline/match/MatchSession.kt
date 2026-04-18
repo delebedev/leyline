@@ -75,10 +75,31 @@ class MatchSession(
     val autoPassState = ClientAutoPassState()
 
     /** Sub-handlers for combat, targeting, optional actions, and auto-pass flows. */
-    val combatHandler = CombatHandler(this)
-    val targetingHandler = TargetingHandler(this)
-    val optionalActionHandler = OptionalActionHandler(this)
-    val autoPassEngine = AutoPassEngine(this, combatHandler, targetingHandler, optionalActionHandler, autoPassState)
+    val combatHandler = CombatHandler(
+        sink = this,
+        counters = this,
+        tracer = this,
+        bundles = this,
+        pacing = this,
+    )
+    val targetingHandler = TargetingHandler(
+        sink = this,
+        counters = this,
+        tracer = this,
+        bundles = this,
+    )
+    val optionalActionHandler = OptionalActionHandler(sink = this, counters = this)
+    val autoPassEngine = AutoPassEngine(
+        sink = this,
+        counters = this,
+        tracer = this,
+        bundles = this,
+        pacing = this,
+        combatHandler = combatHandler,
+        targetingHandler = targetingHandler,
+        optionalActionHandler = optionalActionHandler,
+        autoPassState = autoPassState,
+    )
 
     /**
      * Wire the game bridge (called by [MatchHandler] after bridge creation).

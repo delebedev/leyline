@@ -94,4 +94,31 @@ class SessionOpsDefaultsTest :
         test("connectBridge default is no-op") {
             shouldNotThrowAny { ops.connectBridge(GameBridge(cardRepository = InMemoryCardRepository())) }
         }
+
+        // --- ActionReceiver-only smoke tests ------------------------------------
+        // Pins that the on* no-op defaults live on ActionReceiver itself (not
+        // just reachable through SessionOps), so consumers narrowed to
+        // ActionReceiver don't need to override every method.
+
+        val actionReceiver = object : ActionReceiver {}
+
+        test("ActionReceiver.onPerformAction default is no-op") {
+            shouldNotThrowAny { actionReceiver.onPerformAction(dummyMsg) }
+        }
+
+        test("ActionReceiver.onDeclareAttackers default is no-op") {
+            shouldNotThrowAny { actionReceiver.onDeclareAttackers(dummyMsg) }
+        }
+
+        test("ActionReceiver.onSelectTargets default is no-op") {
+            shouldNotThrowAny { actionReceiver.onSelectTargets(dummyMsg) }
+        }
+
+        test("ActionReceiver.onConcede default is no-op") {
+            shouldNotThrowAny { actionReceiver.onConcede() }
+        }
+
+        test("ActionReceiver.onMulliganKeep default is no-op") {
+            shouldNotThrowAny { actionReceiver.onMulliganKeep() }
+        }
     })
