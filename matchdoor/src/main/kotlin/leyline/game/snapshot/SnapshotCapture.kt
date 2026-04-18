@@ -43,6 +43,11 @@ object SnapshotCapture {
         val phase = capturePhase(game, human)
         val stack = captureStack(game, bridge, human)
         val abilityWordEntries = computeAbilityWordEntries(game, bridge)
+        val persistentAnnotationState = PersistentAnnotationState(
+            activeAnnotations = bridge.annotations.snapshot(),
+            nextAnnotationId = bridge.annotations.currentAnnotationId(),
+            nextPersistentId = bridge.annotations.currentPersistentId(),
+        )
         return GsmSnapshot.forTest(
             matchId = matchId,
             gameStateId = gameStateId,
@@ -52,6 +57,7 @@ object SnapshotCapture {
             phase = phase,
             stack = stack,
             abilityWordEntries = abilityWordEntries,
+            persistentAnnotationState = persistentAnnotationState,
             capturedAt = CaptureMarker(
                 gsIdBeforeCapture = -1,
                 wallClockMs = System.currentTimeMillis(),
