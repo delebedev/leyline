@@ -373,8 +373,9 @@ class DebugServer(
         val gsId = counter.nextGsId()
         val msgId = counter.nextMsgId()
 
-        val fullGsm = StateMapper.buildFromGame(
-            game,
+        val snap = SnapshotCapture.run(game, bridge, session.matchId, gsId)
+        val fullGsm = StateMapper.buildFromSnapshot(
+            snap,
             gsId,
             session.matchId,
             bridge,
@@ -390,7 +391,6 @@ class DebugServer(
             .setGameStateMessage(fullGsm)
             .build()
 
-        val snap = SnapshotCapture.run(game, bridge, session.matchId)
         val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
         val greActions = GREToClientMessage.newBuilder()
             .setType(GREMessageType.ActionsAvailableReq_695e)
@@ -401,7 +401,7 @@ class DebugServer(
             .build()
 
         session.sendBundledGRE(listOf(greGsm, greActions))
-        bridge.snapshotDiffBaseline(fullGsm)
+        bridge.lastSent = snap
 
         val info = "Pushed full state gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
         log.info(info)
@@ -484,8 +484,9 @@ class DebugServer(
         val msgId = counter.nextMsgId()
 
         val game = bridge.getGame()!!
-        val fullGsm = StateMapper.buildFromGame(
-            game,
+        val snap = SnapshotCapture.run(game, bridge, session.matchId, gsId)
+        val fullGsm = StateMapper.buildFromSnapshot(
+            snap,
             gsId,
             session.matchId,
             bridge,
@@ -507,7 +508,6 @@ class DebugServer(
             .setGameStateMessage(gsmWithDeletes)
             .build()
 
-        val snap = SnapshotCapture.run(game, bridge, session.matchId)
         val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
         val greActions = GREToClientMessage.newBuilder()
             .setType(GREMessageType.ActionsAvailableReq_695e)
@@ -518,7 +518,7 @@ class DebugServer(
             .build()
 
         session.sendBundledGRE(listOf(greGsm, greActions))
-        bridge.snapshotDiffBaseline(gsmWithDeletes)
+        bridge.lastSent = snap
 
         return if (fileParam != null) {
             "Puzzle '$fileParam' set + injected gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
