@@ -75,7 +75,14 @@ class BundleBuilder(
             viewingSeatId = seatId,
             revealForSeat = revealForSeat,
         )
-        val actions = ActionMapper.buildActions(seatId, bridge)
+        val snap = GsmSnapshot.capture(game, bridge, matchId)
+        val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
+        if (leyline.DevCheck.strict) {
+            val actionsLegacy = ActionMapper.buildActions(seatId, bridge)
+            check(actions == actionsLegacy) {
+                "ActionMapper drift: snapshot path differs from legacy path for seat $seatId"
+            }
+        }
 
         // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
         // in StateMapper Stage 2b — no injection needed here.

@@ -18,6 +18,7 @@ import leyline.game.AbilityRegistry
 import leyline.game.CardData
 import leyline.game.GameBridge
 import leyline.game.ManaColorMapping
+import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -28,6 +29,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Depends on [IdMapping] (instanceId allocation) and [PlayerLookup] (seat → player).
  * Extracted from [StateMapper] for independent testability.
  */
+@Suppress("LargeClass") // buildFromSnapshot mirrors buildActionList — inherent size; split assessed
 object ActionMapper {
 
     private val log = LoggerFactory.getLogger(ActionMapper::class.java)
@@ -68,6 +70,347 @@ object ActionMapper {
             abilityRegistryLookup = { card, cardData -> bridge.abilityRegistryFor(card, cardData) },
         )
     }
+
+    // -------------------------------------------------------------------------
+    // Task 8: snapshot-driven overload
+    // -------------------------------------------------------------------------
+
+    /**
+     * Build [ActionsAvailableReq] from a pre-captured [GsmSnapshot].
+     *
+     * Zone iteration and card-identity reads come from the snapshot (immutable,
+     * race-free). Cost-legality checks route through [legalityFor] which reads
+     * the live Forge [Card] via [bridge] — this keeps cost-solver migration
+     * out of scope for this task.
+     *
+     * Mirrors [buildActionList] (checkLegality=true) branch by branch.
+     */
+    @Suppress("LongMethod", "CyclomaticComplexMethod") // mirrors buildActionList complexity
+    fun buildFromSnapshot(seatId: Int, snap: GsmSnapshot, bridge: GameBridge): ActionsAvailableReq {
+        val builder = ActionsAvailableReq.newBuilder()
+
+        val handZoneId = if (seatId == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
+        val hand = snap.zones[handZoneId]?.contents.orEmpty()
+        val battlefield = snap.zones[ZoneIds.BATTLEFIELD]?.contents.orEmpty()
+
+        // --- Battlefield: ActivateMana + Activate (own permanents only) ---
+        for (fid in battlefield) {
+            val card = snap.objects[fid] ?: continue
+            if (card.controller.value != seatId) continue
+
+            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            val grpId = card.grpId
+
+            if (!card.tapped && card.hasManaAbilities) {
+                val forgeCard = bridge.findCard(fid) ?: continue
+                builder.addActions(
+                    buildActivateManaAction(
+                        forgeCard,
+                        instanceId,
+                        grpId,
+                        { bridge.cardRepository.findByGrpId(it) },
+                        { c, d -> bridge.abilityRegistryFor(c, d) },
+                    ),
+                )
+            }
+
+            if (card.hasNonManaActivatedAbilities) {
+                val forgeCard = bridge.findCard(fid) ?: continue
+                val player = bridge.getPlayer(SeatId(seatId)) ?: continue
+                val cardData = bridge.cardRepository.findByGrpId(grpId)
+                for (ability in forgeCard.spellAbilities) {
+                    ability.setActivatingPlayer(player)
+                    if (!ability.isActivatedAbility) continue
+                    if (ability.isManaAbility()) continue
+                    if (!ability.canPlay()) continue
+                    val canPay = try {
+                        ComputerUtilMana.canPayManaCost(ability, player, 0, false)
+                    } catch (_: Exception) {
+                        false
+                    }
+                    val registry = bridge.abilityRegistryFor(forgeCard, cardData)
+                    val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
+                    if (canPay) {
+                        val actionBuilder = Action.newBuilder()
+                            .setActionType(ActionType.Activate_add3)
+                            .setInstanceId(instanceId)
+                            .setGrpId(grpId)
+                            .setFacetId(instanceId)
+                            .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
+                        if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+                        builder.addActions(actionBuilder)
+                    } else {
+                        val inactiveBuilder = Action.newBuilder()
+                            .setActionType(ActionType.Activate_add3)
+                            .setInstanceId(instanceId)
+                            .setGrpId(grpId)
+                            .setFacetId(instanceId)
+                        if (abilityGrpId > 0) inactiveBuilder.setAbilityGrpId(abilityGrpId)
+                        val abilityCost = ability.payCosts?.totalMana
+                        if (abilityCost != null && !abilityCost.isNoCost) {
+                            addManaCostFromForge(abilityCost, inactiveBuilder, abilityGrpId)
+                        }
+                        builder.addInactiveActions(inactiveBuilder)
+                    }
+                }
+            }
+        }
+
+        // --- Hand: lands ---
+        for (fid in hand) {
+            val card = snap.objects[fid] ?: continue
+            if (!card.isLand) continue
+            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            val grpId = card.grpId
+            val legality = legalityFor(seatId, fid, bridge)
+            if (legality.canPlayLand) {
+                builder.addActions(
+                    Action.newBuilder()
+                        .setActionType(ActionType.Play_add3)
+                        .setInstanceId(instanceId)
+                        .setGrpId(grpId)
+                        .setFacetId(instanceId)
+                        .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Play_add3)),
+                )
+            } else {
+                builder.addInactiveActions(
+                    Action.newBuilder()
+                        .setActionType(ActionType.Play_add3)
+                        .setGrpId(grpId)
+                        .setInstanceId(instanceId)
+                        .setFacetId(instanceId),
+                )
+            }
+        }
+
+        // --- Hand: non-land spells (Cast + CastAdventure) ---
+        for (fid in hand) {
+            val cardSnap = snap.objects[fid] ?: continue
+            if (cardSnap.isLand) continue
+            val player = bridge.getPlayer(SeatId(seatId)) ?: continue
+            val forgeCard = bridge.findCard(fid) ?: continue
+            val sa = chooseCastAbility(forgeCard, player) ?: continue
+            if (hasUnmetTargeting(sa)) {
+                log.debug("ActionMapper.buildFromSnapshot: skipping {} — no legal targets", cardSnap.name)
+                continue
+            }
+            val canPay = try {
+                ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+            } catch (_: Exception) {
+                false
+            }
+            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            val grpId = cardSnap.grpId
+
+            if (!canPay) {
+                val inactiveBuilder = Action.newBuilder()
+                    .setActionType(ActionType.Cast)
+                    .setInstanceId(instanceId)
+                    .setGrpId(grpId)
+                    .setFacetId(instanceId)
+                val effectiveCost = computeEffectiveCost(sa, player)
+                if (effectiveCost != null && !effectiveCost.isNoCost) {
+                    addManaCostFromForge(effectiveCost, inactiveBuilder)
+                } else {
+                    val cardData = bridge.cardRepository.findByGrpId(grpId)
+                    if (cardData != null) {
+                        for ((color, count) in cardData.manaCost) {
+                            inactiveBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
+                        }
+                    }
+                }
+                builder.addInactiveActions(inactiveBuilder)
+                continue
+            }
+
+            val actionBuilder = Action.newBuilder()
+                .setActionType(ActionType.Cast)
+                .setInstanceId(instanceId)
+                .setGrpId(grpId)
+                .setFacetId(instanceId)
+                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+
+            val effectiveCost = computeEffectiveCost(sa, player)
+            if (effectiveCost != null && !effectiveCost.isNoCost) {
+                addManaCostFromForge(effectiveCost, actionBuilder)
+                val costPairs = forgeManaCostToPairs(effectiveCost)
+                val autoTap = buildAutoTapSolution(
+                    costPairs,
+                    player,
+                    idResolver = { bridge.getOrAllocInstanceId(ForgeCardId(it)).value },
+                    grpIdResolver = { c -> bridge.resolveGrpId(c, bridge.getOrAllocInstanceId(ForgeCardId(c.id)).value) },
+                    cardDataLookup = { bridge.cardRepository.findByGrpId(it) },
+                    abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
+                )
+                if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
+            } else {
+                val cardData = bridge.cardRepository.findByGrpId(grpId)
+                if (cardData != null) {
+                    for ((color, count) in cardData.manaCost) {
+                        actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
+                    }
+                }
+            }
+            builder.addActions(actionBuilder)
+
+            if (cardSnap.isAdventureCard) {
+                val advAction = buildAdventureAction(forgeCard, player, instanceId, grpId, checkLegality = true)
+                if (advAction != null) {
+                    builder.addActions(advAction)
+                } else {
+                    buildInactiveAdventureAction(forgeCard, player, instanceId, grpId)
+                        ?.let { builder.addInactiveActions(it) }
+                }
+            }
+        }
+
+        // --- Hand: non-battlefield activated abilities (Channel, Ninjutsu, etc.) ---
+        for (fid in hand) {
+            val cardSnap = snap.objects[fid] ?: continue
+            if (!cardSnap.hasNonManaActivatedAbilities) continue
+            val player = bridge.getPlayer(SeatId(seatId)) ?: continue
+            val forgeCard = bridge.findCard(fid) ?: continue
+            for (ability in forgeCard.spellAbilities) {
+                ability.setActivatingPlayer(player)
+                if (!ability.isActivatedAbility) continue
+                if (ability.isManaAbility()) continue
+                if (!ability.canPlay()) continue
+                val canPay = try {
+                    ComputerUtilMana.canPayManaCost(ability, player, 0, false)
+                } catch (_: Exception) {
+                    false
+                }
+                val instanceId = bridge.getOrAllocInstanceId(fid).value
+                val grpId = cardSnap.grpId
+                val cardData = bridge.cardRepository.findByGrpId(grpId)
+                val registry = bridge.abilityRegistryFor(forgeCard, cardData)
+                val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
+                val abilityCost = ability.payCosts?.totalMana
+                if (canPay) {
+                    val actionBuilder = Action.newBuilder()
+                        .setActionType(ActionType.Activate_add3)
+                        .setInstanceId(instanceId)
+                    if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+                    if (abilityCost != null && !abilityCost.isNoCost) {
+                        addManaCostFromForge(abilityCost, actionBuilder, abilityGrpId)
+                    }
+                    builder.addActions(actionBuilder)
+                } else {
+                    val inactiveBuilder = Action.newBuilder()
+                        .setActionType(ActionType.Activate_add3)
+                        .setInstanceId(instanceId)
+                    if (abilityGrpId > 0) inactiveBuilder.setAbilityGrpId(abilityGrpId)
+                    if (abilityCost != null && !abilityCost.isNoCost) {
+                        addManaCostFromForge(abilityCost, inactiveBuilder, abilityGrpId)
+                    }
+                    builder.addInactiveActions(inactiveBuilder)
+                }
+            }
+        }
+
+        // --- Zone casts (graveyard, exile, command) ---
+        addZoneCastActionsFromSnap(seatId, snap, builder, bridge)
+
+        // Pass + FloatMana always available
+        builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
+        builder.addActions(Action.newBuilder().setActionType(ActionType.FloatMana))
+
+        val manaCount = builder.actionsList.count { it.actionType == ActionType.ActivateMana }
+        val landCount = builder.actionsList.count { it.actionType == ActionType.Play_add3 }
+        val castCount = builder.actionsList.count { it.actionType == ActionType.Cast }
+        val activateCount = builder.actionsList.count { it.actionType == ActionType.Activate_add3 }
+        val inactiveCount = builder.inactiveActionsCount
+        log.info(
+            "buildFromSnapshot: seat={} mana={} activate={} lands={} casts={} inactive={} total={}",
+            seatId,
+            manaCount,
+            activateCount,
+            landCount,
+            castCount,
+            inactiveCount,
+            builder.actionsCount,
+        )
+
+        return builder.build()
+    }
+
+    /**
+     * Cost-legality result for one card in the active player's hand/battlefield.
+     * The shim reads the live Forge [Card] and runs the same canPlayLand logic
+     * [buildActionList] uses — insulating the snapshot path from cost-solver migration.
+     */
+    private data class LegalityResult(
+        val canPlayLand: Boolean,
+    )
+
+    /**
+     * Route cost/playability checks through live Forge — the snapshot path
+     * delegates all Forge cost-solver calls here.
+     */
+    private fun legalityFor(seatId: Int, fid: ForgeCardId, bridge: GameBridge): LegalityResult {
+        val forgeCard = bridge.findCard(fid) ?: return LegalityResult(canPlayLand = false)
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return LegalityResult(canPlayLand = false)
+        val landAbility = LandAbility(forgeCard, forgeCard.currentState)
+        landAbility.activatingPlayer = player
+        return LegalityResult(
+            canPlayLand = player.canPlayLand(forgeCard, false, landAbility),
+        )
+    }
+
+    /**
+     * Zone casts (graveyard, exile, command) using snapshot zone contents + live Forge legality.
+     * Mirrors [addZoneCastActions] but pulls card IDs from the snapshot.
+     */
+    private fun addZoneCastActionsFromSnap(
+        seatId: Int,
+        snap: GsmSnapshot,
+        builder: ActionsAvailableReq.Builder,
+        bridge: GameBridge,
+    ) {
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return
+        val zoneIds = listOf(ZoneIds.P1_GRAVEYARD, ZoneIds.P2_GRAVEYARD, ZoneIds.EXILE, ZoneIds.COMMAND)
+        for (zoneId in zoneIds) {
+            val zone = snap.zones[zoneId] ?: continue
+            for (fid in zone.contents) {
+                val forgeCard = bridge.findCard(fid) ?: continue
+                val castable = getAllCastableAbilities(forgeCard, player)
+                if (castable.isEmpty()) continue
+                val sa = castable.first()
+                val instanceId = bridge.getOrAllocInstanceId(fid).value
+                val grpId = snap.objects[fid]?.grpId
+                    ?: bridge.resolveGrpId(forgeCard, instanceId)
+                val actionBuilder = Action.newBuilder()
+                    .setActionType(ActionType.Cast)
+                    .setInstanceId(instanceId)
+                    .setGrpId(grpId)
+                    .setFacetId(instanceId)
+                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+
+                val cardData = bridge.cardRepository.findByGrpId(grpId)
+                val altCost = sa.alternativeCost
+                if (altCost != null) {
+                    val altCostName = altCost.name.uppercase()
+                    val abilityGrpId = cardData?.keywordAbilityGrpIds?.entries
+                        ?.firstOrNull { it.key.startsWith(altCostName) }?.value ?: 0
+                    if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+                }
+
+                val effectiveCost = computeEffectiveCost(sa, player)
+                if (effectiveCost != null && !effectiveCost.isNoCost) {
+                    addManaCostFromForge(effectiveCost, actionBuilder)
+                } else if (cardData != null) {
+                    for ((color, count) in cardData.manaCost) {
+                        actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
+                    }
+                }
+                builder.addActions(actionBuilder)
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // End Task 8
+    // -------------------------------------------------------------------------
 
     /**
      * Shared action list builder — pure overload with function params.

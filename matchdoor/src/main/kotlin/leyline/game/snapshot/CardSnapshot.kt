@@ -17,6 +17,23 @@ data class CardSnapshot(
     val owner: SeatId,
     val controller: SeatId,
 
+    // --- Task 8 fields: ActionMapper shape construction ---
+
+    /** True when Forge considers this card a land (type.isLand). */
+    val isLand: Boolean = false,
+
+    /** True when this is an adventure card (has a Secondary state with its own spell ability). */
+    val isAdventureCard: Boolean = false,
+
+    /** True when the card has at least one mana ability (used for ActivateMana action shape). */
+    val hasManaAbilities: Boolean = false,
+
+    /**
+     * True when the card has at least one non-mana activated ability.
+     * Needed to know whether to iterate spellAbilities during action enumeration.
+     */
+    val hasNonManaActivatedAbilities: Boolean = false,
+
     // --- Task 6 fields: ObjectMapper live state (applyFieldsFromSnapshot + applyCombatFromSnapshot) ---
 
     /** True when the card is in the Battlefield zone. */

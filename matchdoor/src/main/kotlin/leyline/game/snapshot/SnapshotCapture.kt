@@ -170,12 +170,24 @@ internal object SnapshotCapture {
         val ownerSeat = SeatId(if (card.owner == human) 1 else 2)
         val controllerSeat = SeatId(if (card.controller == human) 1 else 2)
 
+        // Task 8: ActionMapper shape flags — read once here, not in the mapper.
+        val isLand = type.isLand
+        val isAdventureCard = card.isAdventureCard
+        val hasManaAbilities = card.manaAbilities.isNotEmpty()
+        val hasNonManaActivatedAbilities = card.spellAbilities.any { sa ->
+            sa.isActivatedAbility && !sa.isManaAbility()
+        }
+
         return CardSnapshot(
             forgeCardId = ForgeCardId(card.id),
             name = card.name,
             grpId = grpId,
             owner = ownerSeat,
             controller = controllerSeat,
+            isLand = isLand,
+            isAdventureCard = isAdventureCard,
+            hasManaAbilities = hasManaAbilities,
+            hasNonManaActivatedAbilities = hasNonManaActivatedAbilities,
             isOnBattlefield = onBf,
             // P/T captured for all creatures (legacy path sets P/T regardless of zone)
             netPower = if (type.isCreature) card.netPower else null,
