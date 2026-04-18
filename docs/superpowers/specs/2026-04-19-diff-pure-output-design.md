@@ -207,7 +207,7 @@ class PureDiffReplayTest : FunSpec({
 })
 ```
 
-Concrete test fixture: a 3-turn puzzle with predictable action sequence (play land + creature + pass; combat attack; pass turn). Covers zone transfers (library → hand → battlefield), annotations (newTurnStarted, PhaseOrStepModified, CardTapped), and persistent annotations (PowerToughness active effects if any). Does NOT exercise:
+Concrete test fixture: a one-turn deterministic scenario — a creature already on the battlefield (or one in hand + land in play), human plays it if not already in play, passes to combat, declares attacker, no blockers (opponent has empty battlefield), combat damage, end turn. ~5–7 bundles end-to-end. Covers zone transfers (Hand → Stack → Battlefield for cast; Battlefield → Graveyard for any death), phase changes (newTurnStarted, PhaseOrStepModified for each step), combat (attacker declaration, combat damage, life total change), and persistent annotations (any PT/keyword active effects on the permanents involved). Does NOT exercise:
 - Effect tracker layered effects (out of scope)
 - Reveal-choose prompts (out of scope)
 - Steal effects (out of scope; see residual impurity island)
@@ -241,6 +241,10 @@ The test asserts byte-equal `diff` and optionally `mutations` (byte-equal mutati
 - `:matchdoor:test` + `:matchdoor:testIntegration` green throughout the branch.
 - `AnnotationShapeConformanceTest` green at every commit.
 - `StateMapper` class KDoc enumerates the residual impurity island (bridge-bound services remaining in-stage) with rationale.
+
+## Shipping discipline
+
+**Do NOT auto-merge on CI green.** Push to the PR, wait for human review + merge. The 9d8 auto-merge flow was the exception (explicit `/loop` authorization); for this bead, treat PR as the human-gate.
 
 ## Diagnostics — "how do we know we nailed it"
 
