@@ -49,6 +49,64 @@ class InstanceIdRegistry(startId: Int = 100) {
     }
 
     /**
+     * Compute the planned reallocation WITHOUT committing.
+     *
+     * Returns the [IdReallocation] that [applyRealloc] would commit. Deterministic:
+     * the returned `new` id is the current `nextInstanceId` value. Caller MUST apply
+     * the returned plan before calling `planRealloc` again on a different fid, or
+     * call [planReallocBatch] for multiple fids.
+     *
+     * Used by [leyline.game.ZoneTransferDetector] during the pure-diff compute phase;
+     * `bridge.applyMutations` commits the plans afterwards via [applyRealloc].
+     */
+    fun planRealloc(forgeCardId: ForgeCardId): IdReallocation {
+        val oldId = forgeIdToInstanceId[forgeCardId]
+            ?: return getOrAlloc(forgeCardId).let { IdReallocation(it, it) }
+        val newId = InstanceId(nextInstanceId) // does NOT increment
+        return IdReallocation(oldId, newId)
+    }
+
+    /**
+     * Plan a batch of reallocations, threading the counter forward across fids.
+     * Returns reallocations in the same order as [fids].
+     */
+    fun planReallocBatch(fids: List<ForgeCardId>): List<IdReallocation> {
+        if (fids.isEmpty()) return emptyList()
+        var counter = nextInstanceId
+        return fids.map { fid ->
+            val oldId = forgeIdToInstanceId[fid]
+            if (oldId == null) {
+                val newId = InstanceId(counter++)
+                IdReallocation(newId, newId)
+            } else {
+                val newId = InstanceId(counter++)
+                IdReallocation(oldId, newId)
+            }
+        }
+    }
+
+    /**
+     * Apply a previously-planned reallocation.
+     *
+     * Updates forward map to [realloc.new]; keeps reverse entries for both old and
+     * new ids (preserves retired-id lookups). Advances [nextInstanceId] if the plan's
+     * new id is >= the current counter.
+     */
+    fun applyRealloc(realloc: IdReallocation) {
+        val fid = instanceIdToForgeId[realloc.old] ?: instanceIdToForgeId[realloc.new]
+        if (fid == null) {
+            // First-seen case — caller's plan was for a fid we don't know yet.
+            // Shouldn't happen in normal bundle flow; safe no-op.
+            return
+        }
+        forgeIdToInstanceId[fid] = realloc.new
+        instanceIdToForgeId[realloc.new] = fid
+        if (realloc.new.value >= nextInstanceId) {
+            nextInstanceId = realloc.new.value + 1
+        }
+    }
+
+    /**
      * Nuke-and-repave: clear all active mappings and return the old instanceIds.
      *
      * Used for mulligan DealHand where the protocol deletes every previous
