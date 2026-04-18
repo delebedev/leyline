@@ -39,7 +39,7 @@ class AbilityGrpIdConformanceTest :
                 // AbilityRegistry is lazily built by GameBridge.abilityRegistryFor on first access
 
                 // Build actions for seat 1
-                val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test"), b)
+                val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
 
                 // Find all Activate_add3 actions for the planeswalker
                 val activateActions = actions.actionsList

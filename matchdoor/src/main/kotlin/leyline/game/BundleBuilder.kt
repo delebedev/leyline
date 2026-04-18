@@ -58,9 +58,9 @@ class BundleBuilder(
         counter: MessageCounter,
         revealForSeat: Int? = null,
     ): BundleResult {
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
-        val frame = GsmFrame.from(snap)
         val nextGs = counter.nextGsId()
+        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
+        val frame = GsmFrame.from(snap)
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
@@ -127,8 +127,8 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
     ): BundleResult {
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
         val nextGs = counter.nextGsId()
+        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         val result = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
@@ -176,9 +176,9 @@ class BundleBuilder(
         counter: MessageCounter,
         turnStarted: Boolean = false,
     ): BundleResult {
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
-        val frame = GsmFrame.from(snap)
         val nextGs = counter.nextGsId()
+        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
+        val frame = GsmFrame.from(snap)
         // Build state first (triggers instanceId realloc), then actions with new IDs
         val gsBase = StateMapper.buildDiffFromGame(
             game,
@@ -250,7 +250,7 @@ class BundleBuilder(
     /** Build playable actions for a seat (with legality checks). */
     fun buildActions(): ActionsAvailableReq {
         val game = bridge.getGame() ?: return ActionMapper.passOnlyActions()
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
+        val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
         return ActionMapper.buildFromSnapshot(seatId, snap, bridge)
     }
 
@@ -314,9 +314,9 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
     ): BundleResult {
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
         val prevGs = counter.currentGsId()
         val nextGs = counter.nextGsId()
+        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val frame = GsmFrame.from(snap)
         // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
@@ -421,7 +421,7 @@ class BundleBuilder(
     ): BundleResult {
         val nextGs = counter.nextGsId()
         val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
+        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         // Build provisional creature objects for ALL legal attackers.
         // Echo objects carry NO combat state — only base card fields.
@@ -481,8 +481,8 @@ class BundleBuilder(
         counter: MessageCounter,
         prebuiltReq: DeclareAttackersReq? = null,
     ): BundleResult {
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
         val nextGs = counter.nextGsId()
+        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId).gsm
@@ -514,7 +514,7 @@ class BundleBuilder(
     ): BundleResult {
         val nextGs = counter.nextGsId()
         val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
+        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         // Build provisional creature objects for assigned blockers.
         // Echo objects carry NO combat state — only base card fields.
@@ -570,8 +570,8 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
     ): BundleResult {
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
         val nextGs = counter.nextGsId()
+        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId).gsm
@@ -606,8 +606,8 @@ class BundleBuilder(
         counter: MessageCounter,
         prompt: leyline.bridge.InteractivePromptBridge.PendingPrompt,
     ): BundleResult {
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
         val nextGs = counter.nextGsId()
+        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         // Build diff first — triggers instanceId reallocs for zone transfers
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId).gsm
@@ -639,8 +639,8 @@ class BundleBuilder(
         isLegendRule: Boolean = false,
         isRevealChoose: Boolean = false,
     ): BundleResult {
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
         val nextGs = counter.nextGsId()
+        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId).gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
@@ -700,8 +700,8 @@ class BundleBuilder(
         sourceCardInstanceId: Int? = null,
         sourceCardGrpId: Int? = null,
     ): BundleResult {
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
         val nextGs = counter.nextGsId()
+        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val gsResult = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId)
         val gsBuilder = gsResult.gsm.toBuilder()
@@ -795,8 +795,8 @@ class BundleBuilder(
         counter: MessageCounter,
         req: PayCostsReq,
     ): BundleResult {
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
         val nextGs = counter.nextGsId()
+        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId).gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
@@ -910,7 +910,7 @@ class BundleBuilder(
         // Players: loser with full state (lifeTotal, maxHandSize, etc.) + PendingLoss status
         val game = bridge.getGame()
         if (game != null) {
-            val gameOverSnap = GsmSnapshot.capture(game, bridge, matchId)
+            val gameOverSnap = GsmSnapshot.capture(game, bridge, matchId, 0)
             val loserInfo = PlayerMapper.buildFromSnapshot(gameOverSnap, losingPlayerSeatId).toBuilder()
                 .setStatus(PlayerStatus.PendingLoss_a1c6)
             gs1.addPlayers(loserInfo)
@@ -1144,7 +1144,7 @@ class BundleBuilder(
                 if (card != null) card to bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value else null
             }
         if (resolved.isEmpty()) return null
-        val snap = GsmSnapshot.capture(game, bridge, matchId)
+        val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
         val topCardSnaps = resolved.mapNotNull { (card, _) -> snap.objects[ForgeCardId(card.id)] }
         if (topCardSnaps.size != resolved.size) return null
         val cardInstanceIds = resolved.map { it.second }

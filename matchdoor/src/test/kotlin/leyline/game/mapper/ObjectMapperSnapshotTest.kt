@@ -39,7 +39,7 @@ class ObjectMapperSnapshotTest :
             val instanceId = b.getOrAllocInstanceId(fid).value
 
             b.snapshotFromGame(game)
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
             val fromSnap = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, ZoneIds.P1_HAND, 1, b)
@@ -62,7 +62,7 @@ class ObjectMapperSnapshotTest :
             val instanceId = b.getOrAllocInstanceId(fid).value
 
             b.snapshotFromGame(game)
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
             assertSoftly {
@@ -96,7 +96,7 @@ class ObjectMapperSnapshotTest :
             val instanceId = b.getOrAllocInstanceId(fid).value
 
             b.snapshotFromGame(game)
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
             cardSnap.isOnBattlefield shouldBe false
@@ -128,7 +128,7 @@ class ObjectMapperSnapshotTest :
             val instanceId = b.getOrAllocInstanceId(fid).value
 
             b.snapshotFromGame(game)
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
             val frontGrpId = b.cardRepository.findGrpIdByName("Concealing Curtains")!!
@@ -161,7 +161,7 @@ class ObjectMapperSnapshotTest :
             val instanceId = b.getOrAllocInstanceId(fid).value
 
             b.snapshotFromGame(game)
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
             val fromSnap = ObjectMapper.buildFromSnapshot(
@@ -185,7 +185,7 @@ class ObjectMapperSnapshotTest :
             val instanceId = b.getOrAllocInstanceId(fid).value
 
             b.snapshotFromGame(game)
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
             assertSoftly {

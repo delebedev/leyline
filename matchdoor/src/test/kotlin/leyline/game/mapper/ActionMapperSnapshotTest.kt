@@ -35,7 +35,7 @@ class ActionMapperSnapshotTest :
         test("empty hand and battlefield yields only Pass and FloatMana") {
             val (b, game, _) = base.startWithBoard { _, _, _ -> }
 
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
 
             assertSoftly {
@@ -59,7 +59,7 @@ class ActionMapperSnapshotTest :
                 base.addCard("Island", human, ZoneType.Hand)
             }
 
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
 
             val hasPlay = fromSnap.actionsList.any { it.actionType == ActionType.Play_add3 } ||
@@ -76,7 +76,7 @@ class ActionMapperSnapshotTest :
                 base.addCard("Llanowar Elves", human, ZoneType.Hand)
             }
 
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
 
             val hasCast = fromSnap.actionsList.any { it.actionType == ActionType.Cast } ||
@@ -93,7 +93,7 @@ class ActionMapperSnapshotTest :
                 base.addCard("Island", human, ZoneType.Battlefield)
             }
 
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
 
             fromSnap.actionsList.count { it.actionType == ActionType.ActivateMana } shouldBe 1
@@ -109,7 +109,7 @@ class ActionMapperSnapshotTest :
                 base.addCard("Forest", human, ZoneType.Battlefield)
             }
 
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
 
             assertSoftly {
@@ -131,7 +131,7 @@ class ActionMapperSnapshotTest :
                 base.addCard("Llanowar Elves", human, ZoneType.Hand)
             }
 
-            val snap = SnapshotCapture.run(game, b, "test")
+            val snap = SnapshotCapture.run(game, b, "test", 0)
             val humanCards = game.humanPlayer.getZone(ZoneType.Hand).cards
 
             val islandFid = ForgeCardId(humanCards.first { it.name == "Island" }.id)

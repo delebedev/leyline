@@ -63,7 +63,7 @@ object StateMapper {
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
     ): BuildResult {
-        val snap = leyline.game.snapshot.GsmSnapshot.capture(game, bridge, matchId)
+        val snap = leyline.game.snapshot.GsmSnapshot.capture(game, bridge, matchId, gameStateId)
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
         val frame = GsmFrame.from(snap)

@@ -205,7 +205,7 @@ class PuzzleBridgeTest :
         test("web test 00 actions include Cast") {
             val b = startPuzzle("puzzles/bolt-face.pzl")
             val game = b.getGame()!!
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test"), b)
+            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
             val actionTypes = actions.actionsList.map { it.actionType.name }
             actionTypes.any { it == "Cast" }.shouldBeTrue()
         }

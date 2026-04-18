@@ -27,7 +27,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *   Later tasks populate each section as the corresponding mapper migrates.
  */
 object SnapshotCapture {
-    fun run(game: Game, bridge: GameBridge, matchId: String): GsmSnapshot {
+    fun run(game: Game, bridge: GameBridge, matchId: String, gameStateId: Int): GsmSnapshot {
         val human = bridge.getPlayer(SeatId(1))
         val seats = listOf(1, 2).mapNotNull { seatNum ->
             val player = bridge.getPlayer(SeatId(seatNum)) ?: return@mapNotNull null
@@ -45,6 +45,7 @@ object SnapshotCapture {
         val abilityWordEntries = computeAbilityWordEntries(game, bridge)
         return GsmSnapshot.forTest(
             matchId = matchId,
+            gameStateId = gameStateId,
             seats = seats,
             zones = zones,
             objects = objects,

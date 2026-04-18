@@ -13,6 +13,7 @@ import org.jetbrains.annotations.VisibleForTesting
  */
 class GsmSnapshot internal constructor(
     val matchId: String,
+    val gameStateId: Int,
     val seats: List<SeatSnapshot>,
     val zones: Map<Int, ZoneSnapshot>,
     val objects: Map<ForgeCardId, CardSnapshot>,
@@ -27,6 +28,7 @@ class GsmSnapshot internal constructor(
         if (other !is GsmSnapshot) return false
         // CaptureMarker excluded — wallClock is non-deterministic.
         return matchId == other.matchId &&
+            gameStateId == other.gameStateId &&
             seats == other.seats &&
             zones == other.zones &&
             objects == other.objects &&
@@ -38,6 +40,7 @@ class GsmSnapshot internal constructor(
 
     override fun hashCode(): Int {
         var h = matchId.hashCode()
+        h = 31 * h + gameStateId
         h = 31 * h + seats.hashCode()
         h = 31 * h + zones.hashCode()
         h = 31 * h + objects.hashCode()
@@ -50,13 +53,15 @@ class GsmSnapshot internal constructor(
 
     companion object {
         /** Production capture — reads game + bridge. */
-        fun capture(game: Game, bridge: GameBridge, matchId: String): GsmSnapshot =
-            SnapshotCapture.run(game, bridge, matchId)
+        fun capture(game: Game, bridge: GameBridge, matchId: String, gameStateId: Int): GsmSnapshot =
+            SnapshotCapture.run(game, bridge, matchId, gameStateId)
 
         /** Test fixture builder — named args with sensible defaults. */
         @VisibleForTesting
+        @Suppress("LongParameterList")
         fun forTest(
             matchId: String = "test-match",
+            gameStateId: Int = 0,
             seats: List<SeatSnapshot> = emptyList(),
             zones: Map<Int, ZoneSnapshot> = emptyMap(),
             objects: Map<ForgeCardId, CardSnapshot> = emptyMap(),
@@ -70,6 +75,6 @@ class GsmSnapshot internal constructor(
             combat: CombatSnapshot? = null,
             abilityWordEntries: List<leyline.game.AbilityWordScanner.AbilityWordEntry> = emptyList(),
             capturedAt: CaptureMarker = CaptureMarker.unknown(),
-        ): GsmSnapshot = GsmSnapshot(matchId, seats, zones, objects, stack, phase, combat, abilityWordEntries, capturedAt)
+        ): GsmSnapshot = GsmSnapshot(matchId, gameStateId, seats, zones, objects, stack, phase, combat, abilityWordEntries, capturedAt)
     }
 }
