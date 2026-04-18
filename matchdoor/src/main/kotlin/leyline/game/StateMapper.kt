@@ -358,6 +358,119 @@ object StateMapper {
     }
 
     /**
+     * Build a Diff [GameStateMessage] by snap-vs-snap field comparison.
+     *
+     * `prev == null` → returns the Full GSM built from `cur` (first bundle, post-handshake).
+     * Otherwise emits only zones/objects whose CardSnapshot/ZoneSnapshot field-equality
+     * differs between `prev` and `cur`. Player/turn/annotation/persistent-annotation
+     * lists are taken from the freshly-built current full GSM (current-bundle events
+     * already applied).
+     *
+     * `bridge.ids` reallocation, limbo retires, and zone recordings continue to fire
+     * inside `buildFromSnapshot`'s `transferResult` apply loop — diff is pure on inputs
+     * (snap-vs-snap), not on outputs (still mutates bridge). Pulling output side-effects
+     * out as data is a separate follow-up.
+     */
+    fun buildDiffFromSnapshot(
+        prev: GsmSnapshot?,
+        cur: GsmSnapshot,
+        gameStateId: Int,
+        matchId: String,
+        bridge: GameBridge,
+        actions: ActionsAvailableReq? = null,
+        updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
+        viewingSeatId: Int = 0,
+        revealForSeat: Int? = null,
+    ): BuildResult {
+        if (prev == null) {
+            return buildFromSnapshot(cur, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat, prev = null)
+        }
+
+        // Build current full GSM (also drives event drain + side-effect apply).
+        // Match the existing dual-pass shape: pass actions=null + viewingSeatId=0 for
+        // the comparison base (needs all objects for accurate diff).
+        val fullResult = buildFromSnapshot(cur, gameStateId, matchId, bridge, revealForSeat = revealForSeat, prev = prev)
+        val current = fullResult.gsm
+
+        // Snap-vs-snap zone delta: any zone whose snapshot field-equality differs.
+        val changedZoneIds = cur.zones.keys.asSequence()
+            .filter { id -> prev.zones[id] != cur.zones[id] }
+            .toSet()
+        val changedZones = current.zonesList.filter { it.zoneId in changedZoneIds }
+
+        // Snap-vs-snap object delta: any card whose CardSnapshot field-equality differs.
+        // Plus opponent-hand filter + active-reveal exception preserved.
+        val opponentHandZoneId = ZoneMapper.opponentHandZone(viewingSeatId)
+        val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(it).journal.activeReveal() != null }
+        val changedFids = cur.objects.keys.asSequence()
+            .filter { fid -> prev.objects[fid] != cur.objects[fid] }
+            .toSet()
+        val changedInstanceIds = changedFids.map { bridge.getOrAllocInstanceId(it).value }.toSet()
+        val changedObjects = current.gameObjectsList.filter { obj ->
+            if (obj.instanceId !in changedInstanceIds) return@filter false
+            if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
+                if (hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)) {
+                    // fall through
+                } else {
+                    return@filter false
+                }
+            }
+            true
+        }
+
+        // Deleted IDs: in prev.objects but not in cur.objects, minus IDs still tracked
+        // in cur zone listings (limbo-retired IDs that still appear in zone contents).
+        val currentObjIds = current.gameObjectsList.map { it.instanceId }.toSet()
+        val currentZoneTrackedIds = current.zonesList.flatMap { it.objectInstanceIdsList }.toSet()
+        val deletedIds = (prev.objects.keys - cur.objects.keys)
+            .map { bridge.getOrAllocInstanceId(it).value }
+            .filter { it !in currentObjIds && it !in currentZoneTrackedIds }
+
+        val builder = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(gameStateId)
+            .setTurnInfo(current.turnInfo)
+            .addAllPlayers(current.playersList)
+            .addAllZones(changedZones.sortedBy { it.zoneId })
+            .addAllGameObjects(changedObjects)
+            .addAllAnnotations(current.annotationsList)
+            .addAllPersistentAnnotations(current.persistentAnnotationsList)
+            .addAllDiffDeletedPersistentAnnotationIds(bridge.annotations.drainDeletions())
+            .addAllTimers(PlayerMapper.buildTimers())
+            .setUpdate(updateType)
+            .setPrevGameStateId(prev.gameStateId)
+
+        if (deletedIds.isNotEmpty()) {
+            builder.addAllDiffDeletedInstanceIds(deletedIds)
+        }
+
+        // Embed stripped actions (mirror buildDiffFromGame's behavior)
+        if (actions != null) {
+            builder.setPendingMessageCount(1)
+            val activeSeat = current.turnInfo.priorityPlayer
+            for (action in actions.actionsList) {
+                builder.addActions(
+                    ActionInfo.newBuilder()
+                        .setSeatId(activeSeat)
+                        .setAction(ActionMapper.stripActionForGsm(action)),
+                )
+            }
+        }
+
+        val built = builder.build()
+        if (built.gameStateId != 0 && built.gameStateId == built.prevGameStateId) {
+            log.error(
+                "SELF-REF gsId={} prev.gsId={} param={} caller={}",
+                built.gameStateId,
+                prev.gameStateId,
+                gameStateId,
+                Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
+            )
+        }
+        return BuildResult(built, fullResult.hasCastSpell)
+    }
+
+    /**
      * Resolve the correct updateType for a game state message.
      * - SendAndRecord: state change the client must persist (zone transfers, actions)
      * - SendHiFi: transient update (phase echoes, state refreshes)
