@@ -14,6 +14,7 @@ import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.ZoneIds
 import leyline.game.mapper.ZoneMapper
+import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -62,10 +63,10 @@ object StateMapper {
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
     ): BuildResult {
-        val handler = game.phaseHandler
+        val snap = leyline.game.snapshot.GsmSnapshot.capture(game, bridge, matchId)
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
-        val frame = GsmFrame.from(game, bridge)
+        val frame = GsmFrame.from(snap)
 
         // ═══ GATHER: drain queues, snapshot mutable state ═══
         val events = bridge.drainEvents().events.toMutableList()
@@ -110,8 +111,8 @@ object StateMapper {
             gameInfo.setFreeMulliganCount(1)
         }
 
-        val player1 = PlayerMapper.buildPlayerInfo(human, 1)
-        val player2 = PlayerMapper.buildPlayerInfo(ai, 2)
+        val player1 = PlayerMapper.buildFromSnapshot(snap, 1)
+        val player2 = PlayerMapper.buildFromSnapshot(snap, 2)
 
         val team1 = TeamInfo.newBuilder().setId(1).addPlayerIds(1).setStatus(TeamStatus.InGame_a458)
         val team2 = TeamInfo.newBuilder().setId(2).addPlayerIds(2).setStatus(TeamStatus.InGame_a458)
@@ -145,8 +146,8 @@ object StateMapper {
 
         // Player 1 zones
         if (human != null) {
-            ZoneMapper.addPlayerZones(
-                human, 1, bridge, zones, gameObjects,
+            ZoneMapper.addPlayerZonesFromSnapshot(
+                1, snap, bridge, zones, gameObjects,
                 ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, viewingSeatId, revealForSeat,
                 revealHand = revealedHandSeat == 1,
             )
@@ -155,30 +156,30 @@ object StateMapper {
 
         // Player 2 zones
         if (ai != null) {
-            ZoneMapper.addPlayerZones(
-                ai, 2, bridge, zones, gameObjects,
+            ZoneMapper.addPlayerZonesFromSnapshot(
+                2, snap, bridge, zones, gameObjects,
                 ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, viewingSeatId, revealForSeat,
                 revealHand = revealedHandSeat == 2,
             )
         }
         zones.add(ZoneMapper.makePrivateZone(ZoneIds.P2_SIDEBOARD, ZoneType.Sideboard, 2))
 
-        // Populate shared zones with any cards
-        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Battlefield, ZoneIds.BATTLEFIELD, bridge, zones, gameObjects, human, keywordSnapshot)
-        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects, human)
-        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects, human)
-        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects, human)
+        // Populate shared zones with cards.
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Battlefield, ZoneIds.BATTLEFIELD, bridge, zones, gameObjects, human, keywordSnapshot)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects, human)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects, human)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects, human)
 
         // Stack abilities (triggers, activated abilities not represented as zone cards)
-        ZoneMapper.addStackAbilities(game, bridge, zones, gameObjects, human)
+        ZoneMapper.addStackAbilitiesFromSnapshot(snap, bridge, zones, gameObjects)
 
         // RevealedCard proxy synthesis / cleanup
-        applyRevealProxies(activeReveal, game, bridge, zones, gameObjects, events)
+        applyRevealProxies(activeReveal, snap, bridge, zones, gameObjects, events)
 
         log.info(
             "buildFromGame: phase={} turn={} hand={} objects={} zones={}",
-            handler.phase,
-            handler.turn,
+            snap.phase.phase,
+            snap.phase.turn,
             human?.getZone(ForgeZoneType.Hand)?.size() ?: 0,
             gameObjects.size,
             zones.size,
@@ -186,7 +187,7 @@ object StateMapper {
 
         // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
         val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, events)
-        val actingSeat = if (handler.priorityPlayer == human) 1 else 2
+        val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
             computeAnnotations(events, transferResult, actingSeat, bridge)
 
@@ -201,7 +202,7 @@ object StateMapper {
         val built = assembleGsm(
             gameStateId, gameInfo.build(), frame, transferResult, remaining,
             combatResult, team1.build(), team2.build(), player1, player2,
-            updateType, actions, handler, human, bridge,
+            updateType, actions, actingSeat, bridge,
         )
 
         // ═══ APPLY: deferred tracking effects (for next GSM) ═══
@@ -221,6 +222,9 @@ object StateMapper {
      * since the current diff baseline. Falls back to Full if no baseline exists.
      * Updates the bridge's diff baseline after building so the next diff is relative
      * to this state.
+     *
+     * Tech debt: compares [GameStateMessage] vs [GameStateMessage] (proto-level diff).
+     * Full snapshot-vs-snapshot diff rewrite is a separate follow-up migration.
      */
     fun buildDiffFromGame(
         game: Game,
@@ -304,9 +308,8 @@ object StateMapper {
         // Embed stripped-down actions + set pendingMessageCount when AAR follows
         if (actions != null) {
             builder.setPendingMessageCount(1)
-            val handler = game.phaseHandler
-            val human = bridge.getPlayer(SeatId(1))
-            val activeSeat = if (handler.priorityPlayer == human) 1 else 2
+            // Priority player was already resolved during buildFromGame — read from the built GSM.
+            val activeSeat = current.turnInfo.priorityPlayer
             for (action in actions.actionsList) {
                 builder.addActions(
                     ActionInfo.newBuilder()
@@ -342,9 +345,8 @@ object StateMapper {
      * of whose turn it is. This heuristic (acting == viewing) is an approximation
      * used by postAction; remoteActionDiff hardcodes SendHiFi directly.
      */
-    fun resolveUpdateType(game: Game, bridge: GameBridge, viewingSeatId: Int): GameStateUpdate {
-        val human = bridge.getPlayer(SeatId(1))
-        val actingSeat = if (game.phaseHandler.priorityPlayer == human) 1 else 2
+    fun resolveUpdateType(snap: GsmSnapshot, viewingSeatId: Int): GameStateUpdate {
+        val actingSeat = snap.phase.priorityPlayer?.value ?: snap.phase.activePlayer.value
         return if (actingSeat == viewingSeatId) {
             GameStateUpdate.SendAndRecord
         } else {
@@ -367,8 +369,7 @@ object StateMapper {
         player2: PlayerInfo,
         updateType: GameStateUpdate,
         actions: ActionsAvailableReq?,
-        handler: forge.game.phase.PhaseHandler,
-        human: forge.game.player.Player?,
+        prioritySeat: Int,
         bridge: GameBridge,
     ): GameStateMessage {
         val prevState = bridge.getDiffBaselineState()
@@ -396,11 +397,10 @@ object StateMapper {
         }
 
         if (actions != null) {
-            val activeSeat = if (handler.priorityPlayer == human) 1 else 2
             for (action in actions.actionsList) {
                 builder.addActions(
                     ActionInfo.newBuilder()
-                        .setSeatId(activeSeat)
+                        .setSeatId(prioritySeat)
                         .setAction(ActionMapper.stripActionForGsm(action)),
                 )
             }
@@ -717,7 +717,7 @@ object StateMapper {
     @Suppress("CanBeNonNullable")
     private fun applyRevealProxies(
         activeReveal: PromptSideEffect.RevealStarted?,
-        game: Game,
+        snap: leyline.game.snapshot.GsmSnapshot,
         bridge: GameBridge,
         zones: MutableList<ZoneInfo>,
         gameObjects: MutableList<GameObjectInfo>,
@@ -739,7 +739,7 @@ object StateMapper {
             // Re-use proxy IDs across diffs during the same reveal (stable instanceIds).
             val needsAlloc = bridge.revealProxies.isEmpty
             for (forgeCardId in activeReveal.allHandCardIds) {
-                val card = findCard(game, forgeCardId) ?: continue
+                val cardSnap = snap.objects[forgeCardId] ?: continue
                 val proxyId = if (needsAlloc) {
                     val id = bridge.ids.allocSynthetic()
                     bridge.revealProxies.allocate(forgeCardId, id)
@@ -749,7 +749,7 @@ object StateMapper {
                 }
                 revealedZoneBuilder.addObjectInstanceIds(proxyId.value)
                 gameObjects.add(
-                    ObjectMapper.buildRevealedCardProxy(card, proxyId.value, handZoneId, ownerSeat, viewerSeat, bridge),
+                    ObjectMapper.buildRevealedCardProxy(cardSnap, proxyId.value, handZoneId, ownerSeat, viewerSeat, bridge),
                 )
             }
             zones.add(revealedZoneBuilder.build())

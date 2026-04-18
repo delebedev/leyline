@@ -1,12 +1,12 @@
 package leyline.game
 
-import forge.game.Game
 import leyline.bridge.SeatId
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.PromptIds
 import leyline.game.mapper.ZoneIds
 import leyline.game.mapper.ZoneMapper
+import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -40,18 +40,14 @@ data class GsmFrame(
             .toBuilder().setId(idSource()).build()
 
     companion object {
-        /** Snapshot current game state into a frame. */
-        fun from(game: forge.game.Game, bridge: GameBridge): GsmFrame {
-            val handler = game.phaseHandler
-            val human = bridge.getPlayer(SeatId(1))
-            return GsmFrame(
-                activeSeat = if (handler.playerTurn == human) 1 else 2,
-                prioritySeat = if (handler.priorityPlayer == human) 1 else 2,
-                turnNumber = handler.turn.coerceAtLeast(1),
-                phase = PlayerMapper.mapPhase(handler.phase),
-                step = PlayerMapper.mapStep(handler.phase),
-            )
-        }
+        /** Build a frame from a pre-captured [GsmSnapshot]. */
+        fun from(snap: GsmSnapshot): GsmFrame = GsmFrame(
+            activeSeat = snap.phase.activePlayer.value,
+            prioritySeat = snap.phase.priorityPlayer?.value ?: snap.phase.activePlayer.value,
+            turnNumber = snap.phase.turn.coerceAtLeast(1),
+            phase = PlayerMapper.mapPhase(snap.phase.phase),
+            step = PlayerMapper.mapStep(snap.phase.phase),
+        )
     }
 }
 
@@ -84,9 +80,9 @@ object GsmBuilder {
         bridge: GameBridge,
         gameStateId: Int,
         seatId: Int,
+        snap: GsmSnapshot,
         diffDeletedInstanceIds: List<Int> = emptyList(),
     ): GameStateMessage {
-        val game = bridge.getGame()!!
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
 
@@ -94,19 +90,20 @@ object GsmBuilder {
         val gameObjects = mutableListOf<GameObjectInfo>()
 
         // Both seats' hand + library only (client expects no graveyard at deal-hand).
+        // gyZoneId=null omits the graveyard zone — protocol shape requires exactly 4 zones here.
         // Only include GameObjectInfo for the viewing seat's hand — opponent's hand
         // cards appear in objectInstanceIds (for count) but render face-down.
         if (human != null) {
-            ZoneMapper.addHandAndLibrary(human, 1, bridge, zones, gameObjects, ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, viewingSeatId = seatId)
+            ZoneMapper.addPlayerZonesFromSnapshot(1, snap, bridge, zones, gameObjects, ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, viewingSeatId = seatId)
         }
         if (ai != null) {
-            ZoneMapper.addHandAndLibrary(ai, 2, bridge, zones, gameObjects, ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, viewingSeatId = seatId)
+            ZoneMapper.addPlayerZonesFromSnapshot(2, snap, bridge, zones, gameObjects, ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, viewingSeatId = seatId)
         }
 
         // Players — both have pendingMessageType: MulliganResp during mulligan
-        val player1 = PlayerMapper.buildPlayerInfo(human, 1).toBuilder()
+        val player1 = PlayerMapper.buildFromSnapshot(snap, 1).toBuilder()
             .setPendingMessageType(ClientMessageType.MulliganResp_097b).build()
-        val player2 = PlayerMapper.buildPlayerInfo(ai, 2).toBuilder()
+        val player2 = PlayerMapper.buildFromSnapshot(snap, 2).toBuilder()
             .setPendingMessageType(ClientMessageType.MulliganResp_097b).build()
 
         // activePlayer=2 (seat 2 won die roll in template), decisionPlayer=2
@@ -114,7 +111,7 @@ object GsmBuilder {
             .setActivePlayer(2).setDecisionPlayer(2)
 
         // Build actions for the viewing seat's opening hand (Cast/Play from hand)
-        val actions = ActionMapper.buildActions(seatId, bridge)
+        val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
 
         val gsm = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
@@ -307,6 +304,7 @@ object GsmBuilder {
         matchId: String,
         gameStateId: Int,
         bridge: GameBridge,
+        snap: GsmSnapshot,
         pendingMessageCount: Int = 0,
     ): GameStateMessage {
         val human = bridge.getPlayer(SeatId(1))
@@ -339,8 +337,8 @@ object GsmBuilder {
             .setDeckConstraintInfo(deckConstraints)
 
         // Seat 2 has pending ChooseStartingPlayerResp
-        val player1 = PlayerMapper.buildPlayerInfo(human, 1)
-        val player2 = PlayerMapper.buildPlayerInfo(ai, 2).toBuilder()
+        val player1 = PlayerMapper.buildFromSnapshot(snap, 1)
+        val player2 = PlayerMapper.buildFromSnapshot(snap, 2).toBuilder()
             .setPendingMessageType(ClientMessageType.ChooseStartingPlayerResp_097b)
             .build()
 
@@ -357,10 +355,28 @@ object GsmBuilder {
         zones.add(ZoneMapper.makeZone(ZoneIds.LIMBO, ZoneType.Limbo, 0, Visibility.Public))
         // Per-player zones (4 each = 8)
         if (human != null) {
-            ZoneMapper.addInitialPlayerZones(human, 1, bridge, zones, ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, ZoneIds.P1_SIDEBOARD)
+            ZoneMapper.addInitialPlayerZonesFromSnapshot(
+                1,
+                snap,
+                bridge,
+                zones,
+                ZoneIds.P1_HAND,
+                ZoneIds.P1_LIBRARY,
+                ZoneIds.P1_GRAVEYARD,
+                ZoneIds.P1_SIDEBOARD,
+            )
         }
         if (ai != null) {
-            ZoneMapper.addInitialPlayerZones(ai, 2, bridge, zones, ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, ZoneIds.P2_SIDEBOARD)
+            ZoneMapper.addInitialPlayerZonesFromSnapshot(
+                2,
+                snap,
+                bridge,
+                zones,
+                ZoneIds.P2_HAND,
+                ZoneIds.P2_LIBRARY,
+                ZoneIds.P2_GRAVEYARD,
+                ZoneIds.P2_SIDEBOARD,
+            )
         }
 
         // Brawl: populate zone 26 with commander cards as full game objects.
@@ -368,20 +384,15 @@ object GsmBuilder {
         // needs both objectInstanceIds on the zone AND GameObjectInfo entries.
         val gameObjects = mutableListOf<GameObjectInfo>()
         if (isBrawl) {
-            val game = bridge.getGame()
-            if (game != null) {
-                ZoneMapper.addSharedZoneCards(
-                    game,
-                    forge.game.zone.ZoneType.Command,
-                    ZoneIds.COMMAND,
-                    bridge,
-                    zones,
-                    gameObjects,
-                    human,
-                )
-            } else {
-                log.warn("buildInitialGameState: Brawl game but bridge.getGame() is null — command zone will be empty")
-            }
+            ZoneMapper.addSharedZoneCardsFromSnapshot(
+                snap,
+                forge.game.zone.ZoneType.Command,
+                ZoneIds.COMMAND,
+                bridge,
+                zones,
+                gameObjects,
+                human,
+            )
         }
 
         val builder = GameStateMessage.newBuilder()
@@ -411,6 +422,7 @@ object GsmBuilder {
         matchId: String,
         bridge: GameBridge,
         frame: GsmFrame,
+        snap: GsmSnapshot,
         isStageTransition: Boolean = false,
         actions: ActionsAvailableReq? = null,
         actionSeatId: Int = 0,
@@ -420,8 +432,8 @@ object GsmBuilder {
             .setGameStateId(gameStateId)
             .setPrevGameStateId(prevGameStateId)
             .setTurnInfo(frame.turnInfo())
-            .addPlayers(PlayerMapper.buildPlayerInfo(bridge.getPlayer(SeatId(1)), 1))
-            .addPlayers(PlayerMapper.buildPlayerInfo(bridge.getPlayer(SeatId(2)), 2))
+            .addPlayers(PlayerMapper.buildFromSnapshot(snap, 1))
+            .addPlayers(PlayerMapper.buildFromSnapshot(snap, 2))
             .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() }) // phase change
             .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() }) // step change
             .addAllTimers(PlayerMapper.buildTimers())

@@ -1,38 +1,38 @@
 package leyline.game.mapper
 
 import forge.game.phase.PhaseType
-import forge.game.player.Player
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Maps Forge [Player] state and phase info to client proto types.
+ * Maps phase info and player seat state to client proto types.
  *
  * Pure functions — no bridge access, no side effects.
  * Extracted from [StateMapper] for independent testability.
  */
 object PlayerMapper {
 
-    fun buildPlayerInfo(player: Player?, seatId: Int): PlayerInfo {
+    /**
+     * Reads seat state from [GsmSnapshot] and builds the [PlayerInfo] proto.
+     *
+     * When [seatId] is not present in [snap.seats] (e.g. player disconnected or
+     * snapshot taken before seats were populated), returns a bare proto with only
+     * the fixed fields (systemSeatNumber, teamId, status, controllerSeatId,
+     * controllerType, timerIds) — life/startingLife/maxHandSize default to 0.
+     */
+    fun buildFromSnapshot(snap: GsmSnapshot, seatId: Int): PlayerInfo {
         val builder = PlayerInfo.newBuilder()
             .setSystemSeatNumber(seatId)
             .setTeamId(seatId)
             .setStatus(PlayerStatus.InGame_a1c6)
             .setControllerSeatId(seatId)
             .setControllerType(ControllerType.Player_abfa)
-            .addTimerIds(seatId) // compatibility flow uses timerIds=[seatId]
-        if (player != null) {
-            builder.setLifeTotal(player.life)
-                .setStartingLifeTotal(player.startingLife)
-                .setMaxHandSize(player.maxHandSize)
-
-            // Mana pool — disabled for now: client auto-subtracts floating mana
-            // from displayed card costs, causing confusing 0-cost display.
-            // TODO: re-enable once we understand the client's cost rendering rules
-            // var manaId = 1
-            // for (mana in player.manaPool) {
-            //     val color = mapManaColor(mana.color)
-            //     builder.addManaPool(ManaInfo.newBuilder().setManaId(manaId++).setColor(color))
-            // }
+            .addTimerIds(seatId)
+        val seat = snap.seats.firstOrNull { it.seatId.value == seatId }
+        if (seat != null) {
+            builder.setLifeTotal(seat.life)
+                .setStartingLifeTotal(seat.startingLife)
+                .setMaxHandSize(seat.maxHandSize)
         }
         return builder.build()
     }

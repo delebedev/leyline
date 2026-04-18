@@ -1,28 +1,25 @@
 package leyline.game.mapper
 
-import forge.game.Game
 import forge.game.card.Card
-import forge.game.player.Player
 import leyline.DevCheck
-import leyline.bridge.ForgeCardId
-import leyline.bridge.SeatId
 import leyline.game.CardProtoBuilder
 import leyline.game.CardRepository
 import leyline.game.EffectTracker
 import leyline.game.GameBridge
 import leyline.game.KeywordGrpIds
 import leyline.game.TokenIdentityRegistry
+import leyline.game.snapshot.CardSnapshot
+import leyline.game.snapshot.CombatRole
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.card.CardType.CoreType as ForgeCoreType
-import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
- * Builds [GameObjectInfo] protobuf messages from Forge [Card] instances.
+ * Builds [GameObjectInfo] protobuf messages from [CardSnapshot] instances.
  *
  * Static card data (types, colors, abilities, base P/T) comes from [CardProtoBuilder].
- * This mapper adds live game state: current P/T, tapped, sickness, damage,
- * loyalty, combat state, and attachment info.
+ * This mapper adds live game state read from [CardSnapshot]: current P/T, tapped,
+ * sickness, damage, loyalty, combat state, and attachment info.
  *
  * Extracted from [StateMapper] for independent testability.
  */
@@ -32,66 +29,6 @@ object ObjectMapper {
 
     /** Offset added to source card IDs for stack ability instance IDs. */
     internal const val STACK_ABILITY_ID_OFFSET = 100_000
-
-    /**
-     * Build a [GameObjectInfo] for a card in a private/player zone (hand, library, graveyard).
-     * Does not set combat state or attachment — those are battlefield-only concerns
-     * handled by [applyCardFields] when called with bridge+game args.
-     *
-     * @param visibility [Visibility.Private] for hand cards, [Visibility.Public] for graveyard.
-     */
-    fun buildCardObject(
-        card: Card,
-        instanceId: Int,
-        zoneId: Int,
-        ownerSeatId: Int,
-        bridge: GameBridge,
-        visibility: Visibility = Visibility.Private,
-    ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cardRepository, instanceId, bridge.tokenRegistry)
-        val objType = if (card.isToken) GameObjectType.Token else GameObjectType.Card
-        return bridge.cardProto.buildObjectInfo(grpId)
-            .setInstanceId(instanceId)
-            .setType(objType)
-            .setZoneId(zoneId)
-            .setVisibility(visibility)
-            .setOwnerSeatId(ownerSeatId)
-            .setControllerSeatId(ownerSeatId)
-            .setOthersideGrpId(resolveOthersideGrpId(card, bridge.cardRepository))
-            .applyCardFields(card)
-            .build()
-    }
-
-    /**
-     * Build a [GameObjectInfo] for a card in a shared/public zone (battlefield, stack, exile).
-     * Includes combat state and attachment info when bridge+game are provided.
-     */
-    fun buildSharedCardObject(
-        card: Card,
-        instanceId: Int,
-        zoneId: Int,
-        ownerSeatId: Int,
-        controllerSeatId: Int,
-        bridge: GameBridge,
-        game: Game,
-        keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
-    ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cardRepository, instanceId, bridge.tokenRegistry)
-        val objType = if (card.isToken) GameObjectType.Token else GameObjectType.Card
-        val extrinsicKws = keywordSnapshot[instanceId]
-            ?.mapNotNull { KeywordGrpIds.forKeyword(it.keyword) }
-            ?: emptyList()
-        return bridge.cardProto.buildObjectInfo(grpId, extrinsicKeywordGrpIds = extrinsicKws)
-            .setInstanceId(instanceId)
-            .setType(objType)
-            .setZoneId(zoneId)
-            .setVisibility(Visibility.Public)
-            .setOwnerSeatId(ownerSeatId)
-            .setControllerSeatId(controllerSeatId)
-            .setOthersideGrpId(resolveOthersideGrpId(card, bridge.cardRepository))
-            .applyCardFields(card, bridge, game)
-            .build()
-    }
 
     /**
      * Build a [GameObjectInfo] for an ability on the stack.
@@ -113,156 +50,49 @@ object ObjectMapper {
             .build()
 
     /**
-     * Apply dynamic Forge game state onto a [GameObjectInfo.Builder] already enriched
-     * with static card data from [CardProtoBuilder.buildObjectInfo].
-     *
-     * Static fields (colors, abilities, base P/T) come from the client DB.
-     * This method overlays: live card types (continuous effects can add/remove types),
-     * live P/T, tapped, sickness, damage, loyalty, combat, attachment.
-     */
-    fun GameObjectInfo.Builder.applyCardFields(
-        card: Card,
-        bridge: GameBridge? = null,
-        game: Game? = null,
-    ): GameObjectInfo.Builder {
-        val type = card.type
-
-        // Live card types from Forge — continuous effects (e.g. crew) can add/remove types
-        overlayCardTypes(type)
-
-        // Live P/T from Forge (may differ from base due to buffs/counters)
-        if (type.isCreature) {
-            setPower(Int32Value.newBuilder().setValue(card.netPower))
-            setToughness(Int32Value.newBuilder().setValue(card.netToughness))
-        }
-
-        // Permanent state — battlefield only
-        if (card.isInZone(ForgeZoneType.Battlefield)) {
-            setIsTapped(card.isTapped)
-            if (type.isCreature) {
-                setHasSummoningSickness(card.hasSickness())
-                if (card.damage > 0) setDamage(card.damage)
-            }
-            if (type.isPlaneswalker) {
-                setLoyalty(UInt32Value.newBuilder().setValue(card.currentLoyalty))
-            }
-        }
-
-        // Copy token identity — isCopy flag + source grpId (builder's proto field, set by resolveGrpId)
-        if (card.isToken && card.copiedPermanent != null) {
-            setIsCopy(true)
-            setObjectSourceGrpId(this.grpId)
-        }
-
-        // Attachment (Auras, Equipment)
-        val attachedTo = card.attachedTo
-        if (attachedTo != null && bridge != null) {
-            setParentId(bridge.getOrAllocInstanceId(ForgeCardId(attachedTo.id)).value)
-        }
-
-        // Combat state
-        val combat = game?.phaseHandler?.combat
-        if (combat != null && type.isCreature) {
-            applyCombatState(card, combat, bridge)
-        }
-
-        return this
-    }
-
-    /** Apply attackState/blockState, attackInfo/blockInfo to a creature in combat. */
-    private fun GameObjectInfo.Builder.applyCombatState(
-        card: Card,
-        combat: forge.game.combat.Combat,
-        bridge: GameBridge?,
-    ) {
-        if (combat.isAttacking(card)) {
-            setAttackState(AttackState.Attacking)
-            val defender = combat.getDefenderByAttacker(card)
-            if (defender != null) {
-                val targetId = when (defender) {
-                    is Player -> {
-                        val p1 = bridge?.getPlayer(SeatId(1))
-                        if (defender.id == p1?.id) 1 else 2
-                    }
-                    is Card -> bridge?.getOrAllocInstanceId(ForgeCardId(defender.id))?.value ?: 0
-                    else -> 0
-                }
-                if (targetId > 0) {
-                    setAttackInfo(AttackInfo.newBuilder().setTargetId(targetId))
-                }
-            }
-            val band = combat.getBandOfAttacker(card)
-            if (band != null) {
-                val blocked = band.isBlocked()
-                if (blocked == true) {
-                    setBlockState(BlockState.Blocked)
-                } else if (blocked == false) {
-                    setBlockState(BlockState.Unblocked)
-                }
-            }
-        }
-        if (combat.isBlocking(card)) {
-            setBlockState(BlockState.Blocking)
-            val attackers = combat.getAttackersBlockedBy(card)
-            if (attackers.isNotEmpty() && bridge != null) {
-                setBlockInfo(
-                    BlockInfo.newBuilder().apply {
-                        for (atk in attackers) {
-                            addAttackerIds(bridge.getOrAllocInstanceId(ForgeCardId(atk.id)).value)
-                        }
-                    },
-                )
-            }
-        }
-    }
-
-    /**
      * Build a [GameObjectInfo] for echo-back GSMs during iterative combat declaration.
      *
      * Echo objects carry NO combat state (no attackState/blockState).
-     * Only base card fields are included.
+     * Only base card fields are included — P/T, tapped, sickness from [CardSnapshot].
      * The client uses the DeclareAttackersReq/DeclareBlockersReq re-prompt
      * (not object state) to track provisional selections.
      */
     fun buildProvisionalCombatObject(
-        card: Card,
+        cardSnap: CardSnapshot,
         instanceId: Int,
         zoneId: Int,
         ownerSeatId: Int,
-        controllerSeatId: Int,
         bridge: GameBridge,
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cardRepository, instanceId, bridge.tokenRegistry)
-        val objType = if (card.isToken) GameObjectType.Token else GameObjectType.Card
-        return bridge.cardProto.buildObjectInfo(grpId)
+        val objType = if (cardSnap.isToken) GameObjectType.Token else GameObjectType.Card
+        return bridge.cardProto.buildObjectInfo(cardSnap.grpId)
             .setInstanceId(instanceId)
             .setType(objType)
             .setZoneId(zoneId)
             .setVisibility(Visibility.Public)
             .setOwnerSeatId(ownerSeatId)
-            .setControllerSeatId(controllerSeatId)
-            .setOthersideGrpId(resolveOthersideGrpId(card, bridge.cardRepository))
-            .applyCardFields(card, bridge, game = null) // echo objects carry no combat state
+            .setControllerSeatId(cardSnap.controller.value)
+            .setOthersideGrpId(cardSnap.othersideGrpId)
+            .applyFieldsFromSnapshot(cardSnap, bridge) // echo objects carry no combat state (combatRole=null in snap)
             .build()
     }
 
     /**
-     * Build a [GameObjectInfo] for a RevealedCard proxy that mirrors a real hand card.
+     * Build a [GameObjectInfo] for a RevealedCard proxy from a [CardSnapshot].
      *
-     * Per game sessions: proxy has `type = RevealedCard`, `visibility = Public`,
+     * Proxy has `type = RevealedCard`, `visibility = Public`,
      * `zoneId = handZoneId` (overlays the hand zone, NOT the Revealed zone),
-     * and `viewers = [seatId-of-viewer]`. Mirrors grpId, types, P/T from real card.
+     * and `viewers = [seatId-of-viewer]`. Mirrors grpId, types, P/T from snapshot.
      */
     fun buildRevealedCardProxy(
-        card: Card,
+        cardSnap: CardSnapshot,
         proxyInstanceId: Int,
         handZoneId: Int,
         ownerSeatId: Int,
         viewerSeatId: Int,
         bridge: GameBridge,
-    ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cardRepository, proxyInstanceId, bridge.tokenRegistry)
-        return bridge.cardProto.buildObjectInfo(grpId)
+    ): GameObjectInfo =
+        bridge.cardProto.buildObjectInfo(cardSnap.grpId)
             .setInstanceId(proxyInstanceId)
             .setType(GameObjectType.RevealedCard)
             .setZoneId(handZoneId)
@@ -270,8 +100,135 @@ object ObjectMapper {
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(ownerSeatId)
             .addViewers(viewerSeatId)
-            .applyCardFields(card)
+            .applyFieldsFromSnapshot(cardSnap, bridge)
             .build()
+
+    /**
+     * Build a [GameObjectInfo] from a [CardSnapshot].
+     *
+     * [visibility] controls hand (Private) vs graveyard/battlefield/exile (Public).
+     * controllerSeatId is taken from [cardSnap.controller].
+     * [keywordSnapshot] is passed for shared-zone cards that carry extrinsic keyword grants.
+     *
+     * Combat state is applied when [cardSnap.combatRole] is non-null (populated by
+     * [SnapshotCapture] for battlefield creatures in combat).
+     */
+    fun buildFromSnapshot(
+        cardSnap: CardSnapshot,
+        instanceId: Int,
+        zoneId: Int,
+        ownerSeatId: Int,
+        bridge: GameBridge,
+        visibility: Visibility = Visibility.Private,
+        keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
+    ): GameObjectInfo {
+        val objType = if (cardSnap.isToken) GameObjectType.Token else GameObjectType.Card
+        val extrinsicKws = keywordSnapshot[instanceId]
+            ?.mapNotNull { KeywordGrpIds.forKeyword(it.keyword) }
+            ?: emptyList()
+        return bridge.cardProto.buildObjectInfo(cardSnap.grpId, extrinsicKeywordGrpIds = extrinsicKws)
+            .setInstanceId(instanceId)
+            .setType(objType)
+            .setZoneId(zoneId)
+            .setVisibility(visibility)
+            .setOwnerSeatId(ownerSeatId)
+            .setControllerSeatId(cardSnap.controller.value)
+            .setOthersideGrpId(cardSnap.othersideGrpId)
+            .applyFieldsFromSnapshot(cardSnap, bridge)
+            .build()
+    }
+
+    /**
+     * Apply live game state from [cardSnap] onto a [GameObjectInfo.Builder].
+     *
+     * Overlays: live card types, P/T, tapped, sickness, damage, loyalty, combat, attachment.
+     */
+    private fun GameObjectInfo.Builder.applyFieldsFromSnapshot(
+        cardSnap: CardSnapshot,
+        bridge: GameBridge,
+    ): GameObjectInfo.Builder {
+        // Live card types — overlay when they differ from DB (same logic as overlayCardTypes)
+        overlayCardTypesFromSnapshot(cardSnap)
+
+        // Live P/T — set for all creatures regardless of zone
+        val isCreature = cardSnap.liveCardTypeNumbers.contains(CardType.Creature.number)
+        if (isCreature) {
+            cardSnap.netPower?.let { setPower(Int32Value.newBuilder().setValue(it)) }
+            cardSnap.netToughness?.let { setToughness(Int32Value.newBuilder().setValue(it)) }
+        }
+
+        // Permanent state — battlefield only
+        if (cardSnap.isOnBattlefield) {
+            setIsTapped(cardSnap.tapped)
+            if (isCreature) {
+                setHasSummoningSickness(cardSnap.hasSickness)
+                if (cardSnap.damage > 0) setDamage(cardSnap.damage)
+            }
+            val isPlaneswalker = cardSnap.liveCardTypeNumbers.contains(CardType.Planeswalker.number)
+            if (isPlaneswalker) {
+                setLoyalty(UInt32Value.newBuilder().setValue(cardSnap.currentLoyalty))
+            }
+        }
+
+        // Copy token identity
+        if (cardSnap.isCopyToken) {
+            setIsCopy(true)
+            setObjectSourceGrpId(this.grpId)
+        }
+
+        // Attachment (Auras, Equipment) — resolve attached-to instance ID via bridge
+        val attachedTo = cardSnap.attachedTo
+        if (attachedTo != null) {
+            setParentId(bridge.getOrAllocInstanceId(attachedTo).value)
+        }
+
+        // Combat state
+        if (cardSnap.combatRole != null) {
+            applyCombatFromSnapshot(cardSnap.combatRole)
+        }
+
+        return this
+    }
+
+    /** Apply attackState/blockState and attackInfo/blockInfo from a [CombatRole]. */
+    private fun GameObjectInfo.Builder.applyCombatFromSnapshot(role: CombatRole) {
+        when (role) {
+            is CombatRole.Attacker -> {
+                setAttackState(AttackState.Attacking)
+                if (role.targetInstanceId > 0) {
+                    setAttackInfo(AttackInfo.newBuilder().setTargetId(role.targetInstanceId))
+                }
+                when (role.isBlocked) {
+                    true -> setBlockState(BlockState.Blocked)
+                    false -> setBlockState(BlockState.Unblocked)
+                    null -> Unit
+                }
+            }
+            is CombatRole.Blocker -> {
+                setBlockState(BlockState.Blocking)
+                if (role.attackerInstanceIds.isNotEmpty()) {
+                    setBlockInfo(
+                        BlockInfo.newBuilder().apply {
+                            for (id in role.attackerInstanceIds) addAttackerIds(id)
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Overlay live card types from [CardSnapshot.liveCardTypeNumbers].
+     * Rebuilds only when the live set differs from the DB-provided set.
+     */
+    private fun GameObjectInfo.Builder.overlayCardTypesFromSnapshot(cardSnap: CardSnapshot) {
+        val liveNums = cardSnap.liveCardTypeNumbers.toSortedSet()
+        val dbNums = cardTypesList.map { it.number }.toSortedSet()
+        if (liveNums == dbNums) return
+        clearCardTypes()
+        for (num in liveNums) {
+            CardType.forNumber(num)?.let { addCardTypes(it) }
+        }
     }
 
     /** Resolve the other face's grpId for DFC cards. Returns 0 for non-DFC. */
@@ -286,8 +243,8 @@ object ObjectMapper {
         return cards.findGrpIdByName(otherState.name) ?: 0
     }
 
-    /** Forge CoreType → proto CardType mapping. */
-    private val coreTypeToProto: Map<ForgeCoreType, CardType> = mapOf(
+    /** Forge CoreType → proto CardType mapping. Shared with [leyline.game.snapshot.SnapshotCapture]. */
+    internal val coreTypeToProto: Map<ForgeCoreType, CardType> = mapOf(
         ForgeCoreType.Artifact to CardType.Artifact_a80b,
         ForgeCoreType.Creature to CardType.Creature,
         ForgeCoreType.Enchantment to CardType.Enchantment,
@@ -298,21 +255,6 @@ object ObjectMapper {
         ForgeCoreType.Kindred to CardType.Kindred,
         ForgeCoreType.Battle to CardType.Battle,
     )
-
-    /**
-     * Overlay live card types from Forge onto the builder when they differ from the DB.
-     *
-     * Continuous effects (crew, animate, enchant) can add or remove types at runtime.
-     * Only rebuilds when the live set differs from what the DB provided — no-op otherwise.
-     */
-    private fun GameObjectInfo.Builder.overlayCardTypes(type: forge.card.CardTypeView) {
-        val liveTypes = type.coreTypes.mapNotNull { coreTypeToProto[it] }.toSortedSet(compareBy { it.number })
-        val dbTypes = cardTypesList.toSortedSet(compareBy { it.number })
-        if (liveTypes == dbTypes) return
-
-        clearCardTypes()
-        liveTypes.forEach { addCardTypes(it) }
-    }
 
     /**
      * Resolve grpId for a card. Tokens use the [TokenIdentityRegistry] cache,

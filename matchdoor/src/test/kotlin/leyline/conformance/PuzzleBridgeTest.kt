@@ -20,6 +20,7 @@ import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
 import leyline.game.mapper.ActionMapper
+import leyline.game.snapshot.GsmSnapshot
 import leyline.infra.ListMessageSink
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
@@ -204,7 +205,7 @@ class PuzzleBridgeTest :
         test("web test 00 actions include Cast") {
             val b = startPuzzle("puzzles/bolt-face.pzl")
             val game = b.getGame()!!
-            val actions = ActionMapper.buildActions(1, b)
+            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test"), b)
             val actionTypes = actions.actionsList.map { it.actionType.name }
             actionTypes.any { it == "Cast" }.shouldBeTrue()
         }

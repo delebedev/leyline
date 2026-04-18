@@ -39,8 +39,8 @@
     <ID>MaxLineLength:WebGuiGame.kt$WebGuiGame$override fun openZones(controller: PlayerView, zones: Collection&lt;ZoneType&gt;, players: Map&lt;PlayerView, Any&gt;, backupLastZones: Boolean): PlayerZoneUpdates</ID>
     <ID>MaxLineLength:WebGuiGame.kt$WebGuiGame$override fun showConfirmDialog(message: String, title: String, yesText: String, noText: String): Boolean</ID>
     <ID>MaxLineLength:WebGuiGame.kt$WebGuiGame$override fun showInputDialog(message: String, title: String, icon: FSkinProp?, initialInput: String?): String</ID>
+    <ID>NoGameInMappers:StateMapper.kt$import forge.game.Game</ID>
     <ID>NoNameShadowing:MatchSession.kt$MatchSession$filtered</ID>
-    <ID>ReturnCount:AutoPassEngine.kt$AutoPassEngine$fun autoPassAndAdvance(bridge: GameBridge)</ID>
     <ID>ReturnCount:PriorityLoopCoordinator.kt$PriorityLoopCoordinator$fun chooseSpellAbility(): List&lt;SpellAbility&gt;?</ID>
     <ID>ReturnCount:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostDiscard): PaymentDecision?</ID>
     <ID>ReturnCount:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
@@ -53,7 +53,6 @@
     <ID>UnsafeCallOnNullableType:AutoPassEngine.kt$AutoPassEngine$bundles.bundleBuilder!!</ID>
     <ID>UnsafeCallOnNullableType:CombatHandler.kt$CombatHandler$bundles.bundleBuilder!!</ID>
     <ID>UnsafeCallOnNullableType:GameLoopController.kt$GameLoopController$gameThread!!</ID>
-    <ID>UnsafeCallOnNullableType:GsmBuilder.kt$GsmBuilder$bridge.getGame()!!</ID>
     <ID>UnsafeCallOnNullableType:HandshakeMessages.kt$HandshakeMessages$bridge.getGame()!!</ID>
     <ID>UnsafeCallOnNullableType:MatchHandler.kt$MatchHandler$s!!</ID>
     <ID>UnsafeCallOnNullableType:MatchSession.kt$MatchSession$bb!!</ID>
