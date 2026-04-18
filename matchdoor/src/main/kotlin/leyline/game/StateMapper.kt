@@ -194,6 +194,7 @@ object StateMapper {
         val remaining = computeRemainingAnnotations(
             events, annotations, transferPersistent, initEffectDiff, effectDiff,
             persistSnapshot, startPersistentId, startAnnotationId, bridge, keywordDiff,
+            combatResult,
         )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
@@ -428,6 +429,7 @@ object StateMapper {
         startAnnotationId: Int,
         bridge: GameBridge,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
+        combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds = events
             .filterIsInstance<GameEvent.SpellCast>()
@@ -543,6 +545,7 @@ object StateMapper {
             effectDiff = effectDiff,
             transferPersistent = transferPersistent,
             mechanicResult = enrichedMechanicResult,
+            combatResult = combatResult,
             resolveInstanceId = { fid -> bridge.getOrAllocInstanceId(fid) },
             resolveForgeCardId = { iid -> bridge.getForgeCardId(iid) },
         )

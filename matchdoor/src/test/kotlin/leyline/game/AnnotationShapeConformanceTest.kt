@@ -194,7 +194,7 @@ class AnnotationShapeConformanceTest :
             detailKeys(AnnotationBuilder.layeredEffectDestroyed(1.eid)) shouldBe emptySet()
             detailKeys(AnnotationBuilder.playerSelectingTargets(1.iid)) shouldBe emptySet()
             detailKeys(AnnotationBuilder.playerSubmittedTargets(1.iid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.damagedThisTurn(1.iid)) shouldBe emptySet()
+            detailKeys(AnnotationBuilder.damagedThisTurn(listOf(1.iid))) shouldBe emptySet()
             detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1.iid)) shouldBe emptySet()
         }
 
@@ -298,7 +298,7 @@ class AnnotationShapeConformanceTest :
             "LayeredEffectDestroyed" to detailKeys(AnnotationBuilder.layeredEffectDestroyed(1.eid)),
             "PlayerSelectingTargets" to detailKeys(AnnotationBuilder.playerSelectingTargets(1.iid)),
             "PlayerSubmittedTargets" to detailKeys(AnnotationBuilder.playerSubmittedTargets(1.iid)),
-            "DamagedThisTurn" to detailKeys(AnnotationBuilder.damagedThisTurn(1.iid)),
+            "DamagedThisTurn" to detailKeys(AnnotationBuilder.damagedThisTurn(listOf(1.iid))),
             "InstanceRevealedToOpponent" to detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1.iid)),
             "ColorProduction" to detailKeys(AnnotationBuilder.colorProduction(1.iid, listOf(1))),
             "TriggeringObject" to detailKeys(AnnotationBuilder.triggeringObject(1.iid, 27)),

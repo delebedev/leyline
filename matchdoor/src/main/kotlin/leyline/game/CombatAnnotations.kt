@@ -5,14 +5,22 @@ import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
 import leyline.bridge.toWireId
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
+import wotc.mtgo.gre.external.messaging.Messages.Step
 
 /**
  * Result of combat damage annotation generation.
  * [hasCombatDamage] signals that turnInfo should be overridden to CombatDamage.
+ * [damagedThisTurnPersistent] is a single-element list (or empty) containing the
+ * `DamagedThisTurn` persistent annotation for this GSM's new victims; the store
+ * merges it with any existing per-turn annotation rather than allocating a new
+ * one. [clearDamagedThisTurn] signals that the store should delete the active
+ * per-turn `DamagedThisTurn` at the start of the next turn's Upkeep.
  */
 data class CombatAnnotationResult(
     val annotations: List<AnnotationInfo>,
     val hasCombatDamage: Boolean = false,
+    val damagedThisTurnPersistent: List<AnnotationInfo> = emptyList(),
+    val clearDamagedThisTurn: Boolean = false,
 )
 
 /**
@@ -75,7 +83,15 @@ object CombatAnnotations {
     ): CombatAnnotationResult {
         val cardDamage = events.filterIsInstance<GameEvent.DamageDealtToCard>()
         val playerDamage = events.filterIsInstance<GameEvent.DamageDealtToPlayer>()
-        if (cardDamage.isEmpty() && playerDamage.isEmpty()) return CombatAnnotationResult(emptyList())
+        val clearOnUpkeep = events.any { ev ->
+            ev is GameEvent.PhaseChanged && ev.step == Step.Upkeep_a2cb.number
+        }
+        if (cardDamage.isEmpty() && playerDamage.isEmpty()) {
+            return CombatAnnotationResult(
+                annotations = emptyList(),
+                clearDamagedThisTurn = clearOnUpkeep,
+            )
+        }
 
         val annotations = mutableListOf<AnnotationInfo>()
 
@@ -99,12 +115,6 @@ object CombatAnnotations {
             playerDamageSeat = ev.targetSeatId
         }
 
-        // --- DamagedThisTurn badges ---
-        for (ev in cardDamage) {
-            val targetIid = idResolver(ev.targetCardId)
-            annotations.add(AnnotationBuilder.damagedThisTurn(targetIid))
-        }
-
         // --- SyntheticEvent when player takes combat damage ---
         if (playerDamageSeat != null && firstPlayerDamageAttacker != null) {
             annotations.add(AnnotationBuilder.syntheticEvent(firstPlayerDamageAttacker, playerDamageSeat))
@@ -125,6 +135,18 @@ object CombatAnnotations {
             }
         }
 
-        return CombatAnnotationResult(annotations, hasCombatDamage = true)
+        val damagedThisTurnPersistent = if (cardDamage.isNotEmpty()) {
+            val victims = cardDamage.map { idResolver(it.targetCardId) }.distinct()
+            listOf(AnnotationBuilder.damagedThisTurn(affectedIds = victims))
+        } else {
+            emptyList()
+        }
+
+        return CombatAnnotationResult(
+            annotations = annotations,
+            hasCombatDamage = true,
+            damagedThisTurnPersistent = damagedThisTurnPersistent,
+            clearDamagedThisTurn = clearOnUpkeep,
+        )
     }
 }

@@ -1,6 +1,7 @@
 package leyline.game
 
 import leyline.bridge.GrpId
+import leyline.bridge.InstanceId
 
 /** Universal content-side grpIds that annotations reference directly. */
 object AnnotationConstants {
@@ -9,4 +10,8 @@ object AnnotationConstants {
 
     /** Adventure-cast qualification grpId — fixed ability ID referenced by the `Qualification` annotation. */
     val ADVENTURE_QUALIFICATION_GRP_ID: GrpId = GrpId(196)
+
+    /** Shared Battlefield zone ID, used as `affectorId` on zone-scoped persistent
+     *  annotations whose affector is the zone rather than any specific permanent. */
+    val BATTLEFIELD_ZONE_AFFECTOR: InstanceId = InstanceId(28)
 }

@@ -712,10 +712,18 @@ class AnnotationBuilderTest :
         }
 
         test("damagedThisTurnFields") {
-            val ann = AnnotationBuilder.damagedThisTurn(instanceId = 355.iid)
+            val ann = AnnotationBuilder.damagedThisTurn(affectedIds = listOf(355.iid))
             ann.typeList shouldContain AnnotationType.DamagedThisTurn
             ann.affectedIdsList shouldContain 355
+            ann.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR.value
+            ann.affectorId shouldBe 28
             ann.detailsCount shouldBe 0
+        }
+
+        test("damagedThisTurnAccumulatesMultipleVictims") {
+            val ann = AnnotationBuilder.damagedThisTurn(affectedIds = listOf(100.iid, 200.iid, 300.iid))
+            ann.affectedIdsList shouldBe listOf(100, 200, 300)
+            ann.affectorId shouldBe 28
         }
 
         test("instanceRevealedToOpponentFields") {
