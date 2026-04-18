@@ -298,6 +298,21 @@ class GameBridge(
 
     override fun getPreviousZone(instanceId: InstanceId): Int? = diff.getPreviousZone(instanceId.value)
 
+    /**
+     * Apply ordering-sensitive mutations returned by [StateMapper.buildDiff].
+     * Fixed order: id reallocations → limbo retires → zone recordings →
+     * persistent annotation batch → next annotation ID counter.
+     *
+     * Called by [BundleBuilder] between diff compute and action build.
+     */
+    fun applyMutations(m: BridgeMutations) {
+        for (r in m.idReallocations) ids.applyRealloc(r)
+        for (id in m.retiredIds) retireToLimbo(id)
+        for ((iid, zid) in m.zoneRecordings) recordZone(iid, zid)
+        annotations.applyBatchResult(m.persistentBatch)
+        annotations.setAnnotationId(m.nextAnnotationId)
+    }
+
     override fun drainEvents(): DrainedEvents = eventCollector?.drainEvents() ?: DrainedEvents(emptyList())
 
     /** True if there are Forge events queued but not yet drained into a GSM. */
