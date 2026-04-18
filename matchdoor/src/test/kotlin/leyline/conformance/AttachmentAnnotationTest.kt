@@ -10,7 +10,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.ForgeCardId
-import leyline.game.snapshotFromGame
+import leyline.game.seedDiffBaseline
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -37,7 +37,7 @@ class AttachmentAnnotationTest :
             val auraCard = human.getZone(ZoneType.Hand).cards.first()
 
             game.action.moveToPlay(auraCard, null, AbilityKey.newMap())
-            b.snapshotFromGame(game, counter.currentGsId())
+            b.seedDiffBaseline(game, counter.currentGsId())
             game.fireEvent(GameEventCardAttachment(auraCard, null, creature))
 
             val result = base.bundleBuilder(b).stateOnlyDiff(game, counter)
@@ -72,7 +72,7 @@ class AttachmentAnnotationTest :
             val auraCard = human.getZone(ZoneType.Hand).cards.first()
 
             game.action.moveToPlay(auraCard, null, AbilityKey.newMap())
-            b.snapshotFromGame(game, counter.currentGsId())
+            b.seedDiffBaseline(game, counter.currentGsId())
             game.fireEvent(GameEventCardAttachment(auraCard, creature, null))
 
             val result = base.bundleBuilder(b).stateOnlyDiff(game, counter)

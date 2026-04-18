@@ -29,7 +29,6 @@ import leyline.config.MatchConfig
 import leyline.game.mapper.ObjectMapper
 import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
@@ -66,7 +65,6 @@ class GameBridge(
     PlayerLookup,
     AutoPassView,
     ZoneTracking,
-    StateSnapshot,
     AnnotationIds,
     EventDrain {
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
@@ -214,11 +212,9 @@ class GameBridge(
     val diff = DiffSnapshotter(ids)
 
     /**
-     * Previous [GsmSnapshot] sent to the client.
-     * Replaces [DiffSnapshotter.diffBaselineState] for GSM diffing in a future task
-     * (T14) once [StateMapper.buildDiffFromGame] is rewritten to diff snapshot-vs-snapshot.
-     * For now, this is set alongside the legacy [DiffSnapshotter] flow so the migration
-     * path is in place. See arena-lab-mba for cutover plan.
+     * Previous [GsmSnapshot] sent to the client — the diff baseline.
+     * Set after every bundle; null before first state is sent.
+     * [StateMapper.buildDiffFromSnapshot] reads this as `prev` to compute snap-vs-snap diffs.
      */
     @Volatile
     var lastSent: GsmSnapshot? = null
@@ -301,16 +297,6 @@ class GameBridge(
     override fun recordZone(instanceId: InstanceId, zoneId: Int): Int? = diff.recordZone(instanceId.value, zoneId)
 
     override fun getPreviousZone(instanceId: InstanceId): Int? = diff.getPreviousZone(instanceId.value)
-
-    override fun snapshotDiffBaseline(state: GameStateMessage) {
-        diff.snapshotDiffBaseline(state)
-    }
-
-    override fun getDiffBaselineState(): GameStateMessage? = diff.getDiffBaselineState()
-
-    /** Clear the diff baseline — forces next buildDiffFromGame to produce a Full GSM.
-     *  Used after library search to remove revealed card objects from the baseline. */
-    fun clearDiffBaseline() = diff.clearBaseline()
 
     override fun drainEvents(): DrainedEvents = eventCollector?.drainEvents() ?: DrainedEvents(emptyList())
 

@@ -57,7 +57,6 @@ class EffectLifecycleTest :
             // Build full state — exercises snapshotBoosts + diffBoosts + effectAnnotations
             val snapEff1 = GsmSnapshot.capture(game, b, "test", 1)
             val gsm1 = StateMapper.buildFromSnapshot(snapEff1, 1, "test", b).gsm
-            b.snapshotDiffBaseline(gsm1)
             b.lastSent = snapEff1
 
             gsm1 shouldNotBe null
@@ -96,7 +95,6 @@ class EffectLifecycleTest :
             // Take initial snapshot (gsId=1)
             val snapEff2 = GsmSnapshot.capture(game, b, "test", 1)
             val gsm1 = StateMapper.buildFromSnapshot(snapEff2, 1, "test", b).gsm
-            b.snapshotDiffBaseline(gsm1)
             b.lastSent = snapEff2
 
             // Cast Giant Growth targeting Swiftspear

@@ -438,7 +438,7 @@ class TargetingHandler(
         // them and the client keeps showing the library face-up.
         // Protocol handles this via Shuffle (OldIds→NewIds), which we don't
         // implement yet (#42). This is the workaround.
-        bridge.clearDiffBaseline()
+        bridge.lastSent = null
         sink.sendRealGameState(bridge)
         autoPass(bridge)
     }

@@ -14,8 +14,8 @@ import io.kotest.matchers.shouldNotBe
 import leyline.bridge.ForgeCardId
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ZoneIds
+import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
-import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -103,7 +103,7 @@ class LandManaTest :
             val acc = ClientAccumulator()
             acc.seedFull(handshakeFull(game, b, counter.currentGsId()))
             acc.processAll(startResult.messages)
-            b.snapshotFromGame(game)
+            b.seedDiffBaseline(game)
 
             val player = humanPlayer(b)
             val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand")

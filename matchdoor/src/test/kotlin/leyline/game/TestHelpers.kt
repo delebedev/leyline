@@ -14,13 +14,15 @@ import leyline.game.snapshot.GsmSnapshot
  */
 
 /**
- * Convenience: build a full GSM snapshot from the live game and store it.
- * Production code passes pre-built GSMs to [GameBridge.snapshotDiffBaseline] directly;
- * this wrapper avoids boilerplate in tests.
+ * Seed [GameBridge.lastSent] from live game state — establishes the diff baseline for tests.
+ *
+ * Calls [StateMapper.buildFromSnapshot] to trigger zone-recording side-effects
+ * (populates [GameBridge.diff] previousZones so [ZoneTransferDetector] can detect
+ * zone changes on the next diff).
  */
-fun GameBridge.snapshotFromGame(game: Game, gameStateId: Int = 0) {
+fun GameBridge.seedDiffBaseline(game: Game, gameStateId: Int = 0) {
     val snap = GsmSnapshot.capture(game, this, "", gameStateId)
-    snapshotDiffBaseline(StateMapper.buildFromSnapshot(snap, gameStateId, "", this).gsm)
+    StateMapper.buildFromSnapshot(snap, gameStateId, "", this)
     lastSent = snap
 }
 

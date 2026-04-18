@@ -221,7 +221,7 @@ object StateMapper {
         val built = assembleGsm(
             gameStateId, gameInfo.build(), frame, transferResult, remaining,
             combatResult, team1.build(), team2.build(), player1, player2,
-            updateType, actions, actingSeat, bridge,
+            updateType, actions, actingSeat, prev?.gameStateId,
         )
 
         // ═══ APPLY: deferred tracking effects (for next GSM) ═══
@@ -431,9 +431,8 @@ object StateMapper {
         updateType: GameStateUpdate,
         actions: ActionsAvailableReq?,
         prioritySeat: Int,
-        bridge: GameBridge,
+        prevGsId: Int?,
     ): GameStateMessage {
-        val prevState = bridge.getDiffBaselineState()
         val effectiveTurnInfo = if (combatResult.hasCombatDamage) {
             frame.turnInfo().toBuilder().setPhase(Phase.Combat_a549).setStep(Step.CombatDamage_a2cb)
         } else {
@@ -453,8 +452,8 @@ object StateMapper {
             .addAllPersistentAnnotations(remaining.persistent)
             .addAllTimers(PlayerMapper.buildTimers())
             .setUpdate(updateType)
-        if (prevState != null && prevState.gameStateId > 0) {
-            builder.setPrevGameStateId(prevState.gameStateId)
+        if (prevGsId != null && prevGsId > 0) {
+            builder.setPrevGameStateId(prevGsId)
         }
 
         if (actions != null) {

@@ -137,7 +137,6 @@ class TokenDiffStabilityTest :
             // First GSM — baseline
             val snapClue2 = GsmSnapshot.capture(h.game(), h.bridge, "test-clue", 1)
             val gsm1 = StateMapper.buildFromSnapshot(snapClue2, 1, "test-clue", h.bridge, viewingSeatId = 1).gsm
-            h.bridge.snapshotDiffBaseline(gsm1)
             h.bridge.lastSent = snapClue2
 
             val clueObj1 = gsm1.gameObjectsList.first { it.instanceId == clueIid }

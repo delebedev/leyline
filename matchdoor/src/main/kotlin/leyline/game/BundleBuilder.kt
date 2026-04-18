@@ -793,10 +793,6 @@ class BundleBuilder(
 
         val gs = gsBuilder.build()
 
-        // Re-snapshot baseline with the injected ability so the next diff
-        // can emit diffDeletedInstanceIds when the ability is no longer present.
-        bridge.snapshotDiffBaseline(gs)
-
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }

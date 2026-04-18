@@ -13,7 +13,7 @@ import leyline.bridge.ForgeCardId
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
 import leyline.game.mapper.ZoneIds
-import leyline.game.snapshotFromGame
+import leyline.game.seedDiffBaseline
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -36,13 +36,13 @@ class StackCastResolveTest :
             counter: MessageCounter,
         ): Pair<forge.game.card.Card, Int> {
             playLand(b) ?: error("playLand failed")
-            b.snapshotFromGame(game)
+            b.seedDiffBaseline(game)
 
             val creature = humanPlayer(b).getZone(ZoneType.Hand).cards.first { it.isCreature }
             val cardId = creature.id
 
             castCreature(b) ?: error("castCreature failed")
-            b.snapshotFromGame(game, counter.nextGsId())
+            b.seedDiffBaseline(game, counter.nextGsId())
 
             val stackCard = game.stackZone.cards.first { it.id == cardId }
             return stackCard to cardId
@@ -77,7 +77,7 @@ class StackCastResolveTest :
         test("CastSpell: OIC before ZT, Limbo contains old instanceId") {
             val (b, game, counter) = startGameAtMain1()
             playLand(b)
-            b.snapshotFromGame(game)
+            b.seedDiffBaseline(game)
 
             val creature = humanPlayer(b).getZone(ZoneType.Hand).cards.first { it.isCreature }
             val origId = b.getOrAllocInstanceId(ForgeCardId(creature.id))
@@ -210,7 +210,7 @@ class StackCastResolveTest :
         test("Resolve: keeps same instanceId across Stack→Battlefield") {
             val (b, game, counter) = startGameAtMain1()
             playLand(b) ?: error("playLand failed")
-            b.snapshotFromGame(game)
+            b.seedDiffBaseline(game)
 
             val creature = humanPlayer(b).getZone(ZoneType.Hand).cards.first { it.isCreature }
             val cardId = creature.id
@@ -219,7 +219,7 @@ class StackCastResolveTest :
             postAction(game, b, counter)
 
             val stackId = b.getOrAllocInstanceId(ForgeCardId(cardId))
-            b.snapshotFromGame(game)
+            b.seedDiffBaseline(game)
 
             passPriority(b)
             postAction(game, b, counter)

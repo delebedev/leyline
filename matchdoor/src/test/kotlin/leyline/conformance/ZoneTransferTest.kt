@@ -13,7 +13,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.ForgeCardId
 import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.ZoneIds
-import leyline.game.snapshotFromGame
+import leyline.game.seedDiffBaseline
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -313,7 +313,7 @@ class ZoneTransferTest :
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
 
             creature.addCounterInternal(CounterEnumType.P1P1, 3, game.humanPlayer, true, null, AbilityKey.newMap())
-            b.snapshotFromGame(game, counter.currentGsId())
+            b.seedDiffBaseline(game, counter.currentGsId())
             b.drainEvents()
 
             val gsm = capture(b, game, counter) {
