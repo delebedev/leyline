@@ -84,10 +84,13 @@ class AiTurnConformanceTest :
                 if (playback.hasPendingMessages()) {
                     val drained = playback.drainQueue()
                     allBatches.addAll(drained)
-                    val hasZoneChanges = drained.flatten()
+                    // Snap-vs-snap diffs: break only when we see actual card movements
+                    // (objects present in diff), not just phase-transition diffs that
+                    // carry zones (Limbo) but no cards.
+                    val hasCardMovements = drained.flatten()
                         .filter { it.hasGameStateMessage() }
-                        .any { it.gameStateMessage.zonesCount > 0 }
-                    if (hasZoneChanges) break
+                        .any { it.gameStateMessage.gameObjectsCount > 0 }
+                    if (hasCardMovements) break
                 }
             }
 
