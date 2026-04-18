@@ -2,6 +2,7 @@ package leyline.game.snapshot
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.ForgeCardId
@@ -52,5 +53,10 @@ class GsmSnapshotTest :
             )
             card.isOnAdventure shouldBe false
             card.endOfTurnLeavePlay shouldBe false
+        }
+
+        test("GsmSnapshot.forTest defaults abilityWordEntries to empty") {
+            val snap = GsmSnapshot.forTest()
+            snap.abilityWordEntries.shouldBeEmpty()
         }
     })

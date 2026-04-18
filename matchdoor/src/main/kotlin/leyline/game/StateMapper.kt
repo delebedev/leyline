@@ -198,6 +198,17 @@ object StateMapper {
         val temporaryPermanentPersistentFromSnap = snap.objects.values
             .filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
             .map { AnnotationBuilder.temporaryPermanent(bridge.getOrAllocInstanceId(it.forgeCardId)) }
+        val abilityWordPersistentFromSnap = snap.abilityWordEntries.map { entry ->
+            AnnotationBuilder.abilityWordActive(
+                instanceId = InstanceId(entry.instanceId),
+                abilityWordName = entry.abilityWordName,
+                value = entry.value,
+                threshold = entry.threshold,
+                abilityGrpId = entry.abilityGrpId?.let { GrpId(it) },
+                affectorId = InstanceId(entry.affectorId ?: entry.instanceId),
+                affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
+            )
+        }
 
         // Stages 4-5 + persistent computation
         val remaining = computeRemainingAnnotations(
@@ -206,6 +217,7 @@ object StateMapper {
             combatResult,
             qualificationPersistentFromSnap = qualificationPersistentFromSnap,
             temporaryPermanentPersistentFromSnap = temporaryPermanentPersistentFromSnap,
+            abilityWordPersistentFromSnap = abilityWordPersistentFromSnap,
         )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
@@ -442,6 +454,7 @@ object StateMapper {
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
         qualificationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         temporaryPermanentPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        abilityWordPersistentFromSnap: List<AnnotationInfo> = emptyList(),
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds = events
             .filterIsInstance<GameEvent.SpellCast>()
@@ -461,33 +474,8 @@ object StateMapper {
         )
         annotations.addAll(mechanicResult.transient)
 
-        // AbilityWordActive: scan all battlefield permanents (both seats)
-        val game = bridge.getPlayer(SeatId(1))?.game
-        val bfCards = if (game != null) {
-            game.registeredPlayers.flatMap { it.getZone(forge.game.zone.ZoneType.Battlefield).cards.toList() }
-        } else {
-            log.info("AbilityWordActive scan skipped — no game available")
-            emptyList()
-        }
-        val abilityWordPersistent = AbilityWordScanner.scan(
-            battlefieldCards = bfCards,
-            instanceIdResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
-            registryResolver = { card ->
-                val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
-                val cardData = bridge.cardRepository.findByGrpId(grpId)
-                bridge.abilityRegistryFor(card, cardData)
-            },
-        ).map { entry ->
-            AnnotationBuilder.abilityWordActive(
-                instanceId = InstanceId(entry.instanceId),
-                abilityWordName = entry.abilityWordName,
-                value = entry.value,
-                threshold = entry.threshold,
-                abilityGrpId = entry.abilityGrpId?.let { GrpId(it) },
-                affectorId = InstanceId(entry.affectorId ?: entry.instanceId),
-                affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
-            )
-        }
+        // AbilityWordActive: consumed from pre-computed snap entries
+        val abilityWordPersistent = abilityWordPersistentFromSnap
 
         if (initEffectDiff.created.isNotEmpty()) {
             val (initTransient, _) = MechanicAnnotations.effectAnnotations(initEffectDiff)

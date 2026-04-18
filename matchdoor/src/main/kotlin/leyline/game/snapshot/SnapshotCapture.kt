@@ -42,6 +42,7 @@ object SnapshotCapture {
         val objects = captureObjects(game, bridge, zones)
         val phase = capturePhase(game, human)
         val stack = captureStack(game, bridge, human)
+        val abilityWordEntries = computeAbilityWordEntries(game, bridge)
         return GsmSnapshot.forTest(
             matchId = matchId,
             seats = seats,
@@ -49,6 +50,7 @@ object SnapshotCapture {
             objects = objects,
             phase = phase,
             stack = stack,
+            abilityWordEntries = abilityWordEntries,
             capturedAt = CaptureMarker(
                 gsIdBeforeCapture = -1,
                 wallClockMs = System.currentTimeMillis(),
@@ -425,5 +427,27 @@ object SnapshotCapture {
         ForgeZoneType.ExtraHand,
         ForgeZoneType.None,
         -> Visibility.Public
+    }
+
+    /**
+     * Pre-run [leyline.game.AbilityWordScanner] at capture time so the diff
+     * pipeline reads from snap instead of `game.registeredPlayers`.
+     */
+    private fun computeAbilityWordEntries(
+        game: Game,
+        bridge: GameBridge,
+    ): List<leyline.game.AbilityWordScanner.AbilityWordEntry> {
+        val bfCards = game.registeredPlayers.flatMap {
+            it.getZone(ForgeZoneType.Battlefield).cards.toList()
+        }
+        return leyline.game.AbilityWordScanner.scan(
+            battlefieldCards = bfCards,
+            instanceIdResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
+            registryResolver = { card ->
+                val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+                val cardData = bridge.cardRepository.findByGrpId(grpId)
+                bridge.abilityRegistryFor(card, cardData)
+            },
+        )
     }
 }
