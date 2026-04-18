@@ -12,6 +12,8 @@ import leyline.game.EffectTracker
 import leyline.game.GameBridge
 import leyline.game.KeywordGrpIds
 import leyline.game.TokenIdentityRegistry
+import leyline.game.snapshot.CardSnapshot
+import leyline.game.snapshot.CombatRole
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.card.CardType.CoreType as ForgeCoreType
@@ -272,6 +274,136 @@ object ObjectMapper {
             .addViewers(viewerSeatId)
             .applyCardFields(card)
             .build()
+    }
+
+    /**
+     * Build a [GameObjectInfo] from a [CardSnapshot] — the snapshot-path equivalent of
+     * [buildCardObject] + [buildSharedCardObject] combined.
+     *
+     * [visibility] controls hand (Private) vs graveyard/battlefield/exile (Public).
+     * [controllerSeatId] is taken from [cardSnap.controller]; callers in shared zones
+     * should pass it explicitly only if overriding (typically not needed).
+     * [keywordSnapshot] is passed for shared-zone cards that carry extrinsic keyword grants.
+     *
+     * Combat state is applied when [cardSnap.combatRole] is non-null (populated by
+     * [SnapshotCapture] for battlefield creatures in combat).
+     */
+    fun buildFromSnapshot(
+        cardSnap: CardSnapshot,
+        instanceId: Int,
+        zoneId: Int,
+        ownerSeatId: Int,
+        bridge: GameBridge,
+        visibility: Visibility = Visibility.Private,
+        keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
+    ): GameObjectInfo {
+        val objType = if (cardSnap.isToken) GameObjectType.Token else GameObjectType.Card
+        val extrinsicKws = keywordSnapshot[instanceId]
+            ?.mapNotNull { KeywordGrpIds.forKeyword(it.keyword) }
+            ?: emptyList()
+        return bridge.cardProto.buildObjectInfo(cardSnap.grpId, extrinsicKeywordGrpIds = extrinsicKws)
+            .setInstanceId(instanceId)
+            .setType(objType)
+            .setZoneId(zoneId)
+            .setVisibility(visibility)
+            .setOwnerSeatId(ownerSeatId)
+            .setControllerSeatId(cardSnap.controller.value)
+            .setOthersideGrpId(cardSnap.othersideGrpId)
+            .applyFieldsFromSnapshot(cardSnap, bridge)
+            .build()
+    }
+
+    /**
+     * Snapshot-path equivalent of [applyCardFields]. Reads every field from [cardSnap]
+     * instead of a live [Card]. Logic is line-for-line equivalent — see [applyCardFields]
+     * for comments on each block.
+     */
+    private fun GameObjectInfo.Builder.applyFieldsFromSnapshot(
+        cardSnap: CardSnapshot,
+        bridge: GameBridge,
+    ): GameObjectInfo.Builder {
+        // Live card types — overlay when they differ from DB (same logic as overlayCardTypes)
+        overlayCardTypesFromSnapshot(cardSnap)
+
+        // Live P/T — set for all creatures regardless of zone
+        val isCreature = cardSnap.liveCardTypeNumbers.contains(CardType.Creature.number)
+        if (isCreature) {
+            cardSnap.netPower?.let { setPower(Int32Value.newBuilder().setValue(it)) }
+            cardSnap.netToughness?.let { setToughness(Int32Value.newBuilder().setValue(it)) }
+        }
+
+        // Permanent state — battlefield only
+        if (cardSnap.isOnBattlefield) {
+            setIsTapped(cardSnap.tapped)
+            if (isCreature) {
+                setHasSummoningSickness(cardSnap.hasSickness)
+                if (cardSnap.damage > 0) setDamage(cardSnap.damage)
+            }
+            val isPlaneswalker = cardSnap.liveCardTypeNumbers.contains(CardType.Planeswalker.number)
+            if (isPlaneswalker) {
+                setLoyalty(UInt32Value.newBuilder().setValue(cardSnap.currentLoyalty))
+            }
+        }
+
+        // Copy token identity
+        if (cardSnap.isCopyToken) {
+            setIsCopy(true)
+            setObjectSourceGrpId(this.grpId)
+        }
+
+        // Attachment (Auras, Equipment) — resolve attached-to instance ID via bridge
+        val attachedTo = cardSnap.attachedTo
+        if (attachedTo != null) {
+            setParentId(bridge.getOrAllocInstanceId(attachedTo).value)
+        }
+
+        // Combat state
+        if (cardSnap.combatRole != null) {
+            applyCombatFromSnapshot(cardSnap.combatRole)
+        }
+
+        return this
+    }
+
+    /** Snapshot-path equivalent of [applyCombatState]. */
+    private fun GameObjectInfo.Builder.applyCombatFromSnapshot(role: CombatRole) {
+        when (role) {
+            is CombatRole.Attacker -> {
+                setAttackState(AttackState.Attacking)
+                if (role.targetInstanceId > 0) {
+                    setAttackInfo(AttackInfo.newBuilder().setTargetId(role.targetInstanceId))
+                }
+                when (role.isBlocked) {
+                    true -> setBlockState(BlockState.Blocked)
+                    false -> setBlockState(BlockState.Unblocked)
+                    null -> Unit
+                }
+            }
+            is CombatRole.Blocker -> {
+                setBlockState(BlockState.Blocking)
+                if (role.attackerInstanceIds.isNotEmpty()) {
+                    setBlockInfo(
+                        BlockInfo.newBuilder().apply {
+                            for (id in role.attackerInstanceIds) addAttackerIds(id)
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Overlay live card types from [CardSnapshot.liveCardTypeNumbers] — snapshot equivalent
+     * of [overlayCardTypes]. Rebuilds only when the live set differs from the DB-provided set.
+     */
+    private fun GameObjectInfo.Builder.overlayCardTypesFromSnapshot(cardSnap: CardSnapshot) {
+        val liveNums = cardSnap.liveCardTypeNumbers.toSortedSet()
+        val dbNums = cardTypesList.map { it.number }.toSortedSet()
+        if (liveNums == dbNums) return
+        clearCardTypes()
+        for (num in liveNums) {
+            CardType.forNumber(num)?.let { addCardTypes(it) }
+        }
     }
 
     /** Resolve the other face's grpId for DFC cards. Returns 0 for non-DFC. */

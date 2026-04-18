@@ -10,6 +10,7 @@ import leyline.game.CardData
 import leyline.game.EffectTracker
 import leyline.game.GameBridge
 import leyline.game.snapshot.GsmSnapshot
+import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -23,6 +24,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Extracted from [StateMapper] for independent testability.
  */
 object ZoneMapper {
+
+    private val log = LoggerFactory.getLogger(ZoneMapper::class.java)
 
     /** Offset added to source card IDs for stack ability instance IDs. */
     private val STACK_ABILITY_ID_OFFSET = ObjectMapper.STACK_ABILITY_ID_OFFSET
@@ -53,21 +56,18 @@ object ZoneMapper {
     ) {
         val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId || revealHand
         val handVisibility = if (revealHand) Visibility.Public else Visibility.Private
+        val cardVisibility = if (revealHand) Visibility.Public else Visibility.Private
         val handBuilder = ZoneInfo.newBuilder()
             .setZoneId(handZoneId).setType(ZoneType.Hand)
             .setOwnerSeatId(seatId).setVisibility(handVisibility)
             .addViewers(seatId)
-        if (revealHand) {
-            val viewerSeat = if (seatId == 1) 2 else 1
-            handBuilder.addViewers(viewerSeat)
-        }
-        val cardVisibility = if (revealHand) Visibility.Public else Visibility.Private
+        if (revealHand) handBuilder.addViewers(if (seatId == 1) 2 else 1)
         for (fid in snap.zones[handZoneId]?.contents ?: emptyList()) {
             val card = bridge.findCard(fid) ?: continue
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             handBuilder.addObjectInstanceIds(instanceId)
             if (canSeeHand) {
-                gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, handZoneId, seatId, bridge, cardVisibility))
+                gameObjects.add(buildPlayerCard(snap, fid, card, instanceId, handZoneId, seatId, bridge, cardVisibility, "hand"))
             }
         }
         zones.add(handBuilder.build())
@@ -81,9 +81,8 @@ object ZoneMapper {
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             libBuilder.addObjectInstanceIds(instanceId)
             if (revealLib) {
-                val obj = ObjectMapper.buildCardObject(card, instanceId, libZoneId, seatId, bridge, Visibility.Private)
-                    .toBuilder().addViewers(seatId).build()
-                gameObjects.add(obj)
+                val base = buildPlayerCard(snap, fid, card, instanceId, libZoneId, seatId, bridge, Visibility.Private, "library")
+                gameObjects.add(base.toBuilder().addViewers(seatId).build())
             }
         }
         zones.add(libBuilder.build())
@@ -96,10 +95,39 @@ object ZoneMapper {
                 val card = bridge.findCard(fid) ?: continue
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
                 gyBuilder.addObjectInstanceIds(instanceId)
-                gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, gyZoneId, seatId, bridge, Visibility.Public))
+                gameObjects.add(buildPlayerCard(snap, fid, card, instanceId, gyZoneId, seatId, bridge, Visibility.Public, "graveyard"))
             }
             zones.add(gyBuilder.build())
         }
+    }
+
+    /**
+     * Build [GameObjectInfo] for a card in a player zone (hand/library/graveyard) using the
+     * snapshot path with legacy fallback and optional dual-check under [DevCheck.strict].
+     */
+    @Suppress("detekt:LongParameterList")
+    private fun buildPlayerCard(
+        snap: GsmSnapshot,
+        fid: ForgeCardId,
+        card: forge.game.card.Card,
+        instanceId: Int,
+        zoneId: Int,
+        seatId: Int,
+        bridge: GameBridge,
+        visibility: Visibility,
+        zoneName: String,
+    ): GameObjectInfo {
+        val cardSnap = snap.objects[fid]
+        if (cardSnap == null) {
+            log.warn("ObjectMapper T6 drift: no snapshot for {} card {}", zoneName, fid)
+            return ObjectMapper.buildCardObject(card, instanceId, zoneId, seatId, bridge, visibility)
+        }
+        val objFromSnap = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, seatId, bridge, visibility)
+        if (DevCheck.strict) {
+            val objFromGame = ObjectMapper.buildCardObject(card, instanceId, zoneId, seatId, bridge, visibility)
+            check(objFromSnap == objFromGame) { "ObjectMapper drift for $fid ($zoneName)" }
+        }
+        return objFromSnap
     }
 
     // --- Snapshot-based shared zones ---
@@ -139,9 +167,29 @@ object ZoneMapper {
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             zoneBuilder.addObjectInstanceIds(instanceId)
 
-            gameObjects.add(
-                ObjectMapper.buildSharedCardObject(card, instanceId, arenaZoneId, ownerSeatId, controllerSeatId, bridge, game, keywordSnapshot),
-            )
+            val cardSnap = snap.objects[fid]
+            if (cardSnap == null) {
+                log.warn("ObjectMapper T6 drift: no snapshot for shared card {}", fid)
+                gameObjects.add(
+                    ObjectMapper.buildSharedCardObject(card, instanceId, arenaZoneId, ownerSeatId, controllerSeatId, bridge, game, keywordSnapshot),
+                )
+            } else {
+                val objFromSnap = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, arenaZoneId, ownerSeatId, bridge, Visibility.Public, keywordSnapshot)
+                if (DevCheck.strict) {
+                    val objFromGame = ObjectMapper.buildSharedCardObject(
+                        card,
+                        instanceId,
+                        arenaZoneId,
+                        ownerSeatId,
+                        controllerSeatId,
+                        bridge,
+                        game,
+                        keywordSnapshot,
+                    )
+                    check(objFromSnap == objFromGame) { "ObjectMapper drift for $fid (shared zone $arenaZoneId)" }
+                }
+                gameObjects.add(objFromSnap)
+            }
         }
         zones.add(zoneBuilder.build())
     }

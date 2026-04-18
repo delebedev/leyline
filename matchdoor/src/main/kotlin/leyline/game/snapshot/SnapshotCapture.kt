@@ -1,12 +1,17 @@
 package leyline.game.snapshot
 
 import forge.game.Game
+import forge.game.card.Card
+import forge.game.player.Player
 import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.game.GameBridge
+import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.ZoneIds
+import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
+import forge.card.CardType.CoreType as ForgeCoreType
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
@@ -19,6 +24,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Task 2: populates [GsmSnapshot.seats] for seats 1 and 2.
  * Task 4: populates [GsmSnapshot.zones] — hand/library/graveyard per seat +
  *   shared zones (battlefield/stack/exile/command).
+ * Task 6: populates [GsmSnapshot.objects] — one [CardSnapshot] per card in any zone.
  *   Later tasks populate each section as the corresponding mapper migrates.
  */
 internal object SnapshotCapture {
@@ -33,10 +39,12 @@ internal object SnapshotCapture {
             )
         }
         val zones = captureZones(game, bridge)
+        val objects = captureObjects(game, bridge, zones)
         return GsmSnapshot.forTest(
             matchId = matchId,
             seats = seats,
             zones = zones,
+            objects = objects,
             capturedAt = CaptureMarker(
                 gsIdBeforeCapture = -1,
                 wallClockMs = System.currentTimeMillis(),
@@ -93,6 +101,149 @@ internal object SnapshotCapture {
             contents = game.getCardsIn(fz).map { ForgeCardId(it.id) },
         )
     }
+
+    // --- Task 6: object capture ---
+
+    /**
+     * Build [CardSnapshot] for every card referenced by any captured zone.
+     *
+     * Cards appearing in multiple zones (shouldn't happen in practice but safe to handle)
+     * are captured once — first zone wins.
+     */
+    private fun captureObjects(
+        game: Game,
+        bridge: GameBridge,
+        zones: Map<Int, ZoneSnapshot>,
+    ): Map<ForgeCardId, CardSnapshot> {
+        val combat = game.phaseHandler?.combat
+        val human = bridge.getPlayer(SeatId(1))
+        val seen = linkedMapOf<ForgeCardId, CardSnapshot>()
+        for (zone in zones.values) {
+            for (fid in zone.contents) {
+                if (fid in seen) continue
+                val card = bridge.findCard(fid) ?: continue
+                seen[fid] = captureCard(card, combat, bridge, human)
+            }
+        }
+        return seen
+    }
+
+    /**
+     * Read all fields from a live Forge [Card] that [ObjectMapper.applyCardFields] and
+     * [ObjectMapper.applyCombatState] consume, and pack them into an immutable [CardSnapshot].
+     *
+     * This is the single point where Forge Card reads occur for the ObjectMapper path.
+     * [bridge] is needed to resolve instance IDs for combat targets/blockers.
+     * [human] (seat 1 player) is needed to resolve attacker target player seat IDs.
+     */
+    private fun captureCard(
+        card: Card,
+        combat: forge.game.combat.Combat?,
+        bridge: GameBridge,
+        human: Player?,
+    ): CardSnapshot {
+        val onBf = card.isInZone(ForgeZoneType.Battlefield)
+        val type = card.type
+
+        // Live card types as proto CardType ordinal ints (mirrors overlayCardTypes logic)
+        val liveTypeNumbers = type.coreTypes
+            .mapNotNull { coreTypeToProto[it] }
+            .sortedBy { it.number }
+            .map { it.number }
+
+        // Combat role — only for battlefield creatures
+        val combatRole: CombatRole? = if (combat != null && onBf && type.isCreature) {
+            resolveCombatRole(card, combat, bridge, human)
+        } else {
+            null
+        }
+
+        // Attachment
+        val attachedTo = card.attachedTo?.let { ForgeCardId(it.id) }
+
+        // DFC fields — mirror resolveOthersideGrpId logic
+        val othersideGrpId = ObjectMapper.resolveOthersideGrpId(card, bridge.cardRepository)
+        val currentStateNameIsBackside =
+            card.currentState?.stateName == forge.card.CardStateName.Backside
+
+        // grpId — delegate to the same resolution used by buildCardObject
+        val grpId = ObjectMapper.resolveGrpId(card, bridge.cardRepository, instanceId = 0, bridge.tokenRegistry)
+
+        // Owner/controller seats: seat 1 = human
+        val ownerSeat = SeatId(if (card.owner == human) 1 else 2)
+        val controllerSeat = SeatId(if (card.controller == human) 1 else 2)
+
+        return CardSnapshot(
+            forgeCardId = ForgeCardId(card.id),
+            name = card.name,
+            grpId = grpId,
+            owner = ownerSeat,
+            controller = controllerSeat,
+            isOnBattlefield = onBf,
+            // P/T captured for all creatures (legacy path sets P/T regardless of zone)
+            netPower = if (type.isCreature) card.netPower else null,
+            netToughness = if (type.isCreature) card.netToughness else null,
+            tapped = if (onBf) card.isTapped else false,
+            hasSickness = onBf && type.isCreature && card.hasSickness(),
+            damage = if (onBf && type.isCreature) card.damage else 0,
+            currentLoyalty = if (onBf && type.isPlaneswalker) card.currentLoyalty else 0,
+            isToken = card.isToken,
+            isCopyToken = card.isToken && card.copiedPermanent != null,
+            attachedTo = attachedTo,
+            liveCardTypeNumbers = liveTypeNumbers,
+            isDoubleFaced = card.isDoubleFaced,
+            othersideGrpId = othersideGrpId,
+            currentStateNameIsBackside = currentStateNameIsBackside,
+            combatRole = combatRole,
+        )
+    }
+
+    private fun resolveCombatRole(
+        card: Card,
+        combat: forge.game.combat.Combat,
+        bridge: GameBridge,
+        human: Player?,
+    ): CombatRole? {
+        if (combat.isAttacking(card)) {
+            val targetInstanceId: Int = run {
+                val defender = combat.getDefenderByAttacker(card)
+                when {
+                    defender == null -> 0
+                    defender is Player -> if (defender.id == human?.id) 1 else 2
+                    defender is Card -> bridge.getOrAllocInstanceId(ForgeCardId(defender.id)).value
+                    else -> 0
+                }
+            }
+            val isBlocked: Boolean? = combat.getBandOfAttacker(card)?.isBlocked()
+            return CombatRole.Attacker(
+                targetInstanceId = targetInstanceId,
+                isBlocked = isBlocked,
+            )
+        }
+        if (combat.isBlocking(card)) {
+            val attackerIds = combat.getAttackersBlockedBy(card).map { atk ->
+                bridge.getOrAllocInstanceId(ForgeCardId(atk.id)).value
+            }
+            return CombatRole.Blocker(attackerInstanceIds = attackerIds)
+        }
+        return null
+    }
+
+    // --- Forge CoreType → proto CardType mapping (mirrors ObjectMapper.coreTypeToProto) ---
+
+    private val coreTypeToProto: Map<ForgeCoreType, CardType> = mapOf(
+        ForgeCoreType.Artifact to CardType.Artifact_a80b,
+        ForgeCoreType.Creature to CardType.Creature,
+        ForgeCoreType.Enchantment to CardType.Enchantment,
+        ForgeCoreType.Instant to CardType.Instant,
+        ForgeCoreType.Land to CardType.Land_a80b,
+        ForgeCoreType.Planeswalker to CardType.Planeswalker,
+        ForgeCoreType.Sorcery to CardType.Sorcery,
+        ForgeCoreType.Kindred to CardType.Kindred,
+        ForgeCoreType.Battle to CardType.Battle,
+    )
+
+    // --- Zone ID helpers (unchanged from before) ---
 
     private fun playerZoneId(seat: Int, fz: ForgeZoneType): Int? = when (fz) {
         ForgeZoneType.Hand -> if (seat == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
