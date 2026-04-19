@@ -258,14 +258,17 @@ open class CombatHandler(
         }
 
         if (!isSubmit) {
-            // Iterative update: save blocker assignments, then echo back
-            // DeclareBlockersReq so the client confirms and enables Submit.
-            // Same echo pattern as DeclareAttackersResp → DeclareAttackersReq.
+            // DeclareBlockersResp is diff-style: each entry carries only the
+            // toggled blocker. Non-empty selectedAttackerInstanceIds → assign;
+            // empty → deselect. Server must accumulate across responses.
             val resp = greMsg.declareBlockersResp
-            lastDeclaredBlockAssignments.clear()
             for (blocker in resp.selectedBlockersList) {
-                lastDeclaredBlockAssignments[blocker.blockerInstanceId] =
-                    blocker.selectedAttackerInstanceIdsList.firstOrNull() ?: continue
+                val attackerIid = blocker.selectedAttackerInstanceIdsList.firstOrNull()
+                if (attackerIid != null) {
+                    lastDeclaredBlockAssignments[blocker.blockerInstanceId] = attackerIid
+                } else {
+                    lastDeclaredBlockAssignments.remove(blocker.blockerInstanceId)
+                }
             }
             log.info("CombatHandler: blocker update — assignments={}, echoing DeclareBlockersReq", lastDeclaredBlockAssignments)
             sendBlockerEchoBack(bridge)

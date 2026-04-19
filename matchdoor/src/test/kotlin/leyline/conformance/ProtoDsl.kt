@@ -149,6 +149,22 @@ fun declareBlockersResp(
     )
 }
 
+/**
+ * [DeclareBlockersResp] — deselect a single blocker. Blocker entry with
+ * blockerInstanceId set and no selectedAttackerInstanceIds.
+ */
+fun declareBlockersRespDeselect(
+    blockerInstanceId: Int,
+): ClientToGREMessage = clientMessage(ClientMessageType.DeclareBlockersResp_097b) {
+    setDeclareBlockersResp(
+        DeclareBlockersResp.newBuilder().addSelectedBlockers(
+            Blocker.newBuilder()
+                .setBlockerInstanceId(blockerInstanceId)
+                .setMaxAttackers(1),
+        ),
+    )
+}
+
 /** [SubmitBlockersReq] — type-only "Done" button. */
 fun submitBlockersReq(seatId: Int = 1): ClientToGREMessage =
     clientMessage(ClientMessageType.SubmitBlockersReq) {
