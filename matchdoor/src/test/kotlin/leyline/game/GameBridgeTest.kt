@@ -493,7 +493,8 @@ class GameBridgeTest :
 
             // Build initial state to seed previousZones
             val snapGb2 = GsmSnapshot.capture(game, b, "test-match", 1)
-            StateMapper.buildFromSnapshot(snapGb2, 1, "test-match", b).gsm
+            val seedResult = StateMapper.buildFromSnapshot(snapGb2, 1, "test-match", b)
+            b.applyMutations(seedResult.mutations)
 
             // Play a land
             val player = b.getPlayer(SeatId(1))!!

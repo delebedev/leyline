@@ -101,9 +101,10 @@ class MatchFlowHarness(
         val game = bridge.getGame()
         if (game != null) {
             val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-            val fullGsm = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId).gsm
-            accumulator.seedFull(fullGsm)
-            validatingSink?.seedFull(fullGsm)
+            val fullResult = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId)
+            bridge.applyMutations(fullResult.mutations)
+            accumulator.seedFull(fullResult.gsm)
+            validatingSink?.seedFull(fullResult.gsm)
         }
 
         bridge.submitKeep(seatId)
@@ -163,9 +164,10 @@ class MatchFlowHarness(
         val game = bridge.getGame()
         if (game != null) {
             val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-            val fullGsm = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId).gsm
-            accumulator.seedFull(fullGsm)
-            validatingSink?.seedFull(fullGsm)
+            val fullResult = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId)
+            bridge.applyMutations(fullResult.mutations)
+            accumulator.seedFull(fullResult.gsm)
+            validatingSink?.seedFull(fullResult.gsm)
         }
 
         session.onPuzzleStart()

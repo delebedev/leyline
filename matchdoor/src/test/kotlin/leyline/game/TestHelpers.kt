@@ -16,13 +16,13 @@ import leyline.game.snapshot.GsmSnapshot
 /**
  * Seed [GameBridge.lastSent] from live game state — establishes the diff baseline for tests.
  *
- * Calls [StateMapper.buildFromSnapshot] to trigger zone-recording side-effects
- * (populates [GameBridge.diff] previousZones so [ZoneTransferDetector] can detect
- * zone changes on the next diff).
+ * Calls [StateMapper.buildFromSnapshot] and applies the returned [BridgeMutations]
+ * so [GameBridge.diff] previousZones is populated for the next [ZoneTransferDetector] pass.
  */
 fun GameBridge.seedDiffBaseline(game: Game, gameStateId: Int = 0) {
     val snap = GsmSnapshot.capture(game, this, "", gameStateId)
-    StateMapper.buildFromSnapshot(snap, gameStateId, "", this)
+    val result = StateMapper.buildFromSnapshot(snap, gameStateId, "", this)
+    applyMutations(result.mutations)
     lastSent = snap
 }
 

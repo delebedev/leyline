@@ -34,11 +34,14 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *
  * ## Purity boundary
  *
+ * Single contract: both [buildFromSnapshot] and [buildDiff] return
+ * [BridgeMutations] as data; callers apply via [GameBridge.applyMutations].
+ * No inline writes during compute, no mode flags. Ordering-sensitive writes
+ * (id reallocations, limbo retires, zone recordings, persistent annotation
+ * batch, nextAnnotationId) flow exclusively through the returned mutations.
+ *
  * Inputs to [buildDiff] are pure values: `prev: GsmSnapshot?`, `cur: GsmSnapshot`,
  * `events: List<GameEvent>`. Outputs are pure: `GameStateMessage` + [BridgeMutations].
- * Ordering-sensitive bridge writes (id reallocations, limbo retires, zone recordings,
- * persistent annotation batch, nextAnnotationId) are returned as data; the caller
- * ([BundleBuilder]) applies them via [GameBridge.applyMutations].
  *
  * The acceptance forcing function for this boundary is `PureDiffReplayTest` —
  * a scripted one-turn scenario that replays recorded `(snap, events, diff)`
@@ -110,13 +113,6 @@ object StateMapper {
          * path pure on its persistent-state inputs.
          */
         persistentStateOverride: PersistentAnnotationState? = null,
-        /**
-         * When true, skip the in-place writes for ordering-sensitive mutations
-         * (retireToLimbo, recordZone, applyBatchResult, setAnnotationId). The
-         * mutations are still collected and returned in [BuildResult.mutations].
-         * [buildDiff] passes true; legacy callers keep default (false).
-         */
-        deferMutations: Boolean = false,
     ): BuildResult {
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
@@ -250,7 +246,7 @@ object StateMapper {
         )
 
         // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
-        val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, events, deferMutations)
+        val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, events)
         val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
             computeAnnotations(events, transferResult, actingSeat, bridge, prev = prev)
@@ -300,17 +296,6 @@ object StateMapper {
             nextAnnotationId = remaining.nextAnnotationId,
         )
 
-        // ═══ APPLY: deferred tracking effects (for next GSM) ═══
-        // Must run AFTER assembleGsm — the GSM already embedded batch.allAnnotations.
-        // applyBatchResult replaces the live store so the next buildFromSnapshot sees updated state.
-        // When deferMutations=true (buildDiff path), the caller applies via bridge.applyMutations.
-        if (!deferMutations) {
-            for (id in transferResult.retiredIds) bridge.retireToLimbo(InstanceId(id))
-            for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(InstanceId(iid), zid)
-            bridge.annotations.applyBatchResult(remaining.batch)
-            bridge.annotations.setAnnotationId(remaining.nextAnnotationId)
-        }
-
         val hasCastSpell = transferResult.transfers.any { it.category == TransferCategory.CastSpell }
         return BuildResult(built, hasCastSpell, mutations)
     }
@@ -352,7 +337,6 @@ object StateMapper {
                 prev = null,
                 externalEvents = events,
                 persistentStateOverride = cur.persistentAnnotationState,
-                deferMutations = true,
             )
         }
 
@@ -363,7 +347,6 @@ object StateMapper {
             prev = prev,
             externalEvents = events,
             persistentStateOverride = cur.persistentAnnotationState,
-            deferMutations = true,
         )
         val current = fullResult.gsm
 
