@@ -250,7 +250,7 @@ object StateMapper {
         )
 
         // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
-        val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, events)
+        val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, events, deferMutations)
         val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
             computeAnnotations(events, transferResult, actingSeat, bridge, prev = prev ?: bridge.lastSent)

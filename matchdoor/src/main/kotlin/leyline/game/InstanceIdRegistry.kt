@@ -26,6 +26,35 @@ class InstanceIdRegistry(startId: Int = 100) {
      */
     data class IdReallocation(val old: InstanceId, val new: InstanceId)
 
+    /**
+     * Peek the next instanceId the registry would allocate, without mutating state.
+     * Used by overlay-based pure compute paths (e.g. `ZoneTransferDetector` in defer mode)
+     * that need to thread their own counter forward without committing to the registry.
+     */
+    fun peekNextInstanceId(): Int = nextInstanceId
+
+    /**
+     * Return the current mapped instanceId for [forgeCardId], or `null` if none is mapped.
+     * Unlike [getOrAlloc], never mutates — suitable for pure-compute paths.
+     */
+    fun peek(forgeCardId: ForgeCardId): InstanceId? = forgeIdToInstanceId[forgeCardId]
+
+    /**
+     * Reserve (allocate) the next instanceId WITHOUT touching the forward/reverse maps.
+     *
+     * Used by the defer-mode path in `ZoneTransferDetector`: it needs a unique id for
+     * each planned reallocation, but it does NOT want the maps committed until
+     * `applyMutations` runs. Reserving the counter slot here guarantees that any
+     * later monotonic [getOrAlloc] inside the same `buildDiff` call gets an id past
+     * the reserved range — avoiding a collision between a reallocation's planned
+     * new id and a monotonically allocated id.
+     *
+     * The map commit still happens in [applyRealloc] via `applyMutations`; this
+     * split keeps ordering-sensitive map writes out of compute while preserving
+     * id uniqueness across interleaved monotonic allocations.
+     */
+    fun reserveNextInstanceId(): InstanceId = InstanceId(nextInstanceId++)
+
     /** Allocate or return existing client instanceId for a Forge card ID. */
     fun getOrAlloc(forgeCardId: ForgeCardId): InstanceId =
         forgeIdToInstanceId.computeIfAbsent(forgeCardId) {

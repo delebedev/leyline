@@ -112,26 +112,56 @@ object ZoneTransferDetector {
         zones: List<ZoneInfo>,
         bridge: GameBridge,
         events: List<GameEvent>,
+        deferMutations: Boolean = false,
     ): TransferResult {
         val plannedReallocs = mutableListOf<InstanceIdRegistry.IdReallocation>()
-        // Plan each realloc and apply immediately so the id counter advances between
-        // iterations — downstream code within the same detectZoneTransfers call uses
-        // the new id from plan.new. The planned list is returned in TransferResult for
-        // BundleBuilder to commit via bridge.applyMutations after buildDiff returns.
-        val planOnly = { fid: ForgeCardId ->
-            val plan = bridge.planReallocInstanceId(fid)
-            bridge.ids.applyRealloc(plan)
-            plannedReallocs.add(plan)
-            plan
+
+        // In legacy (transactional) mode the detector commits each realloc immediately
+        // (both counter + forward/reverse maps) so later in-pass lookups see the new
+        // id via the bridge. In defer mode we must NOT commit the maps during compute
+        // — that violates `buildDiff`'s purity contract and leaves the bridge in a
+        // half-applied state if anything throws between detect and `applyMutations`.
+        // We still RESERVE a counter slot per plan (unavoidable: monotonic `getOrAlloc`
+        // calls later in the same `buildDiff` must not collide with the planned new
+        // ids). A forward/reverse overlay wraps the lookups so same-pass queries for
+        // a freshly-planned fid resolve to the planned id without a map write.
+        // `bridge.applyMutations` commits the maps afterwards via `applyRealloc`.
+        val forgeIdLookup: (InstanceId) -> ForgeCardId?
+        val idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation
+        val idLookup: (ForgeCardId) -> InstanceId
+        if (deferMutations) {
+            val forwardOverlay = mutableMapOf<ForgeCardId, InstanceId>()
+            val reverseOverlay = mutableMapOf<InstanceId, ForgeCardId>()
+            idAllocator = { fid ->
+                val oldId = forwardOverlay[fid] ?: bridge.ids.peek(fid)
+                val newId = bridge.ids.reserveNextInstanceId()
+                forwardOverlay[fid] = newId
+                reverseOverlay[newId] = fid
+                val plan = InstanceIdRegistry.IdReallocation(oldId ?: newId, newId)
+                plannedReallocs.add(plan)
+                plan
+            }
+            forgeIdLookup = { iid -> reverseOverlay[iid] ?: bridge.getForgeCardId(iid) }
+            idLookup = { fid -> forwardOverlay[fid] ?: bridge.getOrAllocInstanceId(fid) }
+        } else {
+            idAllocator = { fid ->
+                val plan = bridge.planReallocInstanceId(fid)
+                bridge.ids.applyRealloc(plan)
+                plannedReallocs.add(plan)
+                plan
+            }
+            forgeIdLookup = { iid -> bridge.getForgeCardId(iid) }
+            idLookup = { fid -> bridge.getOrAllocInstanceId(fid) }
         }
+
         val result = detectZoneTransfers(
             gameObjects = gameObjects,
             zones = zones,
             events = events,
             previousZones = bridge.diff.allZones(),
-            forgeIdLookup = { iid -> bridge.getForgeCardId(iid) },
-            idAllocator = planOnly,
-            idLookup = { fid -> bridge.getOrAllocInstanceId(fid) },
+            forgeIdLookup = forgeIdLookup,
+            idAllocator = idAllocator,
+            idLookup = idLookup,
             manaAbilityGrpIdResolver = { fid ->
                 val card = bridge.getGame()?.let { findCard(it, fid) }
                 if (card != null) {

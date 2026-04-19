@@ -2,6 +2,7 @@ package leyline.game
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.conformance.ConformanceTestBase
 import leyline.game.snapshot.GsmSnapshot
@@ -86,6 +87,67 @@ class PureDiffReplayTest :
                     )
                 }
             }
+        }
+
+        // Regression guard for the purity contract Codex flagged on PR #22:
+        // `buildDiff` in defer mode (i.e. the production diff path) MUST NOT mutate
+        // `bridge.ids` for realloc writes. Before the fix, `ZoneTransferDetector`
+        // committed each planned realloc inline, so `applyMutations` later found the
+        // counter already past and its `applyRealloc` became a no-op. After the fix,
+        // the detector uses a local overlay and `applyMutations` is the first place
+        // the counter advances.
+        test("buildDiff defers bridge.ids realloc commits to applyMutations") {
+            val (liveBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
+            val captured = mutableListOf<BundleStep>()
+            liveBridge.diffListener = { prev, cur, events, gsId, diff ->
+                captured.add(BundleStep(prev, cur, events.toList(), gsId, diff))
+            }
+            base.playLand(liveBridge)
+            base.castCreature(liveBridge)
+            advanceToEndOfTurn(liveBridge)
+            liveBridge.diffListener = null
+
+            captured.shouldNotBeEmpty()
+
+            val (replayBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
+
+            // Walk the captured run like the main replay test does, but at each step
+            // verify the defer-vs-apply map invariant for any step with a non-trivial
+            // realloc: the forward map must still reflect the OLD id pre-apply, and
+            // the NEW id post-apply. Under the pre-fix behaviour the detector
+            // committed the map during compute, so the invariant would fail for the
+            // pre-apply snapshot.
+            var exercisedRealloc = false
+            for (step in captured) {
+                val result = StateMapper.buildDiff(
+                    prev = step.prev,
+                    cur = step.cur,
+                    events = step.events,
+                    gameStateId = step.gameStateId,
+                    matchId = ConformanceTestBase.TEST_MATCH_ID,
+                    bridge = replayBridge,
+                    updateType = step.diff.update,
+                    viewingSeatId = SEAT_ID,
+                )
+                val nonTrivial = result.mutations.idReallocations.filter { it.old != it.new }
+                for (r in nonTrivial) {
+                    val fid = replayBridge.getForgeCardId(r.old)
+                        ?: error("reverse lookup for realloc.old=${r.old} returned null; bridge state corrupt")
+                    // Pre-apply: defer-mode compute must NOT have moved the forward
+                    // map. `peek(fid)` must still return `r.old`.
+                    replayBridge.ids.peek(fid) shouldBe r.old
+                }
+                replayBridge.applyMutations(result.mutations)
+                for (r in nonTrivial) {
+                    val fid = replayBridge.getForgeCardId(r.new)
+                        ?: error("reverse lookup for realloc.new=${r.new} returned null after apply")
+                    // Post-apply: the map now reflects the new id.
+                    replayBridge.ids.peek(fid) shouldBe r.new
+                }
+                if (nonTrivial.isNotEmpty()) exercisedRealloc = true
+                replayBridge.lastSent = step.cur
+            }
+            exercisedRealloc shouldBe true
         }
     }) {
     companion object {
