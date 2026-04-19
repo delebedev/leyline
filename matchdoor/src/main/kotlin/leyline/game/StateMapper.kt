@@ -20,16 +20,56 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
- * Orchestrates the Forge→proto state mapping pipeline.
+ * Orchestrates the GsmSnapshot → proto state-mapping pipeline.
  *
  * Two core methods:
- * - [buildFromSnapshot]: Full [GameStateMessage] from an immutable [GsmSnapshot] (zones, objects,
- *   players, annotations via [ZoneTransferDetector], [TransferAnnotations], [CombatAnnotations], [MechanicAnnotations])
- * - [buildDiff]: Diff GSM by snap-vs-snap field comparison
+ * - [buildFromSnapshot]: Full [GameStateMessage] from a captured [GsmSnapshot].
+ * - [buildDiff]: Diff GSM by snap-vs-snap field comparison; returns [BridgeMutations]
+ *   for the caller to apply via [GameBridge.applyMutations]. Pure on ordering-sensitive
+ *   outputs (diff-pure bead; builds on snap-vs-snap from arena-lab-9d8).
  *
  * Lifecycle GSM factories (deal-hand, mulligan, transitions) live in [GsmBuilder].
  * Interactive request builders (targeting, combat) live in [RequestBuilder].
  * Pure Forge→proto projection lives in the `mapper/` subpackage.
+ *
+ * ## Purity boundary
+ *
+ * Inputs to [buildDiff] are pure values: `prev: GsmSnapshot?`, `cur: GsmSnapshot`,
+ * `events: List<GameEvent>`. Outputs are pure: `GameStateMessage` + [BridgeMutations].
+ * Ordering-sensitive bridge writes (id reallocations, limbo retires, zone recordings,
+ * persistent annotation batch, nextAnnotationId) are returned as data; the caller
+ * ([BundleBuilder]) applies them via [GameBridge.applyMutations].
+ *
+ * The acceptance forcing function for this boundary is `PureDiffReplayTest` —
+ * a scripted one-turn scenario that replays recorded `(snap, events, diff)`
+ * tuples through `buildDiff` on a fresh bridge and asserts byte-equal Diff GSMs.
+ * Any new stateful feature added inside the pipeline should keep this test green;
+ * a regression here signals newly-introduced impurity.
+ *
+ * ## Residual in-stage bridge reads (accepted, by design)
+ *
+ * These remain inside the pipeline for bounded reasons — not ordering-sensitive,
+ * or part of a deliberate boundary:
+ *
+ * - [GameBridge.getOrAllocInstanceId] for NEW fids (first-seen cards). Monotonic
+ *   allocator; ordering-irrelevant for correctness.
+ * - `bridge.cardRepository.findGrpIdByName` / `findByGrpId`. Effectively-immutable
+ *   read-only card DB.
+ * - `bridge.promptBridge(seat).journal.activeReveal()` — prompt journal read for
+ *   active-reveal detection. PromptJournal was lifted to a value in arena-lab-k8r
+ *   (PR #17) but journal state is still bridge-attached.
+ * - `bridge.effects` (EffectTracker) — layered-effect lifecycle state. Lifting
+ *   this to snap would require a separate second-order refactor; scoped out of
+ *   the diff-pure bead.
+ * - `bridge.revealProxies` — RevealedCard proxy tracker, tied to transactional
+ *   reveal-choose effects that span bundles. Scoped out.
+ * - `bridge.annotations.activeStealForgeCardIds()` / `addSteals` / `removeSteals` —
+ *   steal lifecycle state. Read-then-write inside stage. Scoped out unless the
+ *   replay test surfaces a failure on a steal scenario.
+ *
+ * Any NEW in-stage bridge touch beyond this list should be justified in PR
+ * review — either it joins the island with a scope rationale, or it gets lifted
+ * onto snap. The replay test is the regression guard.
  */
 @Suppress("LargeClass") // pipeline orchestrator; stages already delegated to mapper/* and helper objects
 object StateMapper {
