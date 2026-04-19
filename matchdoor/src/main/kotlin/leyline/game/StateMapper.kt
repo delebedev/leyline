@@ -253,7 +253,7 @@ object StateMapper {
         val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, events, deferMutations)
         val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
-            computeAnnotations(events, transferResult, actingSeat, bridge, prev = prev ?: bridge.lastSent)
+            computeAnnotations(events, transferResult, actingSeat, bridge, prev = prev)
 
         // Snap-derived pAnn inputs — computed here where snap is in scope.
         val qualificationPersistentFromSnap = snap.objects.values
