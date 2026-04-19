@@ -78,6 +78,7 @@ class BundleBuilder(
             viewingSeatId = seatId,
             revealForSeat = revealForSeat,
         )
+        bridge.applyMutations(result.mutations)
         val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
 
         // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
@@ -149,6 +150,7 @@ class BundleBuilder(
             updateType = updateType,
             viewingSeatId = seatId,
         )
+        bridge.applyMutations(result.mutations)
 
         // QueuedGSM split disabled (see postAction comment above).
         @Suppress("UnusedPrivateProperty")
@@ -210,6 +212,7 @@ class BundleBuilder(
             updateType = GameStateUpdate.SendHiFi,
             viewingSeatId = seatId,
         )
+        bridge.applyMutations(remoteResult.mutations)
         val gsBase = remoteResult.gsm
         // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
         // Client expects human's potential actions embedded during AI turn.
@@ -521,6 +524,7 @@ class BundleBuilder(
             updateType = updateType,
             viewingSeatId = seatId,
         )
+        bridge.applyMutations(attackersResult.mutations)
         val gs = attackersResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -623,6 +627,7 @@ class BundleBuilder(
             updateType = updateType,
             viewingSeatId = seatId,
         )
+        bridge.applyMutations(blockersResult.mutations)
         val gs = blockersResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -672,6 +677,7 @@ class BundleBuilder(
             updateType = GameStateUpdate.Send,
             viewingSeatId = seatId,
         )
+        bridge.applyMutations(targetsResult.mutations)
         val gs = targetsResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -717,6 +723,7 @@ class BundleBuilder(
             updateType = GameStateUpdate.Send,
             viewingSeatId = seatId,
         )
+        bridge.applyMutations(selectNResult.mutations)
         val gs = selectNResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -791,6 +798,7 @@ class BundleBuilder(
             updateType = GameStateUpdate.Send,
             viewingSeatId = seatId,
         )
+        bridge.applyMutations(ctoResult.mutations)
         val gsResult = ctoResult
         val gsBuilder = gsResult.gsm.toBuilder()
             .setPendingMessageCount(1)
@@ -895,6 +903,7 @@ class BundleBuilder(
             updateType = GameStateUpdate.Send,
             viewingSeatId = seatId,
         )
+        bridge.applyMutations(payCostsResult.mutations)
         val gs = payCostsResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs

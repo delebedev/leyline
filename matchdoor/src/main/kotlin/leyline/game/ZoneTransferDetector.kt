@@ -114,10 +114,11 @@ object ZoneTransferDetector {
         events: List<GameEvent>,
     ): TransferResult {
         val plannedReallocs = mutableListOf<InstanceIdRegistry.IdReallocation>()
-        // TRANSITIONAL: plan each realloc and apply immediately for iteration semantics
-        // (counter must advance between iterations). Task 6/7 moves apply to
-        // BundleBuilder.applyMutations.
-        val planAndApply = { fid: ForgeCardId ->
+        // Plan each realloc and apply immediately so the id counter advances between
+        // iterations — downstream code within the same detectZoneTransfers call uses
+        // the new id from plan.new. The planned list is returned in TransferResult for
+        // BundleBuilder to commit via bridge.applyMutations after buildDiff returns.
+        val planOnly = { fid: ForgeCardId ->
             val plan = bridge.planReallocInstanceId(fid)
             bridge.ids.applyRealloc(plan)
             plannedReallocs.add(plan)
@@ -129,7 +130,7 @@ object ZoneTransferDetector {
             events = events,
             previousZones = bridge.diff.allZones(),
             forgeIdLookup = { iid -> bridge.getForgeCardId(iid) },
-            idAllocator = planAndApply,
+            idAllocator = planOnly,
             idLookup = { fid -> bridge.getOrAllocInstanceId(fid) },
             manaAbilityGrpIdResolver = { fid ->
                 val card = bridge.getGame()?.let { findCard(it, fid) }
