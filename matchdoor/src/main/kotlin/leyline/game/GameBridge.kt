@@ -213,12 +213,23 @@ class GameBridge(
     val diff = DiffSnapshotter(ids)
 
     /**
-     * Previous [GsmSnapshot] sent to the client — the diff baseline.
-     * Set after every bundle; null before first state is sent.
-     * [StateMapper.buildDiff] reads this as `prev` to compute snap-vs-snap diffs.
+     * Bundle-sequence cursor — the previous [GsmSnapshot] sent to the client.
+     * Currently hosted here for backward compatibility; a follow-up bead lifts
+     * ownership to the session layer (see [BundleCursor] KDoc).
+     *
+     * Access the cursor directly for typed semantics; the [lastSent] forwarding
+     * property remains for legacy callers during the migration.
      */
-    @Volatile
-    var lastSent: GsmSnapshot? = null
+    val bundleCursor: BundleCursor = BundleCursor()
+
+    /**
+     * Previous [GsmSnapshot] sent to the client — the diff baseline.
+     * Forwards to [bundleCursor] (typed cursor). [StateMapper.buildDiff] reads
+     * this as `prev` to compute snap-vs-snap diffs.
+     */
+    var lastSent: GsmSnapshot?
+        get() = bundleCursor.lastSent
+        set(value) { bundleCursor.lastSent = value }
 
     /**
      * Test hook — invoked per bundle after [StateMapper.buildDiff] and [applyMutations],
