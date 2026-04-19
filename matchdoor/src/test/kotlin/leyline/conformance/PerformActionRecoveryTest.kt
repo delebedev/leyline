@@ -32,9 +32,9 @@ class PerformActionRecoveryTest :
                 matchId = "test-missing-pending",
                 sink = sink,
                 registry = MatchRegistry(),
+                gameBridge = bridge,
                 paceDelayMs = 0,
             )
-            session.connectBridge(bridge)
 
             session.onPerformAction(performAction { actionType = wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass })
 

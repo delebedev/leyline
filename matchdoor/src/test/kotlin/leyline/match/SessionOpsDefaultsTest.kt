@@ -91,10 +91,6 @@ class SessionOpsDefaultsTest :
             ops.recorder.shouldBeNull()
         }
 
-        test("connectBridge default is no-op") {
-            shouldNotThrowAny { ops.connectBridge(GameBridge(cardRepository = InMemoryCardRepository())) }
-        }
-
         // --- ActionReceiver-only smoke tests ------------------------------------
         // Pins that the on* no-op defaults live on ActionReceiver itself (not
         // just reachable through SessionOps), so consumers narrowed to

@@ -4,6 +4,7 @@ import forge.gamemodes.puzzle.Puzzle
 import io.netty.channel.ChannelHandlerContext
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.MatchConfig
+import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.state.GameBridge
 import leyline.game.generator.PuzzleSource
@@ -36,20 +37,18 @@ class PuzzleHandler(
         puzzlePath() != null
 
     /**
-     * Handle ConnectReq in puzzle mode: create bridge with puzzle game, send initial bundle.
+     * Get or create the [GameBridge] for a puzzle match. Loads the puzzle file
+     * on first call; subsequent calls for the same matchId return the existing
+     * bridge.
      *
-     * @return the created [GameBridge]
+     * Callers then construct a [MatchSession] bound to this bridge and invoke
+     * [sendPuzzleInitialBundle] to send the opening GRE bundle.
      */
-    fun onPuzzleConnect(
-        ctx: ChannelHandlerContext,
-        session: MatchSession,
-        matchId: String,
-        seatId: Int,
-    ): GameBridge {
+    fun getOrCreatePuzzleBridge(matchId: String): GameBridge {
         val match = registry.getOrCreateMatch(matchId) {
             val bridge = GameBridge(
                 matchConfig = matchConfig,
-                messageCounter = session.counter,
+                messageCounter = MessageCounter(),
                 cardRepository = cardRepository,
             )
             Match(matchId, bridge).also {
@@ -57,21 +56,18 @@ class PuzzleHandler(
                 bridge.startPuzzle(puzzle)
             }
         }
-        val bridge = match.bridge
-        session.connectBridge(bridge)
-        log.info("Match Door: puzzle mode, seat {} connected", seatId)
-        sendPuzzleInitialBundle(ctx, session, matchId, seatId)
-        return bridge
+        return match.bridge
     }
 
     /** Send puzzle initial bundle: ConnectResp + Full GSM (stage=Play) + ActionsAvailableReq. */
-    private fun sendPuzzleInitialBundle(
+    fun sendPuzzleInitialBundle(
         ctx: ChannelHandlerContext,
         session: MatchSession,
         matchId: String,
         seatId: Int,
     ) {
-        val bridge = session.gameBridge ?: return
+        val bridge = session.gameBridge
+        log.info("Match Door: puzzle mode, seat {} connected", seatId)
         val gsId = session.counter.nextGsId()
 
         val (bundleMsg, nextMsgId) = HandshakeMessages.puzzleInitialBundle(

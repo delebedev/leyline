@@ -65,7 +65,7 @@ class MatchHandler(
     internal val mulliganHandler = MulliganHandler(
         matchConfig,
         registry,
-        sessionProvider = { session },
+        sessionProvider = { session as? MatchSession },
         ctxProvider = { nettyCtx },
         matchIdProvider = { matchId },
         seatIdProvider = { seatId },
@@ -129,37 +129,46 @@ class MatchHandler(
         if (connectReq.matchId.isNotEmpty()) matchId = connectReq.matchId
         log.info("Match Door: connect matchId={}", matchId)
 
-        if (!connectReq.clientToGreMessageBytes.isEmpty) {
-            val greMsg = ClientToGREMessage.parseFrom(connectReq.clientToGreMessageBytes)
-            if (greMsg.systemSeatId > 0) seatId = greMsg.systemSeatId
-            log.info("Match Door: detected seatId={}", seatId)
-            nettyCtx = ctx
+        if (connectReq.clientToGreMessageBytes.isEmpty) return
 
-            // Create session + sink + recorder.
-            // If a paired match already exists, share its counter so session
-            // and bridge use the same MessageCounter from the start.
-            val sink = NettyMessageSink(ctx, dumpEnabled = !isFamiliar)
-            val rec = recorderFactory?.invoke()
-            val existingCounter = registry.getMatch(matchId)?.bridge?.messageCounter
-            val s: SessionOps = if (isFamiliar) {
-                FamiliarSession(SeatId(seatId), matchId, sink, counter = existingCounter ?: MessageCounter())
-            } else {
-                MatchSession(
-                    SeatId(seatId),
-                    matchId,
-                    sink,
-                    registry,
-                    recorder = rec,
-                    coordinator = coordinator,
-                    counter = existingCounter ?: MessageCounter(),
-                ).also { it.playerId = clientId.removeSuffix("_Familiar") }
-            }
-            session = s
-            registry.registerSession(matchId, seatId, s)
-            registry.registerHandler(matchId, seatId, this)
+        val greMsg = ClientToGREMessage.parseFrom(connectReq.clientToGreMessageBytes)
+        if (greMsg.systemSeatId > 0) seatId = greMsg.systemSeatId
+        log.info("Match Door: detected seatId={}", seatId)
+        nettyCtx = ctx
 
-            processGREMessage(ctx, greMsg)
-        }
+        // Session creation deferred to the ConnectReq branch in processGREMessage:
+        // MatchSession requires a non-null bridge at construction, so we wait for
+        // getOrCreateMatch() to build the bridge before constructing the session.
+        processGREMessage(ctx, greMsg)
+    }
+
+    /** Create and register a [MatchSession] bound to [bridge]. */
+    private fun createAndRegisterMatchSession(ctx: ChannelHandlerContext, bridge: GameBridge): MatchSession {
+        val sink = NettyMessageSink(ctx, dumpEnabled = true)
+        val rec = recorderFactory?.invoke()
+        val s = MatchSession(
+            seatId = SeatId(seatId),
+            matchId = matchId,
+            sink = sink,
+            registry = registry,
+            gameBridge = bridge,
+            recorder = rec,
+            coordinator = coordinator,
+        ).also { it.playerId = clientId.removeSuffix("_Familiar") }
+        session = s
+        registry.registerSession(matchId, seatId, s)
+        registry.registerHandler(matchId, seatId, this)
+        return s
+    }
+
+    /** Create and register a [FamiliarSession] sharing [counter] with the paired match's bridge. */
+    private fun createAndRegisterFamiliarSession(ctx: ChannelHandlerContext, counter: MessageCounter): FamiliarSession {
+        val sink = NettyMessageSink(ctx, dumpEnabled = false)
+        val s = FamiliarSession(SeatId(seatId), matchId, sink, counter = counter)
+        session = s
+        registry.registerSession(matchId, seatId, s)
+        registry.registerHandler(matchId, seatId, this)
+        return s
     }
 
     private fun handleGREMessage(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
@@ -185,23 +194,18 @@ class MatchHandler(
 
                 if (puzzleHandler.isPuzzleMatch(matchId)) {
                     sendRoomState(ctx)
-                    if (s is FamiliarSession) {
+                    if (isFamiliar) {
                         log.info("Match Door: puzzle mode, familiar (seat {}) connected — no-op", seatId)
                         return
                     }
-                    val ms = s as? MatchSession
-                    if (ms == null) {
-                        // Seat 2 (FamiliarSession) in puzzle mode — ignore silently.
-                        // Arena always opens two MD connections; puzzle only uses seat 1.
-                        log.info("Match Door: puzzle mode ignoring seat {} ({})", seatId, s?.javaClass?.simpleName)
-                        return
-                    }
-                    puzzleHandler.onPuzzleConnect(ctx, ms, matchId, seatId)
+                    val bridge = puzzleHandler.getOrCreatePuzzleBridge(matchId)
+                    val ms = createAndRegisterMatchSession(ctx, bridge)
+                    puzzleHandler.sendPuzzleInitialBundle(ctx, ms, matchId, seatId)
                 } else {
                     // Constructed mode: normal local player + built-in AI flow.
                     val gameVariant = resolveGameVariant()
                     val match = registry.getOrCreateMatch(matchId) {
-                        val bridge = GameBridge(matchConfig = matchConfig, messageCounter = s!!.counter, cardRepository = cardRepository)
+                        val bridge = GameBridge(matchConfig = matchConfig, messageCounter = MessageCounter(), cardRepository = cardRepository)
                         Match(matchId, bridge).also {
                             it.start(
                                 seed = matchConfig.game.seed,
@@ -212,7 +216,11 @@ class MatchHandler(
                         }
                     }
                     val bridge = match.bridge
-                    s?.connectBridge(bridge)
+                    if (isFamiliar) {
+                        createAndRegisterFamiliarSession(ctx, bridge.messageCounter)
+                    } else {
+                        createAndRegisterMatchSession(ctx, bridge)
+                    }
                     mulliganHandler.seat1Hand = bridge.getHandGrpIds(1)
                     mulliganHandler.seat2Hand = bridge.getHandGrpIds(2)
                     log.info("Match Door: seat {} connected, hands seat1={} seat2={}", seatId, mulliganHandler.seat1Hand, mulliganHandler.seat2Hand)

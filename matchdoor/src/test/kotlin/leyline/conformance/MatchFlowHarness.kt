@@ -8,6 +8,7 @@ import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
 import leyline.config.MatchConfig
 import leyline.config.ServerConfig
+import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.StateMapper
@@ -78,19 +79,18 @@ class MatchFlowHarness(
         TestCardRegistry.ensureRegistered()
         if (deckList != null) TestCardRegistry.ensureDeckRegistered(deckList)
 
+        bridge = GameBridge(bridgeTimeoutMs = 5_000L, matchConfig = matchConfig, messageCounter = MessageCounter(), cardRepository = TestCardRegistry.repo)
+        bridge.priorityWaitMs = 2_000L
+        bridge.start(seed = seed, deckList = deckList, variant = variant)
+
         session = MatchSession(
             seatId = SeatId(seatId),
             matchId = matchId,
             sink = effectiveSink,
             registry = registry,
+            gameBridge = bridge,
             paceDelayMs = 0,
         )
-
-        bridge = GameBridge(bridgeTimeoutMs = 5_000L, matchConfig = matchConfig, messageCounter = session.counter, cardRepository = TestCardRegistry.repo)
-        bridge.priorityWaitMs = 2_000L
-        bridge.start(seed = seed, deckList = deckList, variant = variant)
-
-        session.connectBridge(bridge)
         registry.registerSession(matchId, seatId, session)
 
         // Seed accumulator + validator with a Full GSM BEFORE submitKeep.
@@ -139,15 +139,7 @@ class MatchFlowHarness(
         GameBootstrap.initializeCardDatabase(quiet = true)
         TestCardRegistry.ensureRegistered()
 
-        session = MatchSession(
-            seatId = SeatId(seatId),
-            matchId = matchId,
-            sink = effectiveSink,
-            registry = registry,
-            paceDelayMs = 0,
-        )
-
-        bridge = GameBridge(bridgeTimeoutMs = 5_000L, matchConfig = matchConfig, messageCounter = session.counter, cardRepository = TestCardRegistry.repo)
+        bridge = GameBridge(bridgeTimeoutMs = 5_000L, matchConfig = matchConfig, messageCounter = MessageCounter(), cardRepository = TestCardRegistry.repo)
         bridge.priorityWaitMs = 2_000L
         bridge.startPuzzle(puzzle)
         TestCardRegistry.registerPuzzleCards(bridge.getGame()!!)
@@ -158,7 +150,14 @@ class MatchFlowHarness(
             installScriptedAi(aiScript)
         }
 
-        session.connectBridge(bridge)
+        session = MatchSession(
+            seatId = SeatId(seatId),
+            matchId = matchId,
+            sink = effectiveSink,
+            registry = registry,
+            gameBridge = bridge,
+            paceDelayMs = 0,
+        )
         registry.registerSession(matchId, seatId, session)
 
         val game = bridge.getGame()

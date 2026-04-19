@@ -23,7 +23,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class MulliganHandler(
     private val matchConfig: MatchConfig,
     private val registry: MatchRegistry,
-    private val sessionProvider: () -> SessionOps?,
+    private val sessionProvider: () -> MatchSession?,
     private val ctxProvider: () -> ChannelHandlerContext?,
     private val matchIdProvider: () -> String,
     private val seatIdProvider: () -> Int,
@@ -74,7 +74,7 @@ class MulliganHandler(
     /** Handle MulliganResp — keep or mulligan decision. */
     fun onMulliganResp(greMsg: ClientToGREMessage) {
         val s = session ?: return
-        val bridge = s.gameBridge ?: error("onMulliganResp: gameBridge not bound for seat $seatId")
+        val bridge = s.gameBridge
         if (bridge.isPuzzle) {
             log.info("Match Door GRE: ignoring MulliganResp for puzzle")
             return
@@ -105,7 +105,7 @@ class MulliganHandler(
     fun onGroupResp(greMsg: ClientToGREMessage) {
         if (seatId != 1) return
         val s = session ?: return
-        val bridge = s.gameBridge ?: error("onGroupResp: gameBridge not bound for seat $seatId")
+        val bridge = s.gameBridge
 
         val groups = greMsg.groupResp.groupsList
         val tuckIds = if (groups.size >= 2) groups[1].idsList else groups.firstOrNull()?.idsList ?: emptyList()
@@ -149,7 +149,7 @@ class MulliganHandler(
     /** DealHand only (no MulliganReq) for this handler's seat. */
     private fun sendDealHand(ctx: ChannelHandlerContext, diffDeletedInstanceIds: List<Int> = emptyList()) {
         val s = session ?: return
-        val bridge = s.gameBridge ?: error("sendDealHand: gameBridge not bound for seat $seatId")
+        val bridge = s.gameBridge
         val gsId = s.counter.nextGsId()
         val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId, diffDeletedInstanceIds)
         s.counter.setMsgId(nextMsgId)
@@ -167,7 +167,7 @@ class MulliganHandler(
     fun sendMulliganReq(reportedMulliganCount: Int = mulliganCount, numCards: Int = 7) {
         val c = ctx ?: return
         val s = session ?: return
-        val bridge = s.gameBridge ?: error("sendMulliganReq: gameBridge not bound for seat $seatId")
+        val bridge = s.gameBridge
         val gsId = s.counter.nextGsId()
         val (msg, nextMsgId) = HandshakeMessages.mulliganReqSeat1(
             s.counter.currentMsgId(),
@@ -185,7 +185,7 @@ class MulliganHandler(
     /** DealHand + MulliganReq bundled (for seat 2). */
     private fun sendDealHandAndMulligan(ctx: ChannelHandlerContext) {
         val s = session ?: return
-        val bridge = s.gameBridge ?: error("sendDealHandAndMulligan: gameBridge not bound for seat $seatId")
+        val bridge = s.gameBridge
         val gsId = s.counter.nextGsId()
         val (msg, nextMsgId) = HandshakeMessages.dealHandMulliganSeat2(s.counter.currentMsgId(), gsId, bridge)
         s.counter.setMsgId(nextMsgId)
@@ -198,7 +198,7 @@ class MulliganHandler(
     @Suppress("unused") // Will be wired when we send GroupReq to client instead of auto-tucking
     private fun sendGroupReq(ctx: ChannelHandlerContext) {
         val s = session ?: return
-        val bridge = s.gameBridge ?: error("sendGroupReq: gameBridge not bound for seat $seatId")
+        val bridge = s.gameBridge
         val gsId = s.counter.nextGsId()
         val handCards = bridge.getHandCards(seatId)
         val handInstanceIds = handCards.map { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }

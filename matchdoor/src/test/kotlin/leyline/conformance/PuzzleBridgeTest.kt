@@ -236,10 +236,9 @@ class PuzzleBridgeTest :
                 matchId = matchId,
                 sink = sink1,
                 registry = registry,
+                gameBridge = b,
                 paceDelayMs = 0,
-                counter = b.messageCounter,
             )
-            session1.connectBridge(b)
             registry.registerSession(matchId, 1, session1)
             session1.onPuzzleStart()
             b.getGame()!!.phaseHandler.phase shouldBe PhaseType.MAIN1
@@ -253,10 +252,9 @@ class PuzzleBridgeTest :
                 matchId = matchId,
                 sink = sink2,
                 registry = registry,
+                gameBridge = b,
                 paceDelayMs = 0,
-                counter = b.messageCounter,
             )
-            session2.connectBridge(b)
             registry.registerSession(matchId, 2, session2)
             session2.onPuzzleStart()
 
