@@ -70,7 +70,7 @@ class PhaseStopProfile private constructor(
         }
 
         /**
-         * Own-turn defaults for the human player — matches Arena's initial stop set.
+         * Own-turn defaults for the human player — matches the protocol's initial stop set.
          * Client SetSettingsReq with Team scope overrides these.
          */
         private val HUMAN_DEFAULTS = setOf(

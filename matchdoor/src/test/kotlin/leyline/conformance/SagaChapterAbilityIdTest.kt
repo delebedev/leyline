@@ -13,7 +13,7 @@ import leyline.ConformanceTag
  * [ZoneMapper.resolveChapterAbilityGrpId] emit the chapter-specific grpId on the
  * stack Ability gameObject instead of the saga's own grpId.
  *
- * Production (ExposedCardRepository) relies on Arena's SQLite `Cards.AbilityIds`
+ * Production (ExposedCardRepository) relies on the card DB's SQLite `Cards.AbilityIds`
  * column having the chapter grpIds at the leading positions — the resolver's
  * fallback path handles that. This test exercises the AbilityIdDeriver path used
  * by tests and puzzles.

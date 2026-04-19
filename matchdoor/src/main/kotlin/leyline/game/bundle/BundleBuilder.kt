@@ -1105,7 +1105,7 @@ class BundleBuilder(
 
     /**
      * Timer start: sends [TimerStateMessage] (GRE type 56) with Decision timer running.
-     * The real server sends this on priority grant — client shows rope countdown.
+     * Sent on priority grant — the client shows a rope countdown.
      */
     fun timerStart(counter: MessageCounter, durationSec: Int = 30): BundleResult =
         buildTimerBundle(counter, running = true, durationSec = durationSec)

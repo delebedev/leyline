@@ -49,7 +49,7 @@ class ZoneMapperChapterGrpIdTest :
         }
 
         test("prod shape: empty chapterAbilityGrpIds, chapters at leading abilityIds positions") {
-            // Mirrors what ExposedCardRepository produces from Arena's
+            // Mirrors what ExposedCardRepository produces from the card DB's
             // `Cards.AbilityIds` column for a 3-chapter saga: the chapter
             // grpIds are the first three entries, no chapterAbilityGrpIds
             // populated separately.

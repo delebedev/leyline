@@ -18,7 +18,7 @@ paths:
 
 ## TLS & Certificates
 
-Arena's UnityTls validates cert chains against the OS trust store — self-signed certs are rejected.
+Strict TLS clients validate cert chains against the OS trust store — self-signed certs get rejected.
 
 - **Setup:** use a trusted localhost cert/key from your local tooling.
 - **Default cert location:** `~/Library/Application Support/dev.leyline/tls/` (override with `LEYLINE_CERTS` env var).

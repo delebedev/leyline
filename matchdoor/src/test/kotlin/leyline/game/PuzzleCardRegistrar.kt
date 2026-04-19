@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * Derives [leyline.game.data.CardData] from Forge's in-memory [forge.card.CardRules] —
  * no client SQLite needed. Synthetic grpIds start at 300000 (above test range
- * at 200000 and real Arena grpIds which reach ~100000+).
+ * at 200000 and production grpIds which reach ~100000+).
  *
  * Production counterpart of the test-only `CardDataDeriver` / `TestCardRegistry`.
  */

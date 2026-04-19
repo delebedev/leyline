@@ -32,7 +32,7 @@ class MatchFlowHarness(
     validating: Boolean = true,
     private val matchConfig: MatchConfig = MatchConfig(
         ai = AiConfig(speed = 0.0),
-        // Fail fast in tests. Production defaults are tuned for real clients
+        // Fail fast in tests. Production defaults are tuned for the client
         // (120s bridge, 30s AI-turn wait, 10s mulligan); here the engine
         // responds in <100ms so aggressive timeouts surface hangs quickly.
         server = ServerConfig(
@@ -347,7 +347,7 @@ class MatchFlowHarness(
     /**
      * Send SubmitAttackersReq (type=31, no payload) — the reference client's "Done" button.
      *
-     * In Arena's two-phase combat protocol, iterative creature toggles send
+     * In the two-phase combat protocol, iterative creature toggles send
      * [DeclareAttackersResp] (type=30) with selection state, while the final
      * confirmation sends [SubmitAttackersReq] (type=31) which is **type-only,
      * no payload**. The server must use the last known selection.
