@@ -126,7 +126,14 @@ class AutoPassEngine(
                         }
                         log.debug("SEND_STATE: emitting state-only diff at {}", phase)
                         sink.sendBundle(bb.stateOnlyDiff(game, counters.counter))
-                        return
+                        // State-only diffs carry no actions — the client cannot respond.
+                        // If the engine is blocked at chooseSpellAbilityToPlay with a
+                        // pending pass-only action, fall through to advanceOrWait so it
+                        // auto-passes via edictalPass + submitAction. Without this the
+                        // engine hangs until bridgeTimeoutMs.
+                        if (bridge.seat(counters.seatId.value).action.getPending() == null) {
+                            return
+                        }
                     }
                 }
                 CombatHandler.Signal.CONTINUE -> {} // fall through to action check
