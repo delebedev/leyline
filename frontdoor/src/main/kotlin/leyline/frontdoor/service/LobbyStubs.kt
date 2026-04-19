@@ -13,7 +13,9 @@ object LobbyStubs {
     fun playerInbox() = """{"Messages":[]}"""
     fun staticContent() = """{}"""
 
-    fun storeStatus() = """{"CatalogStatus":[]}"""
+    fun storeStatus() = """{"DisabledTags":[],"DisabledListings":[],"CodeRedemptionEnabled":false,"StoreEnabled":false}"""
+    fun entitlements() = """{"InventoryInfo":{}}"""
+    fun skusAndListings() = """{"SkusCacheVersionHash":"","Skus":{},"ListingCacheVersionsHash":{},"Listings":{}}"""
     fun rankSeasonDetails() = """{}"""
     fun preferredPrintings() = """{}"""
     fun prizeWalls() = """{"ActivePrizeWalls":[]}"""

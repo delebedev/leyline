@@ -101,7 +101,6 @@ object EventWireBuilder {
             putJsonArray("Attributes") {}
             put("DeckTileId", s?.tileId ?: 0)
             put("DeckArtId", 0)
-            putJsonObject("FormatLegalities") {}
             putJsonObject("PreferredCosmetics") {
                 put("Avatar", "")
                 put("Sleeve", "")
@@ -109,8 +108,6 @@ object EventWireBuilder {
                 put("Title", "")
                 putJsonArray("Emotes") {}
             }
-            putJsonArray("DeckValidationSummaries") {}
-            putJsonObject("UnownedCards") {}
         }
         if (includeDeck) {
             putJsonObject("CourseDeck") {
@@ -118,7 +115,6 @@ object EventWireBuilder {
                 putJsonArray("MainDeck") {
                     d?.mainDeck?.forEach { add(buildDeckCardJson(it)) }
                 }
-                putJsonArray("ReducedSideboard") {}
                 putJsonArray("Sideboard") {
                     d?.sideboard?.forEach { add(buildDeckCardJson(it)) }
                 }
@@ -281,7 +277,6 @@ object EventWireBuilder {
             putJsonArray("Attributes") {}
             put("DeckTileId", 0)
             put("DeckArtId", 0)
-            putJsonObject("FormatLegalities") {}
             putJsonObject("PreferredCosmetics") {
                 put("Avatar", "")
                 put("Sleeve", "")
@@ -289,12 +284,9 @@ object EventWireBuilder {
                 put("Title", "")
                 putJsonArray("Emotes") {}
             }
-            putJsonArray("DeckValidationSummaries") {}
-            putJsonObject("UnownedCards") {}
         }
         putJsonObject("CourseDeck") {
             putJsonArray("MainDeck") {}
-            putJsonArray("ReducedSideboard") {}
             putJsonArray("Sideboard") {}
             putJsonArray("CommandZone") {}
             putJsonArray("Companions") {}

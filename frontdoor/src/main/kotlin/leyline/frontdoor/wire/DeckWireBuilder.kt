@@ -36,48 +36,57 @@ object DeckWireBuilder {
     /** V2 summary: Attributes as [{name,value}] array. Used in StartHook. */
     fun toV2Summary(deck: Deck): JsonObject = buildJsonObject {
         putCommonFields(deck)
-        put(
-            "Attributes",
-            buildJsonArray {
-                add(
-                    buildJsonObject {
-                        put("name", "Version")
-                        put("value", "1")
-                    },
-                )
-                add(
-                    buildJsonObject {
-                        put("name", "TileID")
-                        put("value", deck.tileId.toString())
-                    },
-                )
-                add(
-                    buildJsonObject {
-                        put("name", "LastPlayed")
-                        put("value", "\"0001-01-01T00:00:00\"")
-                    },
-                )
-                add(
-                    buildJsonObject {
-                        put("name", "LastUpdated")
-                        put("value", "\"0001-01-01T00:00:00\"")
-                    },
-                )
-                add(
-                    buildJsonObject {
-                        put("name", "IsFavorite")
-                        put("value", deck.isFavorite.toString())
-                    },
-                )
-                add(
-                    buildJsonObject {
-                        put("name", "Format")
-                        put("value", deck.format.name)
-                    },
-                )
+        put("Attributes", v2Attributes(deck))
+        putTrailingFields(deck)
+    }
+
+    /** StartHook summary: 6-field shape expected by the client's DTO_DeckSummaryV3JsonConverter. */
+    fun toStartHookSummary(deck: Deck): JsonObject = buildJsonObject {
+        put("DeckId", deck.id.value)
+        put("Name", deck.name)
+        put("Attributes", v2Attributes(deck))
+        put("DeckTileId", deck.tileId)
+        put("DeckArtId", 0)
+        put("PreferredCosmetics", preferredCosmetics())
+    }
+
+    private fun v2Attributes(deck: Deck) = buildJsonArray {
+        add(
+            buildJsonObject {
+                put("name", "Version")
+                put("value", "1")
             },
         )
-        putTrailingFields(deck)
+        add(
+            buildJsonObject {
+                put("name", "TileID")
+                put("value", deck.tileId.toString())
+            },
+        )
+        add(
+            buildJsonObject {
+                put("name", "LastPlayed")
+                put("value", "\"0001-01-01T00:00:00\"")
+            },
+        )
+        add(
+            buildJsonObject {
+                put("name", "LastUpdated")
+                put("value", "\"0001-01-01T00:00:00\"")
+            },
+        )
+        add(
+            buildJsonObject {
+                put("name", "IsFavorite")
+                put("value", deck.isFavorite.toString())
+            },
+        )
+        add(
+            buildJsonObject {
+                put("name", "Format")
+                put("value", deck.format.name)
+            },
+        )
     }
 
     /** V3 summary: Attributes as flat dict. Used in CmdType 410. */
@@ -96,7 +105,6 @@ object DeckWireBuilder {
     /** Deck entry for StartHook's Decks map (card lists only — matches client shape). */
     fun toStartHookEntry(deck: Deck): JsonObject = buildJsonObject {
         put("MainDeck", cardsToJsonArray(deck.mainDeck))
-        put("ReducedSideboard", buildJsonArray {})
         put("Sideboard", cardsToJsonArray(deck.sideboard))
         put("CommandZone", cardsToJsonArray(deck.commandZone))
         put("Companions", cardsToJsonArray(deck.companions))

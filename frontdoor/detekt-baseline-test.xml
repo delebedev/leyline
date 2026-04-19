@@ -27,8 +27,9 @@
     <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$deck["MainDeck"].shouldNotBeNull()</ID>
     <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$draftCourse.shouldNotBeNull()</ID>
     <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$matchInfo.shouldNotBeNull()</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$obj["DeckSummariesV2"].shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$obj["DeckSummaries"].shouldNotBeNull()</ID>
     <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$outer["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$summary["DeckId"]?.jsonPrimitive?.content shouldBe newDeckId</ID>
     <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$payload["PickNumber"]?.jsonPrimitive?.int shouldBe 1</ID>
     <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$payload["Result"]?.jsonPrimitive?.content shouldBe "Success"</ID>
     <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$prefs.shouldNotBeNull()</ID>

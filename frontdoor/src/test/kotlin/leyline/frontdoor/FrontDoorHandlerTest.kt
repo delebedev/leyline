@@ -197,35 +197,35 @@ class FrontDoorHandlerTest :
             obj["Attached"]?.jsonPrimitive?.boolean shouldBe true
         }
 
-        test("CmdType 1 - StartHook contains DeckSummariesV2 and Decks") {
+        test("CmdType 1 - StartHook contains DeckSummaries and Decks") {
             val obj = sendJson(1)
-            obj["DeckSummariesV2"].shouldNotBeNull()
-            (obj["DeckSummariesV2"] as JsonArray).shouldNotBeEmpty()
+            obj["DeckSummaries"].shouldNotBeNull()
+            (obj["DeckSummaries"] as JsonArray).shouldNotBeEmpty()
             obj["Decks"].shouldNotBeNull()
             obj["InventoryInfo"].shouldNotBeNull()
         }
 
         test("CmdType 1 - StartHook deck summaries have required fields") {
             val obj = sendJson(1)
-            val summaries = obj["DeckSummariesV2"]!!.jsonArray
+            val summaries = obj["DeckSummaries"]!!.jsonArray
             summaries.shouldNotBeEmpty()
             val deck = summaries[0].jsonObject
             deck["DeckId"].shouldNotBeNull()
             deck["Name"].shouldNotBeNull()
             deck["DeckTileId"].shouldNotBeNull()
             deck["Attributes"].shouldNotBeNull()
-            deck["FormatLegalities"].shouldNotBeNull()
+            deck["PreferredCosmetics"].shouldNotBeNull()
         }
 
-        test("CmdType 1 - StartHook deck cards have CardSkins and ReducedSideboard") {
+        test("CmdType 1 - StartHook deck cards have MainDeck and CardSkins") {
             val obj = sendJson(1)
             val decks = obj["Decks"]!!.jsonObject
             decks.entries.shouldNotBeEmpty()
             for ((_, deckJson) in decks) {
                 val deck = deckJson.jsonObject
                 deck["MainDeck"].shouldNotBeNull()
-                deck["ReducedSideboard"].shouldNotBeNull()
                 deck["CardSkins"].shouldNotBeNull()
+                deck["ReducedSideboard"] shouldBe null
             }
         }
 
@@ -457,6 +457,46 @@ class FrontDoorHandlerTest :
             saved.mainDeck[0].grpId shouldBe 75515
         }
 
+        test("CmdType 412 - UpsertDeckV3 saves deck and returns bare 6-field summary") {
+            val newDeckId = "test-deck-00000000-0000-0000-0000-upsert000412"
+            val payload = """
+                {
+                    "Summary": {"DeckId":"$newDeckId","Mana":"","Name":"V3 Deck","DeckTileId":22222,
+                        "Attributes":[{"name":"Format","value":"Timeless"}],
+                        "Description":null,"DeckArtId":0,"IsCompanionValid":false,
+                        "PreferredCosmetics":{"Avatar":"","Sleeve":"","Pet":"","Title":"","Emotes":[]},
+                        "NetDeckFolderId":null,"IsNetDeck":false,"checkInbox":false},
+                    "Deck": {
+                        "MainDeck": [{"cardId":75515,"quantity":3}],
+                        "Sideboard": [],
+                        "CommandZone": [],
+                        "Companions": [],
+                        "CardSkins": []
+                    },
+                    "ActionType": "Updated"
+                }
+            """.trimIndent()
+            val ch = fdChannel()
+            val msg = ch.sendCmd(412, payload)
+            val summary = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+            // Response is bare summary — no outer {Summary: ...} wrapper
+            summary["DeckId"]?.jsonPrimitive?.content shouldBe newDeckId
+            summary["Name"]?.jsonPrimitive?.content shouldBe "V3 Deck"
+            summary["DeckTileId"]?.jsonPrimitive?.int shouldBe 22222
+            summary["DeckArtId"].shouldNotBeNull()
+            summary["Attributes"]?.jsonArray.shouldNotBeNull()
+            summary["PreferredCosmetics"]?.jsonObject.shouldNotBeNull()
+            // Trimmed fields MUST NOT appear — client's DeckSummary converter rejects them
+            summary["FormatLegalities"] shouldBe null
+            summary["DeckValidationSummaries"] shouldBe null
+            summary["UnownedCards"] shouldBe null
+
+            val saved = deckService.getById(DeckId(newDeckId))
+            saved.shouldNotBeNull()
+            saved.name shouldBe "V3 Deck"
+            saved.mainDeck[0].grpId shouldBe 75515
+        }
+
         test("CmdType 1912 - SetPlayerPreferences round-trips through 1911") {
             val prefsPayload = """{"Preferences":{"AutoTapEnabled":true,"AutoOrderTriggeredAbilities":false}}"""
             val ch = fdChannel()
@@ -515,7 +555,7 @@ class FrontDoorHandlerTest :
             // StartHook on same channel should include the new deck
             val hook = ch.sendCmd(1)
             val hookObj = json.parseToJsonElement(hook.jsonPayload.shouldNotBeNull()).jsonObject
-            val summaries = hookObj["DeckSummariesV2"]!!.jsonArray
+            val summaries = hookObj["DeckSummaries"]!!.jsonArray
             val ids = summaries.map { it.jsonObject["DeckId"]?.jsonPrimitive?.content }
             ids shouldContain deckId
 

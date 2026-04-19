@@ -11,6 +11,7 @@
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun boosters()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun cosmetics()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun currencies()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun entitlements()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun netDeckFolders()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun periodicRewards()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun playerInbox()</ID>
@@ -19,6 +20,7 @@
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun quests()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun rankInfo()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun rankSeasonDetails()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun skusAndListings()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun staticContent()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun storeStatus()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun telemetryAck()</ID>
