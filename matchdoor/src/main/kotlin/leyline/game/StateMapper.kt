@@ -51,7 +51,7 @@ object StateMapper {
      * objectInstanceIds (for card count) but no GameObjectInfo (renders face-down).
      * Use 0 to include all objects (internal snapshots for diffing).
      */
-    @Suppress("LongMethod")
+    @Suppress("LongMethod", "LongParameterList")
     fun buildFromSnapshot(
         snap: GsmSnapshot,
         gameStateId: Int,
@@ -62,15 +62,19 @@ object StateMapper {
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
         prev: GsmSnapshot? = null,
+        externalEvents: List<GameEvent>? = null,
     ): BuildResult {
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
         val frame = GsmFrame.from(snap)
 
         // ═══ GATHER: drain queues, snapshot mutable state ═══
-        val events = bridge.drainEvents().events.toMutableList()
-        for (reveal in bridge.drainReveals(viewingSeatId)) {
-            events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
+        val events = externalEvents?.toMutableList() ?: run {
+            val e = bridge.drainEvents().events.toMutableList()
+            for (reveal in bridge.drainReveals(viewingSeatId)) {
+                e.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
+            }
+            e
         }
         // Evict stale AbilityRegistry entries for transformed cards so the next
         // abilityRegistryFor() call rebuilds from the current face.
@@ -254,7 +258,7 @@ object StateMapper {
      *
      * @see buildDiff for the newer signature that also returns [BridgeMutations].
      */
-    @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition", "LongParameterList")
     fun buildDiffLegacy(
         prev: GsmSnapshot?,
         cur: GsmSnapshot,
@@ -265,15 +269,16 @@ object StateMapper {
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
+        events: List<GameEvent>? = null,
     ): BuildResult {
         if (prev == null) {
-            return buildFromSnapshot(cur, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat, prev = null)
+            return buildFromSnapshot(cur, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat, prev = null, externalEvents = events)
         }
 
         // Build current full GSM (also drives event drain + side-effect apply).
         // Match the existing dual-pass shape: pass actions=null + viewingSeatId=0 for
         // the comparison base (needs all objects for accurate diff).
-        val fullResult = buildFromSnapshot(cur, gameStateId, matchId, bridge, revealForSeat = revealForSeat, prev = prev)
+        val fullResult = buildFromSnapshot(cur, gameStateId, matchId, bridge, revealForSeat = revealForSeat, prev = prev, externalEvents = events)
         val current = fullResult.gsm
 
         // Snap-vs-snap zone delta: any zone whose snapshot field-equality differs.
@@ -413,7 +418,7 @@ object StateMapper {
     fun buildDiff(
         prev: GsmSnapshot?,
         cur: GsmSnapshot,
-        @Suppress("UNUSED_PARAMETER") events: List<GameEvent>,
+        events: List<GameEvent>,
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
@@ -422,7 +427,7 @@ object StateMapper {
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
     ): BuildResult =
-        buildDiffLegacy(prev, cur, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat)
+        buildDiffLegacy(prev, cur, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat, events = events)
 
     /**
      * Resolve the correct updateType for a game state message.

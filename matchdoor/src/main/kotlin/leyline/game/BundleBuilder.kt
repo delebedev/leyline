@@ -62,12 +62,15 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
         val frame = GsmFrame.from(snap)
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
+        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
+            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
+        }
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
         val result = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
-            emptyList(), // events drained inside buildDiffLegacy for now; T6 moves drain here
+            events,
             nextGs,
             matchId,
             bridge,
@@ -133,10 +136,13 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
+        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
+            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
+        }
         val result = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
-            emptyList(),
+            events,
             nextGs,
             matchId,
             bridge,
@@ -191,10 +197,13 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
         val frame = GsmFrame.from(snap)
         // Build state first (triggers instanceId realloc), then actions with new IDs
+        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
+            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
+        }
         val remoteResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
-            emptyList(), // events drained inside buildDiffLegacy for now; T6 moves drain here
+            events,
             nextGs,
             matchId,
             bridge,
@@ -499,10 +508,13 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
+        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
+            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
+        }
         val attackersResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
-            emptyList(),
+            events,
             nextGs,
             matchId,
             bridge,
@@ -598,10 +610,13 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
+        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
+            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
+        }
         val blockersResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
-            emptyList(),
+            events,
             nextGs,
             matchId,
             bridge,
@@ -643,11 +658,14 @@ class BundleBuilder(
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
+        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
+            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
+        }
         // Build diff first — triggers instanceId reallocs for zone transfers
         val targetsResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
-            emptyList(), // events drained inside buildDiffLegacy for now; T6 moves drain here
+            events,
             nextGs,
             matchId,
             bridge,
@@ -686,10 +704,13 @@ class BundleBuilder(
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
+        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
+            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
+        }
         val selectNResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
-            emptyList(), // events drained inside buildDiffLegacy for now; T6 moves drain here
+            events,
             nextGs,
             matchId,
             bridge,
@@ -757,10 +778,13 @@ class BundleBuilder(
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
+        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
+            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
+        }
         val ctoResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
-            emptyList(), // events drained inside buildDiffLegacy for now; T6 moves drain here
+            events,
             nextGs,
             matchId,
             bridge,
@@ -858,10 +882,13 @@ class BundleBuilder(
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
+        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
+            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
+        }
         val payCostsResult = StateMapper.buildDiff(
             bridge.lastSent,
             snap,
-            emptyList(), // events drained inside buildDiffLegacy for now; T6 moves drain here
+            events,
             nextGs,
             matchId,
             bridge,
