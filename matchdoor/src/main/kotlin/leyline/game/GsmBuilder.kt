@@ -57,7 +57,7 @@ data class GsmFrame(
  *
  * Pure proto construction. No session state, no bridge mutation.
  * Extracted from [StateMapper] which retains [StateMapper.buildFromSnapshot] and
- * [StateMapper.buildDiffFromGame] (the stateful diff pipeline).
+ * [StateMapper.buildDiff] (the snap-vs-snap diff pipeline).
  */
 object GsmBuilder {
     @Suppress("UnusedPrivateProperty")

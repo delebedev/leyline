@@ -28,7 +28,7 @@ class CardProtoBuilder(private val cards: CardRepository) {
     private fun basicLandAbility(subtypes: List<Int>): Int? =
         subtypes.firstNotNullOfOrNull { basicLandAbilities[it] }
 
-    /** Build a [GameObjectInfo] from DB data, no template — for buildFromGame path. */
+    /** Build a [GameObjectInfo] from DB data, no template — for the buildFromSnapshot path. */
     fun buildObjectInfo(
         grpId: Int,
         extrinsicKeywordGrpIds: List<Int> = emptyList(),

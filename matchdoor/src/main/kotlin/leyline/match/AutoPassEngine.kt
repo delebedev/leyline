@@ -190,7 +190,7 @@ class AutoPassEngine(
         // an earlier point in time. Snapshotting now would advance the diff baseline
         // past phases the client never saw (e.g. Draw phase skipped by PhaseStopProfile),
         // causing subsequent diffs to omit new objects (drawn cards) that the client
-        // hasn't received yet. The next buildDiffFromGame() call will snapshot correctly.
+        // hasn't received yet. The next buildDiff() call will advance the cursor correctly.
         return true
     }
 

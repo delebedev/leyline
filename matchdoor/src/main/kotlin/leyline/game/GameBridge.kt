@@ -236,7 +236,7 @@ class GameBridge(
     // diffDeletedInstanceIds.
 
     /** Currently active RevealedCard proxy IDs, managed via [RevealProxyTracker].
-     *  Written on engine thread (during buildFromGame), read serially — not concurrent. */
+     *  Written on engine thread (during buildFromSnapshot), read serially — not concurrent. */
     val revealProxies: RevealProxyTracker = RevealProxyTracker()
 
     /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */

@@ -10,7 +10,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
  * Unit tests for [ZoneTransferDetector.inferCategory] — the logic that maps
  * (srcZone, destZone) pairs to annotation categories.
  *
- * Each category drives a different annotation sequence in buildFromGame:
+ * Each category drives a different annotation sequence in buildFromSnapshot:
  *   PlayLand → ObjectIdChanged + ZoneTransfer + UserActionTaken
  *   CastSpell → ObjectIdChanged + ZoneTransfer + mana cycle + UserActionTaken
  *   Resolve → ResolutionStart + ResolutionComplete + ZoneTransfer

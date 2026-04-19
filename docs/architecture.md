@@ -135,22 +135,39 @@ sequenceDiagram
 
 ## 6. State Mapping
 
-Engine state becomes wire state through a composed pipeline in `matchdoor.game`:
+Engine state becomes wire state through a two-stage pipeline in `matchdoor.game`.
+
+**Stage 1 — capture.** `GsmSnapshot.capture(game, bridge, …)` reads `forge-game` state into an immutable value: seats, zones, objects, phase, stack, persistent annotation baseline. The only place `forge.game.Game` is read directly (alongside `BundleBuilder`'s capture call).
+
+**Stage 2 — map.** `StateMapper` takes the snapshot plus a caller-owned event list and returns a pure `BuildResult`:
 
 ```
-Game (forge-game)
-  └── StateMapper.buildFromGame / buildDiffFromGame
-        ├── ObjectMapper    → GameObjectInfo[]  (cards, permanents, abilities)
-        ├── ZoneMapper      → ZoneInfo[]        (hand, library, battlefield, stack, ...)
-        ├── PlayerMapper    → PlayerInfo[]      (life, mana pool, counters)
-        └── AnnotationBuilder.build → AnnotationMsg[]
-              ├── ZoneTransferDetector
-              ├── TransferAnnotations / CombatAnnotations / MechanicAnnotations
-              └── PersistentAnnotationStore   (retained effects)
-
-BundleBuilder.bundle assembles the final GREToClientMessage:
-  per-seat visibility filter · full vs. diff selection · gsId / msgId sequencing
+GsmSnapshot + prev: GsmSnapshot? + events: List<GameEvent>
+  └── StateMapper.buildDiff / buildFromSnapshot
+        ├── ObjectMapper         → GameObjectInfo[]  (cards, permanents, abilities)
+        ├── ZoneMapper           → ZoneInfo[]        (hand, library, battlefield, stack, …)
+        ├── PlayerMapper         → PlayerInfo[]      (life, mana pool, counters)
+        ├── ZoneTransferDetector → TransferResult    (id reallocation plans, zone deltas)
+        ├── CombatAnnotations / MechanicAnnotations → AnnotationMsg[]
+        └── PersistentAnnotationStore.computeBatch  → retained-effect batch
+  →
+  BuildResult
+    ├── gsm:       GameStateMessage    (the proto to send)
+    ├── hasCastSpell: Boolean          (QueuedGSM-split hint)
+    └── mutations: BridgeMutations     (ordering-sensitive writes, deferred)
 ```
+
+**Purity of the compute phase.** `buildDiff` does not commit `BridgeMutations` — id reallocations, limbo retires, zone recordings, the persistent-annotation batch, and the `nextAnnotationId` counter all travel back as data. The caller applies them via `bridge.applyMutations(result.mutations)` between compute and send, in a fixed order. This split is the acceptance forcing function for `PureDiffReplayTest`: replay a captured `(snap, events, diff)` sequence on a fresh bridge and assert byte-equal Diff GSMs.
+
+Residuals — a small, enumerated set of bridge reads/writes (card-DB lookups, layered-effect tracker, prompt journal, crew state, steal lifecycle, reveal proxies, the monotonic id counter itself) stay in-stage. The class KDoc on `StateMapper` carries the current list; `PureDiffReplayTest` is the contract, the enumeration is the catalog.
+
+**BundleBuilder.bundle** assembles outbound messages:
+
+```
+  per-seat visibility filter · full vs. diff selection · applyMutations commit · cursor advance · gsId / msgId sequencing
+```
+
+After compute, `BundleBuilder` calls `bridge.applyMutations(result.mutations)`, embeds any `ActionsAvailableReq`, emits the GRE bundle, and advances `cursor.lastSent = snap`. The cursor (`BundleCursor`) is the snap-vs-snap diff baseline for the next bundle.
 
 **Per-seat filtering.** Each seat receives its own `GameStateMessage`. Private zones (opponent's hand, face-down library) are stripped before send — the same engine state produces different protobuf payloads per seat.
 

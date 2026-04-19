@@ -20,6 +20,11 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * thread and this (engine thread) call `counter.nextMsgId()`/`counter.nextGsId()`
  * on the same atomic — no seeding or syncing needed.
  *
+ * Shares [BundleCursor] with the session-layer `BundleBuilder` via
+ * [GameBridge.bundleCursor]: the two builders must agree on the diff baseline
+ * or `buildDiff` produces a Full when the client expects a Diff. See
+ * [BundleCursor] KDoc for the sharing invariant.
+ *
  * The [MatchHandler][leyline.match.MatchHandler] drains the queue
  * via [drainQueue] and sends messages to the TCP socket.
  *
@@ -159,9 +164,9 @@ class GamePlayback(
 
             queue.add(result.messages)
 
-            // No need to snapshot here — buildDiffFromGame (called by remoteActionDiff)
-            // snapshots internally after computing the diff. A redundant buildFromSnapshot
-            // with the same gsId creates a self-referential snapshot.
+            // No need to advance the cursor here — buildDiff (called by remoteActionDiff)
+            // writes cursor.lastSent after computing the diff. A redundant
+            // buildFromSnapshot with the same gsId creates a self-referential snapshot.
 
             log.debug(
                 "action captured: phase={} turn={} queued={} msgs={}",
