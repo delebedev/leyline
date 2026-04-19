@@ -107,12 +107,6 @@ object StateMapper {
         revealForSeat: Int? = null,
         prev: GsmSnapshot? = null,
         externalEvents: List<GameEvent>? = null,
-        /**
-         * When non-null, use this as the persistent annotation baseline instead of
-         * reading from [bridge.annotations]. Passed by [buildDiff] to make the diff
-         * path pure on its persistent-state inputs.
-         */
-        persistentStateOverride: PersistentAnnotationState? = null,
     ): BuildResult {
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
@@ -136,15 +130,10 @@ object StateMapper {
         val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
         val keywordSnapshot = bridge.snapshotKeywords()
         val keywordDiff = bridge.effects.diffKeywords(keywordSnapshot)
-        // Snapshot persistent state BEFORE compute — computeBatch is pure over this snapshot.
+        // Persistent annotation baseline is carried on the snapshot (captured
+        // at snap time in SnapshotCapture). computeBatch is pure over this value.
         // See PersistentAnnotationStore class KDoc for lifecycle and ordering invariants.
-        // When a persistentStateOverride is provided (diff path), read from it so the
-        // computation is pure w.r.t. the bridge's mutable annotation store.
-        val persistentState = persistentStateOverride ?: PersistentAnnotationState(
-            activeAnnotations = bridge.annotations.snapshot(),
-            nextAnnotationId = bridge.annotations.currentAnnotationId(),
-            nextPersistentId = bridge.annotations.currentPersistentId(),
-        )
+        val persistentState = snap.persistentAnnotationState
         val persistSnapshot = persistentState.activeAnnotations
         val startPersistentId = persistentState.nextPersistentId
         val startAnnotationId = persistentState.nextAnnotationId
@@ -336,7 +325,6 @@ object StateMapper {
                 revealForSeat = revealForSeat,
                 prev = null,
                 externalEvents = events,
-                persistentStateOverride = cur.persistentAnnotationState,
             )
         }
 
@@ -346,7 +334,6 @@ object StateMapper {
             revealForSeat = revealForSeat,
             prev = prev,
             externalEvents = events,
-            persistentStateOverride = cur.persistentAnnotationState,
         )
         val current = fullResult.gsm
 
