@@ -1,10 +1,12 @@
-package leyline.bridge
+package leyline.bridge.forge
 
 import forge.LobbyPlayer
 import forge.ai.GameState
+import forge.deck.CardPool
 import forge.game.GameEntityView
 import forge.game.GameView
 import forge.game.card.CardView
+import forge.game.event.GameEvent
 import forge.game.event.GameEventSpellAbilityCast
 import forge.game.event.GameEventSpellRemovedFromStack
 import forge.game.phase.PhaseType
@@ -23,22 +25,25 @@ import forge.player.PlayerZoneUpdates
 import forge.trackable.TrackableCollection
 import forge.util.FSerializableFunction
 import forge.util.ITriggerEvent
+import leyline.bridge.GameActionBridge
+import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.PromptRequest
 import org.slf4j.LoggerFactory
 
 /**
  * Web adapter for [IGuiGame]. Routes interactive choice methods through
- * [InteractivePromptBridge] and stubs desktop-only UI methods as no-ops.
+ * [leyline.bridge.InteractivePromptBridge] and stubs desktop-only UI methods as no-ops.
  *
- * This allows [WebPlayerController] to extend [forge.player.PlayerControllerHuman]
+ * This allows [PlayerController] to extend [forge.player.PlayerControllerHuman]
  * and inherit all 157 correctly-implemented card interaction methods.
  */
-class WebGuiGame(
+class ClientGuiGame(
     private val bridge: InteractivePromptBridge,
     private val actionBridge: GameActionBridge? = null,
 ) : IGuiGame {
 
     companion object {
-        private val log = LoggerFactory.getLogger(WebGuiGame::class.java)
+        private val log = LoggerFactory.getLogger(ClientGuiGame::class.java)
     }
 
     // ── Choice primitives → bridge.requestChoice() ────────────────────
@@ -391,7 +396,7 @@ class WebGuiGame(
         }
     }
 
-    override fun sideboard(sideboard: forge.deck.CardPool, main: forge.deck.CardPool, message: String): List<PaperCard> {
+    override fun sideboard(sideboard: CardPool, main: CardPool, message: String): List<PaperCard> {
         // Sideboarding not yet supported via web UI
         log.info("Sideboard requested but not implemented in web UI")
         return emptyList()
@@ -517,7 +522,7 @@ class WebGuiGame(
     override fun notifyStackAddition(event: GameEventSpellAbilityCast) {}
     override fun notifyStackRemoval(event: GameEventSpellRemovedFromStack) {}
     override fun handleLandPlayed(land: CardView) {}
-    override fun handleGameEvent(event: forge.game.event.GameEvent) {}
+    override fun handleGameEvent(event: GameEvent) {}
     override fun tempShowZones(controller: PlayerView, zonesToUpdate: Iterable<PlayerZoneUpdate>): Iterable<PlayerZoneUpdate> = zonesToUpdate
     override fun hideZones(controller: PlayerView, zonesToUpdate: Iterable<PlayerZoneUpdate>) {}
     override fun updateZones(zonesToUpdate: Iterable<PlayerZoneUpdate>) {}

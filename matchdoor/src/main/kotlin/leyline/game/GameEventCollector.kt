@@ -41,7 +41,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * ## Cross-class flag consumption
  *
  * Two helper methods consume single-use flags set by
- * [WebPlayerController][leyline.bridge.WebPlayerController] on the
+ * [PlayerController][leyline.bridge.forge.PlayerController] on the
  * [InteractivePromptBridge][leyline.bridge.InteractivePromptBridge]:
  *
  * - [isSearchedToHand]: drains `SearchedToHand` effects from the prompt journal → emits

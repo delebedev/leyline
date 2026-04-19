@@ -23,12 +23,12 @@ import org.slf4j.LoggerFactory
  * [PromptSideEffect.RevealStarted]/[PromptSideEffect.RevealEnded]) that downstream
  * classes (`GameEventCollector`, `StateMapper`, `TargetingHandler`) consume.
  *
- * PCHuman's `super.<method>` calls stay on `WebPlayerController` — the
+ * PCHuman's `super.<method>` calls stay on `PlayerController` — the
  * overrides that need them pass the call-through as a lambda or perform the
  * super step around the coordinator call. The coordinator itself does not
  * extend `PlayerControllerHuman`.
  *
- * See [WebPlayerController]'s KDoc for the coordinator pattern.
+ * See [leyline.bridge.forge.PlayerController]'s KDoc for the coordinator pattern.
  */
 class TargetingCoordinator(
     private val bridge: InteractivePromptBridge,
@@ -470,7 +470,7 @@ class TargetingCoordinator(
      * Common bridge-based card-selection prompt. Public for the `chooseCardsForCost`
      * override, which is structurally a "pick N cards from this list" prompt and
      * shares the same protocol shape — but conceptually a cost-payment override, so
-     * it lives on [WebPlayerController].
+     * it lives on [leyline.bridge.forge.PlayerController].
      */
     fun chooseCardsViaBridge(
         cards: CardCollectionView,

@@ -47,7 +47,7 @@ class MulliganBridge(
     private var tuckFuture: CompletableFuture<List<Card>>? = null
 
     /**
-     * Called by [WebPlayerController.mulliganKeepHand] on the game thread.
+     * Called by [leyline.bridge.forge.PlayerController.mulliganKeepHand] on the game thread.
      * Blocks until the client calls [submitKeep] or [submitMull].
      *
      * @return true to keep, false to mulligan
@@ -83,7 +83,7 @@ class MulliganBridge(
     }
 
     /**
-     * Called by [WebPlayerController.tuckCardsViaMulligan] on the game thread.
+     * Called by [leyline.bridge.forge.PlayerController.tuckCardsViaMulligan] on the game thread.
      * Blocks until the client calls [submitTuck].
      *
      * @return the cards to put on bottom of library

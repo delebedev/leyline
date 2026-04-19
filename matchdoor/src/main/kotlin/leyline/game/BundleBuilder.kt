@@ -265,7 +265,7 @@ class BundleBuilder(
      * This is the **session-side** layer of a two-layer auto-pass system:
      *
      * 1. **Engine-side** — [PlayableActionQuery.hasPlayableNonManaAction] runs
-     *    inside [WebPlayerController.chooseSpellAbilityToPlay] on the engine
+     *    inside [PlayerController.chooseSpellAbilityToPlay] on the engine
      *    thread, own-turn only. When false, the engine auto-passes before the
      *    bridge round-trip even happens. The session thread never sees it.
      *

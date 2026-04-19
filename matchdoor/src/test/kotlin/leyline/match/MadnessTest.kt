@@ -108,7 +108,7 @@ class MadnessTest :
                 // exiled via madness replacement; the madness trigger resolves
                 // and calls playSaFromPlayEffect → WPC emits OptionalActionMessage
                 // (shortcut for client's ActionsAvailableReq Cast:1+Pass:1 flow; see
-                // WebPlayerController.playSaFromPlayEffect comment). The harness's
+                // PlayerController.playSaFromPlayEffect comment). The harness's
                 // autoRespondToOptionalAction auto-accepts on each drainSink, which
                 // drives the cast through super.playSaFromPlayEffect.
                 h.passPriority() // resolves trigger, triggers prompt, auto-accepts
@@ -164,7 +164,7 @@ class MadnessTest :
                 //     a one-Cast/one-Pass action prompt. Leyline currently
                 //     shortcuts via OptionalActionMessage ("Take Action / Decline")
                 //     because the existing plumbing is ready. See
-                //     WebPlayerController.playSaFromPlayEffect for rationale +
+                //     PlayerController.playSaFromPlayEffect for rationale +
                 //     migration path.
                 val optionalPrompt = h.allMessages
                     .firstOrNull { it.type == GREMessageType.OptionalActionMessage_695e }

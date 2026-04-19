@@ -16,6 +16,7 @@ import forge.model.FModel
 import forge.player.PlayerControllerHuman
 import forge.util.Lang
 import forge.util.Localizer
+import leyline.bridge.forge.HeadlessGuiBase
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
@@ -274,7 +275,7 @@ object GameBootstrap {
 
     private fun ensureGuiBase() {
         if (GuiBase.getInterface() == null) {
-            GuiBase.setInterface(WebGuiBase(resolveAssetsDir().toString()))
+            GuiBase.setInterface(HeadlessGuiBase(resolveAssetsDir().toString()))
         }
     }
 

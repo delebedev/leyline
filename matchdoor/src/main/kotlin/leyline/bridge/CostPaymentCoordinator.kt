@@ -15,19 +15,19 @@ import org.slf4j.LoggerFactory
  * Owns the cost-payment override surface that routes user decisions through
  * [InteractivePromptBridge] rather than Forge's desktop UI.
  *
- * Extracted from `WebPlayerController` — the cost overrides share a common
+ * Extracted from `PlayerController` — the cost overrides share a common
  * concern (the user resolving a cost) and distinct wiring (stashed decisions
  * from [TargetingHandler][leyline.match.TargetingHandler], shock-land prompts
  * via [OptionalActionGate], convoke/improvise shard resolution).
  *
- * Three overrides stay on `WebPlayerController` because they must hand
+ * Three overrides stay on `PlayerController` because they must hand
  * `this: PlayerControllerHuman` to a collaborator:
  *
- * - `getCostDecisionMaker` — constructs `WebCostDecision` with the controller.
+ * - `getCostDecisionMaker` — constructs `CostDecision` with the controller.
  * - `payManaCost` — hands `this` to `PlaySpellAbility.payManaCost`.
  * - `chooseCardsForCost` — trivial delegation to `TargetingCoordinator`.
  *
- * See [WebPlayerController]'s KDoc for the coordinator pattern.
+ * See [leyline.bridge.forge.PlayerController]'s KDoc for the coordinator pattern.
  */
 class CostPaymentCoordinator(
     private val bridge: InteractivePromptBridge,
@@ -94,7 +94,7 @@ class CostPaymentCoordinator(
     /**
      * AI-driven mana payment for engine-initiated abilities. The human seat
      * still pays via [Forge's PlaySpellAbility.payManaCost][payManaCostForHuman]
-     * on `WebPlayerController` (which must hand `this` to the helper).
+     * on `PlayerController` (which must hand `this` to the helper).
      */
     fun applyManaToCost(
         toPay: forge.game.mana.ManaCostBeingPaid,
@@ -108,7 +108,7 @@ class CostPaymentCoordinator(
     /**
      * Binary keyword-cost prompt (max == 1, e.g. a single-point strive choice).
      * For max > 1 the caller keeps `super.chooseNumberForKeywordCost` which
-     * routes through `WebGuiGame.getInteger`.
+     * routes through `ClientGuiGame.getInteger`.
      */
     fun chooseKeywordCostBinary(prompt: String): Int {
         val request = PromptRequest(

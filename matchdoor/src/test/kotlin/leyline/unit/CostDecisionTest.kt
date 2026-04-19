@@ -15,12 +15,12 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.PromptSemantic
-import leyline.bridge.WebCostDecision
+import leyline.bridge.forge.CostDecision
 import leyline.conformance.TestCardRegistry
 import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 
-class WebCostDecisionTest :
+class CostDecisionTest :
     FunSpec({
 
         tags(UnitTag)
@@ -42,7 +42,7 @@ class WebCostDecisionTest :
             val player: Player,
             val source: Card,
             val ability: SpellAbility,
-            val decision: WebCostDecision,
+            val decision: CostDecision,
         )
 
         fun fixture(): Fixture {
@@ -81,7 +81,7 @@ class WebCostDecisionTest :
                 player = player,
                 source = source,
                 ability = ability,
-                decision = WebCostDecision(
+                decision = CostDecision(
                     controller,
                     player,
                     ability,
@@ -93,13 +93,13 @@ class WebCostDecisionTest :
         }
 
         fun invokeSelectCards(
-            decision: WebCostDecision,
+            decision: CostDecision,
             cards: CardCollectionView,
             min: Int,
             max: Int,
             cancelAllowed: Boolean,
         ): CardCollection? {
-            val method = WebCostDecision::class.java.getDeclaredMethod(
+            val method = CostDecision::class.java.getDeclaredMethod(
                 "selectCards",
                 String::class.java,
                 CardCollectionView::class.java,

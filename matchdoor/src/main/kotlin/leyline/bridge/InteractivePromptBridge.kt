@@ -123,9 +123,9 @@ class InteractivePromptBridge(
     }
 
     // ── Reveal tracking ─────────────────────────────────────────────────────
-    // Engine calls PlayerController.reveal() → WebPlayerController.reveal()
-    // pushes forge card IDs here. Leyline drains at diff-build time to
-    // produce RevealedCardCreated annotations and populate Revealed zones.
+    // Engine fires reveal(); the leyline.bridge.forge.PlayerController override
+    // pushes forge card IDs here. Leyline drains at diff-build time to produce
+    // RevealedCardCreated annotations and populate Revealed zones.
 
     /**
      * Record of revealed cards: list of forge card IDs + the seatId of the player
@@ -135,7 +135,7 @@ class InteractivePromptBridge(
 
     private val revealQueue = ConcurrentLinkedQueue<RevealRecord>()
 
-    /** Push a batch of revealed card IDs (called from engine thread via WebPlayerController). */
+    /** Push a batch of revealed card IDs (called from engine thread via the PlayerController.reveal override). */
     fun recordReveal(forgeCardIds: List<ForgeCardId>, ownerSeatId: SeatId) {
         if (forgeCardIds.isEmpty()) return
         revealQueue.add(RevealRecord(forgeCardIds, ownerSeatId))

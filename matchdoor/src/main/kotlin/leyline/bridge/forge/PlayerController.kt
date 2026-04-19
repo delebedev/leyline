@@ -1,9 +1,11 @@
-package leyline.bridge
+package leyline.bridge.forge
 
 import forge.LobbyPlayer
+import forge.card.ColorSet
 import forge.card.mana.ManaCost
 import forge.card.mana.ManaCostShard
 import forge.game.Game
+import forge.game.GameActionUtil
 import forge.game.GameEntity
 import forge.game.GameObject
 import forge.game.ability.AbilityUtils
@@ -12,35 +14,59 @@ import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
 import forge.game.combat.Combat
 import forge.game.cost.Cost
+import forge.game.cost.CostDecisionMakerBase
 import forge.game.cost.CostPart
+import forge.game.cost.CostPartMana
+import forge.game.cost.CostPartWithList
+import forge.game.cost.CostPayLife
 import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
+import forge.game.mana.ManaConversionMatrix
+import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.DelayedReveal
 import forge.game.player.PlaySpellAbility
 import forge.game.player.Player
 import forge.game.player.PlayerActionConfirmMode
-import forge.game.player.PlayerController.BinaryChoiceType
 import forge.game.replacement.ReplacementEffect
 import forge.game.spellability.AbilitySub
+import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
 import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
 import forge.player.PlayerControllerHuman
+import forge.player.TargetSelectionResult
 import forge.util.collect.FCollectionView
+import leyline.bridge.ClientAutoPassState
+import leyline.bridge.CostPaymentCoordinator
+import leyline.bridge.ForgeCardId
+import leyline.bridge.GameActionBridge
+import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.MulliganBridge
+import leyline.bridge.OptionalActionGate
+import leyline.bridge.OwnerContext
+import leyline.bridge.PhaseStopProfile
+import leyline.bridge.PriorityDecision
+import leyline.bridge.PriorityLoopCoordinator
+import leyline.bridge.PromptRequest
+import leyline.bridge.PromptSemantic
+import leyline.bridge.SpellExecutor
+import leyline.bridge.TargetingCoordinator
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
+import java.util.concurrent.CompletableFuture
+import java.util.function.Predicate
 
 /**
  * The single integration point between Forge's rules engine and our session layer.
  * Extends [PlayerControllerHuman] so all 157 interactive methods route through
- * [InteractivePromptBridge] via [WebGuiGame]; the ~42 methods PCHuman implements
+ * [leyline.bridge.InteractivePromptBridge] via [ClientGuiGame]; the ~42 methods PCHuman implements
  * with desktop-only classes (InputConfirm, InputSelectCardsFromList, FModel,
  * GuiBase) are overridden here.
  *
  * ## Single-inheritance constraint
  *
  * Forge calls `controller.chooseSpellAbilityToPlay()`, `chooseSingleEntityForEffect(...)`,
- * etc. via a [forge.game.player.PlayerController] field on [forge.game.player.Player].
+ * etc. via a [forge.game.player.PlayerController] field on [Player].
  * That field holds a concrete subclass; virtual dispatch is the only mechanism.
  * There is no composition escape hatch, no delegation annotation reaching PCHuman's
  * protected state, no handler-map registration. **The class shape is non-negotiable**:
@@ -58,18 +84,18 @@ import org.slf4j.LoggerFactory
  * classes; the override becomes a thin delegation.
  *
  * Current coordinators:
- * - [PriorityLoopCoordinator] — `chooseSpellAbilityToPlay`, combat declarations,
- *   combat-damage assignment, decision logging. Uses [GameActionBridge].
- * - [TargetingCoordinator] — single-entity and multi-entity choice, targeting,
+ * - [leyline.bridge.PriorityLoopCoordinator] — `chooseSpellAbilityToPlay`, combat declarations,
+ *   combat-damage assignment, decision logging. Uses [leyline.bridge.GameActionBridge].
+ * - [leyline.bridge.TargetingCoordinator] — single-entity and multi-entity choice, targeting,
  *   reveals, discards, sacrifices, zone ordering. Writes bridge flag-contract fields.
- * - [CostPaymentCoordinator] — convoke/improvise, keyword-cost binary, optional
+ * - [leyline.bridge.CostPaymentCoordinator] — convoke/improvise, keyword-cost binary, optional
  *   costs, shock-land pay-life, AI mana payment.
  *
  * Current helpers:
- * - [SpellExecutor] — the `executeCastSpell` / `executeActivateAbility` /
+ * - [leyline.bridge.SpellExecutor] — the `executeCastSpell` / `executeActivateAbility` /
  *   `executeActivateMana` / `executePlayLand` cluster. Called only from
- *   `chooseSpellAbilityToPlay` inside [PriorityLoopCoordinator].
- * - [OptionalActionGate] — owns the [pendingOptionalAction] future lifecycle
+ *   `chooseSpellAbilityToPlay` inside [leyline.bridge.PriorityLoopCoordinator].
+ * - [leyline.bridge.OptionalActionGate] — owns the [pendingOptionalAction] future lifecycle
  *   shared by `confirmTrigger`, `playSaFromPlayEffect`, and `payCostToPreventEffect`.
  *
  * ## State ownership
@@ -78,28 +104,28 @@ import org.slf4j.LoggerFactory
  * through the public field path. Moving any of them into a coordinator would
  * require a forwarding property with zero benefit.
  *
- * - [pendingDamageAssignment] — written by [PriorityLoopCoordinator.promptForCombatDamage];
+ * - [pendingDamageAssignment] — written by [leyline.bridge.PriorityLoopCoordinator.promptForCombatDamage];
  *   read by `GameBridge.hasPendingInteraction`, `CombatHandler`, and
  *   [assignCombatDamage] (completed future).
- * - [pendingOptionalAction] — written by [OptionalActionGate.await]; read by
+ * - [pendingOptionalAction] — written by [leyline.bridge.OptionalActionGate.await]; read by
  *   `GameBridge.hasPendingInteraction`, `OptionalActionHandler`, `MatchFlowHarness`.
  * - [damageAssignCache] — written by `CombatHandler.onAssignDamage`; read by
  *   [assignCombatDamage].
  * - [autoPassState] — written via [setAutoPassState] (called by
- *   `MatchSession.connectBridge`); read by [PriorityLoopCoordinator.chooseSpellAbility].
+ *   `MatchSession.connectBridge`); read by [leyline.bridge.PriorityLoopCoordinator.chooseSpellAbility].
  * - `decisionLog()` / `recentDecisions` — written by [recordDecision]; read by
  *   `DebugServer.servePriorityTrace`.
  *
- * Coordinators read and write these through [OwnerContext]; external callers use
+ * Coordinators read and write these through [leyline.bridge.OwnerContext]; external callers use
  * the public field path. Prompt side-effects (reveal lifecycle, legend-rule
  * victims, searched-to-hand cards, optional-cost stash) flow through the typed
- * [PromptJournal] on [InteractivePromptBridge]; the priority-loop "prompt just
- * resolved" flag lives on [PrioritySignal].
+ * [leyline.bridge.PromptJournal] on [leyline.bridge.InteractivePromptBridge]; the priority-loop "prompt just
+ * resolved" flag lives on [leyline.bridge.PrioritySignal].
  *
  * ## Anti-patterns (enforced)
  *
  * - **No coordinator-to-coordinator calls.** Inter-coordinator communication goes
- *   through [OwnerContext] or Forge engine state.
+ *   through [leyline.bridge.OwnerContext] or Forge engine state.
  * - **No reflection or dispatch tables.** Route override → coordinator via direct
  *   Kotlin calls.
  * - **No `suspend` conversion.** `CompletableFuture<Boolean>` is the wire contract
@@ -120,7 +146,7 @@ import org.slf4j.LoggerFactory
  * method we previously inherited:
  *
  * 1. **Trivial body (≤ 5 lines, direct `bridge.requestChoice` or `super` call)?**
- *    Keep it here. Update [WebPlayerControllerStructureTest] and the override
+ *    Keep it here. Update [PlayerControllerStructureTest] and the override
  *    table in `matchdoor/CLAUDE.md` in the same commit.
  * 2. **Fits an existing coordinator's concern?** Add a method there, delegate.
  * 3. **Shares a lifecycle pattern with other overrides** (e.g. a future dance)?
@@ -135,18 +161,18 @@ import org.slf4j.LoggerFactory
  *
  * Every override runs on the Forge engine thread, synchronously during game-loop
  * execution. Methods that need client input block the engine thread via
- * [InteractivePromptBridge.requestChoice] (`CompletableFuture.get()`); the Netty
+ * [leyline.bridge.InteractivePromptBridge.requestChoice] (`CompletableFuture.get()`); the Netty
  * I/O thread unblocks by completing the future. Consequences for every coordinator:
  *
  * - A missing or slow override blocks the entire game loop.
- * - [PriorityLoopCoordinator.notifyStateChanged] must fire before
- *   [GameActionBridge.awaitAction] so the client sees updated state before being
+ * - [leyline.bridge.PriorityLoopCoordinator.notifyStateChanged] must fire before
+ *   [leyline.bridge.GameActionBridge.awaitAction] so the client sees updated state before being
  *   asked for a decision.
  * - Coordinators must not acquire locks, do I/O, or block on any other thread.
  *
  * See `docs/bridge-threading.md` for the full two-thread contract.
  */
-class WebPlayerController(
+class PlayerController(
     game: Game,
     player: Player,
     lobbyPlayer: LobbyPlayer,
@@ -199,14 +225,14 @@ class WebPlayerController(
         val defender: GameEntity?,
         val hasDeathtouch: Boolean,
         val hasTrample: Boolean,
-        val future: java.util.concurrent.CompletableFuture<MutableMap<Card?, Int>>,
+        val future: CompletableFuture<MutableMap<Card?, Int>>,
     )
 
     data class OptionalActionPrompt(
         /** Retained for leyline-x25: targeting order fix needs ability details. Null for non-trigger prompts (e.g. shock land ETB). */
         val wrapper: WrappedAbility?,
         val hostCard: Card?,
-        val future: java.util.concurrent.CompletableFuture<Boolean>,
+        val future: CompletableFuture<Boolean>,
         /** When true, force a full state snapshot before emitting the prompt.
          *  Needed for mid-resolution prompts (e.g. Madness's playSaFromPlayEffect)
          *  where the engine hasn't sent the post-replacement state (card in exile)
@@ -237,11 +263,11 @@ class WebPlayerController(
     }
 
     init {
-        setGui(WebGuiGame(bridge, actionBridge))
+        setGui(ClientGuiGame(bridge, actionBridge))
     }
 
     companion object {
-        private val log = LoggerFactory.getLogger(WebPlayerController::class.java)
+        private val log = LoggerFactory.getLogger(PlayerController::class.java)
         private const val MAX_DECISIONS = 200
     }
 
@@ -277,7 +303,7 @@ class WebPlayerController(
 
     // ═══════════════════════════════════════════════════════════════════
     // Overrides for PCHuman methods that use desktop-only classes.
-    // Methods using only getGui() calls are inherited and work via WebGuiGame.
+    // Methods using only getGui() calls are inherited and work via ClientGuiGame.
     // ═══════════════════════════════════════════════════════════════════
 
     // -- Scry / Surveil ------------------------------------------------
@@ -546,7 +572,7 @@ class WebPlayerController(
         return result.firstOrNull() == 0
     }
 
-    override fun chooseColor(message: String, sa: SpellAbility?, colors: forge.card.ColorSet): Byte {
+    override fun chooseColor(message: String, sa: SpellAbility?, colors: ColorSet): Byte {
         val cntColors = colors.countColors()
         if (cntColors == 0) return 0
         if (cntColors == 1) return colors.color
@@ -620,7 +646,7 @@ class WebPlayerController(
     ): Boolean {
         // Shock land (single CostPayLife part) gets the OptionalActionMessage path;
         // everything else (echo, cumulative upkeep) falls through to PCHuman.
-        val lifePart = cost.costParts.singleOrNull() as? forge.game.cost.CostPayLife
+        val lifePart = cost.costParts.singleOrNull() as? CostPayLife
             ?: return super.payCostToPreventEffect(cost, sa, alreadyPaid, allPayers)
         return costPaymentCoordinator.payShockLand(lifePart, sa)
     }
@@ -649,14 +675,14 @@ class WebPlayerController(
     // ═══════════════════════════════════════════════════════════════════
 
     // -- Cost Decision -----------------------------------------------------
-    // WebCostDecision routes interactive cost choices through the bridge.
+    // CostDecision routes interactive cost choices through the bridge.
     override fun getCostDecisionMaker(
         player: Player,
         ability: SpellAbility,
         effect: Boolean,
         prompt: String?,
-    ): forge.game.cost.CostDecisionMakerBase =
-        WebCostDecision(
+    ): CostDecisionMakerBase =
+        CostDecision(
             this,
             player,
             ability,
@@ -677,37 +703,37 @@ class WebPlayerController(
         mandatory: Boolean,
         numTargets: Int?,
         divisionValues: Collection<Int>?,
-        filter: java.util.function.Predicate<forge.game.GameObject>?,
+        filter: Predicate<GameObject>?,
         mustTargetFiltered: Boolean,
-    ): forge.player.TargetSelectionResult =
+    ): TargetSelectionResult =
         targetingCoordinator.selectTargets(validTargets, sa, mandatory, numTargets, divisionValues)
 
     // -- Mana Payment ------------------------------------------------------
     override fun payManaCost(
-        toPay: forge.card.mana.ManaCost,
-        costPartMana: forge.game.cost.CostPartMana,
+        toPay: ManaCost,
+        costPartMana: CostPartMana,
         sa: SpellAbility,
         prompt: String?,
-        matrix: forge.game.mana.ManaConversionMatrix?,
+        matrix: ManaConversionMatrix?,
         effect: Boolean,
     ): Boolean = PlaySpellAbility.payManaCost(this, toPay, costPartMana, sa, player, prompt, matrix, effect)
 
     override fun applyManaToCost(
-        toPay: forge.game.mana.ManaCostBeingPaid,
+        toPay: ManaCostBeingPaid,
         ability: SpellAbility,
         prompt: String?,
-        matrix: forge.game.mana.ManaConversionMatrix?,
+        matrix: ManaConversionMatrix?,
         effect: Boolean,
     ): Boolean = costPaymentCoordinator.applyManaToCost(toPay, ability, effect)
 
     override fun chooseCardsForCost(
-        optionList: forge.game.card.CardCollectionView,
+        optionList: CardCollectionView,
         sa: SpellAbility,
-        cpl: forge.game.cost.CostPartWithList,
+        cpl: CostPartWithList,
         amount: Int,
         isOptional: Boolean,
         prompt: String,
-    ): forge.game.card.CardCollectionView {
+    ): CardCollectionView {
         val min = if (isOptional) 0 else amount
         return targetingCoordinator.chooseCardsViaBridge(optionList, min, amount, prompt)
     }
@@ -726,14 +752,14 @@ class WebPlayerController(
     ): Int = when {
         max <= 0 -> 0
         max == 1 -> costPaymentCoordinator.chooseKeywordCostBinary(prompt)
-        // max > 1: getGui().getInteger() is bridged through WebGuiGame, safe to inherit.
+        // max > 1: getGui().getInteger() is bridged through ClientGuiGame, safe to inherit.
         else -> super.chooseNumberForKeywordCost(sa, cost, keyword, prompt, max)
     }
 
     override fun chooseOptionalCosts(
         chosenSa: SpellAbility,
-        optionalCosts: MutableList<forge.game.spellability.OptionalCostValue>,
-    ): MutableList<forge.game.spellability.OptionalCostValue> =
+        optionalCosts: MutableList<OptionalCostValue>,
+    ): MutableList<OptionalCostValue> =
         costPaymentCoordinator.chooseOptionalCosts(chosenSa, optionalCosts)
 
     // -- Play spell --------------------------------------------------------
@@ -762,10 +788,10 @@ class WebPlayerController(
         // Instead, read the stashed decision from TargetingHandler (set after client
         // responded to CastingTimeOptionsReq). Fallback: auto-accept all (test harness).
         var sa = chosenSa
-        val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
+        val optionalCosts = GameActionUtil.getOptionalCostValues(sa)
         if (optionalCosts.isNotEmpty()) {
             val chosen = chooseOptionalCosts(sa, optionalCosts)
-            sa = forge.game.GameActionUtil.addOptionalCosts(sa, chosen)
+            sa = GameActionUtil.addOptionalCosts(sa, chosen)
         }
 
         sa.hostCard?.setSplitStateToPlayAbility(sa)
@@ -782,7 +808,7 @@ class WebPlayerController(
         // chained sub-abilities execute — e.g. CharmEffect chains the chosen
         // mode as a sub, and the sub must resolve after the parent no-op.
         effectSA.activatingPlayer = player
-        forge.game.ability.AbilityUtils.resolve(effectSA)
+        AbilityUtils.resolve(effectSA)
     }
 
     override fun chooseModeForAbility(

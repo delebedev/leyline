@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * Thread-safe bridge between the blocking engine game loop and async Netty handlers.
  *
- * When the engine reaches a priority stop (via [WebPlayerController.chooseSpellAbilityToPlay]),
+ * When the engine reaches a priority stop (via [leyline.bridge.forge.PlayerController.chooseSpellAbilityToPlay]),
  * it calls [awaitAction] which blocks the game thread. The message handler broadcasts state to the
  * client, and when the client responds (cast, pass, attack, etc.), [submitAction] completes
  * the future so the engine resumes.
@@ -87,7 +87,7 @@ class GameActionBridge(
     }
 
     /**
-     * When set, [WebPlayerController.chooseSpellAbilityToPlay] auto-passes
+     * When set, [leyline.bridge.forge.PlayerController.chooseSpellAbilityToPlay] auto-passes
      * without blocking on the bridge. Cleared on turn boundary.
      * Matches desktop Forge "End Turn" behavior.
      */

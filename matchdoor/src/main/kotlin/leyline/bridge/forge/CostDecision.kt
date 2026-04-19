@@ -1,4 +1,4 @@
-package leyline.bridge
+package leyline.bridge.forge
 
 import com.google.common.collect.ImmutableList
 import com.google.common.collect.Lists
@@ -17,20 +17,24 @@ import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.PlayerControllerHuman
 import forge.util.*
+import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.PromptCandidateRefDto
+import leyline.bridge.PromptRequest
+import leyline.bridge.PromptSemantic
 import org.slf4j.LoggerFactory
 import java.util.*
 
 /**
  * Web-based cost decision maker: routes interactive cost choices through the
- * [InteractivePromptBridge] instead of desktop Input* classes.
+ * [leyline.bridge.InteractivePromptBridge] instead of desktop Input* classes.
  *
  * Extends [CostDecisionMakerBase] and implements all ~35 [ICostVisitor] methods.
- * Non-interactive costs (confirm-only) go through [WebGuiGame.confirm];
+ * Non-interactive costs (confirm-only) go through [ClientGuiGame.confirm];
  * interactive card selections go through the [selectCards] helper.
  *
  * See ADR-010 Seam 1 spike for design rationale.
  */
-class WebCostDecision(
+class CostDecision(
     private val controller: PlayerControllerHuman,
     p: Player,
     sa: SpellAbility,
@@ -42,7 +46,7 @@ class WebCostDecision(
 
     companion object {
         @Suppress("UnusedPrivateProperty")
-        private val log = LoggerFactory.getLogger(WebCostDecision::class.java)
+        private val log = LoggerFactory.getLogger(CostDecision::class.java)
     }
 
     private var mandatory: Boolean = sa.payCosts?.isMandatory ?: false

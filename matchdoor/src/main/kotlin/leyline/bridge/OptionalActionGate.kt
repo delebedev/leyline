@@ -2,14 +2,15 @@ package leyline.bridge
 
 import forge.game.card.Card
 import forge.game.trigger.WrappedAbility
+import leyline.bridge.forge.PlayerController
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
 /**
- * Narrow access surface exposed by [WebPlayerController] to coordinators and helpers.
+ * Narrow access surface exposed by [leyline.bridge.forge.PlayerController] to coordinators and helpers.
  *
- * Coordinators receive an `OwnerContext` rather than a full [WebPlayerController]
+ * Coordinators receive an `OwnerContext` rather than a full [leyline.bridge.forge.PlayerController]
  * reference. A full reference would let any coordinator reach any override, any
  * private helper, any PCHuman-inherited method — and the boundary would erode
  * within two refactors. Keeping the surface narrow is a compile-time fence: if a
@@ -19,15 +20,15 @@ import java.util.concurrent.TimeUnit
  * Grows one field at a time, driven by actual coordinator need. Do not
  * pre-populate with fields a coordinator might want someday.
  *
- * See the [WebPlayerController] class KDoc for the state-ownership rules that
+ * See the [leyline.bridge.forge.PlayerController] class KDoc for the state-ownership rules that
  * decide what belongs here vs. on the class vs. on [InteractivePromptBridge].
  */
 interface OwnerContext {
     /** Pending optional-action prompt (set by [OptionalActionGate], read by session handlers). */
-    var pendingOptionalAction: WebPlayerController.OptionalActionPrompt?
+    var pendingOptionalAction: PlayerController.OptionalActionPrompt?
 
     /** Pending manual combat-damage assignment (set by [PriorityLoopCoordinator], read by `CombatHandler`). */
-    var pendingDamageAssignment: WebPlayerController.DamageAssignmentPrompt?
+    var pendingDamageAssignment: PlayerController.DamageAssignmentPrompt?
 
     /** Batched damage assignments cached by `CombatHandler.onAssignDamage` for subsequent attackers. */
     val damageAssignCache: MutableMap<ForgeCardId, MutableMap<Card?, Int>>
@@ -35,7 +36,7 @@ interface OwnerContext {
     /** Client auto-pass state (full-control flag, phase stops). */
     val autoPassState: ClientAutoPassState?
 
-    /** Append a priority decision to the bounded log backing [WebPlayerController.decisionLog]. */
+    /** Append a priority decision to the bounded log backing [PlayerController.decisionLog]. */
     fun recordDecision(decision: PriorityDecision)
 
     /** Invoke the `onStateChanged` callback so the session layer can ship updated state. */
@@ -43,7 +44,7 @@ interface OwnerContext {
 }
 
 /**
- * Owns the [WebPlayerController.pendingOptionalAction] future lifecycle for the
+ * Owns the [PlayerController.pendingOptionalAction] future lifecycle for the
  * three override sites that share it (`confirmTrigger`, `playSaFromPlayEffect`,
  * `payCostToPreventEffect`).
  *
@@ -84,7 +85,7 @@ class OptionalActionGate(
         logContext: String,
     ): Boolean {
         val future = CompletableFuture<Boolean>()
-        owner.pendingOptionalAction = WebPlayerController.OptionalActionPrompt(
+        owner.pendingOptionalAction = PlayerController.OptionalActionPrompt(
             wrapper = wrapper,
             hostCard = hostCard,
             future = future,

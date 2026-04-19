@@ -150,7 +150,7 @@ class DebugServer(
 
     /**
      * `/api/priority-log` — combined priority decision log from
-     * AutoPassEngine (session thread) and WebPlayerController (engine thread).
+     * AutoPassEngine (session thread) and PlayerController (engine thread).
      */
     private fun servePriorityLog(ex: HttpExchange) {
         val session = sessionProvider?.invoke()
@@ -169,7 +169,7 @@ class DebugServer(
             entries.add(Entry(e.ts, "session", e.phase, e.turn, e.decision.toString()))
         }
 
-        // WebPlayerController decisions (engine thread)
+        // PlayerController decisions (engine thread)
         val bridge = session.gameBridge
         val controller = bridge?.humanController
         if (controller != null) {

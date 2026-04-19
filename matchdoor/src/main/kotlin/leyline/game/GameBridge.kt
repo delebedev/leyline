@@ -22,7 +22,7 @@ import leyline.bridge.MulliganPhase
 import leyline.bridge.PhaseStopProfile
 import leyline.bridge.PrioritySignal
 import leyline.bridge.SeatId
-import leyline.bridge.WebPlayerController
+import leyline.bridge.forge.PlayerController
 import leyline.bridge.isCommander
 import leyline.bridge.isCommanderVariant
 import leyline.config.MatchConfig
@@ -164,7 +164,7 @@ class GameBridge(
     }
 
     /** Human player's controller — set during [start]/[startFromPuzzle] for debug observability. */
-    var humanController: WebPlayerController? = null
+    var humanController: PlayerController? = null
         private set
 
     /** Per-seat action playback — captures remote-action state diffs via EventBus. Empty before start(). */
@@ -446,11 +446,11 @@ class GameBridge(
 
         populateSeatMap(g)
 
-        // Wire WebPlayerController for seat 1 (human) with mulligan bridge
+        // Wire PlayerController for seat 1 (human) with mulligan bridge
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
         phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
-        val controller = WebPlayerController(
+        val controller = PlayerController(
             game = g,
             player = human,
             lobbyPlayer = human.lobbyPlayer,
@@ -727,7 +727,7 @@ class GameBridge(
         populateSeatMap(g)
 
         // Apply puzzle state via reflection (applyGameOnThread is protected).
-        // Install temp WebPlayerControllers with autoKeep + zero-timeout bridges
+        // Install temp PlayerControllers with autoKeep + zero-timeout bridges
         // to handle any SBAs/triggers during setup (forge-web pattern).
         applyPuzzleSafely(puzzle, g)
 
@@ -753,12 +753,12 @@ class GameBridge(
         // No CardAttached events fire for cards that start attached — seed from engine state.
         seedAttachmentAnnotations(g)
 
-        // Wire WebPlayerController for seat 1 (human) — same as constructed
+        // Wire PlayerController for seat 1 (human) — same as constructed
         // but no mulligan bridge needed (autoKeep=true, unused).
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
         phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
-        val controller = WebPlayerController(
+        val controller = PlayerController(
             game = g,
             player = human,
             lobbyPlayer = human.lobbyPlayer,
@@ -862,7 +862,7 @@ class GameBridge(
 
     /**
      * Apply puzzle state to the game via reflection.
-     * Installs temp [WebPlayerController]s with autoKeep/zero-timeout during
+     * Installs temp [PlayerController]s with autoKeep/zero-timeout during
      * application to handle any SBAs or triggers that fire during setup.
      */
     @Suppress("SwallowedException") // InvocationTargetException.targetException forwarded as cause
@@ -879,7 +879,7 @@ class GameBridge(
     }
 
     /**
-     * Recursively install temp [WebPlayerController]s with zero-timeout bridges
+     * Recursively install temp [PlayerController]s with zero-timeout bridges
      * on each human-controlled player during [block]. Removed automatically after.
      */
     private fun runWithTempControllers(players: List<Player>, block: () -> Unit) {
@@ -890,7 +890,7 @@ class GameBridge(
         val tempPrompt = InteractivePromptBridge(timeoutMs = 0)
         val tempAction = GameActionBridge(timeoutMs = 0)
         val tempMulligan = MulliganBridge(autoKeep = true, timeoutMs = 0)
-        val tempController = WebPlayerController(
+        val tempController = PlayerController(
             game = player.game,
             player = player,
             lobbyPlayer = player.lobbyPlayer,

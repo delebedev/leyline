@@ -3,17 +3,18 @@ package leyline.bridge
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.forge.PlayerController
 
 /**
- * Pins the [WebPlayerController] override surface.
+ * Pins the [leyline.bridge.forge.PlayerController] override surface.
  *
  * Forge dispatches through single inheritance — the class must keep hosting every
  * override. Any addition or removal is a spec change that must update this test and
  * the override table in `matchdoor/CLAUDE.md` in the same commit.
  *
- * See [WebPlayerController]'s KDoc for the pattern this guardrail supports.
+ * See [leyline.bridge.forge.PlayerController]'s KDoc for the pattern this guardrail supports.
  */
-class WebPlayerControllerStructureTest :
+class PlayerControllerStructureTest :
     FunSpec({
 
         tags(UnitTag)
@@ -68,8 +69,8 @@ class WebPlayerControllerStructureTest :
             expectedOverrides.size shouldBe 42
         }
 
-        test("WebPlayerController declares exactly the expected overrides") {
-            val clazz = WebPlayerController::class.java
+        test("PlayerController declares exactly the expected overrides") {
+            val clazz = PlayerController::class.java
             // Deduplicate by (name, parameterTypes) — not by name alone — so that an
             // accidental overload addition (two methods with the same name and different
             // signatures) cannot pass silently.

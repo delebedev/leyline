@@ -1,4 +1,4 @@
-package leyline.bridge
+package leyline.bridge.forge
 
 import forge.gamemodes.match.HostedMatch
 import forge.gui.download.GuiDownloadService
@@ -11,14 +11,22 @@ import forge.sound.IAudioClip
 import forge.sound.IAudioMusic
 import forge.util.FSerializableFunction
 import forge.util.ImageFetcher
+import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.PromptRequest
 import org.jupnp.UpnpServiceConfiguration
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
+import java.lang.Byte
+import java.lang.Double
+import java.lang.Long
+import java.lang.Short
+import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
 import java.net.URISyntaxException
 import java.util.function.Consumer
 
-class WebGuiBase(
+class HeadlessGuiBase(
     private val assetsDir: String,
     val promptBridge: InteractivePromptBridge = InteractivePromptBridge(),
 ) : IGuiBase {
@@ -72,7 +80,7 @@ class WebGuiBase(
 
     override fun showBugReportDialog(title: String, text: String, showExitAppBtn: Boolean) {
         // Log instead of throwing — BugReporter calls this for game exceptions
-        org.slf4j.LoggerFactory.getLogger(WebGuiBase::class.java)
+        LoggerFactory.getLogger(HeadlessGuiBase::class.java)
             .warn("BugReporter: $title — ${text.take(300)}")
     }
 
@@ -261,15 +269,15 @@ class WebGuiBase(
     override fun getUpnpPlatformService(): UpnpServiceConfiguration = throw UnsupportedOperationException("UPnP not supported in headless mode")
 
     override fun getNewGuiGame(): IGuiGame {
-        val handler = java.lang.reflect.InvocationHandler { _, method, _ ->
+        val handler = InvocationHandler { _, method, _ ->
             when {
                 method.returnType == java.lang.Boolean.TYPE -> false
                 method.returnType == Integer.TYPE -> 0
-                method.returnType == java.lang.Long.TYPE -> 0L
+                method.returnType == Long.TYPE -> 0L
                 method.returnType == java.lang.Float.TYPE -> 0f
-                method.returnType == java.lang.Double.TYPE -> 0.0
-                method.returnType == java.lang.Short.TYPE -> 0.toShort()
-                method.returnType == java.lang.Byte.TYPE -> 0.toByte()
+                method.returnType == Double.TYPE -> 0.0
+                method.returnType == Short.TYPE -> 0.toShort()
+                method.returnType == Byte.TYPE -> 0.toByte()
                 method.returnType == Character.TYPE -> '\u0000'
                 method.returnType == Void.TYPE -> null
                 List::class.java.isAssignableFrom(method.returnType) -> emptyList<Any>()

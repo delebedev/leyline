@@ -6,22 +6,22 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.GameActionBridge
 import leyline.bridge.InteractivePromptBridge
-import leyline.bridge.WebGuiGame
+import leyline.bridge.forge.ClientGuiGame
 
 class AutoPassCancelTest :
     FunSpec({
 
         tags(UnitTag)
 
-        // WebGuiGame methods take PlayerView — we test via reflection-free direct
-        // actionBridge interaction since the WebGuiGame methods just delegate.
+        // ClientGuiGame methods take PlayerView — we test via reflection-free direct
+        // actionBridge interaction since the ClientGuiGame methods just delegate.
 
         test("autoPassCancel clears autoPassUntilEndOfTurn flag via actionBridge") {
             val actionBridge = GameActionBridge(timeoutMs = 0)
             actionBridge.setAutoPassUntilEndOfTurn(true)
             actionBridge.autoPassUntilEndOfTurn shouldBe true
 
-            // Simulate what WebGuiGame.autoPassCancel does
+            // Simulate what ClientGuiGame.autoPassCancel does
             actionBridge.setAutoPassUntilEndOfTurn(false)
             actionBridge.autoPassUntilEndOfTurn shouldBe false
         }
@@ -30,7 +30,7 @@ class AutoPassCancelTest :
             val actionBridge = GameActionBridge(timeoutMs = 0)
             actionBridge.autoPassUntilEndOfTurn shouldBe false
 
-            // Simulate what WebGuiGame.autoPassUntilEndOfTurn does
+            // Simulate what ClientGuiGame.autoPassUntilEndOfTurn does
             actionBridge.setAutoPassUntilEndOfTurn(true)
             actionBridge.autoPassUntilEndOfTurn shouldBe true
         }
@@ -46,10 +46,10 @@ class AutoPassCancelTest :
             actionBridge.autoPassUntilEndOfTurn shouldBe false
         }
 
-        test("WebGuiGame without actionBridge does not throw") {
+        test("ClientGuiGame without actionBridge does not throw") {
             val promptBridge = InteractivePromptBridge(timeoutMs = 0)
             shouldNotThrowAny {
-                val gui = WebGuiGame(promptBridge)
+                val gui = ClientGuiGame(promptBridge)
                 // Methods take PlayerView (non-null) so we can't call them directly here —
                 // verify the constructor path at least completes without actionBridge.
                 gui.toString()

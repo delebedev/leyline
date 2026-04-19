@@ -2,14 +2,13 @@ package leyline.match
 
 import forge.game.Game
 import forge.game.phase.PhaseType
-import forge.game.player.Player
 import leyline.DevCheck
 import leyline.bridge.ForgeCardId
 import leyline.bridge.ForgePlayerId
 import leyline.bridge.InstanceId
 import leyline.bridge.PlayerAction
 import leyline.bridge.Target
-import leyline.bridge.WebPlayerController
+import leyline.bridge.forge.PlayerController
 import leyline.bridge.findCard
 import leyline.game.GameBridge
 import leyline.game.RequestBuilder
@@ -351,7 +350,7 @@ open class CombatHandler(
             PhaseType.COMBAT_DECLARE_BLOCKERS -> {
                 if (isAiTurn && combat != null && combat.attackers.isNotEmpty() && !pendingBlockersSent) {
                     // Wait for engine to reach declareBlockers() on the human player's
-                    // WebPlayerController — it creates a pending action via awaitAction().
+                    // PlayerController — it creates a pending action via awaitAction().
                     // Without this, we'd send DeclareBlockersReq before the engine is
                     // ready to accept the response, causing "no pending action" errors.
                     bridge.awaitPriority()
@@ -399,7 +398,7 @@ open class CombatHandler(
      *
      * Called from [AutoPassEngine.autoPassAndAdvance] between combat phase
      * handling and interactive prompt checks. Uses the dedicated
-     * [DamageAssignmentPrompt] future on [WebPlayerController] — NOT the
+     * [DamageAssignmentPrompt] future on [PlayerController] — NOT the
      * [GameActionBridge] — so the auto-pass loop cannot interfere.
      *
      * @return true if AssignDamageReq was sent (caller should exit the loop)
@@ -418,7 +417,7 @@ open class CombatHandler(
      * Handle AssignDamageResp from client.
      *
      * Parses the response, completes the [DamageAssignmentPrompt] future on
-     * [WebPlayerController] so the engine thread unblocks with the damage map.
+     * [PlayerController] so the engine thread unblocks with the damage map.
      * For batched responses with multiple assigners, caches subsequent
      * attacker maps on WPC for the engine's per-attacker loop.
      */
@@ -515,7 +514,7 @@ open class CombatHandler(
      */
     private fun sendAssignDamageReq(
         bridge: GameBridge,
-        prompt: WebPlayerController.DamageAssignmentPrompt,
+        prompt: PlayerController.DamageAssignmentPrompt,
     ) {
         val humanPlayer = bridge.getPlayer(counters.seatId) ?: return
 

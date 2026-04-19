@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory
 /**
  * Turns a [PlayerAction] into a Forge [SpellAbility] (or a mana resolution side-effect).
  *
- * Extracted from `WebPlayerController.chooseSpellAbilityToPlay` — that override is
+ * Extracted from `PlayerController.chooseSpellAbilityToPlay` — that override is
  * the sole caller. Each method here maps one of the four "actionable" `PlayerAction`
  * variants (`CastSpell`, `ActivateAbility`, `ActivateMana`, `PlayLand`) into the
  * Forge representation the engine expects back from the callback.
@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory
  * `activateMana` is the one method that can emit a prompt: when a card has multiple
  * distinct mana abilities, the player must pick which to tap for.
  *
- * See [WebPlayerController]'s KDoc for the coordinator/helper pattern this class
+ * See [leyline.bridge.forge.PlayerController]'s KDoc for the coordinator/helper pattern this class
  * participates in.
  */
 class SpellExecutor(
@@ -98,7 +98,7 @@ class SpellExecutor(
 
         // Pay costs via CostPayment (handles tap, sac, exile, etc.) then resolve.
         // For Combo mana (e.g. "W B"), resolve() triggers the engine's chooseColor
-        // callback through WebGuiBase → InteractivePromptBridge — one prompt, no duplication.
+        // callback through HeadlessGuiBase → InteractivePromptBridge — one prompt, no duplication.
         val costs = manaAbility.payCosts
         if (costs != null) {
             val payment = CostPayment(costs, manaAbility)

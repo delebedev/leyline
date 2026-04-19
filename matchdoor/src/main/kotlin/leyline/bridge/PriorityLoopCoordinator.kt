@@ -10,6 +10,7 @@ import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
 import leyline.DevCheck
+import leyline.bridge.forge.PlayerController
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -18,13 +19,13 @@ import java.util.concurrent.TimeoutException
 /**
  * Owns the engine-thread priority loop and the combat callbacks.
  *
- * Extracted from `WebPlayerController` — the four overrides
+ * Extracted from `PlayerController` — the four overrides
  * (`chooseSpellAbilityToPlay`, `declareAttackers`, `declareBlockers`,
  * `assignCombatDamage`) share a distinctive timing model: they block the
  * engine thread on [GameActionBridge], not [InteractivePromptBridge], and
  * they drive the main game-loop decision points rather than ad-hoc choices.
  *
- * See [WebPlayerController]'s KDoc for the coordinator pattern.
+ * See [leyline.bridge.forge.PlayerController]'s KDoc for the coordinator pattern.
  */
 class PriorityLoopCoordinator(
     private val owner: OwnerContext,
@@ -199,7 +200,7 @@ class PriorityLoopCoordinator(
         // this via CombatHandler.checkPendingDamageAssignment and sends AssignDamageReq.
         // CombatHandler.onAssignDamage completes the future.
         val future = CompletableFuture<MutableMap<Card?, Int>>()
-        owner.pendingDamageAssignment = WebPlayerController.DamageAssignmentPrompt(
+        owner.pendingDamageAssignment = PlayerController.DamageAssignmentPrompt(
             attacker = attacker,
             blockers = blockers,
             damageDealt = damageDealt,

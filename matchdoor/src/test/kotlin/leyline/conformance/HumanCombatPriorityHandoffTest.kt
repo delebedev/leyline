@@ -14,7 +14,7 @@ import kotlin.time.Duration.Companion.seconds
  * Before the fix, [leyline.match.AutoPassEngine.autoPassAndAdvance] at the
  * SEND_STATE human-turn + pass-only branch emitted a state-only diff and
  * `return`ed without auto-passing the engine's pending
- * [leyline.bridge.WebPlayerController.chooseSpellAbilityToPlay] action. The
+ * [leyline.bridge.forge.PlayerController.chooseSpellAbilityToPlay] action. The
  * client received a state-only diff (non-actionable) and never responded, so
  * [leyline.bridge.GameActionBridge.awaitAction] hung until [bridgeTimeoutMs].
  *

@@ -16,7 +16,7 @@ import java.nio.file.Path
  *
  * ```
  * Tier 0 — foundation (leaves, import nothing from matchdoor):
- *   bridge         Forge adapter (WebPlayerController, cost decisions, bootstrap)
+ *   bridge         Forge adapter (PlayerController, cost decisions, bootstrap)
  *   config         MatchConfig TOML data class
  *
  * Tier 1 — game engine (imports Tier 0):

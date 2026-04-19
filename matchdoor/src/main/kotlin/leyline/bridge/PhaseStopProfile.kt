@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Tracks which phases a player should stop at for priority.
  * Reset on new game/puzzle load; no persistence in v1.
  *
- * Used by engine-side [WebPlayerController] for own-turn phase gating.
+ * Used by engine-side [leyline.bridge.forge.PlayerController] for own-turn phase gating.
  * Separate from [ClientAutoPassState.opponentStops] which drives session-layer
  * opponent-turn stops — see that class for why the split exists.
  *

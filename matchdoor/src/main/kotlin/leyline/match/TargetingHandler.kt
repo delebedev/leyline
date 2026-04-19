@@ -678,7 +678,7 @@ class TargetingHandler(
 
         log.info("TargetingHandler: optional cost response ctoId={} accepted={} indices={}", chosenCtoId, accepted, acceptedIndices)
 
-        // Stash decision for WebPlayerController.chooseOptionalCosts to read
+        // Stash decision for PlayerController.chooseOptionalCosts to read
         val seatBridge = bridge.seat(counters.seatId.value)
         TargetingHandler.stashOptionalCostIndices(seatBridge.prompt, acceptedIndices)
 
