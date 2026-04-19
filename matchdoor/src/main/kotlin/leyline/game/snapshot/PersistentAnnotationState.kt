@@ -5,9 +5,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 /**
  * Persistent-annotation state captured at snapshot time.
  *
- * Lifted onto [GsmSnapshot] so [leyline.game.StateMapper.buildDiff] can read
+ * Lifted onto [GsmSnapshot] so [leyline.game.mapper.StateMapper.buildDiff] can read
  * prev-persistent-state from the snap (pure input) instead of mutably from
- * [leyline.game.GameBridge.annotations]. Required for replay round-trip.
+ * [leyline.game.state.GameBridge.annotations]. Required for replay round-trip.
  */
 data class PersistentAnnotationState(
     /** Persistent annotations active at capture time, keyed by annotation ID. */

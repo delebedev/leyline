@@ -6,8 +6,8 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.GameBootstrap
-import leyline.game.GameBridge
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.game.state.GameBridge
 import leyline.game.InMemoryCardRepository
 import wotc.mtgo.gre.external.messaging.Messages.DeckMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType

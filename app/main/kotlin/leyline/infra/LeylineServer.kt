@@ -11,11 +11,11 @@ import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.SelfSignedCertificate
 import leyline.DevCheck
-import leyline.LeylinePaths
-import leyline.bridge.DeckConverter
-import leyline.bridge.DeckLoader
-import leyline.bridge.FormatService
-import leyline.bridge.GameBootstrap
+import leyline.bridge.bootstrap.DeckConverter
+import leyline.bridge.bootstrap.DeckLoader
+import leyline.bridge.bootstrap.FormatService
+import leyline.bridge.bootstrap.CardEntry
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.MatchConfig
 import leyline.debug.DebugCollector
 import leyline.debug.DebugEventBus
@@ -34,6 +34,9 @@ import leyline.frontdoor.service.GeneratedPool
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.FdResponseWriter
+import leyline.game.data.CardRepository
+import leyline.game.generator.DraftPackGenerator
+import leyline.game.generator.SealedPoolGenerator
 import leyline.match.MatchHandler
 import leyline.protocol.ClientFrameDecoder
 import leyline.protocol.ClientHeaderPrepender
@@ -62,7 +65,7 @@ class LeylineServer(
     /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
     private val externalHost: String = "localhost",
     /** Card data repository — passed to MatchHandler for grpId↔name lookups. */
-    private val cardRepo: leyline.game.CardRepository,
+    private val cardRepo: CardRepository,
     /** Resolved player database file (may not exist yet — startLocal handles missing DB). */
     private val playerDbFile: File,
 ) {
@@ -142,7 +145,7 @@ class LeylineServer(
         store.ensurePlayer(pid, "Player")
         val deckService = DeckService(store)
         val playerService = PlayerService(store)
-        val sealedPoolGen = leyline.game.SealedPoolGenerator(cardRepo)
+        val sealedPoolGen = SealedPoolGenerator(cardRepo)
         val courseService = CourseService(store) { setCode ->
             val pool = sealedPoolGen.generate(setCode)
             GeneratedPool(
@@ -152,7 +155,7 @@ class LeylineServer(
             )
         }
         val draftRepo = store.asDraftSessionRepository()
-        val draftPackGen = leyline.game.DraftPackGenerator(cardRepo)
+        val draftPackGen = DraftPackGenerator(cardRepo)
         val draftService = DraftService(draftRepo) { setCode ->
             draftPackGen.generate(setCode)
         }
@@ -249,8 +252,8 @@ class LeylineServer(
     private fun buildDeckValidator(
         nameByGrpId: (Int) -> String?,
     ): (List<DeckCard>, List<DeckCard>, String) -> String? = { mainDeck, sideboard, formatId ->
-        val mainEntries = mainDeck.map { leyline.bridge.CardEntry(it.grpId, it.quantity) }
-        val sideEntries = sideboard.map { leyline.bridge.CardEntry(it.grpId, it.quantity) }
+        val mainEntries = mainDeck.map { CardEntry(it.grpId, it.quantity) }
+        val sideEntries = sideboard.map { CardEntry(it.grpId, it.quantity) }
         val deckText = DeckConverter.toDeckText(mainEntries, sideEntries, nameByGrpId = nameByGrpId)
         if (deckText.isBlank()) {
             null

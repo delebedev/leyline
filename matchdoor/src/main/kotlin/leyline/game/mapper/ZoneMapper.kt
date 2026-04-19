@@ -1,10 +1,10 @@
 package leyline.game.mapper
 
 import forge.game.player.Player
-import leyline.bridge.ForgeCardId
-import leyline.game.CardData
-import leyline.game.EffectTracker
-import leyline.game.GameBridge
+import leyline.bridge.types.ForgeCardId
+import leyline.game.data.CardData
+import leyline.game.state.EffectTracker
+import leyline.game.state.GameBridge
 import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -16,8 +16,6 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Handles player zones (hand, library, graveyard, sideboard), shared zones
  * (battlefield, stack, exile), and stack abilities. Uses [ObjectMapper] for
  * card/ability object construction.
- *
- * Extracted from [StateMapper] for independent testability.
  */
 object ZoneMapper {
 

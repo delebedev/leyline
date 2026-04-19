@@ -1,6 +1,6 @@
 package leyline.match
 
-import leyline.bridge.ForgeCardId
+import leyline.bridge.types.ForgeCardId
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 

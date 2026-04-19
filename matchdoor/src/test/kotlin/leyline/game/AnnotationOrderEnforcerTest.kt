@@ -3,7 +3,9 @@ package leyline.game
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.toWireId
+import leyline.bridge.types.toWireId
+import leyline.game.annotations.AnnotationBuilder
+import leyline.game.annotations.AnnotationOrderEnforcer
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 

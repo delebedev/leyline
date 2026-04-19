@@ -1,8 +1,8 @@
 package leyline.match
 
-import leyline.bridge.ForgeCardId
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.forge.PlayerController
-import leyline.game.GameBridge
+import leyline.game.state.GameBridge
 import leyline.game.mapper.PromptIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*

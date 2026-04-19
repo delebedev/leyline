@@ -3,6 +3,9 @@ package leyline.bridge
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.coord.CostPaymentCoordinator
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptSideEffect
 
 class CostPaymentCoordinatorStashTest :
     FunSpec({

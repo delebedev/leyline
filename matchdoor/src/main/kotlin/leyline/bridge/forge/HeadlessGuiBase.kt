@@ -11,8 +11,8 @@ import forge.sound.IAudioClip
 import forge.sound.IAudioMusic
 import forge.util.FSerializableFunction
 import forge.util.ImageFetcher
-import leyline.bridge.InteractivePromptBridge
-import leyline.bridge.PromptRequest
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptRequest
 import org.jupnp.UpnpServiceConfiguration
 import org.slf4j.LoggerFactory
 import java.io.File

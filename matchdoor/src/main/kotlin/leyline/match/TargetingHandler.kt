@@ -2,14 +2,16 @@ package leyline.match
 
 import forge.game.Game
 import leyline.DevCheck
-import leyline.bridge.ForgeCardId
-import leyline.bridge.InstanceId
-import leyline.bridge.InteractivePromptBridge
-import leyline.bridge.PromptSideEffect
-import leyline.bridge.SeatId
-import leyline.game.BundleBuilder
-import leyline.game.GameBridge
-import leyline.game.RequestBuilder
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.SeatId
+import leyline.game.bundle.BundleBuilder
+import leyline.game.state.GameBridge
+import leyline.game.bundle.RequestBuilder
+import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.ZoneIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -18,7 +20,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Handles targeting-related client messages and prompt detection.
  *
  * Protocol sequencing uses the shared
- * [MessageCounter][leyline.game.MessageCounter] via `counters.counter` —
+ * [MessageCounter][leyline.game.bundle.MessageCounter] via `counters.counter` —
  * no seeding or syncing needed.
  */
 class TargetingHandler(
@@ -504,7 +506,7 @@ class TargetingHandler(
         val ctoId: Int
         if (isTriggered && req.sourceEntityId != null) {
             sourceInstanceId = bridge.getOrAllocInstanceId(
-                ForgeCardId(req.sourceEntityId + leyline.game.mapper.ObjectMapper.STACK_ABILITY_ID_OFFSET),
+                ForgeCardId(req.sourceEntityId + ObjectMapper.STACK_ABILITY_ID_OFFSET),
             ).value
             ctoGrpId = modalInfo.parentGrpId
             ctoId = 2
@@ -637,7 +639,7 @@ class TargetingHandler(
         // Stash the Cast action for replay after response
         pendingInteraction = PendingClientInteraction.OptionalCost(
             pendingActionId = pendingActionId,
-            action = leyline.bridge.PlayerAction.CastSpell(cardId),
+            action = PlayerAction.CastSpell(cardId),
             costCtoIds = costCtoIds,
         )
 

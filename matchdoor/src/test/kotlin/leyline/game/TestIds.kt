@@ -1,10 +1,10 @@
 package leyline.game
 
-import leyline.bridge.EffectId
-import leyline.bridge.GrpId
-import leyline.bridge.InstanceId
-import leyline.bridge.SeatId
-import leyline.bridge.WireId
+import leyline.bridge.types.EffectId
+import leyline.bridge.types.GrpId
+import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
+import leyline.bridge.types.WireId
 
 /**
  * Shorthand ID constructors for tests.

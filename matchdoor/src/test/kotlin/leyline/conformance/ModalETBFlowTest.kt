@@ -8,9 +8,9 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.SeatId
-import leyline.game.ModalAbilityInfo
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.game.data.ModalAbilityInfo
 import leyline.game.mapper.ObjectMapper
 import wotc.mtgo.gre.external.messaging.Messages.*
 

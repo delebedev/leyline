@@ -9,20 +9,56 @@ Game engine adapter — translates between Forge engine and the client protocol.
 ## Internal Packages
 
 ```
-bridge/         Forge adapter — coordinators, bootstrap, mulligan, deck loading.
-  forge/        Forge inheritance seams — PlayerController, HeadlessGuiBase,
-                ClientGuiGame, CostDecision. The only place that extends
-                Forge classes directly.
+bridge/             Forge adapter — the thread/process frontier with Forge.
+  forge/            Forge inheritance seams — the only place matchdoor extends
+                    Forge classes (PlayerController, HeadlessGuiBase,
+                    ClientGuiGame, CostDecision).
+  handoff/          CompletableFuture-based bridges. Engine thread blocks here
+                    until the session thread completes the future
+                    (GameActionBridge, InteractivePromptBridge, MulliganBridge,
+                    OptionalActionGate, PromptJournal, PromptSideEffect).
+  coord/            Engine-thread orchestration split off from PlayerController
+                    (PriorityLoopCoordinator, GameLoopController, GameLoopPoller,
+                    CostPaymentCoordinator, TargetingCoordinator, SpellExecutor).
+  bootstrap/        Match + deck setup (GameBootstrap, DeckLoader, DeckConverter,
+                    FormatService).
+  types/            Pure-data shared types (Ids, PriorityDecision, PrioritySignal,
+                    PhaseStopProfile, MulliganPhase, ClientAutoPassState, BridgeDto).
+  (root)            Cross-cutting utilities — CardLookup, ResourceResolver,
+                    BridgeTimeoutDiagnostic, PlayableActionQuery.
 
-game/           State mapping, annotations, proto builders, card data.
-                Pure translation: Forge state → client protobuf.
-  snapshot/     Captured engine state (GsmSnapshot, SnapshotCapture, …).
-  mapper/       Per-domain mappers (actions, objects, players, zones, stops).
+game/               Engine state → client protobuf.
+  snapshot/         Captured engine state (GsmSnapshot, SnapshotCapture, per-area
+                    snapshots).
+  state/            Session-lifetime mutable state + contracts (GameBridge,
+                    BridgeContracts, BridgeMutations, EffectTracker,
+                    PersistentAnnotationStore, InstanceIdRegistry, AbilityRegistry,
+                    LimboTracker, RevealProxyTracker, TokenIdentityRegistry,
+                    DiffSnapshotter).
+  event/            Engine → typed GameEvent (GameEvent, GameEventCollector).
+  mapper/           Snapshot → proto pipeline (StateMapper +
+                    Action/Object/Player/Zone mappers + helpers).
+  annotations/      Annotation pipeline stages 1–5 (AnnotationBuilder,
+                    AnnotationConstants, ZoneTransferDetector,
+                    TransferAnnotations, CombatAnnotations, MechanicAnnotations,
+                    TransferCategory(Resolver), AnnotationOrderEnforcer,
+                    AnnotationLossReason, AbilityWordScanner).
+  bundle/           GRE bundle assembly (BundleBuilder, BundleCursor, GsmBuilder,
+                    RequestBuilder, InvariantChecker, MessageCounter).
+  data/             Card repository + parsing (CardData, CardDataParsing,
+                    CardProtoBuilder, CardRepository, ExposedCardRepository,
+                    AbilityIdDeriver).
+  codes/            Arena protocol code tables + static mappings (CounterTypes,
+                    DetailKeys, KeywordGrpIds, KeywordQualifications,
+                    ManaColorMapping, QualificationType, SlotLayout).
+  generator/        Pre-match generators (DraftPackGenerator, SealedPoolGenerator,
+                    PuzzleSource).
+  (root)            GamePlayback.
 
-match/          Match orchestration — MatchHandler, MatchSession, FamiliarSession,
-                combat, targeting, mulligan, puzzle handlers. Entry point for
-                client messages. Two session types: MatchSession (human, full
-                game logic) and FamiliarSession (read-only mirror, no-op actions).
+match/              Match orchestration — MatchHandler, MatchSession, FamiliarSession,
+                    combat, targeting, mulligan, puzzle handlers. Entry point for
+                    client messages. Two session types: MatchSession (human, full
+                    game logic) and FamiliarSession (read-only mirror, no-op actions).
 ```
 
 ArchUnit enforces: bridge → game → match (no reverse deps within the module).

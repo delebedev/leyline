@@ -25,14 +25,14 @@ import forge.player.PlayerZoneUpdates
 import forge.trackable.TrackableCollection
 import forge.util.FSerializableFunction
 import forge.util.ITriggerEvent
-import leyline.bridge.GameActionBridge
-import leyline.bridge.InteractivePromptBridge
-import leyline.bridge.PromptRequest
+import leyline.bridge.handoff.GameActionBridge
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptRequest
 import org.slf4j.LoggerFactory
 
 /**
  * Web adapter for [IGuiGame]. Routes interactive choice methods through
- * [leyline.bridge.InteractivePromptBridge] and stubs desktop-only UI methods as no-ops.
+ * [InteractivePromptBridge] and stubs desktop-only UI methods as no-ops.
  *
  * This allows [PlayerController] to extend [forge.player.PlayerControllerHuman]
  * and inherit all 157 correctly-implemented card interaction methods.

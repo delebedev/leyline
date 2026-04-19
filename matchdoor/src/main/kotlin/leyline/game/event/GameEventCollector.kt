@@ -1,0 +1,560 @@
+package leyline.game.event
+
+import com.google.common.eventbus.Subscribe
+import forge.ai.LobbyPlayerAi
+import forge.card.CardStateName
+import forge.game.card.Card
+import forge.game.card.CardView
+import forge.game.event.*
+import forge.game.event.GameEventManaAbilityActivated
+import forge.game.event.GameEventSpellMovedToStack
+import forge.game.player.Player
+import forge.game.player.PlayerView
+import forge.game.zone.ZoneType
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.game.state.GameBridge
+import leyline.game.codes.ManaColorMapping
+import leyline.game.mapper.PlayerMapper
+import org.slf4j.LoggerFactory
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
+
+/**
+ * Subscribes to the Forge engine's Guava EventBus and converts rich Java
+ * [GameEvent][forge.game.event.GameEvent] objects into protocol-oriented
+ * [GameEvent] sealed variants.
+ *
+ * ## Drain contract
+ *
+ * Events accumulate in a thread-safe [ConcurrentLinkedQueue]. [drainEvents]
+ * atomically empties the queue and returns events in firing order, wrapped in
+ * [DrainedEvents] to make single-use visible in the type system.
+ *
+ * **Drain exactly once per GSM build.** [leyline.game.mapper.StateMapper.buildFromSnapshot] drains in
+ * the GATHER phase. Double-draining silently loses events — the second drain
+ * returns an empty list with no error. The [DrainedEvents] wrapper prevents
+ * accidental re-drain of the same result but cannot prevent calling
+ * [drainEvents] twice on the collector itself.
+ *
+ * ## Event ordering
+ *
+ * Events fire in Forge engine execution order, which may differ from the
+ * annotation ordering the client expects. The downstream annotation pipeline
+ * ([leyline.game.annotations.TransferCategoryResolver.categoryFromEvents]) re-prioritizes: specific events
+ * (LandPlayed, CardSacrificed) take precedence over generic ZoneChanged when
+ * both fire for the same card in the same GSM.
+ *
+ * ## Cross-class flag consumption
+ *
+ * Two helper methods consume single-use flags set by
+ * [PlayerController][leyline.bridge.forge.PlayerController] on the
+ * [InteractivePromptBridge][leyline.bridge.handoff.InteractivePromptBridge]:
+ *
+ * - [isSearchedToHand]: drains `SearchedToHand` effects from the prompt journal → emits
+ *   [GameEvent.CardSearchedToHand] instead of generic ZoneChanged for
+ *   Library→Hand tutors. Written by `TargetingCoordinator.recordSearchedToHand`.
+ *
+ * - [isLegendRuleVictim]: drains `LegendVictim` effects from the prompt journal → emits
+ *   [GameEvent.LegendRuleDeath] instead of generic ZoneChanged for
+ *   BF→GY legend rule deaths. Written by `TargetingCoordinator.recordLegendVictim`.
+ *
+ * Both flags are written and consumed on the engine thread (events fire
+ * synchronously during the engine operation that triggered the zone change).
+ * Consumption removes the flag so it doesn't leak to subsequent zone events.
+ *
+ * ## Threading
+ *
+ * Events fire synchronously on the engine thread. Queue access is via
+ * [ConcurrentLinkedQueue] so the Netty/handler thread can drain safely,
+ * though in practice [drainEvents] is always called from the engine thread
+ * via [leyline.game.mapper.StateMapper].
+ *
+ * **Adding new mechanics:** When upstream Forge events lack the granularity we need
+ * (per-card IDs, zone-pair specificity), add a new event to our fork rather than
+ * retroactively correlating events here. See [GameEventCardSurveiled] for the pattern:
+ * fire per-card from `Player.surveil()`, handle with a simple visit override.
+ *
+ * @param bridge used only to resolve Player → seatId and access prompt bridge flags
+ *   (never mutated beyond flag consumption)
+ */
+/** Wrapper making event drain's single-use nature visible in the type system. */
+@JvmInline
+value class DrainedEvents(val events: List<GameEvent>)
+
+class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Base<Unit>() {
+
+    private val log = LoggerFactory.getLogger(GameEventCollector::class.java)
+
+    private val queue = ConcurrentLinkedQueue<GameEvent>()
+
+    /** Last-seen P/T per card ID — used to detect deltas on GameEventCardStatsChanged. */
+    private val lastPT = ConcurrentHashMap<ForgeCardId, Pair<Int, Int>>()
+
+    /** Last-seen CardStateName per card — used to detect transform in GameEventCardStatsChanged. */
+    private val lastStateName = ConcurrentHashMap<ForgeCardId, CardStateName>()
+
+    /**
+     * Drain all queued events since last drain. Returns events in engine firing order.
+     *
+     * **Call exactly once per GSM build** — second call returns empty (events are gone).
+     * [leyline.game.mapper.StateMapper.buildFromSnapshot] calls this in the GATHER phase before any annotation
+     * pipeline stages run.
+     */
+    fun drainEvents(): DrainedEvents = DrainedEvents(
+        buildList {
+            while (true) {
+                add(queue.poll() ?: break)
+            }
+        },
+    )
+
+    /** Peek at queued events without draining (for tests). */
+    fun peekEvents(): List<GameEvent> = queue.toList()
+
+    /** True if there are events waiting. */
+    fun hasEvents(): Boolean = queue.isNotEmpty()
+
+    // -- EventBus entry point --
+
+    @Subscribe
+    fun receiveGameEvent(ev: forge.game.event.GameEvent) {
+        ev.visit(this)
+    }
+
+    override fun visit(ev: GameEventLandPlayed) {
+        val seat = seatOf(ev.player()) ?: return
+        val colorOrdinals = bridge.findCard(ForgeCardId(ev.land().id))
+            ?.let(::computeColorOrdinals)
+            ?: emptyList()
+        queue.add(GameEvent.LandPlayed(ForgeCardId(ev.land().id), seat, colorOrdinals))
+        log.debug("event: LandPlayed card={} seat={} colors={}", ev.land().name, seat, colorOrdinals)
+    }
+
+    override fun visit(ev: GameEventSpellAbilityCast) {
+        val card = ev.sa().hostCard ?: return
+        val seat = seatOf(card.controller) ?: return
+        val payments = ev.manaPayments().map { mp ->
+            GameEvent.ManaPayment(
+                sourceCardId = ForgeCardId(mp.sourceCardId()),
+                color = mp.color().toInt() and 0xFF,
+            )
+        }
+        val realCard = bridge.findCard(ForgeCardId(card.id))
+        val isAdventure = realCard != null &&
+            realCard.isAdventureCard &&
+            realCard.currentStateName == CardStateName.Secondary
+        // Alt-cost detection (Madness, Flashback, Warp, Cycling, Impending).
+        // ev.sa() is a SpellAbilityView snapshot which doesn't expose alt-cost.
+        // Peek the live stack instead — the just-cast spell sits on top — then
+        // resolve to the client ability grpId via the keyword→grpId lookup
+        // (same path ActionMapper uses when offering the alt-cost cast action).
+        val topSa = bridge.getGame()?.stack?.peek()?.spellAbility
+        val saAltCost = if (topSa != null && topSa.hostCard?.id == card.id) {
+            topSa.getAlternativeCost()
+        } else {
+            null
+        }
+        val altCostAbilityGrpId = if (saAltCost != null) {
+            val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+            val cardData = if (grpId != 0) bridge.cardRepository.findByGrpId(grpId) else null
+            val altCostName = saAltCost.name.uppercase()
+            cardData?.keywordAbilityGrpIds?.entries
+                ?.firstOrNull { it.key.uppercase().startsWith(altCostName) }
+                ?.value ?: 0
+        } else {
+            0
+        }
+        queue.add(
+            GameEvent.SpellCast(
+                cardId = ForgeCardId(card.id),
+                seatId = seat,
+                manaPayments = payments,
+                isAdventure = isAdventure,
+                altCostAbilityGrpId = altCostAbilityGrpId,
+            ),
+        )
+        log.debug(
+            "event: SpellCast card={} seat={} manaPayments={} adventure={} altCost={}",
+            card.name,
+            seat,
+            payments.size,
+            isAdventure,
+            altCostAbilityGrpId,
+        )
+    }
+
+    override fun visit(ev: GameEventSpellMovedToStack) {
+        val card = ev.card()
+        val seat = seatOf(card.controller) ?: return
+        queue.add(GameEvent.SpellMovedToStack(ForgeCardId(card.id), seat))
+        log.debug("event: SpellMovedToStack card={} seat={}", card.name, seat)
+    }
+
+    override fun visit(ev: GameEventSpellResolved) {
+        val card = ev.spell().hostCard ?: return
+        queue.add(GameEvent.SpellResolved(ForgeCardId(card.id), ev.hasFizzled()))
+        log.debug("event: SpellResolved card={} fizzled={}", card.name, ev.hasFizzled())
+    }
+
+    @Suppress("CyclomaticComplexMethod") // zone-change routing inherently branchy
+    override fun visit(ev: GameEventCardChangeZone) {
+        val card = ev.card()
+        val from = ev.from()?.zoneType
+        val to = ev.to()?.zoneType ?: return
+        val seat = seatOf(card.controller)
+
+        // Emit the most specific variant possible based on zone pair.
+        // When seat is unavailable or source zone is null (e.g. token entering
+        // Command zone from nowhere), fall back to generic ZoneChanged.
+        val event = if (seat != null && from != null) {
+            when {
+                from == ZoneType.Battlefield && to == ZoneType.Graveyard && isLegendRuleVictim(card.id) ->
+                    GameEvent.LegendRuleDeath(ForgeCardId(card.id), seat)
+                // BF→GY without legend rule: fall through to ZoneChanged.
+                // CardDestroyed is emitted from GameEventCardDestroyed (with activator).
+                from == ZoneType.Battlefield && (to == ZoneType.Hand || to == ZoneType.Library) ->
+                    GameEvent.CardBounced(ForgeCardId(card.id), seat)
+                // Hand→Exile via the discard pipeline (Madness, Mayhem — keyword
+                // replacement effects exile-on-discard). The card has the keyword
+                // and the move originates from Hand, so still treat it as Discard
+                // rather than a generic exile.
+                from == ZoneType.Hand && to == ZoneType.Exile && hasDiscardReplacementKeyword(card) ->
+                    GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
+                to == ZoneType.Exile -> {
+                    val sourceId = card.exiledWith?.id
+                    GameEvent.CardExiled(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }, fromBattlefield = from == ZoneType.Battlefield)
+                }
+                from == ZoneType.Hand && to == ZoneType.Graveyard ->
+                    GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
+                from == ZoneType.Library && to == ZoneType.Graveyard -> {
+                    val sourceId = bridge.getGame()?.stack?.peek()?.spellAbility?.hostCard?.id
+                    GameEvent.CardMilled(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) })
+                }
+                from == ZoneType.Library && to == ZoneType.Hand && isSearchedToHand(card.id) ->
+                    GameEvent.CardSearchedToHand(ForgeCardId(card.id))
+                else -> GameEvent.ZoneChanged(ForgeCardId(card.id), Zone.fromForge(from), Zone.fromForge(to))
+            }
+        } else {
+            GameEvent.ZoneChanged(ForgeCardId(card.id), from?.let { Zone.fromForge(it) } ?: Zone.Other, Zone.fromForge(to))
+        }
+
+        // Clear cached P/T and state name when a card leaves the battlefield so re-entering
+        // cards diff against fresh values instead of stale prior-lifetime stats.
+        if (from == ZoneType.Battlefield) {
+            lastPT.remove(ForgeCardId(card.id))
+            lastStateName.remove(ForgeCardId(card.id))
+        }
+
+        queue.add(event)
+        log.debug("event: {} card={} {} → {}", event::class.simpleName, card.name, from, to)
+
+        // Emit TokenDestroyed when a token leaves the battlefield
+        if (card.isToken && from == ZoneType.Battlefield && seat != null) {
+            queue.add(GameEvent.TokenDestroyed(ForgeCardId(card.id), seat))
+            log.debug("event: TokenDestroyed card={} seat={}", card.name, seat)
+        }
+    }
+
+    override fun visit(ev: GameEventCardTapped) {
+        queue.add(GameEvent.CardTapped(ForgeCardId(ev.card().id), ev.tapped()))
+        log.debug("event: CardTapped card={} tapped={}", ev.card().name, ev.tapped())
+    }
+
+    override fun visit(ev: GameEventManaAbilityActivated) {
+        val card = ev.source()
+        val seat = seatOf(card.controller) ?: return
+        queue.add(GameEvent.ManaAbilityActivated(ForgeCardId(card.id), seat, ev.produced()))
+        log.debug("event: ManaAbilityActivated card={} seat={} produced={}", card.name, seat, ev.produced())
+    }
+
+    override fun visit(ev: GameEventCardDamaged) {
+        queue.add(
+            GameEvent.DamageDealtToCard(
+                sourceCardId = ForgeCardId(ev.source().id),
+                targetCardId = ForgeCardId(ev.card().id),
+                amount = ev.amount(),
+            ),
+        )
+    }
+
+    override fun visit(ev: GameEventPlayerDamaged) {
+        val seat = seatOf(ev.target()) ?: return
+        val source = ev.source() ?: return
+        queue.add(
+            GameEvent.DamageDealtToPlayer(
+                sourceCardId = ForgeCardId(source.id),
+                targetSeatId = seat,
+                amount = ev.amount(),
+                combat = ev.combat(),
+            ),
+        )
+    }
+
+    override fun visit(ev: GameEventPlayerLivesChanged) {
+        val seat = seatOf(ev.player()) ?: return
+        queue.add(
+            GameEvent.LifeChanged(
+                seatId = seat,
+                oldLife = ev.oldLives(),
+                newLife = ev.newLives(),
+            ),
+        )
+    }
+
+    override fun visit(ev: GameEventAttackersDeclared) {
+        val seat = seatOf(ev.player()) ?: return
+        val ids = ev.attackersMap().values().map { ForgeCardId(it.id) }
+        if (ids.isNotEmpty()) {
+            queue.add(GameEvent.AttackersDeclared(ids, seat))
+        }
+    }
+
+    override fun visit(ev: GameEventBlockersDeclared) {
+        val seat = seatOf(ev.defendingPlayer()) ?: return
+        // Flatten all blocking creatures from the nested map
+        val ids = ev.blockers().values.flatMap { multimap ->
+            multimap.keys().map { ForgeCardId(it.id) }
+        }
+        if (ids.isNotEmpty()) {
+            queue.add(GameEvent.BlockersDeclared(ids, seat))
+        }
+    }
+
+    // -- Group A: zone-transition disambiguation --
+
+    override fun visit(ev: GameEventCardSacrificed) {
+        val card = ev.card()
+        val seat = seatOf(card.controller) ?: return
+        queue.add(GameEvent.CardSacrificed(ForgeCardId(card.id), seat))
+        log.debug("event: CardSacrificed card={} seat={}", card.name, seat)
+    }
+
+    override fun visit(ev: GameEventCardDestroyed) {
+        val card = ev.card() ?: return
+        val seat = seatOf(card.controller) ?: return
+        val sourceId = ev.activator()?.id
+        queue.add(GameEvent.CardDestroyed(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }))
+        log.debug("event: CardDestroyed card={} seat={} source={}", card.name, seat, sourceId?.let { ForgeCardId(it) })
+    }
+
+    // -- Group A+: attachment events --
+
+    override fun visit(ev: GameEventCardAttachment) {
+        val card = ev.equipment()
+        val seat = seatOf(card.controller) ?: return
+        val newTarget = ev.newTarget()
+        if (newTarget != null) {
+            queue.add(GameEvent.CardAttached(ForgeCardId(card.id), ForgeCardId(newTarget.id), seat))
+            log.debug("event: CardAttached card={} target={} seat={}", card.name, newTarget.name, seat)
+        } else {
+            queue.add(GameEvent.CardDetached(ForgeCardId(card.id), seat))
+            log.debug("event: CardDetached card={} seat={}", card.name, seat)
+        }
+    }
+
+    // -- Group B: annotation-producing events --
+
+    override fun visit(ev: GameEventCardCounters) {
+        queue.add(
+            GameEvent.CountersChanged(
+                cardId = ForgeCardId(ev.card().id),
+                counterType = ev.type().name,
+                oldCount = ev.oldValue(),
+                newCount = ev.newValue(),
+            ),
+        )
+        log.debug("event: CountersChanged card={} {} {}→{}", ev.card().name, ev.type(), ev.oldValue(), ev.newValue())
+    }
+
+    override fun visit(ev: GameEventCardStatsChanged) {
+        for (card in ev.cards()) {
+            val id = ForgeCardId(card.id)
+
+            // Detect transform (DFC, flip, modal)
+            checkForTransform(card)
+
+            val newPower = card.currentState.power
+            val newTough = card.currentState.toughness
+            val prev = lastPT.put(id, Pair(newPower, newTough))
+            val oldPower = prev?.first ?: newPower
+            val oldTough = prev?.second ?: newTough
+            if (oldPower != newPower || oldTough != newTough) {
+                queue.add(
+                    GameEvent.PowerToughnessChanged(
+                        cardId = id,
+                        oldPower = oldPower,
+                        newPower = newPower,
+                        oldToughness = oldTough,
+                        newToughness = newTough,
+                    ),
+                )
+                log.debug("event: P/T changed card={} {}/{}→{}/{}", card.name, oldPower, oldTough, newPower, newTough)
+            }
+        }
+    }
+
+    override fun visit(ev: GameEventShuffle) {
+        val seat = seatOf(ev.player()) ?: return
+        queue.add(GameEvent.LibraryShuffled(seat))
+        log.debug("event: LibraryShuffled seat={}", seat)
+    }
+
+    override fun visit(ev: GameEventScry) {
+        val seat = seatOf(ev.player()) ?: return
+        queue.add(GameEvent.Scry(seat, ev.toTop(), ev.toBottom()))
+        log.debug("event: Scry seat={} top={} bottom={}", seat, ev.toTop(), ev.toBottom())
+    }
+
+    override fun visit(ev: GameEventSurveil) {
+        val seat = seatOf(ev.player()) ?: return
+        queue.add(GameEvent.Surveil(seat, ev.toLibrary(), ev.toGraveyard()))
+        log.debug("event: Surveil seat={} lib={} gy={}", seat, ev.toLibrary(), ev.toGraveyard())
+    }
+
+    // Per-card surveil event — fired from Player.surveil() in our Forge fork
+    // for each card moved to graveyard. Allows TransferCategoryResolver.categoryFromEvents
+    // to distinguish surveil (Library→GY) from mill (Library→GY).
+    override fun visit(ev: GameEventCardSurveiled) {
+        val seat = seatOf(ev.card().controller) ?: return
+        val sourceId = ev.causeCard()?.id
+        queue.add(GameEvent.CardSurveiled(ForgeCardId(ev.card().id), seat, sourceId?.let { ForgeCardId(it) }))
+        log.debug("event: CardSurveiled card={} seat={} source={}", ev.card().name, seat, sourceId?.let { ForgeCardId(it) })
+    }
+
+    override fun visit(ev: GameEventTokenCreated) {
+        for (card in ev.tokens()) {
+            val seat = seatOf(card.controller) ?: continue
+            val sourceId = card.tokenSpawningAbility?.hostCard?.id
+            queue.add(GameEvent.TokenCreated(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }))
+            log.debug("event: TokenCreated card={} seat={} source={}", card.name, seat, sourceId?.let { ForgeCardId(it) })
+        }
+    }
+
+    override fun visit(ev: GameEventControllerChanged) {
+        val card = ev.card()
+        val oldSeat = seatOf(ev.oldController()) ?: return
+        val newSeat = seatOf(ev.newController()) ?: return
+        queue.add(GameEvent.ControllerChanged(ForgeCardId(card.id), oldSeat, newSeat))
+        log.debug("event: ControllerChanged card={} {} -> {}", card.name, oldSeat, newSeat)
+    }
+
+    // -- Group B++: keyword grant events --
+
+    override fun visit(ev: GameEventExtrinsicKeywordAdded) {
+        val card = ev.card()
+        queue.add(
+            GameEvent.KeywordGranted(
+                cardId = ForgeCardId(card.id),
+                keyword = ev.keyword(),
+                timestamp = ev.timestamp(),
+                staticId = ev.staticId(),
+            ),
+        )
+        log.debug("event: KeywordGranted card={} keyword={} ts={} static={}", card.name, ev.keyword(), ev.timestamp(), ev.staticId())
+    }
+
+    // -- Group C: combat enrichment --
+
+    override fun visit(ev: GameEventCombatEnded) {
+        queue.add(GameEvent.CombatEnded)
+        log.debug("event: CombatEnded")
+    }
+
+    // -- Group D: phase/turn events --
+
+    override fun visit(ev: GameEventTurnPhase) {
+        val seat = seatOf(ev.playerTurn()) ?: return
+        val phase = PlayerMapper.mapPhase(ev.phase()).number
+        val step = PlayerMapper.mapStep(ev.phase()).number
+        queue.add(GameEvent.PhaseChanged(seat, phase, step))
+        log.debug("event: PhaseChanged seat={} phase={} step={}", seat, phase, step)
+    }
+
+    // -- helpers --
+
+    /**
+     * Check if a card's state name changed (transform, flip, modal face switch).
+     * Emits [GameEvent.CardTransformed] on change.
+     */
+    private fun checkForTransform(cardView: CardView) {
+        val id = ForgeCardId(cardView.id)
+        val newState = cardView.currentState?.state ?: return
+        val prevState = lastStateName.put(id, newState)
+        if (prevState != null && prevState != newState) {
+            queue.add(GameEvent.CardTransformed(id, newState))
+            log.debug("event: CardTransformed card={} {} → {}", cardView.name, prevState, newState)
+        }
+    }
+
+    private fun seatOf(player: Player?): SeatId? {
+        if (player == null) return null
+        return if (player.lobbyPlayer is LobbyPlayerAi) SeatId(2) else SeatId(1)
+    }
+
+    private fun seatOf(player: PlayerView?): SeatId? {
+        if (player == null) return null
+        return if (player.isAI) SeatId(2) else SeatId(1)
+    }
+
+    /**
+     * Check if a card was chosen via a search effect (ChangeZone tutor) and is moving
+     * Library→Hand. Drains from the prompt journal so it doesn't fire again for subsequent zone events.
+     */
+    private fun isSearchedToHand(forgeCardId: Int): Boolean {
+        val id = ForgeCardId(forgeCardId)
+        for (seat in bridge.allSeatIds()) {
+            if (bridge.promptBridge(seat).journal.consumeSearched(id)) return true
+        }
+        return false
+    }
+
+    /**
+     * Check if a card is marked as a legend rule SBA victim.
+     *
+     * [TargetingCoordinator.recordLegendVictim] records [PromptSideEffect.LegendVictim]
+     * events into the [PromptJournal] of the active prompt bridge. We drain all seats'
+     * journals via [PromptJournal.consumeLegendVictim] so the entry doesn't leak to future SBAs.
+     */
+    private fun isLegendRuleVictim(forgeCardId: Int): Boolean {
+        val id = ForgeCardId(forgeCardId)
+        for (seat in bridge.allSeatIds()) {
+            if (bridge.promptBridge(seat).journal.consumeLegendVictim(id)) return true
+        }
+        return false
+    }
+
+    /**
+     * Compute client color ordinals from a land's mana abilities.
+     * Each mana ability contributes one client ordinal per color it produces.
+     * Basic lands → single entry (e.g. [2] for Island).
+     * Dual/multi-lands → multiple entries (e.g. [3, 5] for Jungle Hollow).
+     * Uses [AbilityManaPart.mana] which resolves Combo/Chosen/ColorID keywords,
+     * then maps each color through [ManaColorMapping.fromProduced] → ManaColor
+     * proto ordinal (W=1, U=2, B=3, R=4, G=5).
+     */
+    private fun computeColorOrdinals(card: Card): List<Int> =
+        card.getManaAbilities()
+            .flatMap { sa ->
+                val mana = sa.manaPart ?: return@flatMap emptyList()
+                val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
+                produced.split(" ").mapNotNull { token ->
+                    ManaColorMapping.fromProduced(token)?.number
+                }
+            }
+
+    /** True if the card has a discard-replacement keyword (Madness, Mayhem) — these
+     *  redirect Hand→GY discards to Hand→Exile but client still tags them as Discard.
+     *  Consults CardRepository's normalized keyword map rather than Forge's raw
+     *  Keyword.toString() — the upstream normalization in AbilityIdDeriver uppercases
+     *  keyword names, so a stable string prefix check works regardless of Forge's
+     *  internal Keyword representation. */
+    private fun hasDiscardReplacementKeyword(cardView: CardView): Boolean {
+        val grpId = bridge.cardRepository.findGrpIdByName(cardView.name) ?: return false
+        val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return false
+        return cardData.keywordAbilityGrpIds.keys.any { kw ->
+            val u = kw.uppercase()
+            u.startsWith("MADNESS") || u.startsWith("MAYHEM")
+        }
+    }
+}

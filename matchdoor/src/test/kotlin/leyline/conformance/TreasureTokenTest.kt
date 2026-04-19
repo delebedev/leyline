@@ -10,10 +10,10 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.GameBootstrap
-import leyline.bridge.SeatId
-import leyline.game.StateMapper
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
+import leyline.game.mapper.StateMapper
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ObjectMapper
 import leyline.game.snapshot.GsmSnapshot

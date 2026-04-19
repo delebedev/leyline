@@ -6,7 +6,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.game.BundleBuilder
+import leyline.game.bundle.BundleBuilder
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 // ----- Tier 1: BundleResult extraction -----

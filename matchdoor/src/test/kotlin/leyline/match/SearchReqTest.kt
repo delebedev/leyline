@@ -4,8 +4,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.game.BundleBuilder
-import leyline.game.GameBridge
+import leyline.game.bundle.BundleBuilder
+import leyline.game.state.GameBridge
 import leyline.game.InMemoryCardRepository
 import leyline.game.mapper.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.AllowFailToFind

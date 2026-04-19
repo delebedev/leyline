@@ -5,9 +5,11 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.game.bundle.MessageCounter
+import leyline.game.state.GameBridge
 
 /**
- * Counter invariants for [MessageCounter].
+ * Counter invariants for [leyline.game.bundle.MessageCounter].
  *
  * The shared counter is accessed by two threads:
  *   - Game thread: GamePlayback.captureAndPause calls nextMsgId/nextGsId

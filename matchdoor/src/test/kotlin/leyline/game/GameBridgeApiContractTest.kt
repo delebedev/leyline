@@ -5,8 +5,9 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.game.state.GameBridge
 
 class GameBridgeApiContractTest :
     FunSpec({

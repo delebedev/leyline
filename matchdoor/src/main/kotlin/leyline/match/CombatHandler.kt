@@ -3,15 +3,15 @@ package leyline.match
 import forge.game.Game
 import forge.game.phase.PhaseType
 import leyline.DevCheck
-import leyline.bridge.ForgeCardId
-import leyline.bridge.ForgePlayerId
-import leyline.bridge.InstanceId
-import leyline.bridge.PlayerAction
-import leyline.bridge.Target
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.ForgePlayerId
+import leyline.bridge.types.InstanceId
+import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.Target
 import leyline.bridge.forge.PlayerController
 import leyline.bridge.findCard
-import leyline.game.GameBridge
-import leyline.game.RequestBuilder
+import leyline.game.state.GameBridge
+import leyline.game.bundle.RequestBuilder
 import leyline.game.mapper.PromptIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -20,7 +20,7 @@ import kotlin.collections.iterator
 /**
  * Handles combat-related client messages and auto-pass combat phase detection.
  *
- * Protocol sequencing uses the shared [MessageCounter][leyline.game.MessageCounter]
+ * Protocol sequencing uses the shared [MessageCounter][leyline.game.bundle.MessageCounter]
  * via `counters.counter` — no seeding or syncing needed.
  */
 open class CombatHandler(

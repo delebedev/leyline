@@ -8,7 +8,6 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Maps phase info and player seat state to client proto types.
  *
  * Pure functions — no bridge access, no side effects.
- * Extracted from [StateMapper] for independent testability.
  */
 object PlayerMapper {
 

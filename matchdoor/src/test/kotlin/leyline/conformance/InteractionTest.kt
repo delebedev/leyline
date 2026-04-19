@@ -5,9 +5,9 @@ import forge.game.player.Player
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import leyline.IntegrationTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.InstanceId
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage

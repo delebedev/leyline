@@ -7,7 +7,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.ForgeCardId
+import leyline.bridge.types.ForgeCardId
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import forge.game.zone.ZoneType as ForgeZoneType
 

@@ -2,12 +2,12 @@ package leyline.match
 
 import forge.game.Game
 import forge.game.phase.PhaseType
-import leyline.bridge.AutoPassReason
-import leyline.bridge.ClientAutoPassState
-import leyline.bridge.PlayerAction
-import leyline.bridge.PriorityDecision
-import leyline.game.BundleBuilder
-import leyline.game.GameBridge
+import leyline.bridge.types.AutoPassReason
+import leyline.bridge.types.ClientAutoPassState
+import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.PriorityDecision
+import leyline.game.bundle.BundleBuilder
+import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 
 /**
@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory
  * meaningful actions, drains AI-action playback diffs, and delegates to
  * [CombatHandler] / [TargetingHandler] when interactive prompts arise.
  *
- * Protocol sequencing uses the shared [MessageCounter][leyline.game.MessageCounter]
+ * Protocol sequencing uses the shared [MessageCounter][leyline.game.bundle.MessageCounter]
  * via `counters.counter` — no seeding or syncing needed.
  */
 class AutoPassEngine(

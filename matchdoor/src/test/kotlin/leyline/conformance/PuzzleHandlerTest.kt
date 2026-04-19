@@ -8,7 +8,8 @@ import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
-import leyline.bridge.SeatId
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
 import leyline.infra.ListMessageSink
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
@@ -24,7 +25,7 @@ class PuzzleHandlerTest :
         tags(IntegrationTag)
 
         beforeSpec {
-            leyline.bridge.GameBootstrap.initializeCardDatabase(quiet = true)
+            GameBootstrap.initializeCardDatabase(quiet = true)
             TestCardRegistry.ensureRegistered()
         }
 

@@ -1,7 +1,7 @@
 package leyline.match
 
-import leyline.bridge.InteractivePromptBridge
-import leyline.bridge.PromptSemantic
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptSemantic
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 
 /**

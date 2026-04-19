@@ -36,21 +36,21 @@ import forge.game.zone.ZoneType
 import forge.player.PlayerControllerHuman
 import forge.player.TargetSelectionResult
 import forge.util.collect.FCollectionView
-import leyline.bridge.ClientAutoPassState
-import leyline.bridge.CostPaymentCoordinator
-import leyline.bridge.ForgeCardId
-import leyline.bridge.GameActionBridge
-import leyline.bridge.InteractivePromptBridge
-import leyline.bridge.MulliganBridge
-import leyline.bridge.OptionalActionGate
-import leyline.bridge.OwnerContext
-import leyline.bridge.PhaseStopProfile
-import leyline.bridge.PriorityDecision
-import leyline.bridge.PriorityLoopCoordinator
-import leyline.bridge.PromptRequest
-import leyline.bridge.PromptSemantic
-import leyline.bridge.SpellExecutor
-import leyline.bridge.TargetingCoordinator
+import leyline.bridge.types.ClientAutoPassState
+import leyline.bridge.coord.CostPaymentCoordinator
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.handoff.GameActionBridge
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.MulliganBridge
+import leyline.bridge.handoff.OptionalActionGate
+import leyline.bridge.handoff.OwnerContext
+import leyline.bridge.types.PhaseStopProfile
+import leyline.bridge.types.PriorityDecision
+import leyline.bridge.coord.PriorityLoopCoordinator
+import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.coord.SpellExecutor
+import leyline.bridge.coord.TargetingCoordinator
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
@@ -59,7 +59,7 @@ import java.util.function.Predicate
 /**
  * The single integration point between Forge's rules engine and our session layer.
  * Extends [PlayerControllerHuman] so all 157 interactive methods route through
- * [leyline.bridge.InteractivePromptBridge] via [ClientGuiGame]; the ~42 methods PCHuman implements
+ * [InteractivePromptBridge] via [ClientGuiGame]; the ~42 methods PCHuman implements
  * with desktop-only classes (InputConfirm, InputSelectCardsFromList, FModel,
  * GuiBase) are overridden here.
  *
@@ -84,18 +84,18 @@ import java.util.function.Predicate
  * classes; the override becomes a thin delegation.
  *
  * Current coordinators:
- * - [leyline.bridge.PriorityLoopCoordinator] — `chooseSpellAbilityToPlay`, combat declarations,
- *   combat-damage assignment, decision logging. Uses [leyline.bridge.GameActionBridge].
- * - [leyline.bridge.TargetingCoordinator] — single-entity and multi-entity choice, targeting,
+ * - [PriorityLoopCoordinator] — `chooseSpellAbilityToPlay`, combat declarations,
+ *   combat-damage assignment, decision logging. Uses [GameActionBridge].
+ * - [TargetingCoordinator] — single-entity and multi-entity choice, targeting,
  *   reveals, discards, sacrifices, zone ordering. Writes bridge flag-contract fields.
- * - [leyline.bridge.CostPaymentCoordinator] — convoke/improvise, keyword-cost binary, optional
+ * - [CostPaymentCoordinator] — convoke/improvise, keyword-cost binary, optional
  *   costs, shock-land pay-life, AI mana payment.
  *
  * Current helpers:
- * - [leyline.bridge.SpellExecutor] — the `executeCastSpell` / `executeActivateAbility` /
+ * - [SpellExecutor] — the `executeCastSpell` / `executeActivateAbility` /
  *   `executeActivateMana` / `executePlayLand` cluster. Called only from
- *   `chooseSpellAbilityToPlay` inside [leyline.bridge.PriorityLoopCoordinator].
- * - [leyline.bridge.OptionalActionGate] — owns the [pendingOptionalAction] future lifecycle
+ *   `chooseSpellAbilityToPlay` inside [PriorityLoopCoordinator].
+ * - [OptionalActionGate] — owns the [pendingOptionalAction] future lifecycle
  *   shared by `confirmTrigger`, `playSaFromPlayEffect`, and `payCostToPreventEffect`.
  *
  * ## State ownership
@@ -104,28 +104,28 @@ import java.util.function.Predicate
  * through the public field path. Moving any of them into a coordinator would
  * require a forwarding property with zero benefit.
  *
- * - [pendingDamageAssignment] — written by [leyline.bridge.PriorityLoopCoordinator.promptForCombatDamage];
+ * - [pendingDamageAssignment] — written by [PriorityLoopCoordinator.promptForCombatDamage];
  *   read by `GameBridge.hasPendingInteraction`, `CombatHandler`, and
  *   [assignCombatDamage] (completed future).
- * - [pendingOptionalAction] — written by [leyline.bridge.OptionalActionGate.await]; read by
+ * - [pendingOptionalAction] — written by [OptionalActionGate.await]; read by
  *   `GameBridge.hasPendingInteraction`, `OptionalActionHandler`, `MatchFlowHarness`.
  * - [damageAssignCache] — written by `CombatHandler.onAssignDamage`; read by
  *   [assignCombatDamage].
  * - [autoPassState] — written via [setAutoPassState] (called by
- *   `MatchSession.connectBridge`); read by [leyline.bridge.PriorityLoopCoordinator.chooseSpellAbility].
+ *   `MatchSession.connectBridge`); read by [PriorityLoopCoordinator.chooseSpellAbility].
  * - `decisionLog()` / `recentDecisions` — written by [recordDecision]; read by
  *   `DebugServer.servePriorityTrace`.
  *
- * Coordinators read and write these through [leyline.bridge.OwnerContext]; external callers use
+ * Coordinators read and write these through [OwnerContext]; external callers use
  * the public field path. Prompt side-effects (reveal lifecycle, legend-rule
  * victims, searched-to-hand cards, optional-cost stash) flow through the typed
- * [leyline.bridge.PromptJournal] on [leyline.bridge.InteractivePromptBridge]; the priority-loop "prompt just
- * resolved" flag lives on [leyline.bridge.PrioritySignal].
+ * [leyline.bridge.handoff.PromptJournal] on [InteractivePromptBridge]; the priority-loop "prompt just
+ * resolved" flag lives on [leyline.bridge.types.PrioritySignal].
  *
  * ## Anti-patterns (enforced)
  *
  * - **No coordinator-to-coordinator calls.** Inter-coordinator communication goes
- *   through [leyline.bridge.OwnerContext] or Forge engine state.
+ *   through [OwnerContext] or Forge engine state.
  * - **No reflection or dispatch tables.** Route override → coordinator via direct
  *   Kotlin calls.
  * - **No `suspend` conversion.** `CompletableFuture<Boolean>` is the wire contract
@@ -161,12 +161,12 @@ import java.util.function.Predicate
  *
  * Every override runs on the Forge engine thread, synchronously during game-loop
  * execution. Methods that need client input block the engine thread via
- * [leyline.bridge.InteractivePromptBridge.requestChoice] (`CompletableFuture.get()`); the Netty
+ * [InteractivePromptBridge.requestChoice] (`CompletableFuture.get()`); the Netty
  * I/O thread unblocks by completing the future. Consequences for every coordinator:
  *
  * - A missing or slow override blocks the entire game loop.
- * - [leyline.bridge.PriorityLoopCoordinator.notifyStateChanged] must fire before
- *   [leyline.bridge.GameActionBridge.awaitAction] so the client sees updated state before being
+ * - [PriorityLoopCoordinator.notifyStateChanged] must fire before
+ *   [GameActionBridge.awaitAction] so the client sees updated state before being
  *   asked for a decision.
  * - Coordinators must not acquire locks, do I/O, or block on any other thread.
  *

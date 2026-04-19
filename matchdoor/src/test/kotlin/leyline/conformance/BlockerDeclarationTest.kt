@@ -9,7 +9,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.SeatId
+import leyline.bridge.types.SeatId
 
 /**
  * End-to-end blocker declaration tests: AI attacks, human blocks.

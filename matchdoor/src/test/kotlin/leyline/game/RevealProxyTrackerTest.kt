@@ -4,8 +4,9 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.InstanceId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
+import leyline.game.state.RevealProxyTracker
 
 class RevealProxyTrackerTest :
     FunSpec({

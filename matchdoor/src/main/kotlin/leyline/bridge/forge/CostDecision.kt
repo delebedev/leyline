@@ -17,16 +17,16 @@ import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.PlayerControllerHuman
 import forge.util.*
-import leyline.bridge.InteractivePromptBridge
-import leyline.bridge.PromptCandidateRefDto
-import leyline.bridge.PromptRequest
-import leyline.bridge.PromptSemantic
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.types.PromptCandidateRefDto
+import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptSemantic
 import org.slf4j.LoggerFactory
 import java.util.*
 
 /**
  * Web-based cost decision maker: routes interactive cost choices through the
- * [leyline.bridge.InteractivePromptBridge] instead of desktop Input* classes.
+ * [InteractivePromptBridge] instead of desktop Input* classes.
  *
  * Extends [CostDecisionMakerBase] and implements all ~35 [ICostVisitor] methods.
  * Non-interactive costs (confirm-only) go through [ClientGuiGame.confirm];

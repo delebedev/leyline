@@ -4,9 +4,10 @@ import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.spellability.SpellAbilityStackInstance
-import leyline.bridge.ForgeCardId
-import leyline.bridge.SeatId
-import leyline.game.GameBridge
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.game.state.GameBridge
+import leyline.game.annotations.AbilityWordScanner
 import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
@@ -15,7 +16,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Produces a [GsmSnapshot] by reading [Game] + [GameBridge]. This is the only
- * place in the pipeline (aside from [leyline.game.BundleBuilder]'s capture call)
+ * place in the pipeline (aside from [leyline.game.bundle.BundleBuilder]'s capture call)
  * that reads `forge.game.Game` directly. Each mapper migration grows the capture
  * to cover the newly-migrated stage's reads.
  *
@@ -115,7 +116,7 @@ object SnapshotCapture {
 
     /**
      * Resolve grpId for a stack entry: try saga-chapter lookup first, then card name.
-     * Returns 0 on failure — callers apply [leyline.game.GameBridge.FALLBACK_GRPID].
+     * Returns 0 on failure — callers apply [GameBridge.FALLBACK_GRPID].
      */
     private fun resolveEntryGrpId(
         entry: SpellAbilityStackInstance,
@@ -437,17 +438,17 @@ object SnapshotCapture {
     }
 
     /**
-     * Pre-run [leyline.game.AbilityWordScanner] at capture time so the diff
+     * Pre-run [leyline.game.annotations.AbilityWordScanner] at capture time so the diff
      * pipeline reads from snap instead of `game.registeredPlayers`.
      */
     private fun computeAbilityWordEntries(
         game: Game,
         bridge: GameBridge,
-    ): List<leyline.game.AbilityWordScanner.AbilityWordEntry> {
+    ): List<AbilityWordScanner.AbilityWordEntry> {
         val bfCards = game.registeredPlayers.flatMap {
             it.getZone(ForgeZoneType.Battlefield).cards.toList()
         }
-        return leyline.game.AbilityWordScanner.scan(
+        return AbilityWordScanner.scan(
             battlefieldCards = bfCards,
             instanceIdResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
             registryResolver = { card ->

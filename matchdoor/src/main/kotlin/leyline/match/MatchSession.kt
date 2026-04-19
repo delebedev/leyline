@@ -1,14 +1,14 @@
 package leyline.match
 
 import forge.game.Game
-import leyline.bridge.ClientAutoPassState
-import leyline.bridge.PhaseStopProfile
-import leyline.bridge.SeatId
+import leyline.bridge.types.ClientAutoPassState
+import leyline.bridge.types.PhaseStopProfile
+import leyline.bridge.types.SeatId
 import leyline.frontdoor.service.MatchCoordinator
-import leyline.game.AnnotationLossReason
-import leyline.game.BundleBuilder
-import leyline.game.GameBridge
-import leyline.game.MessageCounter
+import leyline.game.annotations.AnnotationLossReason
+import leyline.game.bundle.BundleBuilder
+import leyline.game.state.GameBridge
+import leyline.game.bundle.MessageCounter
 import leyline.game.mapper.StopTypeMapping
 import leyline.game.snapshot.GsmSnapshot
 import leyline.infra.MessageSink

@@ -8,7 +8,7 @@ import forge.game.Game
  * Captures engine thread stack trace, game phase, priority holder, and stack
  * contents — everything needed to diagnose why the engine thread didn't respond.
  *
- * Used by both [GameActionBridge] and [InteractivePromptBridge] on timeout.
+ * Used by both [leyline.bridge.handoff.GameActionBridge] and [leyline.bridge.handoff.InteractivePromptBridge] on timeout.
  * Only fires on timeout path — zero overhead on happy path.
  */
 object BridgeTimeoutDiagnostic {

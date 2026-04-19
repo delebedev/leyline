@@ -1,7 +1,7 @@
 package leyline.game.snapshot
 
-import leyline.bridge.ForgeCardId
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 
 /**
  * Immutable snapshot of one card's observable state. Fields grow as mappers migrate

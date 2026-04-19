@@ -8,11 +8,13 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.GameBootstrap
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.TestCardRegistry
+import leyline.game.data.CardData
+import leyline.game.mapper.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.SubType

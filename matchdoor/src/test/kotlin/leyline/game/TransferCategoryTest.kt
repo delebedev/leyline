@@ -3,6 +3,7 @@ package leyline.game
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.game.annotations.TransferCategory
 
 class TransferCategoryTest :
     FunSpec({

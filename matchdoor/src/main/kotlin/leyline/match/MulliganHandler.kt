@@ -1,18 +1,19 @@
 package leyline.match
 
 import io.netty.channel.ChannelHandlerContext
-import leyline.bridge.ForgeCardId
-import leyline.bridge.InstanceId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
 import leyline.config.MatchConfig
-import leyline.game.GameBridge
+import leyline.game.state.GameBridge
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Mulligan flow delegate — extracted from [MatchHandler] so mulligan state
- * (hand grpIds, mull count, London tuck) is testable without a live Netty channel.
+ * Mulligan flow delegate for [MatchHandler]. Owns the per-seat mulligan state
+ * (hand grpIds, mull count, London tuck) and is testable without a live Netty
+ * channel.
  *
  * Uses provider lambdas for session/ctx/matchId/seatId to avoid holding
  * [MatchHandler] references directly. Cross-seat lookups (e.g. sending the

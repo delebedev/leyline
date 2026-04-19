@@ -5,6 +5,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import leyline.UnitTag
+import leyline.bridge.bootstrap.CardEntry
+import leyline.bridge.bootstrap.DeckConverter
 
 class DeckConverterTest :
     FunSpec({

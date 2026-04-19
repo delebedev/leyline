@@ -1,8 +1,10 @@
 package leyline.game.snapshot
 
 import forge.game.Game
-import leyline.bridge.ForgeCardId
-import leyline.game.GameBridge
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.game.state.GameBridge
+import leyline.game.annotations.AbilityWordScanner
 import org.jetbrains.annotations.VisibleForTesting
 
 /**
@@ -20,7 +22,7 @@ class GsmSnapshot internal constructor(
     val stack: StackSnapshot,
     val phase: PhaseSnapshot,
     val combat: CombatSnapshot?,
-    val abilityWordEntries: List<leyline.game.AbilityWordScanner.AbilityWordEntry>,
+    val abilityWordEntries: List<AbilityWordScanner.AbilityWordEntry>,
     val persistentAnnotationState: PersistentAnnotationState,
     val capturedAt: CaptureMarker,
 ) {
@@ -71,12 +73,12 @@ class GsmSnapshot internal constructor(
             stack: StackSnapshot = StackSnapshot(emptyList()),
             phase: PhaseSnapshot = PhaseSnapshot(
                 turn = 1,
-                activePlayer = leyline.bridge.SeatId(1),
-                priorityPlayer = leyline.bridge.SeatId(1),
+                activePlayer = SeatId(1),
+                priorityPlayer = SeatId(1),
                 phase = null,
             ),
             combat: CombatSnapshot? = null,
-            abilityWordEntries: List<leyline.game.AbilityWordScanner.AbilityWordEntry> = emptyList(),
+            abilityWordEntries: List<AbilityWordScanner.AbilityWordEntry> = emptyList(),
             persistentAnnotationState: PersistentAnnotationState = PersistentAnnotationState.INITIAL,
             capturedAt: CaptureMarker = CaptureMarker.unknown(),
         ): GsmSnapshot = GsmSnapshot(

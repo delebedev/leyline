@@ -6,8 +6,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.TestCardRegistry
 import leyline.conformance.aiPlayer

@@ -4,8 +4,9 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.game.state.TokenIdentityRegistry
 
-/** Unit tests for [TokenIdentityRegistry]. */
+/** Unit tests for [leyline.game.state.TokenIdentityRegistry]. */
 class TokenIdentityRegistryTest :
     FunSpec({
 

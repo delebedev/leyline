@@ -14,14 +14,17 @@ import java.nio.file.Path
  * by Gradle — build fails on illegal imports. These rules enforce the
  * internal tier structure that Gradle can't see.
  *
+ * Rules match on prefix (`leyline.bridge..`) and apply to every sub-package
+ * beneath. See `matchdoor/CLAUDE.md` for the full sub-package tree.
+ *
  * ```
  * Tier 0 — foundation (leaves, import nothing from matchdoor):
- *   bridge         Forge adapter (PlayerController, cost decisions, bootstrap)
+ *   bridge         Forge adapter (forge/, handoff/, coord/, bootstrap/, types/)
  *   config         MatchConfig TOML data class
  *
  * Tier 1 — game engine (imports Tier 0):
- *   game           StateMapper, BundleBuilder, annotations, events, card data
- *   game.mapper    ActionMapper, ZoneMapper, ObjectMapper (bidirectional with game)
+ *   game           Snapshot → proto (snapshot/, state/, event/, mapper/,
+ *                  annotations/, bundle/, data/, codes/, generator/)
  *
  * Tier 2 — wire protocol (imports Tier 0 + 1):
  *   protocol       HandshakeMessages, FrameCodec, ProtoDump

@@ -10,6 +10,12 @@ import leyline.conformance.detailInt
 import leyline.conformance.detailString
 import leyline.conformance.detailUint
 import leyline.conformance.hasDetail
+import leyline.game.annotations.AnnotationBuilder
+import leyline.game.annotations.AnnotationConstants
+import leyline.game.codes.CounterTypes
+import leyline.game.codes.DetailKeys
+import leyline.game.codes.ManaColorMapping
+import leyline.game.codes.QualificationType
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType

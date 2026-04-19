@@ -1,7 +1,7 @@
 package leyline.match
 
 import forge.game.Game
-import leyline.game.GameBridge
+import leyline.game.state.GameBridge
 
 /**
  * Resolved session state -- non-null after bridge connection.

@@ -6,6 +6,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.UnitTag
+import leyline.game.state.EffectTracker
 
 class EffectTrackerTest :
     FunSpec({

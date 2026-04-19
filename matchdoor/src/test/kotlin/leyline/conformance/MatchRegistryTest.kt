@@ -9,8 +9,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.UnitTag
-import leyline.bridge.SeatId
-import leyline.game.GameBridge
+import leyline.bridge.types.SeatId
+import leyline.game.state.GameBridge
 import leyline.game.InMemoryCardRepository
 import leyline.infra.ListMessageSink
 import leyline.match.FamiliarSession

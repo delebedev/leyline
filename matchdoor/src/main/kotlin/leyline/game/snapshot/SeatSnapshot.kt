@@ -1,6 +1,6 @@
 package leyline.game.snapshot
 
-import leyline.bridge.SeatId
+import leyline.bridge.types.SeatId
 
 /**
  * Immutable per-seat state read by mappers. Field set grows as mappers migrate;

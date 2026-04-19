@@ -7,10 +7,10 @@ import forge.game.player.Player
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import leyline.ConformanceTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.SeatId
-import leyline.game.GameBridge
-import leyline.game.MessageCounter
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.game.state.GameBridge
+import leyline.game.bundle.MessageCounter
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**

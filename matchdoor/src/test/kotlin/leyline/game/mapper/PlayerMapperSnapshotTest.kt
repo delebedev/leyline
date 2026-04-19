@@ -4,7 +4,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.SeatId
+import leyline.bridge.types.SeatId
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.SeatSnapshot
 

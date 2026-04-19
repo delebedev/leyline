@@ -6,7 +6,8 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -78,7 +79,7 @@ class ElectroduplicateTest :
             creaturesBefore.size shouldBeGreaterThan 1
 
             val targetIid = h.bridge.getOrAllocInstanceId(
-                leyline.bridge.ForgeCardId(creaturesBefore.first().id),
+                ForgeCardId(creaturesBefore.first().id),
             ).value
 
             // 2. Cast from GY — triggers SelectTargetsReq

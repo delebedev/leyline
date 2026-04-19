@@ -8,10 +8,16 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.InstanceId
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
 import leyline.conformance.detailInt
+import leyline.game.annotations.AnnotationBuilder
+import leyline.game.annotations.MechanicAnnotationResult
+import leyline.game.annotations.MechanicAnnotations
+import leyline.game.event.GameEvent
+import leyline.game.state.EffectTracker
+import leyline.game.state.PersistentAnnotationStore
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class ControllerChangedPipelineTest :

@@ -10,13 +10,14 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.conformance.ConformanceTestBase
+import leyline.game.mapper.StateMapper
 import leyline.game.mapper.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
 /**
- * Shape tests for [StateMapper] output — zone visibility, timers, player info.
+ * Shape tests for [leyline.game.mapper.StateMapper] output — zone visibility, timers, player info.
  * Board-based (no game loop needed).
  */
 class StateMapperShapeTest :

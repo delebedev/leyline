@@ -8,12 +8,23 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.InstanceId
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
 import leyline.conformance.detailInt
+import leyline.game.annotations.AnnotationBuilder
+import leyline.game.annotations.AnnotationOrderEnforcer
+import leyline.game.annotations.AppliedTransfer
+import leyline.game.annotations.CombatAnnotations
+import leyline.game.annotations.TransferCategory
+import leyline.game.annotations.TransferResult
+import leyline.game.annotations.ZoneTransferDetector
+import leyline.game.event.GameEvent
 import leyline.game.mapper.ObjectMapper
+import leyline.game.mapper.StateMapper
 import leyline.game.mapper.ZoneIds
+import leyline.game.state.GameBridge
+import leyline.game.state.InstanceIdRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -21,8 +32,8 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
 /**
- * Pure unit tests for [ZoneTransferDetector.detectZoneTransfers] — the overload
- * that takes function parameters instead of [GameBridge].
+ * Pure unit tests for [leyline.game.annotations.ZoneTransferDetector.detectZoneTransfers] — the overload
+ * that takes function parameters instead of [leyline.game.state.GameBridge].
  *
  * No game engine, no bridge, no card DB. Each test constructs
  * [GameObjectInfo] + [ZoneInfo] data directly via proto builders.

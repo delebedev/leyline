@@ -9,7 +9,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
-import leyline.bridge.ForgeCardId
+import leyline.bridge.types.ForgeCardId
 import leyline.game.seedDiffBaseline
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 

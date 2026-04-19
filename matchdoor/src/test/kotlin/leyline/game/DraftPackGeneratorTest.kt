@@ -5,7 +5,10 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
-import leyline.bridge.GameBootstrap
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.game.data.CardData
+import leyline.game.data.CardRepository
+import leyline.game.generator.DraftPackGenerator
 import java.util.concurrent.atomic.AtomicInteger
 
 /**

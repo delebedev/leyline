@@ -2,11 +2,11 @@ package leyline.match
 
 import forge.gamemodes.puzzle.Puzzle
 import io.netty.channel.ChannelHandlerContext
-import leyline.bridge.GameBootstrap
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.MatchConfig
-import leyline.game.CardRepository
-import leyline.game.GameBridge
-import leyline.game.PuzzleSource
+import leyline.game.data.CardRepository
+import leyline.game.state.GameBridge
+import leyline.game.generator.PuzzleSource
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory

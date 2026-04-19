@@ -3,8 +3,8 @@ package leyline.conformance
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.GameBootstrap
-import leyline.bridge.SeatId
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
 import kotlin.time.Duration.Companion.seconds
 
 /**

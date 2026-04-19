@@ -6,7 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
-import leyline.bridge.ForgeCardId
+import leyline.bridge.types.ForgeCardId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
 import leyline.conformance.mana
@@ -17,7 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *
  * Uses [ConformanceTestBase.startWithBoard] to set up board state without a full
  * game loop. The key point: [ActionMapper.buildActionList] itself holds no
- * [leyline.game.GameBridge] reference — the bridge only provides the lambdas.
+ * [leyline.game.state.GameBridge] reference — the bridge only provides the lambdas.
  */
 class ActionMapperPureTest :
     FunSpec({

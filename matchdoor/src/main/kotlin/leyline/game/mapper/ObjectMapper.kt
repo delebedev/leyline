@@ -2,12 +2,12 @@ package leyline.game.mapper
 
 import forge.game.card.Card
 import leyline.DevCheck
-import leyline.game.CardProtoBuilder
-import leyline.game.CardRepository
-import leyline.game.EffectTracker
-import leyline.game.GameBridge
-import leyline.game.KeywordGrpIds
-import leyline.game.TokenIdentityRegistry
+import leyline.game.data.CardProtoBuilder
+import leyline.game.data.CardRepository
+import leyline.game.state.EffectTracker
+import leyline.game.state.GameBridge
+import leyline.game.codes.KeywordGrpIds
+import leyline.game.state.TokenIdentityRegistry
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.CombatRole
 import org.slf4j.LoggerFactory
@@ -20,8 +20,6 @@ import forge.card.CardType.CoreType as ForgeCoreType
  * Static card data (types, colors, abilities, base P/T) comes from [CardProtoBuilder].
  * This mapper adds live game state read from [CardSnapshot]: current P/T, tapped,
  * sickness, damage, loyalty, combat state, and attachment info.
- *
- * Extracted from [StateMapper] for independent testability.
  */
 object ObjectMapper {
 

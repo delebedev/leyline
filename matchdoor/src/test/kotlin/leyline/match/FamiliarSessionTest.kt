@@ -5,7 +5,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.SeatId
+import leyline.bridge.types.SeatId
 import leyline.infra.ListMessageSink
 import wotc.mtgo.gre.external.messaging.Messages.*
 

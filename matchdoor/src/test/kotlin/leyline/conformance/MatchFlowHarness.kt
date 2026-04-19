@@ -2,15 +2,15 @@ package leyline.conformance
 
 import forge.game.Game
 import forge.game.zone.ZoneType
-import leyline.bridge.ForgeCardId
-import leyline.bridge.GameBootstrap
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
 import leyline.config.MatchConfig
 import leyline.config.ServerConfig
-import leyline.game.GameBridge
-import leyline.game.PuzzleSource
-import leyline.game.StateMapper
+import leyline.game.state.GameBridge
+import leyline.game.generator.PuzzleSource
+import leyline.game.mapper.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.infra.ListMessageSink
 import leyline.match.MatchRegistry

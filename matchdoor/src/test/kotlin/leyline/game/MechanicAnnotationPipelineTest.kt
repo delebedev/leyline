@@ -6,11 +6,14 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.InstanceId
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
 import leyline.conformance.detailInt
 import leyline.conformance.detailString
+import leyline.game.annotations.MechanicAnnotations
+import leyline.game.event.GameEvent
+import leyline.game.event.Zone
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**

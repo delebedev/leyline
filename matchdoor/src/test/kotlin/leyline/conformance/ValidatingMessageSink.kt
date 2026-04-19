@@ -1,6 +1,6 @@
 package leyline.conformance
 
-import leyline.game.InvariantChecker
+import leyline.game.bundle.InvariantChecker
 import leyline.infra.ListMessageSink
 import leyline.infra.MessageSink
 import wotc.mtgo.gre.external.messaging.Messages.*

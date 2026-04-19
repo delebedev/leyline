@@ -14,11 +14,13 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.PromptSemantic
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.forge.CostDecision
+import leyline.bridge.types.SeatId
 import leyline.conformance.TestCardRegistry
-import leyline.game.GameBridge
-import leyline.game.PuzzleSource
+import leyline.game.state.GameBridge
+import leyline.game.generator.PuzzleSource
 
 class CostDecisionTest :
     FunSpec({
@@ -28,7 +30,7 @@ class CostDecisionTest :
         var bridge: GameBridge? = null
 
         beforeSpec {
-            leyline.bridge.GameBootstrap.initializeCardDatabase(quiet = true)
+            GameBootstrap.initializeCardDatabase(quiet = true)
             TestCardRegistry.ensureRegistered()
         }
 
@@ -72,7 +74,7 @@ class CostDecisionTest :
                 ),
             )
             leyline.conformance.TestCardRegistry.registerPuzzleCards(localBridge.getGame()!!)
-            val player = localBridge.getPlayer(leyline.bridge.SeatId(1))!!
+            val player = localBridge.getPlayer(SeatId(1))!!
             val source = player.getCardsIn(forge.game.zone.ZoneType.Hand).first { it.name == "Lightning Bolt" }
             val ability = source.spellAbilities.first()
             val controller = localBridge.humanController ?: error("No human controller")

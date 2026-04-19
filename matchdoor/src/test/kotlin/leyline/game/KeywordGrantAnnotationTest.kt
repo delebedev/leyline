@@ -7,6 +7,8 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.conformance.detailInt
 import leyline.conformance.detailUint
+import leyline.game.annotations.MechanicAnnotations
+import leyline.game.state.EffectTracker
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**

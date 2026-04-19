@@ -5,10 +5,11 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
-import leyline.bridge.GameBootstrap
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.game.generator.PuzzleSource
 
 /**
- * Tests for [PuzzleSource] — puzzle loading and metadata parsing.
+ * Tests for [leyline.game.generator.PuzzleSource] — puzzle loading and metadata parsing.
  *
  * Metadata parsing is pure string logic (unit group).
  * Puzzle construction requires Forge localization (integration group).

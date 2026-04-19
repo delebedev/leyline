@@ -6,9 +6,10 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldNotBe
 import leyline.UnitTag
-import leyline.bridge.ForgeCardId
+import leyline.bridge.types.ForgeCardId
+import leyline.game.state.InstanceIdRegistry
 
-/** Unit tests for [InstanceIdRegistry]. */
+/** Unit tests for [leyline.game.state.InstanceIdRegistry]. */
 class InstanceIdRegistryTest :
     FunSpec({
 

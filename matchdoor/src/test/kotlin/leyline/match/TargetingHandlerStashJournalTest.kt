@@ -3,7 +3,7 @@ package leyline.match
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.handoff.InteractivePromptBridge
 
 class TargetingHandlerStashJournalTest :
     FunSpec({

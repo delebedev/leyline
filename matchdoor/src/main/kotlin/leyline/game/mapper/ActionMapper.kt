@@ -10,14 +10,14 @@ import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
-import leyline.bridge.ForgeCardId
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.bridge.chooseCastAbility
 import leyline.bridge.getAllCastableAbilities
-import leyline.game.AbilityRegistry
-import leyline.game.CardData
-import leyline.game.GameBridge
-import leyline.game.ManaColorMapping
+import leyline.game.state.AbilityRegistry
+import leyline.game.data.CardData
+import leyline.game.state.GameBridge
+import leyline.game.codes.ManaColorMapping
 import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -27,7 +27,6 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Maps Forge playable actions to Arena [Action] / [ActionsAvailableReq] protos.
  *
  * Depends on [IdMapping] (instanceId allocation) and [PlayerLookup] (seat → player).
- * Extracted from [StateMapper] for independent testability.
  */
 @Suppress("LargeClass") // buildFromSnapshot mirrors buildActionList — inherent size; split assessed
 object ActionMapper {
@@ -46,7 +45,10 @@ object ActionMapper {
 
     /**
      * Shared action list builder — bridge-backed overload.
-     * Delegates to the pure overload with function params extracted from [bridge].
+     *
+     * Extracts the function params the pure overload needs from [bridge] and
+     * forwards. Callers that already have the discrete params should prefer
+     * the pure overload directly.
      */
     internal fun buildActionList(
         seatId: Int,

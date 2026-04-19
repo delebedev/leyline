@@ -7,9 +7,9 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
-import leyline.bridge.GameBootstrap
-import leyline.bridge.SeatId
-import leyline.game.CardData
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
+import leyline.game.data.CardData
 
 /**
  * Novice Inspector — investigate + Clue token + sac-for-draw.

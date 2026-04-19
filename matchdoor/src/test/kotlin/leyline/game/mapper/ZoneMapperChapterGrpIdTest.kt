@@ -3,7 +3,7 @@ package leyline.game.mapper
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.game.CardData
+import leyline.game.data.CardData
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
