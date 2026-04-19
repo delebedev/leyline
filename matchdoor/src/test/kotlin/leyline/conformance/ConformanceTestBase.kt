@@ -59,11 +59,13 @@ open class ConformanceTestBase {
      *
      * @param seed RNG seed for deterministic shuffles
      * @param deckList custom deck list (e.g. "30 Plains\n30 Forest"); null uses default mono-green
+     * @param variant game variant (e.g. "brawl" for commander tax + command zone); null = Constructed
      * @return (bridge, game, counter)
      */
     fun startGameAtMain1(
         seed: Long = 42L,
         deckList: String? = null,
+        variant: String? = null,
     ): Triple<GameBridge, Game, MessageCounter> {
         // Auto-register CardData for all cards in the deck list
         if (deckList != null) {
@@ -73,10 +75,22 @@ open class ConformanceTestBase {
         testCounter = counter
         val b = GameBridge(messageCounter = counter, cardRepository = TestCardRegistry.repo)
         bridge = b
-        b.start(seed = seed, deckList = deckList)
-        b.submitKeep(1)
-        advanceToMain1(b)
-        val game = b.getGame()!!
+        // Forge's MyRandom is a static Random. b.start(seed) replaces it via
+        // MyRandom.setRandom(Random(seed)), so two concurrent Kotest specs
+        // calling this race — one overwrites the other's RNG mid-shuffle and
+        // non-deterministic hands result ("No land in hand at seed 42" flake
+        // at kotest.framework.parallelism=8).
+        //
+        // Serialize the seed → shuffle → hand-draw window. After advanceToMain1
+        // the library is fixed and further MyRandom writes from other specs
+        // don't affect assertion outcomes in tests that don't trigger random
+        // mid-game effects.
+        val game = synchronized(RNG_LOCK) {
+            b.start(seed = seed, deckList = deckList, variant = variant)
+            b.submitKeep(1)
+            advanceToMain1(b)
+            b.getGame()!!
+        }
         check(game.phaseHandler.phase == PhaseType.MAIN1) {
             "Game should be at Main1 after advanceToMain1 (actual: ${game.phaseHandler.phase})"
         }
@@ -98,13 +112,23 @@ open class ConformanceTestBase {
      */
     fun startPuzzleAtMain1(
         puzzleText: String,
+    ): Triple<GameBridge, Game, MessageCounter> =
+        startPuzzleAtMain1(PuzzleSource.loadFromText(puzzleText))
+
+    /** Convenience: load a puzzle from a test resource path (e.g. "puzzles/foo.pzl"). */
+    fun startPuzzleAtMain1FromResource(
+        resourcePath: String,
+    ): Triple<GameBridge, Game, MessageCounter> =
+        startPuzzleAtMain1(PuzzleSource.loadFromResource(resourcePath))
+
+    private fun startPuzzleAtMain1(
+        puzzle: forge.gamemodes.puzzle.Puzzle,
     ): Triple<GameBridge, Game, MessageCounter> {
         val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
         testCounter = counter
         val b = GameBridge(messageCounter = counter, cardRepository = TestCardRegistry.repo)
         bridge = b
 
-        val puzzle = PuzzleSource.loadFromText(puzzleText)
         b.startPuzzle(puzzle)
 
         val game = b.getGame()!!
@@ -265,6 +289,10 @@ open class ConformanceTestBase {
     companion object {
         const val TEST_MATCH_ID = "test-match"
         const val SEAT_ID = 1
+
+        // Guards Forge's static MyRandom during seed → shuffle → initial-draw.
+        // See note in startGameAtMain1 for why.
+        private val RNG_LOCK = Any()
     }
 
     /** Build a postAction bundle with standard test constants. */

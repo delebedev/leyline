@@ -29,7 +29,11 @@ fun GameBridge.seedDiffBaseline(game: Game, gameStateId: Int = 0) {
 /**
  * Wait for a pending action whose actionId differs from [previousId].
  * Returns null on timeout (default 15s).
+ *
+ * The Thread.sleep is a poll interval, not a race. NoThreadSleepInTests targets
+ * sleeps in test bodies as correctness proxies; this is deadlined infrastructure.
  */
+@Suppress("NoThreadSleepInTests")
 fun awaitFreshPending(
     b: GameBridge,
     previousId: String?,
@@ -54,7 +58,10 @@ fun awaitFreshPending(
 /**
  * Wait for a pending interactive prompt (targeting, choices, etc.).
  * Returns null on timeout.
+ *
+ * Deadlined poll — see note on [awaitFreshPending].
  */
+@Suppress("NoThreadSleepInTests")
 fun awaitPrompt(
     b: GameBridge,
     timeoutMs: Long = 5_000,

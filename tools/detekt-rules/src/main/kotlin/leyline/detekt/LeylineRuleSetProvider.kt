@@ -18,6 +18,10 @@ class LeylineRuleSetProvider : RuleSetProvider {
                 MissingAssertSoftly(config),
                 FunSpecMissingTags(config),
                 NoGameInMappers(config),
+                NoThreadSleepInTests(config),
+                NoTimingAssertsInTests(config),
+                TierPlacementCheck(config),
+                WeakAssertionOnly(config),
             ),
         )
 }

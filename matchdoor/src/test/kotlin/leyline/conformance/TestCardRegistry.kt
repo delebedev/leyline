@@ -34,6 +34,10 @@ object TestCardRegistry {
      * Otherwise derives CardData from Forge's in-memory CardRules and registers it.
      * Returns the grpId (synthetic, 0 on failure).
      */
+    // Serialize card registration: Forge's StaticData.attemptToLoadCard mutates
+    // static state, and CardDataDeriver assigns synthetic grpIds from a shared
+    // counter. Concurrent Kotest specs would race on both.
+    @Synchronized
     fun ensureCardRegistered(cardName: String): Int {
         repo.findGrpIdByName(cardName)?.let { return it }
 
