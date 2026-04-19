@@ -25,8 +25,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Two core methods:
  * - [buildFromSnapshot]: Full [GameStateMessage] from a captured [GsmSnapshot].
  * - [buildDiff]: Diff GSM by snap-vs-snap field comparison; returns [BridgeMutations]
- *   for the caller to apply via [GameBridge.applyMutations]. Pure on ordering-sensitive
- *   outputs (diff-pure bead; builds on snap-vs-snap from arena-lab-9d8).
+ *   for the caller to apply via [GameBridge.applyMutations]. Pure on
+ *   ordering-sensitive outputs.
  *
  * Lifecycle GSM factories (deal-hand, mulligan, transitions) live in [GsmBuilder].
  * Interactive request builders (targeting, combat) live in [RequestBuilder].
@@ -43,36 +43,52 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Inputs to [buildDiff] are pure values: `prev: GsmSnapshot?`, `cur: GsmSnapshot`,
  * `events: List<GameEvent>`. Outputs are pure: `GameStateMessage` + [BridgeMutations].
  *
- * The acceptance forcing function for this boundary is `PureDiffReplayTest` —
- * a scripted one-turn scenario that replays recorded `(snap, events, diff)`
- * tuples through `buildDiff` on a fresh bridge and asserts byte-equal Diff GSMs.
- * Any new stateful feature added inside the pipeline should keep this test green;
- * a regression here signals newly-introduced impurity.
+ * The acceptance forcing function for this boundary is [PureDiffReplayTest],
+ * which replays recorded `(snap, events, diff)` tuples through [buildDiff] on
+ * a fresh bridge and asserts byte-equal Diff GSMs across scenarios. A
+ * regression there signals newly-introduced impurity.
  *
- * ## Residual in-stage bridge reads (accepted, by design)
+ * ## Residual in-stage bridge reads/writes (accepted, by design)
  *
- * These remain inside the pipeline for bounded reasons — not ordering-sensitive,
- * or part of a deliberate boundary:
+ * These remain inside the pipeline for bounded reasons — not ordering-sensitive
+ * for the replayed scenarios, or part of a deliberate boundary. This list is
+ * a working catalog, not a completeness claim: the replay test is the real
+ * contract, not the enumeration. Extend the test scenarios (targeted spells,
+ * vehicles, reveals, steals) to grow the coverage before relying on the list.
  *
+ * Reads of effectively-immutable / card-DB state:
  * - [GameBridge.getOrAllocInstanceId] for NEW fids (first-seen cards). Monotonic
  *   allocator; ordering-irrelevant for correctness.
- * - `bridge.cardRepository.findGrpIdByName` / `findByGrpId`. Effectively-immutable
- *   read-only card DB.
- * - `bridge.promptBridge(seat).journal.activeReveal()` — prompt journal read for
- *   active-reveal detection. PromptJournal was lifted to a value in arena-lab-k8r
- *   (PR #17) but journal state is still bridge-attached.
- * - `bridge.effects` (EffectTracker) — layered-effect lifecycle state. Lifting
- *   this to snap would require a separate second-order refactor; scoped out of
- *   the diff-pure bead.
- * - `bridge.revealProxies` — RevealedCard proxy tracker, tied to transactional
- *   reveal-choose effects that span bundles. Scoped out.
- * - `bridge.annotations.activeStealForgeCardIds()` / `addSteals` / `removeSteals` —
- *   steal lifecycle state. Read-then-write inside stage. Scoped out unless the
- *   replay test surfaces a failure on a steal scenario.
+ * - `bridge.cardRepository.findGrpIdByName` / `findByGrpId`. Read-only card DB.
  *
- * Any NEW in-stage bridge touch beyond this list should be justified in PR
- * review — either it joins the island with a scope rationale, or it gets lifted
- * onto snap. The replay test is the regression guard.
+ * Reads of live Forge state (deliberate bridge boundary):
+ * - `bridge.snapshotBoosts()` / `bridge.snapshotKeywords()` — capture layered-
+ *   effect snapshots for diff computation. Read-only at call site.
+ * - `bridge.promptBridge(seat).journal.activeReveal()` — prompt-journal read
+ *   for active-reveal detection. Journal state is still bridge-attached.
+ *
+ * Reads-then-writes on bridge-attached tracker state (not yet lifted onto snap):
+ * - `bridge.effects` (EffectTracker) — layered-effect lifecycle state.
+ * - `bridge.revealProxies` — RevealedCard proxy tracker, tied to transactional
+ *   reveal-choose effects that span bundles.
+ * - `bridge.annotations.activeStealForgeCardIds()` / `addSteals` / `removeSteals` —
+ *   steal lifecycle.
+ * - `bridge.snapshotCrewState()` / `bridge.getOrAllocCrewEffectId()` /
+ *   `bridge.releaseCrewEffects()` — vehicle crew lifecycle.
+ * - `bridge.drainPendingTargetSpecs()` — pending targeted-spell spec drain;
+ *   ordering-sensitive but currently not exercised by the replay test.
+ *   Highest-priority candidate to either lift or cover.
+ *
+ * Incidental in-stage writes:
+ * - `bridge.evictAbilityRegistry(...)` — cache invalidation for transformed
+ *   cards. Side-effectful but idempotent; ordering-irrelevant.
+ * - `bridge.ids.reserveNextInstanceId()` inside zone-transfer compute —
+ *   reserves a counter slot without committing map writes. Monotonic, so
+ *   replay on a fresh bridge starts from 1 and stays deterministic.
+ *
+ * Any NEW in-stage bridge touch should be justified in PR review — either
+ * it joins the catalog with a scope rationale, the replay test is extended
+ * to cover it, or it gets lifted onto snap.
  */
 @Suppress("LargeClass") // pipeline orchestrator; stages already delegated to mapper/* and helper objects
 object StateMapper {

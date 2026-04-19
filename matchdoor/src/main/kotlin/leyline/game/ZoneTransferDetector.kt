@@ -98,14 +98,15 @@ object ZoneTransferDetector {
     private const val MANA_ABILITY_ID_OFFSET = 200_000
 
     /**
-     * Detect zone transfers and realloc instanceIds.
+     * Detect zone transfers and plan instanceId reallocations.
      *
-     * Returns a [TransferResult] with patched copies of objects/zones.
-     * Does not mutate [gameObjects] or [zones]. Calls [IdMapping.planReallocInstanceId]
-     * for ID allocation but defers tracking side effects (retireToLimbo, recordZone)
-     * to the caller via the result.
+     * Returns a [TransferResult] with patched copies of objects/zones. Does not
+     * mutate [gameObjects] or [zones]. Id reallocations, limbo retires, and zone
+     * recordings are returned as data; the caller commits via
+     * [GameBridge.applyMutations].
      *
-     * Delegates to the pure overload, adapting [GameBridge] calls to function parameters.
+     * Delegates to the pure overload, adapting [GameBridge] calls to function
+     * parameters.
      */
     internal fun detectZoneTransfers(
         gameObjects: List<GameObjectInfo>,
@@ -115,11 +116,11 @@ object ZoneTransferDetector {
     ): TransferResult {
         val plannedReallocs = mutableListOf<InstanceIdRegistry.IdReallocation>()
 
-        // Defer-always: compute plans without mutating forward/reverse maps.
-        // Reserve a counter slot per plan so monotonic getOrAlloc calls later in
-        // the same buildDiff cannot collide. A forward/reverse overlay resolves
-        // same-pass queries for freshly-planned fids. Caller commits the plans
-        // via bridge.applyMutations (applyRealloc per plan).
+        // Compute plans without mutating forward/reverse maps. Reserve a counter
+        // slot per plan so monotonic getOrAlloc calls later in the same buildDiff
+        // cannot collide. A forward/reverse overlay resolves same-pass queries for
+        // freshly-planned fids. Caller commits the plans via bridge.applyMutations
+        // (applyRealloc per plan).
         val forwardOverlay = mutableMapOf<ForgeCardId, InstanceId>()
         val reverseOverlay = mutableMapOf<InstanceId, ForgeCardId>()
         val idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation = { fid ->

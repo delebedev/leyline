@@ -37,7 +37,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Naming: `xxxBundle` → [BundleResult] (multi-message). Standalone helpers
  * ([queuedGameState], [edictalPass]) return single [GREToClientMessage].
  */
-@Suppress("LargeClass") // 1116 LOC — coherent unit; split assessed 2026-04-05, marginal leverage
+@Suppress("LargeClass") // coherent unit; split assessed 2026-04-05, marginal leverage
 class BundleBuilder(
     private val bridge: GameBridge,
     private val matchId: String,
@@ -62,9 +62,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
         val frame = GsmFrame.from(snap)
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
-        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
-            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
-        }
+        val events = bridge.drainBundleEvents(seatId)
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
         val previousSnap = bridge.lastSent
@@ -139,9 +137,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
-        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
-            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
-        }
+        val events = bridge.drainBundleEvents(seatId)
         val previousSnap = bridge.lastSent
         val result = StateMapper.buildDiff(
             previousSnap,
@@ -203,9 +199,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
         val frame = GsmFrame.from(snap)
         // Build state first (triggers instanceId realloc), then actions with new IDs
-        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
-            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
-        }
+        val events = bridge.drainBundleEvents(seatId)
         val previousSnap = bridge.lastSent
         val remoteResult = StateMapper.buildDiff(
             previousSnap,
@@ -517,9 +511,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
-        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
-            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
-        }
+        val events = bridge.drainBundleEvents(seatId)
         val previousSnap = bridge.lastSent
         val attackersResult = StateMapper.buildDiff(
             previousSnap,
@@ -622,9 +614,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
-        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
-            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
-        }
+        val events = bridge.drainBundleEvents(seatId)
         val previousSnap = bridge.lastSent
         val blockersResult = StateMapper.buildDiff(
             previousSnap,
@@ -673,9 +663,7 @@ class BundleBuilder(
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
-        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
-            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
-        }
+        val events = bridge.drainBundleEvents(seatId)
         // Build diff first — triggers instanceId reallocs for zone transfers
         val previousSnap = bridge.lastSent
         val targetsResult = StateMapper.buildDiff(
@@ -722,9 +710,7 @@ class BundleBuilder(
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
-        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
-            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
-        }
+        val events = bridge.drainBundleEvents(seatId)
         val previousSnap = bridge.lastSent
         val selectNResult = StateMapper.buildDiff(
             previousSnap,
@@ -799,9 +785,7 @@ class BundleBuilder(
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
-        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
-            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
-        }
+        val events = bridge.drainBundleEvents(seatId)
         val previousSnap = bridge.lastSent
         val ctoResult = StateMapper.buildDiff(
             previousSnap,
@@ -906,9 +890,7 @@ class BundleBuilder(
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
-        val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
-            GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
-        }
+        val events = bridge.drainBundleEvents(seatId)
         val previousSnap = bridge.lastSent
         val payCostsResult = StateMapper.buildDiff(
             previousSnap,

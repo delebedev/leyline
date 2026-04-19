@@ -7,14 +7,10 @@ import leyline.game.snapshot.GsmSnapshot
  * Serves as the `prev` baseline for the next `StateMapper.buildDiff` call
  * in the bundle loop.
  *
- * Currently hosted on [GameBridge.bundleCursor] for backward compatibility
- * with existing callers. The lift of ownership to the session layer
- * (MatchSession) is tracked as a follow-up — design questions around
- * rejoin/restore and TargetingHandler's protocol-level reset semantic need
- * resolution before a clean lift.
- *
- * Keeping the cursor as a typed value (rather than a raw `var` on bridge)
- * makes the future lift mechanical: reassign ownership, no callsite churn.
+ * Hosted on [GameBridge.bundleCursor] today; ownership lifts to the session
+ * layer once the design questions around rejoin/restore and the
+ * targeting-flow cursor-invalidate are resolved. Introducing the type now
+ * keeps that lift mechanical.
  */
 class BundleCursor {
     var lastSent: GsmSnapshot? = null

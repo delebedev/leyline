@@ -27,31 +27,19 @@ class InstanceIdRegistry(startId: Int = 100) {
     data class IdReallocation(val old: InstanceId, val new: InstanceId)
 
     /**
-     * Peek the next instanceId the registry would allocate, without mutating state.
-     * Used by overlay-based pure compute paths (e.g. `ZoneTransferDetector` in defer mode)
-     * that need to thread their own counter forward without committing to the registry.
-     */
-    fun peekNextInstanceId(): Int = nextInstanceId
-
-    /**
      * Return the current mapped instanceId for [forgeCardId], or `null` if none is mapped.
      * Unlike [getOrAlloc], never mutates — suitable for pure-compute paths.
      */
     fun peek(forgeCardId: ForgeCardId): InstanceId? = forgeIdToInstanceId[forgeCardId]
 
     /**
-     * Reserve (allocate) the next instanceId WITHOUT touching the forward/reverse maps.
+     * Reserve the next instanceId WITHOUT touching the forward/reverse maps.
      *
-     * Used by the defer-mode path in `ZoneTransferDetector`: it needs a unique id for
-     * each planned reallocation, but it does NOT want the maps committed until
-     * `applyMutations` runs. Reserving the counter slot here guarantees that any
-     * later monotonic [getOrAlloc] inside the same `buildDiff` call gets an id past
-     * the reserved range — avoiding a collision between a reallocation's planned
-     * new id and a monotonically allocated id.
-     *
-     * The map commit still happens in [applyRealloc] via `applyMutations`; this
-     * split keeps ordering-sensitive map writes out of compute while preserving
-     * id uniqueness across interleaved monotonic allocations.
+     * Used by [ZoneTransferDetector] during `buildDiff` compute: each zone-transfer
+     * plan needs a unique id that won't collide with later [getOrAlloc] calls in the
+     * same pass. Reserving the counter slot here guarantees uniqueness; the map commit
+     * happens later in [applyRealloc] via `bridge.applyMutations`. Keeps
+     * ordering-sensitive map writes out of compute while preserving id uniqueness.
      */
     fun reserveNextInstanceId(): InstanceId = InstanceId(nextInstanceId++)
 
@@ -75,43 +63,6 @@ class InstanceIdRegistry(startId: Int = 100) {
         instanceIdToForgeId[newId] = forgeCardId
         // old reverse entry kept intentionally — client may reference old IDs
         return IdReallocation(oldId, newId)
-    }
-
-    /**
-     * Compute the planned reallocation WITHOUT committing.
-     *
-     * Returns the [IdReallocation] that [applyRealloc] would commit. Deterministic:
-     * the returned `new` id is the current `nextInstanceId` value. Caller MUST apply
-     * the returned plan before calling `planRealloc` again on a different fid, or
-     * call [planReallocBatch] for multiple fids.
-     *
-     * Used by [leyline.game.ZoneTransferDetector] during the pure-diff compute phase;
-     * `bridge.applyMutations` commits the plans afterwards via [applyRealloc].
-     */
-    fun planRealloc(forgeCardId: ForgeCardId): IdReallocation {
-        val oldId = forgeIdToInstanceId[forgeCardId]
-            ?: return getOrAlloc(forgeCardId).let { IdReallocation(it, it) }
-        val newId = InstanceId(nextInstanceId) // does NOT increment
-        return IdReallocation(oldId, newId)
-    }
-
-    /**
-     * Plan a batch of reallocations, threading the counter forward across fids.
-     * Returns reallocations in the same order as [fids].
-     */
-    fun planReallocBatch(fids: List<ForgeCardId>): List<IdReallocation> {
-        if (fids.isEmpty()) return emptyList()
-        var counter = nextInstanceId
-        return fids.map { fid ->
-            val oldId = forgeIdToInstanceId[fid]
-            if (oldId == null) {
-                val newId = InstanceId(counter++)
-                IdReallocation(newId, newId)
-            } else {
-                val newId = InstanceId(counter++)
-                IdReallocation(oldId, newId)
-            }
-        }
     }
 
     /**

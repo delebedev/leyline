@@ -294,9 +294,6 @@ class GameBridge(
 
     override fun reallocInstanceId(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation = ids.realloc(forgeCardId)
 
-    override fun planReallocInstanceId(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation =
-        ids.planRealloc(forgeCardId)
-
     override fun getForgeCardId(instanceId: InstanceId): ForgeCardId? = ids.getForgeCardId(instanceId)
 
     /** Read-only snapshot of instanceId → forgeCardId (all, including retired). */

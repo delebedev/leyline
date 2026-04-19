@@ -4,12 +4,10 @@ import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 
 /**
- * Immutable snapshot of one card's observable state. Fields grow as mappers migrate:
- * Task 1 (skeleton): identity-only.
- * Task 4 (ZoneMapper): adds `zone: ZoneId`.
- * Task 6 (ObjectMapper): adds power/toughness/tapped/keywords/counters/attachedTo/combat-state.
- * Task 8 (ActionMapper): adds flags ActionMapper reads (abilities, cost materials).
- * Snap-diff (arena-lab-9d8): adds `isOnAdventure` + `endOfTurnLeavePlay` for pAnn paths.
+ * Immutable snapshot of one card's observable state. Fields grow as mappers migrate
+ * — identity, zone, object attributes (p/t, tapped, counters, combat state), action
+ * flags (abilities, cost materials), and persistent-annotation inputs
+ * (`isOnAdventure`, `endOfTurnLeavePlay`).
  */
 data class CardSnapshot(
     val forgeCardId: ForgeCardId,

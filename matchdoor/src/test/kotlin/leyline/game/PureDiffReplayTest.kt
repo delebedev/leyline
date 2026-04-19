@@ -98,13 +98,6 @@ class PureDiffReplayTest :
             }
         }
 
-        // Regression guard for the purity contract Codex flagged on PR #22:
-        // `buildDiff` in defer mode (i.e. the production diff path) MUST NOT mutate
-        // `bridge.ids` for realloc writes. Before the fix, `ZoneTransferDetector`
-        // committed each planned realloc inline, so `applyMutations` later found the
-        // counter already past and its `applyRealloc` became a no-op. After the fix,
-        // the detector uses a local overlay and `applyMutations` is the first place
-        // the counter advances.
         test("three-turn scripted scenario — snap-vs-snap diff byte-equal across replay") {
             // Same shape as the one-turn test but drives three turns to exercise
             // multi-turn invariants: cross-turn annotation lifecycle, cleanup
@@ -151,6 +144,9 @@ class PureDiffReplayTest :
             }
         }
 
+        // Regression guard: buildDiff MUST NOT commit id-realloc map writes during
+        // compute. ZoneTransferDetector uses a local overlay; applyMutations is the
+        // only place the forward/reverse maps advance.
         test("buildDiff defers bridge.ids realloc commits to applyMutations") {
             val (liveBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
             val captured = mutableListOf<BundleStep>()
@@ -166,12 +162,9 @@ class PureDiffReplayTest :
 
             val (replayBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
 
-            // Walk the captured run like the main replay test does, but at each step
-            // verify the defer-vs-apply map invariant for any step with a non-trivial
-            // realloc: the forward map must still reflect the OLD id pre-apply, and
-            // the NEW id post-apply. Under the pre-fix behaviour the detector
-            // committed the map during compute, so the invariant would fail for the
-            // pre-apply snapshot.
+            // Walk the captured run. At each step with a non-trivial realloc: verify
+            // the forward map still reflects the OLD id pre-apply (compute did not
+            // commit), then the NEW id post-apply.
             var exercisedRealloc = false
             for (step in captured) {
                 val result = StateMapper.buildDiff(
@@ -188,8 +181,7 @@ class PureDiffReplayTest :
                 for (r in nonTrivial) {
                     val fid = replayBridge.getForgeCardId(r.old)
                         ?: error("reverse lookup for realloc.old=${r.old} returned null; bridge state corrupt")
-                    // Pre-apply: defer-mode compute must NOT have moved the forward
-                    // map. `peek(fid)` must still return `r.old`.
+                    // Pre-apply: compute must NOT have moved the forward map.
                     replayBridge.ids.peek(fid) shouldBe r.old
                 }
                 replayBridge.applyMutations(result.mutations)
