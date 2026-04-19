@@ -8,6 +8,16 @@ import leyline.UnitTag
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
+/** Deadlined poll for an engine-thread pending — sleep is poll interval, not a race. */
+@Suppress("NoThreadSleepInTests")
+private fun pollForPending(bridge: GameActionBridge): GameActionBridge.PendingAction? {
+    repeat(50) {
+        bridge.getPending()?.let { return it }
+        Thread.sleep(10)
+    }
+    return null
+}
+
 class GameActionBridgeTest :
     FunSpec({
 
@@ -28,17 +38,10 @@ class GameActionBridgeTest :
             engineThread.start()
             ready.await(2, TimeUnit.SECONDS)
 
-            // Wait for pending to appear
-            var pending: GameActionBridge.PendingAction? = null
-            repeat(50) {
-                pending = bridge.getPending()
-                if (pending != null) return@repeat
-                Thread.sleep(10)
-            }
-            pending.shouldNotBeNull()
+            val pending = pollForPending(bridge).shouldNotBeNull()
 
             // Submit action — future completes, but engine thread hasn't cleared pending yet
-            bridge.submitAction(pending!!.actionId, PlayerAction.PassPriority)
+            bridge.submitAction(pending.actionId, PlayerAction.PassPriority)
 
             // getPending should filter out the completed future
             bridge.getPending().shouldBeNull()
@@ -60,21 +63,14 @@ class GameActionBridgeTest :
             engineThread.start()
             ready.await(2, TimeUnit.SECONDS)
 
-            // Wait for pending to appear
-            var pending: GameActionBridge.PendingAction? = null
-            repeat(50) {
-                pending = bridge.getPending()
-                if (pending != null) return@repeat
-                Thread.sleep(10)
-            }
-            pending.shouldNotBeNull()
+            val pending = pollForPending(bridge).shouldNotBeNull()
 
             // Future not yet completed — should be visible
             bridge.getPending().shouldNotBeNull()
             bridge.getPending()!!.state.phase shouldBe "Main1"
 
             // Clean up: complete so engine thread unblocks
-            bridge.submitAction(pending!!.actionId, PlayerAction.PassPriority)
+            bridge.submitAction(pending.actionId, PlayerAction.PassPriority)
             engineThread.join(2000)
         }
     })
