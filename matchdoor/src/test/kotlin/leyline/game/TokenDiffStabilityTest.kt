@@ -6,6 +6,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
@@ -140,6 +141,7 @@ class TokenDiffStabilityTest :
 
             val clueObj1 = gsm1.gameObjectsList.first { it.instanceId == clueIid }
             clueObj1.cardTypesList shouldContain CardType.Artifact_a80b
+            clueObj1.instanceId shouldBe clueIid
 
             // Trigger a state change
             h.passPriority()
@@ -154,6 +156,7 @@ class TokenDiffStabilityTest :
                 assertSoftly {
                     clueInDiff.cardTypesList shouldContain CardType.Artifact_a80b
                     clueInDiff.subtypesList shouldContain SubType.Clue
+                    clueInDiff.instanceId shouldBe clueIid
                 }
             }
 

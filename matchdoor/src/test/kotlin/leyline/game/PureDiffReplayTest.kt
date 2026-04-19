@@ -72,8 +72,7 @@ class PureDiffReplayTest :
             // same zone assignments, same annotation counters after seedDiffBaseline).
             val (replayBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
 
-            for ((i, step) in liveRun.withIndex()) {
-                // Use the live run's updateType (embedded in the diff GSM) to match exactly.
+            val replayBytes = liveRun.map { step ->
                 val updateType = step.diff.update
                 val replayResult = StateMapper.buildDiff(
                     prev = step.prev,
@@ -86,15 +85,10 @@ class PureDiffReplayTest :
                     viewingSeatId = SEAT_ID,
                 )
                 replayBridge.applyMutations(replayResult.mutations)
-
-                if (!replayResult.gsm.toByteArray().contentEquals(step.diff.toByteArray())) {
-                    error(
-                        "Replay drift at step $i (gsId=${step.gameStateId}):\n" +
-                            " live=${step.diff}\n" +
-                            " replay=${replayResult.gsm}",
-                    )
-                }
+                replayResult.gsm.toByteArray().toList()
             }
+            val liveBytes = liveRun.map { it.diff.toByteArray().toList() }
+            replayBytes shouldBe liveBytes
         }
 
         test("three-turn scripted scenario — snap-vs-snap diff byte-equal across replay") {
@@ -118,7 +112,7 @@ class PureDiffReplayTest :
 
             val (replayBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
 
-            for ((i, step) in liveRun.withIndex()) {
+            val replayBytes = liveRun.map { step ->
                 val updateType = step.diff.update
                 val replayResult = StateMapper.buildDiff(
                     prev = step.prev,
@@ -131,15 +125,10 @@ class PureDiffReplayTest :
                     viewingSeatId = SEAT_ID,
                 )
                 replayBridge.applyMutations(replayResult.mutations)
-
-                if (!replayResult.gsm.toByteArray().contentEquals(step.diff.toByteArray())) {
-                    error(
-                        "Multi-turn replay drift at step $i (gsId=${step.gameStateId}):\n" +
-                            " live=${step.diff}\n" +
-                            " replay=${replayResult.gsm}",
-                    )
-                }
+                replayResult.gsm.toByteArray().toList()
             }
+            val liveBytes = liveRun.map { it.diff.toByteArray().toList() }
+            replayBytes shouldBe liveBytes
         }
 
         // Regression guard: buildDiff MUST NOT commit id-realloc map writes during
@@ -207,7 +196,7 @@ class PureDiffReplayTest :
 private fun advanceToEndOfTurn(bridge: GameBridge) {
     val game = bridge.getGame() ?: return
     val startTurn = game.phaseHandler.turn
-    for (i in 0 until 60) {
+    repeat(60) {
         val pending = awaitFreshPending(bridge, null) ?: return
         val nowTurn = game.phaseHandler.turn
         if (nowTurn != startTurn) return
