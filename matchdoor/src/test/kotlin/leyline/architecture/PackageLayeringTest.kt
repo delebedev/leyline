@@ -119,4 +119,50 @@ class PackageLayeringTest :
                     "leyline.config..",
                 ).check(classes)
         }
+
+        // ── Sub-package invariants ─────────────────────────────────
+        //
+        // Rules below lock in the sub-package boundaries agreed in the
+        // matchdoor reorg. Each rule holds today; a failure here means
+        // a new import crossed a boundary that was meant to be one-way.
+
+        test("bridge/types is a pure-data leaf within bridge") {
+            noClasses().that().resideInAPackage("leyline.bridge.types..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.bridge.bootstrap..",
+                    "leyline.bridge.coord..",
+                    "leyline.bridge.forge..",
+                    "leyline.bridge.handoff..",
+                ).check(classes)
+        }
+
+        test("game/codes is a pure-data leaf within game") {
+            noClasses().that().resideInAPackage("leyline.game.codes..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.game.annotations..",
+                    "leyline.game.bundle..",
+                    "leyline.game.data..",
+                    "leyline.game.event..",
+                    "leyline.game.generator..",
+                    "leyline.game.mapping..",
+                    "leyline.game.snapshot..",
+                    "leyline.game.state..",
+                ).check(classes)
+        }
+
+        test("game/data depends on nothing else in game except codes") {
+            noClasses().that().resideInAPackage("leyline.game.data..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.game.annotations..",
+                    "leyline.game.bundle..",
+                    "leyline.game.event..",
+                    "leyline.game.generator..",
+                    "leyline.game.mapping..",
+                    "leyline.game.snapshot..",
+                    "leyline.game.state..",
+                ).check(classes)
+        }
     })
