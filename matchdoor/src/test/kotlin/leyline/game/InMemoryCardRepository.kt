@@ -8,10 +8,12 @@ package leyline.game
  */
 class InMemoryCardRepository : CardRepository {
 
-    private val cache = mutableMapOf<Int, CardData>()
-    private val grpIdToName = mutableMapOf<Int, String>()
-    private val nameToGrpId = mutableMapOf<String, Int>()
-    private val modalCache = mutableMapOf<Int, ModalAbilityInfo>()
+    // ConcurrentHashMap: tests that run concurrent Kotest specs call register()
+    // via TestCardRegistry from multiple threads; plain mutableMapOf races.
+    private val cache = java.util.concurrent.ConcurrentHashMap<Int, CardData>()
+    private val grpIdToName = java.util.concurrent.ConcurrentHashMap<Int, String>()
+    private val nameToGrpId = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    private val modalCache = java.util.concurrent.ConcurrentHashMap<Int, ModalAbilityInfo>()
 
     val registeredCount: Int get() = grpIdToName.size
 

@@ -51,11 +51,14 @@ abstract class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
     fun startWithBoard(board: (game: Game, human: Player, ai: Player) -> Unit) =
         base.startWithBoard(board)
 
-    fun startGameAtMain1(seed: Long = 42L, deckList: String? = null) =
-        base.startGameAtMain1(seed, deckList)
+    fun startGameAtMain1(seed: Long = 42L, deckList: String? = null, variant: String? = null) =
+        base.startGameAtMain1(seed, deckList, variant)
 
     fun startPuzzleAtMain1(puzzleText: String) =
         base.startPuzzleAtMain1(puzzleText)
+
+    fun startPuzzleAtMain1FromResource(resourcePath: String) =
+        base.startPuzzleAtMain1FromResource(resourcePath)
 
     fun addCard(name: String, player: Player, zone: ZoneType = ZoneType.Battlefield): Card =
         base.addCard(name, player, zone)

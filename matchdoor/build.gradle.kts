@@ -77,23 +77,30 @@ protobuf {
 val testUnit by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "UnitTag")
+    systemProperty("kotest.framework.parallelism", "8")
 }
 
 val testConformance by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "ConformanceTag")
-    maxParallelForks = 4
+    systemProperty("kotest.framework.parallelism", "8")
 }
 
 val testIntegration by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "IntegrationTag")
     maxParallelForks = 4
+    // Integration: MatchSession tests have their own thread pools.
+    // Layering Kotest parallelism on top flakes (damage/ETB/flashback).
 }
 
 val testGate by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "UnitTag | ConformanceTag")
+    systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "8"))
+    // Kotest spec-level parallelism: 136 small suites, JVM-fork overhead
+    // would dominate. In-JVM concurrency at 8 = ~25-27s (was ~33s serial).
+    // Forge's static MyRandom race guarded by ConformanceTestBase.RNG_LOCK.
 }
 
 powerAssert {
