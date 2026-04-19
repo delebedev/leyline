@@ -80,7 +80,7 @@ class ClientHeaderStripper : ChannelInboundHandlerAdapter() {
             val frameType = msg.getByte(msg.readerIndex() + 1)
             if (frameType == ClientFrameDecoder.TYPE_CTRL_INIT) {
                 // Echo full frame back with type flipped to CTRL_ACK
-                log.debug("Match Door: CTRL_INIT received, sending ACK")
+                log.trace("Match Door: CTRL_INIT received, sending ACK")
                 val bytes = ByteArray(msg.readableBytes())
                 msg.readBytes(bytes)
                 msg.release()

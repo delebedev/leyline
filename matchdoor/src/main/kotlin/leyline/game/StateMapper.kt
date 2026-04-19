@@ -243,7 +243,7 @@ object StateMapper {
         // RevealedCard proxy synthesis / cleanup (may append RevealProxiesDeleted to eventsMutable)
         applyRevealProxies(activeReveal, snap, bridge, zones, gameObjects, eventsMutable)
 
-        log.info(
+        log.debug(
             "buildFromSnapshot: phase={} turn={} hand={} objects={} zones={}",
             snap.phase.phase,
             snap.phase.turn,
