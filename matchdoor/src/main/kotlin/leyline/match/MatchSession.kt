@@ -160,7 +160,7 @@ class MatchSession(
 
         // Seed state snapshot for subsequent diff computation.
         val snap1 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
-        ctx.bridge.lastSent = snap1
+        bb.cursor.lastSent = snap1
 
         // Auto-pass through phases where human has no real actions
         autoPassEngine.autoPassAndAdvance(ctx.bridge)
@@ -204,10 +204,10 @@ class MatchSession(
         traceEvent(MatchEventType.GAME_START, ctx.game, "puzzle-start")
 
         // Seed state snapshot for subsequent diff computation.
-        // The puzzle initial bundle already sent the Full GSM, so the bridge
+        // The puzzle initial bundle already sent the Full GSM, so the cursor
         // needs a matching snapshot for the first Diff to be correct.
         val snap2 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
-        ctx.bridge.lastSent = snap2
+        bundleBuilder!!.cursor.lastSent = snap2
 
         // Auto-pass through phases where human has no real actions
         autoPassEngine.autoPassAndAdvance(ctx.bridge)

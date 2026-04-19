@@ -86,7 +86,6 @@ class PureDiffReplayTest :
                     viewingSeatId = SEAT_ID,
                 )
                 replayBridge.applyMutations(replayResult.mutations)
-                replayBridge.lastSent = step.cur
 
                 if (!replayResult.gsm.toByteArray().contentEquals(step.diff.toByteArray())) {
                     error(
@@ -132,7 +131,6 @@ class PureDiffReplayTest :
                     viewingSeatId = SEAT_ID,
                 )
                 replayBridge.applyMutations(replayResult.mutations)
-                replayBridge.lastSent = step.cur
 
                 if (!replayResult.gsm.toByteArray().contentEquals(step.diff.toByteArray())) {
                     error(
@@ -192,7 +190,6 @@ class PureDiffReplayTest :
                     replayBridge.ids.peek(fid) shouldBe r.new
                 }
                 if (nonTrivial.isNotEmpty()) exercisedRealloc = true
-                replayBridge.lastSent = step.cur
             }
             exercisedRealloc shouldBe true
         }

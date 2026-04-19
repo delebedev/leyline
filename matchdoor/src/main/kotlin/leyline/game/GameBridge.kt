@@ -213,28 +213,16 @@ class GameBridge(
     val diff = DiffSnapshotter(ids)
 
     /**
-     * Bundle-sequence cursor — the previous [GsmSnapshot] sent to the client.
-     * Currently hosted here for backward compatibility; a follow-up bead lifts
-     * ownership to the session layer (see [BundleCursor] KDoc).
-     *
-     * Access the cursor directly for typed semantics; the [lastSent] forwarding
-     * property remains for legacy callers during the migration.
+     * Bundle-sequence cursor shared by every [BundleBuilder] bound to this
+     * bridge. See [BundleCursor] KDoc for lifecycle + invalidation semantics.
      */
     val bundleCursor: BundleCursor = BundleCursor()
 
     /**
-     * Previous [GsmSnapshot] sent to the client — the diff baseline.
-     * Forwards to [bundleCursor] (typed cursor). [StateMapper.buildDiff] reads
-     * this as `prev` to compute snap-vs-snap diffs.
-     */
-    var lastSent: GsmSnapshot?
-        get() = bundleCursor.lastSent
-        set(value) { bundleCursor.lastSent = value }
-
-    /**
-     * Test hook — invoked per bundle after [StateMapper.buildDiff] and [applyMutations],
-     * before [lastSent] is updated. Captures (prev, cur, events, gameStateId, diff gsm)
-     * for replay-purity verification in [leyline.game.PureDiffReplayTest].
+     * Test-only observability hook — invoked per bundle after [StateMapper.buildDiff]
+     * and [applyMutations], before the session's [BundleCursor] advances. Receives
+     * (prev, cur, events, gameStateId, diff gsm). Currently used by
+     * [leyline.game.PureDiffReplayTest] to capture live tuples for replay.
      */
     @org.jetbrains.annotations.VisibleForTesting
     @Volatile
@@ -824,7 +812,6 @@ class GameBridge(
         val deletedIds = ids.resetAll().map { it.value }
         limbo.clear()
         diff.resetAll()
-        lastSent = null
         effects.resetAll()
         annotations.resetAll()
         activeCrewEffects.clear()

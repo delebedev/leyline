@@ -433,12 +433,9 @@ class TargetingHandler(
             seatBridge.prompt.submitResponse(pending.promptId, listOf(responseIndex))
             bridge.awaitPriority()
         }
-        // Reset diff baseline — the previous baseline includes revealed library
-        // objects that should now be hidden. Without reset, the diff won't delete
-        // them and the client keeps showing the library face-up.
-        // Protocol handles this via Shuffle (OldIds→NewIds), which we don't
-        // implement yet (#42). This is the workaround.
-        bridge.lastSent = null
+        // Diff baseline is invalid post library-search — revealed objects must
+        // vanish next bundle; see BundleCursor.invalidate KDoc (#42).
+        bundles.bundleBuilder?.cursor?.invalidate()
         sink.sendRealGameState(bridge)
         autoPass(bridge)
     }

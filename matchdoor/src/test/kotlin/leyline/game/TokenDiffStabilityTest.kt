@@ -137,7 +137,6 @@ class TokenDiffStabilityTest :
             // First GSM — baseline
             val snapClue2 = GsmSnapshot.capture(h.game(), h.bridge, "test-clue", 1)
             val gsm1 = StateMapper.buildFromSnapshot(snapClue2, 1, "test-clue", h.bridge, viewingSeatId = 1).gsm
-            h.bridge.lastSent = snapClue2
 
             val clueObj1 = gsm1.gameObjectsList.first { it.instanceId == clueIid }
             clueObj1.cardTypesList shouldContain CardType.Artifact_a80b
@@ -145,9 +144,9 @@ class TokenDiffStabilityTest :
             // Trigger a state change
             h.passPriority()
 
-            // Second GSM — diff
+            // Second GSM — diff against snapClue2 baseline
             val snapClue3 = GsmSnapshot.capture(h.game(), h.bridge, "test-clue", 2)
-            val gsm2 = StateMapper.buildDiff(h.bridge.lastSent, snapClue3, emptyList(), 2, "test-clue", h.bridge, viewingSeatId = 1).gsm
+            val gsm2 = StateMapper.buildDiff(snapClue2, snapClue3, emptyList(), 2, "test-clue", h.bridge, viewingSeatId = 1).gsm
 
             // If Clue appears in diff, fields must be intact (not stripped)
             val clueInDiff = gsm2.gameObjectsList.firstOrNull { it.instanceId == clueIid }

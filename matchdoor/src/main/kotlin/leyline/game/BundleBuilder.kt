@@ -42,6 +42,13 @@ class BundleBuilder(
     private val bridge: GameBridge,
     private val matchId: String,
     val seatId: Int,
+    /**
+     * Cursor this builder updates after each bundle. Defaults to
+     * [GameBridge.bundleCursor] so the session builder and the
+     * [GamePlayback] builder share one baseline; tests can inject an
+     * isolated cursor if they don't want the bridge state affected.
+     */
+    val cursor: BundleCursor = bridge.bundleCursor,
 ) {
 
     data class BundleResult(
@@ -65,7 +72,7 @@ class BundleBuilder(
         val events = bridge.drainBundleEvents(seatId)
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
-        val previousSnap = bridge.lastSent
+        val previousSnap = cursor.lastSent
         val result = StateMapper.buildDiff(
             previousSnap,
             snap,
@@ -120,7 +127,7 @@ class BundleBuilder(
             )
         }
 
-        bridge.lastSent = snap
+        cursor.lastSent = snap
         return BundleResult(messages)
     }
 
@@ -138,7 +145,7 @@ class BundleBuilder(
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         val events = bridge.drainBundleEvents(seatId)
-        val previousSnap = bridge.lastSent
+        val previousSnap = cursor.lastSent
         val result = StateMapper.buildDiff(
             previousSnap,
             snap,
@@ -177,7 +184,7 @@ class BundleBuilder(
             )
         }
 
-        bridge.lastSent = snap
+        cursor.lastSent = snap
         return BundleResult(messages)
     }
 
@@ -200,7 +207,7 @@ class BundleBuilder(
         val frame = GsmFrame.from(snap)
         // Build state first (triggers instanceId realloc), then actions with new IDs
         val events = bridge.drainBundleEvents(seatId)
-        val previousSnap = bridge.lastSent
+        val previousSnap = cursor.lastSent
         val remoteResult = StateMapper.buildDiff(
             previousSnap,
             snap,
@@ -246,7 +253,7 @@ class BundleBuilder(
         }
         val echo = buildEchoDiffGsm(counter, GameStateUpdate.SendHiFi)
 
-        bridge.lastSent = snap
+        cursor.lastSent = snap
         return BundleResult(listOf(content, echo))
     }
 
@@ -406,7 +413,7 @@ class BundleBuilder(
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
         }
 
-        bridge.lastSent = snap
+        cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2, msg3, msg4, msg5))
     }
 
@@ -512,7 +519,7 @@ class BundleBuilder(
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         val events = bridge.drainBundleEvents(seatId)
-        val previousSnap = bridge.lastSent
+        val previousSnap = cursor.lastSent
         val attackersResult = StateMapper.buildDiff(
             previousSnap,
             snap,
@@ -536,7 +543,7 @@ class BundleBuilder(
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
         }
 
-        bridge.lastSent = snap
+        cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
     }
 
@@ -615,7 +622,7 @@ class BundleBuilder(
 
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         val events = bridge.drainBundleEvents(seatId)
-        val previousSnap = bridge.lastSent
+        val previousSnap = cursor.lastSent
         val blockersResult = StateMapper.buildDiff(
             previousSnap,
             snap,
@@ -639,7 +646,7 @@ class BundleBuilder(
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
         }
 
-        bridge.lastSent = snap
+        cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
     }
 
@@ -665,7 +672,7 @@ class BundleBuilder(
 
         val events = bridge.drainBundleEvents(seatId)
         // Build diff first — triggers instanceId reallocs for zone transfers
-        val previousSnap = bridge.lastSent
+        val previousSnap = cursor.lastSent
         val targetsResult = StateMapper.buildDiff(
             previousSnap,
             snap,
@@ -692,7 +699,7 @@ class BundleBuilder(
             it.allowUndo = true
         }
 
-        bridge.lastSent = snap
+        cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
     }
 
@@ -711,7 +718,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val events = bridge.drainBundleEvents(seatId)
-        val previousSnap = bridge.lastSent
+        val previousSnap = cursor.lastSent
         val selectNResult = StateMapper.buildDiff(
             previousSnap,
             snap,
@@ -757,7 +764,7 @@ class BundleBuilder(
             }
         }
 
-        bridge.lastSent = snap
+        cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
     }
 
@@ -786,7 +793,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val events = bridge.drainBundleEvents(seatId)
-        val previousSnap = bridge.lastSent
+        val previousSnap = cursor.lastSent
         val ctoResult = StateMapper.buildDiff(
             previousSnap,
             snap,
@@ -868,7 +875,7 @@ class BundleBuilder(
             it.allowUndo = true
         }
 
-        bridge.lastSent = snap
+        cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
     }
 
@@ -891,7 +898,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val events = bridge.drainBundleEvents(seatId)
-        val previousSnap = bridge.lastSent
+        val previousSnap = cursor.lastSent
         val payCostsResult = StateMapper.buildDiff(
             previousSnap,
             snap,
@@ -914,7 +921,7 @@ class BundleBuilder(
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
         }
 
-        bridge.lastSent = snap
+        cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
     }
 
