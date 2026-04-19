@@ -11,14 +11,23 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 /**
  * Acceptance forcing function for the diff-pure refactor.
  *
- * Drives a deterministic one-turn scenario (play land → cast creature → pass to
+ * Drives deterministic scripted scenarios (play land → cast creature → pass to
  * end of turn), records per-bundle (prev, cur, events, gsId, diff) during the
  * live run, then replays each step through a second bridge (started with the
  * same seed) and asserts byte-equal Diff GSM.
  *
+ * Scenarios:
+ * - One-turn: minimal baseline — single play/cast/end-of-turn cycle.
+ * - Three-turn: multi-turn invariants — cross-turn annotation lifecycle,
+ *   cleanup transitions, monotonic counters across bundle boundaries.
+ * - Defer-invariant regression: guards the bridge.ids realloc-commit contract
+ *   (compute-pure, apply-via-applyMutations).
+ *
  * Any drift = impurity surfaced. Passing = pure-output semantics verified for
  * this feature surface (zone transfers, phase changes, combat, persistent
  * annotations tied to the permanents involved).
+ *
+ * Scenarios are scripted via puzzle fixtures and seeded deterministic runs.
  *
  * Out of scope per spec: EffectTracker layered effects, reveal-choose prompts,
  * steal effects.
@@ -96,6 +105,52 @@ class PureDiffReplayTest :
         // counter already past and its `applyRealloc` became a no-op. After the fix,
         // the detector uses a local overlay and `applyMutations` is the first place
         // the counter advances.
+        test("three-turn scripted scenario — snap-vs-snap diff byte-equal across replay") {
+            // Same shape as the one-turn test but drives three turns to exercise
+            // multi-turn invariants: cross-turn annotation lifecycle, cleanup
+            // transitions, monotonic counters across bundle boundaries.
+            val (liveBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
+            val liveRun = mutableListOf<BundleStep>()
+            liveBridge.diffListener = { prev, cur, events, gsId, diff ->
+                liveRun.add(BundleStep(prev, cur, events.toList(), gsId, diff))
+            }
+
+            repeat(3) {
+                base.playLand(liveBridge)
+                base.castCreature(liveBridge)
+                advanceToEndOfTurn(liveBridge)
+            }
+
+            liveRun.shouldNotBeEmpty()
+            liveBridge.diffListener = null
+
+            val (replayBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
+
+            for ((i, step) in liveRun.withIndex()) {
+                val updateType = step.diff.update
+                val replayResult = StateMapper.buildDiff(
+                    prev = step.prev,
+                    cur = step.cur,
+                    events = step.events,
+                    gameStateId = step.gameStateId,
+                    matchId = ConformanceTestBase.TEST_MATCH_ID,
+                    bridge = replayBridge,
+                    updateType = updateType,
+                    viewingSeatId = SEAT_ID,
+                )
+                replayBridge.applyMutations(replayResult.mutations)
+                replayBridge.lastSent = step.cur
+
+                if (!replayResult.gsm.toByteArray().contentEquals(step.diff.toByteArray())) {
+                    error(
+                        "Multi-turn replay drift at step $i (gsId=${step.gameStateId}):\n" +
+                            " live=${step.diff}\n" +
+                            " replay=${replayResult.gsm}",
+                    )
+                }
+            }
+        }
+
         test("buildDiff defers bridge.ids realloc commits to applyMutations") {
             val (liveBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
             val captured = mutableListOf<BundleStep>()
