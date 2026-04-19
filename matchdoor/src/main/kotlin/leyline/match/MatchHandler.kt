@@ -12,10 +12,10 @@ import leyline.bridge.bootstrap.DeckConverter
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
 import leyline.frontdoor.service.MatchCoordinator
-import leyline.game.data.CardRepository
-import leyline.game.state.GameBridge
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.MessageCounter
+import leyline.game.data.CardRepository
+import leyline.game.state.GameBridge
 import leyline.infra.NettyMessageSink
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump

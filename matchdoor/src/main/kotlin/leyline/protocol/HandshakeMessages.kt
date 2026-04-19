@@ -1,12 +1,12 @@
 package leyline.protocol
 
-import leyline.game.state.GameBridge
 import leyline.game.bundle.GsmBuilder
-import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**

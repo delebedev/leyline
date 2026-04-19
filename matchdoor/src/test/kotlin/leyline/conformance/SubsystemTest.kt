@@ -9,8 +9,8 @@ import io.kotest.core.spec.style.FunSpec
 import leyline.ConformanceTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.state.GameBridge
 import leyline.game.bundle.MessageCounter
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**

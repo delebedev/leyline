@@ -12,8 +12,8 @@ import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PriorityDecision
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.settingsMessage
-import leyline.game.state.GameBridge
 import leyline.game.InMemoryCardRepository
+import leyline.game.state.GameBridge
 import leyline.match.AutoPassEngine
 import leyline.match.CombatHandler
 import leyline.match.MatchEventType

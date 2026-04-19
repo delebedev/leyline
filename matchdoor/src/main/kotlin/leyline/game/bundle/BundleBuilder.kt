@@ -7,16 +7,16 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
-import leyline.game.state.GameBridge
-import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ShouldStopEvaluator
+import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 

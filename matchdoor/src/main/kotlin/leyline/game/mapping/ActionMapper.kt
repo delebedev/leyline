@@ -10,15 +10,15 @@ import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
-import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
 import leyline.bridge.chooseCastAbility
 import leyline.bridge.getAllCastableAbilities
-import leyline.game.state.AbilityRegistry
-import leyline.game.data.CardData
-import leyline.game.state.GameBridge
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.game.codes.ManaColorMapping
+import leyline.game.data.CardData
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.AbilityRegistry
+import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType

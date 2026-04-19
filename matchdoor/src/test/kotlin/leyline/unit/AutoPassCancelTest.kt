@@ -4,9 +4,9 @@ import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.forge.ClientGuiGame
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.forge.ClientGuiGame
 
 class AutoPassCancelTest :
     FunSpec({

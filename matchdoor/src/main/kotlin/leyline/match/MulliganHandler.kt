@@ -79,7 +79,7 @@ class MulliganHandler(
             log.info("Match Door GRE: ignoring MulliganResp for puzzle")
             return
         }
-        if (seatId == 2) return  // Familiar — no action
+        if (seatId == 2) return // Familiar — no action
 
         val decision = greMsg.mulliganResp.decision
         log.info("Match Door GRE: seat {} mulligan decision={}", seatId, decision)

@@ -3,8 +3,8 @@ package leyline.match
 import forge.game.Game
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
-import leyline.game.state.GameBridge
 import leyline.game.bundle.MessageCounter
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**

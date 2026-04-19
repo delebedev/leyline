@@ -1,6 +1,5 @@
 package leyline.game.mapping
 
-import forge.game.zone.ZoneType as ForgeZoneType
 import leyline.bridge.coord.TargetingCoordinator
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.EffectId
@@ -27,6 +26,7 @@ import leyline.game.state.GameBridge
 import leyline.game.state.PersistentAnnotationStore
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
+import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Orchestrates the GsmSnapshot → proto state-mapping pipeline.

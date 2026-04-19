@@ -2,9 +2,9 @@ package leyline.game.state
 
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
-import leyline.game.codes.DetailKeys
 import leyline.game.annotations.CombatAnnotationResult
 import leyline.game.annotations.MechanicAnnotationResult
+import leyline.game.codes.DetailKeys
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 

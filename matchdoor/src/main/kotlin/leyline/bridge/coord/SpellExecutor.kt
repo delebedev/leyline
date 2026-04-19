@@ -7,12 +7,12 @@ import forge.game.cost.CostPayment
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
-import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.PromptRequest
-import leyline.bridge.handoff.Target
 import leyline.bridge.findCard
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.Target
 import leyline.bridge.resolveTarget
 import leyline.bridge.types.ForgeCardId
 import org.slf4j.LoggerFactory

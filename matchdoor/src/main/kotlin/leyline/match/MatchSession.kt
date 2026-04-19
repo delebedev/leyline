@@ -7,10 +7,10 @@ import leyline.bridge.types.SeatId
 import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
-import leyline.game.state.GameBridge
 import leyline.game.bundle.MessageCounter
 import leyline.game.mapping.StopTypeMapping
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump

@@ -11,10 +11,10 @@ import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.SelfSignedCertificate
 import leyline.DevCheck
+import leyline.bridge.bootstrap.CardEntry
 import leyline.bridge.bootstrap.DeckConverter
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.FormatService
-import leyline.bridge.bootstrap.CardEntry
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.MatchConfig
 import leyline.debug.DebugCollector

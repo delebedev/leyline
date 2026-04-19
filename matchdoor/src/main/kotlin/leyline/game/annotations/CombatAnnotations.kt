@@ -4,9 +4,9 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.toWireId
-import leyline.game.state.GameBridge
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.Step
 import kotlin.collections.iterator

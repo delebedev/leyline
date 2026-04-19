@@ -10,9 +10,9 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.GameConfig
 import leyline.config.MatchConfig
@@ -242,8 +242,9 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(game,
-                MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                game,
+                MessageCounter(initialGsId = 10, initialMsgId = 0),
             )
             val messages = result.messages
 
@@ -295,8 +296,9 @@ class GameBridgeTest :
             b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
             awaitFreshPending(b, pending.actionId)
 
-            val result = BundleBuilder(b, "test-match", 1).postAction(game,
-                MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val result = BundleBuilder(b, "test-match", 1).postAction(
+                game,
+                MessageCounter(initialGsId = 10, initialMsgId = 0),
             )
             val gs = result.messages.first().gameStateMessage
             val actions = result.messages.last().actionsAvailableReq
@@ -371,8 +373,9 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(game,
-                MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                game,
+                MessageCounter(initialGsId = 10, initialMsgId = 0),
             )
 
             result.messages.size shouldBe 5
@@ -477,8 +480,9 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(game,
-                MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                game,
+                MessageCounter(initialGsId = 10, initialMsgId = 0),
             )
 
             var prevGsId = 0
@@ -585,8 +589,9 @@ class GameBridgeTest :
             // Seed snapshot — subsequent buildDiff should produce Diff
             b.seedDiffBaseline(game)
 
-            val result = BundleBuilder(b, "test-match", 1).postAction(game,
-                MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val result = BundleBuilder(b, "test-match", 1).postAction(
+                game,
+                MessageCounter(initialGsId = 10, initialMsgId = 0),
             )
             val gs = result.messages.first().gameStateMessage
 

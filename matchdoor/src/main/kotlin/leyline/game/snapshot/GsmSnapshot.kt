@@ -3,8 +3,8 @@ package leyline.game.snapshot
 import forge.game.Game
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.state.GameBridge
 import leyline.game.annotations.AbilityWordScanner
+import leyline.game.state.GameBridge
 import org.jetbrains.annotations.VisibleForTesting
 
 /**

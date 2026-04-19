@@ -1,17 +1,17 @@
 package leyline.game.bundle
 
-import forge.game.zone.ZoneType as ForgeZoneType
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
-import leyline.game.state.GameBridge
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.mapping.ZoneMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
+import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Frozen snapshot of turn/phase/seat state for proto construction.

@@ -18,9 +18,9 @@ import forge.game.zone.ZoneType
 import forge.player.PlayerControllerHuman
 import forge.util.*
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.types.PromptCandidateRefDto
 import org.slf4j.LoggerFactory
 import java.util.*
 

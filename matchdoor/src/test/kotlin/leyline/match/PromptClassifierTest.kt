@@ -5,9 +5,9 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.UnitTag
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.types.PromptCandidateRefDto
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.util.concurrent.CompletableFuture
 
