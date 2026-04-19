@@ -106,23 +106,25 @@ object StateMapper {
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
         prev: GsmSnapshot? = null,
-        externalEvents: List<GameEvent>? = null,
+        /**
+         * Bundle events consumed by the annotation pipeline. Defaults to draining
+         * the bridge via [GameBridge.drainBundleEvents] — the drain was previously
+         * done inside this function. Callers in the bundle loop (BundleBuilder)
+         * pass an explicit list so the drain happens once per bundle and the
+         * mapper is pure on event inputs.
+         */
+        events: List<GameEvent> = bridge.drainBundleEvents(viewingSeatId),
     ): BuildResult {
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
         val frame = GsmFrame.from(snap)
 
-        // ═══ GATHER: drain queues, snapshot mutable state ═══
-        val events = externalEvents?.toMutableList() ?: run {
-            val e = bridge.drainEvents().events.toMutableList()
-            for (reveal in bridge.drainReveals(viewingSeatId)) {
-                e.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
-            }
-            e
-        }
+        // ═══ GATHER: snapshot mutable state (events arrive from caller) ═══
+        // applyRevealProxies may append RevealProxiesDeleted on reveal end; keep local mutable copy.
+        val eventsMutable = events.toMutableList()
         // Evict stale AbilityRegistry entries for transformed cards so the next
         // abilityRegistryFor() call rebuilds from the current face.
-        for (ev in events) {
+        for (ev in eventsMutable) {
             if (ev is GameEvent.CardTransformed) bridge.evictAbilityRegistry(ev.cardId.value)
         }
         val initEffectDiff = bridge.effects.emitInitEffectsOnce()
@@ -222,8 +224,8 @@ object StateMapper {
         // Stack abilities (triggers, activated abilities not represented as zone cards)
         ZoneMapper.addStackAbilitiesFromSnapshot(snap, bridge, zones, gameObjects)
 
-        // RevealedCard proxy synthesis / cleanup
-        applyRevealProxies(activeReveal, snap, bridge, zones, gameObjects, events)
+        // RevealedCard proxy synthesis / cleanup (may append RevealProxiesDeleted to eventsMutable)
+        applyRevealProxies(activeReveal, snap, bridge, zones, gameObjects, eventsMutable)
 
         log.info(
             "buildFromSnapshot: phase={} turn={} hand={} objects={} zones={}",
@@ -235,10 +237,10 @@ object StateMapper {
         )
 
         // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
-        val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, events)
+        val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, eventsMutable)
         val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
-            computeAnnotations(events, transferResult, actingSeat, bridge, prev = prev)
+            computeAnnotations(eventsMutable, transferResult, actingSeat, bridge, prev = prev)
 
         // Snap-derived pAnn inputs — computed here where snap is in scope.
         val qualificationPersistentFromSnap = snap.objects.values
@@ -261,7 +263,7 @@ object StateMapper {
 
         // Stages 4-5 + persistent computation
         val remaining = computeRemainingAnnotations(
-            events, annotations, transferPersistent, initEffectDiff, effectDiff,
+            eventsMutable, annotations, transferPersistent, initEffectDiff, effectDiff,
             persistSnapshot, startPersistentId, startAnnotationId, bridge, keywordDiff,
             combatResult,
             qualificationPersistentFromSnap = qualificationPersistentFromSnap,
@@ -324,7 +326,7 @@ object StateMapper {
                 viewingSeatId = viewingSeatId,
                 revealForSeat = revealForSeat,
                 prev = null,
-                externalEvents = events,
+                events = events,
             )
         }
 
@@ -333,7 +335,7 @@ object StateMapper {
             cur, gameStateId, matchId, bridge,
             revealForSeat = revealForSeat,
             prev = prev,
-            externalEvents = events,
+            events = events,
         )
         val current = fullResult.gsm
 

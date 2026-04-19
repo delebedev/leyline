@@ -328,6 +328,24 @@ class GameBridge(
 
     override fun drainEvents(): DrainedEvents = eventCollector?.drainEvents() ?: DrainedEvents(emptyList())
 
+    /**
+     * Drain all events for one bundle build: queued Forge events + reveal records
+     * for [viewingSeatId] (promoted to [GameEvent.CardsRevealed]). Caller passes
+     * the returned list to [StateMapper.buildFromSnapshot] / [StateMapper.buildDiff].
+     *
+     * Centralises the drain that previously lived inside the mapper. Behavior is
+     * unchanged: one drain per call, per-seat reveal consumption is seat-scoped.
+     * Multi-seat drain (so two per-seat builds of the same snapshot see the same
+     * reveals) is a separate design bead if the pattern ever matters.
+     */
+    fun drainBundleEvents(viewingSeatId: Int = 0): List<GameEvent> {
+        val events = drainEvents().events.toMutableList()
+        for (reveal in drainReveals(viewingSeatId)) {
+            events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
+        }
+        return events
+    }
+
     /** True if there are Forge events queued but not yet drained into a GSM. */
     fun hasPendingEvents(): Boolean = eventCollector?.hasEvents() ?: false
 
