@@ -67,8 +67,9 @@ class BundleBuilder(
         }
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
+        val previousSnap = bridge.lastSent
         val result = StateMapper.buildDiff(
-            bridge.lastSent,
+            previousSnap,
             snap,
             events,
             nextGs,
@@ -79,6 +80,7 @@ class BundleBuilder(
             revealForSeat = revealForSeat,
         )
         bridge.applyMutations(result.mutations)
+        bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, result.gsm)
         val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
 
         // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
@@ -140,8 +142,9 @@ class BundleBuilder(
         val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
             GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
         }
+        val previousSnap = bridge.lastSent
         val result = StateMapper.buildDiff(
-            bridge.lastSent,
+            previousSnap,
             snap,
             events,
             nextGs,
@@ -151,6 +154,7 @@ class BundleBuilder(
             viewingSeatId = seatId,
         )
         bridge.applyMutations(result.mutations)
+        bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, result.gsm)
 
         // QueuedGSM split disabled (see postAction comment above).
         @Suppress("UnusedPrivateProperty")
@@ -202,8 +206,9 @@ class BundleBuilder(
         val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
             GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
         }
+        val previousSnap = bridge.lastSent
         val remoteResult = StateMapper.buildDiff(
-            bridge.lastSent,
+            previousSnap,
             snap,
             events,
             nextGs,
@@ -213,6 +218,7 @@ class BundleBuilder(
             viewingSeatId = seatId,
         )
         bridge.applyMutations(remoteResult.mutations)
+        bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, remoteResult.gsm)
         val gsBase = remoteResult.gsm
         // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
         // Client expects human's potential actions embedded during AI turn.
@@ -514,8 +520,9 @@ class BundleBuilder(
         val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
             GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
         }
+        val previousSnap = bridge.lastSent
         val attackersResult = StateMapper.buildDiff(
-            bridge.lastSent,
+            previousSnap,
             snap,
             events,
             nextGs,
@@ -525,6 +532,7 @@ class BundleBuilder(
             viewingSeatId = seatId,
         )
         bridge.applyMutations(attackersResult.mutations)
+        bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, attackersResult.gsm)
         val gs = attackersResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -617,8 +625,9 @@ class BundleBuilder(
         val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
             GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
         }
+        val previousSnap = bridge.lastSent
         val blockersResult = StateMapper.buildDiff(
-            bridge.lastSent,
+            previousSnap,
             snap,
             events,
             nextGs,
@@ -628,6 +637,7 @@ class BundleBuilder(
             viewingSeatId = seatId,
         )
         bridge.applyMutations(blockersResult.mutations)
+        bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, blockersResult.gsm)
         val gs = blockersResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -667,8 +677,9 @@ class BundleBuilder(
             GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
         }
         // Build diff first — triggers instanceId reallocs for zone transfers
+        val previousSnap = bridge.lastSent
         val targetsResult = StateMapper.buildDiff(
-            bridge.lastSent,
+            previousSnap,
             snap,
             events,
             nextGs,
@@ -678,6 +689,7 @@ class BundleBuilder(
             viewingSeatId = seatId,
         )
         bridge.applyMutations(targetsResult.mutations)
+        bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, targetsResult.gsm)
         val gs = targetsResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -713,8 +725,9 @@ class BundleBuilder(
         val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
             GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
         }
+        val previousSnap = bridge.lastSent
         val selectNResult = StateMapper.buildDiff(
-            bridge.lastSent,
+            previousSnap,
             snap,
             events,
             nextGs,
@@ -724,6 +737,7 @@ class BundleBuilder(
             viewingSeatId = seatId,
         )
         bridge.applyMutations(selectNResult.mutations)
+        bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, selectNResult.gsm)
         val gs = selectNResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
@@ -788,8 +802,9 @@ class BundleBuilder(
         val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
             GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
         }
+        val previousSnap = bridge.lastSent
         val ctoResult = StateMapper.buildDiff(
-            bridge.lastSent,
+            previousSnap,
             snap,
             events,
             nextGs,
@@ -799,6 +814,7 @@ class BundleBuilder(
             viewingSeatId = seatId,
         )
         bridge.applyMutations(ctoResult.mutations)
+        bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, ctoResult.gsm)
         val gsResult = ctoResult
         val gsBuilder = gsResult.gsm.toBuilder()
             .setPendingMessageCount(1)
@@ -893,8 +909,9 @@ class BundleBuilder(
         val events = bridge.drainEvents().events + bridge.drainReveals(seatId).map {
             GameEvent.CardsRevealed(it.forgeCardIds, it.ownerSeatId)
         }
+        val previousSnap = bridge.lastSent
         val payCostsResult = StateMapper.buildDiff(
-            bridge.lastSent,
+            previousSnap,
             snap,
             events,
             nextGs,
@@ -904,6 +921,7 @@ class BundleBuilder(
             viewingSeatId = seatId,
         )
         bridge.applyMutations(payCostsResult.mutations)
+        bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, payCostsResult.gsm)
         val gs = payCostsResult.gsm
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs

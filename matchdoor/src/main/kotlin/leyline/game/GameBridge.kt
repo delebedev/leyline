@@ -29,6 +29,7 @@ import leyline.config.MatchConfig
 import leyline.game.mapper.ObjectMapper
 import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
@@ -218,6 +219,15 @@ class GameBridge(
      */
     @Volatile
     var lastSent: GsmSnapshot? = null
+
+    /**
+     * Test hook — invoked per bundle after [StateMapper.buildDiff] and [applyMutations],
+     * before [lastSent] is updated. Captures (prev, cur, events, gameStateId, diff gsm)
+     * for replay-purity verification in [leyline.game.PureDiffReplayTest].
+     */
+    @org.jetbrains.annotations.VisibleForTesting
+    @Volatile
+    var diffListener: ((prev: GsmSnapshot?, cur: GsmSnapshot, events: List<GameEvent>, gameStateId: Int, diff: GameStateMessage) -> Unit)? = null
 
     // ── Reveal proxy lifecycle ──────────────────────────────────────────────
     // RevealedCard proxies exist during an active reveal-choose effect.
