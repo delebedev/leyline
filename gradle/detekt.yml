@@ -98,3 +98,14 @@ leyline:
     active: true
   NoGameInMappers:
     active: true
+  NoThreadSleepInTests:
+    active: true
+    includes: ['**/test/**', '**/*Test.kt', '**/*Tests.kt']
+  NoTimingAssertsInTests:
+    active: true
+    includes: ['**/test/**', '**/*Test.kt', '**/*Tests.kt']
+  TierPlacementCheck:
+    active: true
+  WeakAssertionOnly:
+    active: true
+    includes: ['**/test/**', '**/*Test.kt', '**/*Tests.kt']
