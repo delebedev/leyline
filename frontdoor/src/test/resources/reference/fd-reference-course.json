@@ -9,20 +9,16 @@
     "Attributes": [],
     "DeckTileId": 0,
     "DeckArtId": 0,
-    "FormatLegalities": {},
     "PreferredCosmetics": {
       "Avatar": "",
       "Sleeve": "",
       "Pet": "",
       "Title": "",
       "Emotes": []
-    },
-    "DeckValidationSummaries": [],
-    "UnownedCards": {}
+    }
   },
   "CourseDeck": {
     "MainDeck": [],
-    "ReducedSideboard": [],
     "Sideboard": [],
     "CommandZone": [],
     "Companions": [],

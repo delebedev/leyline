@@ -176,8 +176,8 @@ class FrontDoorHandler(
         CmdType.GET_ALL_PREFERRED_PRINTINGS.value to { FdResponse.Json(LobbyStubs.preferredPrintings()) },
         CmdType.GET_ALL_PRIZE_WALLS.value to { FdResponse.Json(LobbyStubs.prizeWalls()) },
         CmdType.MERC_GET_STORE_STATUS_V2.value to { FdResponse.Json(LobbyStubs.storeStatus()) },
-        CmdType.STORE_GET_ENTITLEMENTS_V2.value to { FdResponse.Json(LobbyStubs.storeStatus()) },
-        CmdType.MERC_GET_SKUS_AND_LISTINGS.value to { FdResponse.Json(LobbyStubs.storeStatus()) },
+        CmdType.STORE_GET_ENTITLEMENTS_V2.value to { FdResponse.Json(LobbyStubs.entitlements()) },
+        CmdType.MERC_GET_SKUS_AND_LISTINGS.value to { FdResponse.Json(LobbyStubs.skusAndListings()) },
         CmdType.LOG_BUSINESS_EVENTS.value to { FdResponse.Json(LobbyStubs.telemetryAck()) },
         CmdType.LOG_BUSINESS_EVENTS_V2.value to { FdResponse.Json(LobbyStubs.telemetryAck()) },
         // Typed proto stubs
@@ -281,6 +281,21 @@ class FrontDoorHandler(
                         buildJsonObject { put("Summary", summary) }
                     } else {
                         log.warn("Front Door: Deck_UpsertDeckV2 parse failed")
+                        buildJsonObject {}
+                    }
+                    writer.send(ctx, txId, FdResponse.Json(lenientJson.encodeToString(JsonObject.serializer(), resp)))
+                }
+            }
+
+            CmdType.DECK_UPSERT_V3.value -> {
+                requireJson(ctx, txId, json) { body ->
+                    val savedDeck = DeckWireBuilder.parseDeckUpdate(body, playerId)
+                    val resp = if (savedDeck != null) {
+                        deckService.save(savedDeck)
+                        log.info("Front Door: Deck_UpsertDeckV3 saved '{}'", savedDeck.name)
+                        DeckWireBuilder.toStartHookSummary(savedDeck)
+                    } else {
+                        log.warn("Front Door: Deck_UpsertDeckV3 parse failed")
                         buildJsonObject {}
                     }
                     writer.send(ctx, txId, FdResponse.Json(lenientJson.encodeToString(JsonObject.serializer(), resp)))

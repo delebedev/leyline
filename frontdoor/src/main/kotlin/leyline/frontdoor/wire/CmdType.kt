@@ -26,6 +26,7 @@ value class CmdType(val value: Int) {
         val DECK_UPSERT_V2 = CmdType(406)
         val DECK_GET_SUMMARIES_V2 = CmdType(407)
         val DECK_GET_PRECONS_V3 = CmdType(410)
+        val DECK_UPSERT_V3 = CmdType(412)
 
         // --- Cards ---
         val CARD_GET_ALL = CmdType(551)
@@ -105,6 +106,7 @@ value class CmdType(val value: Int) {
             406 to "Deck_UpsertDeckV2",
             407 to "Deck_GetDeckSummariesV2",
             410 to "Deck_GetAllPreconDecksV3",
+            412 to "Deck_UpsertDeckV3",
             550 to "Card_GetCardSet",
             551 to "Card_GetAllCards",
             552 to "Card_RedeemWildCards",

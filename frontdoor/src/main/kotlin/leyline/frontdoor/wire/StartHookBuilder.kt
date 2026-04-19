@@ -25,9 +25,9 @@ object StartHookBuilder {
         val json = buildJsonObject {
             put("InventoryInfo", inventoryInfo())
             put(
-                "DeckSummariesV2",
+                "DeckSummaries",
                 buildJsonArray {
-                    decks.forEach { add(DeckWireBuilder.toV2Summary(it)) }
+                    decks.forEach { add(DeckWireBuilder.toStartHookSummary(it)) }
                 },
             )
             put(
