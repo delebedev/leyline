@@ -4,11 +4,11 @@ import forge.game.zone.ZoneType as ForgeZoneType
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.state.GameBridge
-import leyline.game.mapper.ActionMapper
-import leyline.game.mapper.PlayerMapper
-import leyline.game.mapper.PromptIds
-import leyline.game.mapper.ZoneIds
-import leyline.game.mapper.ZoneMapper
+import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.PlayerMapper
+import leyline.game.mapping.PromptIds
+import leyline.game.mapping.ZoneIds
+import leyline.game.mapping.ZoneMapper
 import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -59,8 +59,8 @@ data class GsmFrame(
  * game-over, and utility GSMs.
  *
  * Pure proto construction. No session state, no bridge mutation. The main
- * per-diff pipeline lives in [leyline.game.mapper.StateMapper.buildFromSnapshot] /
- * [leyline.game.mapper.StateMapper.buildDiff]; this class covers everything else.
+ * per-diff pipeline lives in [leyline.game.mapping.StateMapper.buildFromSnapshot] /
+ * [leyline.game.mapping.StateMapper.buildDiff]; this class covers everything else.
  */
 object GsmBuilder {
     @Suppress("UnusedPrivateProperty")

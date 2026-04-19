@@ -12,7 +12,7 @@ import leyline.bridge.forge.PlayerController
 import leyline.bridge.findCard
 import leyline.game.state.GameBridge
 import leyline.game.bundle.RequestBuilder
-import leyline.game.mapper.PromptIds
+import leyline.game.mapping.PromptIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator

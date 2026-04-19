@@ -36,7 +36,7 @@ import leyline.game.data.CardRepository
 import leyline.game.event.DrainedEvents
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
-import leyline.game.mapper.ObjectMapper
+import leyline.game.mapping.ObjectMapper
 import leyline.game.snapshot.GsmSnapshot
 import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
@@ -230,7 +230,7 @@ class GameBridge(
     val bundleCursor: BundleCursor = BundleCursor()
 
     /**
-     * Test-only observability hook — invoked per bundle after [leyline.game.mapper.StateMapper.buildDiff]
+     * Test-only observability hook — invoked per bundle after [leyline.game.mapping.StateMapper.buildDiff]
      * and [applyMutations], before the session's [BundleCursor] advances. Receives
      * (prev, cur, events, gameStateId, diff gsm). Currently used by
      * [leyline.game.PureDiffReplayTest] to capture live tuples for replay.
@@ -319,7 +319,7 @@ class GameBridge(
     override fun getPreviousZone(instanceId: InstanceId): Int? = diff.getPreviousZone(instanceId.value)
 
     /**
-     * Apply ordering-sensitive mutations returned by [leyline.game.mapper.StateMapper.buildDiff].
+     * Apply ordering-sensitive mutations returned by [leyline.game.mapping.StateMapper.buildDiff].
      * Fixed order: id reallocations → limbo retires → zone recordings →
      * persistent annotation batch → next annotation ID counter.
      *
@@ -338,8 +338,8 @@ class GameBridge(
     /**
      * Drain all events for one bundle build: queued Forge events + reveal records
      * for [viewingSeatId] (promoted to [GameEvent.CardsRevealed]). Caller passes
-     * the returned list to [leyline.game.mapper.StateMapper.buildFromSnapshot] /
-     * [leyline.game.mapper.StateMapper.buildDiff].
+     * the returned list to [leyline.game.mapping.StateMapper.buildFromSnapshot] /
+     * [leyline.game.mapping.StateMapper.buildDiff].
      *
      * One drain per call; per-seat reveal consumption is seat-scoped. A multi-seat
      * drain (so two per-seat builds of the same snapshot see the same reveals) is
@@ -400,7 +400,7 @@ class GameBridge(
      * No bridges, no threads, no CompletableFuture — fully synchronous.
      * Forge events fire inline when you call `game.action.*` methods.
      *
-     * Use in conformance tests where you need [leyline.game.mapper.StateMapper] + [leyline.game.bundle.BundleBuilder]
+     * Use in conformance tests where you need [leyline.game.mapping.StateMapper] + [leyline.game.bundle.BundleBuilder]
      * but don't need the game loop or player interaction.
      */
     fun wrapGame(g: Game) {

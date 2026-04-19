@@ -4,7 +4,7 @@ import forge.game.Game
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PlayerAction
-import leyline.game.mapper.StateMapper
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 

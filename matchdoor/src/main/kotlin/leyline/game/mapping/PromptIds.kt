@@ -1,4 +1,4 @@
-package leyline.game.mapper
+package leyline.game.mapping
 
 /** Protocol prompt IDs matching expected protocol values. */
 object PromptIds {

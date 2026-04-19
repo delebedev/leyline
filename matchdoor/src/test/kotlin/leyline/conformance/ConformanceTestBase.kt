@@ -13,7 +13,7 @@ import leyline.game.bundle.BundleBuilder
 import leyline.game.state.GameBridge
 import leyline.game.bundle.MessageCounter
 import leyline.game.generator.PuzzleSource
-import leyline.game.mapper.StateMapper
+import leyline.game.mapping.StateMapper
 import leyline.game.advanceToMain1
 import leyline.game.awaitFreshPending
 import leyline.game.seedDiffBaseline

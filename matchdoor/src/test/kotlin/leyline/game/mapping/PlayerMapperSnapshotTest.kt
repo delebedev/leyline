@@ -1,4 +1,4 @@
-package leyline.game.mapper
+package leyline.game.mapping
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec

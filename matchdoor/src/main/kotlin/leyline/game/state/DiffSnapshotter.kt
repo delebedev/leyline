@@ -6,7 +6,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Tracks zone membership needed to detect zone transfers between game state snapshots.
  *
  * **Zone tracking** — records which zone each instanceId was last seen in,
- * so [leyline.game.mapper.StateMapper.detectZoneTransfers] can detect zone changes.
+ * so [leyline.game.mapping.StateMapper.detectZoneTransfers] can detect zone changes.
  *
  * Note: the diff-baseline GSM is [leyline.game.bundle.BundleCursor.lastSent] (`GsmSnapshot?`) on
  * [GameBridge.bundleCursor], not here. This class only tracks per-instance

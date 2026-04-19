@@ -10,7 +10,7 @@ import leyline.config.MatchConfig
 import leyline.config.ServerConfig
 import leyline.game.state.GameBridge
 import leyline.game.generator.PuzzleSource
-import leyline.game.mapper.StateMapper
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.infra.ListMessageSink
 import leyline.match.MatchRegistry

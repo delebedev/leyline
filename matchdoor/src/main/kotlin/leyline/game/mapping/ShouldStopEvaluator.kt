@@ -1,4 +1,4 @@
-package leyline.game.mapper
+package leyline.game.mapping
 
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 

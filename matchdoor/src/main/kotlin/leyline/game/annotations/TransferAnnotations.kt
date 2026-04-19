@@ -3,7 +3,7 @@ package leyline.game.annotations
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.game.mapper.ZoneIds
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType

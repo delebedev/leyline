@@ -1,4 +1,4 @@
-package leyline.game.mapper
+package leyline.game.mapping
 
 import forge.game.card.Card
 import leyline.DevCheck

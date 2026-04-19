@@ -7,7 +7,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *
  * Covers the immutable card identity (types, colors, abilities, base P/T).
  * Dynamic game state — counters, damage, tapped, attached, combat — is layered
- * on by [leyline.game.mapper.ObjectMapper]. The split keeps card-DB concerns
+ * on by [leyline.game.mapping.ObjectMapper]. The split keeps card-DB concerns
  * out of the per-tick diff pipeline.
  */
 class CardProtoBuilder(private val cards: CardRepository) {

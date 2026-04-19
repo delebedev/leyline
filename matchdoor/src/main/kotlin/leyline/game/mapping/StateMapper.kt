@@ -1,4 +1,4 @@
-package leyline.game.mapper
+package leyline.game.mapping
 
 import forge.game.zone.ZoneType as ForgeZoneType
 import leyline.bridge.coord.TargetingCoordinator
@@ -8,7 +8,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.game.mapper.SourceAbilityResolverFactory
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.annotations.AppliedTransfer

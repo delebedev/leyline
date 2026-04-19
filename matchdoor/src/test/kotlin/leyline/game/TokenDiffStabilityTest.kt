@@ -14,7 +14,7 @@ import leyline.bridge.types.SeatId
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.TestCardRegistry
 import leyline.game.data.CardData
-import leyline.game.mapper.StateMapper
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.SubType

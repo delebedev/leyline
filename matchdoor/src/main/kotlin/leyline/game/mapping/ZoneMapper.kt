@@ -1,4 +1,4 @@
-package leyline.game.mapper
+package leyline.game.mapping
 
 import forge.game.player.Player
 import leyline.bridge.types.ForgeCardId

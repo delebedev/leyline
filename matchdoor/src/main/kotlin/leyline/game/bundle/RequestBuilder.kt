@@ -7,7 +7,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
-import leyline.game.mapper.PromptIds
+import leyline.game.mapping.PromptIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType

@@ -15,7 +15,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
 import leyline.game.codes.ManaColorMapping
-import leyline.game.mapper.PlayerMapper
+import leyline.game.mapping.PlayerMapper
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * atomically empties the queue and returns events in firing order, wrapped in
  * [DrainedEvents] to make single-use visible in the type system.
  *
- * **Drain exactly once per GSM build.** [leyline.game.mapper.StateMapper.buildFromSnapshot] drains in
+ * **Drain exactly once per GSM build.** [leyline.game.mapping.StateMapper.buildFromSnapshot] drains in
  * the GATHER phase. Double-draining silently loses events — the second drain
  * returns an empty list with no error. The [DrainedEvents] wrapper prevents
  * accidental re-drain of the same result but cannot prevent calling
@@ -68,7 +68,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * Events fire synchronously on the engine thread. Queue access is via
  * [ConcurrentLinkedQueue] so the Netty/handler thread can drain safely,
  * though in practice [drainEvents] is always called from the engine thread
- * via [leyline.game.mapper.StateMapper].
+ * via [leyline.game.mapping.StateMapper].
  *
  * **Adding new mechanics:** When upstream Forge events lack the granularity we need
  * (per-card IDs, zone-pair specificity), add a new event to our fork rather than
@@ -98,7 +98,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
      * Drain all queued events since last drain. Returns events in engine firing order.
      *
      * **Call exactly once per GSM build** — second call returns empty (events are gone).
-     * [leyline.game.mapper.StateMapper.buildFromSnapshot] calls this in the GATHER phase before any annotation
+     * [leyline.game.mapping.StateMapper.buildFromSnapshot] calls this in the GATHER phase before any annotation
      * pipeline stages run.
      */
     fun drainEvents(): DrainedEvents = DrainedEvents(

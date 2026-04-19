@@ -10,7 +10,7 @@ import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.mapper.ZoneIds
+import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType

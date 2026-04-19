@@ -16,7 +16,7 @@ import leyline.conformance.MatchFlowHarness
 import leyline.conformance.TestCardRegistry
 import leyline.conformance.detailInt
 import leyline.game.codes.DetailKeys
-import leyline.game.mapper.StateMapper
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 

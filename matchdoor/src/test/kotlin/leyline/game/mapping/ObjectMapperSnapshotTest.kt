@@ -1,4 +1,4 @@
-package leyline.game.mapper
+package leyline.game.mapping
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly

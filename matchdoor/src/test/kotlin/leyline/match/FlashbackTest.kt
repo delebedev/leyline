@@ -13,8 +13,8 @@ import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.humanPlayer
-import leyline.game.mapper.ActionMapper
-import leyline.game.mapper.ObjectMapper
+import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.ObjectMapper
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 private val PUZZLE = """

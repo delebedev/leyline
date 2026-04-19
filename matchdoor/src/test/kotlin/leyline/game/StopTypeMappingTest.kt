@@ -9,7 +9,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.game.mapper.StopTypeMapping
+import leyline.game.mapping.StopTypeMapping
 import wotc.mtgo.gre.external.messaging.Messages.SettingScope
 import wotc.mtgo.gre.external.messaging.Messages.SettingStatus
 import wotc.mtgo.gre.external.messaging.Messages.Stop

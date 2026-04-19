@@ -11,7 +11,7 @@ import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.IntegrationTag
 import leyline.bridge.types.InstanceId
-import leyline.game.mapper.StateMapper
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 

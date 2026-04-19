@@ -16,7 +16,7 @@ import leyline.game.codes.CounterTypes
 import leyline.game.codes.DetailKeys
 import leyline.game.codes.ManaColorMapping
 import leyline.game.codes.QualificationType
-import leyline.game.mapper.ZoneIds
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType

@@ -5,7 +5,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.ZoneTransferDetector
-import leyline.game.mapper.ZoneIds
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 
 /**

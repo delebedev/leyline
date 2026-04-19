@@ -10,7 +10,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.detailInt
-import leyline.game.mapper.StateMapper
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 

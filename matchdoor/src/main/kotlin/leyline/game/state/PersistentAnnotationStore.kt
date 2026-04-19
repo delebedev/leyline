@@ -29,7 +29,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  *
  * **Carry forward:** [computeBatch] starts from the current [snapshot] — all
  * existing pAnns survive unless a step explicitly removes them. The snapshot
- * is taken *before* the COMPUTE phase in [leyline.game.mapper.StateMapper.buildFromSnapshot], so the
+ * is taken *before* the COMPUTE phase in [leyline.game.mapping.StateMapper.buildFromSnapshot], so the
  * batch sees the previous GSM's state.
  *
  * **Replace-on-update:** Counters use upsert semantics — when a counter of
@@ -45,7 +45,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  *
  * **Drain:** [drainDeletions] returns IDs deleted since last drain, for the
  * GSM's `diffDeletedPersistentAnnotationIds` field. Called once per GSM in
- * [leyline.game.mapper.StateMapper.buildDiff]. The drain-then-clear pattern means each
+ * [leyline.game.mapping.StateMapper.buildDiff]. The drain-then-clear pattern means each
  * deletion ID appears in exactly one GSM.
  *
  * ## ID allocation
@@ -95,7 +95,7 @@ class PersistentAnnotationStore {
          * in step 3 if the aura was simultaneously destroyed.
          *
          * **Snapshot timing:** [currentActive] must be a snapshot taken *before*
-         * the annotation pipeline runs. [leyline.game.mapper.StateMapper.buildFromSnapshot] captures it
+         * the annotation pipeline runs. [leyline.game.mapping.StateMapper.buildFromSnapshot] captures it
          * in the GATHER phase so the COMPUTE phase (which calls this) is pure.
          *
          * @param resolveForgeCardId reverse-resolves instanceId → forgeCardId.
@@ -486,7 +486,7 @@ class PersistentAnnotationStore {
     /**
      * Drain and return IDs deleted since last drain (for diffDeletedPersistentAnnotationIds).
      *
-     * Called once per Diff GSM in [leyline.game.mapper.StateMapper.buildDiff]. Each deletion
+     * Called once per Diff GSM in [leyline.game.mapping.StateMapper.buildDiff]. Each deletion
      * ID appears in exactly one GSM — calling twice without intervening mutations
      * returns empty. For Full GSMs, deletions are embedded via [computeBatch]'s
      * [BatchResult.deletedIds] instead.
@@ -534,7 +534,7 @@ class PersistentAnnotationStore {
      *
      * **Must be called in the APPLY phase** (after GSM assembly), not during
      * COMPUTE. The GSM embeds [BatchResult.allAnnotations] directly — applying
-     * before assembly would double-count. [leyline.game.mapper.StateMapper.buildFromSnapshot] enforces
+     * before assembly would double-count. [leyline.game.mapping.StateMapper.buildFromSnapshot] enforces
      * this: GATHER → COMPUTE → ASSEMBLE → APPLY.
      */
     fun applyBatchResult(result: BatchResult) {

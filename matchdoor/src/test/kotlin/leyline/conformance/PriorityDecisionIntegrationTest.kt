@@ -4,7 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.game.bundle.BundleBuilder
-import leyline.game.mapper.ShouldStopEvaluator
+import leyline.game.mapping.ShouldStopEvaluator
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq

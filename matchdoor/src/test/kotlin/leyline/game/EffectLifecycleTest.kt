@@ -14,7 +14,7 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
 import leyline.conformance.TestCardRegistry
 import leyline.game.generator.PuzzleSource
-import leyline.game.mapper.StateMapper
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType

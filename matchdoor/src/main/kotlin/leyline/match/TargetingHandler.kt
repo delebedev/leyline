@@ -11,8 +11,8 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.state.GameBridge
 import leyline.game.bundle.RequestBuilder
-import leyline.game.mapper.ObjectMapper
-import leyline.game.mapper.ZoneIds
+import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.ZoneIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 

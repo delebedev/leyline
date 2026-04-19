@@ -18,7 +18,7 @@ import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.RequestBuilder
-import leyline.game.mapper.PromptIds
+import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType

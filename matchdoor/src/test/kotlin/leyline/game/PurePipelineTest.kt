@@ -20,9 +20,9 @@ import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
 import leyline.game.annotations.ZoneTransferDetector
 import leyline.game.event.GameEvent
-import leyline.game.mapper.ObjectMapper
-import leyline.game.mapper.StateMapper
-import leyline.game.mapper.ZoneIds
+import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.StateMapper
+import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
 import leyline.game.state.InstanceIdRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType

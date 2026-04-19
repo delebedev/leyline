@@ -16,7 +16,7 @@ import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.SeatId
 import leyline.bridge.coord.TargetingCoordinator
 import leyline.game.bundle.RequestBuilder
-import leyline.game.mapper.ZoneIds
+import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType

@@ -1,4 +1,4 @@
-package leyline.game.mapper
+package leyline.game.mapping
 
 import forge.game.phase.PhaseType
 import leyline.game.snapshot.GsmSnapshot

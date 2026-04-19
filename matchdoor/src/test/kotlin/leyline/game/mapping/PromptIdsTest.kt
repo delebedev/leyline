@@ -1,4 +1,4 @@
-package leyline.game.mapper
+package leyline.game.mapping
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe

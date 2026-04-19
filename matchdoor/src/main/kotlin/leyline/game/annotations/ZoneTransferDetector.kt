@@ -8,8 +8,8 @@ import leyline.game.state.InstanceIdRegistry
 import leyline.game.data.AbilityIdDeriver
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
-import leyline.game.mapper.ObjectMapper
-import leyline.game.mapper.ZoneIds
+import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.ZoneIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
@@ -85,7 +85,7 @@ data class TransferResult(
     val stackAbilityDisappearances: List<StackAbilityDisappearance> = emptyList(),
     /**
      * Planned id reallocations for zone-transferred cards. Committed by
-     * [GameBridge.applyMutations] after [leyline.game.mapper.StateMapper.buildDiff] returns.
+     * [GameBridge.applyMutations] after [leyline.game.mapping.StateMapper.buildDiff] returns.
      * Empty when no zone transfers occurred.
      */
     val idReallocations: List<InstanceIdRegistry.IdReallocation> = emptyList(),

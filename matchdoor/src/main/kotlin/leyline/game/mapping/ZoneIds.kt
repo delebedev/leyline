@@ -1,4 +1,4 @@
-package leyline.game.mapper
+package leyline.game.mapping
 
 /** Protocol zone IDs matching expected protocol layout (starting at 18). */
 object ZoneIds {

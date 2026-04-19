@@ -13,7 +13,7 @@ import leyline.game.annotations.AppliedTransfer
 import leyline.game.annotations.ManaPaymentRecord
 import leyline.game.annotations.TransferAnnotations
 import leyline.game.annotations.TransferCategory
-import leyline.game.mapper.ZoneIds
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**

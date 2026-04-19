@@ -18,8 +18,8 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
 import leyline.game.generator.PuzzleSource
-import leyline.game.mapper.StateMapper
-import leyline.game.mapper.ActionMapper
+import leyline.game.mapping.StateMapper
+import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.infra.ListMessageSink
 import leyline.match.MatchRegistry

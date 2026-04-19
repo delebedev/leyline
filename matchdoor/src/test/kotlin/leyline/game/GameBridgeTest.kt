@@ -20,9 +20,9 @@ import leyline.conformance.TestCardRegistry
 import leyline.conformance.detailString
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
-import leyline.game.mapper.ActionMapper
-import leyline.game.mapper.StateMapper
-import leyline.game.mapper.ZoneIds
+import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.StateMapper
+import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages

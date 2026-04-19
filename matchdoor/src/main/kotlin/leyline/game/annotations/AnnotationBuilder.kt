@@ -36,7 +36,7 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
  *
  * **Typed parameters:** ID slots use value classes ([InstanceId], [SeatId],
  * [GrpId], [EffectId], [WireId]) so positional cross-type swaps fail at compile
- * time. Zones stay [Int] (use [leyline.game.mapper.ZoneIds] constants). Data
+ * time. Zones stay [Int] (use [leyline.game.mapping.ZoneIds] constants). Data
  * fields (amounts, deltas, counts, enum ordinals) stay [Int].
  *
  * @see ZoneTransferDetector for zone transfer detection

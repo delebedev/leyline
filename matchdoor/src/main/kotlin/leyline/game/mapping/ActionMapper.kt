@@ -1,4 +1,4 @@
-package leyline.game.mapper
+package leyline.game.mapping
 
 import forge.ai.ComputerUtilMana
 import forge.card.CardStateName

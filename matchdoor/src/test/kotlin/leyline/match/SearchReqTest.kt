@@ -7,7 +7,7 @@ import leyline.UnitTag
 import leyline.game.bundle.BundleBuilder
 import leyline.game.state.GameBridge
 import leyline.game.InMemoryCardRepository
-import leyline.game.mapper.PromptIds
+import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.AllowFailToFind
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 

@@ -6,7 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.game.bundle.GsmBuilder
-import leyline.game.mapper.PromptIds
+import leyline.game.mapping.PromptIds
 import leyline.protocol.HandshakeMessages
 import wotc.mtgo.gre.external.messaging.Messages.*
 

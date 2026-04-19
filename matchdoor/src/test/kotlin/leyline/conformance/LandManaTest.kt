@@ -12,8 +12,8 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
-import leyline.game.mapper.ActionMapper
-import leyline.game.mapper.ZoneIds
+import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.ActionType

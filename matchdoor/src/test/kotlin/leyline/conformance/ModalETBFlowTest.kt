@@ -11,7 +11,7 @@ import leyline.IntegrationTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.data.ModalAbilityInfo
-import leyline.game.mapper.ObjectMapper
+import leyline.game.mapping.ObjectMapper
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**

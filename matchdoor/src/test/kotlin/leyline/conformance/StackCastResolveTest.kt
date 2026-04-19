@@ -12,7 +12,7 @@ import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
 import leyline.game.state.GameBridge
 import leyline.game.bundle.MessageCounter
-import leyline.game.mapper.ZoneIds
+import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType

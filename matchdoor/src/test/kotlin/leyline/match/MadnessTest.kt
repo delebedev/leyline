@@ -218,7 +218,7 @@ class MadnessTest :
                     .filter { it.typeList.contains(AnnotationType.ZoneTransfer_af5a) }
                     .firstOrNull {
                         it.detailString("category") == "CastSpell" &&
-                            it.detailInt("zone_src") == leyline.game.mapper.ZoneIds.P1_HAND
+                            it.detailInt("zone_src") == leyline.game.mapping.ZoneIds.P1_HAND
                     }
                 handToStack shouldNotBe null
             } finally {
@@ -271,8 +271,8 @@ class MadnessTest :
                 val exileToGyZt = allGsms.flatMap { it.annotationsList }
                     .filter { it.typeList.contains(AnnotationType.ZoneTransfer_af5a) }
                     .firstOrNull {
-                        it.detailInt("zone_src") == leyline.game.mapper.ZoneIds.EXILE &&
-                            it.detailInt("zone_dest") == leyline.game.mapper.ZoneIds.P1_GRAVEYARD
+                        it.detailInt("zone_src") == leyline.game.mapping.ZoneIds.EXILE &&
+                            it.detailInt("zone_dest") == leyline.game.mapping.ZoneIds.P1_GRAVEYARD
                     }
                 exileToGyZt shouldNotBe null
                 // TODO: exileToGyZt.detailString("category") shouldBe "Put" — blocked
