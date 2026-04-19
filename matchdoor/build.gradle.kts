@@ -94,6 +94,16 @@ val testIntegration by tasks.registering(Test::class) {
     // Layering Kotest parallelism on top flakes (damage/ETB/flashback).
 }
 
+// One-shot profiler task. Usage:
+//   ./gradlew :matchdoor:profileTest --tests "leyline.conformance.DeclareBlockersDedupeTest"
+// JFR dump: /tmp/matchdoor-profile.jfr — inspect with `jfr summary` or `jfr print`.
+val profileTest by tasks.registering(Test::class) {
+    configureTestDefaults()
+    systemProperty("kotest.tags", "IntegrationTag")
+    maxParallelForks = 1
+    jvmArgs("-XX:StartFlightRecording=filename=/tmp/matchdoor-profile.jfr,settings=profile,dumponexit=true")
+}
+
 val testGate by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "UnitTag | ConformanceTag")

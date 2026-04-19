@@ -82,6 +82,20 @@ class StopTypeMappingTest :
             mapped.size shouldBe 11
         }
 
+        // Property: for every StopType that has a forward mapping, the reverse
+        // must round-trip back to the same StopType. Catches drops, swaps, and
+        // duplicate PhaseType values in the forward table that would otherwise
+        // be invisible at the individual-case level.
+        test("StopType roundtrips through PhaseType for all mapped values") {
+            val nonTerminal = StopType.values().toList() - setOf(StopType.None_ad1f, StopType.UNRECOGNIZED)
+            for (st in nonTerminal) {
+                val phase = StopTypeMapping.toPhaseType(st)
+                    ?: error("Unmapped non-terminal StopType: $st")
+                val back = StopTypeMapping.toStopType(phase)
+                back shouldBe st
+            }
+        }
+
         // --- Stop list parsing ---
 
         test("parse a list of Stop protos into enabled PhaseType set") {
