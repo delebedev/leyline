@@ -21,6 +21,7 @@ class GsmSnapshot internal constructor(
     val phase: PhaseSnapshot,
     val combat: CombatSnapshot?,
     val abilityWordEntries: List<leyline.game.AbilityWordScanner.AbilityWordEntry>,
+    val persistentAnnotationState: PersistentAnnotationState,
     val capturedAt: CaptureMarker,
 ) {
     override fun equals(other: Any?): Boolean {
@@ -35,7 +36,8 @@ class GsmSnapshot internal constructor(
             stack == other.stack &&
             phase == other.phase &&
             combat == other.combat &&
-            abilityWordEntries == other.abilityWordEntries
+            abilityWordEntries == other.abilityWordEntries &&
+            persistentAnnotationState == other.persistentAnnotationState
     }
 
     override fun hashCode(): Int {
@@ -48,6 +50,7 @@ class GsmSnapshot internal constructor(
         h = 31 * h + phase.hashCode()
         h = 31 * h + (combat?.hashCode() ?: 0)
         h = 31 * h + abilityWordEntries.hashCode()
+        h = 31 * h + persistentAnnotationState.hashCode()
         return h
     }
 
@@ -74,7 +77,11 @@ class GsmSnapshot internal constructor(
             ),
             combat: CombatSnapshot? = null,
             abilityWordEntries: List<leyline.game.AbilityWordScanner.AbilityWordEntry> = emptyList(),
+            persistentAnnotationState: PersistentAnnotationState = PersistentAnnotationState.INITIAL,
             capturedAt: CaptureMarker = CaptureMarker.unknown(),
-        ): GsmSnapshot = GsmSnapshot(matchId, gameStateId, seats, zones, objects, stack, phase, combat, abilityWordEntries, capturedAt)
+        ): GsmSnapshot = GsmSnapshot(
+            matchId, gameStateId, seats, zones, objects, stack, phase, combat,
+            abilityWordEntries, persistentAnnotationState, capturedAt,
+        )
     }
 }

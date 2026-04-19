@@ -19,26 +19,87 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
- * Orchestrates the Forge→proto state mapping pipeline.
+ * Orchestrates the GsmSnapshot → proto state-mapping pipeline.
  *
  * Two core methods:
- * - [buildFromSnapshot]: Full [GameStateMessage] from an immutable [GsmSnapshot] (zones, objects,
- *   players, annotations via [ZoneTransferDetector], [TransferAnnotations], [CombatAnnotations], [MechanicAnnotations])
- * - [buildDiff]: Diff GSM by snap-vs-snap field comparison
+ * - [buildFromSnapshot]: Full [GameStateMessage] from a captured [GsmSnapshot].
+ * - [buildDiff]: Diff GSM by snap-vs-snap field comparison; returns [BridgeMutations]
+ *   for the caller to apply via [GameBridge.applyMutations]. Pure on
+ *   ordering-sensitive outputs.
  *
  * Lifecycle GSM factories (deal-hand, mulligan, transitions) live in [GsmBuilder].
  * Interactive request builders (targeting, combat) live in [RequestBuilder].
  * Pure Forge→proto projection lives in the `mapper/` subpackage.
+ *
+ * ## Purity boundary
+ *
+ * Single contract: both [buildFromSnapshot] and [buildDiff] return
+ * [BridgeMutations] as data; callers apply via [GameBridge.applyMutations].
+ * No inline writes during compute, no mode flags. Ordering-sensitive writes
+ * (id reallocations, limbo retires, zone recordings, persistent annotation
+ * batch, nextAnnotationId) flow exclusively through the returned mutations.
+ *
+ * Inputs to [buildDiff] are pure values: `prev: GsmSnapshot?`, `cur: GsmSnapshot`,
+ * `events: List<GameEvent>`. Outputs are pure: `GameStateMessage` + [BridgeMutations].
+ *
+ * The acceptance forcing function for this boundary is [PureDiffReplayTest],
+ * which replays recorded `(snap, events, diff)` tuples through [buildDiff] on
+ * a fresh bridge and asserts byte-equal Diff GSMs across scenarios. A
+ * regression there signals newly-introduced impurity.
+ *
+ * ## Residual in-stage bridge reads/writes (accepted, by design)
+ *
+ * These remain inside the pipeline for bounded reasons — not ordering-sensitive
+ * for the replayed scenarios, or part of a deliberate boundary. This list is
+ * a working catalog, not a completeness claim: the replay test is the real
+ * contract, not the enumeration. Extend the test scenarios (targeted spells,
+ * vehicles, reveals, steals) to grow the coverage before relying on the list.
+ *
+ * Reads of effectively-immutable / card-DB state:
+ * - [GameBridge.getOrAllocInstanceId] for NEW fids (first-seen cards). Monotonic
+ *   allocator; ordering-irrelevant for correctness.
+ * - `bridge.cardRepository.findGrpIdByName` / `findByGrpId`. Read-only card DB.
+ *
+ * Reads of live Forge state (deliberate bridge boundary):
+ * - `bridge.snapshotBoosts()` / `bridge.snapshotKeywords()` — capture layered-
+ *   effect snapshots for diff computation. Read-only at call site.
+ * - `bridge.promptBridge(seat).journal.activeReveal()` — prompt-journal read
+ *   for active-reveal detection. Journal state is still bridge-attached.
+ *
+ * Reads-then-writes on bridge-attached tracker state (not yet lifted onto snap):
+ * - `bridge.effects` (EffectTracker) — layered-effect lifecycle state.
+ * - `bridge.revealProxies` — RevealedCard proxy tracker, tied to transactional
+ *   reveal-choose effects that span bundles.
+ * - `bridge.annotations.activeStealForgeCardIds()` / `addSteals` / `removeSteals` —
+ *   steal lifecycle.
+ * - `bridge.snapshotCrewState()` / `bridge.getOrAllocCrewEffectId()` /
+ *   `bridge.releaseCrewEffects()` — vehicle crew lifecycle.
+ * - `bridge.drainPendingTargetSpecs()` — pending targeted-spell spec drain;
+ *   ordering-sensitive but currently not exercised by the replay test.
+ *   Highest-priority candidate to either lift or cover.
+ *
+ * Incidental in-stage writes:
+ * - `bridge.evictAbilityRegistry(...)` — cache invalidation for transformed
+ *   cards. Side-effectful but idempotent; ordering-irrelevant.
+ * - `bridge.ids.reserveNextInstanceId()` inside zone-transfer compute —
+ *   reserves a counter slot without committing map writes. Monotonic, so
+ *   replay on a fresh bridge starts from 1 and stays deterministic.
+ *
+ * Any NEW in-stage bridge touch should be justified in PR review — either
+ * it joins the catalog with a scope rationale, the replay test is extended
+ * to cover it, or it gets lifted onto snap.
  */
 @Suppress("LargeClass") // pipeline orchestrator; stages already delegated to mapper/* and helper objects
 object StateMapper {
     private val log = LoggerFactory.getLogger(StateMapper::class.java)
 
-    /** Result of [buildFromSnapshot] — GSM plus metadata for message framing. */
+    /** Result of [buildFromSnapshot] / [buildDiff] — GSM plus metadata for message framing. */
     data class BuildResult(
         val gsm: GameStateMessage,
         /** True if a CastSpell zone transfer was detected (triggers QueuedGSM split). */
         val hasCastSpell: Boolean = false,
+        /** Ordering-sensitive bridge mutations computed during the build. Caller applies via [GameBridge.applyMutations]. */
+        val mutations: BridgeMutations = BridgeMutations.EMPTY,
     )
 
     /**
@@ -49,7 +110,7 @@ object StateMapper {
      * objectInstanceIds (for card count) but no GameObjectInfo (renders face-down).
      * Use 0 to include all objects (internal snapshots for diffing).
      */
-    @Suppress("LongMethod")
+    @Suppress("LongMethod", "LongParameterList")
     fun buildFromSnapshot(
         snap: GsmSnapshot,
         gameStateId: Int,
@@ -60,19 +121,25 @@ object StateMapper {
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
         prev: GsmSnapshot? = null,
+        /**
+         * Bundle events consumed by the annotation pipeline. Defaults to draining
+         * the bridge via [GameBridge.drainBundleEvents] — the drain was previously
+         * done inside this function. Callers in the bundle loop (BundleBuilder)
+         * pass an explicit list so the drain happens once per bundle and the
+         * mapper is pure on event inputs.
+         */
+        events: List<GameEvent> = bridge.drainBundleEvents(viewingSeatId),
     ): BuildResult {
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
         val frame = GsmFrame.from(snap)
 
-        // ═══ GATHER: drain queues, snapshot mutable state ═══
-        val events = bridge.drainEvents().events.toMutableList()
-        for (reveal in bridge.drainReveals(viewingSeatId)) {
-            events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
-        }
+        // ═══ GATHER: snapshot mutable state (events arrive from caller) ═══
+        // applyRevealProxies may append RevealProxiesDeleted on reveal end; keep local mutable copy.
+        val eventsMutable = events.toMutableList()
         // Evict stale AbilityRegistry entries for transformed cards so the next
         // abilityRegistryFor() call rebuilds from the current face.
-        for (ev in events) {
+        for (ev in eventsMutable) {
             if (ev is GameEvent.CardTransformed) bridge.evictAbilityRegistry(ev.cardId.value)
         }
         val initEffectDiff = bridge.effects.emitInitEffectsOnce()
@@ -80,11 +147,13 @@ object StateMapper {
         val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
         val keywordSnapshot = bridge.snapshotKeywords()
         val keywordDiff = bridge.effects.diffKeywords(keywordSnapshot)
-        // Snapshot persistent state BEFORE compute — computeBatch is pure over this snapshot.
+        // Persistent annotation baseline is carried on the snapshot (captured
+        // at snap time in SnapshotCapture). computeBatch is pure over this value.
         // See PersistentAnnotationStore class KDoc for lifecycle and ordering invariants.
-        val persistSnapshot = bridge.annotations.snapshot()
-        val startPersistentId = bridge.annotations.currentPersistentId()
-        val startAnnotationId = bridge.annotations.currentAnnotationId()
+        val persistentState = snap.persistentAnnotationState
+        val persistSnapshot = persistentState.activeAnnotations
+        val startPersistentId = persistentState.nextPersistentId
+        val startAnnotationId = persistentState.nextAnnotationId
 
         // ═══ MAP: engine state → proto objects ═══
         val isBrawl = bridge.isBrawlOrCommander
@@ -170,10 +239,10 @@ object StateMapper {
         // Stack abilities (triggers, activated abilities not represented as zone cards)
         ZoneMapper.addStackAbilitiesFromSnapshot(snap, bridge, zones, gameObjects)
 
-        // RevealedCard proxy synthesis / cleanup
-        applyRevealProxies(activeReveal, snap, bridge, zones, gameObjects, events)
+        // RevealedCard proxy synthesis / cleanup (may append RevealProxiesDeleted to eventsMutable)
+        applyRevealProxies(activeReveal, snap, bridge, zones, gameObjects, eventsMutable)
 
-        log.info(
+        log.debug(
             "buildFromSnapshot: phase={} turn={} hand={} objects={} zones={}",
             snap.phase.phase,
             snap.phase.turn,
@@ -183,10 +252,10 @@ object StateMapper {
         )
 
         // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
-        val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, events)
+        val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, eventsMutable)
         val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
-            computeAnnotations(events, transferResult, actingSeat, bridge, prev = prev ?: bridge.lastSent)
+            computeAnnotations(eventsMutable, transferResult, actingSeat, bridge, prev = prev)
 
         // Snap-derived pAnn inputs — computed here where snap is in scope.
         val qualificationPersistentFromSnap = snap.objects.values
@@ -209,7 +278,7 @@ object StateMapper {
 
         // Stages 4-5 + persistent computation
         val remaining = computeRemainingAnnotations(
-            events, annotations, transferPersistent, initEffectDiff, effectDiff,
+            eventsMutable, annotations, transferPersistent, initEffectDiff, effectDiff,
             persistSnapshot, startPersistentId, startAnnotationId, bridge, keywordDiff,
             combatResult,
             qualificationPersistentFromSnap = qualificationPersistentFromSnap,
@@ -224,36 +293,37 @@ object StateMapper {
             updateType, actions, actingSeat, prev?.gameStateId,
         )
 
-        // ═══ APPLY: deferred tracking effects (for next GSM) ═══
-        // Must run AFTER assembleGsm — the GSM already embedded batch.allAnnotations.
-        // applyBatchResult replaces the live store so the next buildFromSnapshot sees updated state.
-        for (id in transferResult.retiredIds) bridge.retireToLimbo(InstanceId(id))
-        for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(InstanceId(iid), zid)
-        bridge.annotations.applyBatchResult(remaining.batch)
-        bridge.annotations.setAnnotationId(remaining.nextAnnotationId)
+        // ═══ COLLECT mutations (always) ═══
+        val mutations = BridgeMutations(
+            idReallocations = transferResult.idReallocations,
+            retiredIds = transferResult.retiredIds.map { InstanceId(it) },
+            zoneRecordings = transferResult.zoneRecordings.map { (iid, zid) -> InstanceId(iid) to zid },
+            persistentBatch = remaining.batch,
+            nextAnnotationId = remaining.nextAnnotationId,
+        )
 
         val hasCastSpell = transferResult.transfers.any { it.category == TransferCategory.CastSpell }
-        return BuildResult(built, hasCastSpell)
+        return BuildResult(built, hasCastSpell, mutations)
     }
 
     /**
      * Build a Diff [GameStateMessage] by snap-vs-snap field comparison.
+     *
+     * Genuinely pure on ordering-sensitive outputs: reads persistent state from
+     * [cur.persistentAnnotationState] (not [bridge.annotations]); returns
+     * [BridgeMutations] for the caller to apply via [GameBridge.applyMutations].
      *
      * `prev == null` → returns the Full GSM built from `cur` (first bundle, post-handshake).
      * Otherwise emits only zones/objects whose CardSnapshot/ZoneSnapshot field-equality
      * differs between `prev` and `cur`. Player/turn/annotation/persistent-annotation
      * lists are taken from the freshly-built current full GSM (current-bundle events
      * already applied).
-     *
-     * `bridge.ids` reallocation, limbo retires, and zone recordings continue to fire
-     * inside `buildFromSnapshot`'s `transferResult` apply loop — diff is pure on inputs
-     * (snap-vs-snap), not on outputs (still mutates bridge). Pulling output side-effects
-     * out as data is a separate follow-up.
      */
-    @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition", "LongParameterList")
     fun buildDiff(
         prev: GsmSnapshot?,
         cur: GsmSnapshot,
+        events: List<GameEvent>,
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
@@ -263,13 +333,28 @@ object StateMapper {
         revealForSeat: Int? = null,
     ): BuildResult {
         if (prev == null) {
-            return buildFromSnapshot(cur, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat, prev = null)
+            // First bundle — Full GSM with mutations returned for caller-apply.
+            return buildFromSnapshot(
+                cur, gameStateId, matchId, bridge,
+                actions = actions,
+                updateType = updateType,
+                viewingSeatId = viewingSeatId,
+                revealForSeat = revealForSeat,
+                prev = null,
+                events = events,
+            )
         }
 
-        // Build current full GSM (also drives event drain + side-effect apply).
-        // Match the existing dual-pass shape: pass actions=null + viewingSeatId=0 for
-        // the comparison base (needs all objects for accurate diff).
-        val fullResult = buildFromSnapshot(cur, gameStateId, matchId, bridge, revealForSeat = revealForSeat, prev = prev)
+        // Build current full GSM (viewingSeatId=0 to include all objects for accurate diff).
+        val fullResult = buildFromSnapshot(
+            cur,
+            gameStateId,
+            matchId,
+            bridge,
+            revealForSeat = revealForSeat,
+            prev = prev,
+            events = events,
+        )
         val current = fullResult.gsm
 
         // Snap-vs-snap zone delta: any zone whose snapshot field-equality differs.
@@ -394,7 +479,7 @@ object StateMapper {
                 Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
             )
         }
-        return BuildResult(built, fullResult.hasCastSpell)
+        return BuildResult(built, fullResult.hasCastSpell, fullResult.mutations)
     }
 
     /**

@@ -8,7 +8,9 @@ import java.util.concurrent.ConcurrentHashMap
  * **Zone tracking** — records which zone each instanceId was last seen in,
  * so [StateMapper.detectZoneTransfers] can detect zone changes.
  *
- * Note: the diff baseline is [GameBridge.lastSent] (`GsmSnapshot?`), not here.
+ * Note: the diff-baseline GSM is [BundleCursor.lastSent] (`GsmSnapshot?`) on
+ * [GameBridge.bundleCursor], not here. This class only tracks per-instance
+ * zone history, used by [ZoneTransferDetector] to identify transfers.
  *
  * Thread-safe: zone map uses [ConcurrentHashMap].
  */

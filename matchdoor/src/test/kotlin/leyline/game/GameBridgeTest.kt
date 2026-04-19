@@ -7,7 +7,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
@@ -493,7 +492,8 @@ class GameBridgeTest :
 
             // Build initial state to seed previousZones
             val snapGb2 = GsmSnapshot.capture(game, b, "test-match", 1)
-            StateMapper.buildFromSnapshot(snapGb2, 1, "test-match", b).gsm
+            val seedResult = StateMapper.buildFromSnapshot(snapGb2, 1, "test-match", b)
+            b.applyMutations(seedResult.mutations)
 
             // Play a land
             val player = b.getPlayer(SeatId(1))!!
@@ -591,11 +591,9 @@ class GameBridgeTest :
 
             val game = b.getGame()!!
 
-            // No diff baseline yet — buildDiff with null prev falls back to Full
-            b.lastSent.shouldBeNull()
-
+            // No diff baseline — buildDiff with null prev falls back to Full
             val snapFull = GsmSnapshot.capture(game, b, "test-match", 1)
-            val gs = StateMapper.buildDiff(null, snapFull, 1, "test-match", b).gsm
+            val gs = StateMapper.buildDiff(null, snapFull, emptyList(), 1, "test-match", b).gsm
             gs.type shouldBe Messages.GameStateType.Full
             (gs.zonesCount > 0).shouldBeTrue()
         }

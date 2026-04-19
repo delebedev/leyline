@@ -29,6 +29,7 @@ import leyline.config.MatchConfig
 import leyline.game.mapper.ObjectMapper
 import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
@@ -50,8 +51,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class GameBridge(
     /** Timeout for action bridge / prompt bridge / mulligan bridge.
-     *  Production: 120s. Tests: ~2-5s (engine responds in <100ms). */
-    private val bridgeTimeoutMs: Long = 120_000L,
+     *  Production: 45s. Tests: ~2-5s (engine responds in <100ms). */
+    private val bridgeTimeoutMs: Long = 45_000L,
     /** Playtest config — controls AI speed, die roll, etc. */
     val matchConfig: MatchConfig = MatchConfig(),
     /** Shared protocol counter for GRE message sequencing.
@@ -212,12 +213,20 @@ class GameBridge(
     val diff = DiffSnapshotter(ids)
 
     /**
-     * Previous [GsmSnapshot] sent to the client — the diff baseline.
-     * Set after every bundle; null before first state is sent.
-     * [StateMapper.buildDiff] reads this as `prev` to compute snap-vs-snap diffs.
+     * Bundle-sequence cursor shared by every [BundleBuilder] bound to this
+     * bridge. See [BundleCursor] KDoc for lifecycle + invalidation semantics.
      */
+    val bundleCursor: BundleCursor = BundleCursor()
+
+    /**
+     * Test-only observability hook — invoked per bundle after [StateMapper.buildDiff]
+     * and [applyMutations], before the session's [BundleCursor] advances. Receives
+     * (prev, cur, events, gameStateId, diff gsm). Currently used by
+     * [leyline.game.PureDiffReplayTest] to capture live tuples for replay.
+     */
+    @org.jetbrains.annotations.VisibleForTesting
     @Volatile
-    var lastSent: GsmSnapshot? = null
+    var diffListener: ((prev: GsmSnapshot?, cur: GsmSnapshot, events: List<GameEvent>, gameStateId: Int, diff: GameStateMessage) -> Unit)? = null
 
     // ── Reveal proxy lifecycle ──────────────────────────────────────────────
     // RevealedCard proxies exist during an active reveal-choose effect.
@@ -227,7 +236,7 @@ class GameBridge(
     // diffDeletedInstanceIds.
 
     /** Currently active RevealedCard proxy IDs, managed via [RevealProxyTracker].
-     *  Written on engine thread (during buildFromGame), read serially — not concurrent. */
+     *  Written on engine thread (during buildFromSnapshot), read serially — not concurrent. */
     val revealProxies: RevealProxyTracker = RevealProxyTracker()
 
     /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */
@@ -298,7 +307,40 @@ class GameBridge(
 
     override fun getPreviousZone(instanceId: InstanceId): Int? = diff.getPreviousZone(instanceId.value)
 
+    /**
+     * Apply ordering-sensitive mutations returned by [StateMapper.buildDiff].
+     * Fixed order: id reallocations → limbo retires → zone recordings →
+     * persistent annotation batch → next annotation ID counter.
+     *
+     * Called by [BundleBuilder] between diff compute and action build.
+     */
+    fun applyMutations(m: BridgeMutations) {
+        for (r in m.idReallocations) ids.applyRealloc(r)
+        for (id in m.retiredIds) retireToLimbo(id)
+        for ((iid, zid) in m.zoneRecordings) recordZone(iid, zid)
+        annotations.applyBatchResult(m.persistentBatch)
+        annotations.setAnnotationId(m.nextAnnotationId)
+    }
+
     override fun drainEvents(): DrainedEvents = eventCollector?.drainEvents() ?: DrainedEvents(emptyList())
+
+    /**
+     * Drain all events for one bundle build: queued Forge events + reveal records
+     * for [viewingSeatId] (promoted to [GameEvent.CardsRevealed]). Caller passes
+     * the returned list to [StateMapper.buildFromSnapshot] / [StateMapper.buildDiff].
+     *
+     * Centralises the drain that previously lived inside the mapper. Behavior is
+     * unchanged: one drain per call, per-seat reveal consumption is seat-scoped.
+     * Multi-seat drain (so two per-seat builds of the same snapshot see the same
+     * reveals) is a separate design bead if the pattern ever matters.
+     */
+    fun drainBundleEvents(viewingSeatId: Int = 0): List<GameEvent> {
+        val events = drainEvents().events.toMutableList()
+        for (reveal in drainReveals(viewingSeatId)) {
+            events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
+        }
+        return events
+    }
 
     /** True if there are Forge events queued but not yet drained into a GSM. */
     fun hasPendingEvents(): Boolean = eventCollector?.hasEvents() ?: false
@@ -770,7 +812,6 @@ class GameBridge(
         val deletedIds = ids.resetAll().map { it.value }
         limbo.clear()
         diff.resetAll()
-        lastSent = null
         effects.resetAll()
         annotations.resetAll()
         activeCrewEffects.clear()

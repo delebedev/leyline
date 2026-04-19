@@ -401,7 +401,7 @@ class DebugServer(
             .build()
 
         session.sendBundledGRE(listOf(greGsm, greActions))
-        bridge.lastSent = snap
+        bridge.bundleCursor.lastSent = snap
 
         val info = "Pushed full state gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
         log.info(info)
@@ -518,7 +518,7 @@ class DebugServer(
             .build()
 
         session.sendBundledGRE(listOf(greGsm, greActions))
-        bridge.lastSent = snap
+        bridge.bundleCursor.lastSent = snap
 
         return if (fileParam != null) {
             "Puzzle '$fileParam' set + injected gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"

@@ -25,7 +25,7 @@ Every piece of bridge state is owned by exactly one of two threads.
 
 **Session-owned.** Protobuf construction, wire sends, `MatchRegistry` entries, client-facing state (deadlines, pause flag).
 
-**Shared, atomic-safe.** `MessageCounter` (AtomicInteger), `DiffSnapshotter.diffBaselineState` (volatile), `PrioritySignal` (Semaphore), the `AtomicReference<PendingAction>` / `AtomicReference<PendingPrompt>` inside bridges, `GamePlayback.queue` (ConcurrentLinkedQueue).
+**Shared, atomic-safe.** `MessageCounter` (AtomicInteger), `BundleCursor.lastSent` (volatile via `GameBridge.bundleCursor`), `DiffSnapshotter.previousZones` (ConcurrentHashMap), `PrioritySignal` (Semaphore), the `AtomicReference<PendingAction>` / `AtomicReference<PendingPrompt>` inside bridges, `GamePlayback.queue` (ConcurrentLinkedQueue).
 
 A read of shared state on one thread is a snapshot of a moving target. Decisions whose correctness depends on the value not changing between read and use must be made on the thread that owns the state.
 
@@ -60,7 +60,7 @@ graph LR
     EVT -. enqueue .-> Q
     EVT -. nextGsId, nextMsgId .-> CTR
     SEND -. nextGsId, nextMsgId .-> CTR
-    HND -. snapshotDiffBaseline .-> SNAP
+    HND -. cursor.lastSent = snap .-> SNAP
     WAIT -. awaitSignal .-> SIG
     SEND -. drainQueue .-> Q
 ```
@@ -105,12 +105,16 @@ Two independent timelines exist. Treating one as a substitute for the other sile
 
 | Timeline | Location | Advances on | Purpose |
 |---|---|---|---|
-| Diff baseline | `DiffSnapshotter.diffBaselineState` (volatile) | Every `snapshotDiffBaseline(gsm)` call, on whichever thread issued it | Input to `StateMapper.buildDiffFromGame` so the next GSM carries only changed fields |
+| Diff baseline | `BundleCursor.lastSent: GsmSnapshot?` on `GameBridge.bundleCursor` | Every `cursor.lastSent = snap` write in `BundleBuilder`, after `buildDiff` + `applyMutations` | Input to `StateMapper.buildDiff` as `prev` so the next GSM carries only changed fields |
 | Last-sent state | Implicit in the sink — defined by the actual `send` call | Every `sink.send(messages)` | Any decision whose correctness depends on what the client has seen |
 
-**R1. Do not snapshot what has not been sent.** Calling `snapshotDiffBaseline(buildFromGame(...))` before the built state is sent advances the baseline. The next diff then omits objects the client has never received. The operational form is: build → diff → send → snapshot, in that order, exactly once per outbound GSM.
+Per-bundle operational order inside `BundleBuilder`: **capture → buildDiff → applyMutations → send → cursor advance**. `buildDiff` is pure on ordering-sensitive outputs; it returns `BridgeMutations` but does not commit them. `applyMutations` commits in a fixed order (id reallocations → limbo retires → zone recordings → persistent-annotation batch → `nextAnnotationId`). Only after a successful send does `cursor.lastSent` advance to the snapshot just sent.
 
-**R2. Do not reuse the diff baseline as client-awareness state.** The baseline can be advanced by any engine-thread capture (`GamePlayback` pacing, EventBus handlers) that never reaches the wire. If a decision depends on "did we send X to the client?", store that answer explicitly.
+**R1. Do not advance the cursor past state the client has not received.** Writing `cursor.lastSent = buildDiff(...).nextSnap` before the built GSM is sent means the next diff omits objects the client never received. The operational form is: build → apply → send → advance, in that order, exactly once per outbound GSM. `BundleBuilder` enforces this shape; bypass it at your peril.
+
+**R2. Do not reuse the diff baseline as client-awareness state.** The cursor can be advanced by any engine-thread bundle (`GamePlayback` pacing, EventBus handlers) whose messages never reach the wire. If a decision depends on "did we send X to the client?", store that answer explicitly.
+
+**R3. One cursor per bridge, shared across builders.** `MatchSession` and `GamePlayback` each construct their own `BundleBuilder`, but both receive the same `BundleCursor` instance via `bridge.bundleCursor` (the constructor default). Two cursors would diverge instantly — the engine-thread playback would advance its cursor with bundles the session-thread builder never sees as `prev`, and the next session-thread diff would reference a baseline the client never received. `PureDiffReplayTest` surfaces this as a step-0 replay drift.
 
 ---
 
@@ -132,7 +136,7 @@ The wait guarantees three things hold when it returns:
 
 1. The engine has blocked in a bridge callback — a priority stop, an interactive prompt, or game over.
 2. `MessageCounter` has advanced past its pre-wait watermark.
-3. `DiffSnapshotter.diffBaselineState` has settled: any engine-thread snapshot from the preceding action is already in place.
+3. `BundleCursor.lastSent` has settled: any engine-thread bundle from the preceding action has already advanced the cursor.
 
 A send that skips `awaitPriority` is a send built from a half-mutated engine state. The resulting GSM diff will be inconsistent with what the client should observe.
 
@@ -147,11 +151,11 @@ CharmEffect.makeChoices(ability)        ← blocks in chooseModeForAbility
 game.getStack().addAndUnfreeze(ability) ← runs only after mode choice returns
 ```
 
-When `WebPlayerController.chooseModeForAbility` fires and the session sends `CastingTimeOptionsReq`, `game.getStack()` is empty — the trigger has not been added. The real client expects to see the triggered ability on the stack before the modal prompt. Forge's ordering cannot be changed, so `BundleBuilder.castingTimeOptionsBundle` synthesizes the ability game object into the outbound GSM: build the base GSM, inject a `GameObjectInfo` for the ability into the `Stack` zone, then call `snapshotDiffBaseline` on the synthesized state. The snapshot step is load-bearing — without it, when the ability eventually resolves, the next diff has no record of the object to delete.
+When `WebPlayerController.chooseModeForAbility` fires and the session sends `CastingTimeOptionsReq`, `game.getStack()` is empty — the trigger has not been added. The real client expects to see the triggered ability on the stack before the modal prompt. Forge's ordering cannot be changed, so `BundleBuilder.castingTimeOptionsBundle` synthesizes the ability game object into the outbound GSM: build the base GSM, inject a `GameObjectInfo` for the ability into the `Stack` zone, then write `cursor.lastSent` to the synthesized snapshot so the next diff sees the ability as already-sent. The cursor advance is load-bearing — without it, when the ability eventually resolves, the next diff has no record of the object to delete.
 
 Spell-time modals (kicker, spell modals where the card itself is already on the stack) skip the synthesis; `sourceCardInstanceId` is null on that path.
 
-**Generalization.** Any Forge callback where the engine blocks for input *before* the mutation the client expects to see has happened fits this pattern. When a prompt handler observes `game.getStack().isEmpty` or `battlefield.size == expected - 1` where a different state is expected, the cause is an engine blocked in a bridge callback upstream of the mutation. The `castingTimeOptionsBundle` approach — synthesize the missing object in the outbound GSM, then `snapshotDiffBaseline` the synthesized state — is the template to copy.
+**Generalization.** Any Forge callback where the engine blocks for input *before* the mutation the client expects to see has happened fits this pattern. When a prompt handler observes `game.getStack().isEmpty` or `battlefield.size == expected - 1` where a different state is expected, the cause is an engine blocked in a bridge callback upstream of the mutation. The `castingTimeOptionsBundle` approach — synthesize the missing object in the outbound GSM, then advance `cursor.lastSent` to the synthesized snapshot — is the template to copy.
 
 ---
 
@@ -159,7 +163,7 @@ Spell-time modals (kicker, spell modals where the card itself is already on the 
 
 `GamePlayback` subscribes to Forge's Guava EventBus. EventBus dispatch is synchronous on the engine thread: the `@Subscribe` method runs on `game-loop-<id>`, mid-way through whatever engine operation fired the event. Three rules follow.
 
-**Only atomic-safe operations.** A subscriber may read engine state, increment `MessageCounter`, update `DiffSnapshotter.diffBaselineState`, and enqueue bytes for the session thread to drain. It must not acquire locks, perform I/O, or do anything that could block on an external resource — any such operation risks a deadlock against the thread on the other end.
+**Only atomic-safe operations.** A subscriber may read engine state, increment `MessageCounter`, advance `BundleCursor.lastSent`, and enqueue bytes for the session thread to drain. It must not acquire locks, perform I/O, or do anything that could block on an external resource — any such operation risks a deadlock against the thread on the other end.
 
 **Pausing the engine thread is how snapshotting is made safe.** `GamePlayback` deliberately `Thread.sleep`s at key events to pace remote turns for the human viewer. The sleep freezes engine progress: engine state cannot mutate while the subscriber is running, which is precisely the window in which a coherent snapshot can be taken.
 

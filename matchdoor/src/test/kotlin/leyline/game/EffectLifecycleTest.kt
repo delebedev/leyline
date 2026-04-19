@@ -57,14 +57,13 @@ class EffectLifecycleTest :
             // Build full state — exercises snapshotBoosts + diffBoosts + effectAnnotations
             val snapEff1 = GsmSnapshot.capture(game, b, "test", 1)
             val gsm1 = StateMapper.buildFromSnapshot(snapEff1, 1, "test", b).gsm
-            b.lastSent = snapEff1
 
             gsm1 shouldNotBe null
             gsm1.gameStateId shouldBe 1
 
             // Build a diff — should not crash even with no state changes
             val snapEff2 = GsmSnapshot.capture(game, b, "test", 2)
-            val gsm2 = StateMapper.buildDiff(b.lastSent, snapEff2, 2, "test", b).gsm
+            val gsm2 = StateMapper.buildDiff(snapEff1, snapEff2, emptyList(), 2, "test", b).gsm
             gsm2 shouldNotBe null
             gsm2.gameStateId shouldBe 2
 
@@ -95,7 +94,6 @@ class EffectLifecycleTest :
             // Take initial snapshot (gsId=1)
             val snapEff2 = GsmSnapshot.capture(game, b, "test", 1)
             val gsm1 = StateMapper.buildFromSnapshot(snapEff2, 1, "test", b).gsm
-            b.lastSent = snapEff2
 
             // Cast Giant Growth targeting Swiftspear
             val pending = awaitFreshPending(b, null).shouldNotBeNull()

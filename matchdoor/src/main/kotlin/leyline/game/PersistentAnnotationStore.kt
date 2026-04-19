@@ -42,7 +42,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  *
  * **Drain:** [drainDeletions] returns IDs deleted since last drain, for the
  * GSM's `diffDeletedPersistentAnnotationIds` field. Called once per GSM in
- * [StateMapper.buildDiffFromGame]. The drain-then-clear pattern means each
+ * [StateMapper.buildDiff]. The drain-then-clear pattern means each
  * deletion ID appears in exactly one GSM.
  *
  * ## ID allocation
@@ -483,7 +483,7 @@ class PersistentAnnotationStore {
     /**
      * Drain and return IDs deleted since last drain (for diffDeletedPersistentAnnotationIds).
      *
-     * Called once per Diff GSM in [StateMapper.buildDiffFromGame]. Each deletion
+     * Called once per Diff GSM in [StateMapper.buildDiff]. Each deletion
      * ID appears in exactly one GSM — calling twice without intervening mutations
      * returns empty. For Full GSMs, deletions are embedded via [computeBatch]'s
      * [BatchResult.deletedIds] instead.

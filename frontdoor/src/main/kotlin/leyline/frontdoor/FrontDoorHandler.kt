@@ -105,16 +105,16 @@ class FrontDoorHandler(
             if (bytes.size < FdWireConstants.HEADER_SIZE) return
 
             val frameType = bytes[1]
-            log.debug("Front Door: frame type=0x{} size={}", String.format(Locale.ROOT, "%02x", frameType), bytes.size)
+            log.trace("Front Door: frame type=0x{} size={}", String.format(Locale.ROOT, "%02x", frameType), bytes.size)
 
             // Control frames
             if (frameType == FdWireConstants.TYPE_CTRL_INIT) {
-                log.debug("Front Door: CTRL_INIT received, sending ACK")
+                log.trace("Front Door: CTRL_INIT received, sending ACK")
                 writer.sendCtrlAck(ctx, bytes)
                 return
             }
             if (frameType == FdWireConstants.TYPE_CTRL_ACK) {
-                log.debug("Front Door: CTRL_ACK received (ignored)")
+                log.trace("Front Door: CTRL_ACK received (ignored)")
                 return
             }
 

@@ -59,4 +59,14 @@ class GsmSnapshotTest :
             val snap = GsmSnapshot.forTest()
             snap.abilityWordEntries.shouldBeEmpty()
         }
+
+        test("PersistentAnnotationState defaults to INITIAL") {
+            val snap = GsmSnapshot.forTest()
+            assertSoftly {
+                snap.persistentAnnotationState shouldBe PersistentAnnotationState.INITIAL
+                snap.persistentAnnotationState.nextAnnotationId shouldBe 50
+                snap.persistentAnnotationState.nextPersistentId shouldBe 1
+                snap.persistentAnnotationState.activeAnnotations shouldBe emptyMap()
+            }
+        }
     })

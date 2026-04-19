@@ -119,7 +119,7 @@ data class ServerConfig(
 
     /** Bridge timeout — how long the engine waits for client responses (ms). */
     @SerialName("bridge_timeout_ms")
-    val bridgeTimeoutMs: Long = 120_000L,
+    val bridgeTimeoutMs: Long = 45_000L,
 
     /**
      * How long `advanceOrWait` waits for the AI's turn to return priority

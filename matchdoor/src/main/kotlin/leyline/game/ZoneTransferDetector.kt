@@ -77,6 +77,12 @@ data class TransferResult(
     val stackAbilityAppearances: List<StackAbilityAppearance> = emptyList(),
     /** Triggered abilities that left the stack (resolved/fizzled). */
     val stackAbilityDisappearances: List<StackAbilityDisappearance> = emptyList(),
+    /**
+     * Planned id reallocations for zone-transferred cards. Committed by
+     * [GameBridge.applyMutations] after [StateMapper.buildDiff] returns.
+     * Empty when no zone transfers occurred.
+     */
+    val idReallocations: List<InstanceIdRegistry.IdReallocation> = emptyList(),
 )
 
 /**
@@ -92,43 +98,72 @@ object ZoneTransferDetector {
     private const val MANA_ABILITY_ID_OFFSET = 200_000
 
     /**
-     * Detect zone transfers and realloc instanceIds.
+     * Detect zone transfers and plan instanceId reallocations.
      *
-     * Returns a [TransferResult] with patched copies of objects/zones.
-     * Does not mutate [gameObjects] or [zones]. Calls [IdMapping.reallocInstanceId]
-     * for ID allocation but defers tracking side effects (retireToLimbo, recordZone)
-     * to the caller via the result.
+     * Returns a [TransferResult] with patched copies of objects/zones. Does not
+     * mutate [gameObjects] or [zones]. Id reallocations, limbo retires, and zone
+     * recordings are returned as data; the caller commits via
+     * [GameBridge.applyMutations].
      *
-     * Delegates to the pure overload, adapting [GameBridge] calls to function parameters.
+     * Delegates to the pure overload, adapting [GameBridge] calls to function
+     * parameters.
      */
     internal fun detectZoneTransfers(
         gameObjects: List<GameObjectInfo>,
         zones: List<ZoneInfo>,
         bridge: GameBridge,
         events: List<GameEvent>,
-    ): TransferResult = detectZoneTransfers(
-        gameObjects = gameObjects,
-        zones = zones,
-        events = events,
-        previousZones = bridge.diff.allZones(),
-        forgeIdLookup = { iid -> bridge.getForgeCardId(iid) },
-        idAllocator = { fid -> bridge.reallocInstanceId(fid) },
-        idLookup = { fid -> bridge.getOrAllocInstanceId(fid) },
-        manaAbilityGrpIdResolver = { fid ->
-            val card = bridge.getGame()?.let { findCard(it, fid) }
-            if (card != null) {
-                val subtypes = card.type.subtypes.map { it.lowercase() }
-                AbilityIdDeriver.BASIC_LAND_ABILITIES
-                    .firstOrNull { it.first in subtypes }?.second ?: 0
-            } else {
-                0
-            }
-        },
-        grpIdResolver = { fid ->
-            val card = bridge.getGame()?.let { findCard(it, fid) }
-            if (card != null) bridge.cardRepository.findGrpIdByName(card.name) ?: 0 else 0
-        },
-    )
+    ): TransferResult {
+        val plannedReallocs = mutableListOf<InstanceIdRegistry.IdReallocation>()
+
+        // Compute plans without mutating forward/reverse maps. Reserve a counter
+        // slot per plan so monotonic getOrAlloc calls later in the same buildDiff
+        // cannot collide. A forward/reverse overlay resolves same-pass queries for
+        // freshly-planned fids. Caller commits the plans via bridge.applyMutations
+        // (applyRealloc per plan).
+        val forwardOverlay = mutableMapOf<ForgeCardId, InstanceId>()
+        val reverseOverlay = mutableMapOf<InstanceId, ForgeCardId>()
+        val idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation = { fid ->
+            val oldId = forwardOverlay[fid] ?: bridge.ids.peek(fid)
+            val newId = bridge.ids.reserveNextInstanceId()
+            forwardOverlay[fid] = newId
+            reverseOverlay[newId] = fid
+            val plan = InstanceIdRegistry.IdReallocation(oldId ?: newId, newId)
+            plannedReallocs.add(plan)
+            plan
+        }
+        val forgeIdLookup: (InstanceId) -> ForgeCardId? = { iid ->
+            reverseOverlay[iid] ?: bridge.getForgeCardId(iid)
+        }
+        val idLookup: (ForgeCardId) -> InstanceId = { fid ->
+            forwardOverlay[fid] ?: bridge.getOrAllocInstanceId(fid)
+        }
+
+        val result = detectZoneTransfers(
+            gameObjects = gameObjects,
+            zones = zones,
+            events = events,
+            previousZones = bridge.diff.allZones(),
+            forgeIdLookup = forgeIdLookup,
+            idAllocator = idAllocator,
+            idLookup = idLookup,
+            manaAbilityGrpIdResolver = { fid ->
+                val card = bridge.getGame()?.let { findCard(it, fid) }
+                if (card != null) {
+                    val subtypes = card.type.subtypes.map { it.lowercase() }
+                    AbilityIdDeriver.BASIC_LAND_ABILITIES
+                        .firstOrNull { it.first in subtypes }?.second ?: 0
+                } else {
+                    0
+                }
+            },
+            grpIdResolver = { fid ->
+                val card = bridge.getGame()?.let { findCard(it, fid) }
+                if (card != null) bridge.cardRepository.findGrpIdByName(card.name) ?: 0 else 0
+            },
+        )
+        return result.copy(idReallocations = plannedReallocs.toList())
+    }
 
     /**
      * Detect zone transfers — pure overload.

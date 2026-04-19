@@ -95,15 +95,16 @@ class MatchFlowHarness(
 
         // Seed accumulator + validator with a Full GSM BEFORE submitKeep.
         // At this point the engine is blocked at mulligan — safe to call
-        // buildFromGame without racing the engine thread's AI action capture.
+        // buildFromSnapshot without racing the engine thread's AI action capture.
         // After submitKeep, the engine runs (potentially AI-first) and concurrent
-        // buildFromGame calls would race on drainEvents/nextAnnotationId.
+        // buildFromSnapshot calls would race on drainEvents/nextAnnotationId.
         val game = bridge.getGame()
         if (game != null) {
             val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-            val fullGsm = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId).gsm
-            accumulator.seedFull(fullGsm)
-            validatingSink?.seedFull(fullGsm)
+            val fullResult = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId)
+            bridge.applyMutations(fullResult.mutations)
+            accumulator.seedFull(fullResult.gsm)
+            validatingSink?.seedFull(fullResult.gsm)
         }
 
         bridge.submitKeep(seatId)
@@ -163,9 +164,10 @@ class MatchFlowHarness(
         val game = bridge.getGame()
         if (game != null) {
             val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-            val fullGsm = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId).gsm
-            accumulator.seedFull(fullGsm)
-            validatingSink?.seedFull(fullGsm)
+            val fullResult = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId)
+            bridge.applyMutations(fullResult.mutations)
+            accumulator.seedFull(fullResult.gsm)
+            validatingSink?.seedFull(fullResult.gsm)
         }
 
         session.onPuzzleStart()

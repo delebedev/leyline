@@ -158,17 +158,17 @@ class CopyTokenIntegrationTest :
 
             val (_, copyIid) = castAndResolveCopy(h)
 
-            // First GSM — establishes baseline (drain events + seed lastSent)
+            // First GSM — establishes baseline (apply mutations so recordZone fires)
             val snapCopy3 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 1)
-            StateMapper.buildFromSnapshot(snapCopy3, 1, "test-copy", h.bridge, viewingSeatId = 1)
-            h.bridge.lastSent = snapCopy3
+            val baselineResult = StateMapper.buildFromSnapshot(snapCopy3, 1, "test-copy", h.bridge, viewingSeatId = 1)
+            h.bridge.applyMutations(baselineResult.mutations)
 
             // Trigger a state change (pass priority) so a diff is generated
             h.passPriority()
 
             // Second GSM — diff from baseline
             val snapCopy4 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 2)
-            val gsm2 = StateMapper.buildDiff(h.bridge.lastSent, snapCopy4, 2, "test-copy", h.bridge, viewingSeatId = 1).gsm
+            val gsm2 = StateMapper.buildDiff(snapCopy3, snapCopy4, emptyList(), 2, "test-copy", h.bridge, viewingSeatId = 1).gsm
 
             // If the copy token appears in the diff, its fields must be intact
             val copyInDiff = gsm2.gameObjectsList.firstOrNull { it.instanceId == copyIid }

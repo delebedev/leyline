@@ -6,6 +6,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
@@ -137,17 +138,17 @@ class TokenDiffStabilityTest :
             // First GSM — baseline
             val snapClue2 = GsmSnapshot.capture(h.game(), h.bridge, "test-clue", 1)
             val gsm1 = StateMapper.buildFromSnapshot(snapClue2, 1, "test-clue", h.bridge, viewingSeatId = 1).gsm
-            h.bridge.lastSent = snapClue2
 
             val clueObj1 = gsm1.gameObjectsList.first { it.instanceId == clueIid }
             clueObj1.cardTypesList shouldContain CardType.Artifact_a80b
+            clueObj1.instanceId shouldBe clueIid
 
             // Trigger a state change
             h.passPriority()
 
-            // Second GSM — diff
+            // Second GSM — diff against snapClue2 baseline
             val snapClue3 = GsmSnapshot.capture(h.game(), h.bridge, "test-clue", 2)
-            val gsm2 = StateMapper.buildDiff(h.bridge.lastSent, snapClue3, 2, "test-clue", h.bridge, viewingSeatId = 1).gsm
+            val gsm2 = StateMapper.buildDiff(snapClue2, snapClue3, emptyList(), 2, "test-clue", h.bridge, viewingSeatId = 1).gsm
 
             // If Clue appears in diff, fields must be intact (not stripped)
             val clueInDiff = gsm2.gameObjectsList.firstOrNull { it.instanceId == clueIid }
@@ -155,6 +156,7 @@ class TokenDiffStabilityTest :
                 assertSoftly {
                     clueInDiff.cardTypesList shouldContain CardType.Artifact_a80b
                     clueInDiff.subtypesList shouldContain SubType.Clue
+                    clueInDiff.instanceId shouldBe clueIid
                 }
             }
 

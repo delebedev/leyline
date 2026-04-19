@@ -373,13 +373,16 @@ object HandshakeMessages {
 
         // Full GSM built from live game state (stage=Play, cards in zones)
         val snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, gameStateId)
-        val gsm = StateMapper.buildFromSnapshot(
+        val fullResult = StateMapper.buildFromSnapshot(
             snap = snap,
             gameStateId = gameStateId,
             matchId = matchId,
             bridge = bridge,
             viewingSeatId = seatId,
-        ).gsm.toBuilder()
+            events = bridge.drainBundleEvents(seatId),
+        )
+        bridge.applyMutations(fullResult.mutations)
+        val gsm = fullResult.gsm.toBuilder()
             .setPendingMessageCount(1) // ActionsAvailableReq follows
             .build()
 

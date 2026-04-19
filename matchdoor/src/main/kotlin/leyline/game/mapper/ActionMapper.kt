@@ -188,7 +188,7 @@ object ActionMapper {
             val forgeCard = bridge.findCard(fid) ?: continue
             val sa = chooseCastAbility(forgeCard, player) ?: continue
             if (hasUnmetTargeting(sa)) {
-                log.debug("ActionMapper.buildFromSnapshot: skipping {} — no legal targets", cardSnap.name)
+                log.trace("ActionMapper.buildFromSnapshot: skipping {} — no legal targets", cardSnap.name)
                 continue
             }
             val canPay = try {
@@ -317,7 +317,7 @@ object ActionMapper {
         val castCount = builder.actionsList.count { it.actionType == ActionType.Cast }
         val activateCount = builder.actionsList.count { it.actionType == ActionType.Activate_add3 }
         val inactiveCount = builder.inactiveActionsCount
-        log.info(
+        log.debug(
             "buildFromSnapshot: seat={} mana={} activate={} lands={} casts={} inactive={} total={}",
             seatId,
             manaCount,
@@ -531,7 +531,7 @@ object ActionMapper {
                 // Skip spells whose sub-abilities require targets with none available
                 // (e.g. Counterspell with empty stack)
                 if (hasUnmetTargeting(sa)) {
-                    log.debug("ActionMapper: skipping {} — no legal targets", card.name)
+                    log.trace("ActionMapper: skipping {} — no legal targets", card.name)
                     continue
                 }
                 canPay = try {
@@ -668,7 +668,7 @@ object ActionMapper {
         if (checkLegality) {
             val activateCount = builder.actionsList.count { it.actionType == ActionType.Activate_add3 }
             val inactiveCount = builder.inactiveActionsCount
-            log.info(
+            log.debug(
                 "buildActions: seat={} mana={} activate={} lands={} casts={} inactive={} total={}",
                 seatId,
                 manaCount,
@@ -679,7 +679,7 @@ object ActionMapper {
                 builder.actionsCount,
             )
         } else {
-            log.info("buildNaiveActions: seat={} mana={} lands={} casts={} total={}", seatId, manaCount, landCount, castCount, builder.actionsCount)
+            log.debug("buildNaiveActions: seat={} mana={} lands={} casts={} total={}", seatId, manaCount, landCount, castCount, builder.actionsCount)
         }
 
         return builder.build()

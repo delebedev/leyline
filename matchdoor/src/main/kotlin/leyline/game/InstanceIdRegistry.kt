@@ -26,6 +26,23 @@ class InstanceIdRegistry(startId: Int = 100) {
      */
     data class IdReallocation(val old: InstanceId, val new: InstanceId)
 
+    /**
+     * Return the current mapped instanceId for [forgeCardId], or `null` if none is mapped.
+     * Unlike [getOrAlloc], never mutates — suitable for pure-compute paths.
+     */
+    fun peek(forgeCardId: ForgeCardId): InstanceId? = forgeIdToInstanceId[forgeCardId]
+
+    /**
+     * Reserve the next instanceId WITHOUT touching the forward/reverse maps.
+     *
+     * Used by [ZoneTransferDetector] during `buildDiff` compute: each zone-transfer
+     * plan needs a unique id that won't collide with later [getOrAlloc] calls in the
+     * same pass. Reserving the counter slot here guarantees uniqueness; the map commit
+     * happens later in [applyRealloc] via `bridge.applyMutations`. Keeps
+     * ordering-sensitive map writes out of compute while preserving id uniqueness.
+     */
+    fun reserveNextInstanceId(): InstanceId = InstanceId(nextInstanceId++)
+
     /** Allocate or return existing client instanceId for a Forge card ID. */
     fun getOrAlloc(forgeCardId: ForgeCardId): InstanceId =
         forgeIdToInstanceId.computeIfAbsent(forgeCardId) {
@@ -46,6 +63,27 @@ class InstanceIdRegistry(startId: Int = 100) {
         instanceIdToForgeId[newId] = forgeCardId
         // old reverse entry kept intentionally — client may reference old IDs
         return IdReallocation(oldId, newId)
+    }
+
+    /**
+     * Apply a previously-planned reallocation.
+     *
+     * Updates forward map to [realloc.new]; keeps reverse entries for both old and
+     * new ids (preserves retired-id lookups). Advances [nextInstanceId] if the plan's
+     * new id is >= the current counter.
+     */
+    fun applyRealloc(realloc: IdReallocation) {
+        val fid = instanceIdToForgeId[realloc.old] ?: instanceIdToForgeId[realloc.new]
+        if (fid == null) {
+            // First-seen case — caller's plan was for a fid we don't know yet.
+            // Shouldn't happen in normal bundle flow; safe no-op.
+            return
+        }
+        forgeIdToInstanceId[fid] = realloc.new
+        instanceIdToForgeId[realloc.new] = fid
+        if (realloc.new.value >= nextInstanceId) {
+            nextInstanceId = realloc.new.value + 1
+        }
     }
 
     /**
