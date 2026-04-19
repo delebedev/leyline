@@ -13,7 +13,6 @@ import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.ZoneIds
 import leyline.game.mapper.ZoneMapper
 import leyline.game.snapshot.GsmSnapshot
-import leyline.game.snapshot.PersistentAnnotationState
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -348,7 +347,10 @@ object StateMapper {
 
         // Build current full GSM (viewingSeatId=0 to include all objects for accurate diff).
         val fullResult = buildFromSnapshot(
-            cur, gameStateId, matchId, bridge,
+            cur,
+            gameStateId,
+            matchId,
+            bridge,
             revealForSeat = revealForSeat,
             prev = prev,
             events = events,

@@ -40,5 +40,4 @@ class InstanceIdRegistryTest :
             val newId = reg.getOrAlloc(ForgeCardId(42))
             reg.getForgeCardId(newId).shouldNotBeNull()
         }
-
     })
