@@ -7,9 +7,14 @@ import java.time.format.DateTimeFormatter
 /**
  * Filesystem paths for local session artifacts.
  *
- * Session-scoped artifacts land under `/tmp/leyline/sessions/<session>/`.
- * Engine dumps land under `/tmp/leyline/engine/`.
+ * Session-scoped artifacts land under `$SESSION_ROOT/<session>/`.
+ * Engine dumps land under `$ENGINE_DUMP/`.
  * Persistent data lives under `~/Library/Application Support/dev.leyline/`.
+ *
+ * `SESSION_ROOT` and `ENGINE_DUMP` default to `/tmp/leyline/{sessions,engine}`
+ * and can be overridden. Sysprop wins over env var:
+ * - sessions: `-Dleyline.sessions.root=…` or `LEYLINE_SESSIONS_ROOT=…`
+ * - engine:   `-Dleyline.engine.dump=…`   or `LEYLINE_ENGINE_DUMP=…`
  */
 object LeylinePaths {
     private val TMP_ROOT = File("/tmp/leyline")
@@ -24,9 +29,20 @@ object LeylinePaths {
     var sessionTag: String = newSessionTag()
         private set
 
-    val SESSION_ROOT: File = File(TMP_ROOT, "sessions")
+    val SESSION_ROOT: File
+        get() = resolveOverride("leyline.sessions.root", "LEYLINE_SESSIONS_ROOT")
+            ?: File(TMP_ROOT, "sessions")
+
     val SESSION_DIR: File get() = File(SESSION_ROOT, sessionTag)
-    val ENGINE_DUMP: File = File(TMP_ROOT, "engine")
+
+    val ENGINE_DUMP: File
+        get() = resolveOverride("leyline.engine.dump", "LEYLINE_ENGINE_DUMP")
+            ?: File(TMP_ROOT, "engine")
+
+    private fun resolveOverride(sysprop: String, env: String): File? =
+        (System.getProperty(sysprop) ?: System.getenv(env))
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::File)
 
     private fun newSessionTag(): String =
         LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
