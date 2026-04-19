@@ -1,4 +1,4 @@
-package leyline.bridge
+package leyline.bridge.bootstrap
 
 import java.nio.file.Files
 import java.nio.file.Path

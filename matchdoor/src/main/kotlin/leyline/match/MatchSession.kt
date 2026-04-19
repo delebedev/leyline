@@ -132,7 +132,7 @@ class MatchSession(
      * Then auto-pass through phases where only Pass is available.
      */
     override fun onMulliganKeep() = synchronized(sessionLock) {
-        val bridge = gameBridge ?: return
+        val bridge = gameBridge ?: error("onMulliganKeep: gameBridge not bound for seat $seatId")
         log.info("MatchSession: waiting for engine to reach priority after keep")
 
         bridge.awaitPriority()
@@ -343,7 +343,7 @@ class MatchSession(
      * (no one-shot consume yet).
      */
     private fun applyStopsToProfile(settings: SettingsMessage) {
-        val bridge = gameBridge ?: return
+        val bridge = gameBridge ?: error("applyStopsToProfile: gameBridge not bound for seat $seatId")
         val profile = bridge.phaseStopProfile ?: return
         val humanPlayer = bridge.getPlayer(seatId) ?: return
         val aiSeatId = SeatId(if (seatId.value == 1) 2 else 1)

@@ -20,7 +20,6 @@ import forge.player.PlayerControllerHuman
 import forge.util.Lang
 import forge.util.Localizer
 import leyline.bridge.forge.HeadlessGuiBase
-import leyline.bridge.resolveForgeResource
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
