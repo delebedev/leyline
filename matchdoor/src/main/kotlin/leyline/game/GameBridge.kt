@@ -51,8 +51,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class GameBridge(
     /** Timeout for action bridge / prompt bridge / mulligan bridge.
-     *  Production: 120s. Tests: ~2-5s (engine responds in <100ms). */
-    private val bridgeTimeoutMs: Long = 120_000L,
+     *  Production: 45s. Tests: ~2-5s (engine responds in <100ms). */
+    private val bridgeTimeoutMs: Long = 45_000L,
     /** Playtest config — controls AI speed, die roll, etc. */
     val matchConfig: MatchConfig = MatchConfig(),
     /** Shared protocol counter for GRE message sequencing.

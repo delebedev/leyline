@@ -105,6 +105,6 @@ class OptionalActionGate(
     }
 
     companion object {
-        const val DEFAULT_TIMEOUT_MS = 120_000L
+        const val DEFAULT_TIMEOUT_MS = 45_000L
     }
 }
