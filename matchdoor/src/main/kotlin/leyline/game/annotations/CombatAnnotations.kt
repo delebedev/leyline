@@ -34,7 +34,6 @@ data class CombatAnnotationResult(
  */
 @Suppress("MemberNameEqualsClassName")
 object CombatAnnotations {
-
     /**
      * Generate combat damage annotations from events.
      *
@@ -55,9 +54,10 @@ object CombatAnnotations {
         transferredIds: Map<ForgeCardId, Int> = emptyMap(),
     ): CombatAnnotationResult {
         val previousLifeTotals = prev?.seats?.associate { it.seatId.value to it.life } ?: emptyMap()
-        val currentLifeTotals = previousLifeTotals.keys.associateWith { seat ->
-            bridge.getPlayer(SeatId(seat))?.life ?: 0
-        }
+        val currentLifeTotals =
+            previousLifeTotals.keys.associateWith { seat ->
+                bridge.getPlayer(SeatId(seat))?.life ?: 0
+            }
         return combatAnnotations(
             events = events,
             idResolver = { fid ->
@@ -85,9 +85,10 @@ object CombatAnnotations {
     ): CombatAnnotationResult {
         val cardDamage = events.filterIsInstance<GameEvent.DamageDealtToCard>()
         val playerDamage = events.filterIsInstance<GameEvent.DamageDealtToPlayer>()
-        val clearOnUpkeep = events.any { ev ->
-            ev is GameEvent.PhaseChanged && ev.step == Step.Upkeep_a2cb.number
-        }
+        val clearOnUpkeep =
+            events.any { ev ->
+                ev is GameEvent.PhaseChanged && ev.step == Step.Upkeep_a2cb.number
+            }
         if (cardDamage.isEmpty() && playerDamage.isEmpty()) {
             return CombatAnnotationResult(
                 annotations = emptyList(),
@@ -137,12 +138,13 @@ object CombatAnnotations {
             }
         }
 
-        val damagedThisTurnPersistent = if (cardDamage.isNotEmpty()) {
-            val victims = cardDamage.map { idResolver(it.targetCardId) }.distinct()
-            listOf(AnnotationBuilder.damagedThisTurn(affectedIds = victims))
-        } else {
-            emptyList()
-        }
+        val damagedThisTurnPersistent =
+            if (cardDamage.isNotEmpty()) {
+                val victims = cardDamage.map { idResolver(it.targetCardId) }.distinct()
+                listOf(AnnotationBuilder.damagedThisTurn(affectedIds = victims))
+            } else {
+                emptyList()
+            }
 
         return CombatAnnotationResult(
             annotations = annotations,

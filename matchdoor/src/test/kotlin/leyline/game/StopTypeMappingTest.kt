@@ -77,9 +77,11 @@ class StopTypeMappingTest :
         }
 
         test("all 11 StopType values (excluding None) have a mapping") {
-            val mapped = StopType.values()
-                .filter { it != StopType.None_ad1f && it != StopType.UNRECOGNIZED }
-                .mapNotNull { StopTypeMapping.toPhaseType(it) }
+            val mapped =
+                StopType
+                    .values()
+                    .filter { it != StopType.None_ad1f && it != StopType.UNRECOGNIZED }
+                    .mapNotNull { StopTypeMapping.toPhaseType(it) }
             mapped.size shouldBe 11
         }
 
@@ -90,8 +92,9 @@ class StopTypeMappingTest :
         test("StopType roundtrips through PhaseType for all mapped values") {
             val nonTerminal = StopType.values().toList() - setOf(StopType.None_ad1f, StopType.UNRECOGNIZED)
             for (st in nonTerminal) {
-                val phase = StopTypeMapping.toPhaseType(st)
-                    ?: error("Unmapped non-terminal StopType: $st")
+                val phase =
+                    StopTypeMapping.toPhaseType(st)
+                        ?: error("Unmapped non-terminal StopType: $st")
                 val back = StopTypeMapping.toStopType(phase)
                 back shouldBe st
             }
@@ -100,11 +103,12 @@ class StopTypeMappingTest :
         // --- Stop list parsing ---
 
         test("parse a list of Stop protos into enabled PhaseType set") {
-            val stops = listOf(
-                stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set),
-                stop(StopType.PostcombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set),
-                stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Clear_a3fe),
-            )
+            val stops =
+                listOf(
+                    stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set),
+                    stop(StopType.PostcombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set),
+                    stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Clear_a3fe),
+                )
             val enabled = StopTypeMapping.parseStops(stops, SettingScope.Team_ac6e)
             enabled shouldContain PhaseType.MAIN1
             enabled shouldContain PhaseType.MAIN2
@@ -112,10 +116,11 @@ class StopTypeMappingTest :
         }
 
         test("only stops matching the requested scope are included") {
-            val stops = listOf(
-                stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set),
-                stop(StopType.DeclareAttackersStep, SettingScope.Opponents, SettingStatus.Set),
-            )
+            val stops =
+                listOf(
+                    stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set),
+                    stop(StopType.DeclareAttackersStep, SettingScope.Opponents, SettingStatus.Set),
+                )
             val teamStops = StopTypeMapping.parseStops(stops, SettingScope.Team_ac6e)
             teamStops shouldContain PhaseType.MAIN1
             teamStops shouldNotContain PhaseType.COMBAT_DECLARE_ATTACKERS
@@ -126,9 +131,10 @@ class StopTypeMappingTest :
         }
 
         test("AnyPlayer scope matches both Team and Opponents queries") {
-            val stops = listOf(
-                stop(StopType.DrawStep, SettingScope.AnyPlayer, SettingStatus.Set),
-            )
+            val stops =
+                listOf(
+                    stop(StopType.DrawStep, SettingScope.AnyPlayer, SettingStatus.Set),
+                )
             val teamStops = StopTypeMapping.parseStops(stops, SettingScope.Team_ac6e)
             teamStops shouldContain PhaseType.DRAW
 
@@ -137,8 +143,13 @@ class StopTypeMappingTest :
         }
     })
 
-private fun stop(type: StopType, scope: SettingScope, status: SettingStatus): Stop =
-    Stop.newBuilder()
+private fun stop(
+    type: StopType,
+    scope: SettingScope,
+    status: SettingStatus,
+): Stop =
+    Stop
+        .newBuilder()
         .setStopType(type)
         .setAppliesTo(scope)
         .setStatus(status)

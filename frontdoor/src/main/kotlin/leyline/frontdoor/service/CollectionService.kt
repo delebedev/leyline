@@ -21,14 +21,15 @@ class CollectionService(
     /** Provides all available card grpIds. Injected from CardRepository at wiring time. */
     private val allGrpIds: () -> List<Int>,
 ) {
-
     private val log = LoggerFactory.getLogger(CollectionService::class.java)
 
     /**
      * Returns the card collection for [playerId] as grpId → owned count.
      * Currently returns all non-token cards × 4 (full playset).
      */
-    fun getCollection(@Suppress("UnusedParameter") playerId: PlayerId?): Map<Int, Int> {
+    fun getCollection(
+        @Suppress("UnusedParameter") playerId: PlayerId?,
+    ): Map<Int, Int> {
         val grpIds = allGrpIds()
         if (grpIds.isEmpty()) {
             log.warn("Card DB returned no grpIds — collection will be empty")

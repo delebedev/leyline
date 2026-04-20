@@ -29,9 +29,10 @@ class GsIdChainTest :
         afterEach { base.tearDown() }
 
         test("remoteActionDiff produces content GSM plus echo with chained gsIds and no pendingMessageCount") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Plains", human, ZoneType.Hand)
-            }
+            val (b, game, counter) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Plains", human, ZoneType.Hand)
+                }
 
             val result = base.bundleBuilder(b).remoteActionDiff(game, counter)
             result.messages.size shouldBe 2
@@ -46,11 +47,16 @@ class GsIdChainTest :
         }
 
         test("postAction GSM has pendingMessageCount=1 (AAR follows)") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Plains", human, ZoneType.Hand)
-            }
+            val (b, game, counter) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Plains", human, ZoneType.Hand)
+                }
 
-            val land = game.humanPlayer.getZone(ZoneType.Hand).cards.first { it.isLand }
+            val land =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.isLand }
             base.captureAfterAction(b, game, counter) {
                 game.action.moveToPlay(land, null, AbilityKey.newMap())
             }
@@ -61,9 +67,10 @@ class GsIdChainTest :
         }
 
         test("phaseTransitionDiff produces 5 messages with correct echo chain") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Plains", human, ZoneType.Hand)
-            }
+            val (b, game, counter) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Plains", human, ZoneType.Hand)
+                }
 
             val result = base.bundleBuilder(b).phaseTransitionDiff(game, counter)
             result.messages.size shouldBe 5

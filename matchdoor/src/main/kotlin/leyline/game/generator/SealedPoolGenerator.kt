@@ -16,8 +16,9 @@ import org.slf4j.LoggerFactory
  * wiring. This keeps the frontdoor module free of engine dependencies per the
  * architecture rule (frontdoor → domain model only, zero matchdoor imports).
  */
-class SealedPoolGenerator(private val cards: CardRepository) {
-
+class SealedPoolGenerator(
+    private val cards: CardRepository,
+) {
     private val log = LoggerFactory.getLogger(SealedPoolGenerator::class.java)
 
     data class GeneratedPool(
@@ -33,8 +34,9 @@ class SealedPoolGenerator(private val cards: CardRepository) {
         GameBootstrap.initializeCardDatabase()
 
         val effectiveSet = resolveSet(setCode)
-        val boosterTemplate = FModel.getMagicDb().getBoosters().get(effectiveSet)
-            ?: error("No booster template for set: $effectiveSet")
+        val boosterTemplate =
+            FModel.getMagicDb().getBoosters().get(effectiveSet)
+                ?: error("No booster template for set: $effectiveSet")
 
         val supplier = UnOpenedProduct(boosterTemplate)
         val grpIds = mutableListOf<Int>()
@@ -74,23 +76,24 @@ class SealedPoolGenerator(private val cards: CardRepository) {
 
     companion object {
         // Known Arena collation IDs for sets
-        private val COLLATION_IDS = mapOf(
-            "FDN" to 100026,
-            "DSK" to 100050,
-            "BLB" to 100048,
-            "OTJ" to 100046,
-            "MKM" to 100044,
-            "LCI" to 100042,
-            "WOE" to 100040,
-            "MOM" to 100036,
-            "ONE" to 100034,
-            "BRO" to 100032,
-            "DMU" to 100030,
-            "SNC" to 100028,
-            "TDM" to 100056,
-            "FIN" to 100054,
-            "DFT" to 100052,
-            "ECL" to 100058,
-        )
+        private val COLLATION_IDS =
+            mapOf(
+                "FDN" to 100026,
+                "DSK" to 100050,
+                "BLB" to 100048,
+                "OTJ" to 100046,
+                "MKM" to 100044,
+                "LCI" to 100042,
+                "WOE" to 100040,
+                "MOM" to 100036,
+                "ONE" to 100034,
+                "BRO" to 100032,
+                "DMU" to 100030,
+                "SNC" to 100028,
+                "TDM" to 100056,
+                "FIN" to 100054,
+                "DFT" to 100052,
+                "ECL" to 100058,
+            )
     }
 }

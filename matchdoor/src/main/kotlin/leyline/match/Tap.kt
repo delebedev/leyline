@@ -22,7 +22,11 @@ object Tap {
         log.debug("[Client←] {}", type.name.removeSuffix("_f487"))
     }
 
-    fun inboundGRE(type: ClientMessageType, seatId: Int, gsId: Int) {
+    fun inboundGRE(
+        type: ClientMessageType,
+        seatId: Int,
+        gsId: Int,
+    ) {
         if (!log.isDebugEnabled) return
         val label = type.name.removeSuffix("_097b")
         if (type == ClientMessageType.Uimessage_a39e) {
@@ -49,17 +53,24 @@ object Tap {
         val ti = gs.turnInfo
         log.debug(
             "[Client→] state gsId={} type={} phase={} turn={} active={} priority={} zones={} objects={}",
-            gs.gameStateId, gs.type, ti.phase.name.removeSuffix("_a549"),
-            ti.turnNumber, ti.activePlayer, ti.priorityPlayer,
-            gs.zonesCount, gs.gameObjectsCount,
+            gs.gameStateId,
+            gs.type,
+            ti.phase.name.removeSuffix("_a549"),
+            ti.turnNumber,
+            ti.activePlayer,
+            ti.priorityPlayer,
+            gs.zonesCount,
+            gs.gameObjectsCount,
         )
     }
 
     fun outboundActions(req: ActionsAvailableReq) {
         if (!log.isDebugEnabled) return
-        val counts = req.actionsList.groupBy { it.actionType }
-            .map { (t, v) -> "${t.name.removeSuffix("_add3")}=${v.size}" }
-            .joinToString(" ")
+        val counts =
+            req.actionsList
+                .groupBy { it.actionType }
+                .map { (t, v) -> "${t.name.removeSuffix("_add3")}=${v.size}" }
+                .joinToString(" ")
         log.debug("[Client→] actions {}", counts)
     }
 
@@ -68,7 +79,12 @@ object Tap {
         log.debug("[Client→] template {}", label)
     }
 
-    fun actionResult(actionType: ActionType, instanceId: Int, forgeCardId: ForgeCardId?, success: Boolean) {
+    fun actionResult(
+        actionType: ActionType,
+        instanceId: Int,
+        forgeCardId: ForgeCardId?,
+        success: Boolean,
+    ) {
         if (!log.isDebugEnabled) return
         val type = actionType.name.removeSuffix("_add3")
         if (forgeCardId != null) {

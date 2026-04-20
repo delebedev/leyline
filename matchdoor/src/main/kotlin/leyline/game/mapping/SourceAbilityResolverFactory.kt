@@ -21,7 +21,6 @@ import leyline.game.state.GameBridge
  * `card.staticAbilities` lookups).
  */
 object SourceAbilityResolverFactory {
-
     /** Keywords whose triggered/resolved effects produce P/T boosts with staticId=0. */
     private val PT_BOOST_KEYWORDS = setOf("PROWESS")
 

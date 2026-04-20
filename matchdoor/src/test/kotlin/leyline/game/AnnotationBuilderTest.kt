@@ -28,12 +28,13 @@ class AnnotationBuilderTest :
         tags(UnitTag)
 
         test("zoneTransferAnnotation") {
-            val ann = AnnotationBuilder.zoneTransfer(
-                instanceId = 100.iid,
-                srcZoneId = 31, // Hand
-                destZoneId = 28, // Battlefield
-                category = "PlayLand",
-            )
+            val ann =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 100.iid,
+                    srcZoneId = 31, // Hand
+                    destZoneId = 28, // Battlefield
+                    category = "PlayLand",
+                )
             ann.typeList shouldContain AnnotationType.ZoneTransfer_af5a
             assertSoftly {
                 ann.detailInt("zone_src") shouldBe 31
@@ -44,12 +45,13 @@ class AnnotationBuilderTest :
         }
 
         test("castSpellAnnotation") {
-            val ann = AnnotationBuilder.zoneTransfer(
-                instanceId = 105.iid,
-                srcZoneId = 31, // Hand
-                destZoneId = 27, // Stack
-                category = "CastSpell",
-            )
+            val ann =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 105.iid,
+                    srcZoneId = 31, // Hand
+                    destZoneId = 27, // Stack
+                    category = "CastSpell",
+                )
             assertSoftly {
                 ann.detailInt("zone_src") shouldBe 31
                 ann.detailInt("zone_dest") shouldBe 27
@@ -58,24 +60,26 @@ class AnnotationBuilderTest :
         }
 
         test("zoneTransferWithActingSeat") {
-            val ann = AnnotationBuilder.zoneTransfer(
-                instanceId = 200.iid,
-                srcZoneId = 27,
-                destZoneId = 28,
-                category = "Resolve",
-                actingSeatId = 1.sid,
-            )
+            val ann =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 200.iid,
+                    srcZoneId = 27,
+                    destZoneId = 28,
+                    category = "Resolve",
+                    actingSeatId = 1.sid,
+                )
             ann.affectorId shouldBe 1
             ann.affectedIdsList shouldContain 200
         }
 
         test("zoneTransferWithoutActingSeatHasZeroAffector") {
-            val ann = AnnotationBuilder.zoneTransfer(
-                instanceId = 200.iid,
-                srcZoneId = 31,
-                destZoneId = 28,
-                category = "PlayLand",
-            )
+            val ann =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 200.iid,
+                    srcZoneId = 31,
+                    destZoneId = 28,
+                    category = "PlayLand",
+                )
             ann.affectorId shouldBe 0
         }
 
@@ -106,26 +110,28 @@ class AnnotationBuilderTest :
         // --- ZoneTransfer affectorId ---
 
         test("zoneTransferWithAffectorId") {
-            val ann = AnnotationBuilder.zoneTransfer(
-                instanceId = 200.iid,
-                srcZoneId = 32,
-                destZoneId = 33,
-                category = "Surveil",
-                affectorId = 500.iid,
-            )
+            val ann =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 200.iid,
+                    srcZoneId = 32,
+                    destZoneId = 33,
+                    category = "Surveil",
+                    affectorId = 500.iid,
+                )
             ann.affectorId shouldBe 500
             ann.affectedIdsList shouldContain 200
         }
 
         test("zoneTransferAffectorIdTakesPrecedenceOverActingSeat") {
-            val ann = AnnotationBuilder.zoneTransfer(
-                instanceId = 200.iid,
-                srcZoneId = 32,
-                destZoneId = 33,
-                category = "Surveil",
-                actingSeatId = 1.sid,
-                affectorId = 500.iid,
-            )
+            val ann =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 200.iid,
+                    srcZoneId = 32,
+                    destZoneId = 33,
+                    category = "Surveil",
+                    actingSeatId = 1.sid,
+                    affectorId = 500.iid,
+                )
             // affectorId (ability instance) takes precedence over actingSeatId (player seat)
             ann.affectorId shouldBe 500
         }
@@ -133,12 +139,13 @@ class AnnotationBuilderTest :
         // --- UserActionTaken ---
 
         test("userActionTakenFields") {
-            val ann = AnnotationBuilder.userActionTaken(
-                instanceId = 300.iid,
-                seatId = 1.sid,
-                actionType = ActionType.Play_add3,
-                abilityGrpId = 0.grp,
-            )
+            val ann =
+                AnnotationBuilder.userActionTaken(
+                    instanceId = 300.iid,
+                    seatId = 1.sid,
+                    actionType = ActionType.Play_add3,
+                    abilityGrpId = 0.grp,
+                )
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.UserActionTaken
                 ann.affectorId shouldBe 1
@@ -158,25 +165,27 @@ class AnnotationBuilderTest :
         }
 
         test("userActionTakenOmitsAlternativeGrpIdWhenZero") {
-            val ann = AnnotationBuilder.userActionTaken(
-                instanceId = 400.iid,
-                seatId = 1.sid,
-                actionType = ActionType.Cast,
-                abilityGrpId = 0.grp,
-            )
+            val ann =
+                AnnotationBuilder.userActionTaken(
+                    instanceId = 400.iid,
+                    seatId = 1.sid,
+                    actionType = ActionType.Cast,
+                    abilityGrpId = 0.grp,
+                )
             // Hardcast / land-play / regular cast: no alternativeGrpId detail emitted
             ann.hasDetail("alternativeGrpId") shouldBe false
         }
 
         test("userActionTakenIncludesAlternativeGrpIdWhenSet") {
             // Madness cast — alternativeGrpId carries the madness ability grpId
-            val ann = AnnotationBuilder.userActionTaken(
-                instanceId = 375.iid,
-                seatId = 1.sid,
-                actionType = ActionType.Cast,
-                abilityGrpId = 5658.grp,
-                alternativeGrpId = 5658.grp,
-            )
+            val ann =
+                AnnotationBuilder.userActionTaken(
+                    instanceId = 375.iid,
+                    seatId = 1.sid,
+                    actionType = ActionType.Cast,
+                    abilityGrpId = 5658.grp,
+                    alternativeGrpId = 5658.grp,
+                )
             assertSoftly {
                 ann.detailInt("actionType") shouldBe ActionType.Cast.number
                 ann.detailInt("abilityGrpId") shouldBe 5658
@@ -188,11 +197,12 @@ class AnnotationBuilderTest :
 
         test("castingTimeOptionCastThroughAbilityMadnessShape") {
             // Client-visible CastThroughAbility alt-cost shape for a madness cast.
-            val ann = AnnotationBuilder.castingTimeOption(
-                stackInstanceId = 361.iid,
-                type = CastingTimeOptionType.CastThroughAbility,
-                alternateCostGrpId = 5658.grp,
-            )
+            val ann =
+                AnnotationBuilder.castingTimeOption(
+                    stackInstanceId = 361.iid,
+                    type = CastingTimeOptionType.CastThroughAbility,
+                    alternateCostGrpId = 5658.grp,
+                )
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.CastingTimeOption
                 ann.affectorId shouldBe 361
@@ -207,12 +217,13 @@ class AnnotationBuilderTest :
         }
 
         test("castingTimeOptionAllowsDistinctCastAbilityGrpId") {
-            val ann = AnnotationBuilder.castingTimeOption(
-                stackInstanceId = 100.iid,
-                type = CastingTimeOptionType.CastThroughAbility,
-                alternateCostGrpId = 5658.grp,
-                castAbilityGrpId = 9999.grp,
-            )
+            val ann =
+                AnnotationBuilder.castingTimeOption(
+                    stackInstanceId = 100.iid,
+                    type = CastingTimeOptionType.CastThroughAbility,
+                    alternateCostGrpId = 5658.grp,
+                    castAbilityGrpId = 9999.grp,
+                )
             ann.detailInt("alternateCostGrpId") shouldBe 5658
             ann.detailInt("castAbilityGrpId") shouldBe 9999
         }
@@ -347,10 +358,11 @@ class AnnotationBuilderTest :
         // --- EnteredZoneThisTurn ---
 
         test("enteredZoneThisTurnFields") {
-            val ann = AnnotationBuilder.enteredZoneThisTurn(
-                zoneId = ZoneIds.BATTLEFIELD,
-                instanceIds = listOf(100.iid, 200.iid),
-            )
+            val ann =
+                AnnotationBuilder.enteredZoneThisTurn(
+                    zoneId = ZoneIds.BATTLEFIELD,
+                    instanceIds = listOf(100.iid, 200.iid),
+                )
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.EnteredZoneThisTurn
                 ann.affectorId shouldBe 28
@@ -369,11 +381,12 @@ class AnnotationBuilderTest :
         // --- DamageDealt ---
 
         test("damageDealtFields") {
-            val ann = AnnotationBuilder.damageDealt(
-                sourceInstanceId = 1000.iid,
-                targetId = 2.wid, // player seat
-                amount = 3,
-            )
+            val ann =
+                AnnotationBuilder.damageDealt(
+                    sourceInstanceId = 1000.iid,
+                    targetId = 2.wid, // player seat
+                    amount = 3,
+                )
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.DamageDealt_af5a
                 ann.affectorId shouldBe 1000
@@ -587,13 +600,14 @@ class AnnotationBuilderTest :
         // --- AddAbility (Tier 1) ---
 
         test("addAbilityFields") {
-            val ann = AnnotationBuilder.addAbility(
-                instanceId = 100.iid,
-                grpId = 6.grp,
-                effectId = 7005.eid,
-                uniqueAbilityId = 217,
-                originalAbilityObjectZcid = 372,
-            )
+            val ann =
+                AnnotationBuilder.addAbility(
+                    instanceId = 100.iid,
+                    grpId = 6.grp,
+                    effectId = 7005.eid,
+                    uniqueAbilityId = 217,
+                    originalAbilityObjectZcid = 372,
+                )
             ann.typeList shouldContain AnnotationType.AddAbility_af5a
             ann.affectedIdsList shouldContain 100
             assertSoftly {
@@ -619,12 +633,13 @@ class AnnotationBuilderTest :
         // --- AbilityExhausted (Tier 1) ---
 
         test("abilityExhaustedFields") {
-            val ann = AnnotationBuilder.abilityExhausted(
-                instanceId = 294.iid,
-                abilityGrpId = 137955.grp,
-                usesRemaining = 0,
-                uniqueAbilityId = 205,
-            )
+            val ann =
+                AnnotationBuilder.abilityExhausted(
+                    instanceId = 294.iid,
+                    abilityGrpId = 137955.grp,
+                    usesRemaining = 0,
+                    uniqueAbilityId = 205,
+                )
             ann.typeList shouldContain AnnotationType.AbilityExhausted
             ann.affectedIdsList shouldContain 294
             assertSoftly {
@@ -686,13 +701,14 @@ class AnnotationBuilderTest :
         }
 
         test("layeredEffect P/T buff has multi-type array") {
-            val ann = AnnotationBuilder.layeredEffect(
-                instanceId = 100.iid,
-                effectId = 7005.eid,
-                powerDelta = 1,
-                toughnessDelta = 1,
-                affectorId = 100.iid,
-            )
+            val ann =
+                AnnotationBuilder.layeredEffect(
+                    instanceId = 100.iid,
+                    effectId = 7005.eid,
+                    powerDelta = 1,
+                    toughnessDelta = 1,
+                    affectorId = 100.iid,
+                )
             // Client expects: [ModifiedToughness, ModifiedPower, LayeredEffect]
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.ModifiedToughness
@@ -722,23 +738,25 @@ class AnnotationBuilderTest :
         }
 
         test("layeredEffect sourceAbilityGrpId included when set") {
-            val ann = AnnotationBuilder.layeredEffect(
-                instanceId = 100.iid,
-                effectId = 7007.eid,
-                sourceAbilityGrpId = 137.grp,
-                powerDelta = 1,
-                toughnessDelta = 1,
-            )
+            val ann =
+                AnnotationBuilder.layeredEffect(
+                    instanceId = 100.iid,
+                    effectId = 7007.eid,
+                    sourceAbilityGrpId = 137.grp,
+                    powerDelta = 1,
+                    toughnessDelta = 1,
+                )
             ann.detailInt("sourceAbilityGRPID") shouldBe 137
         }
 
         test("powerToughnessModCreated has affectorId and detail keys") {
-            val ann = AnnotationBuilder.powerToughnessModCreated(
-                instanceId = 335.iid,
-                power = 1,
-                toughness = 1,
-                affectorId = 340.iid,
-            )
+            val ann =
+                AnnotationBuilder.powerToughnessModCreated(
+                    instanceId = 335.iid,
+                    power = 1,
+                    toughness = 1,
+                    affectorId = 340.iid,
+                )
             assertSoftly {
                 ann.typeList shouldBe listOf(AnnotationType.PowerToughnessModCreated)
                 ann.affectedIdsList shouldBe listOf(335)
@@ -862,14 +880,15 @@ class AnnotationBuilderTest :
         // --- TargetSpec (Tier 2) ---
 
         test("targetSpecFields") {
-            val ann = AnnotationBuilder.targetSpec(
-                instanceId = 293.iid,
-                affectorId = 303.iid,
-                abilityGrpId = 176387.grp,
-                index = 1,
-                promptId = 1330,
-                promptParameters = 303,
-            )
+            val ann =
+                AnnotationBuilder.targetSpec(
+                    instanceId = 293.iid,
+                    affectorId = 303.iid,
+                    abilityGrpId = 176387.grp,
+                    index = 1,
+                    promptId = 1330,
+                    promptParameters = 303,
+                )
             ann.typeList shouldContain AnnotationType.TargetSpec
             ann.affectedIdsList shouldContain 293
             assertSoftly {
@@ -936,13 +955,14 @@ class AnnotationBuilderTest :
         // --- AbilityWordActive (Tier 1 persistent) ---
 
         test("abilityWordActiveQuantitative") {
-            val ann = AnnotationBuilder.abilityWordActive(
-                instanceId = 295.iid,
-                abilityWordName = "Threshold",
-                value = 5,
-                threshold = 7,
-                abilityGrpId = 175886.grp,
-            )
+            val ann =
+                AnnotationBuilder.abilityWordActive(
+                    instanceId = 295.iid,
+                    abilityWordName = "Threshold",
+                    value = 5,
+                    threshold = 7,
+                    abilityGrpId = 175886.grp,
+                )
             ann.typeList shouldContain AnnotationType.AbilityWordActive
             assertSoftly {
                 ann.affectorId shouldBe 295
@@ -955,11 +975,12 @@ class AnnotationBuilderTest :
         }
 
         test("abilityWordActiveKeywordOnly") {
-            val ann = AnnotationBuilder.abilityWordActive(
-                instanceId = 303.iid,
-                abilityWordName = "Descended",
-                affectorId = 1.iid,
-            )
+            val ann =
+                AnnotationBuilder.abilityWordActive(
+                    instanceId = 303.iid,
+                    abilityWordName = "Descended",
+                    affectorId = 1.iid,
+                )
             ann.typeList shouldContain AnnotationType.AbilityWordActive
             assertSoftly {
                 ann.affectorId shouldBe 1
@@ -972,14 +993,15 @@ class AnnotationBuilderTest :
         }
 
         test("qualification annotation shape") {
-            val ann = AnnotationBuilder.qualification(
-                affectorId = 287.iid,
-                instanceId = 287.iid,
-                grpId = 142.grp,
-                qualificationType = QualificationType.CombatKeyword,
-                qualificationSubtype = 0,
-                sourceParent = 287.iid,
-            )
+            val ann =
+                AnnotationBuilder.qualification(
+                    affectorId = 287.iid,
+                    instanceId = 287.iid,
+                    grpId = 142.grp,
+                    qualificationType = QualificationType.CombatKeyword,
+                    qualificationSubtype = 0,
+                    sourceParent = 287.iid,
+                )
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.Qualification
                 ann.affectorId shouldBe 287

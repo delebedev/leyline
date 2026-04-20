@@ -17,12 +17,14 @@ class ClientSettingsMergeTest :
         tags(UnitTag)
 
         test("merge accumulates stops from sequential deltas") {
-            val s1 = settingsMessage {
-                addStops(stop(StopType.PostcombatMainPhase, SettingScope.Opponents, SettingStatus.Set))
-            }
-            val s2 = settingsMessage {
-                addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
-            }
+            val s1 =
+                settingsMessage {
+                    addStops(stop(StopType.PostcombatMainPhase, SettingScope.Opponents, SettingStatus.Set))
+                }
+            val s2 =
+                settingsMessage {
+                    addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
+                }
 
             val merged1 = MatchSession.mergeSettings(null, s1)
             val merged2 = MatchSession.mergeSettings(merged1, s2)
@@ -33,12 +35,14 @@ class ClientSettingsMergeTest :
         }
 
         test("merge replaces same stop type + scope") {
-            val s1 = settingsMessage {
-                addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
-            }
-            val s2 = settingsMessage {
-                addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Clear_a3fe))
-            }
+            val s1 =
+                settingsMessage {
+                    addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
+                }
+            val s2 =
+                settingsMessage {
+                    addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Clear_a3fe))
+                }
 
             val merged = MatchSession.mergeSettings(s1, s2)
             merged.stopsCount shouldBe 1
@@ -46,12 +50,14 @@ class ClientSettingsMergeTest :
         }
 
         test("merge accumulates transientStops") {
-            val s1 = settingsMessage {
-                addTransientStops(stop(StopType.UpkeepStep, SettingScope.Opponents, SettingStatus.Set))
-            }
-            val s2 = settingsMessage {
-                addTransientStops(stop(StopType.DrawStep, SettingScope.Opponents, SettingStatus.Set))
-            }
+            val s1 =
+                settingsMessage {
+                    addTransientStops(stop(StopType.UpkeepStep, SettingScope.Opponents, SettingStatus.Set))
+                }
+            val s2 =
+                settingsMessage {
+                    addTransientStops(stop(StopType.DrawStep, SettingScope.Opponents, SettingStatus.Set))
+                }
 
             val merged = MatchSession.mergeSettings(s1, s2)
             merged.transientStopsCount shouldBe 2
@@ -59,9 +65,10 @@ class ClientSettingsMergeTest :
 
         test("merge preserves autoPassOption from existing when incoming is None") {
             val s1 = settingsMessage { autoPassOption = AutoPassOption.ResolveAll }
-            val s2 = settingsMessage {
-                addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
-            }
+            val s2 =
+                settingsMessage {
+                    addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
+                }
 
             val merged = MatchSession.mergeSettings(s1, s2)
             merged.autoPassOption shouldBe AutoPassOption.ResolveAll
@@ -76,12 +83,14 @@ class ClientSettingsMergeTest :
         }
 
         test("merge accumulates stops across Team and Opponents scopes") {
-            val s1 = settingsMessage {
-                addStops(stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set))
-            }
-            val s2 = settingsMessage {
-                addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
-            }
+            val s1 =
+                settingsMessage {
+                    addStops(stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set))
+                }
+            val s2 =
+                settingsMessage {
+                    addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
+                }
 
             val merged = MatchSession.mergeSettings(s1, s2)
             merged.stopsCount shouldBe 2
@@ -95,23 +104,27 @@ class ClientSettingsMergeTest :
         }
 
         test("merge replaces same stop type but different scope independently") {
-            val s1 = settingsMessage {
-                addStops(stop(StopType.EndStep_ad1f, SettingScope.Team_ac6e, SettingStatus.Set))
-                addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
-            }
-            val s2 = settingsMessage {
-                addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Clear_a3fe))
-            }
+            val s1 =
+                settingsMessage {
+                    addStops(stop(StopType.EndStep_ad1f, SettingScope.Team_ac6e, SettingStatus.Set))
+                    addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
+                }
+            val s2 =
+                settingsMessage {
+                    addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Clear_a3fe))
+                }
 
             val merged = MatchSession.mergeSettings(s1, s2)
             merged.stopsCount shouldBe 2
             // Team scope still Set
-            merged.stopsList.first {
-                it.appliesTo == SettingScope.Team_ac6e
-            }.status shouldBe SettingStatus.Set
+            merged.stopsList
+                .first {
+                    it.appliesTo == SettingScope.Team_ac6e
+                }.status shouldBe SettingStatus.Set
             // Opponents scope now Clear
-            merged.stopsList.first {
-                it.appliesTo == SettingScope.Opponents
-            }.status shouldBe SettingStatus.Clear_a3fe
+            merged.stopsList
+                .first {
+                    it.appliesTo == SettingScope.Opponents
+                }.status shouldBe SettingStatus.Clear_a3fe
         }
     })

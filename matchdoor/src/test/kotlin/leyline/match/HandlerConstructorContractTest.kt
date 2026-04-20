@@ -29,9 +29,16 @@ class HandlerConstructorContractTest :
 
         class SinkOnly : GreMessageSink {
             override fun sendBundledGRE(messages: List<GREToClientMessage>) {}
-            override fun sendRealGameState(bridge: GameBridge, revealForSeat: Int?) {}
+
+            override fun sendRealGameState(
+                bridge: GameBridge,
+                revealForSeat: Int?,
+            ) {}
+
             override fun sendBundle(result: BundleBuilder.BundleResult) {}
+
             override fun sendGameOver(reason: ResultReason) {}
+
             override fun makeGRE(
                 type: GREMessageType,
                 gsId: Int,
@@ -46,7 +53,11 @@ class HandlerConstructorContractTest :
         }
 
         class TracerOnly : SessionTracer {
-            override fun traceEvent(type: MatchEventType, game: Game, detail: String) {}
+            override fun traceEvent(
+                type: MatchEventType,
+                game: Game,
+                detail: String,
+            ) {}
         }
 
         class BundlesOnly : BundleBuilderHolder
@@ -104,17 +115,18 @@ class HandlerConstructorContractTest :
             val combat = CombatHandler(SinkOnly(), CountersOnly(), TracerOnly(), BundlesOnly(), PacingOnly())
             val targeting = TargetingHandler(SinkOnly(), CountersOnly(), TracerOnly(), BundlesOnly())
             val optional = OptionalActionHandler(SinkOnly(), CountersOnly())
-            val engine = AutoPassEngine(
-                sink = SinkOnly(),
-                counters = CountersOnly(),
-                tracer = TracerOnly(),
-                bundles = BundlesOnly(),
-                pacing = PacingOnly(),
-                combatHandler = combat,
-                targetingHandler = targeting,
-                optionalActionHandler = optional,
-                autoPassState = ClientAutoPassState(),
-            )
+            val engine =
+                AutoPassEngine(
+                    sink = SinkOnly(),
+                    counters = CountersOnly(),
+                    tracer = TracerOnly(),
+                    bundles = BundlesOnly(),
+                    pacing = PacingOnly(),
+                    combatHandler = combat,
+                    targetingHandler = targeting,
+                    optionalActionHandler = optional,
+                    autoPassState = ClientAutoPassState(),
+                )
             ActionPerformer(
                 sink = SinkOnly(),
                 counters = CountersOnly(),

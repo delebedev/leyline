@@ -43,18 +43,24 @@ class BundleBuilderTest :
         afterEach { base.tearDown() }
 
         /** Create a BundleBuilder for pure proto tests (no game state needed). */
-        fun pureBB(seatId: Int = 1, matchId: String = "test-match") = BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), matchId, seatId)
+        fun pureBB(
+            seatId: Int = 1,
+            matchId: String = "test-match",
+        ) = BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), matchId, seatId)
 
         // --- Unit tests (pure proto, no game) ---
 
         test("queuedGameState wraps GSM with type 51") {
-            val gs = Messages.GameStateMessage.newBuilder()
-                .setType(GameStateType.Full)
-                .setGameStateId(42)
-                .build()
+            val gs =
+                Messages.GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Full)
+                    .setGameStateId(42)
+                    .build()
 
-            val msg = BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), "test-match", 2)
-                .queuedGameState(gs, MessageCounter(initialGsId = 42, initialMsgId = 9))
+            val msg =
+                BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), "test-match", 2)
+                    .queuedGameState(gs, MessageCounter(initialGsId = 42, initialMsgId = 9))
 
             assertSoftly {
                 msg.type shouldBe GREMessageType.QueuedGameStateMessage
@@ -81,12 +87,13 @@ class BundleBuilderTest :
 
         test("gameOverBundle produces 3 GSM diffs + IntermissionReq") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
-            val result = pureBB().gameOverBundle(
-                winningTeam = 1,
-                counter = counter,
-                losingPlayerSeatId = 2,
-                lossReason = AnnotationLossReason.LifeTotal,
-            )
+            val result =
+                pureBB().gameOverBundle(
+                    winningTeam = 1,
+                    counter = counter,
+                    losingPlayerSeatId = 2,
+                    lossReason = AnnotationLossReason.LifeTotal,
+                )
 
             result.messages.size shouldBe 4
 
@@ -124,10 +131,11 @@ class BundleBuilderTest :
 
         test("gameOverBundle gsIds are strictly ascending") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
-            val result = pureBB().gameOverBundle(
-                winningTeam = 1,
-                counter = counter,
-            )
+            val result =
+                pureBB().gameOverBundle(
+                    winningTeam = 1,
+                    counter = counter,
+                )
 
             var prevGsId = 0
             for (msg in result.messages) {
@@ -141,10 +149,11 @@ class BundleBuilderTest :
 
         test("gameOverBundle prevGameStateId chains correctly") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
-            val result = pureBB().gameOverBundle(
-                winningTeam = 2,
-                counter = counter,
-            )
+            val result =
+                pureBB().gameOverBundle(
+                    winningTeam = 2,
+                    counter = counter,
+                )
 
             val gsms = result.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
             assertSoftly {
@@ -157,13 +166,14 @@ class BundleBuilderTest :
 
         test("gameOverBundle with Concede reason") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
-            val result = pureBB().gameOverBundle(
-                winningTeam = 1,
-                counter = counter,
-                reason = Messages.ResultReason.Concede,
-                losingPlayerSeatId = 2,
-                lossReason = AnnotationLossReason.Concede,
-            )
+            val result =
+                pureBB().gameOverBundle(
+                    winningTeam = 1,
+                    counter = counter,
+                    reason = Messages.ResultReason.Concede,
+                    losingPlayerSeatId = 2,
+                    lossReason = AnnotationLossReason.Concede,
+                )
 
             val gs1 = result.messages[0].gameStateMessage
             val gameResult = gs1.gameInfo.resultsList.first()
@@ -201,21 +211,24 @@ class BundleBuilderTest :
         test("selectTargetsBundle shape") {
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
 
-            val candidateRefs = listOf(
-                PromptCandidateRefDto(0, "card", 999, "Battlefield"),
-            )
-            val prompt = InteractivePromptBridge.PendingPrompt(
-                promptId = "test-prompt",
-                request = PromptRequest(
-                    promptType = "choose_cards",
-                    message = "Choose target",
-                    options = listOf("Target A"),
-                    min = 1,
-                    max = 1,
-                    candidateRefs = candidateRefs,
-                ),
-                future = java.util.concurrent.CompletableFuture(),
-            )
+            val candidateRefs =
+                listOf(
+                    PromptCandidateRefDto(0, "card", 999, "Battlefield"),
+                )
+            val prompt =
+                InteractivePromptBridge.PendingPrompt(
+                    promptId = "test-prompt",
+                    request =
+                        PromptRequest(
+                            promptType = "choose_cards",
+                            message = "Choose target",
+                            options = listOf("Target A"),
+                            min = 1,
+                            max = 1,
+                            candidateRefs = candidateRefs,
+                        ),
+                    future = java.util.concurrent.CompletableFuture(),
+                )
             val result = base.bundleBuilder(b).selectTargetsBundle(game, counter, prompt)
 
             assertSoftly {
@@ -229,12 +242,17 @@ class BundleBuilderTest :
         }
 
         test("echoAttackersBundle conformance — SendAndRecord, no combat state, actions present") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Llanowar Elves", human, ZoneType.Battlefield)
-                base.addCard("Elvish Mystic", human, ZoneType.Battlefield)
-            }
+            val (b, game, counter) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Llanowar Elves", human, ZoneType.Battlefield)
+                    base.addCard("Elvish Mystic", human, ZoneType.Battlefield)
+                }
 
-            val creatures = game.humanPlayer.getZone(ZoneType.Battlefield).cards.filter { it.isCreature }
+            val creatures =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .filter { it.isCreature }
             val allIds = creatures.map { b.getOrAllocInstanceId(ForgeCardId(it.id)).value }
             val selectedIds = listOf(allIds.first())
 
@@ -265,11 +283,16 @@ class BundleBuilderTest :
         }
 
         test("echoBlockersBundle conformance — SendAndRecord, no combat state, actions present") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Llanowar Elves", human, ZoneType.Battlefield)
-            }
+            val (b, game, counter) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Llanowar Elves", human, ZoneType.Battlefield)
+                }
 
-            val blocker = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+            val blocker =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.isCreature }
             val blockerId = b.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
             val blockAssignments = mapOf(blockerId to 999)
 
@@ -298,10 +321,12 @@ class BundleBuilderTest :
         test("selectNBundle shape") {
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
 
-            val req = SelectNReq.newBuilder()
-                .setMinSel(1)
-                .setMaxSel(1)
-                .build()
+            val req =
+                SelectNReq
+                    .newBuilder()
+                    .setMinSel(1)
+                    .setMaxSel(1)
+                    .build()
             val result = base.bundleBuilder(b).selectNBundle(game, counter, req)
 
             assertSoftly {
@@ -313,27 +338,35 @@ class BundleBuilderTest :
         }
 
         test("discard SelectNReq uses Resolution context and Dynamic listType (#175)") {
-            val (b, _, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Mountain", human, ZoneType.Hand)
-                base.addCard("Forest", human, ZoneType.Hand)
-            }
+            val (b, _, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Mountain", human, ZoneType.Hand)
+                    base.addCard("Forest", human, ZoneType.Hand)
+                }
 
-            val handCards = b.getPlayer(SeatId(1))!!
-                .getZone(ZoneType.Hand).cards.toList()
-            val prompt = InteractivePromptBridge.PendingPrompt(
-                promptId = "discard-test",
-                request = PromptRequest(
-                    promptType = "choose_cards",
-                    message = "Choose a card to discard",
-                    options = listOf("Discard"),
-                    min = 1,
-                    max = 1,
-                    candidateRefs = handCards.mapIndexed { i, c ->
-                        PromptCandidateRefDto(i, "card", c.id, "Hand")
-                    },
-                ),
-                future = java.util.concurrent.CompletableFuture(),
-            )
+            val handCards =
+                b
+                    .getPlayer(SeatId(1))!!
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .toList()
+            val prompt =
+                InteractivePromptBridge.PendingPrompt(
+                    promptId = "discard-test",
+                    request =
+                        PromptRequest(
+                            promptType = "choose_cards",
+                            message = "Choose a card to discard",
+                            options = listOf("Discard"),
+                            min = 1,
+                            max = 1,
+                            candidateRefs =
+                                handCards.mapIndexed { i, c ->
+                                    PromptCandidateRefDto(i, "card", c.id, "Hand")
+                                },
+                        ),
+                    future = java.util.concurrent.CompletableFuture(),
+                )
 
             val req = RequestBuilder.buildSelectNReq(prompt, b)
 

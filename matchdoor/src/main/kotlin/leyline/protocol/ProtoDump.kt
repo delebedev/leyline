@@ -35,7 +35,10 @@ object ProtoDump {
     }
 
     /** Dump an outgoing [MatchServiceToClientMessage] to numbered text + binary files. */
-    fun dump(msg: MatchServiceToClientMessage, label: String = "") {
+    fun dump(
+        msg: MatchServiceToClientMessage,
+        label: String = "",
+    ) {
         val seq = counter.incrementAndGet()
         val tag = label.ifEmpty { classify(msg) }
         val txtName = "%03d-%s.txt".format(seq, tag)
@@ -46,14 +49,20 @@ object ProtoDump {
         log.debug("Dumped {} ({} bytes text)", txtName, txtFile.length())
     }
 
-    private fun classify(msg: MatchServiceToClientMessage): String = when {
-        msg.hasAuthenticateResponse() -> "AuthResp"
-        msg.hasMatchGameRoomStateChangedEvent() -> "RoomState"
-        msg.hasGreToClientEvent() -> {
-            val types = msg.greToClientEvent.greToClientMessagesList
-                .map { it.type.name.removeSuffix("_695e").removeSuffix("_aa0d") }
-            types.joinToString("+")
+    private fun classify(msg: MatchServiceToClientMessage): String =
+        when {
+            msg.hasAuthenticateResponse() -> "AuthResp"
+            msg.hasMatchGameRoomStateChangedEvent() -> "RoomState"
+            msg.hasGreToClientEvent() -> {
+                val types =
+                    msg.greToClientEvent.greToClientMessagesList
+                        .map {
+                            it.type.name
+                                .removeSuffix("_695e")
+                                .removeSuffix("_aa0d")
+                        }
+                types.joinToString("+")
+            }
+            else -> "Unknown"
         }
-        else -> "Unknown"
-    }
 }

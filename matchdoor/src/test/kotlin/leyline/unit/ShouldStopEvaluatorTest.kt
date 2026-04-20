@@ -12,17 +12,18 @@ class ShouldStopEvaluatorTest :
         tags(UnitTag)
 
         test("Cast variants → shouldStop=true") {
-            val castTypes = listOf(
-                ActionType.Cast,
-                ActionType.CastLeft,
-                ActionType.CastRight,
-                ActionType.CastAdventure,
-                ActionType.CastMdfc,
-                ActionType.CastPrototype,
-                ActionType.CastLeftRoom,
-                ActionType.CastRightRoom,
-                ActionType.CastOmen,
-            )
+            val castTypes =
+                listOf(
+                    ActionType.Cast,
+                    ActionType.CastLeft,
+                    ActionType.CastRight,
+                    ActionType.CastAdventure,
+                    ActionType.CastMdfc,
+                    ActionType.CastPrototype,
+                    ActionType.CastLeftRoom,
+                    ActionType.CastRightRoom,
+                    ActionType.CastOmen,
+                )
             for (type in castTypes) {
                 ShouldStopEvaluator.shouldStop(type) shouldBe true
             }

@@ -54,10 +54,12 @@ import wotc.mtgo.gre.external.messaging.Messages.Target as ProtoTarget
 inline fun clientMessage(
     type: ClientMessageType,
     block: ClientToGREMessage.Builder.() -> Unit = {},
-): ClientToGREMessage = ClientToGREMessage.newBuilder()
-    .setType(type)
-    .apply(block)
-    .build()
+): ClientToGREMessage =
+    ClientToGREMessage
+        .newBuilder()
+        .setType(type)
+        .apply(block)
+        .build()
 
 // ---------------------------------------------------------------------------
 // PerformActionResp — Play, Cast, Pass, Activate
@@ -77,7 +79,8 @@ inline fun clientMessage(
 fun performAction(block: Action.Builder.() -> Unit): ClientToGREMessage =
     clientMessage(ClientMessageType.PerformActionResp_097b) {
         setPerformActionResp(
-            PerformActionResp.newBuilder()
+            PerformActionResp
+                .newBuilder()
                 .addActions(Action.newBuilder().apply(block)),
         )
     }
@@ -98,25 +101,27 @@ fun declareAttackersResp(
     attackers: List<Int> = emptyList(),
     autoDeclare: Boolean = false,
     autoDeclareTarget: Int? = null,
-): ClientToGREMessage = clientMessage(ClientMessageType.DeclareAttackersResp_097b) {
-    setDeclareAttackersResp(
-        DeclareAttackersResp.newBuilder().apply {
-            if (autoDeclare) {
-                setAutoDeclare(true)
-                autoDeclareTarget?.let {
-                    setAutoDeclareDamageRecipient(
-                        DamageRecipient.newBuilder()
-                            .setType(DamageRecType.Player_a0e5)
-                            .setPlayerSystemSeatId(it),
-                    )
+): ClientToGREMessage =
+    clientMessage(ClientMessageType.DeclareAttackersResp_097b) {
+        setDeclareAttackersResp(
+            DeclareAttackersResp.newBuilder().apply {
+                if (autoDeclare) {
+                    setAutoDeclare(true)
+                    autoDeclareTarget?.let {
+                        setAutoDeclareDamageRecipient(
+                            DamageRecipient
+                                .newBuilder()
+                                .setType(DamageRecType.Player_a0e5)
+                                .setPlayerSystemSeatId(it),
+                        )
+                    }
                 }
-            }
-            for (iid in attackers) {
-                addSelectedAttackers(Attacker.newBuilder().setAttackerInstanceId(iid))
-            }
-        },
-    )
-}
+                for (iid in attackers) {
+                    addSelectedAttackers(Attacker.newBuilder().setAttackerInstanceId(iid))
+                }
+            },
+        )
+    }
 
 /** [SubmitAttackersReq] — type-only "Done" button, no payload. */
 fun submitAttackersReq(seatId: Int = 1): ClientToGREMessage =
@@ -133,37 +138,37 @@ fun submitAttackersReq(seatId: Int = 1): ClientToGREMessage =
  *
  * @param assignments blockerInstanceId → attackerInstanceId(s) it blocks
  */
-fun declareBlockersResp(
-    assignments: Map<Int, Int> = emptyMap(),
-): ClientToGREMessage = clientMessage(ClientMessageType.DeclareBlockersResp_097b) {
-    setDeclareBlockersResp(
-        DeclareBlockersResp.newBuilder().apply {
-            for ((blockerIid, attackerIid) in assignments) {
-                addSelectedBlockers(
-                    Blocker.newBuilder()
-                        .setBlockerInstanceId(blockerIid)
-                        .addSelectedAttackerInstanceIds(attackerIid),
-                )
-            }
-        },
-    )
-}
+fun declareBlockersResp(assignments: Map<Int, Int> = emptyMap()): ClientToGREMessage =
+    clientMessage(ClientMessageType.DeclareBlockersResp_097b) {
+        setDeclareBlockersResp(
+            DeclareBlockersResp.newBuilder().apply {
+                for ((blockerIid, attackerIid) in assignments) {
+                    addSelectedBlockers(
+                        Blocker
+                            .newBuilder()
+                            .setBlockerInstanceId(blockerIid)
+                            .addSelectedAttackerInstanceIds(attackerIid),
+                    )
+                }
+            },
+        )
+    }
 
 /**
  * [DeclareBlockersResp] — deselect a single blocker. Blocker entry with
  * blockerInstanceId set and no selectedAttackerInstanceIds.
  */
-fun declareBlockersRespDeselect(
-    blockerInstanceId: Int,
-): ClientToGREMessage = clientMessage(ClientMessageType.DeclareBlockersResp_097b) {
-    setDeclareBlockersResp(
-        DeclareBlockersResp.newBuilder().addSelectedBlockers(
-            Blocker.newBuilder()
-                .setBlockerInstanceId(blockerInstanceId)
-                .setMaxAttackers(1),
-        ),
-    )
-}
+fun declareBlockersRespDeselect(blockerInstanceId: Int): ClientToGREMessage =
+    clientMessage(ClientMessageType.DeclareBlockersResp_097b) {
+        setDeclareBlockersResp(
+            DeclareBlockersResp.newBuilder().addSelectedBlockers(
+                Blocker
+                    .newBuilder()
+                    .setBlockerInstanceId(blockerInstanceId)
+                    .setMaxAttackers(1),
+            ),
+        )
+    }
 
 /** [SubmitBlockersReq] — type-only "Done" button. */
 fun submitBlockersReq(seatId: Int = 1): ClientToGREMessage =
@@ -181,29 +186,30 @@ fun submitBlockersReq(seatId: Int = 1): ClientToGREMessage =
  * @param assigners list of (attackerInstanceId, assignments) where assignments is
  *                  a list of (blockerInstanceId, assignedDamage) pairs
  */
-fun assignDamageResp(
-    assigners: List<Pair<Int, List<Pair<Int, Int>>>>,
-): ClientToGREMessage = clientMessage(ClientMessageType.AssignDamageResp_097b) {
-    setAssignDamageResp(
-        AssignDamageResp.newBuilder().apply {
-            for ((attackerIid, assignments) in assigners) {
-                addAssigners(
-                    DamageAssigner.newBuilder()
-                        .setInstanceId(attackerIid)
-                        .apply {
-                            for ((targetIid, damage) in assignments) {
-                                addAssignments(
-                                    DamageAssignment.newBuilder()
-                                        .setInstanceId(targetIid)
-                                        .setAssignedDamage(damage),
-                                )
-                            }
-                        },
-                )
-            }
-        },
-    )
-}
+fun assignDamageResp(assigners: List<Pair<Int, List<Pair<Int, Int>>>>): ClientToGREMessage =
+    clientMessage(ClientMessageType.AssignDamageResp_097b) {
+        setAssignDamageResp(
+            AssignDamageResp.newBuilder().apply {
+                for ((attackerIid, assignments) in assigners) {
+                    addAssigners(
+                        DamageAssigner
+                            .newBuilder()
+                            .setInstanceId(attackerIid)
+                            .apply {
+                                for ((targetIid, damage) in assignments) {
+                                    addAssignments(
+                                        DamageAssignment
+                                            .newBuilder()
+                                            .setInstanceId(targetIid)
+                                            .setAssignedDamage(damage),
+                                    )
+                                }
+                            },
+                    )
+                }
+            },
+        )
+    }
 
 // ---------------------------------------------------------------------------
 // Targeting
@@ -221,7 +227,8 @@ fun selectTargetsResp(targets: List<Int>): ClientToGREMessage =
                 TargetSelection.newBuilder().apply {
                     for (iid in targets) {
                         addTargets(
-                            ProtoTarget.newBuilder()
+                            ProtoTarget
+                                .newBuilder()
                                 .setTargetInstanceId(iid)
                                 .setLegalAction(SelectAction.Select_a1ad),
                         )
@@ -246,8 +253,7 @@ fun cancelActionReq(): ClientToGREMessage =
  *
  * Type-only, no payload — matches reference client behavior.
  */
-fun submitTargetsReq(): ClientToGREMessage =
-    clientMessage(ClientMessageType.SubmitTargetsReq)
+fun submitTargetsReq(): ClientToGREMessage = clientMessage(ClientMessageType.SubmitTargetsReq)
 
 // ---------------------------------------------------------------------------
 // SelectN — legend rule, "choose N" prompts
@@ -288,7 +294,8 @@ fun castingTimeOptionsResp(
     clientMessage(ClientMessageType.CastingTimeOptionsResp_097b) {
         setCastingTimeOptionsResp(
             CastingTimeOptionsResp.newBuilder().setCastingTimeOptionResp(
-                CastingTimeOptionResp.newBuilder()
+                CastingTimeOptionResp
+                    .newBuilder()
                     .setCtoId(ctoId)
                     .setCastingTimeOptionType(CastingTimeOptionType.Modal_a7b4)
                     .setChooseModalResp(
@@ -329,7 +336,8 @@ fun optionalCostResp(ctoId: Int): ClientToGREMessage =
 fun optionalActionResp(accept: Boolean): ClientToGREMessage =
     clientMessage(ClientMessageType.OptionalActionResp) {
         setOptionalResp(
-            OptionalResp.newBuilder()
+            OptionalResp
+                .newBuilder()
                 .setResponse(if (accept) OptionResponse.AllowYes else OptionResponse.CancelNo),
         )
     }
@@ -339,34 +347,43 @@ fun optionalActionResp(accept: Boolean): ClientToGREMessage =
 // ---------------------------------------------------------------------------
 
 /** Build a [SettingsMessage] with DSL block. */
-fun settingsMessage(
-    block: SettingsMessage.Builder.() -> Unit,
-): SettingsMessage = SettingsMessage.newBuilder().apply(block).build()
+fun settingsMessage(block: SettingsMessage.Builder.() -> Unit): SettingsMessage = SettingsMessage.newBuilder().apply(block).build()
 
 /** Build a [Stop] entry. */
 fun stop(
     type: StopType,
     scope: SettingScope,
     status: SettingStatus,
-): Stop = Stop.newBuilder()
-    .setStopType(type)
-    .setAppliesTo(scope)
-    .setStatus(status)
-    .build()
+): Stop =
+    Stop
+        .newBuilder()
+        .setStopType(type)
+        .setAppliesTo(scope)
+        .setStatus(status)
+        .build()
 
 // ---------------------------------------------------------------------------
 // Actions — for unit tests building ActionsAvailableReq
 // ---------------------------------------------------------------------------
 
 /** Build a [ManaRequirement] — e.g. `mana(ManaColor.Generic, 2)`. */
-fun mana(color: ManaColor, count: Int): ManaRequirement =
-    ManaRequirement.newBuilder().addColor(color).setCount(count).build()
+fun mana(
+    color: ManaColor,
+    count: Int,
+): ManaRequirement =
+    ManaRequirement
+        .newBuilder()
+        .addColor(color)
+        .setCount(count)
+        .build()
 
 /** Build an [ActionsAvailableReq] from a list of action types. */
 fun actionsReq(vararg types: ActionType): ActionsAvailableReq =
-    ActionsAvailableReq.newBuilder().apply {
-        for (type in types) addActions(Action.newBuilder().setActionType(type))
-    }.build()
+    ActionsAvailableReq
+        .newBuilder()
+        .apply {
+            for (type in types) addActions(Action.newBuilder().setActionType(type))
+        }.build()
 
 // ===========================================================================
 // Outbound GRE fixtures — for unit tests that hand-build server messages
@@ -388,8 +405,14 @@ fun greMessage(
     seatIds: List<Int> = listOf(1),
     gsm: GameStateMessage.Builder.() -> Unit = {},
 ): GREToClientMessage {
-    val gs = GameStateMessage.newBuilder().setGameStateId(gsId).apply(gsm).build()
-    return GREToClientMessage.newBuilder()
+    val gs =
+        GameStateMessage
+            .newBuilder()
+            .setGameStateId(gsId)
+            .apply(gsm)
+            .build()
+    return GREToClientMessage
+        .newBuilder()
         .setType(GREMessageType.GameStateMessage_695e)
         .setMsgId(msgId)
         .setGameStateId(gsId)
@@ -403,13 +426,15 @@ fun greMessage(
     msgId: Int = 1,
     gsm: GameStateMessage,
     seatIds: List<Int> = listOf(1),
-): GREToClientMessage = GREToClientMessage.newBuilder()
-    .setType(GREMessageType.GameStateMessage_695e)
-    .setMsgId(msgId)
-    .setGameStateId(gsm.gameStateId)
-    .addAllSystemSeatIds(seatIds)
-    .setGameStateMessage(gsm)
-    .build()
+): GREToClientMessage =
+    GREToClientMessage
+        .newBuilder()
+        .setType(GREMessageType.GameStateMessage_695e)
+        .setMsgId(msgId)
+        .setGameStateId(gsm.gameStateId)
+        .addAllSystemSeatIds(seatIds)
+        .setGameStateMessage(gsm)
+        .build()
 
 /** Build a [GREToClientMessage] wrapping an [ActionsAvailableReq]. */
 fun actionsMessage(
@@ -417,10 +442,12 @@ fun actionsMessage(
     gsId: Int = 0,
     seatIds: List<Int> = listOf(1),
     actions: ActionsAvailableReq.Builder.() -> Unit,
-): GREToClientMessage = GREToClientMessage.newBuilder()
-    .setType(GREMessageType.ActionsAvailableReq_695e)
-    .setMsgId(msgId)
-    .setGameStateId(gsId)
-    .addAllSystemSeatIds(seatIds)
-    .setActionsAvailableReq(ActionsAvailableReq.newBuilder().apply(actions))
-    .build()
+): GREToClientMessage =
+    GREToClientMessage
+        .newBuilder()
+        .setType(GREMessageType.ActionsAvailableReq_695e)
+        .setMsgId(msgId)
+        .setGameStateId(gsId)
+        .addAllSystemSeatIds(seatIds)
+        .setActionsAvailableReq(ActionsAvailableReq.newBuilder().apply(actions))
+        .build()

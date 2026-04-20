@@ -33,8 +33,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 // `abstract` keeps Kotest's auto-discovery from trying to instantiate the base
 // class directly (no zero-arg constructor — only the `body` lambda variant).
 @Suppress("UnnecessaryAbstractClass")
-abstract class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
-
+abstract class SubsystemTest(
+    body: SubsystemTest.() -> Unit,
+) : FunSpec() {
     private val base = ConformanceTestBase()
 
     val humanSeat = SeatId(1)
@@ -48,20 +49,23 @@ abstract class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
 
     // --- Delegated setup ---
 
-    fun startWithBoard(board: (game: Game, human: Player, ai: Player) -> Unit) =
-        base.startWithBoard(board)
+    fun startWithBoard(board: (game: Game, human: Player, ai: Player) -> Unit) = base.startWithBoard(board)
 
-    fun startGameAtMain1(seed: Long = 42L, deckList: String? = null, variant: String? = null) =
-        base.startGameAtMain1(seed, deckList, variant)
+    fun startGameAtMain1(
+        seed: Long = 42L,
+        deckList: String? = null,
+        variant: String? = null,
+    ) = base.startGameAtMain1(seed, deckList, variant)
 
-    fun startPuzzleAtMain1(puzzleText: String) =
-        base.startPuzzleAtMain1(puzzleText)
+    fun startPuzzleAtMain1(puzzleText: String) = base.startPuzzleAtMain1(puzzleText)
 
-    fun startPuzzleAtMain1FromResource(resourcePath: String) =
-        base.startPuzzleAtMain1FromResource(resourcePath)
+    fun startPuzzleAtMain1FromResource(resourcePath: String) = base.startPuzzleAtMain1FromResource(resourcePath)
 
-    fun addCard(name: String, player: Player, zone: ZoneType = ZoneType.Battlefield): Card =
-        base.addCard(name, player, zone)
+    fun addCard(
+        name: String,
+        player: Player,
+        zone: ZoneType = ZoneType.Battlefield,
+    ): Card = base.addCard(name, player, zone)
 
     // --- Capture ---
 
@@ -76,7 +80,10 @@ abstract class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
     // --- Board actions ---
 
     /** Move card to battlefield — raw zone move, no events, no triggers. For setup. */
-    fun moveToBattlefield(card: Card, game: Game) {
+    fun moveToBattlefield(
+        card: Card,
+        game: Game,
+    ) {
         game.action.moveToPlay(card, null, AbilityKey.newMap())
     }
 
@@ -100,16 +107,21 @@ abstract class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
     // --- ID helpers ---
 
     /** Resolve a Forge card.id to its current proto instanceId. */
-    fun GameBridge.instanceId(cardId: Int): Int =
-        getOrAllocInstanceId(ForgeCardId(cardId)).value
+    fun GameBridge.instanceId(cardId: Int): Int = getOrAllocInstanceId(ForgeCardId(cardId)).value
 
     // --- Game action wrappers (hide Forge internals) ---
 
-    fun destroy(card: Card, game: Game) {
+    fun destroy(
+        card: Card,
+        game: Game,
+    ) {
         game.action.destroy(card, null, false, AbilityKey.newMap())
     }
 
-    fun exile(card: Card, game: Game) {
+    fun exile(
+        card: Card,
+        game: Game,
+    ) {
         game.action.exile(card, null, AbilityKey.newMap())
     }
 
@@ -123,8 +135,9 @@ abstract class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
         action: (Card, Game) -> Unit,
     ): Pair<GameStateMessage, Int> {
         val player = humanPlayer(b)
-        val card = listOf(ZoneType.Battlefield, ZoneType.Hand, ZoneType.Library, ZoneType.Graveyard, ZoneType.Exile)
-            .firstNotNullOf { zone -> player.getZone(zone).cards.firstOrNull { it.name == cardName } }
+        val card =
+            listOf(ZoneType.Battlefield, ZoneType.Hand, ZoneType.Library, ZoneType.Graveyard, ZoneType.Exile)
+                .firstNotNullOf { zone -> player.getZone(zone).cards.firstOrNull { it.name == cardName } }
         val origId = b.instanceId(card.id)
         val cardId = card.id
 
@@ -141,18 +154,39 @@ abstract class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
     // --- Delegated bundle/capture ---
 
     fun bundleBuilder(b: GameBridge) = base.bundleBuilder(b)
-    fun postAction(game: Game, b: GameBridge, counter: MessageCounter) = base.postAction(game, b, counter)
-    fun gameStart(game: Game, b: GameBridge, counter: MessageCounter) = base.gameStart(game, b, counter)
-    fun handshakeFull(game: Game, b: GameBridge, gsId: Int) = base.handshakeFull(game, b, gsId)
+
+    fun postAction(
+        game: Game,
+        b: GameBridge,
+        counter: MessageCounter,
+    ) = base.postAction(game, b, counter)
+
+    fun gameStart(
+        game: Game,
+        b: GameBridge,
+        counter: MessageCounter,
+    ) = base.gameStart(game, b, counter)
+
+    fun handshakeFull(
+        game: Game,
+        b: GameBridge,
+        gsId: Int,
+    ) = base.handshakeFull(game, b, gsId)
+
     fun playLand(b: GameBridge) = base.playLand(b)
+
     fun castCreature(b: GameBridge) = base.castCreature(b)
+
     fun passPriority(b: GameBridge) = base.passPriority(b)
 
     // --- Cast/resolve convenience captures ---
 
     fun castSpellBundle() = base.castSpellBundle()
+
     fun castSpellAndCapture() = base.castSpellAndCapture()
+
     fun castSpellAndCaptureWithIds() = base.castSpellAndCaptureWithIds()
+
     fun resolveAndCapture() = base.resolveAndCapture()
 
     companion object {

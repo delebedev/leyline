@@ -32,9 +32,10 @@ class MechanicAnnotationPipelineTest :
 
         test("counterAddedAnnotation") {
             // Forge sends display name "+1/+1" (from CounterEnumType.getName()), not "P1P1"
-            val events = listOf(
-                GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "+1/+1", oldCount = 0, newCount = 2),
-            )
+            val events =
+                listOf(
+                    GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "+1/+1", oldCount = 0, newCount = 2),
+                )
             val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
 
             assertSoftly {
@@ -56,9 +57,10 @@ class MechanicAnnotationPipelineTest :
 
         test("counterRemovedAnnotation") {
             // Forge sends "LOYAL" for loyalty counters (CounterEnumType.LOYALTY.getName())
-            val events = listOf(
-                GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "LOYAL", oldCount = 5, newCount = 2),
-            )
+            val events =
+                listOf(
+                    GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "LOYAL", oldCount = 5, newCount = 2),
+                )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             assertSoftly {
@@ -69,9 +71,10 @@ class MechanicAnnotationPipelineTest :
         }
 
         test("counterUnchangedSkipped") {
-            val events = listOf(
-                GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "P1P1", oldCount = 3, newCount = 3),
-            )
+            val events =
+                listOf(
+                    GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "P1P1", oldCount = 3, newCount = 3),
+                )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
             annotations.shouldBeEmpty()
         }
@@ -80,9 +83,10 @@ class MechanicAnnotationPipelineTest :
 
         xtest("shuffleAnnotation") {
             // Shuffle annotations are suppressed in production (crash client). See commit 76d61d2973.
-            val events = listOf(
-                GameEvent.LibraryShuffled(seatId = SeatId(1)),
-            )
+            val events =
+                listOf(
+                    GameEvent.LibraryShuffled(seatId = SeatId(1)),
+                )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 1
@@ -93,9 +97,10 @@ class MechanicAnnotationPipelineTest :
         // -- Scry --
 
         test("scryAnnotation") {
-            val events = listOf(
-                GameEvent.Scry(seatId = SeatId(2), topCount = 1, bottomCount = 2),
-            )
+            val events =
+                listOf(
+                    GameEvent.Scry(seatId = SeatId(2), topCount = 1, bottomCount = 2),
+                )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             assertSoftly {
@@ -109,9 +114,10 @@ class MechanicAnnotationPipelineTest :
         // -- Surveil --
 
         test("surveilAnnotation") {
-            val events = listOf(
-                GameEvent.Surveil(seatId = SeatId(1), toLibrary = 1, toGraveyard = 1),
-            )
+            val events =
+                listOf(
+                    GameEvent.Surveil(seatId = SeatId(1), toLibrary = 1, toGraveyard = 1),
+                )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 1
@@ -121,9 +127,10 @@ class MechanicAnnotationPipelineTest :
         // -- TokenCreated --
 
         test("tokenCreatedAnnotation") {
-            val events = listOf(
-                GameEvent.TokenCreated(cardId = ForgeCardId(99), seatId = SeatId(1)),
-            )
+            val events =
+                listOf(
+                    GameEvent.TokenCreated(cardId = ForgeCardId(99), seatId = SeatId(1)),
+                )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             assertSoftly {
@@ -136,9 +143,10 @@ class MechanicAnnotationPipelineTest :
         // -- TokenDestroyed --
 
         test("tokenDestroyedProducesAnnotation") {
-            val events = listOf(
-                GameEvent.TokenDestroyed(cardId = ForgeCardId(88), seatId = SeatId(1)),
-            )
+            val events =
+                listOf(
+                    GameEvent.TokenDestroyed(cardId = ForgeCardId(88), seatId = SeatId(1)),
+                )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             assertSoftly {
@@ -152,9 +160,16 @@ class MechanicAnnotationPipelineTest :
         // -- PowerToughnessChanged --
 
         test("powerToughnessChangedBothAnnotations") {
-            val events = listOf(
-                GameEvent.PowerToughnessChanged(cardId = ForgeCardId(50), oldPower = 2, newPower = 4, oldToughness = 3, newToughness = 5),
-            )
+            val events =
+                listOf(
+                    GameEvent.PowerToughnessChanged(
+                        cardId = ForgeCardId(50),
+                        oldPower = 2,
+                        newPower = 4,
+                        oldToughness = 3,
+                        newToughness = 5,
+                    ),
+                )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             assertSoftly {
@@ -169,9 +184,16 @@ class MechanicAnnotationPipelineTest :
         }
 
         test("powerOnlyChangedOneAnnotation") {
-            val events = listOf(
-                GameEvent.PowerToughnessChanged(cardId = ForgeCardId(50), oldPower = 2, newPower = 5, oldToughness = 3, newToughness = 3),
-            )
+            val events =
+                listOf(
+                    GameEvent.PowerToughnessChanged(
+                        cardId = ForgeCardId(50),
+                        oldPower = 2,
+                        newPower = 5,
+                        oldToughness = 3,
+                        newToughness = 3,
+                    ),
+                )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             assertSoftly {
@@ -182,9 +204,16 @@ class MechanicAnnotationPipelineTest :
         }
 
         test("toughnessOnlyChangedOneAnnotation") {
-            val events = listOf(
-                GameEvent.PowerToughnessChanged(cardId = ForgeCardId(50), oldPower = 2, newPower = 2, oldToughness = 3, newToughness = 1),
-            )
+            val events =
+                listOf(
+                    GameEvent.PowerToughnessChanged(
+                        cardId = ForgeCardId(50),
+                        oldPower = 2,
+                        newPower = 2,
+                        oldToughness = 3,
+                        newToughness = 1,
+                    ),
+                )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             assertSoftly {
@@ -197,9 +226,10 @@ class MechanicAnnotationPipelineTest :
         // -- CardAttached --
 
         test("attachProducesCorrectAnnotationShape") {
-            val events = listOf(
-                GameEvent.CardAttached(cardId = ForgeCardId(55), targetCardId = ForgeCardId(66), seatId = SeatId(1)),
-            )
+            val events =
+                listOf(
+                    GameEvent.CardAttached(cardId = ForgeCardId(55), targetCardId = ForgeCardId(66), seatId = SeatId(1)),
+                )
             val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
 
             // Transient: AttachmentCreated
@@ -222,9 +252,10 @@ class MechanicAnnotationPipelineTest :
         }
 
         test("detachReturnsDetachedForgeCardId") {
-            val events = listOf(
-                GameEvent.CardDetached(cardId = ForgeCardId(60), seatId = SeatId(1)),
-            )
+            val events =
+                listOf(
+                    GameEvent.CardDetached(cardId = ForgeCardId(60), seatId = SeatId(1)),
+                )
             val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
             result.detachedForgeCardIds shouldBe listOf(ForgeCardId(60))
         }
@@ -232,9 +263,10 @@ class MechanicAnnotationPipelineTest :
         // -- RemoveAttachment --
 
         test("detachProducesRemoveAttachment") {
-            val events = listOf(
-                GameEvent.CardDetached(cardId = ForgeCardId(60), seatId = SeatId(1)),
-            )
+            val events =
+                listOf(
+                    GameEvent.CardDetached(cardId = ForgeCardId(60), seatId = SeatId(1)),
+                )
             val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
             val annotations = result.transient
 
@@ -248,12 +280,13 @@ class MechanicAnnotationPipelineTest :
         // -- Mixed events --
 
         test("zoneTransferEventsProduceNoTransientButTrackCleanup") {
-            val events = listOf(
-                GameEvent.ZoneChanged(cardId = ForgeCardId(1), from = Zone.Hand, to = Zone.Battlefield),
-                GameEvent.LandPlayed(cardId = ForgeCardId(1), seatId = SeatId(1)),
-                GameEvent.CardDestroyed(cardId = ForgeCardId(2), seatId = SeatId(1)),
-                GameEvent.DamageDealtToPlayer(sourceCardId = ForgeCardId(4), targetSeatId = SeatId(1), amount = 3, combat = true),
-            )
+            val events =
+                listOf(
+                    GameEvent.ZoneChanged(cardId = ForgeCardId(1), from = Zone.Hand, to = Zone.Battlefield),
+                    GameEvent.LandPlayed(cardId = ForgeCardId(1), seatId = SeatId(1)),
+                    GameEvent.CardDestroyed(cardId = ForgeCardId(2), seatId = SeatId(1)),
+                    GameEvent.DamageDealtToPlayer(sourceCardId = ForgeCardId(4), targetSeatId = SeatId(1), amount = 3, combat = true),
+                )
             val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
             result.transient.shouldBeEmpty()
             // CardDestroyed tracks for DisplayCardUnderCard cleanup
@@ -263,9 +296,10 @@ class MechanicAnnotationPipelineTest :
         // -- CardTapped --
 
         test("cardTappedProducesAnnotation") {
-            val events = listOf(
-                GameEvent.CardTapped(cardId = ForgeCardId(70), tapped = true),
-            )
+            val events =
+                listOf(
+                    GameEvent.CardTapped(cardId = ForgeCardId(70), tapped = true),
+                )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             assertSoftly {
@@ -277,9 +311,10 @@ class MechanicAnnotationPipelineTest :
         }
 
         test("cardUntappedProducesAnnotation") {
-            val events = listOf(
-                GameEvent.CardTapped(cardId = ForgeCardId(71), tapped = false),
-            )
+            val events =
+                listOf(
+                    GameEvent.CardTapped(cardId = ForgeCardId(71), tapped = false),
+                )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             assertSoftly {
@@ -292,10 +327,11 @@ class MechanicAnnotationPipelineTest :
         test("mechanicAnnotationsMultipleEvents") {
             // NOTE: LibraryShuffled is suppressed in production (crash client). See commit 76d61d2973.
             // Only testing CounterChanged + Scry here (2 events → 2 annotations).
-            val events = listOf(
-                GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "P1P1", oldCount = 0, newCount = 1),
-                GameEvent.Scry(seatId = SeatId(1), topCount = 2, bottomCount = 0),
-            )
+            val events =
+                listOf(
+                    GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "P1P1", oldCount = 0, newCount = 1),
+                    GameEvent.Scry(seatId = SeatId(1), topCount = 2, bottomCount = 0),
+                )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
             assertSoftly {
                 annotations.size shouldBe 2

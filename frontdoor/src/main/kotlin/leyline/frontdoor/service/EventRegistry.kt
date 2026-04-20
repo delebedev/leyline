@@ -19,7 +19,11 @@ data class QueueEntry(
 )
 
 @Serializable
-data class EntryFee(val currencyType: String, val quantity: Int, val referenceId: String? = null)
+data class EntryFee(
+    val currencyType: String,
+    val quantity: Int,
+    val referenceId: String? = null,
+)
 
 @Serializable
 data class EventDef(
@@ -96,14 +100,14 @@ data class AiBotMatchDef(
  * ### Carousel (1600) is cosmetic — store/mastery promos, not gameplay events.
  */
 object EventRegistry {
-
     /** Arena format names that have no Forge equivalent — skip validation. */
     private val UNMAPPED_FORMATS = setOf("Timeless", "Alchemy")
 
     /** Arena → Forge renames (after stripping "Traditional" prefix). */
-    private val ARENA_TO_FORGE = mapOf(
-        "Explorer" to "Pioneer",
-    )
+    private val ARENA_TO_FORGE =
+        mapOf(
+            "Explorer" to "Pioneer",
+        )
 
     /**
      * Map Arena deckSelectFormat string to Forge format name, or null if unmapped.
@@ -127,8 +131,7 @@ object EventRegistry {
     /** AiBotMatches array — separate from Events, rendered as "Bot Match" tile. */
     val aiBotMatches: List<AiBotMatchDef> = loadResource("/fd-bootstrap/ai-bot-matches.json")
 
-    fun findEvent(internalName: String): EventDef? =
-        events.firstOrNull { it.internalName == internalName }
+    fun findEvent(internalName: String): EventDef? = events.firstOrNull { it.internalName == internalName }
 
     fun isSealed(eventName: String): Boolean = findEvent(eventName)?.isSealed == true
 
@@ -146,15 +149,19 @@ object EventRegistry {
      * The client expects some baseline course state; we seed a few common ones.
      * module=CreateMatch means active (shows "Resume"), module=Complete means finished.
      */
-    val defaultCourses = listOf(
-        "AIBotMatch" to "Complete",
-        "Play_Brawl" to "CreateMatch",
-    )
+    val defaultCourses =
+        listOf(
+            "AIBotMatch" to "Complete",
+            "Play_Brawl" to "CreateMatch",
+        )
 
     private inline fun <reified T> loadResource(path: String): T {
-        val text = EventRegistry::class.java.getResourceAsStream(path)
-            ?.bufferedReader()?.readText()
-            ?: error("Missing resource: $path")
+        val text =
+            EventRegistry::class.java
+                .getResourceAsStream(path)
+                ?.bufferedReader()
+                ?.readText()
+                ?: error("Missing resource: $path")
         return lenientJson.decodeFromString(text)
     }
 }

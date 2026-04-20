@@ -20,13 +20,19 @@ sealed interface ScriptedAction {
     data object PassPriority : ScriptedAction
 
     /** Play a land by name from hand. */
-    data class PlayLand(val cardName: String) : ScriptedAction
+    data class PlayLand(
+        val cardName: String,
+    ) : ScriptedAction
 
     /** Cast a spell by name from hand. */
-    data class CastSpell(val cardName: String) : ScriptedAction
+    data class CastSpell(
+        val cardName: String,
+    ) : ScriptedAction
 
     /** Declare specific creatures as attackers. */
-    data class Attack(val cardNames: List<String>) : ScriptedAction
+    data class Attack(
+        val cardNames: List<String>,
+    ) : ScriptedAction
 
     /** Declare no attackers (skip combat). */
     data object DeclareNoAttackers : ScriptedAction
@@ -35,7 +41,9 @@ sealed interface ScriptedAction {
     data object DeclareNoBlockers : ScriptedAction
 
     /** Block specific attackers: blockerName → attackerName. */
-    data class Block(val assignments: Map<String, String>) : ScriptedAction
+    data class Block(
+        val assignments: Map<String, String>,
+    ) : ScriptedAction
 }
 
 /**
@@ -53,13 +61,11 @@ class ScriptedPlayerController(
     player: Player,
     private val script: List<ScriptedAction>,
 ) : PlayerControllerAi(game, player, player.lobbyPlayer) {
-
     private val log = LoggerFactory.getLogger(ScriptedPlayerController::class.java)
     private var scriptIndex = 0
 
     /** Peek at the next action without consuming. */
-    private fun peekAction(): ScriptedAction? =
-        if (scriptIndex < script.size) script[scriptIndex] else null
+    private fun peekAction(): ScriptedAction? = if (scriptIndex < script.size) script[scriptIndex] else null
 
     /** Consume and return the next scripted action, or null if exhausted. */
     private fun nextAction(): ScriptedAction? {
@@ -110,7 +116,10 @@ class ScriptedPlayerController(
         }
     }
 
-    override fun declareAttackers(attacker: Player, combat: Combat) {
+    override fun declareAttackers(
+        attacker: Player,
+        combat: Combat,
+    ) {
         val action = peekAction()
         when (action) {
             is ScriptedAction.Attack -> {
@@ -118,9 +127,10 @@ class ScriptedPlayerController(
                 val bf = attacker.getZone(ZoneType.Battlefield)
                 val defender = attacker.opponents.firstOrNull() ?: return
                 for (name in action.cardNames) {
-                    val card = bf.cards.firstOrNull {
-                        it.name.equals(name, ignoreCase = true) && it.isCreature
-                    }
+                    val card =
+                        bf.cards.firstOrNull {
+                            it.name.equals(name, ignoreCase = true) && it.isCreature
+                        }
                     if (card != null) {
                         combat.addAttacker(card, defender)
                     } else {
@@ -139,7 +149,10 @@ class ScriptedPlayerController(
         }
     }
 
-    override fun declareBlockers(defender: Player, combat: Combat) {
+    override fun declareBlockers(
+        defender: Player,
+        combat: Combat,
+    ) {
         val action = peekAction()
         when (action) {
             is ScriptedAction.DeclareNoBlockers -> {
@@ -149,12 +162,14 @@ class ScriptedPlayerController(
                 nextAction()
                 val bf = defender.getZone(ZoneType.Battlefield)
                 for ((blockerName, attackerName) in action.assignments) {
-                    val blocker = bf.cards.firstOrNull {
-                        it.name.equals(blockerName, ignoreCase = true) && it.isCreature
-                    }
-                    val attacker = combat.attackers.firstOrNull {
-                        it.name.equals(attackerName, ignoreCase = true)
-                    }
+                    val blocker =
+                        bf.cards.firstOrNull {
+                            it.name.equals(blockerName, ignoreCase = true) && it.isCreature
+                        }
+                    val attacker =
+                        combat.attackers.firstOrNull {
+                            it.name.equals(attackerName, ignoreCase = true)
+                        }
                     if (blocker != null && attacker != null) {
                         combat.addBlocker(attacker, blocker)
                     } else {
@@ -178,15 +193,17 @@ class ScriptedPlayerController(
 
     private fun findLandAbility(cardName: String): SpellAbility? {
         val hand = player.getZone(ZoneType.Hand)
-        val card = hand.cards.firstOrNull { it.name.equals(cardName, ignoreCase = true) && it.isLand }
-            ?: return null
+        val card =
+            hand.cards.firstOrNull { it.name.equals(cardName, ignoreCase = true) && it.isLand }
+                ?: return null
         return card.spellAbilities.firstOrNull { it is LandAbility && it.canPlay() }
     }
 
     private fun findCastAbility(cardName: String): SpellAbility? {
         val hand = player.getZone(ZoneType.Hand)
-        val card = hand.cards.firstOrNull { it.name.equals(cardName, ignoreCase = true) }
-            ?: return null
+        val card =
+            hand.cards.firstOrNull { it.name.equals(cardName, ignoreCase = true) }
+                ?: return null
         return card.spellAbilities.firstOrNull { !it.isLandAbility && it.canPlay() }
     }
 }

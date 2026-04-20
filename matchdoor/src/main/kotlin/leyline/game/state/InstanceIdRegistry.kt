@@ -15,7 +15,9 @@ import java.util.concurrent.ConcurrentHashMap
  * Thread-safe reads (concurrent maps). Writes (getOrAlloc, realloc) are engine-thread-only.
  * One registry per game.
  */
-class InstanceIdRegistry(startId: Int = 100) {
+class InstanceIdRegistry(
+    startId: Int = 100,
+) {
     private val forgeIdToInstanceId = ConcurrentHashMap<ForgeCardId, InstanceId>()
     private val instanceIdToForgeId = ConcurrentHashMap<InstanceId, ForgeCardId>()
     private var nextInstanceId = startId
@@ -24,7 +26,10 @@ class InstanceIdRegistry(startId: Int = 100) {
      * Result of reallocating an instanceId for a zone transfer.
      * [old] is the previous instanceId (retired to Limbo), [new] is the freshly allocated one.
      */
-    data class IdReallocation(val old: InstanceId, val new: InstanceId)
+    data class IdReallocation(
+        val old: InstanceId,
+        val new: InstanceId,
+    )
 
     /**
      * Return the current mapped instanceId for [forgeCardId], or `null` if none is mapped.
@@ -56,8 +61,9 @@ class InstanceIdRegistry(startId: Int = 100) {
      * Updates forward map (forgeCardId → new ID), keeps old ID in reverse map.
      */
     fun realloc(forgeCardId: ForgeCardId): IdReallocation {
-        val oldId = forgeIdToInstanceId[forgeCardId]
-            ?: return getOrAlloc(forgeCardId).let { IdReallocation(it, it) }
+        val oldId =
+            forgeIdToInstanceId[forgeCardId]
+                ?: return getOrAlloc(forgeCardId).let { IdReallocation(it, it) }
         val newId = InstanceId(nextInstanceId++)
         forgeIdToInstanceId[forgeCardId] = newId
         instanceIdToForgeId[newId] = forgeCardId
@@ -107,8 +113,7 @@ class InstanceIdRegistry(startId: Int = 100) {
     fun allocSynthetic(): InstanceId = InstanceId(nextInstanceId++)
 
     /** Reverse lookup: client instanceId → Forge card ID. */
-    fun getForgeCardId(instanceId: InstanceId): ForgeCardId? =
-        instanceIdToForgeId[instanceId]
+    fun getForgeCardId(instanceId: InstanceId): ForgeCardId? = instanceIdToForgeId[instanceId]
 
     /** Read-only snapshot of instanceId → forgeCardId (all, including retired). */
     fun snapshot(): Map<InstanceId, ForgeCardId> = HashMap(instanceIdToForgeId)

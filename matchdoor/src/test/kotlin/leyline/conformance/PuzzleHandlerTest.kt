@@ -29,8 +29,7 @@ class PuzzleHandlerTest :
             TestCardRegistry.ensureRegistered()
         }
 
-        fun greMessages(msg: MatchServiceToClientMessage): List<GREToClientMessage> =
-            msg.greToClientEvent.greToClientMessagesList
+        fun greMessages(msg: MatchServiceToClientMessage): List<GREToClientMessage> = msg.greToClientEvent.greToClientMessagesList
 
         fun outbound(channel: EmbeddedChannel): List<MatchServiceToClientMessage> =
             generateSequence { channel.readOutbound<MatchServiceToClientMessage>() }.toList()
@@ -76,7 +75,14 @@ class PuzzleHandlerTest :
 
                 val bridge = handler.getOrCreatePuzzleBridge("puzzle-bolt-face")
                 val session =
-                    MatchSession(seatId = SeatId(1), matchId = "puzzle-bolt-face", sink = sink, registry = registry, gameBridge = bridge, paceDelayMs = 0)
+                    MatchSession(
+                        seatId = SeatId(1),
+                        matchId = "puzzle-bolt-face",
+                        sink = sink,
+                        registry = registry,
+                        gameBridge = bridge,
+                        paceDelayMs = 0,
+                    )
                 handler.sendPuzzleInitialBundle(ctx, session, "puzzle-bolt-face", 1)
                 val gre = outbound(channel).flatMap(::greMessages)
 
@@ -101,14 +107,28 @@ class PuzzleHandlerTest :
                 val sink1 = ListMessageSink()
                 val first = handler.getOrCreatePuzzleBridge("puzzle-lands-only")
                 val session1 =
-                    MatchSession(seatId = SeatId(1), matchId = "puzzle-lands-only", sink = sink1, registry = registry, gameBridge = first, paceDelayMs = 0)
+                    MatchSession(
+                        seatId = SeatId(1),
+                        matchId = "puzzle-lands-only",
+                        sink = sink1,
+                        registry = registry,
+                        gameBridge = first,
+                        paceDelayMs = 0,
+                    )
                 val (channel1, ctx1) = channelCtx()
                 handler.sendPuzzleInitialBundle(ctx1, session1, "puzzle-lands-only", 1)
 
                 val sink2 = ListMessageSink()
                 val second = handler.getOrCreatePuzzleBridge("puzzle-lands-only")
                 val session2 =
-                    MatchSession(seatId = SeatId(1), matchId = "puzzle-lands-only", sink = sink2, registry = registry, gameBridge = second, paceDelayMs = 0)
+                    MatchSession(
+                        seatId = SeatId(1),
+                        matchId = "puzzle-lands-only",
+                        sink = sink2,
+                        registry = registry,
+                        gameBridge = second,
+                        paceDelayMs = 0,
+                    )
                 val (channel2, ctx2) = channelCtx()
                 handler.sendPuzzleInitialBundle(ctx2, session2, "puzzle-lands-only", 1)
 
@@ -151,17 +171,25 @@ class PuzzleHandlerTest :
             try {
                 val registry = MatchRegistry()
                 val sink = ListMessageSink()
-                val handler = PuzzleHandler(
-                    puzzlePath = { temp.absolutePath },
-                    TestCardRegistry.repo,
-                    registry,
-                )
+                val handler =
+                    PuzzleHandler(
+                        puzzlePath = { temp.absolutePath },
+                        TestCardRegistry.repo,
+                        registry,
+                    )
                 val (channel, ctx) = channelCtx()
 
                 handler.isPuzzleMatch("puzzle-cli-puzzle").shouldBeTrue()
                 val bridge = handler.getOrCreatePuzzleBridge("puzzle-cli-puzzle")
                 val session =
-                    MatchSession(seatId = SeatId(1), matchId = "puzzle-cli-puzzle", sink = sink, registry = registry, gameBridge = bridge, paceDelayMs = 0)
+                    MatchSession(
+                        seatId = SeatId(1),
+                        matchId = "puzzle-cli-puzzle",
+                        sink = sink,
+                        registry = registry,
+                        gameBridge = bridge,
+                        paceDelayMs = 0,
+                    )
                 handler.sendPuzzleInitialBundle(ctx, session, "puzzle-cli-puzzle", 1)
 
                 outbound(channel).flatMap(::greMessages).map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e

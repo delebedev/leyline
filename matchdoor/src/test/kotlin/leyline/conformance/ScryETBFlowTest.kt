@@ -57,18 +57,20 @@ class ScryETBFlowTest :
             h.playLand().shouldBeTrue()
 
             val msgs = h.messagesSince(snap)
-            val allAnnotations = msgs.flatMap { msg ->
-                if (msg.hasGameStateMessage()) {
-                    msg.gameStateMessage.annotationsList
-                } else {
-                    emptyList()
+            val allAnnotations =
+                msgs.flatMap { msg ->
+                    if (msg.hasGameStateMessage()) {
+                        msg.gameStateMessage.annotationsList
+                    } else {
+                        emptyList()
+                    }
                 }
-            }
 
             // ObjectIdChanged: hand ID → battlefield ID (reference: 161 → 282)
-            val oic = allAnnotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.ObjectIdChanged }
-            }
+            val oic =
+                allAnnotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.ObjectIdChanged }
+                }
             assertSoftly {
                 oic.shouldNotBeNull()
                 oic.detail("orig_id").shouldNotBeNull()
@@ -76,17 +78,19 @@ class ScryETBFlowTest :
             }
 
             // ZoneTransfer with PlayLand category (reference: zone_src=31, zone_dest=28)
-            val zt = allAnnotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
-                    ann.detailsList.any { it.key == "category" && it.valueStringList.firstOrNull() == "PlayLand" }
-            }
+            val zt =
+                allAnnotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
+                        ann.detailsList.any { it.key == "category" && it.valueStringList.firstOrNull() == "PlayLand" }
+                }
             zt.shouldNotBeNull()
             zt.affectedIdsList.shouldNotBeEmpty()
 
             // UserActionTaken (reference: affectorId=1 (seat), actionType=3)
-            val uat = allAnnotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.UserActionTaken }
-            }
+            val uat =
+                allAnnotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.UserActionTaken }
+                }
             uat.shouldNotBeNull()
         }
 
@@ -100,32 +104,36 @@ class ScryETBFlowTest :
             h.castSpellByName("Wall of Runes").shouldBeTrue()
 
             val msgs = h.messagesSince(snap)
-            val allAnnotations = msgs.flatMap { msg ->
-                if (msg.hasGameStateMessage()) {
-                    msg.gameStateMessage.annotationsList
-                } else {
-                    emptyList()
+            val allAnnotations =
+                msgs.flatMap { msg ->
+                    if (msg.hasGameStateMessage()) {
+                        msg.gameStateMessage.annotationsList
+                    } else {
+                        emptyList()
+                    }
                 }
-            }
 
             // ZoneTransfer with CastSpell category (reference: hand → stack)
-            val castZt = allAnnotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
-                    ann.detailsList.any { it.key == "category" && it.valueStringList.firstOrNull() == "CastSpell" }
-            }
+            val castZt =
+                allAnnotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
+                        ann.detailsList.any { it.key == "category" && it.valueStringList.firstOrNull() == "CastSpell" }
+                }
             castZt.shouldNotBeNull()
 
             // TappedUntappedPermanent (reference: Island tapped for mana)
-            val tap = allAnnotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.TappedUntappedPermanent }
-            }
+            val tap =
+                allAnnotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.TappedUntappedPermanent }
+                }
             tap.shouldNotBeNull()
             tap.detail("tapped").shouldNotBeNull()
 
             // ManaPaid (reference: Island → Wall of Runes, color=2 blue)
-            val manaPaid = allAnnotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.ManaPaid }
-            }
+            val manaPaid =
+                allAnnotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.ManaPaid }
+                }
             manaPaid.shouldNotBeNull()
         }
 
@@ -148,30 +156,34 @@ class ScryETBFlowTest :
 
             // ResolutionStart + ResolutionComplete for the creature spell
             // Expected: affectorId=283 (Wall on stack), details grpid=75478
-            val resStart = allAnnotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.ResolutionStart }
-            }
+            val resStart =
+                allAnnotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.ResolutionStart }
+                }
             resStart.shouldNotBeNull()
 
-            val resComplete = allAnnotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.ResolutionComplete }
-            }
+            val resComplete =
+                allAnnotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.ResolutionComplete }
+                }
             resComplete.shouldNotBeNull()
 
             // ZoneTransfer with Resolve category (reference: stack → battlefield)
-            val resolveZt = allAnnotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
-                    ann.detailsList.any { it.key == "category" && it.valueStringList.firstOrNull() == "Resolve" }
-            }
+            val resolveZt =
+                allAnnotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
+                        ann.detailsList.any { it.key == "category" && it.valueStringList.firstOrNull() == "Resolve" }
+                }
             resolveZt.shouldNotBeNull()
 
             // AbilityInstanceCreated for ETB trigger
             // Note: with deferred resolution, the CastSpell AbilityInstanceCreated
             // fires during cast, and the ETB trigger's AbilityInstanceCreated
             // may be absorbed into the same annotation batch.
-            val triggerCreated = allAnnotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.AbilityInstanceCreated }
-            }
+            val triggerCreated =
+                allAnnotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.AbilityInstanceCreated }
+                }
             triggerCreated.shouldNotBeNull()
             triggerCreated.detail("source_zone").shouldNotBeNull()
         }
@@ -210,9 +222,10 @@ class ScryETBFlowTest :
             // Scry annotation — engine shape: affectedIds=[seatId], topCount/bottomCount
             // Conformance gap: reference uses affectedIds=[cardId], bottomIds detail key.
             // Our engine emits aggregate counts instead of per-card IDs.
-            val scryAnn = allAnnotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.Scry_af5a }
-            }
+            val scryAnn =
+                allAnnotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.Scry_af5a }
+                }
             assertSoftly {
                 scryAnn.shouldNotBeNull()
                 scryAnn.affectedIdsList.shouldNotBeEmpty()
@@ -220,14 +233,16 @@ class ScryETBFlowTest :
             }
 
             // ResolutionStart + ResolutionComplete for the creature spell
-            val resStart = allAnnotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.ResolutionStart }
-            }
+            val resStart =
+                allAnnotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.ResolutionStart }
+                }
             resStart.shouldNotBeNull()
 
-            val resComplete = allAnnotations.filter { ann ->
-                ann.typeList.any { it == AnnotationType.ResolutionComplete }
-            }
+            val resComplete =
+                allAnnotations.filter { ann ->
+                    ann.typeList.any { it == AnnotationType.ResolutionComplete }
+                }
             resComplete.shouldNotBeEmpty()
         }
 

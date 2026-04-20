@@ -24,15 +24,25 @@ class FamiliarSession(
     val sink: MessageSink,
     override var counter: MessageCounter = MessageCounter(),
 ) : SessionOps {
-
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
         sink.send(messages)
     }
 
-    override fun sendRealGameState(bridge: GameBridge, revealForSeat: Int?) {}
+    override fun sendRealGameState(
+        bridge: GameBridge,
+        revealForSeat: Int?,
+    ) {}
+
     override fun sendBundle(result: BundleBuilder.BundleResult) {}
+
     override fun sendGameOver(reason: ResultReason) {}
-    override fun traceEvent(type: MatchEventType, game: Game, detail: String) {}
+
+    override fun traceEvent(
+        type: MatchEventType,
+        game: Game,
+        detail: String,
+    ) {}
+
     override fun paceDelay(multiplier: Int) {}
 
     override fun makeGRE(
@@ -41,8 +51,13 @@ class FamiliarSession(
         msgId: Int,
         configure: (GREToClientMessage.Builder) -> Unit,
     ): GREToClientMessage {
-        val gre = GREToClientMessage.newBuilder()
-            .setType(type).setMsgId(msgId).setGameStateId(gsId).addSystemSeatIds(seatId.value)
+        val gre =
+            GREToClientMessage
+                .newBuilder()
+                .setType(type)
+                .setMsgId(msgId)
+                .setGameStateId(gsId)
+                .addSystemSeatIds(seatId.value)
         configure(gre)
         return gre.build()
     }

@@ -46,10 +46,11 @@ class DebugServer(
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null
 
-    private val json = Json {
-        prettyPrint = false
-        encodeDefaults = true
-    }
+    private val json =
+        Json {
+            prettyPrint = false
+            encodeDefaults = true
+        }
 
     fun start() {
         val srv = HttpServer.create(InetSocketAddress(port), 0)
@@ -80,7 +81,8 @@ class DebugServer(
                 } catch (_: Throwable) {
                     try {
                         ex.close()
-                    } catch (_: Throwable) {}
+                    } catch (_: Throwable) {
+                    }
                 }
             }
         }
@@ -97,12 +99,14 @@ class DebugServer(
                 log.error("SSE error: {}", t.message)
                 try {
                     ex.close()
-                } catch (_: Throwable) {}
+                } catch (_: Throwable) {
+                }
             }
         }
-        srv.executor = Executors.newCachedThreadPool { r ->
-            Thread(r, "debug-http").apply { isDaemon = true }
-        }
+        srv.executor =
+            Executors.newCachedThreadPool { r ->
+                Thread(r, "debug-http").apply { isDaemon = true }
+            }
         srv.start()
         server = srv
         log.info("Debug panel: http://localhost:{}", port)
@@ -114,7 +118,10 @@ class DebugServer(
     }
 
     /** Register a POST-only endpoint with standard error handling. */
-    private fun HttpServer.postContext(path: String, handler: (HttpExchange) -> Unit) {
+    private fun HttpServer.postContext(
+        path: String,
+        handler: (HttpExchange) -> Unit,
+    ) {
         createContext(path) { ex ->
             try {
                 if (ex.requestMethod != "POST") {
@@ -130,15 +137,19 @@ class DebugServer(
                 } catch (_: Throwable) {
                     try {
                         ex.close()
-                    } catch (_: Throwable) {}
+                    } catch (_: Throwable) {
+                    }
                 }
             }
         }
     }
 
     private fun serveHtml(ex: HttpExchange) {
-        val html = javaClass.classLoader.getResourceAsStream("leyline-debug.html")
-            ?.bufferedReader()?.readText()
+        val html =
+            javaClass.classLoader
+                .getResourceAsStream("leyline-debug.html")
+                ?.bufferedReader()
+                ?.readText()
         if (html == null) {
             respond(ex, 404, "text/plain", "leyline-debug.html not found on classpath")
         } else {
@@ -160,7 +171,13 @@ class DebugServer(
         }
 
         @Serializable
-        data class Entry(val ts: Long, val source: String, val phase: String?, val turn: Int, val decision: String)
+        data class Entry(
+            val ts: Long,
+            val source: String,
+            val phase: String?,
+            val turn: Int,
+            val decision: String,
+        )
 
         val entries = mutableListOf<Entry>()
 
@@ -233,18 +250,20 @@ class DebugServer(
             val card = bestSa.hostCard
             val cardName = card?.name ?: "unknown"
             val forgeCardId = card?.id ?: -1
-            val arenaInstanceId = try {
-                bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
-            } catch (_: Exception) {
-                -1
-            }
+            val arenaInstanceId =
+                try {
+                    bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+                } catch (_: Exception) {
+                    -1
+                }
 
-            val actionType = when {
-                card?.isLand == true -> "PlayLand"
-                bestSa.isSpell -> "CastSpell"
-                bestSa.isActivatedAbility -> "ActivateAbility"
-                else -> "Unknown"
-            }
+            val actionType =
+                when {
+                    card?.isLand == true -> "PlayLand"
+                    bestSa.isSpell -> "CastSpell"
+                    bestSa.isActivatedAbility -> "ActivateAbility"
+                    else -> "Unknown"
+                }
 
             val saDesc = SpellAbilityPicker.abilityToString(bestSa, true)
             val targets = buildBestPlayTargets(bestSa, bridge)
@@ -253,15 +272,16 @@ class DebugServer(
                 ex,
                 json.encodeToString(
                     BestPlayResponse(
-                        bestPlay = BestPlayEntry(
-                            cardName = cardName,
-                            forgeCardId = forgeCardId,
-                            arenaInstanceId = arenaInstanceId,
-                            actionType = actionType,
-                            score = score.value,
-                            description = saDesc,
-                            targets = targets,
-                        ),
+                        bestPlay =
+                            BestPlayEntry(
+                                cardName = cardName,
+                                forgeCardId = forgeCardId,
+                                arenaInstanceId = arenaInstanceId,
+                                actionType = actionType,
+                                score = score.value,
+                                description = saDesc,
+                                targets = targets,
+                            ),
                         phase = phase,
                         turn = turn,
                         reason = null,
@@ -284,21 +304,23 @@ class DebugServer(
             if (sa.usesTargeting()) {
                 for (target in sa.targets) {
                     when (target) {
-                        is forge.game.card.Card -> result.add(
-                            BestPlayTargetEntry(
-                                kind = "card",
-                                name = target.name,
-                                forgeCardId = target.id,
-                                arenaInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(target.id)).value,
-                                seatId = null,
-                            ),
-                        )
+                        is forge.game.card.Card ->
+                            result.add(
+                                BestPlayTargetEntry(
+                                    kind = "card",
+                                    name = target.name,
+                                    forgeCardId = target.id,
+                                    arenaInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(target.id)).value,
+                                    seatId = null,
+                                ),
+                            )
                         is forge.game.player.Player -> {
-                            val seatId = when (target) {
-                                bridge.getPlayer(SeatId(1)) -> 1
-                                bridge.getPlayer(SeatId(2)) -> 2
-                                else -> null
-                            }
+                            val seatId =
+                                when (target) {
+                                    bridge.getPlayer(SeatId(1)) -> 1
+                                    bridge.getPlayer(SeatId(2)) -> 2
+                                    else -> null
+                                }
                             result.add(
                                 BestPlayTargetEntry(
                                     kind = "player",
@@ -374,31 +396,37 @@ class DebugServer(
         val msgId = counter.nextMsgId()
 
         val snap = SnapshotCapture.run(game, bridge, session.matchId, gsId)
-        val fullGsm = StateMapper.buildFromSnapshot(
-            snap,
-            gsId,
-            session.matchId,
-            bridge,
-            updateType = GameStateUpdate.SendAndRecord,
-            viewingSeatId = session.seatId.value,
-        ).gsm
+        val fullGsm =
+            StateMapper
+                .buildFromSnapshot(
+                    snap,
+                    gsId,
+                    session.matchId,
+                    bridge,
+                    updateType = GameStateUpdate.SendAndRecord,
+                    viewingSeatId = session.seatId.value,
+                ).gsm
 
-        val greGsm = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.GameStateMessage_695e)
-            .setMsgId(msgId)
-            .setGameStateId(gsId)
-            .addSystemSeatIds(session.seatId.value)
-            .setGameStateMessage(fullGsm)
-            .build()
+        val greGsm =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .setMsgId(msgId)
+                .setGameStateId(gsId)
+                .addSystemSeatIds(session.seatId.value)
+                .setGameStateMessage(fullGsm)
+                .build()
 
         val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
-        val greActions = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.ActionsAvailableReq_695e)
-            .setMsgId(counter.nextMsgId())
-            .setGameStateId(gsId)
-            .addSystemSeatIds(session.seatId.value)
-            .setActionsAvailableReq(actions)
-            .build()
+        val greActions =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.ActionsAvailableReq_695e)
+                .setMsgId(counter.nextMsgId())
+                .setGameStateId(gsId)
+                .addSystemSeatIds(session.seatId.value)
+                .setActionsAvailableReq(actions)
+                .build()
 
         session.sendBundledGRE(listOf(greGsm, greActions))
         bridge.bundleCursor.lastSent = snap
@@ -416,11 +444,16 @@ class DebugServer(
     }
 
     private fun servePuzzle(ex: HttpExchange) {
-        val body = ex.requestBody.bufferedReader().readText().trim()
-        val fileParam = ex.requestURI.query
-            ?.split("&")
-            ?.associate { it.split("=", limit = 2).let { p -> p[0] to (p.getOrNull(1) ?: "") } }
-            ?.get("file")
+        val body =
+            ex.requestBody
+                .bufferedReader()
+                .readText()
+                .trim()
+        val fileParam =
+            ex.requestURI.query
+                ?.split("&")
+                ?.associate { it.split("=", limit = 2).let { p -> p[0] to (p.getOrNull(1) ?: "") } }
+                ?.get("file")
 
         if (fileParam == null && body.isEmpty()) {
             runtimePuzzle?.set(null)
@@ -428,14 +461,20 @@ class DebugServer(
             return
         }
 
-        val puzzlePath = if (fileParam != null) {
-            resolvePuzzleFile(fileParam) ?: run {
-                respond(ex, 404, "text/plain", "Puzzle not found: $fileParam (checked matchdoor test resources, root puzzles/, and classpath)")
-                return
+        val puzzlePath =
+            if (fileParam != null) {
+                resolvePuzzleFile(fileParam) ?: run {
+                    respond(
+                        ex,
+                        404,
+                        "text/plain",
+                        "Puzzle not found: $fileParam (checked matchdoor test resources, root puzzles/, and classpath)",
+                    )
+                    return
+                }
+            } else {
+                null
             }
-        } else {
-            null
-        }
 
         if (puzzlePath != null) {
             runtimePuzzle?.set(puzzlePath)
@@ -467,14 +506,15 @@ class DebugServer(
     ): String? {
         GameBootstrap.initializeLocalization()
 
-        val puzzle = when {
-            body.isNotEmpty() -> PuzzleSource.loadFromText(body, "injected")
-            puzzlePath != null -> PuzzleSource.loadFromFile(puzzlePath)
-            else -> {
-                respond(ex, 400, "text/plain", "Unexpected state")
-                return null
+        val puzzle =
+            when {
+                body.isNotEmpty() -> PuzzleSource.loadFromText(body, "injected")
+                puzzlePath != null -> PuzzleSource.loadFromFile(puzzlePath)
+                else -> {
+                    respond(ex, 400, "text/plain", "Unexpected state")
+                    return null
+                }
             }
-        }
 
         session.resetForPuzzle()
         val deletedIds = bridge.resetForPuzzle(puzzle)
@@ -485,37 +525,44 @@ class DebugServer(
 
         val game = bridge.getGame()!!
         val snap = SnapshotCapture.run(game, bridge, session.matchId, gsId)
-        val fullGsm = StateMapper.buildFromSnapshot(
-            snap,
-            gsId,
-            session.matchId,
-            bridge,
-            updateType = GameStateUpdate.SendAndRecord,
-            viewingSeatId = session.seatId.value,
-        ).gsm
+        val fullGsm =
+            StateMapper
+                .buildFromSnapshot(
+                    snap,
+                    gsId,
+                    session.matchId,
+                    bridge,
+                    updateType = GameStateUpdate.SendAndRecord,
+                    viewingSeatId = session.seatId.value,
+                ).gsm
 
-        val gsmWithDeletes = if (deletedIds.isNotEmpty()) {
-            fullGsm.toBuilder().addAllDiffDeletedInstanceIds(deletedIds).build()
-        } else {
-            fullGsm
-        }
+        val gsmWithDeletes =
+            if (deletedIds.isNotEmpty()) {
+                fullGsm.toBuilder().addAllDiffDeletedInstanceIds(deletedIds).build()
+            } else {
+                fullGsm
+            }
 
-        val greGsm = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.GameStateMessage_695e)
-            .setMsgId(msgId)
-            .setGameStateId(gsId)
-            .addSystemSeatIds(session.seatId.value)
-            .setGameStateMessage(gsmWithDeletes)
-            .build()
+        val greGsm =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .setMsgId(msgId)
+                .setGameStateId(gsId)
+                .addSystemSeatIds(session.seatId.value)
+                .setGameStateMessage(gsmWithDeletes)
+                .build()
 
         val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
-        val greActions = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.ActionsAvailableReq_695e)
-            .setMsgId(counter.nextMsgId())
-            .setGameStateId(gsId)
-            .addSystemSeatIds(session.seatId.value)
-            .setActionsAvailableReq(actions)
-            .build()
+        val greActions =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.ActionsAvailableReq_695e)
+                .setMsgId(counter.nextMsgId())
+                .setGameStateId(gsId)
+                .addSystemSeatIds(session.seatId.value)
+                .setActionsAvailableReq(actions)
+                .build()
 
         session.sendBundledGRE(listOf(greGsm, greActions))
         bridge.bundleCursor.lastSent = snap
@@ -546,7 +593,10 @@ class DebugServer(
 
     // --- Helpers ---
 
-    private fun safe(ex: HttpExchange, block: () -> Unit) {
+    private fun safe(
+        ex: HttpExchange,
+        block: () -> Unit,
+    ) {
         try {
             if (ex.requestMethod != "GET") {
                 ex.sendResponseHeaders(405, -1)
@@ -562,12 +612,18 @@ class DebugServer(
             } catch (_: Throwable) {
                 try {
                     ex.close()
-                } catch (_: Throwable) {}
+                } catch (_: Throwable) {
+                }
             }
         }
     }
 
-    private fun respond(ex: HttpExchange, code: Int, contentType: String, body: String) {
+    private fun respond(
+        ex: HttpExchange,
+        code: Int,
+        contentType: String,
+        body: String,
+    ) {
         val bytes = body.toByteArray(Charsets.UTF_8)
         ex.responseHeaders.add("Content-Type", contentType)
         ex.responseHeaders.add("Access-Control-Allow-Origin", "*")
@@ -575,11 +631,17 @@ class DebugServer(
         ex.responseBody.use { it.write(bytes) }
     }
 
-    private fun respondJson(ex: HttpExchange, body: String) =
-        respond(ex, 200, "application/json; charset=utf-8", body)
+    private fun respondJson(
+        ex: HttpExchange,
+        body: String,
+    ) = respond(ex, 200, "application/json; charset=utf-8", body)
 
     /** Wrap a list response in a versioned envelope with optional cursor. */
-    private fun respondJsonList(ex: HttpExchange, data: String, cursor: Int?) {
+    private fun respondJsonList(
+        ex: HttpExchange,
+        data: String,
+        cursor: Int?,
+    ) {
         val cursorJson = if (cursor != null) ",\"cursor\":$cursor" else ""
         respondJson(ex, "{\"version\":1,\"data\":$data$cursorJson}")
     }
@@ -622,7 +684,8 @@ class DebugServer(
             log.info("SSE client disconnected")
             try {
                 ex.close()
-            } catch (_: Throwable) {}
+            } catch (_: Throwable) {
+            }
         }
     }
 }

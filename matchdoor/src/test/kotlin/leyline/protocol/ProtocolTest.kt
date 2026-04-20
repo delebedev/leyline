@@ -59,29 +59,37 @@ class ProtocolTest :
 
         test("gre envelope wraps game state") {
             // Verify we can build the full GRE -> MatchService envelope
-            val gameState = GameStateMessage.newBuilder()
-                .setType(GameStateType.Full)
-                .setGameStateId(1)
-                .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
-                .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
-                .build()
+            val gameState =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Full)
+                    .setGameStateId(1)
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .build()
 
-            val greToClient = GREToClientMessage.newBuilder()
-                .setType(GREMessageType.GameStateMessage_695e)
-                .setMsgId(1)
-                .setGameStateId(1)
-                .addSystemSeatIds(1)
-                .addSystemSeatIds(2)
-                .setGameStateMessage(gameState)
-                .build()
+            val greToClient =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.GameStateMessage_695e)
+                    .setMsgId(1)
+                    .setGameStateId(1)
+                    .addSystemSeatIds(1)
+                    .addSystemSeatIds(2)
+                    .setGameStateMessage(gameState)
+                    .build()
 
-            val event = GreToClientEvent.newBuilder()
-                .addGreToClientMessages(greToClient)
-                .build()
+            val event =
+                GreToClientEvent
+                    .newBuilder()
+                    .addGreToClientMessages(greToClient)
+                    .build()
 
-            val response = MatchServiceToClientMessage.newBuilder()
-                .setGreToClientEvent(event)
-                .build()
+            val response =
+                MatchServiceToClientMessage
+                    .newBuilder()
+                    .setGreToClientEvent(event)
+                    .build()
 
             // Round-trip the entire envelope
             val bytes = response.toByteArray()
@@ -99,16 +107,20 @@ class ProtocolTest :
         }
 
         test("connect resp builds correctly") {
-            val connectResp = ConnectResp.newBuilder()
-                .setStatus(ConnectionStatus.Success_aa9e)
-                .setProtoVer(ProtoVersion.PersistentAnnotations)
-                .build()
+            val connectResp =
+                ConnectResp
+                    .newBuilder()
+                    .setStatus(ConnectionStatus.Success_aa9e)
+                    .setProtoVer(ProtoVersion.PersistentAnnotations)
+                    .build()
 
-            val greToClient = GREToClientMessage.newBuilder()
-                .setType(GREMessageType.ConnectResp_695e)
-                .setMsgId(1)
-                .setConnectResp(connectResp)
-                .build()
+            val greToClient =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.ConnectResp_695e)
+                    .setMsgId(1)
+                    .setConnectResp(connectResp)
+                    .build()
 
             val bytes = greToClient.toByteArray()
             val parsed = GREToClientMessage.parseFrom(bytes)
@@ -142,16 +154,20 @@ class ProtocolTest :
         }
 
         test("auth response builds correctly") {
-            val authResp = AuthenticateResponse.newBuilder()
-                .setClientId("leyline-client-1")
-                .setSessionId("leyline-session-1")
-                .setScreenName("Player")
-                .build()
+            val authResp =
+                AuthenticateResponse
+                    .newBuilder()
+                    .setClientId("leyline-client-1")
+                    .setSessionId("leyline-session-1")
+                    .setScreenName("Player")
+                    .build()
 
-            val response = MatchServiceToClientMessage.newBuilder()
-                .setRequestId(42)
-                .setAuthenticateResponse(authResp)
-                .build()
+            val response =
+                MatchServiceToClientMessage
+                    .newBuilder()
+                    .setRequestId(42)
+                    .setAuthenticateResponse(authResp)
+                    .build()
 
             val bytes = response.toByteArray()
             val parsed = MatchServiceToClientMessage.parseFrom(bytes)

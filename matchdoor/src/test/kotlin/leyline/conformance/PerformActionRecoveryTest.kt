@@ -27,14 +27,15 @@ class PerformActionRecoveryTest :
             val (bridge, _, _) = base.startWithBoard { _, _, _ -> }
 
             val sink = ListMessageSink()
-            val session = MatchSession(
-                seatId = SeatId(1),
-                matchId = "test-missing-pending",
-                sink = sink,
-                registry = MatchRegistry(),
-                gameBridge = bridge,
-                paceDelayMs = 0,
-            )
+            val session =
+                MatchSession(
+                    seatId = SeatId(1),
+                    matchId = "test-missing-pending",
+                    sink = sink,
+                    registry = MatchRegistry(),
+                    gameBridge = bridge,
+                    paceDelayMs = 0,
+                )
 
             session.onPerformAction(performAction { actionType = wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass })
 

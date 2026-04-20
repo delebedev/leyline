@@ -31,16 +31,18 @@ class ActionLegalityTest :
             h.connectAndKeepPuzzleText(puzzleText)
 
             // Pass to get ActionsAvailableReq in Main1
-            val found = h.passUntil(maxPasses = 3) {
-                allMessages.any { it.hasActionsAvailableReq() }
-            }
+            val found =
+                h.passUntil(maxPasses = 3) {
+                    allMessages.any { it.hasActionsAvailableReq() }
+                }
             found.shouldBeTrue()
 
             // Find the priority-stop ActionsAvailableReq (has Pass action)
-            val aar = h.allMessages.last {
-                it.hasActionsAvailableReq() &&
-                    it.actionsAvailableReq.actionsList.any { a -> a.actionType == ActionType.Pass }
-            }
+            val aar =
+                h.allMessages.last {
+                    it.hasActionsAvailableReq() &&
+                        it.actionsAvailableReq.actionsList.any { a -> a.actionType == ActionType.Pass }
+                }
             val actions = aar.actionsAvailableReq.actionsList
 
             // Counterspell should NOT be in active actions (no legal targets)
@@ -55,10 +57,11 @@ class ActionLegalityTest :
 
             h.connectAndKeepPuzzleText(
                 puzzleText,
-                aiScript = listOf(
-                    ScriptedAction.Attack(listOf("Spyglass Siren", "Kitesail Cleric")),
-                    ScriptedAction.PassPriority,
-                ),
+                aiScript =
+                    listOf(
+                        ScriptedAction.Attack(listOf("Spyglass Siren", "Kitesail Cleric")),
+                        ScriptedAction.PassPriority,
+                    ),
             )
 
             // AI turn: pass until combat happens and resolves

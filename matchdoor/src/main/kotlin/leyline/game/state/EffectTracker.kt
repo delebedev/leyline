@@ -16,15 +16,23 @@ import kotlin.collections.iterator
  * Not thread-safe — callers synchronize externally (MatchSession.sessionLock).
  */
 class EffectTracker {
-
     companion object {
         /** Protocol starts effect IDs at 7002 (7000-7001 possibly reserved). */
         const val INITIAL_EFFECT_ID = 7002
     }
 
-    data class BoostEntry(val timestamp: Long, val staticId: Long, val power: Int, val toughness: Int)
+    data class BoostEntry(
+        val timestamp: Long,
+        val staticId: Long,
+        val power: Int,
+        val toughness: Int,
+    )
 
-    data class EffectFingerprint(val cardInstanceId: Int, val timestamp: Long, val staticId: Long)
+    data class EffectFingerprint(
+        val cardInstanceId: Int,
+        val timestamp: Long,
+        val staticId: Long,
+    )
 
     data class TrackedEffect(
         val syntheticId: Int,
@@ -35,13 +43,24 @@ class EffectTracker {
         val cardInstanceId: Int get() = fingerprint.cardInstanceId
     }
 
-    data class DiffResult(val created: List<TrackedEffect>, val destroyed: List<TrackedEffect>)
+    data class DiffResult(
+        val created: List<TrackedEffect>,
+        val destroyed: List<TrackedEffect>,
+    )
 
     // --- Keyword tracking ---
 
-    data class KeywordEntry(val timestamp: Long, val staticId: Long, val keyword: String)
+    data class KeywordEntry(
+        val timestamp: Long,
+        val staticId: Long,
+        val keyword: String,
+    )
 
-    data class KeywordFingerprint(val cardInstanceId: Int, val timestamp: Long, val staticId: Long)
+    data class KeywordFingerprint(
+        val cardInstanceId: Int,
+        val timestamp: Long,
+        val staticId: Long,
+    )
 
     data class TrackedKeywordEffect(
         val syntheticId: Int,
@@ -147,14 +166,15 @@ class EffectTracker {
      * Call once during the first Full GSM build.
      */
     fun emitInitEffects(): DiffResult {
-        val effects = (0 until 3).map { i ->
-            TrackedEffect(
-                syntheticId = nextEffectId(),
-                fingerprint = EffectFingerprint(cardInstanceId = 0, timestamp = 0L, staticId = i.toLong()),
-                powerDelta = 0,
-                toughnessDelta = 0,
-            )
-        }
+        val effects =
+            (0 until 3).map { i ->
+                TrackedEffect(
+                    syntheticId = nextEffectId(),
+                    fingerprint = EffectFingerprint(cardInstanceId = 0, timestamp = 0L, staticId = i.toLong()),
+                    powerDelta = 0,
+                    toughnessDelta = 0,
+                )
+            }
         // Created and immediately destroyed — not tracked in activeEffects
         return DiffResult(created = effects, destroyed = effects)
     }

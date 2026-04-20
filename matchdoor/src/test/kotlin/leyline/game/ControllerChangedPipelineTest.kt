@@ -28,20 +28,23 @@ class ControllerChangedPipelineTest :
         fun testResolver(forgeCardId: ForgeCardId): InstanceId = InstanceId(forgeCardId.value + 1000)
 
         var nextEffect = 7005
+
         fun testEffectAllocator(): Int = nextEffect++
 
         beforeTest { nextEffect = 7005 }
 
         test("steal emits transient ControllerChanged + LayeredEffectCreated + persistent CC+LayeredEffect") {
-            val events = listOf(
-                GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false),
-                GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
-            )
-            val result = MechanicAnnotations.mechanicAnnotations(
-                events,
-                idResolver = ::testResolver,
-                effectIdAllocator = ::testEffectAllocator,
-            )
+            val events =
+                listOf(
+                    GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false),
+                    GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
+                )
+            val result =
+                MechanicAnnotations.mechanicAnnotations(
+                    events,
+                    idResolver = ::testResolver,
+                    effectIdAllocator = ::testEffectAllocator,
+                )
 
             assertSoftly {
                 // Transient: LayeredEffectCreated + ControllerChanged
@@ -70,15 +73,17 @@ class ControllerChangedPipelineTest :
         }
 
         test("revert detected when forgeCardId is in activeStealForgeCardIds") {
-            val events = listOf(
-                GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(1), newControllerSeatId = SeatId(2)),
-            )
-            val result = MechanicAnnotations.mechanicAnnotations(
-                events,
-                idResolver = ::testResolver,
-                effectIdAllocator = ::testEffectAllocator,
-                activeStealForgeCardIds = setOf(ForgeCardId(42)),
-            )
+            val events =
+                listOf(
+                    GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(1), newControllerSeatId = SeatId(2)),
+                )
+            val result =
+                MechanicAnnotations.mechanicAnnotations(
+                    events,
+                    idResolver = ::testResolver,
+                    effectIdAllocator = ::testEffectAllocator,
+                    activeStealForgeCardIds = setOf(ForgeCardId(42)),
+                )
 
             assertSoftly {
                 // No transient annotations for revert (LayeredEffectDestroyed emitted by computeBatch)
@@ -93,14 +98,16 @@ class ControllerChangedPipelineTest :
         }
 
         test("steal without SpellResolved uses affectorId=0") {
-            val events = listOf(
-                GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
-            )
-            val result = MechanicAnnotations.mechanicAnnotations(
-                events,
-                idResolver = ::testResolver,
-                effectIdAllocator = ::testEffectAllocator,
-            )
+            val events =
+                listOf(
+                    GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
+                )
+            val result =
+                MechanicAnnotations.mechanicAnnotations(
+                    events,
+                    idResolver = ::testResolver,
+                    effectIdAllocator = ::testEffectAllocator,
+                )
 
             assertSoftly {
                 result.transient shouldHaveSize 2
@@ -112,17 +119,19 @@ class ControllerChangedPipelineTest :
         }
 
         test("multiple spells: affector matches nearest preceding SpellResolved") {
-            val events = listOf(
-                GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false),
-                GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
-                GameEvent.SpellResolved(cardId = ForgeCardId(20), hasFizzled = false),
-                GameEvent.ControllerChanged(cardId = ForgeCardId(43), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
-            )
-            val result = MechanicAnnotations.mechanicAnnotations(
-                events,
-                idResolver = ::testResolver,
-                effectIdAllocator = ::testEffectAllocator,
-            )
+            val events =
+                listOf(
+                    GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false),
+                    GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
+                    GameEvent.SpellResolved(cardId = ForgeCardId(20), hasFizzled = false),
+                    GameEvent.ControllerChanged(cardId = ForgeCardId(43), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
+                )
+            val result =
+                MechanicAnnotations.mechanicAnnotations(
+                    events,
+                    idResolver = ::testResolver,
+                    effectIdAllocator = ::testEffectAllocator,
+                )
 
             assertSoftly {
                 result.controllerChangedEffects shouldHaveSize 2
@@ -134,16 +143,18 @@ class ControllerChangedPipelineTest :
         }
 
         test("effect_id monotonically increases across steals") {
-            val events = listOf(
-                GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false),
-                GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
-                GameEvent.ControllerChanged(cardId = ForgeCardId(43), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
-            )
-            val result = MechanicAnnotations.mechanicAnnotations(
-                events,
-                idResolver = ::testResolver,
-                effectIdAllocator = ::testEffectAllocator,
-            )
+            val events =
+                listOf(
+                    GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false),
+                    GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
+                    GameEvent.ControllerChanged(cardId = ForgeCardId(43), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
+                )
+            val result =
+                MechanicAnnotations.mechanicAnnotations(
+                    events,
+                    idResolver = ::testResolver,
+                    effectIdAllocator = ::testEffectAllocator,
+                )
 
             assertSoftly {
                 result.controllerChangedEffects shouldHaveSize 2
@@ -159,25 +170,31 @@ class ControllerChangedPipelineTest :
             val affectorIid = 1010.iid
 
             // Simulate existing persistent annotation from a steal
-            val ccPersistent = AnnotationBuilder.controllerChangedEffect(affectorIid, stolenIid, effectId)
-                .toBuilder().setId(5).build()
+            val ccPersistent =
+                AnnotationBuilder
+                    .controllerChangedEffect(affectorIid, stolenIid, effectId)
+                    .toBuilder()
+                    .setId(5)
+                    .build()
             val active = mapOf(5 to ccPersistent)
 
-            val mechanicResult = MechanicAnnotationResult(
-                transient = emptyList(),
-                persistent = emptyList(),
-                controllerRevertedForgeCardIds = listOf(ForgeCardId(42)),
-            )
+            val mechanicResult =
+                MechanicAnnotationResult(
+                    transient = emptyList(),
+                    persistent = emptyList(),
+                    controllerRevertedForgeCardIds = listOf(ForgeCardId(42)),
+                )
 
-            val batch = PersistentAnnotationStore.computeBatch(
-                currentActive = active,
-                startPersistentId = 10,
-                effectPersistent = emptyList(),
-                effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
-                transferPersistent = emptyList(),
-                mechanicResult = mechanicResult,
-                resolveInstanceId = ::testResolver,
-            )
+            val batch =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = active,
+                    startPersistentId = 10,
+                    effectPersistent = emptyList(),
+                    effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    transferPersistent = emptyList(),
+                    mechanicResult = mechanicResult,
+                    resolveInstanceId = ::testResolver,
+                )
 
             assertSoftly {
                 batch.allAnnotations.shouldBeEmpty()

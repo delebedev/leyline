@@ -44,9 +44,11 @@ class NettyMessageSink(
     override fun send(messages: List<GREToClientMessage>) {
         val event = GreToClientEvent.newBuilder()
         messages.forEach { event.addGreToClientMessages(it) }
-        val msg = MatchServiceToClientMessage.newBuilder()
-            .setGreToClientEvent(event.build())
-            .build()
+        val msg =
+            MatchServiceToClientMessage
+                .newBuilder()
+                .setGreToClientEvent(event.build())
+                .build()
         if (dumpEnabled) ProtoDump.dump(msg)
         ctx.writeAndFlush(msg)
     }

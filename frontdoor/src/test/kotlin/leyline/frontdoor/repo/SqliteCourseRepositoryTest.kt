@@ -33,14 +33,15 @@ class SqliteCourseRepositoryTest :
         val courseId = CourseId("course-1")
 
         test("save and retrieve course") {
-            val course = Course(
-                id = courseId,
-                playerId = playerId,
-                eventName = "Sealed_FDN_20260307",
-                module = CourseModule.DeckSelect,
-                cardPool = listOf(1, 2, 3),
-                cardPoolByCollation = listOf(CollationPool(100026, listOf(1, 2, 3))),
-            )
+            val course =
+                Course(
+                    id = courseId,
+                    playerId = playerId,
+                    eventName = "Sealed_FDN_20260307",
+                    module = CourseModule.DeckSelect,
+                    cardPool = listOf(1, 2, 3),
+                    cardPoolByCollation = listOf(CollationPool(100026, listOf(1, 2, 3))),
+                )
             store.save(course)
             val found = store.findById(courseId)
             assertSoftly {
@@ -59,38 +60,42 @@ class SqliteCourseRepositoryTest :
         }
 
         test("findByPlayer returns all player courses") {
-            val course2 = Course(
-                id = CourseId("course-2"),
-                playerId = playerId,
-                eventName = "Ladder",
-                module = CourseModule.CreateMatch,
-            )
+            val course2 =
+                Course(
+                    id = CourseId("course-2"),
+                    playerId = playerId,
+                    eventName = "Ladder",
+                    module = CourseModule.CreateMatch,
+                )
             store.save(course2)
             store.findByPlayer(playerId) shouldHaveSize 2
         }
 
         test("save updates existing course") {
-            val updated = Course(
-                id = courseId,
-                playerId = playerId,
-                eventName = "Sealed_FDN_20260307",
-                module = CourseModule.CreateMatch,
-                wins = 2,
-                losses = 1,
-                cardPool = listOf(1, 2, 3),
-                cardPoolByCollation = listOf(CollationPool(100026, listOf(1, 2, 3))),
-                deck = CourseDeck(
-                    deckId = DeckId("d1"),
-                    mainDeck = listOf(DeckCard(1, 1)),
-                    sideboard = listOf(DeckCard(2, 1)),
-                ),
-                deckSummary = CourseDeckSummary(
-                    deckId = DeckId("d1"),
-                    name = "My Sealed",
-                    tileId = 12345,
-                    format = "Limited",
-                ),
-            )
+            val updated =
+                Course(
+                    id = courseId,
+                    playerId = playerId,
+                    eventName = "Sealed_FDN_20260307",
+                    module = CourseModule.CreateMatch,
+                    wins = 2,
+                    losses = 1,
+                    cardPool = listOf(1, 2, 3),
+                    cardPoolByCollation = listOf(CollationPool(100026, listOf(1, 2, 3))),
+                    deck =
+                        CourseDeck(
+                            deckId = DeckId("d1"),
+                            mainDeck = listOf(DeckCard(1, 1)),
+                            sideboard = listOf(DeckCard(2, 1)),
+                        ),
+                    deckSummary =
+                        CourseDeckSummary(
+                            deckId = DeckId("d1"),
+                            name = "My Sealed",
+                            tileId = 12345,
+                            format = "Limited",
+                        ),
+                )
             store.save(updated)
             val found = store.findById(courseId)!!
             assertSoftly {

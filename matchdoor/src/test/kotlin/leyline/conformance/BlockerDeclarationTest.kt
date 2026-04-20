@@ -182,20 +182,26 @@ class BlockerDeclarationTest :
             harness = h
             h.connectAndKeepPuzzleText(
                 puzzleText,
-                aiScript = listOf(
-                    ScriptedAction.Attack(listOf("Hill Giant")),
-                    ScriptedAction.PassPriority,
-                ),
+                aiScript =
+                    listOf(
+                        ScriptedAction.Attack(listOf("Hill Giant")),
+                        ScriptedAction.PassPriority,
+                    ),
             )
 
-            h.passUntil(maxPasses = 6) {
-                allMessages.any { it.hasDeclareBlockersReq() }
-            }.shouldBeTrue()
+            h
+                .passUntil(maxPasses = 6) {
+                    allMessages.any { it.hasDeclareBlockersReq() }
+                }.shouldBeTrue()
 
             val req = h.allMessages.last { it.hasDeclareBlockersReq() }.declareBlockersReq
             req.blockersCount shouldBe 2
             val blockerIids = req.blockersList.map { it.blockerInstanceId }
-            val attackerIid = req.blockersList.first().attackerInstanceIdsList.first()
+            val attackerIid =
+                req.blockersList
+                    .first()
+                    .attackerInstanceIdsList
+                    .first()
             return Triple(blockerIids[0], blockerIids[1], attackerIid)
         }
 
@@ -206,18 +212,22 @@ class BlockerDeclarationTest :
             val echo1 = h.toggleBlockers(mapOf(b1 to attackerIid))
             val req1 = echo1.last { it.hasDeclareBlockersReq() }.declareBlockersReq
             assertSoftly {
-                req1.blockersList.first { it.blockerInstanceId == b1 }
+                req1.blockersList
+                    .first { it.blockerInstanceId == b1 }
                     .selectedAttackerInstanceIdsCount shouldBe 1
-                req1.blockersList.first { it.blockerInstanceId == b2 }
+                req1.blockersList
+                    .first { it.blockerInstanceId == b2 }
                     .selectedAttackerInstanceIdsCount shouldBe 0
             }
 
             val echo2 = h.toggleBlockers(mapOf(b2 to attackerIid))
             val req2 = echo2.last { it.hasDeclareBlockersReq() }.declareBlockersReq
             assertSoftly {
-                req2.blockersList.first { it.blockerInstanceId == b1 }
+                req2.blockersList
+                    .first { it.blockerInstanceId == b1 }
                     .selectedAttackerInstanceIdsCount shouldBe 1
-                req2.blockersList.first { it.blockerInstanceId == b2 }
+                req2.blockersList
+                    .first { it.blockerInstanceId == b2 }
                     .selectedAttackerInstanceIdsCount shouldBe 1
             }
         }
@@ -233,11 +243,14 @@ class BlockerDeclarationTest :
             val req = echo.last { it.hasDeclareBlockersReq() }.declareBlockersReq
 
             assertSoftly {
-                req.blockersList.first { it.blockerInstanceId == b1 }
+                req.blockersList
+                    .first { it.blockerInstanceId == b1 }
                     .selectedAttackerInstanceIdsCount shouldBe 0
-                req.blockersList.first { it.blockerInstanceId == b1 }
+                req.blockersList
+                    .first { it.blockerInstanceId == b1 }
                     .attackerInstanceIdsCount shouldBeGreaterThanOrEqual 1
-                req.blockersList.first { it.blockerInstanceId == b2 }
+                req.blockersList
+                    .first { it.blockerInstanceId == b2 }
                     .selectedAttackerInstanceIdsCount shouldBe 1
             }
         }

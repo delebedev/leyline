@@ -88,12 +88,13 @@ class OptionalActionGate(
         logContext: String,
     ): Boolean {
         val future = CompletableFuture<Boolean>()
-        owner.pendingOptionalAction = PlayerController.OptionalActionPrompt(
-            wrapper = wrapper,
-            hostCard = hostCard,
-            future = future,
-            forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
-        )
+        owner.pendingOptionalAction =
+            PlayerController.OptionalActionPrompt(
+                wrapper = wrapper,
+                hostCard = hostCard,
+                future = future,
+                forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
+            )
         actionBridge?.prioritySignal?.signal()
 
         return try {

@@ -27,7 +27,6 @@ import kotlin.collections.iterator
  * This enforcer is a safety net against regressions.
  */
 object AnnotationOrderEnforcer {
-
     private val log = LoggerFactory.getLogger(AnnotationOrderEnforcer::class.java)
 
     /**
@@ -37,7 +36,10 @@ object AnnotationOrderEnforcer {
      * [cardIdFromAffected] = true if the card ID is in affectedIds (most types),
      * false if it's in affectorId (LayeredEffectCreated, AttachmentCreated).
      */
-    private data class IncrementalSpec(val precedence: Int, val cardIdFromAffected: Boolean = true)
+    private data class IncrementalSpec(
+        val precedence: Int,
+        val cardIdFromAffected: Boolean = true,
+    )
 
     /**
      * Precedence table validated against 29 game sessions (7676 messages).
@@ -46,16 +48,17 @@ object AnnotationOrderEnforcer {
      * - LayeredEffectCreated BEFORE AttachmentCreated (10 instances)
      * - ControllerChanged BEFORE TappedUntapped (2 instances)
      */
-    private val INCREMENTAL_SPECS: Map<AnnotationType, IncrementalSpec> = mapOf(
-        AnnotationType.ControllerChanged to IncrementalSpec(0),
-        AnnotationType.TappedUntappedPermanent to IncrementalSpec(1),
-        AnnotationType.DamageDealt_af5a to IncrementalSpec(2),
-        AnnotationType.CounterAdded to IncrementalSpec(3),
-        AnnotationType.CounterRemoved to IncrementalSpec(3),
-        AnnotationType.PowerToughnessModCreated to IncrementalSpec(4),
-        AnnotationType.LayeredEffectCreated to IncrementalSpec(5, cardIdFromAffected = false),
-        AnnotationType.AttachmentCreated to IncrementalSpec(6, cardIdFromAffected = false),
-    )
+    private val INCREMENTAL_SPECS: Map<AnnotationType, IncrementalSpec> =
+        mapOf(
+            AnnotationType.ControllerChanged to IncrementalSpec(0),
+            AnnotationType.TappedUntappedPermanent to IncrementalSpec(1),
+            AnnotationType.DamageDealt_af5a to IncrementalSpec(2),
+            AnnotationType.CounterAdded to IncrementalSpec(3),
+            AnnotationType.CounterRemoved to IncrementalSpec(3),
+            AnnotationType.PowerToughnessModCreated to IncrementalSpec(4),
+            AnnotationType.LayeredEffectCreated to IncrementalSpec(5, cardIdFromAffected = false),
+            AnnotationType.AttachmentCreated to IncrementalSpec(6, cardIdFromAffected = false),
+        )
 
     /**
      * Enforce partial ordering. Returns a reordered list if violations exist,
@@ -142,11 +145,13 @@ object AnnotationOrderEnforcer {
     }
 
     /** Get the incremental spec for an annotation, or null if not applicable. */
-    private fun annotationSpec(ann: AnnotationInfo): IncrementalSpec? =
-        ann.typeList.firstNotNullOfOrNull { INCREMENTAL_SPECS[it] }
+    private fun annotationSpec(ann: AnnotationInfo): IncrementalSpec? = ann.typeList.firstNotNullOfOrNull { INCREMENTAL_SPECS[it] }
 
     /** Extract card IDs from an annotation based on its spec. */
-    private fun cardIdsFor(ann: AnnotationInfo, spec: IncrementalSpec): List<Int> =
+    private fun cardIdsFor(
+        ann: AnnotationInfo,
+        spec: IncrementalSpec,
+    ): List<Int> =
         if (spec.cardIdFromAffected) {
             ann.affectedIdsList.toList()
         } else {
@@ -154,10 +159,11 @@ object AnnotationOrderEnforcer {
         }
 
     /** All IDs referenced by an annotation (affectedIds + affectorId). */
-    private fun referencedIds(ann: AnnotationInfo): Set<Int> = buildSet {
-        addAll(ann.affectedIdsList)
-        if (ann.affectorId != 0) add(ann.affectorId)
-    }
+    private fun referencedIds(ann: AnnotationInfo): Set<Int> =
+        buildSet {
+            addAll(ann.affectedIdsList)
+            if (ann.affectorId != 0) add(ann.affectorId)
+        }
 
     /**
      * Topological sort respecting edge constraints. Preserves original order
@@ -205,7 +211,10 @@ object AnnotationOrderEnforcer {
         return result
     }
 
-    private fun logViolations(annotations: List<AnnotationInfo>, edges: List<Pair<Int, Int>>) {
+    private fun logViolations(
+        annotations: List<AnnotationInfo>,
+        edges: List<Pair<Int, Int>>,
+    ) {
         for ((from, to) in edges) {
             if (from > to) {
                 val fromType = annotations[from].typeList

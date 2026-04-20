@@ -30,9 +30,14 @@ class HeadlessGuiBase(
     private val assetsDir: String,
     val promptBridge: InteractivePromptBridge = InteractivePromptBridge(),
 ) : IGuiBase {
-    private val imageFetcher = object : ImageFetcher() {
-        override fun getDownloadTask(downloadUrls: Array<String>, destPath: String, notifyObservers: Runnable): Runnable = Runnable { notifyObservers.run() }
-    }
+    private val imageFetcher =
+        object : ImageFetcher() {
+            override fun getDownloadTask(
+                downloadUrls: Array<String>,
+                destPath: String,
+                notifyObservers: Runnable,
+            ): Runnable = Runnable { notifyObservers.run() }
+        }
 
     override fun hasNetGame(): Boolean = false
 
@@ -63,13 +68,25 @@ class HeadlessGuiBase(
     // caller is ImageFetcher — irrelevant to game logic.
     override fun isGuiThread(): Boolean = false
 
-    override fun getSkinIcon(skinProp: FSkinProp): ISkinImage = throw UnsupportedOperationException("Skin icons are not supported in headless mode")
+    override fun getSkinIcon(skinProp: FSkinProp): ISkinImage =
+        throw UnsupportedOperationException(
+            "Skin icons are not supported in headless mode",
+        )
 
-    override fun getUnskinnedIcon(path: String): ISkinImage = throw UnsupportedOperationException("Icons are not supported in headless mode")
+    override fun getUnskinnedIcon(path: String): ISkinImage =
+        throw UnsupportedOperationException(
+            "Icons are not supported in headless mode",
+        )
 
     override fun getCardArt(card: PaperCard): ISkinImage = throw UnsupportedOperationException("Card art is not supported in headless mode")
 
-    override fun getCardArt(card: PaperCard, backFace: Boolean): ISkinImage = throw UnsupportedOperationException("Card art is not supported in headless mode")
+    override fun getCardArt(
+        card: PaperCard,
+        backFace: Boolean,
+    ): ISkinImage =
+        throw UnsupportedOperationException(
+            "Card art is not supported in headless mode",
+        )
 
     override fun createLayeredImage(
         card: PaperCard,
@@ -78,15 +95,25 @@ class HeadlessGuiBase(
         opacity: Float,
     ): ISkinImage = throw UnsupportedOperationException("Layered images are not supported in headless mode")
 
-    override fun showBugReportDialog(title: String, text: String, showExitAppBtn: Boolean) {
+    override fun showBugReportDialog(
+        title: String,
+        text: String,
+        showExitAppBtn: Boolean,
+    ) {
         // Log instead of throwing — BugReporter calls this for game exceptions
-        LoggerFactory.getLogger(HeadlessGuiBase::class.java)
+        LoggerFactory
+            .getLogger(HeadlessGuiBase::class.java)
             .warn("BugReporter: $title — ${text.take(300)}")
     }
 
-    override fun showImageDialog(image: ISkinImage, message: String, title: String): Unit = throw UnsupportedOperationException(
-        "Image dialog not supported in headless mode",
-    )
+    override fun showImageDialog(
+        image: ISkinImage,
+        message: String,
+        title: String,
+    ): Unit =
+        throw UnsupportedOperationException(
+            "Image dialog not supported in headless mode",
+        )
 
     override fun showOptionDialog(
         message: String,
@@ -95,14 +122,15 @@ class HeadlessGuiBase(
         options: MutableList<String>,
         defaultOption: Int,
     ): Int {
-        val request = PromptRequest(
-            promptType = "confirm",
-            message = "$title: $message",
-            options = options.toList(),
-            min = 1,
-            max = 1,
-            defaultIndex = defaultOption.coerceIn(0, (options.size - 1).coerceAtLeast(0)),
-        )
+        val request =
+            PromptRequest(
+                promptType = "confirm",
+                message = "$title: $message",
+                options = options.toList(),
+                min = 1,
+                max = 1,
+                defaultIndex = defaultOption.coerceIn(0, (options.size - 1).coerceAtLeast(0)),
+            )
         val result = promptBridge.requestChoice(request)
         return result.firstOrNull() ?: defaultOption
     }
@@ -119,14 +147,15 @@ class HeadlessGuiBase(
             // Free-form input not supported via bridge; return initial value
             return initialInput
         }
-        val request = PromptRequest(
-            promptType = "choose_one",
-            message = "$title: $message",
-            options = inputOptions.toList(),
-            min = 1,
-            max = 1,
-            defaultIndex = 0,
-        )
+        val request =
+            PromptRequest(
+                promptType = "choose_one",
+                message = "$title: $message",
+                options = inputOptions.toList(),
+                min = 1,
+                max = 1,
+                defaultIndex = 0,
+            )
         val result = promptBridge.requestChoice(request)
         val idx = result.firstOrNull()?.coerceIn(0, inputOptions.size - 1) ?: 0
         return inputOptions[idx]
@@ -144,14 +173,15 @@ class HeadlessGuiBase(
         if (choiceList.isEmpty()) return mutableListOf()
 
         val labels = choiceList.map { item -> display.apply(item) ?: item.toString() }
-        val request = PromptRequest(
-            promptType = "choose_cards",
-            message = message,
-            options = labels,
-            min = min.coerceAtLeast(0),
-            max = max.coerceAtMost(choiceList.size),
-            defaultIndex = 0,
-        )
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = message,
+                options = labels,
+                min = min.coerceAtLeast(0),
+                max = max.coerceAtMost(choiceList.size),
+                defaultIndex = 0,
+            )
         val selectedIndices = promptBridge.requestChoice(request)
         val result = mutableListOf<T>()
         for (idx in selectedIndices) {
@@ -183,14 +213,15 @@ class HeadlessGuiBase(
         if (allItems.isEmpty()) return mutableListOf()
 
         val labels = allItems.map { it.toString() }
-        val request = PromptRequest(
-            promptType = "order",
-            message = title,
-            options = labels,
-            min = allItems.size,
-            max = allItems.size,
-            defaultIndex = 0,
-        )
+        val request =
+            PromptRequest(
+                promptType = "order",
+                message = title,
+                options = labels,
+                min = allItems.size,
+                max = allItems.size,
+                defaultIndex = 0,
+            )
         val orderedIndices = promptBridge.requestChoice(request)
         val result = mutableListOf<T>()
         for (idx in orderedIndices) {
@@ -207,11 +238,23 @@ class HeadlessGuiBase(
         return result
     }
 
-    override fun showFileDialog(title: String, defaultDir: String): String = throw UnsupportedOperationException("File dialog not supported in headless mode")
+    override fun showFileDialog(
+        title: String,
+        defaultDir: String,
+    ): String =
+        throw UnsupportedOperationException(
+            "File dialog not supported in headless mode",
+        )
 
-    override fun getSaveFile(defaultFile: File): File = throw UnsupportedOperationException("Save file dialog not supported in headless mode")
+    override fun getSaveFile(defaultFile: File): File =
+        throw UnsupportedOperationException(
+            "Save file dialog not supported in headless mode",
+        )
 
-    override fun download(service: GuiDownloadService, callback: Consumer<Boolean>) {
+    override fun download(
+        service: GuiDownloadService,
+        callback: Consumer<Boolean>,
+    ) {
         callback.accept(false)
     }
 
@@ -219,17 +262,32 @@ class HeadlessGuiBase(
         // no-op
     }
 
-    override fun showCardList(title: String, message: String, list: MutableList<PaperCard>): Unit = throw UnsupportedOperationException(
-        "Card list not supported in headless mode",
-    )
+    override fun showCardList(
+        title: String,
+        message: String,
+        list: MutableList<PaperCard>,
+    ): Unit =
+        throw UnsupportedOperationException(
+            "Card list not supported in headless mode",
+        )
 
-    override fun showBoxedProduct(title: String, message: String, list: MutableList<PaperCard>): Boolean = throw UnsupportedOperationException(
-        "Boxed product not supported in headless mode",
-    )
+    override fun showBoxedProduct(
+        title: String,
+        message: String,
+        list: MutableList<PaperCard>,
+    ): Boolean =
+        throw UnsupportedOperationException(
+            "Boxed product not supported in headless mode",
+        )
 
-    override fun chooseCard(title: String, message: String, list: MutableList<PaperCard>): PaperCard = throw UnsupportedOperationException(
-        "Card chooser not supported in headless mode",
-    )
+    override fun chooseCard(
+        title: String,
+        message: String,
+        list: MutableList<PaperCard>,
+    ): PaperCard =
+        throw UnsupportedOperationException(
+            "Card chooser not supported in headless mode",
+        )
 
     override fun getAvatarCount(): Int = 0
 
@@ -246,9 +304,15 @@ class HeadlessGuiBase(
 
     override fun createAudioClip(filename: String): IAudioClip = throw UnsupportedOperationException("Audio not supported in headless mode")
 
-    override fun createAudioMusic(filename: String): IAudioMusic = throw UnsupportedOperationException("Audio not supported in headless mode")
+    override fun createAudioMusic(filename: String): IAudioMusic =
+        throw UnsupportedOperationException(
+            "Audio not supported in headless mode",
+        )
 
-    override fun startAltSoundSystem(filename: String, isSynchronized: Boolean) {
+    override fun startAltSoundSystem(
+        filename: String,
+        isSynchronized: Boolean,
+    ) {
         // no-op
     }
 
@@ -262,11 +326,17 @@ class HeadlessGuiBase(
 
     override fun hostMatch(): HostedMatch = throw UnsupportedOperationException("Hosted match not supported in headless mode")
 
-    override fun runBackgroundTask(message: String, task: Runnable) {
+    override fun runBackgroundTask(
+        message: String,
+        task: Runnable,
+    ) {
         task.run()
     }
 
-    override fun encodeSymbols(str: String, formatReminderText: Boolean): String = str
+    override fun encodeSymbols(
+        str: String,
+        formatReminderText: Boolean,
+    ): String = str
 
     override fun preventSystemSleep(preventSleep: Boolean) {
         // no-op
@@ -274,26 +344,30 @@ class HeadlessGuiBase(
 
     override fun getScreenScale(): Float = 1f
 
-    override fun getUpnpPlatformService(): UpnpServiceConfiguration = throw UnsupportedOperationException("UPnP not supported in headless mode")
+    override fun getUpnpPlatformService(): UpnpServiceConfiguration =
+        throw UnsupportedOperationException(
+            "UPnP not supported in headless mode",
+        )
 
     override fun getNewGuiGame(): IGuiGame {
-        val handler = InvocationHandler { _, method, _ ->
-            when {
-                method.returnType == java.lang.Boolean.TYPE -> false
-                method.returnType == Integer.TYPE -> 0
-                method.returnType == Long.TYPE -> 0L
-                method.returnType == java.lang.Float.TYPE -> 0f
-                method.returnType == Double.TYPE -> 0.0
-                method.returnType == Short.TYPE -> 0.toShort()
-                method.returnType == Byte.TYPE -> 0.toByte()
-                method.returnType == Character.TYPE -> '\u0000'
-                method.returnType == Void.TYPE -> null
-                List::class.java.isAssignableFrom(method.returnType) -> emptyList<Any>()
-                Map::class.java.isAssignableFrom(method.returnType) -> emptyMap<Any, Any>()
-                Iterable::class.java.isAssignableFrom(method.returnType) -> emptyList<Any>()
-                else -> null
+        val handler =
+            InvocationHandler { _, method, _ ->
+                when {
+                    method.returnType == java.lang.Boolean.TYPE -> false
+                    method.returnType == Integer.TYPE -> 0
+                    method.returnType == Long.TYPE -> 0L
+                    method.returnType == java.lang.Float.TYPE -> 0f
+                    method.returnType == Double.TYPE -> 0.0
+                    method.returnType == Short.TYPE -> 0.toShort()
+                    method.returnType == Byte.TYPE -> 0.toByte()
+                    method.returnType == Character.TYPE -> '\u0000'
+                    method.returnType == Void.TYPE -> null
+                    List::class.java.isAssignableFrom(method.returnType) -> emptyList<Any>()
+                    Map::class.java.isAssignableFrom(method.returnType) -> emptyMap<Any, Any>()
+                    Iterable::class.java.isAssignableFrom(method.returnType) -> emptyList<Any>()
+                    else -> null
+                }
             }
-        }
 
         @Suppress("UNCHECKED_CAST")
         return Proxy.newProxyInstance(
@@ -303,9 +377,10 @@ class HeadlessGuiBase(
         ) as IGuiGame
     }
 
-    private fun ensureTrailingSlash(path: String): String = if (path.endsWith(File.separator)) {
-        path
-    } else {
-        path + File.separator
-    }
+    private fun ensureTrailingSlash(path: String): String =
+        if (path.endsWith(File.separator)) {
+            path
+        } else {
+            path + File.separator
+        }
 }

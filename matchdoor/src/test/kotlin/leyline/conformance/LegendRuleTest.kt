@@ -35,7 +35,8 @@ class LegendRuleTest :
             harness = null
         }
 
-        val puzzleText = """
+        val puzzleText =
+            """
             [metadata]
             Name:Legend Rule Test
             Goal:Win
@@ -53,7 +54,7 @@ class LegendRuleTest :
             humanbattlefield=Isamaru, Hound of Konda|Tapped;Fervor;Plains;Plains
             humanlibrary=Plains;Plains;Plains;Plains;Plains
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-        """.trimIndent()
+            """.trimIndent()
 
         fun setup(): MatchFlowHarness {
             val h = MatchFlowHarness()
@@ -98,12 +99,14 @@ class LegendRuleTest :
 
             castAndResolveLegendRule(h)
 
-            val allAnnotations = h.messagesSince(snap).flatMap { msg ->
-                if (msg.hasGameStateMessage()) msg.gameStateMessage.annotationsList else emptyList()
-            }
-            val zt = allAnnotations
-                .filter { it.typeList.any { t -> t == AnnotationType.ZoneTransfer_af5a } }
-                .firstOrNull { it.detailString("category") == "SBA_LegendRule" }
+            val allAnnotations =
+                h.messagesSince(snap).flatMap { msg ->
+                    if (msg.hasGameStateMessage()) msg.gameStateMessage.annotationsList else emptyList()
+                }
+            val zt =
+                allAnnotations
+                    .filter { it.typeList.any { t -> t == AnnotationType.ZoneTransfer_af5a } }
+                    .firstOrNull { it.detailString("category") == "SBA_LegendRule" }
             zt.shouldNotBeNull()
         }
 
@@ -113,8 +116,11 @@ class LegendRuleTest :
             castAndResolveLegendRule(h)
 
             val player = h.bridge.getPlayer(SeatId(1))!!
-            val bfIsamarus = player.getZone(ForgeZoneType.Battlefield).cards
-                .filter { it.name == "Isamaru, Hound of Konda" }
+            val bfIsamarus =
+                player
+                    .getZone(ForgeZoneType.Battlefield)
+                    .cards
+                    .filter { it.name == "Isamaru, Hound of Konda" }
             bfIsamarus.size shouldBe 1
 
             val gyCards = player.getZone(ForgeZoneType.Graveyard).cards
@@ -127,12 +133,14 @@ class LegendRuleTest :
 
             castAndResolveLegendRule(h)
 
-            val allAnnotations = h.messagesSince(snap).flatMap { msg ->
-                if (msg.hasGameStateMessage()) msg.gameStateMessage.annotationsList else emptyList()
-            }
-            allAnnotations.filter {
-                it.typeList.any { t -> t == AnnotationType.ObjectIdChanged }
-            }.shouldNotBeEmpty()
+            val allAnnotations =
+                h.messagesSince(snap).flatMap { msg ->
+                    if (msg.hasGameStateMessage()) msg.gameStateMessage.annotationsList else emptyList()
+                }
+            allAnnotations
+                .filter {
+                    it.typeList.any { t -> t == AnnotationType.ObjectIdChanged }
+                }.shouldNotBeEmpty()
         }
 
         test("state validity after legend rule") {
@@ -146,12 +154,18 @@ class LegendRuleTest :
         }
     })
 
-private fun findUntappedIsamaru(h: MatchFlowHarness, instanceIds: List<Int>): Int? {
+private fun findUntappedIsamaru(
+    h: MatchFlowHarness,
+    instanceIds: List<Int>,
+): Int? {
     val player = h.bridge.getPlayer(SeatId(1)) ?: return null
     for (iid in instanceIds) {
         val cardId = h.bridge.getForgeCardId(InstanceId(iid)) ?: continue
-        val card = player.getZone(ForgeZoneType.Battlefield).cards
-            .firstOrNull { it.id == cardId.value }
+        val card =
+            player
+                .getZone(ForgeZoneType.Battlefield)
+                .cards
+                .firstOrNull { it.id == cardId.value }
         if (card != null && !card.isTapped) return iid
     }
     return null

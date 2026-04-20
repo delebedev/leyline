@@ -44,7 +44,12 @@ class InteractivePromptBridge(
     // --- Pending TargetSpec data (captured during selectTargetsInteractively) ---
 
     /** Captured target: spell card ID + name, target card ID, 1-based group index. */
-    data class PendingTarget(val spellForgeCardId: Int, val spellName: String, val targetForgeCardId: Int, val index: Int)
+    data class PendingTarget(
+        val spellForgeCardId: Int,
+        val spellName: String,
+        val targetForgeCardId: Int,
+        val index: Int,
+    )
 
     private val pendingTargetSpecs = ConcurrentLinkedQueue<PendingTarget>()
     private val targetSpecIndexCounter = AtomicInteger(0)
@@ -52,7 +57,9 @@ class InteractivePromptBridge(
     fun addPendingTargetSpec(spec: PendingTarget) {
         pendingTargetSpecs.add(spec)
     }
+
     fun nextTargetSpecIndex(): Int = targetSpecIndexCounter.incrementAndGet()
+
     fun drainPendingTargetSpecs(): List<PendingTarget> {
         val result = mutableListOf<PendingTarget>()
         while (true) {
@@ -98,12 +105,20 @@ class InteractivePromptBridge(
     /** Immutable snapshot of recent prompt calls (oldest first, capped at [HISTORY_CAP]). */
     val history: List<PromptRecord> get() = synchronized(_history) { _history.toList() }
 
-    private fun record(request: PromptRequest, outcome: PromptCallStatus, result: List<Int>, elapsedMs: Long) {
-        val frames = Thread.currentThread().stackTrace
-            .drop(3) // skip getStackTrace, record, requestChoice
-            .filter { it.className.startsWith("forge.") }
-            .take(6)
-            .map { "${it.className.substringAfterLast('.')}#${it.methodName}:${it.lineNumber}" }
+    private fun record(
+        request: PromptRequest,
+        outcome: PromptCallStatus,
+        result: List<Int>,
+        elapsedMs: Long,
+    ) {
+        val frames =
+            Thread
+                .currentThread()
+                .stackTrace
+                .drop(3) // skip getStackTrace, record, requestChoice
+                .filter { it.className.startsWith("forge.") }
+                .take(6)
+                .map { "${it.className.substringAfterLast('.')}#${it.methodName}:${it.lineNumber}" }
         synchronized(_history) {
             if (_history.size >= HISTORY_CAP) _history.removeFirst()
             _history.addLast(PromptRecord(request.promptType, request.message, request.options, outcome, result, frames))
@@ -126,7 +141,10 @@ class InteractivePromptBridge(
     @Volatile private var diagnosticThread: Thread? = null
 
     /** Set diagnostic context for timeout messages. Called by [leyline.bridge.coord.GameLoopController]. */
-    fun setDiagnosticContext(game: Game, engineThread: Thread) {
+    fun setDiagnosticContext(
+        game: Game,
+        engineThread: Thread,
+    ) {
         diagnosticGame = game
         diagnosticThread = engineThread
     }
@@ -140,12 +158,18 @@ class InteractivePromptBridge(
      * Record of revealed cards: list of forge card IDs + the seatId of the player
      * who revealed them.
      */
-    data class RevealRecord(val forgeCardIds: List<ForgeCardId>, val ownerSeatId: SeatId)
+    data class RevealRecord(
+        val forgeCardIds: List<ForgeCardId>,
+        val ownerSeatId: SeatId,
+    )
 
     private val revealQueue = ConcurrentLinkedQueue<RevealRecord>()
 
     /** Push a batch of revealed card IDs (called from engine thread via the PlayerController.reveal override). */
-    fun recordReveal(forgeCardIds: List<ForgeCardId>, ownerSeatId: SeatId) {
+    fun recordReveal(
+        forgeCardIds: List<ForgeCardId>,
+        ownerSeatId: SeatId,
+    ) {
         if (forgeCardIds.isEmpty()) return
         revealQueue.add(RevealRecord(forgeCardIds, ownerSeatId))
         log.debug("Reveal recorded: {} cards for seat {}", forgeCardIds.size, ownerSeatId)
@@ -200,14 +224,16 @@ class InteractivePromptBridge(
             prioritySignal?.markPromptResolved()
             result
         } catch (_: TimeoutException) {
-            val diagnostic = BridgeTimeoutDiagnostic.buildMessage(
-                bridgeName = "InteractivePromptBridge",
-                timeoutMs = timeoutMs,
-                game = diagnosticGame,
-                engineThread = diagnosticThread,
-                lastContext = "Prompt(type=${request.promptType}, msg=\"${request.message}\", " +
-                    "options=${request.options.size}, min=${request.min}, max=${request.max})",
-            )
+            val diagnostic =
+                BridgeTimeoutDiagnostic.buildMessage(
+                    bridgeName = "InteractivePromptBridge",
+                    timeoutMs = timeoutMs,
+                    game = diagnosticGame,
+                    engineThread = diagnosticThread,
+                    lastContext =
+                        "Prompt(type=${request.promptType}, msg=\"${request.message}\", " +
+                            "options=${request.options.size}, min=${request.min}, max=${request.max})",
+                )
             log.warn("Prompt timed out, using default\n{}", diagnostic)
             DevCheck.failOnAutoPass { "Prompt timed out (type=${request.promptType}, msg=${request.message})" }
             val fallback = listOf(request.defaultIndex)
@@ -230,7 +256,10 @@ class InteractivePromptBridge(
      *
      * @return true if the prompt was matched and completed
      */
-    fun submitResponse(promptId: String, selectedIndices: List<Int>): Boolean {
+    fun submitResponse(
+        promptId: String,
+        selectedIndices: List<Int>,
+    ): Boolean {
         val current = pending.get() ?: return false
         if (current.promptId != promptId) {
             log.warn("Prompt ID mismatch: expected=${current.promptId}, got=$promptId")
@@ -315,9 +344,10 @@ fun InteractivePromptBridge.PendingPrompt.toChoiceDto(): PromptChoiceDto {
         message = req.message,
         min = req.min,
         max = req.max,
-        options = req.options.mapIndexed { idx, label ->
-            PromptOptionDto(id = idx.toString(), label = label)
-        },
+        options =
+            req.options.mapIndexed { idx, label ->
+                PromptOptionDto(id = idx.toString(), label = label)
+            },
         candidateRefs = req.candidateRefs,
     )
 }

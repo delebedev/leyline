@@ -40,10 +40,11 @@ class ZoneMapperChapterGrpIdTest :
         )
 
         test("populated chapterAbilityGrpIds: first-choice path") {
-            val data = cardData(
-                abilityIds = emptyList(),
-                chapterAbilityGrpIds = listOf(10001, 10002, 10003),
-            )
+            val data =
+                cardData(
+                    abilityIds = emptyList(),
+                    chapterAbilityGrpIds = listOf(10001, 10002, 10003),
+                )
             assertSoftly {
                 ZoneMapper.chapterGrpIdFromCardData(data, 1) shouldBe 10001
                 ZoneMapper.chapterGrpIdFromCardData(data, 2) shouldBe 10002
@@ -56,14 +57,16 @@ class ZoneMapperChapterGrpIdTest :
             // `Cards.AbilityIds` column for a 3-chapter saga: the chapter
             // grpIds are the first three entries, no chapterAbilityGrpIds
             // populated separately.
-            val data = cardData(
-                abilityIds = listOf(
-                    147926 to 0, // Ch I
-                    147927 to 0, // Ch II
-                    147760 to 0, // Ch III
-                ),
-                chapterAbilityGrpIds = emptyList(),
-            )
+            val data =
+                cardData(
+                    abilityIds =
+                        listOf(
+                            147926 to 0, // Ch I
+                            147927 to 0, // Ch II
+                            147760 to 0, // Ch III
+                        ),
+                    chapterAbilityGrpIds = emptyList(),
+                )
             assertSoftly {
                 ZoneMapper.chapterGrpIdFromCardData(data, 1) shouldBe 147926
                 ZoneMapper.chapterGrpIdFromCardData(data, 2) shouldBe 147927
@@ -75,10 +78,11 @@ class ZoneMapperChapterGrpIdTest :
             // If both are present, chapterAbilityGrpIds takes precedence —
             // AbilityIdDeriver-allocated grpIds (chapter-specific synthetics)
             // are trusted over the positional slot layout.
-            val data = cardData(
-                abilityIds = listOf(99999 to 0, 88888 to 0),
-                chapterAbilityGrpIds = listOf(10001, 10002),
-            )
+            val data =
+                cardData(
+                    abilityIds = listOf(99999 to 0, 88888 to 0),
+                    chapterAbilityGrpIds = listOf(10001, 10002),
+                )
             ZoneMapper.chapterGrpIdFromCardData(data, 1) shouldBe 10001
             ZoneMapper.chapterGrpIdFromCardData(data, 2) shouldBe 10002
         }

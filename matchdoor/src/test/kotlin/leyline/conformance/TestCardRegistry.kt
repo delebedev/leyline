@@ -20,14 +20,15 @@ object TestCardRegistry {
     val repo = InMemoryCardRepository()
 
     /** Default deck card names (GameBridge.DEFAULT_DECK). */
-    private val DEFAULT_DECK_CARDS = listOf(
-        "Forest",
-        "Llanowar Elves",
-        "Elvish Mystic",
-        "Giant Growth",
-        "Mountain",
-        "Raging Goblin",
-    )
+    private val DEFAULT_DECK_CARDS =
+        listOf(
+            "Forest",
+            "Llanowar Elves",
+            "Elvish Mystic",
+            "Giant Growth",
+            "Mountain",
+            "Raging Goblin",
+        )
 
     /**
      * Auto-register a card by name. If already in repo, returns existing grpId.
@@ -41,17 +42,19 @@ object TestCardRegistry {
     fun ensureCardRegistered(cardName: String): Int {
         repo.findGrpIdByName(cardName)?.let { return it }
 
-        val db = FModel.getMagicDb()?.commonCards ?: run {
-            log.warn("Card DB not initialized, cannot auto-register '{}'", cardName)
-            return 0
-        }
-        val paperCard = db.getCard(cardName) ?: run {
-            forge.StaticData.instance().attemptToLoadCard(cardName)
-            db.getCard(cardName)
-        } ?: run {
-            log.warn("Card '{}' not found in Forge DB", cardName)
-            return 0
-        }
+        val db =
+            FModel.getMagicDb()?.commonCards ?: run {
+                log.warn("Card DB not initialized, cannot auto-register '{}'", cardName)
+                return 0
+            }
+        val paperCard =
+            db.getCard(cardName) ?: run {
+                forge.StaticData.instance().attemptToLoadCard(cardName)
+                db.getCard(cardName)
+            } ?: run {
+                log.warn("Card '{}' not found in Forge DB", cardName)
+                return 0
+            }
 
         val tempCard = Card.fromPaperCard(paperCard, null)
         val cardData = CardDataDeriver.fromForgeCard(tempCard)
@@ -67,12 +70,15 @@ object TestCardRegistry {
     private val SECTION_HEADER = Regex("""^\[.+]$|^(Deck|Sideboard|Maybeboard|Commander|Companion)\s*$""", RegexOption.IGNORE_CASE)
 
     fun ensureDeckRegistered(deckList: String) {
-        val names = deckList.trim().lines()
-            .filter { it.isNotBlank() }
-            .map { it.trim() }
-            .filter { !SECTION_HEADER.matches(it) }
-            .map { it.replaceFirst(Regex("^\\d+\\s+"), "") }
-            .distinct()
+        val names =
+            deckList
+                .trim()
+                .lines()
+                .filter { it.isNotBlank() }
+                .map { it.trim() }
+                .filter { !SECTION_HEADER.matches(it) }
+                .map { it.replaceFirst(Regex("^\\d+\\s+"), "") }
+                .distinct()
         val failures = mutableListOf<String>()
         for (name in names) {
             val grpId = ensureCardRegistered(name)
@@ -92,14 +98,15 @@ object TestCardRegistry {
      */
     fun registerPuzzleCards(game: forge.game.Game) {
         val registrar = leyline.game.PuzzleCardRegistrar(repo)
-        val allZones = listOf(
-            forge.game.zone.ZoneType.Hand,
-            forge.game.zone.ZoneType.Battlefield,
-            forge.game.zone.ZoneType.Library,
-            forge.game.zone.ZoneType.Graveyard,
-            forge.game.zone.ZoneType.Exile,
-            forge.game.zone.ZoneType.Command,
-        )
+        val allZones =
+            listOf(
+                forge.game.zone.ZoneType.Hand,
+                forge.game.zone.ZoneType.Battlefield,
+                forge.game.zone.ZoneType.Library,
+                forge.game.zone.ZoneType.Graveyard,
+                forge.game.zone.ZoneType.Exile,
+                forge.game.zone.ZoneType.Command,
+            )
         for (player in game.players) {
             for (zone in allZones) {
                 for (card in player.getZone(zone).cards) {

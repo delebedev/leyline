@@ -20,11 +20,12 @@ class ActivatedAbilityTest :
     SubsystemTest({
 
         test("Activate action fields — shouldStop, instanceId, grpId, facetId") {
-            val (b, game, _) = startWithBoard { _, human, _ ->
-                addCard("Forest", human, ZoneType.Battlefield)
-                addCard("Forest", human, ZoneType.Battlefield)
-                addCard("Gingerbrute", human, ZoneType.Battlefield)
-            }
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Gingerbrute", human, ZoneType.Battlefield)
+                }
 
             val activate = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b).ofType(ActionType.Activate_add3)
             activate.shouldHaveSize(2) // {1}: evasion + {2},{T},Sac: gain 3 life

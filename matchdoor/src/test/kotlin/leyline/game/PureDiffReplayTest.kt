@@ -76,21 +76,23 @@ class PureDiffReplayTest :
             // same zone assignments, same annotation counters after seedDiffBaseline).
             val (replayBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
 
-            val replayBytes = liveRun.map { step ->
-                val updateType = step.diff.update
-                val replayResult = StateMapper.buildDiff(
-                    prev = step.prev,
-                    cur = step.cur,
-                    events = step.events,
-                    gameStateId = step.gameStateId,
-                    matchId = ConformanceTestBase.TEST_MATCH_ID,
-                    bridge = replayBridge,
-                    updateType = updateType,
-                    viewingSeatId = SEAT_ID,
-                )
-                replayBridge.applyMutations(replayResult.mutations)
-                replayResult.gsm.toByteArray().toList()
-            }
+            val replayBytes =
+                liveRun.map { step ->
+                    val updateType = step.diff.update
+                    val replayResult =
+                        StateMapper.buildDiff(
+                            prev = step.prev,
+                            cur = step.cur,
+                            events = step.events,
+                            gameStateId = step.gameStateId,
+                            matchId = ConformanceTestBase.TEST_MATCH_ID,
+                            bridge = replayBridge,
+                            updateType = updateType,
+                            viewingSeatId = SEAT_ID,
+                        )
+                    replayBridge.applyMutations(replayResult.mutations)
+                    replayResult.gsm.toByteArray().toList()
+                }
             val liveBytes = liveRun.map { it.diff.toByteArray().toList() }
             replayBytes shouldBe liveBytes
         }
@@ -116,21 +118,23 @@ class PureDiffReplayTest :
 
             val (replayBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
 
-            val replayBytes = liveRun.map { step ->
-                val updateType = step.diff.update
-                val replayResult = StateMapper.buildDiff(
-                    prev = step.prev,
-                    cur = step.cur,
-                    events = step.events,
-                    gameStateId = step.gameStateId,
-                    matchId = ConformanceTestBase.TEST_MATCH_ID,
-                    bridge = replayBridge,
-                    updateType = updateType,
-                    viewingSeatId = SEAT_ID,
-                )
-                replayBridge.applyMutations(replayResult.mutations)
-                replayResult.gsm.toByteArray().toList()
-            }
+            val replayBytes =
+                liveRun.map { step ->
+                    val updateType = step.diff.update
+                    val replayResult =
+                        StateMapper.buildDiff(
+                            prev = step.prev,
+                            cur = step.cur,
+                            events = step.events,
+                            gameStateId = step.gameStateId,
+                            matchId = ConformanceTestBase.TEST_MATCH_ID,
+                            bridge = replayBridge,
+                            updateType = updateType,
+                            viewingSeatId = SEAT_ID,
+                        )
+                    replayBridge.applyMutations(replayResult.mutations)
+                    replayResult.gsm.toByteArray().toList()
+                }
             val liveBytes = liveRun.map { it.diff.toByteArray().toList() }
             replayBytes shouldBe liveBytes
         }
@@ -158,27 +162,30 @@ class PureDiffReplayTest :
             // commit), then the NEW id post-apply.
             var exercisedRealloc = false
             for (step in captured) {
-                val result = StateMapper.buildDiff(
-                    prev = step.prev,
-                    cur = step.cur,
-                    events = step.events,
-                    gameStateId = step.gameStateId,
-                    matchId = ConformanceTestBase.TEST_MATCH_ID,
-                    bridge = replayBridge,
-                    updateType = step.diff.update,
-                    viewingSeatId = SEAT_ID,
-                )
+                val result =
+                    StateMapper.buildDiff(
+                        prev = step.prev,
+                        cur = step.cur,
+                        events = step.events,
+                        gameStateId = step.gameStateId,
+                        matchId = ConformanceTestBase.TEST_MATCH_ID,
+                        bridge = replayBridge,
+                        updateType = step.diff.update,
+                        viewingSeatId = SEAT_ID,
+                    )
                 val nonTrivial = result.mutations.idReallocations.filter { it.old != it.new }
                 for (r in nonTrivial) {
-                    val fid = replayBridge.getForgeCardId(r.old)
-                        ?: error("reverse lookup for realloc.old=${r.old} returned null; bridge state corrupt")
+                    val fid =
+                        replayBridge.getForgeCardId(r.old)
+                            ?: error("reverse lookup for realloc.old=${r.old} returned null; bridge state corrupt")
                     // Pre-apply: compute must NOT have moved the forward map.
                     replayBridge.ids.peek(fid) shouldBe r.old
                 }
                 replayBridge.applyMutations(result.mutations)
                 for (r in nonTrivial) {
-                    val fid = replayBridge.getForgeCardId(r.new)
-                        ?: error("reverse lookup for realloc.new=${r.new} returned null after apply")
+                    val fid =
+                        replayBridge.getForgeCardId(r.new)
+                            ?: error("reverse lookup for realloc.new=${r.new} returned null after apply")
                     // Post-apply: the map now reflects the new id.
                     replayBridge.ids.peek(fid) shouldBe r.new
                 }

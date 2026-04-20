@@ -61,9 +61,10 @@ class AiTurnConformanceTest :
             }
 
             // All diffs should use SendHiFi
-            val diffs = allMessages.filter {
-                it.hasGameStateMessage() && it.gameStateMessage.annotationsCount > 0
-            }
+            val diffs =
+                allMessages.filter {
+                    it.hasGameStateMessage() && it.gameStateMessage.annotationsCount > 0
+                }
             for (diff in diffs) {
                 diff.gameStateMessage.update shouldBe GameStateUpdate.SendHiFi
             }
@@ -88,9 +89,11 @@ class AiTurnConformanceTest :
                     // Snap-vs-snap diffs: break only when we see actual card movements
                     // (objects present in diff), not just phase-transition diffs that
                     // carry zones (Limbo) but no cards.
-                    val hasCardMovements = drained.flatten()
-                        .filter { it.hasGameStateMessage() }
-                        .any { it.gameStateMessage.gameObjectsCount > 0 }
+                    val hasCardMovements =
+                        drained
+                            .flatten()
+                            .filter { it.hasGameStateMessage() }
+                            .any { it.gameStateMessage.gameObjectsCount > 0 }
                     if (hasCardMovements) break
                 }
             }
@@ -101,9 +104,11 @@ class AiTurnConformanceTest :
                 return@test
             }
 
-            val allGsms = batches.flatten()
-                .filter { it.hasGameStateMessage() }
-                .map { it.gameStateMessage }
+            val allGsms =
+                batches
+                    .flatten()
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
 
             val gsmsWithZoneChanges = allGsms.filter { it.zonesCount > 0 }
             gsmsWithZoneChanges.shouldNotBeEmpty()
@@ -112,14 +117,16 @@ class AiTurnConformanceTest :
             gsmsWithObjects.shouldNotBeEmpty()
 
             for (gsm in gsmsWithObjects) {
-                val bfOrStackObjs = gsm.gameObjectsList.filter {
-                    it.zoneId == ZoneIds.BATTLEFIELD || it.zoneId == ZoneIds.STACK
-                }
+                val bfOrStackObjs =
+                    gsm.gameObjectsList.filter {
+                        it.zoneId == ZoneIds.BATTLEFIELD || it.zoneId == ZoneIds.STACK
+                    }
                 if (bfOrStackObjs.isEmpty()) continue
 
-                val zoneTransfers = gsm.annotationsList.filter {
-                    AnnotationType.ZoneTransfer_af5a in it.typeList
-                }
+                val zoneTransfers =
+                    gsm.annotationsList.filter {
+                        AnnotationType.ZoneTransfer_af5a in it.typeList
+                    }
 
                 gsm.annotationsCount shouldBeGreaterThan 0
                 zoneTransfers.shouldNotBeEmpty()

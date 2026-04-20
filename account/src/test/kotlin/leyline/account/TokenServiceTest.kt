@@ -15,15 +15,16 @@ class TokenServiceTest :
 
         val service = TokenService()
 
-        val testAccount = Account(
-            accountId = "TEST-ACCOUNT-ID",
-            personaId = "TEST-PERSONA-ID",
-            email = "test@example.com",
-            displayName = "TestPlayer#12345",
-            country = "US",
-            dob = "1990-01-01",
-            createdAt = "2026-01-01T00:00:00Z",
-        )
+        val testAccount =
+            Account(
+                accountId = "TEST-ACCOUNT-ID",
+                personaId = "TEST-PERSONA-ID",
+                email = "test@example.com",
+                displayName = "TestPlayer#12345",
+                country = "US",
+                dob = "1990-01-01",
+                createdAt = "2026-01-01T00:00:00Z",
+            )
 
         test("issueTokens returns arena-shaped JWT access and refresh tokens") {
             val pair = service.issueTokens(testAccount)

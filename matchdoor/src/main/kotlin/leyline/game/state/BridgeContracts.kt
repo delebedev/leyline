@@ -42,7 +42,10 @@ interface PlayerLookup {
 /** Zone membership tracking for diff computation and zone-transfer detection. */
 interface ZoneTracking {
     /** Record current zone for an instance. Returns previous zone or null if new. */
-    fun recordZone(instanceId: InstanceId, zoneId: Int): Int?
+    fun recordZone(
+        instanceId: InstanceId,
+        zoneId: Int,
+    ): Int?
 
     /** Get the zone an instanceId was last seen in. */
     fun getPreviousZone(instanceId: InstanceId): Int?

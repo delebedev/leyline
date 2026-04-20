@@ -25,20 +25,26 @@ import com.google.protobuf.Message
  * this captures field *presence*, not values.
  */
 object FieldPathExtractor {
-
     /**
      * Extract all set field paths from [msg].
      *
      * @param msg the protobuf message to inspect
      * @param prefix path prefix (for recursion; leave empty at top level)
      */
-    fun extract(msg: Message, prefix: String = ""): Set<String> {
+    fun extract(
+        msg: Message,
+        prefix: String = "",
+    ): Set<String> {
         val paths = mutableSetOf<String>()
         collect(msg, prefix, paths)
         return paths
     }
 
-    private fun collect(msg: Message, prefix: String, paths: MutableSet<String>) {
+    private fun collect(
+        msg: Message,
+        prefix: String,
+        paths: MutableSet<String>,
+    ) {
         for ((field, value) in msg.allFields) {
             val name = if (prefix.isEmpty()) field.name else "$prefix.${field.name}"
 

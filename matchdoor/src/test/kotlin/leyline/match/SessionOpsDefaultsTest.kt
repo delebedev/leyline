@@ -16,25 +16,38 @@ class SessionOpsDefaultsTest :
 
         tags(UnitTag)
 
-        val ops = object : SessionOps {
-            override val seatId = SeatId(1)
-            override val matchId = "test-match"
-            override var counter = MessageCounter()
+        val ops =
+            object : SessionOps {
+                override val seatId = SeatId(1)
+                override val matchId = "test-match"
+                override var counter = MessageCounter()
 
-            override fun sendBundledGRE(messages: List<GREToClientMessage>) {}
-            override fun sendRealGameState(bridge: GameBridge, revealForSeat: Int?) {}
-            override fun sendBundle(result: BundleBuilder.BundleResult) {}
-            override fun sendGameOver(reason: ResultReason) {}
-            override fun traceEvent(type: MatchEventType, game: Game, detail: String) {}
-            override fun paceDelay(multiplier: Int) {}
+                override fun sendBundledGRE(messages: List<GREToClientMessage>) {}
 
-            override fun makeGRE(
-                type: GREMessageType,
-                gsId: Int,
-                msgId: Int,
-                configure: (GREToClientMessage.Builder) -> Unit,
-            ): GREToClientMessage = GREToClientMessage.getDefaultInstance()
-        }
+                override fun sendRealGameState(
+                    bridge: GameBridge,
+                    revealForSeat: Int?,
+                ) {}
+
+                override fun sendBundle(result: BundleBuilder.BundleResult) {}
+
+                override fun sendGameOver(reason: ResultReason) {}
+
+                override fun traceEvent(
+                    type: MatchEventType,
+                    game: Game,
+                    detail: String,
+                ) {}
+
+                override fun paceDelay(multiplier: Int) {}
+
+                override fun makeGRE(
+                    type: GREMessageType,
+                    gsId: Int,
+                    msgId: Int,
+                    configure: (GREToClientMessage.Builder) -> Unit,
+                ): GREToClientMessage = GREToClientMessage.getDefaultInstance()
+            }
 
         val dummyMsg = ClientToGREMessage.getDefaultInstance()
 

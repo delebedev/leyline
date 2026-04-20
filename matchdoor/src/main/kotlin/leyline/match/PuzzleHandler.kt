@@ -33,8 +33,7 @@ class PuzzleHandler(
 
     /** Puzzle mode when a puzzle file is configured — matchId is irrelevant. */
     @Suppress("UnusedParameter") // matchId kept for call-site clarity
-    fun isPuzzleMatch(matchId: String): Boolean =
-        puzzlePath() != null
+    fun isPuzzleMatch(matchId: String): Boolean = puzzlePath() != null
 
     /**
      * Get or create the [GameBridge] for a puzzle match. Loads the puzzle file
@@ -45,17 +44,19 @@ class PuzzleHandler(
      * [sendPuzzleInitialBundle] to send the opening GRE bundle.
      */
     fun getOrCreatePuzzleBridge(matchId: String): GameBridge {
-        val match = registry.getOrCreateMatch(matchId) {
-            val bridge = GameBridge(
-                matchConfig = matchConfig,
-                messageCounter = MessageCounter(),
-                cardRepository = cardRepository,
-            )
-            Match(matchId, bridge).also {
-                val puzzle = loadPuzzleForMatch(matchId)
-                bridge.startPuzzle(puzzle)
+        val match =
+            registry.getOrCreateMatch(matchId) {
+                val bridge =
+                    GameBridge(
+                        matchConfig = matchConfig,
+                        messageCounter = MessageCounter(),
+                        cardRepository = cardRepository,
+                    )
+                Match(matchId, bridge).also {
+                    val puzzle = loadPuzzleForMatch(matchId)
+                    bridge.startPuzzle(puzzle)
+                }
             }
-        }
         return match.bridge
     }
 
@@ -70,25 +71,27 @@ class PuzzleHandler(
         log.info("Match Door: puzzle mode, seat {} connected", seatId)
         val gsId = session.counter.nextGsId()
 
-        val (bundleMsg, nextMsgId) = HandshakeMessages.puzzleInitialBundle(
-            seatId,
-            matchId,
-            session.counter.currentMsgId(),
-            gsId,
-            bridge,
-        )
+        val (bundleMsg, nextMsgId) =
+            HandshakeMessages.puzzleInitialBundle(
+                seatId,
+                matchId,
+                session.counter.currentMsgId(),
+                gsId,
+                bridge,
+            )
         session.counter.setMsgId(nextMsgId)
         Tap.outboundTemplate("PuzzleInitialBundle seat=$seatId")
         ProtoDump.dump(bundleMsg, "PuzzleInitialBundle-seat$seatId")
         ctx.writeAndFlush(bundleMsg)
 
         // Send ActionsAvailableReq immediately after
-        val (actionsMsg, nextMsgId2) = HandshakeMessages.puzzleActionsReq(
-            session.counter.currentMsgId(),
-            gsId,
-            seatId,
-            bridge,
-        )
+        val (actionsMsg, nextMsgId2) =
+            HandshakeMessages.puzzleActionsReq(
+                session.counter.currentMsgId(),
+                gsId,
+                seatId,
+                bridge,
+            )
         session.counter.setMsgId(nextMsgId2)
         Tap.outboundTemplate("PuzzleActionsReq seat=$seatId")
         ProtoDump.dump(actionsMsg, "PuzzleActionsReq-seat$seatId")

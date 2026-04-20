@@ -107,12 +107,13 @@ class PriorityLoopCoordinator(
         while (true) {
             owner.notifyStateChanged()
 
-            val state = PendingActionState(
-                phase = handler.phase?.name ?: "UNKNOWN",
-                turn = handler.turn,
-                activePlayerId = handler.playerTurn?.id ?: -1,
-                priorityPlayerId = player.id,
-            )
+            val state =
+                PendingActionState(
+                    phase = handler.phase?.name ?: "UNKNOWN",
+                    turn = handler.turn,
+                    activePlayerId = handler.playerTurn?.id ?: -1,
+                    priorityPlayerId = player.id,
+                )
             when (val action = actionBridge.awaitAction(state)) {
                 is PlayerAction.PassPriority -> return null
                 is PlayerAction.EndTurn -> {
@@ -133,16 +134,20 @@ class PriorityLoopCoordinator(
         }
     }
 
-    fun declareAttackers(attacker: Player, combat: Combat) {
+    fun declareAttackers(
+        attacker: Player,
+        combat: Combat,
+    ) {
         log.info("declareAttackers: waiting for {}", attacker.name)
         owner.notifyStateChanged()
 
-        val state = PendingActionState(
-            phase = "COMBAT_DECLARE_ATTACKERS",
-            turn = game.phaseHandler.turn,
-            activePlayerId = attacker.id,
-            priorityPlayerId = attacker.id,
-        )
+        val state =
+            PendingActionState(
+                phase = "COMBAT_DECLARE_ATTACKERS",
+                turn = game.phaseHandler.turn,
+                activePlayerId = attacker.id,
+                priorityPlayerId = attacker.id,
+            )
         when (val action = actionBridge.awaitAction(state)) {
             is PlayerAction.DeclareAttackers -> {
                 val resolvedDefender = resolveAttackDefender(game, attacker, action.defender)
@@ -158,16 +163,20 @@ class PriorityLoopCoordinator(
         }
     }
 
-    fun declareBlockers(defender: Player, combat: Combat) {
+    fun declareBlockers(
+        defender: Player,
+        combat: Combat,
+    ) {
         log.info("declareBlockers: waiting for {}", defender.name)
         owner.notifyStateChanged()
 
-        val state = PendingActionState(
-            phase = "COMBAT_DECLARE_BLOCKERS",
-            turn = game.phaseHandler.turn,
-            activePlayerId = defender.id,
-            priorityPlayerId = defender.id,
-        )
+        val state =
+            PendingActionState(
+                phase = "COMBAT_DECLARE_BLOCKERS",
+                turn = game.phaseHandler.turn,
+                activePlayerId = defender.id,
+                priorityPlayerId = defender.id,
+            )
         when (val action = actionBridge.awaitAction(state)) {
             is PlayerAction.DeclareBlockers -> {
                 for ((blockerCardId, attackerCardId) in action.blockAssignments) {
@@ -211,15 +220,16 @@ class PriorityLoopCoordinator(
         // this via CombatHandler.checkPendingDamageAssignment and sends AssignDamageReq.
         // CombatHandler.onAssignDamage completes the future.
         val future = CompletableFuture<MutableMap<Card?, Int>>()
-        owner.pendingDamageAssignment = PlayerController.DamageAssignmentPrompt(
-            attacker = attacker,
-            blockers = blockers,
-            damageDealt = damageDealt,
-            defender = defender,
-            hasDeathtouch = attacker.hasKeyword(Keyword.DEATHTOUCH),
-            hasTrample = attacker.hasKeyword(Keyword.TRAMPLE),
-            future = future,
-        )
+        owner.pendingDamageAssignment =
+            PlayerController.DamageAssignmentPrompt(
+                attacker = attacker,
+                blockers = blockers,
+                damageDealt = damageDealt,
+                defender = defender,
+                hasDeathtouch = attacker.hasKeyword(Keyword.DEATHTOUCH),
+                hasTrample = attacker.hasKeyword(Keyword.TRAMPLE),
+                future = future,
+            )
         actionBridge.prioritySignal?.signal()
 
         return try {

@@ -4,5 +4,8 @@ set -euo pipefail
 echo "pre-push: fmt-check"
 just fmt-check
 
+echo "pre-push: detekt"
+./gradlew detektMain detektTest -q
+
 echo "pre-push: docs-lint"
 just docs-lint

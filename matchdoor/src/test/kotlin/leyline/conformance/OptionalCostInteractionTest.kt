@@ -19,7 +19,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class OptionalCostInteractionTest :
     InteractionTest({
 
-        val burstState = """
+        val burstState =
+            """
             ActivePlayer=Human
             ActivePhase=Main1
             HumanLife=20
@@ -30,23 +31,25 @@ class OptionalCostInteractionTest :
             humanlibrary=Mountain
             aibattlefield=Centaur Courser
             ailibrary=Mountain
-        """.trimIndent()
+            """.trimIndent()
 
         fun startBurst() = startPuzzle(burstState, name = "Burst Lightning")
 
         /** Accept kicker — send the Kicker option's ctoId. */
         fun acceptKicker() {
-            val kickerOption = lastCastingTimeOptionsReq().castingTimeOptionReqList.first {
-                it.castingTimeOptionType == CastingTimeOptionType.Kicker
-            }
+            val kickerOption =
+                lastCastingTimeOptionsReq().castingTimeOptionReqList.first {
+                    it.castingTimeOptionType == CastingTimeOptionType.Kicker
+                }
             respondToOptionalCost(kickerOption.ctoId)
         }
 
         /** Decline kicker — send the Done option's ctoId (0). */
         fun declineKicker() {
-            val doneOption = lastCastingTimeOptionsReq().castingTimeOptionReqList.first {
-                it.castingTimeOptionType == CastingTimeOptionType.Done
-            }
+            val doneOption =
+                lastCastingTimeOptionsReq().castingTimeOptionReqList.first {
+                    it.castingTimeOptionType == CastingTimeOptionType.Done
+                }
             respondToOptionalCost(doneOption.ctoId)
         }
 
@@ -57,18 +60,22 @@ class OptionalCostInteractionTest :
             castSpellByName("Burst Lightning").shouldBeTrue()
             val castMessages = messagesSince(snap)
 
-            val ctoReq = castMessages.first { it.hasCastingTimeOptionsReq() }
-                .castingTimeOptionsReq
+            val ctoReq =
+                castMessages
+                    .first { it.hasCastingTimeOptionsReq() }
+                    .castingTimeOptionsReq
 
             // Two options: Kicker + Done
             ctoReq.castingTimeOptionReqList shouldHaveSize 2
 
-            val kickerOption = ctoReq.castingTimeOptionReqList.first {
-                it.castingTimeOptionType == CastingTimeOptionType.Kicker
-            }
-            val doneOption = ctoReq.castingTimeOptionReqList.first {
-                it.castingTimeOptionType == CastingTimeOptionType.Done
-            }
+            val kickerOption =
+                ctoReq.castingTimeOptionReqList.first {
+                    it.castingTimeOptionType == CastingTimeOptionType.Kicker
+                }
+            val doneOption =
+                ctoReq.castingTimeOptionReqList.first {
+                    it.castingTimeOptionType == CastingTimeOptionType.Done
+                }
 
             assertSoftly {
                 kickerOption.ctoId shouldBe 1
@@ -112,9 +119,10 @@ class OptionalCostInteractionTest :
             // GSM before CTO should NOT have a synthesized ability —
             // kicker is a spell-time cost, not an ETB trigger
             val gsm = msgs[ctoIdx - 1].gameStateMessage
-            val abilities = gsm.gameObjectsList.filter {
-                it.type == GameObjectType.Ability
-            }
+            val abilities =
+                gsm.gameObjectsList.filter {
+                    it.type == GameObjectType.Ability
+                }
             abilities shouldHaveSize 0
         }
 

@@ -42,8 +42,9 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 // `abstract` keeps Kotest's auto-discovery from trying to instantiate the base
 // class directly (no zero-arg constructor — only the `body` lambda variant).
 @Suppress("UnnecessaryAbstractClass")
-abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
-
+abstract class InteractionTest(
+    body: InteractionTest.() -> Unit,
+) : FunSpec() {
     companion object {
         /** Seat ID for the human player (tests always use seat 1). */
         const val HUMAN_SEAT = 1
@@ -93,8 +94,7 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
         turns: Int = 1,
         seed: Long = 42L,
         validating: Boolean = false,
-    ): MatchFlowHarness =
-        startPuzzleRaw(buildPuzzleText(state, name, goal, turns), seed, validating)
+    ): MatchFlowHarness = startPuzzleRaw(buildPuzzleText(state, name, goal, turns), seed, validating)
 
     /** Start a puzzle from full `.pzl` text (metadata + state). Escape hatch. */
     fun startPuzzleRaw(
@@ -109,7 +109,12 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
         return h
     }
 
-    private fun buildPuzzleText(state: String, name: String, goal: String, turns: Int): String =
+    private fun buildPuzzleText(
+        state: String,
+        name: String,
+        goal: String,
+        turns: Int,
+    ): String =
         buildString {
             appendLine("[metadata]")
             appendLine("Name:$name")
@@ -148,17 +153,19 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
 
     // --- Game actions ---
 
-    fun activateAbility(cardName: String, abilityIndex: Int = 0) =
-        harness.activateAbility(cardName, abilityIndex)
+    fun activateAbility(
+        cardName: String,
+        abilityIndex: Int = 0,
+    ) = harness.activateAbility(cardName, abilityIndex)
 
-    fun activateAbilityFromHand(cardName: String, abilityIndex: Int = 0) =
-        harness.activateAbilityFromHand(cardName, abilityIndex)
+    fun activateAbilityFromHand(
+        cardName: String,
+        abilityIndex: Int = 0,
+    ) = harness.activateAbilityFromHand(cardName, abilityIndex)
 
-    fun selectTargets(targetInstanceIds: List<Int>) =
-        harness.selectTargets(targetInstanceIds)
+    fun selectTargets(targetInstanceIds: List<Int>) = harness.selectTargets(targetInstanceIds)
 
-    fun selectTargetsIterative(targetInstanceIds: List<Int>) =
-        harness.selectTargetsIterative(targetInstanceIds)
+    fun selectTargetsIterative(targetInstanceIds: List<Int>) = harness.selectTargetsIterative(targetInstanceIds)
 
     fun submitTargets() = harness.submitTargets()
 
@@ -166,19 +173,21 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
 
     fun castCreature() = harness.castCreature()
 
-    fun humanBattlefieldCreatures(): List<Pair<Int, String>> =
-        harness.humanBattlefieldCreatures()
+    fun humanBattlefieldCreatures(): List<Pair<Int, String>> = harness.humanBattlefieldCreatures()
 
     fun passPriority() = harness.passPriority()
 
-    fun passUntil(maxPasses: Int = 20, stopWhen: () -> Boolean) =
-        harness.passUntil(maxPasses) { stopWhen() }
+    fun passUntil(
+        maxPasses: Int = 20,
+        stopWhen: () -> Boolean,
+    ) = harness.passUntil(maxPasses) { stopWhen() }
 
-    fun passUntilTurn(targetTurn: Int, maxPasses: Int = 30) =
-        harness.passUntilTurn(targetTurn, maxPasses)
+    fun passUntilTurn(
+        targetTurn: Int,
+        maxPasses: Int = 30,
+    ) = harness.passUntilTurn(targetTurn, maxPasses)
 
-    fun installScriptedAi(script: List<ScriptedAction>) =
-        harness.installScriptedAi(script)
+    fun installScriptedAi(script: List<ScriptedAction>) = harness.installScriptedAi(script)
 
     /**
      * Pass priority until the stack is empty. Use after cast + target to resolve.
@@ -193,32 +202,34 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
         }
     }
 
-    fun castSpellByName(cardName: String, zone: ZoneType = ZoneType.Hand) =
-        harness.castSpellByName(cardName, zone)
+    fun castSpellByName(
+        cardName: String,
+        zone: ZoneType = ZoneType.Hand,
+    ) = harness.castSpellByName(cardName, zone)
 
     fun resolveSpell(cardName: String) = harness.resolveSpell(cardName)
 
     // --- Cast-until-prompt flows ---
 
-    fun castSpellUntilGroupReq(cardName: String): GroupReq =
-        harness.castSpellUntilGroupReq(cardName)
+    fun castSpellUntilGroupReq(cardName: String): GroupReq = harness.castSpellUntilGroupReq(cardName)
 
-    fun castSpellUntilSelectNReq(cardName: String): SelectNReq =
-        harness.castSpellUntilSelectNReq(cardName)
+    fun castSpellUntilSelectNReq(cardName: String): SelectNReq = harness.castSpellUntilSelectNReq(cardName)
 
-    fun castSpellUntilCastingTimeOptionsReq(cardName: String): CastingTimeOptionsReq =
-        harness.castSpellUntilCastingTimeOptionsReq(cardName)
+    fun castSpellUntilCastingTimeOptionsReq(cardName: String): CastingTimeOptionsReq = harness.castSpellUntilCastingTimeOptionsReq(cardName)
 
     // --- Prompt responses ---
 
-    fun respondToGroupReq(awayInstanceIds: List<Int>, allInstanceIds: List<Int>) =
-        harness.respondToGroupReq(awayInstanceIds, allInstanceIds)
+    fun respondToGroupReq(
+        awayInstanceIds: List<Int>,
+        allInstanceIds: List<Int>,
+    ) = harness.respondToGroupReq(awayInstanceIds, allInstanceIds)
 
-    fun respondToScry(bottomInstanceIds: List<Int>, allInstanceIds: List<Int>) =
-        harness.respondToScry(bottomInstanceIds, allInstanceIds)
+    fun respondToScry(
+        bottomInstanceIds: List<Int>,
+        allInstanceIds: List<Int>,
+    ) = harness.respondToScry(bottomInstanceIds, allInstanceIds)
 
-    fun respondToSelectN(selectedInstanceIds: List<Int>) =
-        harness.respondToSelectN(selectedInstanceIds)
+    fun respondToSelectN(selectedInstanceIds: List<Int>) = harness.respondToSelectN(selectedInstanceIds)
 
     fun respondToOptionalCost(ctoId: Int) = harness.respondToOptionalCost(ctoId)
 
@@ -228,45 +239,45 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
 
     fun messageSnapshot(): Int = harness.messageSnapshot()
 
-    fun messagesSince(snapshot: Int): List<GREToClientMessage> =
-        harness.messagesSince(snapshot)
+    fun messagesSince(snapshot: Int): List<GREToClientMessage> = harness.messagesSince(snapshot)
 
-    fun gameStateMessagesSince(snapshot: Int): List<GameStateMessage> =
-        harness.gameStateMessagesSince(snapshot)
+    fun gameStateMessagesSince(snapshot: Int): List<GameStateMessage> = harness.gameStateMessagesSince(snapshot)
 
-    fun annotationsSince(snapshot: Int): List<AnnotationInfo> =
-        harness.annotationsSince(snapshot)
+    fun annotationsSince(snapshot: Int): List<AnnotationInfo> = harness.annotationsSince(snapshot)
 
     // --- Convenience: last-of-kind prompt ---
 
-    fun lastSelectNReq(): SelectNReq =
-        harness.allMessages.last { it.hasSelectNReq() }.selectNReq
+    fun lastSelectNReq(): SelectNReq = harness.allMessages.last { it.hasSelectNReq() }.selectNReq
 
     fun lastCastingTimeOptionsReq(): CastingTimeOptionsReq =
         harness.allMessages.last { it.hasCastingTimeOptionsReq() }.castingTimeOptionsReq
 
-    fun lastGroupReq(): GroupReq =
-        harness.allMessages.last { it.hasGroupReq() }.groupReq
+    fun lastGroupReq(): GroupReq = harness.allMessages.last { it.hasGroupReq() }.groupReq
 
     // --- Accumulator ---
 
-    fun assertAccumulatorConsistent(context: String) =
-        harness.accumulator.assertConsistent(context)
+    fun assertAccumulatorConsistent(context: String) = harness.accumulator.assertConsistent(context)
 
     // --- Card lookup ---
 
     /** Resolve instanceId to card name via bridge. Fails clearly if card not found. */
     fun cardName(instanceId: Int): String {
-        val cardId = harness.bridge.getForgeCardId(InstanceId(instanceId))
-            ?: error("No ForgeCardId for instanceId $instanceId")
-        val card = harness.game().findById(cardId.value)
-            ?: error("No card for forgeCardId ${cardId.value}")
+        val cardId =
+            harness.bridge.getForgeCardId(InstanceId(instanceId))
+                ?: error("No ForgeCardId for instanceId $instanceId")
+        val card =
+            harness.game().findById(cardId.value)
+                ?: error("No card for forgeCardId ${cardId.value}")
         return card.name
     }
 
     /** Find instanceId for a card by name in a list of candidate instanceIds. */
-    fun findInstanceId(candidateIds: List<Int>, name: String): Int = candidateIds.firstOrNull { cardName(it) == name }
-        ?: error("Card '$name' not found in candidates: $candidateIds")
+    fun findInstanceId(
+        candidateIds: List<Int>,
+        name: String,
+    ): Int =
+        candidateIds.firstOrNull { cardName(it) == name }
+            ?: error("Card '$name' not found in candidates: $candidateIds")
 
     /**
      * Find instanceId of a card by name in the given [player]'s [zone].
@@ -277,8 +288,9 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
         player: Player = human,
         zone: ZoneType = ZoneType.Battlefield,
     ): Int {
-        val card = player.getZone(zone).cards.firstOrNull { it.name == cardName }
-            ?: error("Card '$cardName' not found in ${player.name} $zone")
+        val card =
+            player.getZone(zone).cards.firstOrNull { it.name == cardName }
+                ?: error("Card '$cardName' not found in ${player.name} $zone")
         return harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
     }
 
@@ -294,7 +306,10 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
     // --- State queries ---
 
     fun phase() = harness.phase()
+
     fun turn() = harness.turn()
+
     fun isGameOver() = harness.isGameOver()
+
     fun game(): Game = harness.game()
 }

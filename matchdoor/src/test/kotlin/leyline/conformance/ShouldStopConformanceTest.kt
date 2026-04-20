@@ -18,18 +18,19 @@ class ShouldStopConformanceTest :
         tags(ConformanceTag)
 
         // ActionType -> expected shouldStop from reference client behavior
-        val expectedShouldStop = mapOf(
-            // shouldStop = true
-            ActionType.Cast to true,
-            ActionType.CastLeftRoom to true,
-            ActionType.CastRightRoom to true,
-            ActionType.Activate_add3 to true,
-            ActionType.Play_add3 to true,
-            // shouldStop = false
-            ActionType.ActivateMana to false,
-            ActionType.Pass to false,
-            ActionType.FloatMana to false,
-        )
+        val expectedShouldStop =
+            mapOf(
+                // shouldStop = true
+                ActionType.Cast to true,
+                ActionType.CastLeftRoom to true,
+                ActionType.CastRightRoom to true,
+                ActionType.Activate_add3 to true,
+                ActionType.Play_add3 to true,
+                // shouldStop = false
+                ActionType.ActivateMana to false,
+                ActionType.Pass to false,
+                ActionType.FloatMana to false,
+            )
 
         for ((actionType, expected) in expectedShouldStop) {
             test("shouldStop(${actionType.name}) = $expected") {

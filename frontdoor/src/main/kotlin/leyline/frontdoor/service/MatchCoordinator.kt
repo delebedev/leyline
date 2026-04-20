@@ -11,7 +11,6 @@ package leyline.frontdoor.service
  * Implementation lives in app/ where both modules are visible.
  */
 interface MatchCoordinator {
-
     // --- FD writes (lobby flow) ---
 
     /** Client selected a deck (CmdType 612 / 622). */
@@ -47,14 +46,20 @@ interface MatchCoordinator {
 
     companion object {
         /** No-op implementation for tests and modes without a game engine. */
-        val NOOP: MatchCoordinator = object : MatchCoordinator {
-            override fun selectDeck(deckId: String) {}
-            override fun selectEvent(eventName: String) {}
-            override val selectedDeckId: String? = null
-            override val selectedEventName: String? = null
-            override fun resolveDeckJson(deckId: String): String? = null
-            override fun resolveDeckJsonByName(name: String): String? = null
-            override fun reportMatchResult(won: Boolean) {}
-        }
+        val NOOP: MatchCoordinator =
+            object : MatchCoordinator {
+                override fun selectDeck(deckId: String) {}
+
+                override fun selectEvent(eventName: String) {}
+
+                override val selectedDeckId: String? = null
+                override val selectedEventName: String? = null
+
+                override fun resolveDeckJson(deckId: String): String? = null
+
+                override fun resolveDeckJsonByName(name: String): String? = null
+
+                override fun reportMatchResult(won: Boolean) {}
+            }
     }
 }

@@ -30,10 +30,11 @@ class ShapeIntegrationTest :
         afterEach { base.tearDown() }
 
         test("remoteActionDiff produces content SendHiFi GSM plus bare SendHiFi echo") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Plains", human, ZoneType.Hand)
-                base.addCard("Forest", human, ZoneType.Battlefield)
-            }
+            val (b, game, counter) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Plains", human, ZoneType.Hand)
+                    base.addCard("Forest", human, ZoneType.Battlefield)
+                }
 
             val messages = base.bundleBuilder(b).remoteActionDiff(game, counter).messages
 
@@ -52,9 +53,10 @@ class ShapeIntegrationTest :
         }
 
         test("declareAttackersBundle produces GS + DeclareAttackersReq with promptId=6") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-            }
+            val (b, game, counter) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
 
             val messages = base.bundleBuilder(b).declareAttackersBundle(game, counter).messages
 
@@ -68,9 +70,10 @@ class ShapeIntegrationTest :
 
         test("edictalPass produces single EdictalMessage") {
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
-            val messages = BundleBuilder(bridge, "test-match", 1)
-                .edictalPass(MessageCounter(initialGsId = 10, initialMsgId = 0))
-                .messages
+            val messages =
+                BundleBuilder(bridge, "test-match", 1)
+                    .edictalPass(MessageCounter(initialGsId = 10, initialMsgId = 0))
+                    .messages
 
             messages.size shouldBe 1
             messages[0].type shouldBe GREMessageType.EdictalMessage_695e

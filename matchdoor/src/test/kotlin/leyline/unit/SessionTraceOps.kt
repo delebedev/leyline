@@ -21,7 +21,6 @@ class SessionTraceOps(
     override var counter: MessageCounter = MessageCounter(),
     private val bridge: GameBridge? = null,
 ) : SessionOps {
-
     @Suppress("CanBeNonNullable") // Overrides the nullable `SessionOps.bundleBuilder` contract.
     override val bundleBuilder: BundleBuilder? =
         bridge?.let { BundleBuilder(it, matchId, seatId.value) }
@@ -41,7 +40,10 @@ class SessionTraceOps(
         sentGRE.add(messages)
     }
 
-    override fun sendRealGameState(bridge: GameBridge, revealForSeat: Int?) {
+    override fun sendRealGameState(
+        bridge: GameBridge,
+        revealForSeat: Int?,
+    ) {
         sentRealGameState.add(bridge)
     }
 
@@ -53,7 +55,11 @@ class SessionTraceOps(
         sentGameOver.add(reason)
     }
 
-    override fun traceEvent(type: MatchEventType, game: Game, detail: String) {
+    override fun traceEvent(
+        type: MatchEventType,
+        game: Game,
+        detail: String,
+    ) {
         tracedEvents.add(Triple(type, game.phaseHandler.phase?.name ?: "?", detail))
     }
 
@@ -67,17 +73,20 @@ class SessionTraceOps(
         msgId: Int,
         configure: (GREToClientMessage.Builder) -> Unit,
     ): GREToClientMessage {
-        val gre = GREToClientMessage.newBuilder()
-            .setType(type).setMsgId(msgId).setGameStateId(gsId).addSystemSeatIds(seatId.value)
+        val gre =
+            GREToClientMessage
+                .newBuilder()
+                .setType(type)
+                .setMsgId(msgId)
+                .setGameStateId(gsId)
+                .addSystemSeatIds(seatId.value)
         configure(gre)
         return gre.build()
     }
 
     /** True if any traced event has the given type. */
-    fun hasTrace(type: MatchEventType): Boolean =
-        tracedEvents.any { it.first == type }
+    fun hasTrace(type: MatchEventType): Boolean = tracedEvents.any { it.first == type }
 
     /** True if any traced event detail contains the substring. */
-    fun hasTraceContaining(detail: String): Boolean =
-        tracedEvents.any { it.third.contains(detail) }
+    fun hasTraceContaining(detail: String): Boolean = tracedEvents.any { it.third.contains(detail) }
 }

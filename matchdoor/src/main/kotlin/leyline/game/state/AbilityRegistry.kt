@@ -22,7 +22,6 @@ class AbilityRegistry private constructor(
     private val triggerMap: Map<Int, Int>,
     val slotLayout: SlotLayout = SlotLayout.Companion.EMPTY,
 ) {
-
     /** SpellAbility forge id → abilityGrpId (mana + activated). */
     fun forSpellAbility(forgeId: Int): Int? = saMap[forgeId]
 
@@ -33,7 +32,6 @@ class AbilityRegistry private constructor(
     fun forTrigger(forgeId: Int): Int? = triggerMap[forgeId]
 
     companion object {
-
         /** Empty registry — no mappings. */
         val EMPTY = AbilityRegistry(emptyMap(), emptyMap(), emptyMap(), SlotLayout.Companion.EMPTY)
 
@@ -43,7 +41,10 @@ class AbilityRegistry private constructor(
          * Uses [cardData.abilityIds] for slot values, so must be called *after*
          * [leyline.game.data.AbilityIdDeriver.deriveAbilityIds].
          */
-        fun build(card: Card, cardData: CardData): AbilityRegistry {
+        fun build(
+            card: Card,
+            cardData: CardData,
+        ): AbilityRegistry {
             val abilityIds = cardData.abilityIds
             if (abilityIds.isEmpty()) return EMPTY
 
@@ -63,10 +64,11 @@ class AbilityRegistry private constructor(
             // mana-only cards get Activated here; AbilityIdDeriver uses Mana for those.
             // forgeIndexFor() ignores kind — only slot position matters.
             val activatedCount = abilityIds.size - keywordCount
-            val slots = abilityIds.mapIndexed { i, (grpId, textId) ->
-                val kind = if (i < keywordCount) SlotKind.Keyword else SlotKind.Activated
-                SlotEntry(grpId, textId, kind)
-            }
+            val slots =
+                abilityIds.mapIndexed { i, (grpId, textId) ->
+                    val kind = if (i < keywordCount) SlotKind.Keyword else SlotKind.Activated
+                    SlotEntry(grpId, textId, kind)
+                }
             val layout = SlotLayout(keywordCount, activatedCount, slots)
 
             return AbilityRegistry(saMap, staticMap, triggerMap, layout)
@@ -80,16 +82,21 @@ class AbilityRegistry private constructor(
             staticMap: MutableMap<Int, Int>,
             triggerMap: MutableMap<Int, Int>,
         ): Int {
-            val keywordStrings = card.rules?.mainPart?.keywords?.toList() ?: emptyList()
+            val keywordStrings =
+                card.rules
+                    ?.mainPart
+                    ?.keywords
+                    ?.toList() ?: emptyList()
             val liveKeywords = card.getKeywords() ?: emptyList()
             val claimed = mutableSetOf<KeywordInterface>()
 
             for ((slotIdx, kwText) in keywordStrings.withIndex()) {
                 if (slotIdx >= abilityIds.size) break
                 val grpId = abilityIds[slotIdx].first
-                val matching = liveKeywords.filter { kw ->
-                    kw !in claimed && kw.isIntrinsic && matchesKeywordText(kw, kwText)
-                }
+                val matching =
+                    liveKeywords.filter { kw ->
+                        kw !in claimed && kw.isIntrinsic && matchesKeywordText(kw, kwText)
+                    }
                 for (kw in matching) {
                     claimed.add(kw)
                     for (sa in kw.abilities) saMap[sa.id] = grpId
@@ -118,7 +125,11 @@ class AbilityRegistry private constructor(
         }
 
         /** Phase 3: Mana abilities fall back to slot 0. */
-        private fun mapManaAbilities(card: Card, fallbackGrpId: Int, saMap: MutableMap<Int, Int>) {
+        private fun mapManaAbilities(
+            card: Card,
+            fallbackGrpId: Int,
+            saMap: MutableMap<Int, Int>,
+        ) {
             for (sa in card.spellAbilities ?: emptyList()) {
                 if (!sa.isManaAbility() || !sa.isIntrinsic) continue
                 saMap.putIfAbsent(sa.id, fallbackGrpId)
@@ -142,7 +153,10 @@ class AbilityRegistry private constructor(
             }
         }
 
-        private fun matchesKeywordText(kw: KeywordInterface, rulesText: String): Boolean {
+        private fun matchesKeywordText(
+            kw: KeywordInterface,
+            rulesText: String,
+        ): Boolean {
             if (kw.original.equals(rulesText, ignoreCase = true)) return true
             val kwName = kw.keyword.toString()
             return rulesText.startsWith(kwName, ignoreCase = true)

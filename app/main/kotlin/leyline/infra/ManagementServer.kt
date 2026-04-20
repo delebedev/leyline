@@ -26,9 +26,10 @@ class ManagementServer(
     fun start() {
         val srv = HttpServer.create(InetSocketAddress(port), 0)
         srv.createContext("/health") { ex -> serveHealth(ex) }
-        srv.executor = Executors.newFixedThreadPool(2) { r ->
-            Thread(r, "mgmt-http").apply { isDaemon = true }
-        }
+        srv.executor =
+            Executors.newFixedThreadPool(2) { r ->
+                Thread(r, "mgmt-http").apply { isDaemon = true }
+            }
         srv.start()
         server = srv
         log.info("Management server: http://localhost:{}/health", port)
@@ -53,7 +54,8 @@ class ManagementServer(
             try {
                 ex.sendResponseHeaders(500, -1)
                 ex.close()
-            } catch (_: Throwable) {}
+            } catch (_: Throwable) {
+            }
         }
     }
 }

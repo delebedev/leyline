@@ -14,8 +14,9 @@ import java.util.UUID
  * SQLite-backed account storage. Lives in the same DB as the player/deck tables
  * but owns only the `accounts` table.
  */
-class AccountStore(private val database: Database) {
-
+class AccountStore(
+    private val database: Database,
+) {
     internal object Accounts : Table("accounts") {
         val accountId = text("account_id")
         val personaId = text("persona_id").uniqueIndex()
@@ -45,7 +46,10 @@ class AccountStore(private val database: Database) {
         val hash = BCrypt.hashpw(password, BCrypt.gensalt())
         val fullName = generateUniqueDisplayName(displayName)
 
-        val now = java.time.Instant.now().toString()
+        val now =
+            java.time.Instant
+                .now()
+                .toString()
         transaction(database) {
             Accounts.insert {
                 it[Accounts.accountId] = accountId
@@ -78,7 +82,10 @@ class AccountStore(private val database: Database) {
         val existing = findByEmail(email)
         if (existing != null) return false
         val hash = BCrypt.hashpw(password, BCrypt.gensalt())
-        val now = java.time.Instant.now().toString()
+        val now =
+            java.time.Instant
+                .now()
+                .toString()
         transaction(database) {
             Accounts.insert {
                 it[Accounts.accountId] = accountId
@@ -95,12 +102,17 @@ class AccountStore(private val database: Database) {
     }
 
     /** Authenticate by email + password. Returns [Account] on success, null on failure. */
-    fun authenticate(email: String, password: String): Account? {
-        val row = transaction(database) {
-            Accounts.selectAll()
-                .where { Accounts.email eq email.lowercase() }
-                .firstOrNull()
-        } ?: return null
+    fun authenticate(
+        email: String,
+        password: String,
+    ): Account? {
+        val row =
+            transaction(database) {
+                Accounts
+                    .selectAll()
+                    .where { Accounts.email eq email.lowercase() }
+                    .firstOrNull()
+            } ?: return null
         val hash = row[Accounts.passwordHash]
         if (!BCrypt.checkpw(password, hash)) return null
         return row.toAccount()
@@ -112,43 +124,59 @@ class AccountStore(private val database: Database) {
     /** Look up account by persona ID. */
     fun findByPersonaId(personaId: String): Account? = findOneBy(Accounts.personaId, personaId)
 
-    private fun <T : Comparable<T>> findOneBy(column: org.jetbrains.exposed.v1.core.Column<T>, value: T): Account? =
+    private fun <T : Comparable<T>> findOneBy(
+        column: org.jetbrains.exposed.v1.core.Column<T>,
+        value: T,
+    ): Account? =
         transaction(database) {
-            Accounts.selectAll()
+            Accounts
+                .selectAll()
                 .where { column eq value }
                 .firstOrNull()
                 ?.toAccount()
         }
 
     /** Check if any accounts exist (for dev seed logic). */
-    fun isEmpty(): Boolean = transaction(database) {
-        Accounts.selectAll().count() == 0L
-    }
+    fun isEmpty(): Boolean =
+        transaction(database) {
+            Accounts.selectAll().count() == 0L
+        }
 
-    private fun org.jetbrains.exposed.v1.core.ResultRow.toAccount() = Account(
-        accountId = this[Accounts.accountId],
-        personaId = this[Accounts.personaId],
-        email = this[Accounts.email],
-        displayName = this[Accounts.displayName],
-        country = this[Accounts.country],
-        dob = this[Accounts.dob],
-        createdAt = this[Accounts.createdAt],
-    )
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toAccount() =
+        Account(
+            accountId = this[Accounts.accountId],
+            personaId = this[Accounts.personaId],
+            email = this[Accounts.email],
+            displayName = this[Accounts.displayName],
+            country = this[Accounts.country],
+            dob = this[Accounts.dob],
+            createdAt = this[Accounts.createdAt],
+        )
 
     private fun generateUniqueDisplayName(baseName: String): String {
         repeat(10) {
             val disc = (1..99999).random()
             val candidate = "$baseName#${disc.toString().padStart(5, '0')}"
-            val exists = transaction(database) {
-                Accounts.selectAll().where { Accounts.displayName eq candidate }.empty().not()
-            }
+            val exists =
+                transaction(database) {
+                    Accounts
+                        .selectAll()
+                        .where { Accounts.displayName eq candidate }
+                        .empty()
+                        .not()
+                }
             if (!exists) return candidate
         }
         error("Failed to generate unique display name for '$baseName' after 10 attempts")
     }
 
     private fun generateId(): String =
-        UUID.randomUUID().toString().replace("-", "").uppercase().take(26)
+        UUID
+            .randomUUID()
+            .toString()
+            .replace("-", "")
+            .uppercase()
+            .take(26)
 }
 
 /** Immutable account snapshot returned from store queries. */

@@ -21,17 +21,18 @@ class DeckServiceTest :
         val playerId = PlayerId("p1")
 
         test("save and retrieve deck") {
-            val deck = Deck(
-                id = DeckId("d1"),
-                playerId = playerId,
-                name = "Test",
-                format = Format.Standard,
-                tileId = 0,
-                mainDeck = listOf(DeckCard(100, 60)),
-                sideboard = emptyList(),
-                commandZone = emptyList(),
-                companions = emptyList(),
-            )
+            val deck =
+                Deck(
+                    id = DeckId("d1"),
+                    playerId = playerId,
+                    name = "Test",
+                    format = Format.Standard,
+                    tileId = 0,
+                    mainDeck = listOf(DeckCard(100, 60)),
+                    sideboard = emptyList(),
+                    commandZone = emptyList(),
+                    companions = emptyList(),
+                )
             service.save(deck)
             service.getById(DeckId("d1")) shouldNotBe null
         }

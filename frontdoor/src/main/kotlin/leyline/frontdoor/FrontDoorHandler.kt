@@ -63,7 +63,6 @@ class FrontDoorHandler(
     private val bootstrapData: FrontDoorBootstrapData,
     private val coordinator: MatchCoordinator = MatchCoordinator.NOOP,
 ) : ChannelInboundHandlerAdapter() {
-
     private val log = LoggerFactory.getLogger(FrontDoorHandler::class.java)
 
     /**
@@ -76,10 +75,11 @@ class FrontDoorHandler(
      */
     private val selectedDeckByEvent = mutableMapOf<String, String>()
 
-    private val lenientJson = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
+    private val lenientJson =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
 
     init {
         log.info(
@@ -93,7 +93,10 @@ class FrontDoorHandler(
         log.info("Front Door: client connected from {}", ctx.channel().remoteAddress())
     }
 
-    override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
+    override fun channelRead(
+        ctx: ChannelHandlerContext,
+        msg: Any,
+    ) {
         if (msg !is ByteBuf) {
             ReferenceCountUtil.release(msg)
             return
@@ -118,24 +121,26 @@ class FrontDoorHandler(
                 return
             }
 
-            val payload = if (bytes.size > FdWireConstants.HEADER_SIZE) {
-                bytes.copyOfRange(FdWireConstants.HEADER_SIZE, bytes.size)
-            } else {
-                null
-            }
+            val payload =
+                if (bytes.size > FdWireConstants.HEADER_SIZE) {
+                    bytes.copyOfRange(FdWireConstants.HEADER_SIZE, bytes.size)
+                } else {
+                    null
+                }
 
             if (payload == null) {
                 log.debug("Front Door: header-only message (ack/heartbeat)")
                 return
             }
 
-            val decoded = try {
-                FdEnvelope.decode(payload)
-            } catch (e: Exception) {
-                log.error("Front Door: envelope decode FAILED ({}B payload): {}", payload.size, e.message)
-                writer.sendEmpty(ctx, null)
-                return
-            }
+            val decoded =
+                try {
+                    FdEnvelope.decode(payload)
+                } catch (e: Exception) {
+                    log.error("Front Door: envelope decode FAILED ({}B payload): {}", payload.size, e.message)
+                    writer.sendEmpty(ctx, null)
+                    return
+                }
             val json = decoded.jsonPayload
             val transactionId = decoded.transactionId
             val cmdType = decoded.cmdType
@@ -150,40 +155,45 @@ class FrontDoorHandler(
     }
 
     /** Table-driven stubs — CmdTypes that return static bootstrap data with no logic. */
-    private val stubs: Map<Int, () -> FdResponse> = mapOf(
-        // Static bootstrap data (proto)
-        CmdType.GET_FORMATS.value to { FdResponse.RawProto(bootstrapData.getFormatsProto) },
-        CmdType.GET_SETS.value to { FdResponse.RawProto(bootstrapData.getSetsProto) },
-        // Static bootstrap data (JSON)
-        CmdType.DECK_GET_PRECONS_V3.value to { FdResponse.Json(bootstrapData.preconDecksJson) },
-        CmdType.CAROUSEL_GET_ITEMS.value to { FdResponse.Json("[]") },
-        CmdType.GRAPH_GET_DEFINITIONS.value to { FdResponse.Json(bootstrapData.graphDefinitionsJson) },
-        CmdType.GET_DESIGNER_METADATA.value to { FdResponse.Json(bootstrapData.designerMetadataJson) },
-        // Lobby stubs
-        CmdType.EVENT_GET_ACTIVE_MATCHES.value to { FdResponse.Json(LobbyStubs.activeMatches()) },
-        CmdType.CURRENCY_GET_CURRENCIES.value to { FdResponse.Json(LobbyStubs.currencies()) },
-        CmdType.BOOSTER_GET_OWNED.value to { FdResponse.Json(LobbyStubs.boosters()) },
-        CmdType.QUEST_GET_QUESTS.value to { FdResponse.Json(LobbyStubs.quests()) },
-        CmdType.RANK_GET_COMBINED.value to { FdResponse.Json(LobbyStubs.rankInfo()) },
-        CmdType.RANK_GET_SEASON_DETAILS.value to { FdResponse.Json(LobbyStubs.rankSeasonDetails()) },
-        CmdType.RANK_EVALUATE_PAYOUTS_V2.value to { FdResponse.Json(LobbyStubs.rankSeasonDetails()) },
-        CmdType.PERIODIC_REWARDS_GET_STATUS.value to { FdResponse.Json(LobbyStubs.periodicRewards()) },
-        CmdType.RENEWAL_GET_CURRENT.value to { FdResponse.Json(LobbyStubs.periodicRewards()) },
-        CmdType.COSMETICS_GET_OWNED.value to { FdResponse.Json(LobbyStubs.cosmetics()) },
-        CmdType.GET_NET_DECK_FOLDERS.value to { FdResponse.Json(LobbyStubs.netDeckFolders()) },
-        CmdType.GET_PLAYER_INBOX.value to { FdResponse.Json(LobbyStubs.playerInbox()) },
-        CmdType.STATIC_CONTENT.value to { FdResponse.Json(LobbyStubs.staticContent()) },
-        CmdType.GET_ALL_PREFERRED_PRINTINGS.value to { FdResponse.Json(LobbyStubs.preferredPrintings()) },
-        CmdType.GET_ALL_PRIZE_WALLS.value to { FdResponse.Json(LobbyStubs.prizeWalls()) },
-        CmdType.MERC_GET_STORE_STATUS_V2.value to { FdResponse.Json(LobbyStubs.storeStatus()) },
-        CmdType.STORE_GET_ENTITLEMENTS_V2.value to { FdResponse.Json(LobbyStubs.entitlements()) },
-        CmdType.MERC_GET_SKUS_AND_LISTINGS.value to { FdResponse.Json(LobbyStubs.skusAndListings()) },
-        CmdType.LOG_BUSINESS_EVENTS.value to { FdResponse.Json(LobbyStubs.telemetryAck()) },
-        CmdType.LOG_BUSINESS_EVENTS_V2.value to { FdResponse.Json(LobbyStubs.telemetryAck()) },
-        // Typed proto stubs
-        CmdType.GET_VOUCHER_DEFINITIONS.value to { FdResponse.TypedProto("Wizards.Arena.Models.Network.GetVoucherDefinitionsResponse") },
-        CmdType.CHALLENGE_RECONNECT_ALL.value to { FdResponse.TypedProto("Wizards.Arena.Models.Network.ChallengeReconnectAllResp") },
-    )
+    private val stubs: Map<Int, () -> FdResponse> =
+        mapOf(
+            // Static bootstrap data (proto)
+            CmdType.GET_FORMATS.value to { FdResponse.RawProto(bootstrapData.getFormatsProto) },
+            CmdType.GET_SETS.value to { FdResponse.RawProto(bootstrapData.getSetsProto) },
+            // Static bootstrap data (JSON)
+            CmdType.DECK_GET_PRECONS_V3.value to { FdResponse.Json(bootstrapData.preconDecksJson) },
+            CmdType.CAROUSEL_GET_ITEMS.value to { FdResponse.Json("[]") },
+            CmdType.GRAPH_GET_DEFINITIONS.value to { FdResponse.Json(bootstrapData.graphDefinitionsJson) },
+            CmdType.GET_DESIGNER_METADATA.value to { FdResponse.Json(bootstrapData.designerMetadataJson) },
+            // Lobby stubs
+            CmdType.EVENT_GET_ACTIVE_MATCHES.value to { FdResponse.Json(LobbyStubs.activeMatches()) },
+            CmdType.CURRENCY_GET_CURRENCIES.value to { FdResponse.Json(LobbyStubs.currencies()) },
+            CmdType.BOOSTER_GET_OWNED.value to { FdResponse.Json(LobbyStubs.boosters()) },
+            CmdType.QUEST_GET_QUESTS.value to { FdResponse.Json(LobbyStubs.quests()) },
+            CmdType.RANK_GET_COMBINED.value to { FdResponse.Json(LobbyStubs.rankInfo()) },
+            CmdType.RANK_GET_SEASON_DETAILS.value to { FdResponse.Json(LobbyStubs.rankSeasonDetails()) },
+            CmdType.RANK_EVALUATE_PAYOUTS_V2.value to { FdResponse.Json(LobbyStubs.rankSeasonDetails()) },
+            CmdType.PERIODIC_REWARDS_GET_STATUS.value to { FdResponse.Json(LobbyStubs.periodicRewards()) },
+            CmdType.RENEWAL_GET_CURRENT.value to { FdResponse.Json(LobbyStubs.periodicRewards()) },
+            CmdType.COSMETICS_GET_OWNED.value to { FdResponse.Json(LobbyStubs.cosmetics()) },
+            CmdType.GET_NET_DECK_FOLDERS.value to { FdResponse.Json(LobbyStubs.netDeckFolders()) },
+            CmdType.GET_PLAYER_INBOX.value to { FdResponse.Json(LobbyStubs.playerInbox()) },
+            CmdType.STATIC_CONTENT.value to { FdResponse.Json(LobbyStubs.staticContent()) },
+            CmdType.GET_ALL_PREFERRED_PRINTINGS.value to { FdResponse.Json(LobbyStubs.preferredPrintings()) },
+            CmdType.GET_ALL_PRIZE_WALLS.value to { FdResponse.Json(LobbyStubs.prizeWalls()) },
+            CmdType.MERC_GET_STORE_STATUS_V2.value to { FdResponse.Json(LobbyStubs.storeStatus()) },
+            CmdType.STORE_GET_ENTITLEMENTS_V2.value to { FdResponse.Json(LobbyStubs.entitlements()) },
+            CmdType.MERC_GET_SKUS_AND_LISTINGS.value to { FdResponse.Json(LobbyStubs.skusAndListings()) },
+            CmdType.LOG_BUSINESS_EVENTS.value to { FdResponse.Json(LobbyStubs.telemetryAck()) },
+            CmdType.LOG_BUSINESS_EVENTS_V2.value to { FdResponse.Json(LobbyStubs.telemetryAck()) },
+            // Typed proto stubs
+            CmdType.GET_VOUCHER_DEFINITIONS.value to {
+                FdResponse.TypedProto(
+                    "Wizards.Arena.Models.Network.GetVoucherDefinitionsResponse",
+                )
+            },
+            CmdType.CHALLENGE_RECONNECT_ALL.value to { FdResponse.TypedProto("Wizards.Arena.Models.Network.ChallengeReconnectAllResp") },
+        )
 
     @Suppress("CanBeNonNullable") // `json` comes from the decoder which may emit null for empty bodies.
     private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?) {
@@ -238,11 +248,14 @@ class FrontDoorHandler(
 
             CmdType.EVENT_GET_COURSES_V2.value -> {
                 log.info("Front Door: Event_GetCoursesV2")
-                val courses = courseService.getCoursesForPlayer(playerId)
-                    .filter { it.module != CourseModule.BotDraft } // hide draft-in-progress courses from merged list
+                val courses =
+                    courseService
+                        .getCoursesForPlayer(playerId)
+                        .filter { it.module != CourseModule.BotDraft } // hide draft-in-progress courses from merged list
                 val realEventNames = courses.map { it.eventName }.toSet()
-                val defaultJson = EventRegistry.defaultCourses
-                    .filter { it.first !in realEventNames }
+                val defaultJson =
+                    EventRegistry.defaultCourses
+                        .filter { it.first !in realEventNames }
                 writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.toMergedCoursesJson(courses, defaultJson)))
             }
 
@@ -274,15 +287,16 @@ class FrontDoorHandler(
             CmdType.DECK_UPSERT_V2.value -> {
                 requireJson(ctx, txId, json) { body ->
                     val savedDeck = DeckWireBuilder.parseDeckUpdate(body, playerId)
-                    val resp = if (savedDeck != null) {
-                        deckService.save(savedDeck)
-                        log.info("Front Door: Deck_UpsertDeckV2 saved '{}'", savedDeck.name)
-                        val summary = DeckWireBuilder.toV2Summary(savedDeck)
-                        buildJsonObject { put("Summary", summary) }
-                    } else {
-                        log.warn("Front Door: Deck_UpsertDeckV2 parse failed")
-                        buildJsonObject {}
-                    }
+                    val resp =
+                        if (savedDeck != null) {
+                            deckService.save(savedDeck)
+                            log.info("Front Door: Deck_UpsertDeckV2 saved '{}'", savedDeck.name)
+                            val summary = DeckWireBuilder.toV2Summary(savedDeck)
+                            buildJsonObject { put("Summary", summary) }
+                        } else {
+                            log.warn("Front Door: Deck_UpsertDeckV2 parse failed")
+                            buildJsonObject {}
+                        }
                     writer.send(ctx, txId, FdResponse.Json(lenientJson.encodeToString(JsonObject.serializer(), resp)))
                 }
             }
@@ -290,14 +304,15 @@ class FrontDoorHandler(
             CmdType.DECK_UPSERT_V3.value -> {
                 requireJson(ctx, txId, json) { body ->
                     val savedDeck = DeckWireBuilder.parseDeckUpdate(body, playerId)
-                    val resp = if (savedDeck != null) {
-                        deckService.save(savedDeck)
-                        log.info("Front Door: Deck_UpsertDeckV3 saved '{}'", savedDeck.name)
-                        DeckWireBuilder.toStartHookSummary(savedDeck)
-                    } else {
-                        log.warn("Front Door: Deck_UpsertDeckV3 parse failed")
-                        buildJsonObject {}
-                    }
+                    val resp =
+                        if (savedDeck != null) {
+                            deckService.save(savedDeck)
+                            log.info("Front Door: Deck_UpsertDeckV3 saved '{}'", savedDeck.name)
+                            DeckWireBuilder.toStartHookSummary(savedDeck)
+                        } else {
+                            log.warn("Front Door: Deck_UpsertDeckV3 parse failed")
+                            buildJsonObject {}
+                        }
                     writer.send(ctx, txId, FdResponse.Json(lenientJson.encodeToString(JsonObject.serializer(), resp)))
                 }
             }
@@ -361,18 +376,19 @@ class FrontDoorHandler(
                     // Ack immediately — spinner shows while waiting for MatchCreated push
                     writer.send(ctx, txId, FdResponse.Json("""{"CurrentModule":"CreateMatch","Payload":"Success"}"""))
 
-                    val match = if (courseDeckId != null) {
-                        matchmaking.createMatchInfo(eventName.orEmpty())
-                    } else if (eventName != null) {
-                        MatchInfo(
-                            matchmaking.createMatchId(eventName),
-                            matchmaking.matchDoorHost,
-                            matchmaking.matchDoorPort,
-                            eventName,
-                        )
-                    } else {
-                        matchmaking.startMatch(DeckId(deckId.orEmpty()), "")
-                    }
+                    val match =
+                        if (courseDeckId != null) {
+                            matchmaking.createMatchInfo(eventName.orEmpty())
+                        } else if (eventName != null) {
+                            MatchInfo(
+                                matchmaking.createMatchId(eventName),
+                                matchmaking.matchDoorHost,
+                                matchmaking.matchDoorPort,
+                                eventName,
+                            )
+                        } else {
+                            matchmaking.startMatch(DeckId(deckId.orEmpty()), "")
+                        }
                     sendMatchCreated(ctx, match)
                 } catch (e: IllegalArgumentException) {
                     log.warn("Front Door: Event_EnterPairing rejected — {}", e.message)
@@ -483,17 +499,19 @@ class FrontDoorHandler(
                 if (req != null) {
                     try {
                         val resolvedDeckId = DeckId(req.deckId ?: UUID.randomUUID().toString())
-                        val deck = CourseDeck(
-                            deckId = resolvedDeckId,
-                            mainDeck = req.mainDeck,
-                            sideboard = req.sideboard,
-                        )
-                        val summary = CourseDeckSummary(
-                            deckId = resolvedDeckId,
-                            name = req.deckName ?: "Sealed Deck",
-                            tileId = req.tileId ?: 0,
-                            format = "Limited",
-                        )
+                        val deck =
+                            CourseDeck(
+                                deckId = resolvedDeckId,
+                                mainDeck = req.mainDeck,
+                                sideboard = req.sideboard,
+                            )
+                        val summary =
+                            CourseDeckSummary(
+                                deckId = resolvedDeckId,
+                                name = req.deckName ?: "Sealed Deck",
+                                tileId = req.tileId ?: 0,
+                                format = "Limited",
+                            )
                         val course = courseService.setDeck(playerId, req.eventName, deck, summary)
                         writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
                     } catch (e: IllegalArgumentException) {
@@ -555,45 +573,65 @@ class FrontDoorHandler(
         block(json)
     }
 
-    private fun sendMatchCreated(ctx: ChannelHandlerContext, match: MatchInfo, yourSeat: Int = 1) {
+    private fun sendMatchCreated(
+        ctx: ChannelHandlerContext,
+        match: MatchInfo,
+        yourSeat: Int = 1,
+    ) {
         val matchType = if (yourSeat > 1) "Queue" else "Familiar"
 
         // Resolve commander grpIds for Brawl events (feeds VSScreen commander reveal).
         // AI mirrors seat 1's deck (same commander) — seat 2 gets the same grpIds.
-        val commanderGrpIds = coordinator.selectedDeckId?.let { deckId ->
-            deckService.getById(DeckId(deckId))?.commandZone?.map { it.grpId }
-        } ?: emptyList()
+        val commanderGrpIds =
+            coordinator.selectedDeckId?.let { deckId ->
+                deckService.getById(DeckId(deckId))?.commandZone?.map { it.grpId }
+            } ?: emptyList()
 
-        val playerInfos = if (commanderGrpIds.isNotEmpty()) {
-            listOf(
-                FdEnvelope.PlayerInfo(seatId = 1, teamId = 1, name = "Player", commanderGrpIds = commanderGrpIds),
-                FdEnvelope.PlayerInfo(seatId = 2, teamId = 2, name = "AI Opponent", commanderGrpIds = commanderGrpIds),
+        val playerInfos =
+            if (commanderGrpIds.isNotEmpty()) {
+                listOf(
+                    FdEnvelope.PlayerInfo(seatId = 1, teamId = 1, name = "Player", commanderGrpIds = commanderGrpIds),
+                    FdEnvelope.PlayerInfo(seatId = 2, teamId = 2, name = "AI Opponent", commanderGrpIds = commanderGrpIds),
+                )
+            } else {
+                null
+            }
+
+        val json =
+            FdEnvelope.buildMatchCreatedJson(
+                match.matchId,
+                match.host,
+                match.port,
+                matchType = matchType,
+                yourSeat = yourSeat,
+                eventId = match.eventName,
+                playerInfos = playerInfos,
             )
-        } else {
-            null
-        }
-
-        val json = FdEnvelope.buildMatchCreatedJson(
+        log.info(
+            "Front Door: pushing MatchCreated matchId={} event={} seat={} commanders={}",
             match.matchId,
-            match.host,
-            match.port,
-            matchType = matchType,
-            yourSeat = yourSeat,
-            eventId = match.eventName,
-            playerInfos = playerInfos,
+            match.eventName,
+            yourSeat,
+            commanderGrpIds.size,
         )
-        log.info("Front Door: pushing MatchCreated matchId={} event={} seat={} commanders={}", match.matchId, match.eventName, yourSeat, commanderGrpIds.size)
         writer.send(ctx, null, FdResponse.Json(json))
     }
 
-    private fun handleGraphRequest(ctx: ChannelHandlerContext, transactionId: String?, json: String?) {
+    private fun handleGraphRequest(
+        ctx: ChannelHandlerContext,
+        transactionId: String?,
+        json: String?,
+    ) {
         val graphId = json?.let { GRAPH_ID_PATTERN.find(it)?.groupValues?.get(1) } ?: "unknown"
         log.info("Front Door: GraphState graphId={}", graphId)
         val response = bootstrapData.graphStateResponses[graphId] ?: GRAPH_DEFAULT
         writer.send(ctx, transactionId, FdResponse.Json(response))
     }
 
-    override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
+    override fun exceptionCaught(
+        ctx: ChannelHandlerContext,
+        cause: Throwable,
+    ) {
         log.error("Front Door error: {}", cause.message, cause)
         ctx.close()
     }

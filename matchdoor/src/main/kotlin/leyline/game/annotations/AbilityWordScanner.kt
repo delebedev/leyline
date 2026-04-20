@@ -21,7 +21,6 @@ import kotlin.collections.iterator
  * AbilityGrpId resolution: delegates to AbilityRegistry.
  */
 object AbilityWordScanner {
-
     /** One ability word annotation to emit. */
     data class AbilityWordEntry(
         val instanceId: Int,
@@ -46,22 +45,36 @@ object AbilityWordScanner {
     )
 
     /** Maps Forge Condition$ name → Arena wire shape. Key doubles as AbilityWordName. */
-    private val CONDITIONS = mapOf(
-        "Threshold" to ConditionSpec(threshold = 7, value = { p, _ -> p.getZone(ZoneType.Graveyard).size() }),
-        "Metalcraft" to ConditionSpec(threshold = 3, value = { p, _ -> p.getCardsIn(ZoneType.Battlefield).toList().count { it.isArtifact } }),
-        "Delirium" to ConditionSpec(threshold = 4, value = { p, _ -> AbilityUtils.countCardTypesFromList(p.getCardsIn(ZoneType.Graveyard), false) }),
-        "Ferocious" to ConditionSpec(),
-        "Hellbent" to ConditionSpec(),
-        "Desert" to ConditionSpec(),
-        "Blessing" to ConditionSpec(),
-        "Morbid" to ConditionSpec(
-            perPlayer = true,
-            booleanOnly = true,
-            value = { p, src ->
-                CardUtil.getThisTurnEntered(ZoneType.Graveyard, ZoneType.Battlefield, "Creature", src, null, p).size
-            },
-        ),
-    )
+    private val CONDITIONS =
+        mapOf(
+            "Threshold" to ConditionSpec(threshold = 7, value = { p, _ -> p.getZone(ZoneType.Graveyard).size() }),
+            "Metalcraft" to
+                ConditionSpec(threshold = 3, value = {
+                    p,
+                    _,
+                    ->
+                    p.getCardsIn(ZoneType.Battlefield).toList().count { it.isArtifact }
+                }),
+            "Delirium" to
+                ConditionSpec(threshold = 4, value = {
+                    p,
+                    _,
+                    ->
+                    AbilityUtils.countCardTypesFromList(p.getCardsIn(ZoneType.Graveyard), false)
+                }),
+            "Ferocious" to ConditionSpec(),
+            "Hellbent" to ConditionSpec(),
+            "Desert" to ConditionSpec(),
+            "Blessing" to ConditionSpec(),
+            "Morbid" to
+                ConditionSpec(
+                    perPlayer = true,
+                    booleanOnly = true,
+                    value = { p, src ->
+                        CardUtil.getThisTurnEntered(ZoneType.Graveyard, ZoneType.Battlefield, "Creature", src, null, p).size
+                    },
+                ),
+        )
 
     /** Named params checked on Triggers (Threshold$ True, etc.) — derived from CONDITIONS. */
     private val NAMED_PARAM_CONDITIONS = CONDITIONS.keys
@@ -103,9 +116,12 @@ object AbilityWordScanner {
                 if (!seen.add(card.id to condition)) continue
 
                 if (spec.perPlayer) {
-                    perPlayerCards.getOrPut(condition) { mutableMapOf() }
-                        .getOrPut(seatIdx) { mutableListOf() }.add(iid)
-                    perPlayerRepCard.getOrPut(condition) { mutableMapOf() }
+                    perPlayerCards
+                        .getOrPut(condition) { mutableMapOf() }
+                        .getOrPut(seatIdx) { mutableListOf() }
+                        .add(iid)
+                    perPlayerRepCard
+                        .getOrPut(condition) { mutableMapOf() }
                         .putIfAbsent(seatIdx, card)
                 } else {
                     results.add(
@@ -137,9 +153,12 @@ object AbilityWordScanner {
                     val spec = CONDITIONS[conditionName] ?: continue
 
                     if (spec.perPlayer) {
-                        perPlayerCards.getOrPut(conditionName) { mutableMapOf() }
-                            .getOrPut(seatIdx) { mutableListOf() }.add(iid)
-                        perPlayerRepCard.getOrPut(conditionName) { mutableMapOf() }
+                        perPlayerCards
+                            .getOrPut(conditionName) { mutableMapOf() }
+                            .getOrPut(seatIdx) { mutableListOf() }
+                            .add(iid)
+                        perPlayerRepCard
+                            .getOrPut(conditionName) { mutableMapOf() }
                             .putIfAbsent(seatIdx, card)
                     } else {
                         results.add(

@@ -12,7 +12,6 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Test-only utility -- not part of production code.
  */
 class ClientAccumulator {
-
     /** instanceId -> GameObjectInfo (latest version). Full replaces all; Diff adds/updates. */
     val objects = mutableMapOf<Int, GameObjectInfo>()
 
@@ -85,6 +84,7 @@ class ClientAccumulator {
      * the client does the same. The client uses zone counts for UI
      * (e.g. "52 cards in library") but never renders hidden card details.
      */
+
     /**
      * Throw with a clear message if either invariant is violated. Use in
      * tests at checkpoints to catch accumulator drift early: an orphan

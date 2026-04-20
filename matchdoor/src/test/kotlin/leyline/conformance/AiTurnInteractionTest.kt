@@ -39,13 +39,15 @@ class AiTurnInteractionTest :
         test("AI-first boot — ≤1 Full post-handshake + phaseTransitionDiff pattern") {
             startGame(seed = AI_FIRST_SEED)
 
-            val gsms = allMessages
-                .filter { it.hasGameStateMessage() }
-                .map { it.gameStateMessage }
+            val gsms =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
 
             // ≤1 Full GSM with zones — no heavyweight Full spam
-            val fullWithZones = gsms
-                .filter { it.type == GameStateType.Full && it.zonesCount > 0 }
+            val fullWithZones =
+                gsms
+                    .filter { it.type == GameStateType.Full && it.zonesCount > 0 }
 
             // Find the phaseTransitionDiff start: first Diff GSM with gameInfo
             val ptStart = gsms.indexOfFirst { it.type == GameStateType.Diff && it.hasGameInfo() }
@@ -60,16 +62,20 @@ class AiTurnInteractionTest :
 
             // GSM N+0: SendHiFi with 2+ PhaseOrStepModified + gameInfo
             val gsm0 = gsms[ptStart]
-            val phaseAnns0 = gsm0.annotationsList.flatMap { it.typeList }
-                .count { it == AnnotationType.PhaseOrStepModified }
+            val phaseAnns0 =
+                gsm0.annotationsList
+                    .flatMap { it.typeList }
+                    .count { it == AnnotationType.PhaseOrStepModified }
 
             // GSM N+1: SendHiFi echo with turnInfo
             val gsm1 = gsms[ptStart + 1]
 
             // GSM N+2: SendAndRecord with 1 PhaseOrStepModified
             val gsm2 = gsms[ptStart + 2]
-            val phaseAnns2 = gsm2.annotationsList.flatMap { it.typeList }
-                .count { it == AnnotationType.PhaseOrStepModified }
+            val phaseAnns2 =
+                gsm2.annotationsList
+                    .flatMap { it.typeList }
+                    .count { it == AnnotationType.PhaseOrStepModified }
 
             assertSoftly {
                 gsm0.type shouldBe GameStateType.Diff
@@ -121,10 +127,11 @@ class AiTurnInteractionTest :
             val startTurn = turn()
             passUntil(maxPasses = 40) { isGameOver() || turn() > startTurn }
 
-            val gsmsWithTurnInfo = allMessages
-                .filter { it.hasGameStateMessage() }
-                .map { it.gameStateMessage }
-                .filter { it.hasTurnInfo() }
+            val gsmsWithTurnInfo =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .filter { it.hasTurnInfo() }
 
             val phaseChanges = mutableListOf<Int>()
             for (i in 1 until gsmsWithTurnInfo.size) {
@@ -136,22 +143,24 @@ class AiTurnInteractionTest :
             }
             phaseChanges.shouldNotBeEmpty()
 
-            val missing = phaseChanges.filter { i ->
-                gsmsWithTurnInfo[i].annotationsList.none { ann ->
-                    AnnotationType.PhaseOrStepModified in ann.typeList
-                }
-            }
-            if (missing.isNotEmpty()) {
-                val report = buildString {
-                    appendLine("${missing.size}/${phaseChanges.size} phase transitions missing PhaseOrStepModified:")
-                    missing.take(5).forEach { i ->
-                        val gsm = gsmsWithTurnInfo[i]
-                        appendLine(
-                            "  gsId=${gsm.gameStateId} " +
-                                "phase=${gsm.turnInfo.phase}/${gsm.turnInfo.step} update=${gsm.update}",
-                        )
+            val missing =
+                phaseChanges.filter { i ->
+                    gsmsWithTurnInfo[i].annotationsList.none { ann ->
+                        AnnotationType.PhaseOrStepModified in ann.typeList
                     }
                 }
+            if (missing.isNotEmpty()) {
+                val report =
+                    buildString {
+                        appendLine("${missing.size}/${phaseChanges.size} phase transitions missing PhaseOrStepModified:")
+                        missing.take(5).forEach { i ->
+                            val gsm = gsmsWithTurnInfo[i]
+                            appendLine(
+                                "  gsId=${gsm.gameStateId} " +
+                                    "phase=${gsm.turnInfo.phase}/${gsm.turnInfo.step} update=${gsm.update}",
+                            )
+                        }
+                    }
                 fail("Phase transitions must have PhaseOrStepModified annotations:\n$report")
             }
         }
@@ -211,9 +220,11 @@ class AiTurnInteractionTest :
             )
 
             // Use full message history — combat resolved during onPuzzleStart
-            val gsms = allMessages.filter { it.hasGameStateMessage() }
-                .map { it.gameStateMessage }
-                .filter { it.hasTurnInfo() && it.turnInfo.activePlayer == OPPONENT_SEAT }
+            val gsms =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .filter { it.hasTurnInfo() && it.turnInfo.activePlayer == OPPONENT_SEAT }
 
             gsms.shouldNotBeEmpty()
 
@@ -230,13 +241,14 @@ class AiTurnInteractionTest :
 
         // ─── AI land-play diff discipline (scripted AI) ─────────────────────────
 
-        val scriptedLandThenGoblin = listOf(
-            ScriptedAction.PlayLand("Mountain"),
-            ScriptedAction.CastSpell("Raging Goblin"),
-            ScriptedAction.PassPriority,
-            ScriptedAction.DeclareNoAttackers,
-            ScriptedAction.PassPriority,
-        )
+        val scriptedLandThenGoblin =
+            listOf(
+                ScriptedAction.PlayLand("Mountain"),
+                ScriptedAction.CastSpell("Raging Goblin"),
+                ScriptedAction.PassPriority,
+                ScriptedAction.DeclareNoAttackers,
+                ScriptedAction.PassPriority,
+            )
 
         test("AI land play — dedicated gsId + annotations + precedes CastSpell, CastSpell clean") {
             startGame(seed = 42L, deckList = COMBAT_DECK, validating = false)
@@ -255,21 +267,25 @@ class AiTurnInteractionTest :
 
             // --- PlayLand diff facets ---
             val annTypes = playLandGsm.annotationsList.map { it.typeList.firstOrNull() }
-            val userAction = playLandGsm.annotationsList.first {
-                it.typeList.contains(AnnotationType.UserActionTaken)
-            }
-            val landObj = playLandGsm.gameObjectsList.firstOrNull { obj ->
-                obj.cardTypesList.contains(CardType.Land_a80b) && obj.zoneId == 28
-            }
-            val creatureOnStack = playLandGsm.gameObjectsList.firstOrNull { obj ->
-                obj.cardTypesList.contains(CardType.Creature) && obj.zoneId == 27
-            }
+            val userAction =
+                playLandGsm.annotationsList.first {
+                    it.typeList.contains(AnnotationType.UserActionTaken)
+                }
+            val landObj =
+                playLandGsm.gameObjectsList.firstOrNull { obj ->
+                    obj.cardTypesList.contains(CardType.Land_a80b) && obj.zoneId == 28
+                }
+            val creatureOnStack =
+                playLandGsm.gameObjectsList.firstOrNull { obj ->
+                    obj.cardTypesList.contains(CardType.Creature) && obj.zoneId == 27
+                }
 
             // --- CastSpell diff facets ---
-            val castSpellHasPlayLandAnn = castSpellGsm.annotationsList.any { ann ->
-                AnnotationType.ZoneTransfer_af5a in ann.typeList &&
-                    ann.detail("category")?.getValueString(0) == "PlayLand"
-            }
+            val castSpellHasPlayLandAnn =
+                castSpellGsm.annotationsList.any { ann ->
+                    AnnotationType.ZoneTransfer_af5a in ann.typeList &&
+                        ann.detail("category")?.getValueString(0) == "PlayLand"
+                }
 
             assertSoftly {
                 // PlayLand has own gsId, precedes CastSpell
@@ -295,14 +311,15 @@ class AiTurnInteractionTest :
             startGame(seed = 2L, deckList = COMBAT_DECK, validating = false)
             passUntilTurn(2)
 
-            val turn1PlayLand = allMessages.filter { it.hasGameStateMessage() }.filter { gre ->
-                val gsm = gre.gameStateMessage
-                gsm.turnInfo.turnNumber == 1 &&
-                    gsm.annotationsList.any { ann ->
-                        AnnotationType.ZoneTransfer_af5a in ann.typeList &&
-                            ann.detail("category")?.getValueString(0) == "PlayLand"
-                    }
-            }
+            val turn1PlayLand =
+                allMessages.filter { it.hasGameStateMessage() }.filter { gre ->
+                    val gsm = gre.gameStateMessage
+                    gsm.turnInfo.turnNumber == 1 &&
+                        gsm.annotationsList.any { ann ->
+                            AnnotationType.ZoneTransfer_af5a in ann.typeList &&
+                                ann.detail("category")?.getValueString(0) == "PlayLand"
+                        }
+                }
             turn1PlayLand.shouldNotBeEmpty()
         }
     })

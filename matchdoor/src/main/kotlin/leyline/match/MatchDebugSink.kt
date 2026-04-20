@@ -8,7 +8,6 @@ package leyline.match
  * Tests: null (no debug panel).
  */
 interface MatchDebugSink {
-
     /** Provider for active game bridges. Set during handler init. */
     var bridgeProvider: (() -> Map<String, Any>)?
 

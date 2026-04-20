@@ -19,10 +19,11 @@ class TokenService(
         val expiresIn: Long = ACCESS_EXPIRY_SECONDS,
     )
 
-    fun issueTokens(account: Account): TokenPair = TokenPair(
-        accessToken = buildToken(account, ACCESS_EXPIRY_SECONDS),
-        refreshToken = buildToken(account, REFRESH_EXPIRY_SECONDS),
-    )
+    fun issueTokens(account: Account): TokenPair =
+        TokenPair(
+            accessToken = buildToken(account, ACCESS_EXPIRY_SECONDS),
+            refreshToken = buildToken(account, REFRESH_EXPIRY_SECONDS),
+        )
 
     fun validateRefreshToken(token: String): String? = validateToken(token)
 
@@ -30,20 +31,29 @@ class TokenService(
 
     private fun validateToken(token: String): String? {
         val payload = decodePayload(token) ?: return null
-        val exp = CLAIM_EXP.find(payload)?.groupValues?.get(1)?.toLongOrNull() ?: return null
+        val exp =
+            CLAIM_EXP
+                .find(payload)
+                ?.groupValues
+                ?.get(1)
+                ?.toLongOrNull() ?: return null
         if (exp < nowSeconds()) return null
         return CLAIM_SUB.find(payload)?.groupValues?.get(1)
     }
 
-    private fun buildToken(account: Account, ttlSeconds: Long): String {
+    private fun buildToken(
+        account: Account,
+        ttlSeconds: Long,
+    ): String {
         val now = nowSeconds()
-        val payload = buildJsonObject {
-            put("aud", JsonPrimitive(clientId))
-            put("exp", JsonPrimitive(now + ttlSeconds))
-            put("iat", JsonPrimitive(now))
-            put("iss", JsonPrimitive(account.accountId))
-            put("sub", JsonPrimitive(account.personaId))
-        }.toString()
+        val payload =
+            buildJsonObject {
+                put("aud", JsonPrimitive(clientId))
+                put("exp", JsonPrimitive(now + ttlSeconds))
+                put("iat", JsonPrimitive(now))
+                put("iss", JsonPrimitive(account.accountId))
+                put("sub", JsonPrimitive(account.personaId))
+            }.toString()
         return encodeJwt(payload)
     }
 

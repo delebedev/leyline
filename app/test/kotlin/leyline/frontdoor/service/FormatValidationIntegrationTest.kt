@@ -24,10 +24,11 @@ class FormatValidationIntegrationTest :
         }
 
         // Nykthos, Shrine to Nyx — Theros (THS), legal in Pioneer/Explorer, not Standard.
-        val nonStandardDeck = """
+        val nonStandardDeck =
+            """
             4 Nykthos, Shrine to Nyx
             56 Forest
-        """.trimIndent()
+            """.trimIndent()
 
         test("Standard rejects a card not in Standard") {
             val deck = DeckLoader.parseDeckList(nonStandardDeck)
@@ -49,9 +50,10 @@ class FormatValidationIntegrationTest :
         }
 
         test("mapArenaFormat + resolve round-trip") {
-            val format = FormatService.resolve(
-                EventRegistry.mapArenaFormat("TraditionalStandard"),
-            )
+            val format =
+                FormatService.resolve(
+                    EventRegistry.mapArenaFormat("TraditionalStandard"),
+                )
             format.shouldNotBeNull()
         }
     })

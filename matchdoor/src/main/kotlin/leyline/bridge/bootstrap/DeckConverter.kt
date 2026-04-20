@@ -4,7 +4,10 @@ import forge.deck.Deck
 import org.slf4j.LoggerFactory
 
 /** Card entry for deck conversion: grpId + quantity. */
-data class CardEntry(val grpId: Int, val quantity: Int)
+data class CardEntry(
+    val grpId: Int,
+    val quantity: Int,
+)
 
 object DeckConverter {
     private val log = LoggerFactory.getLogger(DeckConverter::class.java)
@@ -25,39 +28,40 @@ object DeckConverter {
         sideboard: List<CardEntry>,
         commandZone: List<CardEntry> = emptyList(),
         nameByGrpId: (Int) -> String?,
-    ): String = buildString {
-        if (commandZone.isNotEmpty()) {
-            appendLine("[Commander]")
-            for (card in commandZone) {
+    ): String =
+        buildString {
+            if (commandZone.isNotEmpty()) {
+                appendLine("[Commander]")
+                for (card in commandZone) {
+                    val name = nameByGrpId(card.grpId)
+                    if (name != null) {
+                        appendLine("${card.quantity} $name")
+                    } else {
+                        log.warn("DeckConverter: unknown commander grpId {}", card.grpId)
+                    }
+                }
+                appendLine("[Deck]")
+            }
+            for (card in mainDeck) {
                 val name = nameByGrpId(card.grpId)
                 if (name != null) {
                     appendLine("${card.quantity} $name")
                 } else {
-                    log.warn("DeckConverter: unknown commander grpId {}", card.grpId)
+                    log.warn("DeckConverter: unknown grpId {}", card.grpId)
                 }
             }
-            appendLine("[Deck]")
-        }
-        for (card in mainDeck) {
-            val name = nameByGrpId(card.grpId)
-            if (name != null) {
-                appendLine("${card.quantity} $name")
-            } else {
-                log.warn("DeckConverter: unknown grpId {}", card.grpId)
-            }
-        }
-        if (sideboard.isNotEmpty()) {
-            appendLine("Sideboard")
-            for (card in sideboard) {
-                val name = nameByGrpId(card.grpId)
-                if (name != null) {
-                    appendLine("${card.quantity} $name")
-                } else {
-                    log.warn("DeckConverter: unknown sideboard grpId {}", card.grpId)
+            if (sideboard.isNotEmpty()) {
+                appendLine("Sideboard")
+                for (card in sideboard) {
+                    val name = nameByGrpId(card.grpId)
+                    if (name != null) {
+                        appendLine("${card.quantity} $name")
+                    } else {
+                        log.warn("DeckConverter: unknown sideboard grpId {}", card.grpId)
+                    }
                 }
             }
         }
-    }
 
     /**
      * Convert card entry lists to a Forge Deck.

@@ -22,40 +22,44 @@ class PromptClassifierTest :
             semantic: PromptSemantic = PromptSemantic.Generic,
             candidateRefs: List<PromptCandidateRefDto> = emptyList(),
         ): ClassifiedPrompt {
-            val prompt = InteractivePromptBridge.PendingPrompt(
-                promptId = "p1",
-                request = PromptRequest(
-                    promptType = promptType,
-                    message = message,
-                    options = listOf("A", "B"),
-                    semantic = semantic,
-                    candidateRefs = candidateRefs,
-                ),
-                future = CompletableFuture(),
-            )
+            val prompt =
+                InteractivePromptBridge.PendingPrompt(
+                    promptId = "p1",
+                    request =
+                        PromptRequest(
+                            promptType = promptType,
+                            message = message,
+                            options = listOf("A", "B"),
+                            semantic = semantic,
+                            candidateRefs = candidateRefs,
+                        ),
+                    future = CompletableFuture(),
+                )
             return PromptClassifier.classify(prompt)
         }
 
         val cardRef = PromptCandidateRefDto(index = 0, kind = "card", entityId = 42)
 
         test("surveil prompt classifies as grouping before generic targeting") {
-            val result = classify(
-                promptType = "confirm",
-                message = "anything",
-                semantic = PromptSemantic.GroupingSurveil,
-                candidateRefs = listOf(cardRef),
-            ).shouldBeInstanceOf<ClassifiedPrompt.Grouping>()
+            val result =
+                classify(
+                    promptType = "confirm",
+                    message = "anything",
+                    semantic = PromptSemantic.GroupingSurveil,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.Grouping>()
 
             result.context shouldBe GroupingContext.Surveil
         }
 
         test("scry prompt classifies as grouping") {
-            val result = classify(
-                promptType = "choose_cards",
-                message = "anything",
-                semantic = PromptSemantic.GroupingScry,
-                candidateRefs = listOf(cardRef),
-            ).shouldBeInstanceOf<ClassifiedPrompt.Grouping>()
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "anything",
+                    semantic = PromptSemantic.GroupingScry,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.Grouping>()
 
             result.context shouldBe GroupingContext.Scry_a0f6
         }
@@ -69,23 +73,25 @@ class PromptClassifierTest :
         }
 
         test("legend rule prompt classifies as select-n") {
-            val result = classify(
-                promptType = "legend_rule",
-                message = "Choose one",
-                semantic = PromptSemantic.SelectNLegendRule,
-                candidateRefs = listOf(cardRef),
-            ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+            val result =
+                classify(
+                    promptType = "legend_rule",
+                    message = "Choose one",
+                    semantic = PromptSemantic.SelectNLegendRule,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.LegendRule
         }
 
         test("discard cost prompt classifies as select-n with Discard reason") {
-            val result = classify(
-                promptType = "choose_cards",
-                message = "Select a card to discard",
-                semantic = PromptSemantic.SelectNDiscard,
-                candidateRefs = listOf(cardRef),
-            ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "Select a card to discard",
+                    semantic = PromptSemantic.SelectNDiscard,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.Discard
         }

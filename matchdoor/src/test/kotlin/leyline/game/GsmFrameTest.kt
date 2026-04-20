@@ -15,13 +15,14 @@ class GsmFrameTest :
         tags(UnitTag)
 
         test("turnInfo builds correct proto from frame fields") {
-            val frame = GsmFrame(
-                activeSeat = 1,
-                prioritySeat = 2,
-                turnNumber = 3,
-                phase = Phase.Main1_a549,
-                step = Step.None_a2cb,
-            )
+            val frame =
+                GsmFrame(
+                    activeSeat = 1,
+                    prioritySeat = 2,
+                    turnNumber = 3,
+                    phase = Phase.Main1_a549,
+                    step = Step.None_a2cb,
+                )
 
             val ti = frame.turnInfo()
             assertSoftly {
@@ -35,13 +36,14 @@ class GsmFrameTest :
         }
 
         test("phaseAnnotation produces PhaseOrStepModified with supplied ID") {
-            val frame = GsmFrame(
-                activeSeat = 2,
-                prioritySeat = 1,
-                turnNumber = 1,
-                phase = Phase.Combat_a549,
-                step = Step.DeclareAttack_a2cb,
-            )
+            val frame =
+                GsmFrame(
+                    activeSeat = 2,
+                    prioritySeat = 1,
+                    turnNumber = 1,
+                    phase = Phase.Combat_a549,
+                    step = Step.DeclareAttack_a2cb,
+                )
 
             var nextId = 100
             val ann = frame.phaseAnnotation { nextId++ }

@@ -66,7 +66,8 @@ class TreasureTokenTest :
             )
         }
 
-        val puzzleText = """
+        val puzzleText =
+            """
             [metadata]
             Name:Treasure Token ETB
             Goal:Win
@@ -85,7 +86,7 @@ class TreasureTokenTest :
             humanlibrary=Forest;Forest;Forest
             aibattlefield=Centaur Courser
             ailibrary=Mountain;Mountain;Mountain
-        """.trimIndent()
+            """.trimIndent()
 
         test("full treasure token flow: cast Innkeeper, ETB treasure, bolt for lethal") {
             val h = MatchFlowHarness(seed = 42L, validating = false)
@@ -110,7 +111,11 @@ class TreasureTokenTest :
                 if (human.getZone(ZoneType.Battlefield).cards.any { it.name == "Treasure Token" }) return@repeat
                 h.passPriority()
             }
-            human.getZone(ZoneType.Battlefield).cards.any { it.name == "Treasure Token" }.shouldBeTrue()
+            human
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .any { it.name == "Treasure Token" }
+                .shouldBeTrue()
 
             // --- Assert: Innkeeper + Treasure on battlefield ---
             val bfNames = human.getZone(ZoneType.Battlefield).cards.map { it.name }
@@ -126,13 +131,15 @@ class TreasureTokenTest :
 
             // --- Regression: buildFromSnapshot must not crash (was NPE) ---
             val snapTreasure = GsmSnapshot.capture(h.game(), h.bridge, "test-treasure", 1)
-            val gsm = StateMapper.buildFromSnapshot(
-                snapTreasure,
-                1,
-                "test-treasure",
-                h.bridge,
-                viewingSeatId = 1,
-            ).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapTreasure,
+                        1,
+                        "test-treasure",
+                        h.bridge,
+                        viewingSeatId = 1,
+                    ).gsm
             gsm.shouldNotBeNull()
             val treasureObj = gsm.gameObjectsList.firstOrNull { it.grpId == treasureGrpId }
             treasureObj.shouldNotBeNull()
@@ -166,15 +173,17 @@ class TreasureTokenTest :
             // --- Assert: Sacrifice ZoneTransfer + mana-ability bracket annotations exist ---
             // Treasure sacrifice fires during bolt resolution (Forge auto-pays mana at resolution
             // time). The pre-game-over diff in sendGameOver() drains these events into a GSM.
-            val allAnnotations = h.allMessages
-                .filter { it.hasGameStateMessage() }
-                .flatMap { it.gameStateMessage.annotationsList }
+            val allAnnotations =
+                h.allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.annotationsList }
 
             // Sacrifice ZoneTransfer must exist (Treasure consumed for mana)
-            val sacrificeTransfer = allAnnotations.filter { ann ->
-                ann.typeList.any { it.name.startsWith("ZoneTransfer") } &&
-                    ann.detailsList.any { d -> d.key == "category" && "Sacrifice" in d.valueStringList }
-            }
+            val sacrificeTransfer =
+                allAnnotations.filter { ann ->
+                    ann.typeList.any { it.name.startsWith("ZoneTransfer") } &&
+                        ann.detailsList.any { d -> d.key == "category" && "Sacrifice" in d.valueStringList }
+                }
             sacrificeTransfer.shouldNotBeEmpty()
 
             // Mana-ability bracket annotation types must be present
@@ -188,10 +197,11 @@ class TreasureTokenTest :
             }
 
             // UserActionTaken with actionType=4 (ActivateMana) must exist
-            val manaActivateAnnotations = allAnnotations.filter { ann ->
-                AnnotationType.UserActionTaken in ann.typeList &&
-                    ann.detailsList.any { d -> d.key == "actionType" && d.getValueInt32(0) == 4 }
-            }
+            val manaActivateAnnotations =
+                allAnnotations.filter { ann ->
+                    AnnotationType.UserActionTaken in ann.typeList &&
+                        ann.detailsList.any { d -> d.key == "actionType" && d.getValueInt32(0) == 4 }
+                }
             manaActivateAnnotations.shouldNotBeEmpty()
 
             // --- Assert: game over, human wins ---

@@ -58,8 +58,12 @@ class GsmSnapshot internal constructor(
 
     companion object {
         /** Production capture — reads game + bridge. */
-        fun capture(game: Game, bridge: GameBridge, matchId: String, gameStateId: Int): GsmSnapshot =
-            SnapshotCapture.run(game, bridge, matchId, gameStateId)
+        fun capture(
+            game: Game,
+            bridge: GameBridge,
+            matchId: String,
+            gameStateId: Int,
+        ): GsmSnapshot = SnapshotCapture.run(game, bridge, matchId, gameStateId)
 
         /** Test fixture builder — named args with sensible defaults. */
         @VisibleForTesting
@@ -71,19 +75,30 @@ class GsmSnapshot internal constructor(
             zones: Map<Int, ZoneSnapshot> = emptyMap(),
             objects: Map<ForgeCardId, CardSnapshot> = emptyMap(),
             stack: StackSnapshot = StackSnapshot(emptyList()),
-            phase: PhaseSnapshot = PhaseSnapshot(
-                turn = 1,
-                activePlayer = SeatId(1),
-                priorityPlayer = SeatId(1),
-                phase = null,
-            ),
+            phase: PhaseSnapshot =
+                PhaseSnapshot(
+                    turn = 1,
+                    activePlayer = SeatId(1),
+                    priorityPlayer = SeatId(1),
+                    phase = null,
+                ),
             combat: CombatSnapshot? = null,
             abilityWordEntries: List<AbilityWordScanner.AbilityWordEntry> = emptyList(),
             persistentAnnotationState: PersistentAnnotationState = PersistentAnnotationState.INITIAL,
             capturedAt: CaptureMarker = CaptureMarker.unknown(),
-        ): GsmSnapshot = GsmSnapshot(
-            matchId, gameStateId, seats, zones, objects, stack, phase, combat,
-            abilityWordEntries, persistentAnnotationState, capturedAt,
-        )
+        ): GsmSnapshot =
+            GsmSnapshot(
+                matchId,
+                gameStateId,
+                seats,
+                zones,
+                objects,
+                stack,
+                phase,
+                combat,
+                abilityWordEntries,
+                persistentAnnotationState,
+                capturedAt,
+            )
     }
 }

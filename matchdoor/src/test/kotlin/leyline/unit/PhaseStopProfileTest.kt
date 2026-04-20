@@ -86,12 +86,13 @@ class PhaseStopProfileTest :
         test("getEnabled returns current stop set") {
             val profile = PhaseStopProfile.createDefaults(humanPlayerId = 1, aiPlayerId = 2)
             val humanStops = profile.getEnabled(1)
-            humanStops shouldBe setOf(
-                PhaseType.MAIN1,
-                PhaseType.COMBAT_DECLARE_ATTACKERS,
-                PhaseType.COMBAT_DECLARE_BLOCKERS,
-                PhaseType.MAIN2,
-            )
+            humanStops shouldBe
+                setOf(
+                    PhaseType.MAIN1,
+                    PhaseType.COMBAT_DECLARE_ATTACKERS,
+                    PhaseType.COMBAT_DECLARE_BLOCKERS,
+                    PhaseType.MAIN2,
+                )
         }
 
         test("forPhaseKey maps canonical phases") {

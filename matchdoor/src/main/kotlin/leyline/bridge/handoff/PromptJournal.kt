@@ -43,12 +43,10 @@ class PromptJournal {
     }
 
     /** Remove + return `true` iff a [PromptSideEffect.SearchedToHand] for [id] was present. */
-    fun consumeSearched(id: ForgeCardId): Boolean =
-        drainFirstMatching { it is PromptSideEffect.SearchedToHand && it.forgeCardId == id }
+    fun consumeSearched(id: ForgeCardId): Boolean = drainFirstMatching { it is PromptSideEffect.SearchedToHand && it.forgeCardId == id }
 
     /** Remove + return `true` iff a [PromptSideEffect.LegendVictim] for [id] was present. */
-    fun consumeLegendVictim(id: ForgeCardId): Boolean =
-        drainFirstMatching { it is PromptSideEffect.LegendVictim && it.forgeCardId == id }
+    fun consumeLegendVictim(id: ForgeCardId): Boolean = drainFirstMatching { it is PromptSideEffect.LegendVictim && it.forgeCardId == id }
 
     private inline fun drainFirstMatching(predicate: (PromptSideEffect) -> Boolean): Boolean {
         val iter = drains.iterator()

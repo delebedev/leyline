@@ -11,13 +11,14 @@ class BrawlMatchFlowTest :
     SubsystemTest({
 
         test("brawl game starts with correct life, hand, and commander in command zone") {
-            val brawlDeck = """
-            [Commander]
-            1 Isamaru, Hound of Konda
-            [Deck]
-            25 Plains
-            33 Savannah Lions
-            """.trimIndent()
+            val brawlDeck =
+                """
+                [Commander]
+                1 Isamaru, Hound of Konda
+                [Deck]
+                25 Plains
+                33 Savannah Lions
+                """.trimIndent()
 
             val (b, _, _) = startGameAtMain1(seed = 42L, deckList = brawlDeck, variant = "brawl")
 

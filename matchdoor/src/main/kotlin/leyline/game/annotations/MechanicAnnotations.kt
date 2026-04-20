@@ -155,7 +155,14 @@ object MechanicAnnotations {
                     if (powerDelta != 0 || toughnessDelta != 0) {
                         annotations.add(AnnotationBuilder.powerToughnessModCreated(instanceId, powerDelta, toughnessDelta))
                     }
-                    log.debug("mechanic: P/T changed iid={} {}/{}→{}/{}", instanceId.value, ev.oldPower, ev.oldToughness, ev.newPower, ev.newToughness)
+                    log.debug(
+                        "mechanic: P/T changed iid={} {}/{}→{}/{}",
+                        instanceId.value,
+                        ev.oldPower,
+                        ev.oldToughness,
+                        ev.newPower,
+                        ev.newToughness,
+                    )
                 }
                 is GameEvent.CardAttached -> {
                     val auraIid = idResolver(ev.cardId)
@@ -240,14 +247,17 @@ object MechanicAnnotations {
                         // Walk events backward from this ControllerChanged to find the nearest
                         // preceding SpellResolved — handles multiple spells in one GSM.
                         val evIndex = events.indexOf(ev)
-                        val spellResolved = events.subList(0, evIndex)
-                            .filterIsInstance<GameEvent.SpellResolved>()
-                            .lastOrNull()
-                        val affectorIid = if (spellResolved != null) {
-                            idResolver(spellResolved.cardId)
-                        } else {
-                            InstanceId(0)
-                        }
+                        val spellResolved =
+                            events
+                                .subList(0, evIndex)
+                                .filterIsInstance<GameEvent.SpellResolved>()
+                                .lastOrNull()
+                        val affectorIid =
+                            if (spellResolved != null) {
+                                idResolver(spellResolved.cardId)
+                            } else {
+                                InstanceId(0)
+                            }
                         val effectId = EffectId(effectIdAllocator())
                         annotations.add(AnnotationBuilder.layeredEffectCreated(effectId, affectorIid))
                         annotations.add(AnnotationBuilder.controllerChanged(affectorIid, cardIid))
@@ -317,10 +327,11 @@ object MechanicAnnotations {
 
         // ── P/T boosts ──────────────────────────────────────────────────────
         for (effect in diff.created) {
-            val sourceAbilityGrpId = sourceAbilityResolver?.invoke(
-                InstanceId(effect.cardInstanceId),
-                effect.fingerprint.staticId,
-            )
+            val sourceAbilityGrpId =
+                sourceAbilityResolver?.invoke(
+                    InstanceId(effect.cardInstanceId),
+                    effect.fingerprint.staticId,
+                )
 
             val cardIid = InstanceId(effect.cardInstanceId)
             val effectId = EffectId(effect.syntheticId)
@@ -367,8 +378,9 @@ object MechanicAnnotations {
         // Group created keyword effects by (keyword, timestamp, staticId) so that
         // all creatures affected by the same static ability get one shared pAnn.
         if (keywordDiff.created.isNotEmpty() && uniqueAbilityIdAllocator != null) {
-            val groups = keywordDiff.created
-                .groupBy { Triple(it.keyword, it.fingerprint.timestamp, it.fingerprint.staticId) }
+            val groups =
+                keywordDiff.created
+                    .groupBy { Triple(it.keyword, it.fingerprint.timestamp, it.fingerprint.staticId) }
 
             for ((key, effects) in groups) {
                 val (keyword, timestamp, staticId) = key

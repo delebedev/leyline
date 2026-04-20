@@ -124,23 +124,27 @@ class PuzzleCardRegistrar(
         }
 
         val db = FModel.getMagicDb()?.commonCards ?: return 0
-        val paperCard = db.getCard(cardName)
-            ?: run {
-                forge.StaticData.instance().attemptToLoadCard(cardName)
-                db.getCard(cardName)
-            }
-            ?: run {
-                // Synthetic engine cards (Puzzle Goal, DetachedCardEffect) aren't in any
-                // card DB — grpId=0 fallback is correct for them.
-                log.debug("Card '{}' not found in Forge DB (synthetic?)", cardName)
-                return 0
-            }
+        val paperCard =
+            db.getCard(cardName)
+                ?: run {
+                    forge.StaticData.instance().attemptToLoadCard(cardName)
+                    db.getCard(cardName)
+                }
+                ?: run {
+                    // Synthetic engine cards (Puzzle Goal, DetachedCardEffect) aren't in any
+                    // card DB — grpId=0 fallback is correct for them.
+                    log.debug("Card '{}' not found in Forge DB (synthetic?)", cardName)
+                    return 0
+                }
         val tempCard = Card.fromPaperCard(paperCard, null)
         return ensureCardRegistered(tempCard)
     }
 
     /** Derive [leyline.game.data.CardData] from a live Forge [Card], optionally overriding the name (for alternate faces). */
-    private fun fromForgeCard(card: Card, overrideName: String? = null): CardData {
+    private fun fromForgeCard(
+        card: Card,
+        overrideName: String? = null,
+    ): CardData {
         val name = overrideName ?: card.name
         val grpId = nameToGrpId.getOrPut(name) { nextGrpId.getAndIncrement() }
         val titleId = nextTitleId.getAndIncrement()
@@ -203,9 +207,10 @@ class PuzzleCardRegistrar(
             val altName = altState.name ?: continue
             if (altName == card.name) continue
 
-            val altGrpId = clientRepo?.findGrpIdByName(altName)
-                ?: repo.findGrpIdByName(altName)
-                ?: nameToGrpId.getOrPut(altName) { nextGrpId.getAndIncrement() }
+            val altGrpId =
+                clientRepo?.findGrpIdByName(altName)
+                    ?: repo.findGrpIdByName(altName)
+                    ?: nameToGrpId.getOrPut(altName) { nextGrpId.getAndIncrement() }
             linkedIds.add(altGrpId)
         }
         return linkedIds
@@ -217,45 +222,88 @@ class PuzzleCardRegistrar(
         repo.registerModalOptions(grpId, info)
     }
 
-    private fun deriveManaCost(cost: forge.card.mana.ManaCost?) =
-        ManaColorMapping.deriveManaCost(cost)
+    private fun deriveManaCost(cost: forge.card.mana.ManaCost?) = ManaColorMapping.deriveManaCost(cost)
 
     private fun deriveAbilityIds(card: Card) = AbilityIdDeriver.deriveAbilityIds(card, nextAbilityGrpId)
 
     companion object {
         /** States that don't represent registrable alternate card faces. */
-        private val SKIP_STATES = setOf(
-            CardStateName.Original, // primary face — already registered
-            CardStateName.FaceDown, // morphed state, not a real face
-        )
+        private val SKIP_STATES =
+            setOf(
+                CardStateName.Original, // primary face — already registered
+                CardStateName.FaceDown, // morphed state, not a real face
+            )
 
-        private val CORE_TYPE_MAP = mapOf(
-            CoreType.Artifact to 1, CoreType.Creature to 2, CoreType.Enchantment to 3,
-            CoreType.Instant to 4, CoreType.Land to 5, CoreType.Phenomenon to 6,
-            CoreType.Plane to 7, CoreType.Planeswalker to 8, CoreType.Scheme to 9,
-            CoreType.Sorcery to 10, CoreType.Kindred to 11, CoreType.Vanguard to 12,
-            CoreType.Dungeon to 13, CoreType.Battle to 14,
-        )
+        private val CORE_TYPE_MAP =
+            mapOf(
+                CoreType.Artifact to 1,
+                CoreType.Creature to 2,
+                CoreType.Enchantment to 3,
+                CoreType.Instant to 4,
+                CoreType.Land to 5,
+                CoreType.Phenomenon to 6,
+                CoreType.Plane to 7,
+                CoreType.Planeswalker to 8,
+                CoreType.Scheme to 9,
+                CoreType.Sorcery to 10,
+                CoreType.Kindred to 11,
+                CoreType.Vanguard to 12,
+                CoreType.Dungeon to 13,
+                CoreType.Battle to 14,
+            )
 
-        private val SUPERTYPE_MAP = mapOf(
-            Supertype.Basic to 1,
-            Supertype.Legendary to 2,
-            Supertype.Ongoing to 3,
-            Supertype.Snow to 4,
-            Supertype.World to 5,
-        )
+        private val SUPERTYPE_MAP =
+            mapOf(
+                Supertype.Basic to 1,
+                Supertype.Legendary to 2,
+                Supertype.Ongoing to 3,
+                Supertype.Snow to 4,
+                Supertype.World to 5,
+            )
 
-        private val SUBTYPE_MAP = mapOf(
-            "forest" to 29, "island" to 43, "mountain" to 49, "plains" to 54, "swamp" to 69,
-            "angel" to 1, "beast" to 10, "bird" to 12, "cat" to 14, "cleric" to 16,
-            "construct" to 17, "demon" to 19, "dragon" to 21, "druid" to 23,
-            "elemental" to 25, "elf" to 27, "equipment" to 28, "giant" to 32,
-            "goblin" to 34, "golem" to 35, "human" to 39, "insect" to 42,
-            "knight" to 45, "merfolk" to 46, "ogre" to 50, "phoenix" to 53,
-            "rogue" to 56, "shaman" to 61, "skeleton" to 63, "soldier" to 64,
-            "spirit" to 68, "vampire" to 74, "wall" to 76, "warrior" to 77,
-            "wizard" to 78, "wolf" to 79, "zombie" to 81,
-            "aura" to 6, "vehicle" to 331, "saga" to 347, "treasure" to 343,
-        )
+        private val SUBTYPE_MAP =
+            mapOf(
+                "forest" to 29,
+                "island" to 43,
+                "mountain" to 49,
+                "plains" to 54,
+                "swamp" to 69,
+                "angel" to 1,
+                "beast" to 10,
+                "bird" to 12,
+                "cat" to 14,
+                "cleric" to 16,
+                "construct" to 17,
+                "demon" to 19,
+                "dragon" to 21,
+                "druid" to 23,
+                "elemental" to 25,
+                "elf" to 27,
+                "equipment" to 28,
+                "giant" to 32,
+                "goblin" to 34,
+                "golem" to 35,
+                "human" to 39,
+                "insect" to 42,
+                "knight" to 45,
+                "merfolk" to 46,
+                "ogre" to 50,
+                "phoenix" to 53,
+                "rogue" to 56,
+                "shaman" to 61,
+                "skeleton" to 63,
+                "soldier" to 64,
+                "spirit" to 68,
+                "vampire" to 74,
+                "wall" to 76,
+                "warrior" to 77,
+                "wizard" to 78,
+                "wolf" to 79,
+                "zombie" to 81,
+                "aura" to 6,
+                "vehicle" to 331,
+                "saga" to 347,
+                "treasure" to 343,
+            )
     }
 }

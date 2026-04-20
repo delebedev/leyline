@@ -23,20 +23,22 @@ class AbilityRegistryTest :
                 val (b, game, _) = base.startWithBoard { _, _, _ -> }
 
                 // Inject planeswalker onto battlefield
-                val injected = TestCardInjector.inject(
-                    b,
-                    1,
-                    cardName,
-                    ZoneType.Battlefield,
-                )
+                val injected =
+                    TestCardInjector.inject(
+                        b,
+                        1,
+                        cardName,
+                        ZoneType.Battlefield,
+                    )
                 val card = injected.card
 
                 // Derive CardData from the live card (has game context → full abilities)
                 val cardData = CardDataDeriver.fromForgeCard(card)
 
                 // Chandra has 4 loyalty abilities (all activated, non-mana)
-                val loyaltyAbilities = card.spellAbilities
-                    .filter { it.isActivatedAbility && !it.isManaAbility() }
+                val loyaltyAbilities =
+                    card.spellAbilities
+                        .filter { it.isActivatedAbility && !it.isManaAbility() }
                 loyaltyAbilities.shouldHaveSize(4)
 
                 // CardData should have ability slots for all 4
@@ -46,11 +48,12 @@ class AbilityRegistryTest :
                 val registry = AbilityRegistry.build(card, cardData)
 
                 // Each loyalty ability should map to a distinct abilityGrpId
-                val mappedGrpIds = loyaltyAbilities.map { sa ->
-                    val mapped = registry.forSpellAbility(sa.id)
-                    mapped.shouldNotBeNull()
-                    mapped
-                }
+                val mappedGrpIds =
+                    loyaltyAbilities.map { sa ->
+                        val mapped = registry.forSpellAbility(sa.id)
+                        mapped.shouldNotBeNull()
+                        mapped
+                    }
                 mappedGrpIds.distinct().shouldHaveSize(4)
 
                 // The mapped grpIds should match the slots from cardData.abilityIds

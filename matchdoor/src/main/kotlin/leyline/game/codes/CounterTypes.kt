@@ -11,7 +11,6 @@ import wotc.mtgo.gre.external.messaging.Messages.CounterType
  * names so builders can resolve a counter type by Forge-facing string.
  */
 object CounterTypes {
-
     private val forgeNameToProtoNumber: Map<String, Int> by lazy {
         val map = mutableMapOf<String, Int>()
         for (ct in CounterType.entries) {
@@ -27,6 +26,5 @@ object CounterTypes {
     }
 
     /** Resolve a Forge counter name to its proto [CounterType] number. Unknown names return 0. */
-    fun counterTypeId(forgeName: String): Int =
-        forgeNameToProtoNumber[forgeName.uppercase()] ?: 0
+    fun counterTypeId(forgeName: String): Int = forgeNameToProtoNumber[forgeName.uppercase()] ?: 0
 }

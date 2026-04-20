@@ -22,8 +22,10 @@ class MatchRegistry {
     /** matchId -> (seatId -> MatchHandler). For pre-mulligan cross-connection messaging. */
     private val handlers = ConcurrentHashMap<String, ConcurrentHashMap<Int, MatchHandler>>()
 
-    fun getOrCreateMatch(matchId: String, factory: () -> Match): Match =
-        matches.computeIfAbsent(matchId) { factory() }
+    fun getOrCreateMatch(
+        matchId: String,
+        factory: () -> Match,
+    ): Match = matches.computeIfAbsent(matchId) { factory() }
 
     /** Look up a match by id. */
     fun getMatch(matchId: String): Match? = matches[matchId]
@@ -31,12 +33,19 @@ class MatchRegistry {
     /** Convenience: get the bridge for a match directly. */
     fun getBridge(matchId: String): GameBridge? = matches[matchId]?.bridge
 
-    fun registerSession(matchId: String, seatId: Int, session: SessionOps) {
+    fun registerSession(
+        matchId: String,
+        seatId: Int,
+        session: SessionOps,
+    ) {
         sessions.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId] = session
     }
 
     /** Get the OTHER seat's session (seat 1 -> seat 2, seat 2 -> seat 1). */
-    fun getPeer(matchId: String, seatId: Int): SessionOps? {
+    fun getPeer(
+        matchId: String,
+        seatId: Int,
+    ): SessionOps? {
         val peerSeat = if (seatId == 1) 2 else 1
         return sessions[matchId]?.get(peerSeat)
     }
@@ -52,12 +61,18 @@ class MatchRegistry {
         return evicted
     }
 
-    fun registerHandler(matchId: String, seatId: Int, handler: MatchHandler) {
+    fun registerHandler(
+        matchId: String,
+        seatId: Int,
+        handler: MatchHandler,
+    ) {
         handlers.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId] = handler
     }
 
-    fun getHandler(matchId: String, seatId: Int): MatchHandler? =
-        handlers[matchId]?.get(seatId)
+    fun getHandler(
+        matchId: String,
+        seatId: Int,
+    ): MatchHandler? = handlers[matchId]?.get(seatId)
 
     fun removeMatch(matchId: String): Match? = matches.remove(matchId)
 
@@ -96,10 +111,13 @@ class MatchRegistry {
     }
 
     /** Snapshot of all active bridges (for debug panel). */
-    fun activeBridges(): Map<String, GameBridge> =
-        HashMap(matches).mapValues { it.value.bridge }
+    fun activeBridges(): Map<String, GameBridge> = HashMap(matches).mapValues { it.value.bridge }
 
     /** Get seat 1 MatchSession for any active match (for debug injection). */
     fun activeSession(): MatchSession? =
-        sessions.values.firstOrNull()?.values?.filterIsInstance<MatchSession>()?.firstOrNull()
+        sessions.values
+            .firstOrNull()
+            ?.values
+            ?.filterIsInstance<MatchSession>()
+            ?.firstOrNull()
 }

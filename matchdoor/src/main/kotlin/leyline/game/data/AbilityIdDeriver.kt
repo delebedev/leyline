@@ -13,15 +13,15 @@ import java.util.concurrent.atomic.AtomicInteger
  * Each caller provides its own [AtomicInteger] counter for ID allocation.
  */
 object AbilityIdDeriver {
-
     /** Well-known ability IDs for basic land mana abilities. */
-    val BASIC_LAND_ABILITIES = listOf(
-        "plains" to 1001,
-        "island" to 1002,
-        "swamp" to 1003,
-        "mountain" to 1004,
-        "forest" to 1005,
-    )
+    val BASIC_LAND_ABILITIES =
+        listOf(
+            "plains" to 1001,
+            "island" to 1002,
+            "swamp" to 1003,
+            "mountain" to 1004,
+            "forest" to 1005,
+        )
 
     /**
      * Derived ability data including abilityIds, keywordAbilityGrpIds, and [SlotLayout].
@@ -64,16 +64,21 @@ object AbilityIdDeriver {
                 return DerivedAbilities(
                     abilityIds = listOf(abilityId to 0),
                     keywordAbilityGrpIds = emptyMap(),
-                    slotLayout = SlotLayout(
-                        keywordCount = 0,
-                        activatedCount = 0,
-                        slots = listOf(SlotEntry(abilityId, 0, SlotKind.Mana)),
-                    ),
+                    slotLayout =
+                        SlotLayout(
+                            keywordCount = 0,
+                            activatedCount = 0,
+                            slots = listOf(SlotEntry(abilityId, 0, SlotKind.Mana)),
+                        ),
                 )
             }
         }
 
-        val keywords = card.rules?.mainPart?.keywords?.toList() ?: emptyList()
+        val keywords =
+            card.rules
+                ?.mainPart
+                ?.keywords
+                ?.toList() ?: emptyList()
         // Count non-mana activated abilities — matches the filter in ActionMapper and CardLookup.
         val activatedCount = card.spellAbilities?.count { it.isActivatedAbility && !it.isManaAbility() } ?: 0
 
@@ -113,11 +118,12 @@ object AbilityIdDeriver {
         return DerivedAbilities(
             abilityIds = abilityIds,
             keywordAbilityGrpIds = keywordMap,
-            slotLayout = SlotLayout(
-                keywordCount = keywords.size,
-                activatedCount = activatedCount + chapterCount,
-                slots = slotEntries,
-            ),
+            slotLayout =
+                SlotLayout(
+                    keywordCount = keywords.size,
+                    activatedCount = activatedCount + chapterCount,
+                    slots = slotEntries,
+                ),
             chapterAbilityGrpIds = chapterGrpIds,
         )
     }

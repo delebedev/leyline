@@ -40,39 +40,53 @@ class RevealTest :
         // ── Reveal annotations ──────────────────────────────────────────
 
         test("reveal produces RevealedCardCreated annotation") {
-            val (b, game, counter) = startWithBoard { _, human, _ ->
-                addCard("Lightning Bolt", human, ZoneType.Hand)
-            }
-            val handCard = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Lightning Bolt", human, ZoneType.Hand)
+                }
+            val handCard =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first()
             val instanceId = b.getOrAllocInstanceId(ForgeCardId(handCard.id))
 
-            val gsm = capture(b, game, counter) {
-                b.promptBridge(1).recordReveal(listOf(ForgeCardId(handCard.id)), SeatId(1))
-            }
+            val gsm =
+                capture(b, game, counter) {
+                    b.promptBridge(1).recordReveal(listOf(ForgeCardId(handCard.id)), SeatId(1))
+                }
 
-            gsm.annotation(AnnotationType.RevealedCardCreated)
+            gsm
+                .annotation(AnnotationType.RevealedCardCreated)
                 .affectedIdsList shouldContain instanceId.value
         }
 
         test("multi-card reveal produces one annotation per card") {
-            val (b, game, counter) = startWithBoard { _, human, _ ->
-                addCard("Lightning Bolt", human, ZoneType.Hand)
-                addCard("Giant Growth", human, ZoneType.Hand)
-                addCard("Grizzly Bears", human, ZoneType.Hand)
-            }
-            val handCards = game.humanPlayer.getZone(ZoneType.Hand).cards.toList()
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Lightning Bolt", human, ZoneType.Hand)
+                    addCard("Giant Growth", human, ZoneType.Hand)
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                }
+            val handCards =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .toList()
 
-            val gsm = capture(b, game, counter) {
-                b.promptBridge(1).recordReveal(handCards.map { ForgeCardId(it.id) }, SeatId(1))
-            }
+            val gsm =
+                capture(b, game, counter) {
+                    b.promptBridge(1).recordReveal(handCards.map { ForgeCardId(it.id) }, SeatId(1))
+                }
 
             gsm.annotations(AnnotationType.RevealedCardCreated) shouldHaveSize 3
         }
 
         test("no reveal produces no RevealedCardCreated annotation") {
-            val (b, game, counter) = startWithBoard { _, human, _ ->
-                addCard("Forest", human, ZoneType.Hand)
-            }
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
+                }
 
             val gsm = capture(b, game, counter) { /* no reveal */ }
 
@@ -82,15 +96,17 @@ class RevealTest :
         // ── Reveal-choose proxies ───────────────────────────────────────
 
         test("active reveal synthesizes RevealedCard proxy objects") {
-            val (b, game, counter) = startWithBoard { _, _, ai ->
-                addCard("Lightning Bolt", ai, ZoneType.Hand)
-                addCard("Grizzly Bears", ai, ZoneType.Hand)
-            }
+            val (b, game, counter) =
+                startWithBoard { _, _, ai ->
+                    addCard("Lightning Bolt", ai, ZoneType.Hand)
+                    addCard("Grizzly Bears", ai, ZoneType.Hand)
+                }
             val cardIds = aiHandCardIds(game)
 
-            val gsm = capture(b, game, counter) {
-                activateReveal(b, cardIds, ownerSeat = SeatId(2))
-            }
+            val gsm =
+                capture(b, game, counter) {
+                    activateReveal(b, cardIds, ownerSeat = SeatId(2))
+                }
 
             val proxies = gsm.revealedCardProxies()
             proxies shouldHaveSize 2
@@ -109,30 +125,34 @@ class RevealTest :
         }
 
         test("active reveal flips opponent hand to Public visibility") {
-            val (b, game, counter) = startWithBoard { _, _, ai ->
-                addCard("Lightning Bolt", ai, ZoneType.Hand)
-            }
+            val (b, game, counter) =
+                startWithBoard { _, _, ai ->
+                    addCard("Lightning Bolt", ai, ZoneType.Hand)
+                }
             val cardIds = aiHandCardIds(game)
 
-            val gsm = capture(b, game, counter) {
-                activateReveal(b, cardIds, ownerSeat = SeatId(2))
-            }
+            val gsm =
+                capture(b, game, counter) {
+                    activateReveal(b, cardIds, ownerSeat = SeatId(2))
+                }
 
             val aiHandZone = gsm.zonesList.first { it.zoneId == ZoneIds.P2_HAND }
             aiHandZone.visibility shouldBe Visibility.Public
             aiHandZone.viewersList shouldHaveSize 2
 
-            val handCards = gsm.gameObjectsList.filter {
-                it.type == GameObjectType.Card && it.zoneId == ZoneIds.P2_HAND
-            }
+            val handCards =
+                gsm.gameObjectsList.filter {
+                    it.type == GameObjectType.Card && it.zoneId == ZoneIds.P2_HAND
+                }
             handCards shouldHaveSize 1
             handCards.first().visibility shouldBe Visibility.Public
         }
 
         test("stale activeReveal without pending prompt is auto-cleared") {
-            val (b, game, counter) = startWithBoard { _, _, ai ->
-                addCard("Lightning Bolt", ai, ZoneType.Hand)
-            }
+            val (b, game, counter) =
+                startWithBoard { _, _, ai ->
+                    addCard("Lightning Bolt", ai, ZoneType.Hand)
+                }
             val cardIds = aiHandCardIds(game)
 
             // First build: proxies allocated
@@ -144,14 +164,19 @@ class RevealTest :
             // Second build: no prompt pending → stale guard clears activeReveal + proxies
             capture(b, game, counter) {}
 
-            b.promptBridge(1).journal.activeReveal().shouldBeNull()
+            b
+                .promptBridge(1)
+                .journal
+                .activeReveal()
+                .shouldBeNull()
             b.revealProxies.size shouldBe 0
         }
 
         test("clearing activeReveal triggers proxy cleanup in next GSM") {
-            val (b, game, counter) = startWithBoard { _, _, ai ->
-                addCard("Lightning Bolt", ai, ZoneType.Hand)
-            }
+            val (b, game, counter) =
+                startWithBoard { _, _, ai ->
+                    addCard("Lightning Bolt", ai, ZoneType.Hand)
+                }
             val cardIds = aiHandCardIds(game)
 
             capture(b, game, counter) {
@@ -169,9 +194,10 @@ class RevealTest :
         }
 
         test("no active reveal produces no RevealedCard proxies") {
-            val (b, game, counter) = startWithBoard { _, _, ai ->
-                addCard("Lightning Bolt", ai, ZoneType.Hand)
-            }
+            val (b, game, counter) =
+                startWithBoard { _, _, ai ->
+                    addCard("Lightning Bolt", ai, ZoneType.Hand)
+                }
 
             val gsm = capture(b, game, counter) {}
 
@@ -181,26 +207,37 @@ class RevealTest :
         // ── RequestBuilder ──────────────────────────────────────────────
 
         test("SelectNReq for reveal-choose with valid targets") {
-            val (b, game, _) = startWithBoard { _, _, ai ->
-                addCard("Lightning Bolt", ai, ZoneType.Hand)
-                addCard("Grizzly Bears", ai, ZoneType.Hand)
-            }
+            val (b, game, _) =
+                startWithBoard { _, _, ai ->
+                    addCard("Lightning Bolt", ai, ZoneType.Hand)
+                    addCard("Grizzly Bears", ai, ZoneType.Hand)
+                }
 
-            val bolt = game.aiPlayer.getZone(ZoneType.Hand).cards.first { it.name == "Lightning Bolt" }
-            val bears = game.aiPlayer.getZone(ZoneType.Hand).cards.first { it.name == "Grizzly Bears" }
+            val bolt =
+                game.aiPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.name == "Lightning Bolt" }
+            val bears =
+                game.aiPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.name == "Grizzly Bears" }
             val boltId = b.getOrAllocInstanceId(ForgeCardId(bolt.id)).value
             val bearsId = b.getOrAllocInstanceId(ForgeCardId(bears.id)).value
 
-            val prompt = revealChoosePrompt(
-                candidateRefs = listOf(PromptCandidateRefDto(0, "card", bolt.id, "Hand")),
-                unfilteredRefs = listOf(
-                    PromptCandidateRefDto(0, "card", bolt.id),
-                    PromptCandidateRefDto(1, "card", bears.id),
-                ),
-                min = 1,
-                max = 1,
-                sourceEntityId = 999,
-            )
+            val prompt =
+                revealChoosePrompt(
+                    candidateRefs = listOf(PromptCandidateRefDto(0, "card", bolt.id, "Hand")),
+                    unfilteredRefs =
+                        listOf(
+                            PromptCandidateRefDto(0, "card", bolt.id),
+                            PromptCandidateRefDto(1, "card", bears.id),
+                        ),
+                    min = 1,
+                    max = 1,
+                    sourceEntityId = 999,
+                )
 
             val req = RequestBuilder.buildSelectNReq(prompt, b)
 
@@ -219,19 +256,25 @@ class RevealTest :
         }
 
         test("SelectNReq for reveal-choose with no valid targets") {
-            val (b, game, _) = startWithBoard { _, _, ai ->
-                addCard("Grizzly Bears", ai, ZoneType.Hand)
-            }
+            val (b, game, _) =
+                startWithBoard { _, _, ai ->
+                    addCard("Grizzly Bears", ai, ZoneType.Hand)
+                }
 
-            val bears = game.aiPlayer.getZone(ZoneType.Hand).cards.first()
+            val bears =
+                game.aiPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first()
             val bearsId = b.getOrAllocInstanceId(ForgeCardId(bears.id)).value
 
-            val prompt = revealChoosePrompt(
-                candidateRefs = emptyList(),
-                unfilteredRefs = listOf(PromptCandidateRefDto(0, "card", bears.id)),
-                min = 0,
-                max = 0,
-            )
+            val prompt =
+                revealChoosePrompt(
+                    candidateRefs = emptyList(),
+                    unfilteredRefs = listOf(PromptCandidateRefDto(0, "card", bears.id)),
+                    min = 0,
+                    max = 0,
+                )
 
             val req = RequestBuilder.buildSelectNReq(prompt, b)
 
@@ -244,15 +287,16 @@ class RevealTest :
             }
         }
     }) {
-
     companion object {
         /** Extract AI hand card IDs as ForgeCardIds. */
         private fun aiHandCardIds(game: forge.game.Game): List<ForgeCardId> =
-            game.aiPlayer.getZone(ZoneType.Hand).cards.map { ForgeCardId(it.id) }
+            game.aiPlayer
+                .getZone(ZoneType.Hand)
+                .cards
+                .map { ForgeCardId(it.id) }
 
         /** Filter GSM objects to RevealedCard proxies. */
-        private fun GameStateMessage.revealedCardProxies() =
-            gameObjectsList.filter { it.type == GameObjectType.RevealedCard }
+        private fun GameStateMessage.revealedCardProxies() = gameObjectsList.filter { it.type == GameObjectType.RevealedCard }
 
         /** Set up activeReveal + recordReveal in one call. */
         private fun activateReveal(
@@ -274,17 +318,18 @@ class RevealTest :
         ): InteractivePromptBridge.PendingPrompt =
             InteractivePromptBridge.PendingPrompt(
                 promptId = "test",
-                request = PromptRequest(
-                    promptType = "choose_cards",
-                    message = "Choose a card to discard",
-                    options = candidateRefs.map { "card" },
-                    min = min,
-                    max = max,
-                    semantic = PromptSemantic.RevealChoose,
-                    candidateRefs = candidateRefs,
-                    unfilteredRefs = unfilteredRefs,
-                    sourceEntityId = sourceEntityId,
-                ),
+                request =
+                    PromptRequest(
+                        promptType = "choose_cards",
+                        message = "Choose a card to discard",
+                        options = candidateRefs.map { "card" },
+                        min = min,
+                        max = max,
+                        semantic = PromptSemantic.RevealChoose,
+                        candidateRefs = candidateRefs,
+                        unfilteredRefs = unfilteredRefs,
+                        sourceEntityId = sourceEntityId,
+                    ),
                 future = CompletableFuture(),
             )
     }

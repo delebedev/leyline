@@ -102,27 +102,32 @@ class FrontDoorHandlerTest :
 
         /** Create a fresh FD channel wired to our test player. */
         fun fdChannel(): EmbeddedChannel {
-            val ch = EmbeddedChannel(
-                FrontDoorHandler(
-                    playerId = PlayerId(testPlayerId),
-                    deckService = deckService,
-                    playerService = playerService,
-                    matchmaking = matchmakingService,
-                    collectionService = CollectionService { emptyList() },
-                    courseService = CourseService(InMemoryCourseRepository()) { _ ->
-                        GeneratedPool(emptyList(), emptyList(), 0)
-                    },
-                    draftService = DraftService(InMemoryDraftSessionRepository()) { _ -> emptyList() },
-                    writer = writer,
-                    bootstrapData = bootstrapData,
-                ),
-            )
+            val ch =
+                EmbeddedChannel(
+                    FrontDoorHandler(
+                        playerId = PlayerId(testPlayerId),
+                        deckService = deckService,
+                        playerService = playerService,
+                        matchmaking = matchmakingService,
+                        collectionService = CollectionService { emptyList() },
+                        courseService =
+                            CourseService(InMemoryCourseRepository()) { _ ->
+                                GeneratedPool(emptyList(), emptyList(), 0)
+                            },
+                        draftService = DraftService(InMemoryDraftSessionRepository()) { _ -> emptyList() },
+                        writer = writer,
+                        bootstrapData = bootstrapData,
+                    ),
+                )
             channel = ch
             return ch
         }
 
         /** Write a framed Cmd envelope into the channel. */
-        fun EmbeddedChannel.writeCmd(cmdType: Int, payload: String? = "{}") {
+        fun EmbeddedChannel.writeCmd(
+            cmdType: Int,
+            payload: String? = "{}",
+        ) {
             val envelope = FdEnvelope.encodeCmd(cmdType, UUID.randomUUID().toString(), payload ?: "{}")
             val header = FdEnvelope.buildOutgoingHeader(envelope.size)
             val buf = Unpooled.buffer(header.size + envelope.size)
@@ -142,20 +147,30 @@ class FrontDoorHandlerTest :
         }
 
         /** Send a framed Cmd envelope, read back first response as FdMessage. */
-        fun EmbeddedChannel.sendCmd(cmdType: Int, payload: String? = "{}"): FdEnvelope.FdMessage {
+        fun EmbeddedChannel.sendCmd(
+            cmdType: Int,
+            payload: String? = "{}",
+        ): FdEnvelope.FdMessage {
             writeCmd(cmdType, payload)
             val resp = readOutbound<ByteBuf>() ?: error("No response for CmdType $cmdType")
             return decodeResponse(resp)
         }
 
         /** Send a cmd and return ALL responses (for 612 which sends ack + push). */
-        fun EmbeddedChannel.sendCmdAll(cmdType: Int, payload: String? = "{}"): List<FdEnvelope.FdMessage> {
+        fun EmbeddedChannel.sendCmdAll(
+            cmdType: Int,
+            payload: String? = "{}",
+        ): List<FdEnvelope.FdMessage> {
             writeCmd(cmdType, payload)
             return readAllResponses()
         }
 
         /** Send a cmd, parse first response as JsonObject. Uses [ch] or creates a fresh channel. */
-        fun sendJson(cmdType: Int, payload: String? = "{}", ch: EmbeddedChannel = fdChannel()): JsonObject {
+        fun sendJson(
+            cmdType: Int,
+            payload: String? = "{}",
+            ch: EmbeddedChannel = fdChannel(),
+        ): JsonObject {
             val msg = ch.sendCmd(cmdType, payload)
             return json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
         }
@@ -170,22 +185,24 @@ class FrontDoorHandlerTest :
                 )
             }
             val courseService = CourseService(InMemoryCourseRepository(), poolGen)
-            val draftService = DraftService(InMemoryDraftSessionRepository()) { _ ->
-                (0 until 3).map { pack -> (1..13).map { card -> 90000 + pack * 100 + card } }
-            }
-            val ch = EmbeddedChannel(
-                FrontDoorHandler(
-                    playerId = PlayerId(testPlayerId),
-                    deckService = deckService,
-                    playerService = playerService,
-                    matchmaking = matchmakingService,
-                    collectionService = CollectionService { emptyList() },
-                    courseService = courseService,
-                    draftService = draftService,
-                    writer = writer,
-                    bootstrapData = bootstrapData,
-                ),
-            )
+            val draftService =
+                DraftService(InMemoryDraftSessionRepository()) { _ ->
+                    (0 until 3).map { pack -> (1..13).map { card -> 90000 + pack * 100 + card } }
+                }
+            val ch =
+                EmbeddedChannel(
+                    FrontDoorHandler(
+                        playerId = PlayerId(testPlayerId),
+                        deckService = deckService,
+                        playerService = playerService,
+                        matchmaking = matchmakingService,
+                        collectionService = CollectionService { emptyList() },
+                        courseService = courseService,
+                        draftService = draftService,
+                        writer = writer,
+                        bootstrapData = bootstrapData,
+                    ),
+                )
             channel = ch
             return ch
         }
@@ -267,34 +284,40 @@ class FrontDoorHandlerTest :
             val ch = fdChannel()
             val responses = ch.sendCmdAll(612, """{"deckId":"$testDeckId","botDeckId":"some-bot-deck","botMatchType":0}""")
             responses.size shouldBe 2
-            val matchInfo = json.parseToJsonElement(responses[1].jsonPayload!!)
-                .jsonObject["MatchInfoV3"]?.jsonObject
+            val matchInfo =
+                json
+                    .parseToJsonElement(responses[1].jsonPayload!!)
+                    .jsonObject["MatchInfoV3"]
+                    ?.jsonObject
             matchInfo.shouldNotBeNull()
             matchInfo["EventId"]?.jsonPrimitive?.content shouldBe "AIBotMatch"
         }
 
         test("CmdType 603 - SparkyStarterDeckDuel can route into puzzle match ids") {
-            val puzzleAwareMatchmaking = MatchmakingService(
-                store,
-                "localhost",
-                30003,
-                matchIdFactory = { eventName -> if (eventName == "SparkyStarterDeckDuel") "puzzle-bolt-face" else "plain-match" },
-            )
-            val ch = EmbeddedChannel(
-                FrontDoorHandler(
-                    playerId = PlayerId(testPlayerId),
-                    deckService = deckService,
-                    playerService = playerService,
-                    matchmaking = puzzleAwareMatchmaking,
-                    collectionService = CollectionService { emptyList() },
-                    courseService = CourseService(InMemoryCourseRepository()) { _ ->
-                        GeneratedPool(emptyList(), emptyList(), 0)
-                    },
-                    draftService = DraftService(InMemoryDraftSessionRepository()) { _ -> emptyList() },
-                    writer = writer,
-                    bootstrapData = bootstrapData,
-                ),
-            )
+            val puzzleAwareMatchmaking =
+                MatchmakingService(
+                    store,
+                    "localhost",
+                    30003,
+                    matchIdFactory = { eventName -> if (eventName == "SparkyStarterDeckDuel") "puzzle-bolt-face" else "plain-match" },
+                )
+            val ch =
+                EmbeddedChannel(
+                    FrontDoorHandler(
+                        playerId = PlayerId(testPlayerId),
+                        deckService = deckService,
+                        playerService = playerService,
+                        matchmaking = puzzleAwareMatchmaking,
+                        collectionService = CollectionService { emptyList() },
+                        courseService =
+                            CourseService(InMemoryCourseRepository()) { _ ->
+                                GeneratedPool(emptyList(), emptyList(), 0)
+                            },
+                        draftService = DraftService(InMemoryDraftSessionRepository()) { _ -> emptyList() },
+                        writer = writer,
+                        bootstrapData = bootstrapData,
+                    ),
+                )
             channel = ch
 
             ch.writeCmd(
@@ -435,7 +458,8 @@ class FrontDoorHandlerTest :
 
         test("CmdType 406 - UpsertDeckV2 creates deck and returns enriched Summary") {
             val newDeckId = "test-deck-00000000-0000-0000-0000-upsert000001"
-            val payload = """
+            val payload =
+                """
                 {
                     "Summary": {"DeckId":"$newDeckId","Name":"New Deck","DeckTileId":11111,
                         "Attributes":[{"name":"Format","value":"Standard"}]},
@@ -447,7 +471,7 @@ class FrontDoorHandlerTest :
                     },
                     "ActionType": "Create"
                 }
-            """.trimIndent()
+                """.trimIndent()
             val ch = fdChannel()
             val msg = ch.sendCmd(406, payload)
             val resp = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
@@ -472,7 +496,8 @@ class FrontDoorHandlerTest :
 
         test("CmdType 412 - UpsertDeckV3 saves deck and returns bare 6-field summary") {
             val newDeckId = "test-deck-00000000-0000-0000-0000-upsert000412"
-            val payload = """
+            val payload =
+                """
                 {
                     "Summary": {"DeckId":"$newDeckId","Mana":"","Name":"V3 Deck","DeckTileId":22222,
                         "Attributes":[{"name":"Format","value":"Timeless"}],
@@ -488,7 +513,7 @@ class FrontDoorHandlerTest :
                     },
                     "ActionType": "Updated"
                 }
-            """.trimIndent()
+                """.trimIndent()
             val ch = fdChannel()
             val msg = ch.sendCmd(412, payload)
             val summary = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
@@ -558,7 +583,8 @@ class FrontDoorHandlerTest :
 
         test("CmdType 406 - upserted deck appears in next StartHook") {
             val deckId = "test-deck-00000000-0000-0000-0000-roundtrip001"
-            val payload = """
+            val payload =
+                """
                 {
                     "Summary": {"DeckId":"$deckId","Name":"Roundtrip Deck","DeckTileId":77777},
                     "Deck": {
@@ -569,7 +595,7 @@ class FrontDoorHandlerTest :
                     },
                     "ActionType": "Create"
                 }
-            """.trimIndent()
+                """.trimIndent()
             val ch = fdChannel()
             ch.sendCmd(406, payload)
 
@@ -599,22 +625,24 @@ class FrontDoorHandlerTest :
 
             // 2. Set deck — transitions to CreateMatch
             val mainDeck = (1..40).joinToString(",") { """{"cardId":$it,"quantity":1}""" }
-            val setDeck = sendJson(
-                622,
-                """
-                {"EventName":"$event",
-                 "Deck":{"MainDeck":[$mainDeck],"Sideboard":[],"CommandZone":[],"Companions":[]},
-                 "Summary":{"DeckId":"sealed-001","Name":"My Sealed","DeckTileId":12345}}
-                """.trimIndent(),
-                ch,
-            )
+            val setDeck =
+                sendJson(
+                    622,
+                    """
+                    {"EventName":"$event",
+                     "Deck":{"MainDeck":[$mainDeck],"Sideboard":[],"CommandZone":[],"Companions":[]},
+                     "Summary":{"DeckId":"sealed-001","Name":"My Sealed","DeckTileId":12345}}
+                    """.trimIndent(),
+                    ch,
+                )
             setDeck["CurrentModule"]?.jsonPrimitive?.content shouldBe "CreateMatch"
 
             // 3. Courses list includes our sealed event
             val courses = sendJson(623, "{}", ch)
-            val names = courses["Courses"]!!.jsonArray.map {
-                it.jsonObject["InternalEventName"]?.jsonPrimitive?.content
-            }
+            val names =
+                courses["Courses"]!!.jsonArray.map {
+                    it.jsonObject["InternalEventName"]?.jsonPrimitive?.content
+                }
             names shouldContain event
 
             // 4. Resign — transitions to Complete
@@ -668,7 +696,8 @@ class FrontDoorHandlerTest :
             val firstCard = startPayload["DraftPack"]!!.jsonArray[0].jsonPrimitive.content
 
             // Pick first card
-            val pickPayload = """{"EventName":"QuickDraft_ECL_20260223","PickInfo":{"CardIds":["$firstCard"],"PackNumber":0,"PickNumber":0}}"""
+            val pickPayload =
+                """{"EventName":"QuickDraft_ECL_20260223","PickInfo":{"CardIds":["$firstCard"],"PackNumber":0,"PickNumber":0}}"""
             val pickObj = sendJson(1801, pickPayload, ch)
             pickObj["CurrentModule"]?.jsonPrimitive?.content shouldBe "BotDraft"
             val payload = json.parseToJsonElement(pickObj["Payload"]!!.jsonPrimitive.content).jsonObject
@@ -710,7 +739,8 @@ class FrontDoorHandlerTest :
                 val card = payload["DraftPack"]!!.jsonArray[0].jsonPrimitive.content
                 val packNum = payload["PackNumber"]!!.jsonPrimitive.int
                 val pickNum = payload["PickNumber"]!!.jsonPrimitive.int
-                val pickReq = """{"EventName":"QuickDraft_ECL_20260223","PickInfo":{"CardIds":["$card"],"PackNumber":$packNum,"PickNumber":$pickNum}}"""
+                val pickReq =
+                    """{"EventName":"QuickDraft_ECL_20260223","PickInfo":{"CardIds":["$card"],"PackNumber":$packNum,"PickNumber":$pickNum}}"""
                 ch.writeCmd(1801, pickReq)
                 resp = ch.readOutbound<ByteBuf>()!!
                 msg = decodeResponse(resp)
@@ -731,9 +761,10 @@ class FrontDoorHandlerTest :
             msg = decodeResponse(resp)
             val coursesObj = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
             val courses = coursesObj["Courses"]!!.jsonArray
-            val draftCourse = courses.firstOrNull {
-                it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "QuickDraft_ECL_20260223"
-            }
+            val draftCourse =
+                courses.firstOrNull {
+                    it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "QuickDraft_ECL_20260223"
+                }
             assertSoftly {
                 draftCourse.shouldNotBeNull()
                 draftCourse.jsonObject["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"
@@ -763,9 +794,10 @@ class FrontDoorHandlerTest :
 
 /** Load a reference JSON shape from classpath. */
 private fun loadReferenceShape(resource: String): JsonObject {
-    val bytes = FrontDoorHandlerTest::class.java.classLoader
-        .getResourceAsStream(resource)!!
-        .readBytes()
+    val bytes =
+        FrontDoorHandlerTest::class.java.classLoader
+            .getResourceAsStream(resource)!!
+            .readBytes()
     return Json.parseToJsonElement(bytes.toString(Charsets.UTF_8)).jsonObject
 }
 
@@ -774,7 +806,12 @@ private fun loadReferenceShape(resource: String): JsonObject {
  * Nested JsonObjects are checked recursively. Extra keys in actual are allowed
  * (server may add fields), but missing keys fail with a clear message.
  */
-private fun assertKeysMatch(reference: JsonObject, actual: JsonObject, context: String, path: String = "") {
+private fun assertKeysMatch(
+    reference: JsonObject,
+    actual: JsonObject,
+    context: String,
+    path: String = "",
+) {
     val loc = path.ifEmpty { "root" }
     withClue("$context: missing keys at $loc") {
         (reference.keys - actual.keys).shouldBeEmpty()

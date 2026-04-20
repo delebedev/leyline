@@ -72,7 +72,8 @@ class TokenDiffStabilityTest :
             )
         }
 
-        val puzzleText = """
+        val puzzleText =
+            """
             [metadata]
             Name:Clue Token Diff Stability
             Goal:Win
@@ -91,11 +92,15 @@ class TokenDiffStabilityTest :
             humanlibrary=Plains;Plains;Plains;Plains;Plains
             aibattlefield=Plains
             ailibrary=Plains;Plains;Plains;Plains;Plains
-        """.trimIndent()
+            """.trimIndent()
 
         fun castInspectorAndWaitForClue(h: MatchFlowHarness): Int {
             val human = h.bridge.getPlayer(SeatId(1))!!
-            human.getZone(ZoneType.Hand).cards.any { it.name == "Novice Inspector" }.shouldBeTrue()
+            human
+                .getZone(ZoneType.Hand)
+                .cards
+                .any { it.name == "Novice Inspector" }
+                .shouldBeTrue()
 
             h.castSpellByName("Novice Inspector").shouldBeTrue()
 
@@ -106,9 +111,12 @@ class TokenDiffStabilityTest :
                 h.passPriority()
             }
 
-            val clue = human.getZone(ZoneType.Battlefield).cards
-                .firstOrNull { it.isToken }
-                .shouldNotBeNull()
+            val clue =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .firstOrNull { it.isToken }
+                    .shouldNotBeNull()
             return h.bridge.getOrAllocInstanceId(ForgeCardId(clue.id)).value
         }
 
@@ -121,8 +129,10 @@ class TokenDiffStabilityTest :
 
             val snapClue1 = GsmSnapshot.capture(h.game(), h.bridge, "test-clue", 1)
             val gsm = StateMapper.buildFromSnapshot(snapClue1, 1, "test-clue", h.bridge, viewingSeatId = 1).gsm
-            val clueObj = gsm.gameObjectsList.firstOrNull { it.instanceId == clueIid }
-                .shouldNotBeNull()
+            val clueObj =
+                gsm.gameObjectsList
+                    .firstOrNull { it.instanceId == clueIid }
+                    .shouldNotBeNull()
 
             assertSoftly {
                 clueObj.cardTypesList shouldContain CardType.Artifact_a80b
@@ -163,6 +173,8 @@ class TokenDiffStabilityTest :
             }
 
             // Registry cached the grpId — stable for future diffs
-            h.bridge.tokenRegistry.resolve(clueIid).shouldNotBeNull()
+            h.bridge.tokenRegistry
+                .resolve(clueIid)
+                .shouldNotBeNull()
         }
     })

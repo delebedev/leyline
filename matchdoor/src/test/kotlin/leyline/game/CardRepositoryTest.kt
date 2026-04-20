@@ -50,9 +50,16 @@ class CardRepositoryTest :
         test("token grp id for card single token") {
             repo.registerData(
                 CardData(
-                    grpId = 1000, titleId = 1, power = "", toughness = "",
-                    colors = emptyList(), types = emptyList(), subtypes = emptyList(),
-                    supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
+                    grpId = 1000,
+                    titleId = 1,
+                    power = "",
+                    toughness = "",
+                    colors = emptyList(),
+                    types = emptyList(),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = emptyList(),
                     tokenGrpIds = mapOf(5000 to 94161),
                 ),
                 "Resolute Reinforcements",
@@ -64,9 +71,16 @@ class CardRepositoryTest :
         test("token grp id for card multiple tokens match by name") {
             repo.registerData(
                 CardData(
-                    grpId = 2000, titleId = 1, power = "", toughness = "",
-                    colors = emptyList(), types = emptyList(), subtypes = emptyList(),
-                    supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
+                    grpId = 2000,
+                    titleId = 1,
+                    power = "",
+                    toughness = "",
+                    colors = emptyList(),
+                    types = emptyList(),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = emptyList(),
                     tokenGrpIds = mapOf(5000 to 94161, 5001 to 94156),
                 ),
                 "Some Card",
@@ -86,11 +100,19 @@ class CardRepositoryTest :
         // --- registerData grpId=0 guard ---
 
         test("registerData rejects grpId 0") {
-            val data = CardData(
-                grpId = 0, titleId = 1, power = "", toughness = "",
-                colors = emptyList(), types = emptyList(), subtypes = emptyList(),
-                supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
-            )
+            val data =
+                CardData(
+                    grpId = 0,
+                    titleId = 1,
+                    power = "",
+                    toughness = "",
+                    colors = emptyList(),
+                    types = emptyList(),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = emptyList(),
+                )
             shouldThrow<IllegalArgumentException> {
                 repo.registerData(data, "Broken Card")
             }
@@ -99,9 +121,16 @@ class CardRepositoryTest :
         test("token grp id for card no tokens") {
             repo.registerData(
                 CardData(
-                    grpId = 3000, titleId = 1, power = "", toughness = "",
-                    colors = emptyList(), types = emptyList(), subtypes = emptyList(),
-                    supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
+                    grpId = 3000,
+                    titleId = 1,
+                    power = "",
+                    toughness = "",
+                    colors = emptyList(),
+                    types = emptyList(),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = emptyList(),
                     tokenGrpIds = emptyMap(),
                 ),
                 "Plain Card",
@@ -112,30 +141,53 @@ class CardRepositoryTest :
         // --- linkedFaceGrpIds ---
 
         test("CardData isMultiFace true when linkedFaceGrpIds non-empty") {
-            val data = CardData(
-                grpId = 78895, titleId = 1, power = "0", toughness = "4",
-                colors = listOf(3), types = listOf(2), subtypes = emptyList(),
-                supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
-                linkedFaceGrpIds = listOf(78896),
-            )
+            val data =
+                CardData(
+                    grpId = 78895,
+                    titleId = 1,
+                    power = "0",
+                    toughness = "4",
+                    colors = listOf(3),
+                    types = listOf(2),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = emptyList(),
+                    linkedFaceGrpIds = listOf(78896),
+                )
             data.isMultiFace shouldBe true
         }
 
         test("CardData isMultiFace false when linkedFaceGrpIds empty") {
-            val data = CardData(
-                grpId = 75515, titleId = 1, power = "2", toughness = "2",
-                colors = emptyList(), types = listOf(2), subtypes = emptyList(),
-                supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
-            )
+            val data =
+                CardData(
+                    grpId = 75515,
+                    titleId = 1,
+                    power = "2",
+                    toughness = "2",
+                    colors = emptyList(),
+                    types = listOf(2),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = emptyList(),
+                )
             data.isMultiFace shouldBe false
         }
 
         test("findLinkedFaces returns linkedFaceGrpIds from registered CardData") {
             repo.registerData(
                 CardData(
-                    grpId = 78895, titleId = 1, power = "0", toughness = "4",
-                    colors = emptyList(), types = emptyList(), subtypes = emptyList(),
-                    supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
+                    grpId = 78895,
+                    titleId = 1,
+                    power = "0",
+                    toughness = "4",
+                    colors = emptyList(),
+                    types = emptyList(),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = emptyList(),
                     linkedFaceGrpIds = listOf(78896),
                 ),
                 "Concealing Curtains",
@@ -150,9 +202,16 @@ class CardRepositoryTest :
         test("findLinkedFaces returns empty for single-face card") {
             repo.registerData(
                 CardData(
-                    grpId = 75515, titleId = 1, power = "2", toughness = "2",
-                    colors = emptyList(), types = emptyList(), subtypes = emptyList(),
-                    supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
+                    grpId = 75515,
+                    titleId = 1,
+                    power = "2",
+                    toughness = "2",
+                    colors = emptyList(),
+                    types = emptyList(),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = emptyList(),
                 ),
                 "Grizzly Bears",
             )

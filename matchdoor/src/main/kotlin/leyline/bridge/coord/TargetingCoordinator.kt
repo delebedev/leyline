@@ -59,30 +59,33 @@ class TargetingCoordinator(
         val isLegendRule = sa?.api == ApiType.InternalLegendaryRule
         val isSearch = sa?.api == ApiType.ChangeZone || hasDelayedReveal
 
-        val semantic = when {
-            isLegendRule -> PromptSemantic.SelectNLegendRule
-            isSearch -> PromptSemantic.Search
-            else -> PromptSemantic.Generic
-        }
+        val semantic =
+            when {
+                isLegendRule -> PromptSemantic.SelectNLegendRule
+                isSearch -> PromptSemantic.Search
+                else -> PromptSemantic.Generic
+            }
 
         val labels = optionList.map { it.entityLabel() }
-        val request = PromptRequest(
-            promptType = "choose_cards",
-            message = title ?: "Choose one",
-            options = labels,
-            min = if (isOptional) 0 else 1,
-            max = 1,
-            defaultIndex = 0,
-            semantic = semantic,
-            candidateRefs = buildCandidateRefs(optionList),
-        )
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = title ?: "Choose one",
+                options = labels,
+                min = if (isOptional) 0 else 1,
+                max = 1,
+                defaultIndex = 0,
+                semantic = semantic,
+                candidateRefs = buildCandidateRefs(optionList),
+            )
         val indices = bridge.requestChoice(request)
         val idx = indices.firstOrNull()
-        val chosen = if (idx != null && idx in 0 until optionList.size) {
-            optionList.get(idx)
-        } else {
-            if (isOptional) null else optionList.getFirst()
-        }
+        val chosen =
+            if (idx != null && idx in 0 until optionList.size) {
+                optionList.get(idx)
+            } else {
+                if (isOptional) null else optionList.getFirst()
+            }
 
         // Search: mark chosen card so GameEventCollector emits CardSearchedToHand (Put category).
         if (isSearch && chosen is Card) {
@@ -123,15 +126,16 @@ class TargetingCoordinator(
         val effectiveMin = min.coerceAtLeast(0).coerceAtMost(effectiveMax)
         if (optionList.size <= effectiveMin) return optionList.toList()
         val labels = optionList.map { it.entityLabel() }
-        val request = PromptRequest(
-            promptType = "choose_cards",
-            message = title ?: "Choose cards",
-            options = labels,
-            min = effectiveMin,
-            max = effectiveMax,
-            defaultIndex = 0,
-            candidateRefs = buildCandidateRefs(optionList),
-        )
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = title ?: "Choose cards",
+                options = labels,
+                min = effectiveMin,
+                max = effectiveMax,
+                defaultIndex = 0,
+                candidateRefs = buildCandidateRefs(optionList),
+            )
         val indices = bridge.requestChoice(request)
         return indices.filter { it in optionList.indices }.map { optionList.get(it) }
     }
@@ -155,8 +159,11 @@ class TargetingCoordinator(
         return chooseCardsViaBridge(sourceList, effectiveMin, max, title ?: "Choose cards")
     }
 
-    fun chooseCardsToRevealFromHand(min: Int, max: Int, valid: CardCollectionView): CardCollectionView =
-        chooseCardsViaBridge(valid, min, max.coerceAtMost(valid.size), "Choose cards to reveal")
+    fun chooseCardsToRevealFromHand(
+        min: Int,
+        max: Int,
+        valid: CardCollectionView,
+    ): CardCollectionView = chooseCardsViaBridge(valid, min, max.coerceAtMost(valid.size), "Choose cards to reveal")
 
     // -- Discard / sacrifice ---------------------------------------------
 
@@ -165,16 +172,14 @@ class TargetingCoordinator(
         max: Int,
         validTargets: CardCollectionView,
         message: String?,
-    ): CardCollectionView =
-        chooseCardsViaBridge(validTargets, min, max, message ?: "Choose permanents to sacrifice")
+    ): CardCollectionView = chooseCardsViaBridge(validTargets, min, max, message ?: "Choose permanents to sacrifice")
 
     fun choosePermanentsToDestroy(
         min: Int,
         max: Int,
         validTargets: CardCollectionView,
         message: String?,
-    ): CardCollectionView =
-        chooseCardsViaBridge(validTargets, min, max, message ?: "Choose permanents to destroy")
+    ): CardCollectionView = chooseCardsViaBridge(validTargets, min, max, message ?: "Choose permanents to destroy")
 
     fun chooseCardsToDiscardFrom(
         sa: SpellAbility?,
@@ -191,7 +196,10 @@ class TargetingCoordinator(
         return chooseCardsViaBridge(validCards, min, max, "Choose cards to discard")
     }
 
-    fun chooseCardsToDiscardToMaximumHandSize(nDiscard: Int, hand: CardCollectionView): CardCollection =
+    fun chooseCardsToDiscardToMaximumHandSize(
+        nDiscard: Int,
+        hand: CardCollectionView,
+    ): CardCollection =
         chooseCardsViaBridge(
             CardCollection(hand),
             nDiscard,
@@ -205,18 +213,20 @@ class TargetingCoordinator(
         param: Array<String>,
         sa: SpellAbility,
     ): CardCollectionView {
-        val labels = hand.map { card ->
-            val isMatchingType = card.isValid(param, sa.activatingPlayer, sa.hostCard, sa)
-            if (isMatchingType) "${card.name} (${param.joinToString("/")})" else card.name
-        }
-        val request = PromptRequest(
-            promptType = "choose_cards",
-            message = "Choose $min card(s) to discard (or pick a ${param.joinToString("/")} to reveal)",
-            options = labels,
-            min = 1,
-            max = min,
-            defaultIndex = 0,
-        )
+        val labels =
+            hand.map { card ->
+                val isMatchingType = card.isValid(param, sa.activatingPlayer, sa.hostCard, sa)
+                if (isMatchingType) "${card.name} (${param.joinToString("/")})" else card.name
+            }
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = "Choose $min card(s) to discard (or pick a ${param.joinToString("/")} to reveal)",
+                options = labels,
+                min = 1,
+                max = min,
+                defaultIndex = 0,
+            )
         val indices = bridge.requestChoice(request)
         val handList = hand.toList()
         val result = CardCollection()
@@ -277,14 +287,15 @@ class TargetingCoordinator(
     ): CardCollectionView {
         if (cards.size <= 1) return cards
         val labels = cards.map { it.name }
-        val request = PromptRequest(
-            promptType = "choose_cards",
-            message = "Order cards being put into ${zone.name.lowercase()}",
-            options = labels,
-            min = cards.size,
-            max = cards.size,
-            defaultIndex = 0,
-        )
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = "Order cards being put into ${zone.name.lowercase()}",
+                options = labels,
+                min = cards.size,
+                max = cards.size,
+                defaultIndex = 0,
+            )
         val indices = bridge.requestChoice(request)
         val result = CardCollection()
         for (idx in indices) {
@@ -309,12 +320,13 @@ class TargetingCoordinator(
         val minTargets = numTargets ?: sa.minTargets
         val maxTargets = numTargets ?: sa.maxTargets
 
-        val allCandidates: List<GameEntity> = buildList {
-            for (p in sa.activatingPlayer.game.players) {
-                if (sa.canTarget(p)) add(p)
+        val allCandidates: List<GameEntity> =
+            buildList {
+                for (p in sa.activatingPlayer.game.players) {
+                    if (sa.canTarget(p)) add(p)
+                }
+                addAll(validTargets)
             }
-            addAll(validTargets)
-        }
 
         log.info(
             "selectTargetsInteractively: spell={} candidates={} ({}p+{}c) mandatory={} min={} max={}",
@@ -337,35 +349,42 @@ class TargetingCoordinator(
             return TargetSelectionResult(true, true)
         }
 
-        val labels = allCandidates.map { entity ->
-            when (entity) {
-                is Card -> {
-                    val zone = entity.zone?.zoneType?.name.orEmpty()
-                    val ctrl = entity.controller?.name.orEmpty()
-                    "${entity.name} ($zone, $ctrl)"
+        val labels =
+            allCandidates.map { entity ->
+                when (entity) {
+                    is Card -> {
+                        val zone =
+                            entity.zone
+                                ?.zoneType
+                                ?.name
+                                .orEmpty()
+                        val ctrl = entity.controller?.name.orEmpty()
+                        "${entity.name} ($zone, $ctrl)"
+                    }
+                    is Player -> entity.name
+                    else -> entity.toString()
                 }
-                is Player -> entity.name
-                else -> entity.toString()
             }
-        }
         val candidateRefs = buildCandidateRefs(allCandidates)
-        val prompt = tgt.vtSelection?.takeIf { it.isNotBlank() }
-            ?: "Choose target for ${sa.hostCard?.name ?: sa}"
+        val prompt =
+            tgt.vtSelection?.takeIf { it.isNotBlank() }
+                ?: "Choose target for ${sa.hostCard?.name ?: sa}"
 
         val numAlreadyTargeted = sa.targets.size
         val stillNeeded = maxTargets - numAlreadyTargeted
         val minNeeded = (minTargets - numAlreadyTargeted).coerceAtLeast(if (mandatory) 1 else 0)
 
-        val request = PromptRequest(
-            promptType = "choose_cards",
-            message = prompt,
-            options = labels,
-            min = minNeeded.coerceAtMost(allCandidates.size),
-            max = stillNeeded.coerceAtMost(allCandidates.size),
-            defaultIndex = 0,
-            candidateRefs = candidateRefs,
-            sourceEntityId = sa.hostCard?.id,
-        )
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = prompt,
+                options = labels,
+                min = minNeeded.coerceAtMost(allCandidates.size),
+                max = stillNeeded.coerceAtMost(allCandidates.size),
+                defaultIndex = 0,
+                candidateRefs = candidateRefs,
+                sourceEntityId = sa.hostCard?.id,
+            )
         val indices = bridge.requestChoice(request)
 
         if (indices.isEmpty() && mandatory && minTargets > 0) {
@@ -389,7 +408,10 @@ class TargetingCoordinator(
 
     // -- Private helpers --------------------------------------------------
 
-    private fun recordPendingTargetSpec(sa: SpellAbility, target: Card) {
+    private fun recordPendingTargetSpec(
+        sa: SpellAbility,
+        target: Card,
+    ) {
         val spellCard = sa.hostCard ?: return
         bridge.addPendingTargetSpec(
             InteractivePromptBridge.PendingTarget(
@@ -410,21 +432,23 @@ class TargetingCoordinator(
     ): ImmutablePair<CardCollection, CardCollection> {
         if (topN.isEmpty()) return ImmutablePair.of(null, null)
         val refs = buildCandidateRefs(topN)
-        val groupingSemantic = when (label) {
-            "Surveil" -> PromptSemantic.GroupingSurveil
-            else -> PromptSemantic.GroupingScry
-        }
+        val groupingSemantic =
+            when (label) {
+                "Surveil" -> PromptSemantic.GroupingSurveil
+                else -> PromptSemantic.GroupingScry
+            }
         if (topN.size == 1) {
-            val request = PromptRequest(
-                promptType = "confirm",
-                message = singleAwayPrompt(topN[0].name),
-                options = listOf("Top of library", awayZone),
-                min = 1,
-                max = 1,
-                defaultIndex = 0,
-                semantic = groupingSemantic,
-                candidateRefs = refs,
-            )
+            val request =
+                PromptRequest(
+                    promptType = "confirm",
+                    message = singleAwayPrompt(topN[0].name),
+                    options = listOf("Top of library", awayZone),
+                    min = 1,
+                    max = 1,
+                    defaultIndex = 0,
+                    semantic = groupingSemantic,
+                    candidateRefs = refs,
+                )
             val result = bridge.requestChoice(request)
             return if (result.firstOrNull() == 1) {
                 ImmutablePair.of(null, topN)
@@ -433,16 +457,17 @@ class TargetingCoordinator(
             }
         }
         val labels = topN.map { it.name }
-        val request = PromptRequest(
-            promptType = "choose_cards",
-            message = multiAwayPrompt,
-            options = labels,
-            min = 0,
-            max = topN.size,
-            defaultIndex = 0,
-            semantic = groupingSemantic,
-            candidateRefs = refs,
-        )
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = multiAwayPrompt,
+                options = labels,
+                min = 0,
+                max = topN.size,
+                defaultIndex = 0,
+                semantic = groupingSemantic,
+                candidateRefs = refs,
+            )
         val awayIndices = bridge.requestChoice(request)
         val toAway = CardCollection()
         val toTop = CardCollection()
@@ -451,14 +476,15 @@ class TargetingCoordinator(
         }
         if (toTop.size > 1) {
             val topLabels = toTop.map { it.name }
-            val orderReq = PromptRequest(
-                promptType = "order",
-                message = "Order cards for top of library (first = top)",
-                options = topLabels,
-                min = toTop.size,
-                max = toTop.size,
-                defaultIndex = 0,
-            )
+            val orderReq =
+                PromptRequest(
+                    promptType = "order",
+                    message = "Order cards for top of library (first = top)",
+                    options = topLabels,
+                    min = toTop.size,
+                    max = toTop.size,
+                    defaultIndex = 0,
+                )
             val ordering = bridge.requestChoice(orderReq)
             val ordered = CardCollection()
             for (idx in ordering) {
@@ -492,14 +518,15 @@ class TargetingCoordinator(
         val effectiveMin = min.coerceAtLeast(0).coerceAtMost(effectiveMax)
         if (cards.size <= effectiveMin) return CardCollection(cards)
         val labels = cards.map { it.name }
-        val request = PromptRequest(
-            promptType = "choose_cards",
-            message = message,
-            options = labels,
-            min = effectiveMin,
-            max = effectiveMax,
-            defaultIndex = 0,
-        )
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = message,
+                options = labels,
+                min = effectiveMin,
+                max = effectiveMax,
+                defaultIndex = 0,
+            )
         val indices = bridge.requestChoice(request)
         val result = CardCollection()
         for (idx in indices) {
@@ -520,29 +547,32 @@ class TargetingCoordinator(
         reveal: PromptSideEffect.RevealStarted,
     ): CardCollection {
         try {
-            val candidateRefs = filteredCards.mapIndexedNotNull { idx, card ->
-                (card as? Card)?.let {
-                    PromptCandidateRefDto(idx, "card", it.id, it.zone?.zoneType?.name)
+            val candidateRefs =
+                filteredCards.mapIndexedNotNull { idx, card ->
+                    (card as? Card)?.let {
+                        PromptCandidateRefDto(idx, "card", it.id, it.zone?.zoneType?.name)
+                    }
                 }
-            }
-            val unfilteredRefs = reveal.allHandCardIds.mapIndexed { idx, forgeCardId ->
-                PromptCandidateRefDto(idx, "card", forgeCardId.value)
-            }
+            val unfilteredRefs =
+                reveal.allHandCardIds.mapIndexed { idx, forgeCardId ->
+                    PromptCandidateRefDto(idx, "card", forgeCardId.value)
+                }
             val effectiveMin = if (filteredCards.isEmpty()) 0 else min.coerceAtLeast(0)
             val effectiveMax = if (filteredCards.isEmpty()) 0 else max.coerceAtMost(filteredCards.size)
             val labels = filteredCards.map { it.name }
-            val request = PromptRequest(
-                promptType = "choose_cards",
-                message = "Choose a card to discard",
-                options = labels,
-                min = effectiveMin,
-                max = effectiveMax.coerceAtLeast(effectiveMin),
-                defaultIndex = 0,
-                semantic = PromptSemantic.RevealChoose,
-                candidateRefs = candidateRefs,
-                unfilteredRefs = unfilteredRefs,
-                sourceEntityId = sa?.hostCard?.id,
-            )
+            val request =
+                PromptRequest(
+                    promptType = "choose_cards",
+                    message = "Choose a card to discard",
+                    options = labels,
+                    min = effectiveMin,
+                    max = effectiveMax.coerceAtLeast(effectiveMin),
+                    defaultIndex = 0,
+                    semantic = PromptSemantic.RevealChoose,
+                    candidateRefs = candidateRefs,
+                    unfilteredRefs = unfilteredRefs,
+                    sourceEntityId = sa?.hostCard?.id,
+                )
             val indices = bridge.requestChoice(request)
             val result = CardCollection()
             for (idx in indices) {
@@ -565,22 +595,33 @@ class TargetingCoordinator(
             }
         }
 
-    private fun GameEntity.entityLabel(): String = when (this) {
-        is Card -> name
-        is Player -> name
-        else -> toString()
-    }
+    private fun GameEntity.entityLabel(): String =
+        when (this) {
+            is Card -> name
+            is Player -> name
+            else -> toString()
+        }
 
     companion object {
-        fun recordLegendVictim(prompt: InteractivePromptBridge, cardId: ForgeCardId) {
+        fun recordLegendVictim(
+            prompt: InteractivePromptBridge,
+            cardId: ForgeCardId,
+        ) {
             prompt.journal.record(PromptSideEffect.LegendVictim(cardId))
         }
 
-        fun recordSearchedToHand(prompt: InteractivePromptBridge, cardId: ForgeCardId) {
+        fun recordSearchedToHand(
+            prompt: InteractivePromptBridge,
+            cardId: ForgeCardId,
+        ) {
             prompt.journal.record(PromptSideEffect.SearchedToHand(cardId))
         }
 
-        fun startReveal(prompt: InteractivePromptBridge, cardIds: List<ForgeCardId>, ownerSeat: SeatId) {
+        fun startReveal(
+            prompt: InteractivePromptBridge,
+            cardIds: List<ForgeCardId>,
+            ownerSeat: SeatId,
+        ) {
             prompt.journal.record(PromptSideEffect.RevealStarted(cardIds, ownerSeat))
         }
 

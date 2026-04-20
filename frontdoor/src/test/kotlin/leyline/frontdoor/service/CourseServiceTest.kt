@@ -43,22 +43,27 @@ class CourseServiceTest :
 
         test("join same event twice returns existing course") {
             val again = service.join(playerId, "Sealed_FDN_20260307")
-            again.id shouldBe service.getCoursesForPlayer(playerId)
-                .first { it.eventName == "Sealed_FDN_20260307" }.id
+            again.id shouldBe
+                service
+                    .getCoursesForPlayer(playerId)
+                    .first { it.eventName == "Sealed_FDN_20260307" }
+                    .id
         }
 
         test("setDeck transitions to CreateMatch") {
-            val deck = CourseDeck(
-                deckId = DeckId("deck1"),
-                mainDeck = (1..40).map { DeckCard(it, 1) },
-                sideboard = (41..84).map { DeckCard(it, 1) },
-            )
-            val summary = CourseDeckSummary(
-                deckId = DeckId("deck1"),
-                name = "Sealed Deck",
-                tileId = 12345,
-                format = "Limited",
-            )
+            val deck =
+                CourseDeck(
+                    deckId = DeckId("deck1"),
+                    mainDeck = (1..40).map { DeckCard(it, 1) },
+                    sideboard = (41..84).map { DeckCard(it, 1) },
+                )
+            val summary =
+                CourseDeckSummary(
+                    deckId = DeckId("deck1"),
+                    name = "Sealed Deck",
+                    tileId = 12345,
+                    format = "Limited",
+                )
             val course = service.setDeck(playerId, "Sealed_FDN_20260307", deck, summary)
             course.module shouldBe CourseModule.CreateMatch
             course.deck shouldNotBe null
@@ -125,17 +130,19 @@ class CourseServiceTest :
         }
 
         test("setDeck on nonexistent course throws") {
-            val deck = CourseDeck(
-                deckId = DeckId("deck1"),
-                mainDeck = (1..40).map { DeckCard(it, 1) },
-                sideboard = (41..84).map { DeckCard(it, 1) },
-            )
-            val summary = CourseDeckSummary(
-                deckId = DeckId("deck1"),
-                name = "Sealed Deck",
-                tileId = 12345,
-                format = "Limited",
-            )
+            val deck =
+                CourseDeck(
+                    deckId = DeckId("deck1"),
+                    mainDeck = (1..40).map { DeckCard(it, 1) },
+                    sideboard = (41..84).map { DeckCard(it, 1) },
+                )
+            val summary =
+                CourseDeckSummary(
+                    deckId = DeckId("deck1"),
+                    name = "Sealed Deck",
+                    tileId = 12345,
+                    format = "Limited",
+                )
             shouldThrow<IllegalArgumentException> {
                 service.setDeck(playerId, "NonExistent_Event", deck, summary)
             }

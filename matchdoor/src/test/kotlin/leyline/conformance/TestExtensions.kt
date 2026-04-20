@@ -31,7 +31,8 @@ val BundleBuilder.BundleResult.mergedGsm: GameStateMessage
         require(gsms.isNotEmpty()) { "No GSMs in bundle" }
         val allAnnotations = gsms.flatMap { it.annotationsList }
         val base = gsms.last()
-        return base.toBuilder()
+        return base
+            .toBuilder()
             .clearAnnotations()
             .addAllAnnotations(allAnnotations)
             .build()
@@ -48,25 +49,20 @@ val BundleBuilder.BundleResult.aarOrNull: ActionsAvailableReq?
 // ----- Tier 1: Annotation detail access -----
 
 /** Get the first detail with the given key, or null. */
-fun AnnotationInfo.detail(key: String): KeyValuePairInfo? =
-    detailsList.firstOrNull { it.key == key }
+fun AnnotationInfo.detail(key: String): KeyValuePairInfo? = detailsList.firstOrNull { it.key == key }
 
 /** True if this annotation has a detail with the given key. Prefer over
  *  `detailsList.any { it.key == key }` for negative assertions. */
-fun AnnotationInfo.hasDetail(key: String): Boolean =
-    detailsList.any { it.key == key }
+fun AnnotationInfo.hasDetail(key: String): Boolean = detailsList.any { it.key == key }
 
 /** Shorthand: get an int32 detail value. Fails if the key is missing. */
-fun AnnotationInfo.detailInt(key: String): Int =
-    detail(key)?.getValueInt32(0) ?: error("No detail '$key' on annotation $typeList")
+fun AnnotationInfo.detailInt(key: String): Int = detail(key)?.getValueInt32(0) ?: error("No detail '$key' on annotation $typeList")
 
 /** Shorthand: get a uint32 detail value. Fails if the key is missing. */
-fun AnnotationInfo.detailUint(key: String): Int =
-    detail(key)?.getValueUint32(0) ?: error("No detail '$key' on annotation $typeList")
+fun AnnotationInfo.detailUint(key: String): Int = detail(key)?.getValueUint32(0) ?: error("No detail '$key' on annotation $typeList")
 
 /** Shorthand: get a string detail value. Fails if the key is missing. */
-fun AnnotationInfo.detailString(key: String): String =
-    detail(key)?.getValueString(0) ?: error("No detail '$key' on annotation $typeList")
+fun AnnotationInfo.detailString(key: String): String = detail(key)?.getValueString(0) ?: error("No detail '$key' on annotation $typeList")
 
 /** Shorthand: get all int32 values for a multi-value detail (e.g. colors=[3, 5]). */
 fun AnnotationInfo.detailIntList(key: String): List<Int> {
@@ -77,22 +73,18 @@ fun AnnotationInfo.detailIntList(key: String): List<Int> {
 // ----- Tier 1: Action filtering -----
 
 /** Filter actions by ActionType. */
-fun ActionsAvailableReq.ofType(type: ActionType): List<Action> =
-    actionsList.filter { it.actionType == type }
+fun ActionsAvailableReq.ofType(type: ActionType): List<Action> = actionsList.filter { it.actionType == type }
 
 // ----- Tier 1: Annotation lookup by type -----
 
 /** Find all annotations with the given type. */
-fun GameStateMessage.annotations(type: AnnotationType): List<AnnotationInfo> =
-    annotationsList.filter { type in it.typeList }
+fun GameStateMessage.annotations(type: AnnotationType): List<AnnotationInfo> = annotationsList.filter { type in it.typeList }
 
 /** Find the first annotation with the given type. */
-fun GameStateMessage.annotation(type: AnnotationType): AnnotationInfo =
-    annotationsList.first { type in it.typeList }
+fun GameStateMessage.annotation(type: AnnotationType): AnnotationInfo = annotationsList.first { type in it.typeList }
 
 /** Find the first annotation with the given type, or null. */
-fun GameStateMessage.annotationOrNull(type: AnnotationType): AnnotationInfo? =
-    annotationsList.firstOrNull { type in it.typeList }
+fun GameStateMessage.annotationOrNull(type: AnnotationType): AnnotationInfo? = annotationsList.firstOrNull { type in it.typeList }
 
 /** Find the first persistent annotation with the given type. */
 fun GameStateMessage.persistentAnnotation(type: AnnotationType): AnnotationInfo =
@@ -232,9 +224,13 @@ fun GameStateMessage.findZoneTransfer(instanceId: Int): ZoneTransferInfo? {
 // ----- Tier 2: Limbo assertions -----
 
 /** Assert that the GSM's Limbo zone contains the given instanceId in objectInstanceIds. */
-fun assertLimboContains(gsm: GameStateMessage, instanceId: Int) {
-    val limbo = checkNotNull(gsm.zonesList.firstOrNull { it.type == ZoneType.Limbo }) {
-        "GSM should have Limbo zone"
-    }
+fun assertLimboContains(
+    gsm: GameStateMessage,
+    instanceId: Int,
+) {
+    val limbo =
+        checkNotNull(gsm.zonesList.firstOrNull { it.type == ZoneType.Limbo }) {
+            "GSM should have Limbo zone"
+        }
     limbo.objectInstanceIdsList shouldContain instanceId
 }

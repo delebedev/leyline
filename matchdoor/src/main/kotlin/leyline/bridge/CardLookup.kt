@@ -10,46 +10,57 @@ import forge.game.zone.ZoneType
 import leyline.bridge.handoff.Target
 import leyline.bridge.types.ForgeCardId
 
-internal val searchableZones = listOf(
-    ZoneType.Hand,
-    ZoneType.Battlefield,
-    ZoneType.Graveyard,
-    ZoneType.Exile,
-    ZoneType.Library,
-    ZoneType.Command,
-    ZoneType.Stack,
-)
+internal val searchableZones =
+    listOf(
+        ZoneType.Hand,
+        ZoneType.Battlefield,
+        ZoneType.Graveyard,
+        ZoneType.Exile,
+        ZoneType.Library,
+        ZoneType.Command,
+        ZoneType.Stack,
+    )
 
-internal fun findCard(game: Game, cardId: ForgeCardId): Card? =
-    game.getCardsIn(searchableZones).firstOrNull { it.id == cardId.value }
+internal fun findCard(
+    game: Game,
+    cardId: ForgeCardId,
+): Card? = game.getCardsIn(searchableZones).firstOrNull { it.id == cardId.value }
 
-internal fun resolveTarget(game: Game, target: Target): forge.game.GameObject? = when (target) {
-    is Target.Card -> findCard(game, target.cardId)
-    is Target.Player -> game.getPlayer(target.playerId.value)
-}
+internal fun resolveTarget(
+    game: Game,
+    target: Target,
+): forge.game.GameObject? =
+    when (target) {
+        is Target.Card -> findCard(game, target.cardId)
+        is Target.Player -> game.getPlayer(target.playerId.value)
+    }
 
 internal fun resolveAttackDefender(
     game: Game,
     attackingPlayer: Player,
     defender: Target?,
-): GameEntity? = when (defender) {
-    is Target.Card -> {
-        val card = findCard(game, defender.cardId)
-        if (card != null && card.isPlaneswalker && card.controller.isOpponentOf(attackingPlayer)) card else null
+): GameEntity? =
+    when (defender) {
+        is Target.Card -> {
+            val card = findCard(game, defender.cardId)
+            if (card != null && card.isPlaneswalker && card.controller.isOpponentOf(attackingPlayer)) card else null
+        }
+        is Target.Player -> {
+            val playerDefender = game.getPlayer(defender.playerId.value)
+            if (playerDefender != null && playerDefender.isOpponentOf(attackingPlayer)) playerDefender else null
+        }
+        null -> attackingPlayer.opponents.firstOrNull()
     }
-    is Target.Player -> {
-        val playerDefender = game.getPlayer(defender.playerId.value)
-        if (playerDefender != null && playerDefender.isOpponentOf(attackingPlayer)) playerDefender else null
-    }
-    null -> attackingPlayer.opponents.firstOrNull()
-}
 
 /**
  * All castable spell abilities for a card, including alternative costs
  * (Overload, Flashback, Escape, etc.). Stable ordering: base ability first,
  * then alt costs in engine order.
  */
-internal fun getAllCastableAbilities(card: Card, player: Player): List<SpellAbility> {
+internal fun getAllCastableAbilities(
+    card: Card,
+    player: Player,
+): List<SpellAbility> {
     val baseAbilities = card.getSpells()
     if (baseAbilities.isEmpty()) return emptyList()
 
@@ -63,13 +74,14 @@ internal fun getAllCastableAbilities(card: Card, player: Player): List<SpellAbil
     for (sa in withAddCosts) {
         sa.setActivatingPlayer(player)
         val altCosts = GameActionUtil.getAlternativeCosts(sa, player, false)
-        val (priority, other) = altCosts.partition { altSa ->
-            sa.payCosts != null &&
-                sa.payCosts.isOnlyManaCost &&
-                altSa.payCosts != null &&
-                altSa.payCosts.isOnlyManaCost &&
-                sa.payCosts.totalMana.compareTo(altSa.payCosts.totalMana) == 1
-        }
+        val (priority, other) =
+            altCosts.partition { altSa ->
+                sa.payCosts != null &&
+                    sa.payCosts.isOnlyManaCost &&
+                    altSa.payCosts != null &&
+                    altSa.payCosts.isOnlyManaCost &&
+                    sa.payCosts.totalMana.compareTo(altSa.payCosts.totalMana) == 1
+            }
         expanded.addAll(priority)
         expanded.add(sa)
         expanded.addAll(other)
@@ -78,7 +90,10 @@ internal fun getAllCastableAbilities(card: Card, player: Player): List<SpellAbil
     return expanded.filter { it.canPlay() && it.canCastTiming(player) }
 }
 
-fun chooseCastAbility(card: Card, player: Player): SpellAbility? {
+fun chooseCastAbility(
+    card: Card,
+    player: Player,
+): SpellAbility? {
     val all = getAllCastableAbilities(card, player)
     if (all.isEmpty()) return null
     return all.firstOrNull { it.hasParam("WithoutManaCost") } ?: all.first()
@@ -95,7 +110,10 @@ internal fun describeCastAbility(sa: SpellAbility): String {
     }
 }
 
-internal fun getNonManaActivatedAbilities(card: Card, player: Player): List<SpellAbility> {
+internal fun getNonManaActivatedAbilities(
+    card: Card,
+    player: Player,
+): List<SpellAbility> {
     val abilities = mutableListOf<SpellAbility>()
     for (ability in card.spellAbilities) {
         ability.setActivatingPlayer(player)
@@ -107,7 +125,11 @@ internal fun getNonManaActivatedAbilities(card: Card, player: Player): List<Spel
 }
 
 /** Hand is always castable; other zones allowed if the card has mayPlay grants for the given player. */
-internal fun canCastFromZone(card: Card, zone: ZoneType?, player: Player = card.controller): Boolean {
+internal fun canCastFromZone(
+    card: Card,
+    zone: ZoneType?,
+    player: Player = card.controller,
+): Boolean {
     if (zone == null) return false
     if (zone == ZoneType.Hand) return true
     return card.mayPlay(player).isNotEmpty()

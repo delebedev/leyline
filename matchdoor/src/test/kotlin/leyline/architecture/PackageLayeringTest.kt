@@ -46,23 +46,28 @@ class PackageLayeringTest :
 
         // Locate matchdoor build output — try submodule-relative first, then project-root-relative
         val cwd = Path.of("").toAbsolutePath()
-        val buildDir = sequenceOf(
-            cwd.resolve("build/classes"),
-            cwd.resolve("matchdoor/build/classes"),
-        ).first { it.resolve("kotlin/main/leyline").toFile().isDirectory }
+        val buildDir =
+            sequenceOf(
+                cwd.resolve("build/classes"),
+                cwd.resolve("matchdoor/build/classes"),
+            ).first { it.resolve("kotlin/main/leyline").toFile().isDirectory }
 
-        val classes = ClassFileImporter()
-            .withImportOption(ImportOption.DoNotIncludeTests())
-            .importPaths(
-                buildDir.resolve("kotlin/main"),
-                buildDir.resolve("java/main"),
-            )
+        val classes =
+            ClassFileImporter()
+                .withImportOption(ImportOption.DoNotIncludeTests())
+                .importPaths(
+                    buildDir.resolve("kotlin/main"),
+                    buildDir.resolve("java/main"),
+                )
 
         // ── Tier 0: bridge is a pure leaf ───────────────────────────
 
         test("bridge does not depend on game, match, or protocol") {
-            noClasses().that().resideInAPackage("leyline.bridge..")
-                .should().dependOnClassesThat()
+            noClasses()
+                .that()
+                .resideInAPackage("leyline.bridge..")
+                .should()
+                .dependOnClassesThat()
                 .resideInAnyPackage(
                     "leyline.game..",
                     "leyline.match..",
@@ -75,8 +80,11 @@ class PackageLayeringTest :
         // ── Tier 0: config is a pure leaf ───────────────────────────
 
         test("config does not depend on any matchdoor package") {
-            noClasses().that().resideInAPackage("leyline.config..")
-                .should().dependOnClassesThat()
+            noClasses()
+                .that()
+                .resideInAPackage("leyline.config..")
+                .should()
+                .dependOnClassesThat()
                 .resideInAnyPackage(
                     "leyline.bridge..",
                     "leyline.game..",
@@ -89,8 +97,11 @@ class PackageLayeringTest :
         // ── Tier 1: game layer doesn't reach up ────────────────────
 
         test("game does not depend on match, protocol, or infra") {
-            noClasses().that().resideInAPackage("leyline.game..")
-                .should().dependOnClassesThat()
+            noClasses()
+                .that()
+                .resideInAPackage("leyline.game..")
+                .should()
+                .dependOnClassesThat()
                 .resideInAnyPackage(
                     "leyline.match..",
                     "leyline.protocol..",
@@ -101,8 +112,11 @@ class PackageLayeringTest :
         // ── Tier 2: protocol doesn't reach up to match ─────────────
 
         test("protocol does not depend on match") {
-            noClasses().that().resideInAPackage("leyline.protocol..")
-                .should().dependOnClassesThat()
+            noClasses()
+                .that()
+                .resideInAPackage("leyline.protocol..")
+                .should()
+                .dependOnClassesThat()
                 .resideInAPackage("leyline.match..")
                 .check(classes)
         }
@@ -110,8 +124,11 @@ class PackageLayeringTest :
         // ── Tier 2: infra doesn't reach up to match ────────────────
 
         test("infra does not depend on match or game") {
-            noClasses().that().resideInAPackage("leyline.infra..")
-                .should().dependOnClassesThat()
+            noClasses()
+                .that()
+                .resideInAPackage("leyline.infra..")
+                .should()
+                .dependOnClassesThat()
                 .resideInAnyPackage(
                     "leyline.match..",
                     "leyline.game..",
@@ -127,8 +144,11 @@ class PackageLayeringTest :
         // a new import crossed a boundary that was meant to be one-way.
 
         test("bridge/types is a pure-data leaf within bridge") {
-            noClasses().that().resideInAPackage("leyline.bridge.types..")
-                .should().dependOnClassesThat()
+            noClasses()
+                .that()
+                .resideInAPackage("leyline.bridge.types..")
+                .should()
+                .dependOnClassesThat()
                 .resideInAnyPackage(
                     "leyline.bridge.bootstrap..",
                     "leyline.bridge.coord..",
@@ -138,8 +158,11 @@ class PackageLayeringTest :
         }
 
         test("game/codes is a pure-data leaf within game") {
-            noClasses().that().resideInAPackage("leyline.game.codes..")
-                .should().dependOnClassesThat()
+            noClasses()
+                .that()
+                .resideInAPackage("leyline.game.codes..")
+                .should()
+                .dependOnClassesThat()
                 .resideInAnyPackage(
                     "leyline.game.annotations..",
                     "leyline.game.bundle..",
@@ -153,8 +176,11 @@ class PackageLayeringTest :
         }
 
         test("game/data depends on nothing else in game except codes") {
-            noClasses().that().resideInAPackage("leyline.game.data..")
-                .should().dependOnClassesThat()
+            noClasses()
+                .that()
+                .resideInAPackage("leyline.game.data..")
+                .should()
+                .dependOnClassesThat()
                 .resideInAnyPackage(
                     "leyline.game.annotations..",
                     "leyline.game.bundle..",

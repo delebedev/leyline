@@ -48,10 +48,11 @@ class StateMapperShapeTest :
         }
 
         test("zone visibility matches compatibility shape") {
-            val (b, game) = base.startWithBoard { g, human, _ ->
-                base.addCard("Forest", human, ZoneType.Hand)
-                base.addCard("Forest", human, ZoneType.Graveyard)
-            }
+            val (b, game) =
+                base.startWithBoard { g, human, _ ->
+                    base.addCard("Forest", human, ZoneType.Hand)
+                    base.addCard("Forest", human, ZoneType.Graveyard)
+                }
 
             val snap = GsmSnapshot.capture(game, b, ConformanceTestBase.TEST_MATCH_ID, 1)
             val gs = StateMapper.buildFromSnapshot(snap, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
@@ -64,27 +65,30 @@ class StateMapperShapeTest :
                 byId[ZoneIds.P2_SIDEBOARD]!!.visibility shouldBe Messages.Visibility.Private
             }
 
-            val gyObjects = gs.gameObjectsList.filter { obj ->
-                obj.zoneId == ZoneIds.P1_GRAVEYARD || obj.zoneId == ZoneIds.P2_GRAVEYARD
-            }
+            val gyObjects =
+                gs.gameObjectsList.filter { obj ->
+                    obj.zoneId == ZoneIds.P1_GRAVEYARD || obj.zoneId == ZoneIds.P2_GRAVEYARD
+                }
             for (obj in gyObjects) {
                 obj.visibility shouldBe Messages.Visibility.Public
             }
 
-            val handObjects = gs.gameObjectsList.filter { obj ->
-                obj.zoneId == ZoneIds.P1_HAND || obj.zoneId == ZoneIds.P2_HAND
-            }
+            val handObjects =
+                gs.gameObjectsList.filter { obj ->
+                    obj.zoneId == ZoneIds.P1_HAND || obj.zoneId == ZoneIds.P2_HAND
+                }
             for (obj in handObjects) {
                 obj.visibility shouldBe Messages.Visibility.Private
             }
         }
 
         test("buildFromSnapshot produces valid state") {
-            val (b, game) = base.startWithBoard { _, human, _ ->
-                base.addCard("Forest", human, ZoneType.Hand)
-                base.addCard("Forest", human, ZoneType.Hand)
-                base.addCard("Llanowar Elves", human, ZoneType.Hand)
-            }
+            val (b, game) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Forest", human, ZoneType.Hand)
+                    base.addCard("Forest", human, ZoneType.Hand)
+                    base.addCard("Llanowar Elves", human, ZoneType.Hand)
+                }
 
             val snap = GsmSnapshot.capture(game, b, ConformanceTestBase.TEST_MATCH_ID, 1)
             val gs = StateMapper.buildFromSnapshot(snap, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
@@ -100,10 +104,11 @@ class StateMapperShapeTest :
         }
 
         test("game objects have card type fields") {
-            val (b, game) = base.startWithBoard { _, human, _ ->
-                base.addCard("Forest", human, ZoneType.Hand)
-                base.addCard("Llanowar Elves", human, ZoneType.Hand)
-            }
+            val (b, game) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Forest", human, ZoneType.Hand)
+                    base.addCard("Llanowar Elves", human, ZoneType.Hand)
+                }
 
             val snap = GsmSnapshot.capture(game, b, ConformanceTestBase.TEST_MATCH_ID, 1)
             val gs = StateMapper.buildFromSnapshot(snap, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
@@ -117,18 +122,20 @@ class StateMapperShapeTest :
                 obj.cardTypesCount shouldBeGreaterThan 0
             }
 
-            val lands = handObjects.filter {
-                it.cardTypesList.contains(Messages.CardType.Land_a80b)
-            }
+            val lands =
+                handObjects.filter {
+                    it.cardTypesList.contains(Messages.CardType.Land_a80b)
+                }
             lands.shouldNotBeEmpty()
             for (land in lands) {
                 land.superTypesList shouldContain Messages.SuperType.Basic
                 land.subtypesList shouldContain Messages.SubType.Forest
             }
 
-            val creatures = handObjects.filter {
-                it.cardTypesList.contains(Messages.CardType.Creature)
-            }
+            val creatures =
+                handObjects.filter {
+                    it.cardTypesList.contains(Messages.CardType.Creature)
+                }
             creatures.shouldNotBeEmpty()
             for (c in creatures) {
                 c.hasPower().shouldBeTrue()

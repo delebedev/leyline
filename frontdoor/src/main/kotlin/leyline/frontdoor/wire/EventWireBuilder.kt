@@ -20,71 +20,78 @@ import leyline.frontdoor.service.QueueEntry
  * Parallel to [DeckWireBuilder] / [PlayerWireBuilder].
  */
 object EventWireBuilder {
-
-    fun toQueueConfigJson(queues: List<QueueEntry>): String = buildJsonArray {
-        for (q in queues) {
-            add(
-                buildJsonObject {
-                    put("Id", q.id)
-                    if (q.queueType != "Ranked") put("QueueType", q.queueType)
-                    put("LocTitle", q.locTitle)
-                    put("EventNameBO1", q.eventNameBO1)
-                    if (q.eventNameBO3 != null) put("EventNameBO3", q.eventNameBO3)
-                    put("DeckSizeBO1", q.deckSizeBO1)
-                    put("DeckSizeBO3", q.deckSizeBO3)
-                    put("SideBoardBO1", q.sideboardBO1)
-                    put("SideBoardBO3", q.sideboardBO3)
-                },
-            )
-        }
-    }.toString()
+    fun toQueueConfigJson(queues: List<QueueEntry>): String =
+        buildJsonArray {
+            for (q in queues) {
+                add(
+                    buildJsonObject {
+                        put("Id", q.id)
+                        if (q.queueType != "Ranked") put("QueueType", q.queueType)
+                        put("LocTitle", q.locTitle)
+                        put("EventNameBO1", q.eventNameBO1)
+                        if (q.eventNameBO3 != null) put("EventNameBO3", q.eventNameBO3)
+                        put("DeckSizeBO1", q.deckSizeBO1)
+                        put("DeckSizeBO3", q.deckSizeBO3)
+                        put("SideBoardBO1", q.sideboardBO1)
+                        put("SideBoardBO3", q.sideboardBO3)
+                    },
+                )
+            }
+        }.toString()
 
     fun toActiveEventsJson(
         events: List<EventDef>,
         aiBotMatches: List<AiBotMatchDef> = emptyList(),
-    ): String = buildJsonObject {
-        putJsonArray("DynamicFilterTags") {}
-        put("CacheVersion", 2)
-        putJsonArray("Events") {
-            for (e in events) {
-                add(buildEventJson(e))
+    ): String =
+        buildJsonObject {
+            putJsonArray("DynamicFilterTags") {}
+            put("CacheVersion", 2)
+            putJsonArray("Events") {
+                for (e in events) {
+                    add(buildEventJson(e))
+                }
             }
-        }
-        putJsonArray("Challenges") {}
-        putJsonArray("AiBotMatches") {
-            for (m in aiBotMatches) {
-                add(buildAiBotMatchJson(m))
+            putJsonArray("Challenges") {}
+            putJsonArray("AiBotMatches") {
+                for (m in aiBotMatches) {
+                    add(buildAiBotMatchJson(m))
+                }
             }
-        }
-    }.toString()
+        }.toString()
 
-    fun toDefaultCoursesJson(courses: List<Pair<String, String>>): String = buildJsonObject {
-        putJsonArray("Courses") {
-            for ((eventName, module) in courses) {
-                add(buildCourseJson(eventName, module))
+    fun toDefaultCoursesJson(courses: List<Pair<String, String>>): String =
+        buildJsonObject {
+            putJsonArray("Courses") {
+                for ((eventName, module) in courses) {
+                    add(buildCourseJson(eventName, module))
+                }
             }
-        }
-    }.toString()
+        }.toString()
 
-    fun toCoursesJson(courses: List<Course>): String = buildJsonObject {
-        putJsonArray("Courses") {
-            for (course in courses) {
-                add(buildCourseJson(course))
+    fun toCoursesJson(courses: List<Course>): String =
+        buildJsonObject {
+            putJsonArray("Courses") {
+                for (course in courses) {
+                    add(buildCourseJson(course))
+                }
             }
-        }
-    }.toString()
+        }.toString()
 
     /** Merge real Course objects with default seed courses (Ladder, Play, etc.). */
-    fun toMergedCoursesJson(courses: List<Course>, defaults: List<Pair<String, String>>): String = buildJsonObject {
-        putJsonArray("Courses") {
-            for (course in courses) {
-                add(buildCourseJson(course))
+    fun toMergedCoursesJson(
+        courses: List<Course>,
+        defaults: List<Pair<String, String>>,
+    ): String =
+        buildJsonObject {
+            putJsonArray("Courses") {
+                for (course in courses) {
+                    add(buildCourseJson(course))
+                }
+                for ((eventName, module) in defaults) {
+                    add(buildCourseJson(eventName, module))
+                }
             }
-            for ((eventName, module) in defaults) {
-                add(buildCourseJson(eventName, module))
-            }
-        }
-    }.toString()
+        }.toString()
 
     fun buildCourseJson(
         course: Course,
@@ -143,18 +150,20 @@ object EventWireBuilder {
         putJsonArray("CardStyles") {}
     }
 
-    fun buildJoinResponse(course: Course): String = buildJsonObject {
-        put("Course", buildCourseJson(course, includeDeck = false))
-        putStubInventoryInfo()
-    }.toString()
+    fun buildJoinResponse(course: Course): String =
+        buildJsonObject {
+            put("Course", buildCourseJson(course, includeDeck = false))
+            putStubInventoryInfo()
+        }.toString()
 
-    fun buildMatchResultReport(course: Course): String = buildJsonObject {
-        put("CurrentModule", course.module.wireName())
-        put("FoundMatch", true)
-        putStubInventoryInfo()
-        putJsonArray("questUpdates") {}
-        putJsonObject("periodicRewardsProgress") {}
-    }.toString()
+    fun buildMatchResultReport(course: Course): String =
+        buildJsonObject {
+            put("CurrentModule", course.module.wireName())
+            put("FoundMatch", true)
+            putStubInventoryInfo()
+            putJsonArray("questUpdates") {}
+            putJsonObject("periodicRewardsProgress") {}
+        }.toString()
 
     private fun JsonObjectBuilder.putStubInventoryInfo() {
         putJsonObject("InventoryInfo") {
@@ -175,98 +184,104 @@ object EventWireBuilder {
         }
     }
 
-    private fun buildEventJson(e: EventDef) = buildJsonObject {
-        put("InternalEventName", e.internalName)
-        if (e.eventState != null) put("EventState", e.eventState)
-        put("FormatType", e.formatType)
-        put("StartTime", "2025-01-01T00:00:00Z")
-        put("LockedTime", "2099-01-01T00:00:00Z")
-        put("ClosedTime", "2099-01-01T00:00:00Z")
-        putJsonArray("Flags") { e.flags.forEach { add(JsonPrimitive(it)) } }
-        putJsonArray("EventTags") { e.eventTags.forEach { add(JsonPrimitive(it)) } }
-        putJsonObject("PastEntries") {}
-        putJsonArray("EntryFees") {
-            for (fee in e.entryFees) {
-                add(
-                    buildJsonObject {
-                        put("CurrencyType", fee.currencyType)
-                        put("Quantity", fee.quantity)
-                        if (fee.referenceId != null) put("ReferenceId", fee.referenceId)
-                    },
-                )
-            }
-        }
-        putJsonObject("EventUXInfo") {
-            put("PublicEventName", e.publicName)
-            put("DisplayPriority", e.displayPriority)
-            putJsonArray("DisplayPriorityMilestoneChanges") {}
-            putJsonObject("Parameters") {}
-            put("Group", "")
-            if (e.bladeBehavior != null) put("EventBladeBehavior", e.bladeBehavior)
-            putJsonArray("DynamicFilterTagIds") {
-                e.dynamicFilterTagIds.forEach { add(JsonPrimitive(it)) }
-            }
-            putJsonArray("FactionSealedUXInfo") {}
-            put("DeckSelectFormat", e.deckSelectFormat)
-            putJsonObject("Prizes") {}
-            putJsonObject("EventComponentData") {
-                putJsonObject("DescriptionText") {
-                    put("LocKey", e.descLocKey)
+    private fun buildEventJson(e: EventDef) =
+        buildJsonObject {
+            put("InternalEventName", e.internalName)
+            if (e.eventState != null) put("EventState", e.eventState)
+            put("FormatType", e.formatType)
+            put("StartTime", "2025-01-01T00:00:00Z")
+            put("LockedTime", "2099-01-01T00:00:00Z")
+            put("ClosedTime", "2099-01-01T00:00:00Z")
+            putJsonArray("Flags") { e.flags.forEach { add(JsonPrimitive(it)) } }
+            putJsonArray("EventTags") { e.eventTags.forEach { add(JsonPrimitive(it)) } }
+            putJsonObject("PastEntries") {}
+            putJsonArray("EntryFees") {
+                for (fee in e.entryFees) {
+                    add(
+                        buildJsonObject {
+                            put("CurrencyType", fee.currencyType)
+                            put("Quantity", fee.quantity)
+                            if (fee.referenceId != null) put("ReferenceId", fee.referenceId)
+                        },
+                    )
                 }
-                putJsonObject("TitleRankText") {
-                    put("LocKey", e.titleLocKey)
+            }
+            putJsonObject("EventUXInfo") {
+                put("PublicEventName", e.publicName)
+                put("DisplayPriority", e.displayPriority)
+                putJsonArray("DisplayPriorityMilestoneChanges") {}
+                putJsonObject("Parameters") {}
+                put("Group", "")
+                if (e.bladeBehavior != null) put("EventBladeBehavior", e.bladeBehavior)
+                putJsonArray("DynamicFilterTagIds") {
+                    e.dynamicFilterTagIds.forEach { add(JsonPrimitive(it)) }
                 }
-                if (e.preconDeckIds.isNotEmpty()) {
-                    putJsonObject("InspectPreconDecksWidget") {
-                        putJsonArray("DeckIds") {
-                            e.preconDeckIds.forEach { add(JsonPrimitive(it)) }
+                putJsonArray("FactionSealedUXInfo") {}
+                put("DeckSelectFormat", e.deckSelectFormat)
+                putJsonObject("Prizes") {}
+                putJsonObject("EventComponentData") {
+                    putJsonObject("DescriptionText") {
+                        put("LocKey", e.descLocKey)
+                    }
+                    putJsonObject("TitleRankText") {
+                        put("LocKey", e.titleLocKey)
+                    }
+                    if (e.preconDeckIds.isNotEmpty()) {
+                        putJsonObject("InspectPreconDecksWidget") {
+                            putJsonArray("DeckIds") {
+                                e.preconDeckIds.forEach { add(JsonPrimitive(it)) }
+                            }
                         }
-                    }
-                    putJsonObject("SelectedDeckWidget") {
-                        put("DeckButtonBehavior", e.deckButtonBehavior ?: "Fixed")
-                    }
-                } else {
-                    putJsonObject("TimerDisplay") {}
-                    putJsonObject("ResignWidget") {}
-                    putJsonObject("MainButtonWidget") {}
-                    putJsonObject("LossDetailsDisplay") {
-                        if (e.maxLosses != null) {
-                            put("Games", e.maxLosses)
-                        } else {
-                            put("LossDetailsType", "PlayUntilEventEnds")
-                        }
-                    }
-                    if (e.editableDeck) {
                         putJsonObject("SelectedDeckWidget") {
-                            put("DeckButtonBehavior", "Editable")
-                            put("ShowCopyDeckButton", true)
+                            put("DeckButtonBehavior", e.deckButtonBehavior ?: "Fixed")
+                        }
+                    } else {
+                        putJsonObject("TimerDisplay") {}
+                        putJsonObject("ResignWidget") {}
+                        putJsonObject("MainButtonWidget") {}
+                        putJsonObject("LossDetailsDisplay") {
+                            if (e.maxLosses != null) {
+                                put("Games", e.maxLosses)
+                            } else {
+                                put("LossDetailsType", "PlayUntilEventEnds")
+                            }
+                        }
+                        if (e.editableDeck) {
+                            putJsonObject("SelectedDeckWidget") {
+                                put("DeckButtonBehavior", "Editable")
+                                put("ShowCopyDeckButton", true)
+                            }
                         }
                     }
                 }
             }
+            put("WinCondition", e.winCondition)
+            putJsonArray("AllowedCountryCodes") {}
+            putJsonArray("ExcludedCountryCodes") {}
         }
-        put("WinCondition", e.winCondition)
-        putJsonArray("AllowedCountryCodes") {}
-        putJsonArray("ExcludedCountryCodes") {}
-    }
 
-    private fun buildAiBotMatchJson(m: AiBotMatchDef) = buildJsonObject {
-        put("PublicEventName", m.publicEventName)
-        put("InternalEventName", m.internalEventName)
-        put("Format", m.format)
-        put("WinCondition", m.winCondition)
-        putJsonArray("DeckIds") {
-            m.deckIds.forEach { add(JsonPrimitive(it)) }
+    private fun buildAiBotMatchJson(m: AiBotMatchDef) =
+        buildJsonObject {
+            put("PublicEventName", m.publicEventName)
+            put("InternalEventName", m.internalEventName)
+            put("Format", m.format)
+            put("WinCondition", m.winCondition)
+            putJsonArray("DeckIds") {
+                m.deckIds.forEach { add(JsonPrimitive(it)) }
+            }
+            put("DisplayPriority", m.displayPriority)
         }
-        put("DisplayPriority", m.displayPriority)
-    }
 
-    private fun buildDeckCardJson(card: DeckCard) = buildJsonObject {
-        put("cardId", card.grpId)
-        put("quantity", card.quantity)
-    }
+    private fun buildDeckCardJson(card: DeckCard) =
+        buildJsonObject {
+            put("cardId", card.grpId)
+            put("quantity", card.quantity)
+        }
 
-    private fun buildCourseJson(eventName: String, module: String) = buildJsonObject {
+    private fun buildCourseJson(
+        eventName: String,
+        module: String,
+    ) = buildJsonObject {
         put("CourseId", "00000000-0000-0000-0000-000000000000")
         put("InternalEventName", eventName)
         put("CurrentModule", module)

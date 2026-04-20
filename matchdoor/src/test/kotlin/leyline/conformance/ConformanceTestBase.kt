@@ -37,7 +37,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  * ```
  */
 open class ConformanceTestBase {
-
     var bridge: GameBridge? = null
 
     /** Shared counter for the current test. Reset per test via [startGameAtMain1]. */
@@ -85,12 +84,13 @@ open class ConformanceTestBase {
         // the library is fixed and further MyRandom writes from other specs
         // don't affect assertion outcomes in tests that don't trigger random
         // mid-game effects.
-        val game = synchronized(RNG_LOCK) {
-            b.start(seed = seed, deckList = deckList, variant = variant)
-            b.submitKeep(1)
-            advanceToMain1(b)
-            b.getGame()!!
-        }
+        val game =
+            synchronized(RNG_LOCK) {
+                b.start(seed = seed, deckList = deckList, variant = variant)
+                b.submitKeep(1)
+                advanceToMain1(b)
+                b.getGame()!!
+            }
         check(game.phaseHandler.phase == PhaseType.MAIN1) {
             "Game should be at Main1 after advanceToMain1 (actual: ${game.phaseHandler.phase})"
         }
@@ -110,20 +110,14 @@ open class ConformanceTestBase {
      * @param puzzleText inline `.pzl` content (see `src/test/resources/puzzles/` for format)
      * @return (bridge, game, counter)
      */
-    fun startPuzzleAtMain1(
-        puzzleText: String,
-    ): Triple<GameBridge, Game, MessageCounter> =
+    fun startPuzzleAtMain1(puzzleText: String): Triple<GameBridge, Game, MessageCounter> =
         startPuzzleAtMain1(PuzzleSource.loadFromText(puzzleText))
 
     /** Convenience: load a puzzle from a test resource path (e.g. "puzzles/foo.pzl"). */
-    fun startPuzzleAtMain1FromResource(
-        resourcePath: String,
-    ): Triple<GameBridge, Game, MessageCounter> =
+    fun startPuzzleAtMain1FromResource(resourcePath: String): Triple<GameBridge, Game, MessageCounter> =
         startPuzzleAtMain1(PuzzleSource.loadFromResource(resourcePath))
 
-    private fun startPuzzleAtMain1(
-        puzzle: forge.gamemodes.puzzle.Puzzle,
-    ): Triple<GameBridge, Game, MessageCounter> {
+    private fun startPuzzleAtMain1(puzzle: forge.gamemodes.puzzle.Puzzle): Triple<GameBridge, Game, MessageCounter> {
         val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
         testCounter = counter
         val b = GameBridge(messageCounter = counter, cardRepository = TestCardRegistry.repo)
@@ -150,9 +144,7 @@ open class ConformanceTestBase {
      * @param board lambda that receives (game, human, ai) to set up zones
      * @return (bridge, game, counter)
      */
-    fun startWithBoard(
-        board: (game: Game, human: Player, ai: Player) -> Unit,
-    ): Triple<GameBridge, Game, MessageCounter> {
+    fun startWithBoard(board: (game: Game, human: Player, ai: Player) -> Unit): Triple<GameBridge, Game, MessageCounter> {
         val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
         testCounter = counter
         val b = GameBridge(messageCounter = counter, cardRepository = TestCardRegistry.repo)
@@ -181,13 +173,24 @@ open class ConformanceTestBase {
      * Add a card to a player's zone. Convenience for [startWithBoard] lambdas.
      * Mirrors upstream `AITest.addCardToZone()`.
      */
-    fun addCard(name: String, player: Player, zone: ZoneType = ZoneType.Battlefield): Card {
-        val paperCard = forge.model.FModel.getMagicDb().commonCards.getCard(name)
-            ?: run {
-                forge.StaticData.instance().attemptToLoadCard(name)
-                forge.model.FModel.getMagicDb().commonCards.getCard(name)
-            }
-            ?: error("Card not found: $name")
+    fun addCard(
+        name: String,
+        player: Player,
+        zone: ZoneType = ZoneType.Battlefield,
+    ): Card {
+        val paperCard =
+            forge.model.FModel
+                .getMagicDb()
+                .commonCards
+                .getCard(name)
+                ?: run {
+                    forge.StaticData.instance().attemptToLoadCard(name)
+                    forge.model.FModel
+                        .getMagicDb()
+                        .commonCards
+                        .getCard(name)
+                }
+                ?: error("Card not found: $name")
         val card = Card.fromPaperCard(paperCard, player)
         card.setGameTimestamp(player.game.nextTimestamp)
         player.getZone(zone).add(card)
@@ -200,22 +203,21 @@ open class ConformanceTestBase {
     // ----- Board helpers -----
 
     /** First creature on [player]'s battlefield. */
-    fun Player.firstCreature(): Card =
-        getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+    fun Player.firstCreature(): Card = getZone(ZoneType.Battlefield).cards.first { it.isCreature }
 
     /** First card in [player]'s zone. */
-    fun Player.firstCardIn(zone: ZoneType): Card =
-        getZone(zone).cards.first()
+    fun Player.firstCardIn(zone: ZoneType): Card = getZone(zone).cards.first()
 
     /** First card matching [predicate] in [player]'s zone. */
-    fun Player.firstCardIn(zone: ZoneType, predicate: (Card) -> Boolean): Card =
-        getZone(zone).cards.first(predicate)
+    fun Player.firstCardIn(
+        zone: ZoneType,
+        predicate: (Card) -> Boolean,
+    ): Card = getZone(zone).cards.first(predicate)
 
     // ----- Capture helpers -----
 
     /** Create a [BundleBuilder] with standard test constants. */
-    fun bundleBuilder(b: GameBridge): BundleBuilder =
-        BundleBuilder(b, TEST_MATCH_ID, SEAT_ID)
+    fun bundleBuilder(b: GameBridge): BundleBuilder = BundleBuilder(b, TEST_MATCH_ID, SEAT_ID)
 
     /** Build a stateOnlyDiff and return the GSM. Fails if no GSM produced. */
     fun stateOnlyDiff(
@@ -223,7 +225,8 @@ open class ConformanceTestBase {
         b: GameBridge,
         counter: MessageCounter,
     ): GameStateMessage =
-        bundleBuilder(b).stateOnlyDiff(game, counter)
+        bundleBuilder(b)
+            .stateOnlyDiff(game, counter)
             .gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 
     /**
@@ -300,16 +303,14 @@ open class ConformanceTestBase {
         game: Game,
         b: GameBridge,
         counter: MessageCounter,
-    ): BundleBuilder.BundleResult =
-        bundleBuilder(b).postAction(game, counter)
+    ): BundleBuilder.BundleResult = bundleBuilder(b).postAction(game, counter)
 
     /** Build a gameStart bundle (phaseTransitionDiff) with standard test constants. */
     fun gameStart(
         game: Game,
         b: GameBridge,
         counter: MessageCounter,
-    ): BundleBuilder.BundleResult =
-        bundleBuilder(b).phaseTransitionDiff(game, counter)
+    ): BundleBuilder.BundleResult = bundleBuilder(b).phaseTransitionDiff(game, counter)
 
     /**
      * Build a Full state GSM simulating the handshake baseline.

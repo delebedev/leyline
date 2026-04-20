@@ -185,7 +185,6 @@ class PlayerController(
     autoPassState: ClientAutoPassState? = null,
 ) : PlayerControllerHuman(game, player, lobbyPlayer),
     OwnerContext {
-
     @Volatile
     override var autoPassState: ClientAutoPassState? = autoPassState
         private set
@@ -250,17 +249,18 @@ class PlayerController(
     private val spellExecutor = SpellExecutor(game, player, bridge)
     private val targetingCoordinator = TargetingCoordinator(bridge)
     private val costPaymentCoordinator = CostPaymentCoordinator(bridge, player, optionalActionGate)
-    private val priorityLoopCoordinator: PriorityLoopCoordinator? = actionBridge?.let { ab ->
-        PriorityLoopCoordinator(
-            owner = this,
-            game = game,
-            player = player,
-            actionBridge = ab,
-            phaseStopProfile = phaseStopProfile,
-            smartPhaseSkip = smartPhaseSkip,
-            spellExecutor = spellExecutor,
-        )
-    }
+    private val priorityLoopCoordinator: PriorityLoopCoordinator? =
+        actionBridge?.let { ab ->
+            PriorityLoopCoordinator(
+                owner = this,
+                game = game,
+                player = player,
+                actionBridge = ab,
+                phaseStopProfile = phaseStopProfile,
+                smartPhaseSkip = smartPhaseSkip,
+                spellExecutor = spellExecutor,
+            )
+        }
 
     init {
         setGui(ClientGuiGame(bridge, actionBridge))
@@ -282,17 +282,19 @@ class PlayerController(
     )
 
     /** Snapshot of recent decisions for the debug API. */
-    fun decisionLog(): List<PriorityDecisionEntry> = synchronized(recentDecisions) {
-        recentDecisions.toList()
-    }
+    fun decisionLog(): List<PriorityDecisionEntry> =
+        synchronized(recentDecisions) {
+            recentDecisions.toList()
+        }
 
     override fun recordDecision(decision: PriorityDecision) {
-        val entry = PriorityDecisionEntry(
-            ts = System.currentTimeMillis(),
-            phase = game.phaseHandler.phase?.name,
-            turn = game.phaseHandler.turn,
-            decision = decision,
-        )
+        val entry =
+            PriorityDecisionEntry(
+                ts = System.currentTimeMillis(),
+                phase = game.phaseHandler.phase?.name,
+                turn = game.phaseHandler.turn,
+                decision = decision,
+            )
         synchronized(recentDecisions) {
             recentDecisions.addLast(entry)
             while (recentDecisions.size > MAX_DECISIONS) recentDecisions.removeFirst()
@@ -359,8 +361,11 @@ class PlayerController(
     override fun chooseCardsToDiscardToMaximumHandSize(nDiscard: Int): CardCollection =
         targetingCoordinator.chooseCardsToDiscardToMaximumHandSize(nDiscard, player.getZone(ZoneType.Hand).cards)
 
-    override fun chooseCardsToRevealFromHand(min: Int, max: Int, valid: CardCollectionView): CardCollectionView =
-        targetingCoordinator.chooseCardsToRevealFromHand(min, max, valid)
+    override fun chooseCardsToRevealFromHand(
+        min: Int,
+        max: Int,
+        valid: CardCollectionView,
+    ): CardCollectionView = targetingCoordinator.chooseCardsToRevealFromHand(min, max, valid)
 
     // -- Generic choose cards for effect -----------------------------------
     // PCHuman uses useSelectCardsInput → InputSelectCardsFromList
@@ -436,19 +441,21 @@ class PlayerController(
         params: MutableMap<String, Any>?,
     ): Boolean {
         val displayMessage = message ?: "Confirm action?"
-        val displayOptions = if (options.isNullOrEmpty()) {
-            listOf("Yes", "No")
-        } else {
-            options.toList()
-        }
-        val request = PromptRequest(
-            promptType = "confirm",
-            message = displayMessage,
-            options = displayOptions,
-            min = 1,
-            max = 1,
-            defaultIndex = 0,
-        )
+        val displayOptions =
+            if (options.isNullOrEmpty()) {
+                listOf("Yes", "No")
+            } else {
+                options.toList()
+            }
+        val request =
+            PromptRequest(
+                promptType = "confirm",
+                message = displayMessage,
+                options = displayOptions,
+                min = 1,
+                max = 1,
+                defaultIndex = 0,
+            )
         val result = bridge.requestChoice(request)
         return result.firstOrNull() == 0
     }
@@ -499,25 +506,31 @@ class PlayerController(
         // Decline on timeout — safer than surprise-casting. On accept, super drives
         // the real cast flow (targeting, mana payment, stack placement). On decline,
         // Forge's PlayEffect SubAbility fires the "otherwise put in graveyard" branch.
-        val accepted = optionalActionGate.await(
-            hostCard = hostCard,
-            forceSnapshotBeforePrompt = true,
-            defaultOnTimeout = false,
-            logContext = "playSaFromPlayEffect",
-        )
+        val accepted =
+            optionalActionGate.await(
+                hostCard = hostCard,
+                forceSnapshotBeforePrompt = true,
+                defaultOnTimeout = false,
+                logContext = "playSaFromPlayEffect",
+            )
         return if (accepted) super.playSaFromPlayEffect(tgtSA) else false
     }
 
-    override fun confirmPayment(costPart: CostPart?, question: String, sa: SpellAbility): Boolean {
+    override fun confirmPayment(
+        costPart: CostPart?,
+        question: String,
+        sa: SpellAbility,
+    ): Boolean {
         // PCHuman's version uses InputConfirm (desktop-only). Route through bridge.
-        val request = PromptRequest(
-            promptType = "confirm",
-            message = question,
-            options = listOf("Yes", "No"),
-            min = 1,
-            max = 1,
-            defaultIndex = 0,
-        )
+        val request =
+            PromptRequest(
+                promptType = "confirm",
+                message = question,
+                options = listOf("Yes", "No"),
+                min = 1,
+                max = 1,
+                defaultIndex = 0,
+            )
         val result = bridge.requestChoice(request)
         return result.firstOrNull() == 0
     }
@@ -530,14 +543,15 @@ class PlayerController(
     ): Boolean {
         // PCHuman uses GuiBase + InputConfirm
         val message = prompt ?: replacementEffect.toString()
-        val request = PromptRequest(
-            promptType = "confirm",
-            message = message,
-            options = listOf("Yes", "No"),
-            min = 1,
-            max = 1,
-            defaultIndex = 0,
-        )
+        val request =
+            PromptRequest(
+                promptType = "confirm",
+                message = message,
+                options = listOf("Yes", "No"),
+                min = 1,
+                max = 1,
+                defaultIndex = 0,
+            )
         val result = bridge.requestChoice(request)
         return result.firstOrNull() == 0
     }
@@ -549,44 +563,51 @@ class PlayerController(
         defaultVal: Boolean?,
     ): Boolean {
         // PCHuman uses InputConfirm
-        val labels = when (kindOfChoice) {
-            BinaryChoiceType.HeadsOrTails -> listOf("Heads", "Tails")
-            BinaryChoiceType.TapOrUntap -> listOf("Tap", "Untap")
-            BinaryChoiceType.OddsOrEvens -> listOf("Odds", "Evens")
-            BinaryChoiceType.UntapOrLeaveTapped -> listOf("Untap", "Leave Tapped")
-            BinaryChoiceType.PlayOrDraw -> listOf("Play", "Draw")
-            BinaryChoiceType.LeftOrRight -> listOf("Left", "Right")
-            BinaryChoiceType.AddOrRemove -> listOf("Add Counter", "Remove Counter")
-            BinaryChoiceType.IncreaseOrDecrease -> listOf("Increase", "Decrease")
-            else -> listOf("Yes", "No")
-        }
-        val request = PromptRequest(
-            promptType = "confirm",
-            message = question ?: "Choose one",
-            options = labels,
-            min = 1,
-            max = 1,
-            defaultIndex = if (defaultVal != false) 0 else 1,
-        )
+        val labels =
+            when (kindOfChoice) {
+                BinaryChoiceType.HeadsOrTails -> listOf("Heads", "Tails")
+                BinaryChoiceType.TapOrUntap -> listOf("Tap", "Untap")
+                BinaryChoiceType.OddsOrEvens -> listOf("Odds", "Evens")
+                BinaryChoiceType.UntapOrLeaveTapped -> listOf("Untap", "Leave Tapped")
+                BinaryChoiceType.PlayOrDraw -> listOf("Play", "Draw")
+                BinaryChoiceType.LeftOrRight -> listOf("Left", "Right")
+                BinaryChoiceType.AddOrRemove -> listOf("Add Counter", "Remove Counter")
+                BinaryChoiceType.IncreaseOrDecrease -> listOf("Increase", "Decrease")
+                else -> listOf("Yes", "No")
+            }
+        val request =
+            PromptRequest(
+                promptType = "confirm",
+                message = question ?: "Choose one",
+                options = labels,
+                min = 1,
+                max = 1,
+                defaultIndex = if (defaultVal != false) 0 else 1,
+            )
         val result = bridge.requestChoice(request)
         return result.firstOrNull() == 0
     }
 
-    override fun chooseColor(message: String, sa: SpellAbility?, colors: ColorSet): Byte {
+    override fun chooseColor(
+        message: String,
+        sa: SpellAbility?,
+        colors: ColorSet,
+    ): Byte {
         val cntColors = colors.countColors()
         if (cntColors == 0) return 0
         if (cntColors == 1) return colors.color
         // PCHuman uses InputConfirm.confirm → showAndWait (desktop-only).
         // Route through our prompt bridge instead.
         val colorOptions = colors.orderedColors.map { it.translatedName }
-        val request = PromptRequest(
-            promptType = "choose_one",
-            message = message,
-            options = colorOptions,
-            min = 1,
-            max = 1,
-            defaultIndex = 0,
-        )
+        val request =
+            PromptRequest(
+                promptType = "choose_one",
+                message = message,
+                options = colorOptions,
+                min = 1,
+                max = 1,
+                defaultIndex = 0,
+            )
         log.debug("chooseColor: options={}", colorOptions)
         val indices = bridge.requestChoice(request)
         val idx = indices.firstOrNull() ?: return 0
@@ -596,14 +617,15 @@ class PlayerController(
 
     override fun willPutCardOnTop(c: Card): Boolean {
         // PCHuman uses InputConfirm
-        val request = PromptRequest(
-            promptType = "confirm",
-            message = "Put ${c.name} on top or bottom of library?",
-            options = listOf("Top", "Bottom"),
-            min = 1,
-            max = 1,
-            defaultIndex = 0,
-        )
+        val request =
+            PromptRequest(
+                promptType = "confirm",
+                message = "Put ${c.name} on top or bottom of library?",
+                options = listOf("Top", "Bottom"),
+                min = 1,
+                max = 1,
+                defaultIndex = 0,
+            )
         val result = bridge.requestChoice(request)
         return result.firstOrNull() == 0
     }
@@ -633,8 +655,7 @@ class PlayerController(
         artifacts: Boolean,
         creatures: Boolean,
         maxReduction: Int?,
-    ): Map<Card, ManaCostShard> =
-        costPaymentCoordinator.chooseCardsForConvokeOrImprovise(manaCost, untappedCards, artifacts, maxReduction)
+    ): Map<Card, ManaCostShard> = costPaymentCoordinator.chooseCardsForConvokeOrImprovise(manaCost, untappedCards, artifacts, maxReduction)
 
     // -- Pay cost to prevent effect ----------------------------------------
 
@@ -646,8 +667,9 @@ class PlayerController(
     ): Boolean {
         // Shock land (single CostPayLife part) gets the OptionalActionMessage path;
         // everything else (echo, cumulative upkeep) falls through to PCHuman.
-        val lifePart = cost.costParts.singleOrNull() as? CostPayLife
-            ?: return super.payCostToPreventEffect(cost, sa, alreadyPaid, allPayers)
+        val lifePart =
+            cost.costParts.singleOrNull() as? CostPayLife
+                ?: return super.payCostToPreventEffect(cost, sa, alreadyPaid, allPayers)
         return costPaymentCoordinator.payShockLand(lifePart, sa)
     }
 
@@ -705,8 +727,7 @@ class PlayerController(
         divisionValues: Collection<Int>?,
         filter: Predicate<GameObject>?,
         mustTargetFiltered: Boolean,
-    ): TargetSelectionResult =
-        targetingCoordinator.selectTargets(validTargets, sa, mandatory, numTargets, divisionValues)
+    ): TargetSelectionResult = targetingCoordinator.selectTargets(validTargets, sa, mandatory, numTargets, divisionValues)
 
     // -- Mana Payment ------------------------------------------------------
     override fun payManaCost(
@@ -749,18 +770,18 @@ class PlayerController(
         keyword: KeywordInterface,
         prompt: String,
         max: Int,
-    ): Int = when {
-        max <= 0 -> 0
-        max == 1 -> costPaymentCoordinator.chooseKeywordCostBinary(prompt)
-        // max > 1: getGui().getInteger() is bridged through ClientGuiGame, safe to inherit.
-        else -> super.chooseNumberForKeywordCost(sa, cost, keyword, prompt, max)
-    }
+    ): Int =
+        when {
+            max <= 0 -> 0
+            max == 1 -> costPaymentCoordinator.chooseKeywordCostBinary(prompt)
+            // max > 1: getGui().getInteger() is bridged through ClientGuiGame, safe to inherit.
+            else -> super.chooseNumberForKeywordCost(sa, cost, keyword, prompt, max)
+        }
 
     override fun chooseOptionalCosts(
         chosenSa: SpellAbility,
         optionalCosts: MutableList<OptionalCostValue>,
-    ): MutableList<OptionalCostValue> =
-        costPaymentCoordinator.chooseOptionalCosts(chosenSa, optionalCosts)
+    ): MutableList<OptionalCostValue> = costPaymentCoordinator.chooseOptionalCosts(chosenSa, optionalCosts)
 
     // -- Play spell --------------------------------------------------------
     // PCHuman uses HumanPlay + HumanPlaySpellAbility (desktop Input classes)
@@ -801,7 +822,10 @@ class PlayerController(
         return req.playAbility(needsTargeting, false, false)
     }
 
-    override fun playSpellAbilityNoStack(effectSA: SpellAbility, mayChoseNewTargets: Boolean) {
+    override fun playSpellAbilityNoStack(
+        effectSA: SpellAbility,
+        mayChoseNewTargets: Boolean,
+    ) {
         // Direct resolve — this is called by the engine for triggered abilities,
         // replacement effects, and other no-stack effects.
         // Must use AbilityUtils.resolve (not raw effectSA.resolve()) so that
@@ -822,18 +846,19 @@ class PlayerController(
         if (possible.isEmpty()) return emptyList()
 
         val labels = possible.map { it.description ?: it.toString() }
-        val request = PromptRequest(
-            promptType = if (num == 1) "choose_one" else "choose_cards",
-            message = "Choose mode for ${sa.hostCard.translatedName}",
-            options = labels,
-            min = min,
-            max = num,
-            defaultIndex = 0,
-            semantic = PromptSemantic.ModalChoice,
-            modalSourceCardName = sa.hostCard.name,
-            sourceEntityId = sa.hostCard.id,
-            isTriggeredAbility = sa.isTrigger,
-        )
+        val request =
+            PromptRequest(
+                promptType = if (num == 1) "choose_one" else "choose_cards",
+                message = "Choose mode for ${sa.hostCard.translatedName}",
+                options = labels,
+                min = min,
+                max = num,
+                defaultIndex = 0,
+                semantic = PromptSemantic.ModalChoice,
+                modalSourceCardName = sa.hostCard.name,
+                sourceEntityId = sa.hostCard.id,
+                isTriggeredAbility = sa.isTrigger,
+            )
         val result = bridge.requestChoice(request)
         return result.mapNotNull { idx -> possible.getOrNull(idx) }
     }
@@ -843,24 +868,32 @@ class PlayerController(
     // When a MulliganBridge is wired, they block until the client
     // submits a decision. Without a bridge (tests, AI), they auto-decide.
 
-    override fun mulliganKeepHand(mulliganingPlayer: Player, cardsToReturn: Int): Boolean {
-        val mb = mulliganBridge ?: run {
-            log.debug("mulliganKeepHand: no bridge, auto-keep for {}", player.name)
-            return true
-        }
+    override fun mulliganKeepHand(
+        mulliganingPlayer: Player,
+        cardsToReturn: Int,
+    ): Boolean {
+        val mb =
+            mulliganBridge ?: run {
+                log.debug("mulliganKeepHand: no bridge, auto-keep for {}", player.name)
+                return true
+            }
         return mb.awaitKeepDecision(player.id, cardsToReturn)
     }
 
-    override fun tuckCardsViaMulligan(hand: CardCollectionView, cardsToReturn: Int): CardCollectionView {
+    override fun tuckCardsViaMulligan(
+        hand: CardCollectionView,
+        cardsToReturn: Int,
+    ): CardCollectionView {
         if (cardsToReturn <= 0) return CardCollection()
-        val mb = mulliganBridge ?: run {
-            log.debug("tuckCardsViaMulligan: no bridge, auto-tuck {} for {}", cardsToReturn, player.name)
-            val toReturn = CardCollection()
-            for (i in 0 until cardsToReturn.coerceAtMost(hand.size)) {
-                toReturn.add(hand[i])
+        val mb =
+            mulliganBridge ?: run {
+                log.debug("tuckCardsViaMulligan: no bridge, auto-tuck {} for {}", cardsToReturn, player.name)
+                val toReturn = CardCollection()
+                for (i in 0 until cardsToReturn.coerceAtMost(hand.size)) {
+                    toReturn.add(hand[i])
+                }
+                return toReturn
             }
-            return toReturn
-        }
         val cards = mb.awaitTuckDecision(player.id, cardsToReturn, hand)
         return CardCollection(cards)
     }
@@ -883,12 +916,18 @@ class PlayerController(
         return coord.chooseSpellAbility()
     }
 
-    override fun declareAttackers(attacker: Player, combat: Combat) {
+    override fun declareAttackers(
+        attacker: Player,
+        combat: Combat,
+    ) {
         val coord = priorityLoopCoordinator ?: return super.declareAttackers(attacker, combat)
         coord.declareAttackers(attacker, combat)
     }
 
-    override fun declareBlockers(defender: Player, combat: Combat) {
+    override fun declareBlockers(
+        defender: Player,
+        combat: Combat,
+    ) {
         val coord = priorityLoopCoordinator ?: return super.declareBlockers(defender, combat)
         coord.declareBlockers(defender, combat)
     }
@@ -936,8 +975,9 @@ class PlayerController(
         }
 
         // Single blocker, no trample → auto-assign, no UI needed.
-        val needsManualAssign = blockers.size > 1 ||
-            (attacker.hasKeyword(Keyword.TRAMPLE) && defender != null)
+        val needsManualAssign =
+            blockers.size > 1 ||
+                (attacker.hasKeyword(Keyword.TRAMPLE) && defender != null)
         val fallback: () -> MutableMap<Card?, Int>? = {
             super.assignCombatDamage(attacker, blockers, remaining, damageDealt, defender, overrideOrder)
         }

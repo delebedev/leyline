@@ -28,19 +28,28 @@ class ClientSettingsTest :
             harness = null
         }
 
-        fun sendSettings(h: MatchFlowHarness, vararg stops: Stop) {
-            val msg = clientMessage(ClientMessageType.SetSettingsReq_097b) {
-                setSetSettingsReq(
-                    SetSettingsReq.newBuilder().setSettings(
-                        SettingsMessage.newBuilder().addAllStops(stops.toList()),
-                    ),
-                )
-            }
+        fun sendSettings(
+            h: MatchFlowHarness,
+            vararg stops: Stop,
+        ) {
+            val msg =
+                clientMessage(ClientMessageType.SetSettingsReq_097b) {
+                    setSetSettingsReq(
+                        SetSettingsReq.newBuilder().setSettings(
+                            SettingsMessage.newBuilder().addAllStops(stops.toList()),
+                        ),
+                    )
+                }
             h.session.onSettings(msg)
         }
 
-        fun stop(type: StopType, scope: SettingScope, status: SettingStatus): Stop =
-            Stop.newBuilder()
+        fun stop(
+            type: StopType,
+            scope: SettingScope,
+            status: SettingStatus,
+        ): Stop =
+            Stop
+                .newBuilder()
                 .setStopType(type)
                 .setAppliesTo(scope)
                 .setStatus(status)
@@ -145,8 +154,9 @@ class ClientSettingsTest :
             h.allRawMessages.shouldNotBeEmpty()
             val last = h.allRawMessages.last()
             last.hasGreToClientEvent().shouldBeTrue()
-            val hasSettingsResp = last.greToClientEvent.greToClientMessagesList
-                .any { it.type == GREMessageType.SetSettingsResp_695e }
+            val hasSettingsResp =
+                last.greToClientEvent.greToClientMessagesList
+                    .any { it.type == GREMessageType.SetSettingsResp_695e }
             hasSettingsResp.shouldBeTrue()
         }
     })

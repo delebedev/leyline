@@ -26,7 +26,10 @@ object DevCheck {
         private set
 
     /** Initialize from config values. Call once at startup. */
-    fun init(strict: Boolean, strictPass: Boolean) {
+    fun init(
+        strict: Boolean,
+        strictPass: Boolean,
+    ) {
         this.strict = strict
         this.strictPass = strictPass
         if (strict || strictPass) {
@@ -38,7 +41,10 @@ object DevCheck {
      * If [value] is null and [strict] is on, throw with [message].
      * Otherwise return [value] as-is (null propagates to caller's fallback).
      */
-    inline fun <T> requireOrNull(value: T?, message: () -> String): T? {
+    inline fun <T> requireOrNull(
+        value: T?,
+        message: () -> String,
+    ): T? {
         if (value == null && strict) error("[strict] ${message()}")
         return value
     }

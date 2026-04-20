@@ -49,11 +49,12 @@ class EffectLifecycleTest :
 
             b.start(
                 seed = 42,
-                deckList = """
+                deckList =
+                    """
                     20 Forest
                     20 Grizzly Bears
                     20 Giant Growth
-                """.trimIndent(),
+                    """.trimIndent(),
             )
 
             val game = b.getGame()!!
@@ -89,10 +90,16 @@ class EffectLifecycleTest :
             val human = b.getPlayer(SeatId(1))!!
 
             // Verify setup: Swiftspear on battlefield, Giant Growth in hand
-            val swiftspear = human.getZone(ZoneType.Battlefield).cards
-                .first { it.name == "Monastery Swiftspear" }
-            val giantGrowth = human.getZone(ZoneType.Hand).cards
-                .first { it.name == "Giant Growth" }
+            val swiftspear =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Monastery Swiftspear" }
+            val giantGrowth =
+                human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.name == "Giant Growth" }
             val swiftspearIid = b.getOrAllocInstanceId(ForgeCardId(swiftspear.id)).value
 
             // Take initial snapshot (gsId=1)
@@ -141,23 +148,26 @@ class EffectLifecycleTest :
             val allPersistent = gsm2.persistentAnnotationsList
 
             // --- LayeredEffectCreated transient ---
-            val created = allTransient.filter {
-                it.typeList.contains(AnnotationType.LayeredEffectCreated)
-            }
+            val created =
+                allTransient.filter {
+                    it.typeList.contains(AnnotationType.LayeredEffectCreated)
+                }
             created.size shouldBeGreaterThan 0
             val prowessCreated = created.filter { it.affectorId == swiftspearIid }
             prowessCreated.size shouldBeGreaterThan 0
 
             // --- PowerToughnessModCreated transient companion ---
-            val ptmCreated = allTransient.filter {
-                it.typeList.contains(AnnotationType.PowerToughnessModCreated)
-            }
+            val ptmCreated =
+                allTransient.filter {
+                    it.typeList.contains(AnnotationType.PowerToughnessModCreated)
+                }
             ptmCreated.size shouldBeGreaterThan 0
 
             // --- LayeredEffect persistent (multi-type) ---
-            val layeredEffects = allPersistent.filter {
-                it.typeList.contains(AnnotationType.LayeredEffect)
-            }
+            val layeredEffects =
+                allPersistent.filter {
+                    it.typeList.contains(AnnotationType.LayeredEffect)
+                }
             layeredEffects.size shouldBeGreaterThan 0
 
             // Multi-type array: [ModifiedToughness, ModifiedPower, LayeredEffect]

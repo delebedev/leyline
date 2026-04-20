@@ -7,7 +7,9 @@ package leyline.game.annotations
  * [wotc.mtgo.gre.external.messaging.Messages.ResultReason] enum — callers that
  * start from `ResultReason` need an explicit mapping.
  */
-enum class AnnotationLossReason(val wireValue: Int) {
+enum class AnnotationLossReason(
+    val wireValue: Int,
+) {
     LifeTotal(0),
     Concede(3),
 }

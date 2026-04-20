@@ -45,7 +45,8 @@ class HumanCombatPriorityHandoffTest :
 
         test("human attacks, no blockers — DECLARE_BLOCKERS pass-only priority doesn't hang bridge")
             .config(timeout = 3.seconds) {
-                val puzzleText = """
+                val puzzleText =
+                    """
                     [metadata]
                     Name:Human Combat Priority Handoff
                     Goal:Win
@@ -64,7 +65,7 @@ class HumanCombatPriorityHandoffTest :
                     humanlibrary=Mountain;Mountain;Mountain
                     aibattlefield=
                     ailibrary=Mountain;Mountain;Mountain
-                """.trimIndent()
+                    """.trimIndent()
 
                 val h = MatchFlowHarness(validating = false)
                 harness = h
@@ -74,8 +75,11 @@ class HumanCombatPriorityHandoffTest :
                 // the harness sees a live DeclareAttackersReq.
                 if (h.phase() == "MAIN1") h.passPriority()
 
-                val attackerIid = h.humanBattlefieldCreatures()
-                    .single { it.second == "Raging Goblin" }.first
+                val attackerIid =
+                    h
+                        .humanBattlefieldCreatures()
+                        .single { it.second == "Raging Goblin" }
+                        .first
                 h.declareAttackers(listOf(attackerIid))
 
                 // If the bug were present, the engine would block in awaitAction at

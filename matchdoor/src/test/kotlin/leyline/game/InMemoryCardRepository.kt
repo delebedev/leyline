@@ -11,7 +11,6 @@ import leyline.game.data.ModalAbilityInfo
  * card data without a client SQLite database.
  */
 class InMemoryCardRepository : CardRepository {
-
     // ConcurrentHashMap: tests that run concurrent Kotest specs call register()
     // via TestCardRegistry from multiple threads; plain mutableMapOf races.
     private val cache = java.util.concurrent.ConcurrentHashMap<Int, CardData>()
@@ -21,12 +20,18 @@ class InMemoryCardRepository : CardRepository {
 
     val registeredCount: Int get() = grpIdToName.size
 
-    fun register(grpId: Int, cardName: String) {
+    fun register(
+        grpId: Int,
+        cardName: String,
+    ) {
         grpIdToName[grpId] = cardName
         nameToGrpId[cardName] = grpId
     }
 
-    fun registerData(data: CardData, cardName: String) {
+    fun registerData(
+        data: CardData,
+        cardName: String,
+    ) {
         require(data.grpId != 0) { "Cannot register card '$cardName' with grpId=0" }
         register(data.grpId, cardName)
         cache[data.grpId] = data
@@ -49,7 +54,10 @@ class InMemoryCardRepository : CardRepository {
 
     override fun lookupModalOptions(cardGrpId: Int): ModalAbilityInfo? = modalCache[cardGrpId]
 
-    override fun registerModalOptions(cardGrpId: Int, info: ModalAbilityInfo) {
+    override fun registerModalOptions(
+        cardGrpId: Int,
+        info: ModalAbilityInfo,
+    ) {
         modalCache[cardGrpId] = info
     }
 }

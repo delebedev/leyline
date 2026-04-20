@@ -50,22 +50,27 @@ class AutoPassEngine(
     )
 
     /** Snapshot of recent decisions for the debug API. */
-    fun decisionLog(): List<PriorityDecisionEntry> = synchronized(recentDecisions) {
-        recentDecisions.toList()
-    }
+    fun decisionLog(): List<PriorityDecisionEntry> =
+        synchronized(recentDecisions) {
+            recentDecisions.toList()
+        }
 
     /** Clear decision history for puzzle hot-swap. */
     fun reset() {
         synchronized(recentDecisions) { recentDecisions.clear() }
     }
 
-    private fun recordDecision(game: Game, decision: PriorityDecision) {
-        val entry = PriorityDecisionEntry(
-            ts = System.currentTimeMillis(),
-            phase = game.phaseHandler.phase?.name,
-            turn = game.phaseHandler.turn,
-            decision = decision,
-        )
+    private fun recordDecision(
+        game: Game,
+        decision: PriorityDecision,
+    ) {
+        val entry =
+            PriorityDecisionEntry(
+                ts = System.currentTimeMillis(),
+                phase = game.phaseHandler.phase?.name,
+                turn = game.phaseHandler.turn,
+                decision = decision,
+            )
         synchronized(recentDecisions) {
             recentDecisions.addLast(entry)
             while (recentDecisions.size > MAX_DECISIONS) recentDecisions.removeFirst()
@@ -207,7 +212,10 @@ class AutoPassEngine(
      *
      * Internal for testability — tested directly in [AutoPassEngineTest].
      */
-    internal fun checkHumanActions(game: Game, isAiTurn: Boolean): PriorityDecision {
+    internal fun checkHumanActions(
+        game: Game,
+        isAiTurn: Boolean,
+    ): PriorityDecision {
         // AI-turn skips bypass the decision log intentionally — they fire every
         // engine step (dozens per AI turn) and would drown out the human-turn
         // decisions that matter for debugging priority/auto-pass issues.
@@ -218,10 +226,11 @@ class AutoPassEngine(
 
         // Full control: always grant priority (never auto-pass on session side)
         if (autoPassState.isFullControl) {
-            val decision = PriorityDecision.Grant(
-                phase = game.phaseHandler.phase?.name ?: "UNKNOWN",
-                actionCount = actions.actionsCount,
-            )
+            val decision =
+                PriorityDecision.Grant(
+                    phase = game.phaseHandler.phase?.name ?: "UNKNOWN",
+                    actionCount = actions.actionsCount,
+                )
             recordDecision(game, decision)
             tracer.traceEvent(MatchEventType.SEND_STATE, game, "fullControl: grant")
             return decision
@@ -241,14 +250,16 @@ class AutoPassEngine(
             return decision
         }
 
-        val actionSummary = actions.actionsList
-            .groupBy { it.actionType.name.removeSuffix("_add3") }
-            .map { (t, v) -> "$t=${v.size}" }
-            .joinToString(" ")
-        val decision = PriorityDecision.Grant(
-            phase = game.phaseHandler.phase?.name ?: "UNKNOWN",
-            actionCount = actions.actionsCount,
-        )
+        val actionSummary =
+            actions.actionsList
+                .groupBy { it.actionType.name.removeSuffix("_add3") }
+                .map { (t, v) -> "$t=${v.size}" }
+                .joinToString(" ")
+        val decision =
+            PriorityDecision.Grant(
+                phase = game.phaseHandler.phase?.name ?: "UNKNOWN",
+                actionCount = actions.actionsCount,
+            )
         recordDecision(game, decision)
         tracer.traceEvent(MatchEventType.SEND_STATE, game, "actions: $actionSummary")
         return decision
@@ -259,7 +270,12 @@ class AutoPassEngine(
      * keep iterating, or [LoopSignal.EXIT] when the caller should return
      * (priority granted to client, game over, or timeout).
      */
-    private fun advanceOrWait(bridge: GameBridge, game: Game, phase: PhaseType?, isAiTurn: Boolean): LoopSignal {
+    private fun advanceOrWait(
+        bridge: GameBridge,
+        game: Game,
+        phase: PhaseType?,
+        isAiTurn: Boolean,
+    ): LoopSignal {
         val pending = bridge.seat(counters.seatId.value).action.getPending()
         log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, game.phaseHandler.turn, isAiTurn, pending != null)
 

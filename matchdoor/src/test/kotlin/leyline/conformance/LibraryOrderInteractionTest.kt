@@ -22,7 +22,8 @@ class LibraryOrderInteractionTest :
 
         // --- Surveil 1 (Wary Thespian: ETB surveil 1) ---
 
-        val surveil1State = """
+        val surveil1State =
+            """
             ActivePlayer=Human
             ActivePhase=Main1
             HumanLife=20
@@ -33,7 +34,7 @@ class LibraryOrderInteractionTest :
             humanlibrary=Grizzly Bears;Forest;Forest;Forest;Forest
             aibattlefield=Mountain
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-        """.trimIndent()
+            """.trimIndent()
 
         fun startSurveil1() = startPuzzle(surveil1State, name = "Surveil 1")
 
@@ -61,7 +62,11 @@ class LibraryOrderInteractionTest :
 
             respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
 
-            human.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Grizzly Bears"
+            human
+                .getZone(ForgeZoneType.Library)
+                .cards
+                .first()
+                .name shouldBe "Grizzly Bears"
         }
 
         // Suspected flaky in CI — passes locally, null annotation intermittently on GH runners
@@ -74,19 +79,27 @@ class LibraryOrderInteractionTest :
             respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
 
             // Grizzly Bears in graveyard
-            val gyBears = human.getZone(ForgeZoneType.Graveyard).cards
-                .filter { it.name == "Grizzly Bears" }
+            val gyBears =
+                human
+                    .getZone(ForgeZoneType.Graveyard)
+                    .cards
+                    .filter { it.name == "Grizzly Bears" }
             gyBears shouldHaveSize 1
 
             // Library top is now Forest (Bears was removed)
-            human.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Forest"
+            human
+                .getZone(ForgeZoneType.Library)
+                .cards
+                .first()
+                .name shouldBe "Forest"
 
             // ZoneTransfer annotation with Surveil category and non-zero affectorId
             val annotations = annotationsSince(snap)
-            val surveilZt = annotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
-                    ann.detailString("category") == "Surveil"
-            }
+            val surveilZt =
+                annotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
+                        ann.detailString("category") == "Surveil"
+                }
             assertSoftly {
                 surveilZt.shouldNotBeNull()
                 surveilZt.affectedIdsList shouldHaveSize 1
@@ -127,7 +140,8 @@ class LibraryOrderInteractionTest :
 
         // --- Scry 1 (Wall of Runes: ETB scry 1) ---
 
-        val scryState = """
+        val scryState =
+            """
             ActivePlayer=Human
             ActivePhase=Main1
             HumanLife=20
@@ -138,7 +152,7 @@ class LibraryOrderInteractionTest :
             humanlibrary=Grizzly Bears;Forest;Forest;Forest;Forest
             aibattlefield=Plains
             ailibrary=Plains;Plains;Plains;Plains;Plains
-        """.trimIndent()
+            """.trimIndent()
 
         fun startScry1() = startPuzzle(scryState, name = "Scry 1")
 
@@ -165,17 +179,24 @@ class LibraryOrderInteractionTest :
             respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
             // Wall of Runes on battlefield
-            human.getZone(ForgeZoneType.Battlefield).cards
+            human
+                .getZone(ForgeZoneType.Battlefield)
+                .cards
                 .filter { it.name == "Wall of Runes" } shouldHaveSize 1
 
             // Scry annotation emitted
-            val scryAnn = allMessages
-                .flatMap { if (it.hasGameStateMessage()) it.gameStateMessage.annotationsList else emptyList() }
-                .firstOrNull { ann -> ann.typeList.any { it == AnnotationType.Scry_af5a } }
+            val scryAnn =
+                allMessages
+                    .flatMap { if (it.hasGameStateMessage()) it.gameStateMessage.annotationsList else emptyList() }
+                    .firstOrNull { ann -> ann.typeList.any { it == AnnotationType.Scry_af5a } }
             scryAnn.shouldNotBeNull()
 
             // Grizzly Bears moved to bottom — library top is now Forest
-            human.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Forest"
+            human
+                .getZone(ForgeZoneType.Library)
+                .cards
+                .first()
+                .name shouldBe "Forest"
         }
 
         test("scry 1 — keep on top") {
@@ -186,6 +207,10 @@ class LibraryOrderInteractionTest :
             respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = cardIds)
 
             // Grizzly Bears still on library top
-            human.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Grizzly Bears"
+            human
+                .getZone(ForgeZoneType.Library)
+                .cards
+                .first()
+                .name shouldBe "Grizzly Bears"
         }
     })

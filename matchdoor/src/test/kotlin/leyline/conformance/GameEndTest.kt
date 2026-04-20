@@ -85,11 +85,12 @@ class GameEndTest :
 
             // MatchCompleted room state should be in allRawMessages
             val rawMsgs = h.allRawMessages
-            val matchCompleted = rawMsgs.firstOrNull {
-                it.hasMatchGameRoomStateChangedEvent() &&
-                    it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
-                    MatchGameRoomStateType.MatchCompleted
-            }
+            val matchCompleted =
+                rawMsgs.firstOrNull {
+                    it.hasMatchGameRoomStateChangedEvent() &&
+                        it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
+                        MatchGameRoomStateType.MatchCompleted
+                }
             matchCompleted.shouldNotBeNull()
 
             // Verify FinalMatchResult
@@ -106,7 +107,8 @@ class GameEndTest :
 
         test("lethal damage produces MatchCompleted room state") {
             // Puzzle: 3 haste creatures vs AI at 3 life — attack all = lethal
-            val pzl = """
+            val pzl =
+                """
                 [metadata]
                 Name:Lethal Attack
                 Goal:Win
@@ -124,7 +126,7 @@ class GameEndTest :
                 humanhand=Mountain
                 humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-            """.trimIndent()
+                """.trimIndent()
 
             val h = MatchFlowHarness(seed = 42L, validating = false)
             harness = h
@@ -145,17 +147,19 @@ class GameEndTest :
 
             // Verify MatchCompleted was sent
             val rawMsgs = h.allRawMessages
-            val matchCompleted = rawMsgs.firstOrNull {
-                it.hasMatchGameRoomStateChangedEvent() &&
-                    it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
-                    MatchGameRoomStateType.MatchCompleted
-            }
+            val matchCompleted =
+                rawMsgs.firstOrNull {
+                    it.hasMatchGameRoomStateChangedEvent() &&
+                        it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
+                        MatchGameRoomStateType.MatchCompleted
+                }
             matchCompleted.shouldNotBeNull()
 
             // Verify IntermissionReq with correct fields
-            val intermission = checkNotNull(h.allMessages.firstOrNull { it.hasIntermissionReq() }) {
-                "Should have IntermissionReq after lethal damage"
-            }
+            val intermission =
+                checkNotNull(h.allMessages.firstOrNull { it.hasIntermissionReq() }) {
+                    "Should have IntermissionReq after lethal damage"
+                }
             val req = intermission.intermissionReq
             req.result.reason shouldBe ResultReason.Game_ae0a
 
@@ -170,14 +174,18 @@ class GameEndTest :
             val allMsgs = h.allMessages
             val intermissionIdx = allMsgs.indexOfFirst { it.hasIntermissionReq() }
             intermissionIdx shouldBeGreaterThanOrEqualTo 3
-            val gameOverGsms = allMsgs.subList(intermissionIdx - 3, intermissionIdx)
-                .filter { it.hasGameStateMessage() }
-                .map { it.gameStateMessage }
+            val gameOverGsms =
+                allMsgs
+                    .subList(intermissionIdx - 3, intermissionIdx)
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
             gameOverGsms.size shouldBe 3
 
             // First game-over GSM should have LossOfGame annotation
-            val lossAnnotation = gameOverGsms[0].annotationsList
-                .firstOrNull { it.typeList.contains(AnnotationType.LossOfGame_af5a) }
+            val lossAnnotation =
+                gameOverGsms[0]
+                    .annotationsList
+                    .firstOrNull { it.typeList.contains(AnnotationType.LossOfGame_af5a) }
             lossAnnotation.shouldNotBeNull()
 
             // prevGameStateId chain

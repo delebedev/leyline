@@ -10,12 +10,18 @@ import kotlin.collections.iterator
  */
 interface CardRepository {
     fun findByGrpId(grpId: Int): CardData?
+
     fun findNameByGrpId(grpId: Int): String?
+
     fun findGrpIdByName(name: String): Int?
 
     /** Like [findGrpIdByName] but includes secondary faces (adventure, DFC back). */
     fun findGrpIdByNameAnyFace(name: String): Int? = findGrpIdByName(name)
-    fun findGrpIdByNameAndSet(name: String, setCode: String): Int? = findGrpIdByName(name)
+
+    fun findGrpIdByNameAndSet(
+        name: String,
+        setCode: String,
+    ): Int? = findGrpIdByName(name)
 
     /** All non-token, primary-card grpIds in the database. */
     fun findAllGrpIds(): List<Int>
@@ -30,17 +36,22 @@ interface CardRepository {
     /**
      * Register modal options for testing (no DB needed).
      */
-    fun registerModalOptions(cardGrpId: Int, info: ModalAbilityInfo) {}
+    fun registerModalOptions(
+        cardGrpId: Int,
+        info: ModalAbilityInfo,
+    ) {}
 
     /** Linked face grpIds for multi-face cards (DFC, MDFC, Adventure, Split). */
-    fun findLinkedFaces(grpId: Int): List<Int> =
-        findByGrpId(grpId)?.linkedFaceGrpIds ?: emptyList()
+    fun findLinkedFaces(grpId: Int): List<Int> = findByGrpId(grpId)?.linkedFaceGrpIds ?: emptyList()
 
     /**
      * Token grpId produced by [sourceGrpId].
      * Single token -> returns directly. Multiple -> matches by [tokenName].
      */
-    fun tokenGrpIdForCard(sourceGrpId: Int, tokenName: String? = null): Int? {
+    fun tokenGrpIdForCard(
+        sourceGrpId: Int,
+        tokenName: String? = null,
+    ): Int? {
         val data = findByGrpId(sourceGrpId) ?: return null
         val tokens = data.tokenGrpIds
         if (tokens.isEmpty()) return null

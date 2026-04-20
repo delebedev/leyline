@@ -24,7 +24,9 @@ private class AutoMappingCardRepository : CardRepository {
         nameToGrpId.getOrPut(name) { counter.getAndIncrement().also { grpIdToName[it] = name } }
 
     override fun findByGrpId(grpId: Int): CardData? = null
+
     override fun findNameByGrpId(grpId: Int): String? = grpIdToName[grpId]
+
     override fun findAllGrpIds(): List<Int> = nameToGrpId.values.toList()
 }
 

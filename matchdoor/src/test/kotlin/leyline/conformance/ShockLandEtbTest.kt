@@ -30,7 +30,8 @@ class ShockLandEtbTest :
          * Puzzle: Temple Garden in hand, enough life to pay.
          * Human starts at 20 life, Main1.
          */
-        fun puzzleText() = """
+        fun puzzleText() =
+            """
             [metadata]
             Name:Shock Land ETB
             Goal:Win
@@ -47,7 +48,7 @@ class ShockLandEtbTest :
             humanhand=Temple Garden
             humanlibrary=Forest;Forest;Forest
             ailibrary=Mountain;Mountain;Mountain
-        """.trimIndent()
+            """.trimIndent()
 
         test("accept — pay 2 life, land enters untapped") {
             val h = MatchFlowHarness(seed = 42L, validating = false)
@@ -60,11 +61,12 @@ class ShockLandEtbTest :
 
             // Play the shock land — don't use playLand() as it auto-accepts
             val land = human.getZone(ZoneType.Hand).cards.first { it.name == "Temple Garden" }
-            val msg = performAction {
-                actionType = ActionType.Play_add3
-                instanceId = h.bridge.getOrAllocInstanceId(ForgeCardId(land.id)).value
-                grpId = h.bridge.cardRepository.findGrpIdByName(land.name) ?: 0
-            }
+            val msg =
+                performAction {
+                    actionType = ActionType.Play_add3
+                    instanceId = h.bridge.getOrAllocInstanceId(ForgeCardId(land.id)).value
+                    grpId = h.bridge.cardRepository.findGrpIdByName(land.name) ?: 0
+                }
             h.session.onPerformAction(msg)
 
             // Drain sink to capture OAM (without auto-responding)
@@ -99,11 +101,12 @@ class ShockLandEtbTest :
 
             // Play the shock land manually
             val land = human.getZone(ZoneType.Hand).cards.first { it.name == "Temple Garden" }
-            val msg = performAction {
-                actionType = ActionType.Play_add3
-                instanceId = h.bridge.getOrAllocInstanceId(ForgeCardId(land.id)).value
-                grpId = h.bridge.cardRepository.findGrpIdByName(land.name) ?: 0
-            }
+            val msg =
+                performAction {
+                    actionType = ActionType.Play_add3
+                    instanceId = h.bridge.getOrAllocInstanceId(ForgeCardId(land.id)).value
+                    grpId = h.bridge.cardRepository.findGrpIdByName(land.name) ?: 0
+                }
             h.session.onPerformAction(msg)
 
             // Drain sink to capture OAM

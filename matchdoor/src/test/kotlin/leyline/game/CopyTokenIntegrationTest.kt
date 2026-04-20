@@ -54,7 +54,8 @@ class CopyTokenIntegrationTest :
 
         // Board A: Electroduplicate targeting Grizzly Bears
         // Produces a copy token with haste + EOT sacrifice
-        val puzzleText = """
+        val puzzleText =
+            """
             [metadata]
             Name:Copy Token Test
             Goal:Win
@@ -73,7 +74,7 @@ class CopyTokenIntegrationTest :
             humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
             aibattlefield=Mountain
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-        """.trimIndent()
+            """.trimIndent()
 
         /**
          * Cast Electroduplicate, resolve, and return the copy token's Forge Card
@@ -83,7 +84,11 @@ class CopyTokenIntegrationTest :
             val human = h.bridge.getPlayer(SeatId(1))!!
 
             // Preconditions
-            human.getZone(ZoneType.Hand).cards.any { it.name == "Electroduplicate" }.shouldBeTrue()
+            human
+                .getZone(ZoneType.Hand)
+                .cards
+                .any { it.name == "Electroduplicate" }
+                .shouldBeTrue()
             val creatures = h.humanBattlefieldCreatures()
             creatures.shouldNotBeEmpty()
             val bearsIid = creatures.first { it.second == "Grizzly Bears" }.first
@@ -99,9 +104,12 @@ class CopyTokenIntegrationTest :
                 h.passPriority()
             }
 
-            val copyToken = human.getZone(ZoneType.Battlefield).cards
-                .firstOrNull { it.isToken }
-                .shouldNotBeNull()
+            val copyToken =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .firstOrNull { it.isToken }
+                    .shouldNotBeNull()
             val copyIid = h.bridge.getOrAllocInstanceId(ForgeCardId(copyToken.id)).value
 
             return copyToken to copyIid
@@ -121,8 +129,10 @@ class CopyTokenIntegrationTest :
             // Build GSM and find the copy token object
             val snapCopy1 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 1)
             val gsm = StateMapper.buildFromSnapshot(snapCopy1, 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
-            val copyObj = gsm.gameObjectsList.firstOrNull { it.instanceId == copyIid }
-                .shouldNotBeNull()
+            val copyObj =
+                gsm.gameObjectsList
+                    .firstOrNull { it.instanceId == copyIid }
+                    .shouldNotBeNull()
 
             // Source grpId — should match Grizzly Bears, not a token grpId
             val bearsGrpId = h.bridge.cardRepository.findGrpIdByName("Grizzly Bears")!!
@@ -185,7 +195,9 @@ class CopyTokenIntegrationTest :
             // If absent from diff, it means unchanged — equally valid (no field stripping)
 
             // Registry should have cached the grpId
-            h.bridge.tokenRegistry.resolve(copyIid).shouldNotBeNull()
+            h.bridge.tokenRegistry
+                .resolve(copyIid)
+                .shouldNotBeNull()
         }
 
         test("TemporaryPermanent pAnn emitted for EOT-sacrifice copy") {
@@ -201,12 +213,12 @@ class CopyTokenIntegrationTest :
             // Build GSM — should have TemporaryPermanent persistent annotation
             val snapCopy4 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 1)
             val gsm = StateMapper.buildFromSnapshot(snapCopy4, 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
-            val tempPerm = gsm.persistentAnnotationsList
-                .firstOrNull { ann ->
-                    ann.typeList.contains(AnnotationType.TemporaryPermanent) &&
-                        ann.affectorId == copyIid
-                }
-                .shouldNotBeNull()
+            val tempPerm =
+                gsm.persistentAnnotationsList
+                    .firstOrNull { ann ->
+                        ann.typeList.contains(AnnotationType.TemporaryPermanent) &&
+                            ann.affectorId == copyIid
+                    }.shouldNotBeNull()
 
             tempPerm.affectedIdsList shouldContain copyIid
             tempPerm.detailInt(DetailKeys.ABILITY_GRP_ID_UPPER) shouldBe 192424
@@ -216,7 +228,8 @@ class CopyTokenIntegrationTest :
 
         // Quick Study draws 2 cards — guarantees both draws happen from one spell,
         // firing the "second card drawn" trigger regardless of draw-step state.
-        val homunculusPuzzle = """
+        val homunculusPuzzle =
+            """
             [metadata]
             Name:Homunculus Horde Copy
             Goal:Win
@@ -235,12 +248,20 @@ class CopyTokenIntegrationTest :
             humanlibrary=Island;Island;Island;Island;Island;Island;Island;Island
             aibattlefield=Island
             ailibrary=Island;Island;Island;Island;Island
-        """.trimIndent()
+            """.trimIndent()
 
         fun castQuickStudyAndWaitForCopy(h: MatchFlowHarness): Pair<forge.game.card.Card, Int> {
             val human = h.bridge.getPlayer(SeatId(1))!!
-            human.getZone(ZoneType.Hand).cards.any { it.name == "Quick Study" }.shouldBeTrue()
-            human.getZone(ZoneType.Battlefield).cards.any { it.name == "Homunculus Horde" }.shouldBeTrue()
+            human
+                .getZone(ZoneType.Hand)
+                .cards
+                .any { it.name == "Quick Study" }
+                .shouldBeTrue()
+            human
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .any { it.name == "Homunculus Horde" }
+                .shouldBeTrue()
 
             h.castSpellByName("Quick Study").shouldBeTrue()
 
@@ -251,9 +272,12 @@ class CopyTokenIntegrationTest :
                 h.passPriority()
             }
 
-            val copyToken = human.getZone(ZoneType.Battlefield).cards
-                .firstOrNull { it.isToken }
-                .shouldNotBeNull()
+            val copyToken =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .firstOrNull { it.isToken }
+                    .shouldNotBeNull()
             val copyIid = h.bridge.getOrAllocInstanceId(ForgeCardId(copyToken.id)).value
             return copyToken to copyIid
         }
@@ -270,8 +294,10 @@ class CopyTokenIntegrationTest :
 
             val snapHom1 = GsmSnapshot.capture(h.game(), h.bridge, "test-homunculus", 1)
             val gsm = StateMapper.buildFromSnapshot(snapHom1, 1, "test-homunculus", h.bridge, viewingSeatId = 1).gsm
-            val copyObj = gsm.gameObjectsList.firstOrNull { it.instanceId == copyIid }
-                .shouldNotBeNull()
+            val copyObj =
+                gsm.gameObjectsList
+                    .firstOrNull { it.instanceId == copyIid }
+                    .shouldNotBeNull()
 
             val hordeGrpId = h.bridge.cardRepository.findGrpIdByName("Homunculus Horde")!!
             assertSoftly {
@@ -297,11 +323,12 @@ class CopyTokenIntegrationTest :
 
             val snapHom2 = GsmSnapshot.capture(h.game(), h.bridge, "test-homunculus", 1)
             val gsm = StateMapper.buildFromSnapshot(snapHom2, 1, "test-homunculus", h.bridge, viewingSeatId = 1).gsm
-            val tempPerm = gsm.persistentAnnotationsList
-                .firstOrNull { ann ->
-                    ann.typeList.contains(AnnotationType.TemporaryPermanent) &&
-                        ann.affectorId == copyIid
-                }
+            val tempPerm =
+                gsm.persistentAnnotationsList
+                    .firstOrNull { ann ->
+                        ann.typeList.contains(AnnotationType.TemporaryPermanent) &&
+                            ann.affectorId == copyIid
+                    }
             (tempPerm == null) shouldBe true
         }
     })

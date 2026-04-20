@@ -22,6 +22,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * multi-turn advancement (which is unreliable due to autoPassAndAdvance
  * overshooting turns). AI gets the same deck.
  */
+
 /**
  * Combat test deck: haste creatures (Raging Goblin) + Mountains.
  * Also includes green splash for Giant Growth/Elves (reused by targeting tests).
@@ -270,10 +271,16 @@ class CombatFlowTest :
             h.declareAttackers(listOf(attackerIid))
             h.passThroughCombat(attackTurn)
 
-            val damageGsm = h.allMessages
-                .filter { it.hasGameStateMessage() }
-                .map { it.gameStateMessage }
-                .firstOrNull { it.turnInfo.step == Step.CombatDamage_a2cb && it.annotationsList.any { ann -> AnnotationType.DamageDealt_af5a in ann.typeList } }
+            val damageGsm =
+                h.allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .firstOrNull {
+                        it.turnInfo.step == Step.CombatDamage_a2cb &&
+                            it.annotationsList.any { ann ->
+                                AnnotationType.DamageDealt_af5a in ann.typeList
+                            }
+                    }
             damageGsm.shouldNotBeNull()
 
             val badge = damageGsm.persistentAnnotationsList.single { AnnotationType.DamagedThisTurn in it.typeList }
@@ -323,14 +330,16 @@ class CombatFlowTest :
 
             // Also capture messages from post-combat (turn advance triggers GSM build)
             // Search ALL messages, not just since snapshot — damage GSM may precede turn advance
-            val allGsms = h.allMessages
-                .filter { it.hasGameStateMessage() }
-                .map { it.gameStateMessage }
-            val damageGsm = allGsms.firstOrNull { gsm ->
-                gsm.annotationsList.any { ann ->
-                    ann.typeList.any { it == AnnotationType.DamageDealt_af5a }
+            val allGsms =
+                h.allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+            val damageGsm =
+                allGsms.firstOrNull { gsm ->
+                    gsm.annotationsList.any { ann ->
+                        ann.typeList.any { it == AnnotationType.DamageDealt_af5a }
+                    }
                 }
-            }
             damageGsm.shouldNotBeNull()
 
             // turnInfo must report CombatDamage phase (not Main2)
@@ -342,23 +351,26 @@ class CombatFlowTest :
             annTypes.first() shouldBe AnnotationType.PhaseOrStepModified
 
             // DamageDealt has correct affectorId (attacker) and affectedIds (target seat)
-            val dmgAnn = damageGsm.annotationsList.first { ann ->
-                ann.typeList.any { it == AnnotationType.DamageDealt_af5a }
-            }
+            val dmgAnn =
+                damageGsm.annotationsList.first { ann ->
+                    ann.typeList.any { it == AnnotationType.DamageDealt_af5a }
+                }
             dmgAnn.affectorId shouldBe attackerIid
             dmgAnn.affectedIdsList shouldBe listOf(2) // AI seat
 
             // ModifiedLife has affectorId set (not 0)
-            val lifeAnn = damageGsm.annotationsList.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.ModifiedLife }
-            }
+            val lifeAnn =
+                damageGsm.annotationsList.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.ModifiedLife }
+                }
             if (lifeAnn != null) {
                 lifeAnn.affectorId shouldBeGreaterThan 0
             }
 
-            damageGsm.annotationsList.none { ann ->
-                ann.typeList.any { it == AnnotationType.DamagedThisTurn }
-            }.shouldBeTrue()
+            damageGsm.annotationsList
+                .none { ann ->
+                    ann.typeList.any { it == AnnotationType.DamagedThisTurn }
+                }.shouldBeTrue()
 
             // Human-turn combat animation checkpoint must not reopen priority.
             h.allMessages.none { it.hasActionsAvailableReq() && it.gameStateId == damageGsm.gameStateId }.shouldBeTrue()
@@ -412,9 +424,10 @@ class CombatFlowTest :
 
             // Check message stream for annotations
             val combatMsgs = h.messagesSince(snap)
-            val allAnnotations = combatMsgs
-                .filter { it.hasGameStateMessage() }
-                .flatMap { it.gameStateMessage.annotationsList }
+            val allAnnotations =
+                combatMsgs
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.annotationsList }
 
             // Either ZoneTransfer (trade) or damage annotations should be present
             val hasZoneTransfer = allAnnotations.any { AnnotationType.ZoneTransfer_af5a in it.typeList }
@@ -484,14 +497,16 @@ class CombatFlowTest :
             echoReq.shouldNotBeNull()
 
             // Conformance: committed attackers have selectedDamageRecipient set
-            val echoAttacker = echoReq.declareAttackersReq.attackersList
-                .first { it.attackerInstanceId == attackerIid }
+            val echoAttacker =
+                echoReq.declareAttackersReq.attackersList
+                    .first { it.attackerInstanceId == attackerIid }
             echoAttacker.hasSelectedDamageRecipient().shouldBeTrue()
             echoAttacker.selectedDamageRecipient.type shouldBe DamageRecType.Player_a0e5
 
             // Conformance: qualifiedAttackers never has selectedDamageRecipient
-            val qualAttacker = echoReq.declareAttackersReq.qualifiedAttackersList
-                .first { it.attackerInstanceId == attackerIid }
+            val qualAttacker =
+                echoReq.declareAttackersReq.qualifiedAttackersList
+                    .first { it.attackerInstanceId == attackerIid }
             qualAttacker.hasSelectedDamageRecipient().shouldBeFalse()
 
             // Conformance: manaCost present (empty entry)
@@ -508,13 +523,19 @@ class CombatFlowTest :
             // Toggle ON (XOR: not committed → committed)
             val onMsgs = h.toggleAttackers(listOf(attackerIid))
             val onReq = onMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
-            onReq.attackersList.first().hasSelectedDamageRecipient().shouldBeTrue()
+            onReq.attackersList
+                .first()
+                .hasSelectedDamageRecipient()
+                .shouldBeTrue()
 
             // Toggle OFF (XOR same ID: committed → deselected)
             // Conformance: reference session 2026-03-14_17-28-50, idx 160 (toggle committed attacker)
             val offMsgs = h.toggleAttackers(listOf(attackerIid))
             val offReq = offMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
-            offReq.attackersList.first().hasSelectedDamageRecipient().shouldBeFalse()
+            offReq.attackersList
+                .first()
+                .hasSelectedDamageRecipient()
+                .shouldBeFalse()
         }
 
         test("echo back deselect restores state") {

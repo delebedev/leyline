@@ -3,7 +3,9 @@ package leyline.game.snapshot
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 
-data class StackSnapshot(val entries: List<StackEntry>)
+data class StackSnapshot(
+    val entries: List<StackEntry>,
+)
 
 /**
  * Immutable capture of a single stack item for the [addStackAbilitiesFromSnapshot] path.

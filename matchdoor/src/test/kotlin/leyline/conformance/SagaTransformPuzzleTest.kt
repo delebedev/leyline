@@ -37,7 +37,8 @@ class SagaTransformPuzzleTest :
         tags(IntegrationTag)
 
         test("tribute to horobi: cast → 3 chapters → transform end-to-end") {
-            val puzzleText = """
+            val puzzleText =
+                """
                 [metadata]
                 Name:Saga Full Lifecycle — Tribute to Horobi
                 Goal:Survive
@@ -56,7 +57,7 @@ class SagaTransformPuzzleTest :
                 humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
                 aibattlefield=Mountain
                 ailibrary=Mountain;Mountain;Mountain;Mountain
-            """.trimIndent()
+                """.trimIndent()
 
             // validating=false: enabling the validator surfaces a pre-existing
             // annotation_ref violation at gsId=7 (drawn card iid not yet in
@@ -75,19 +76,28 @@ class SagaTransformPuzzleTest :
                 // CardDataDeriver — it has its own nameToGrpId counter that
                 // can diverge from the puzzle-registry counter, producing
                 // test-vs-wire grpId mismatches.
-                val sagaFrontGrpId = TestCardRegistry.repo.findGrpIdByName("Tribute to Horobi")
-                    ?: error("Tribute to Horobi not registered in puzzle repo")
-                val echoBackGrpId = TestCardRegistry.repo.findGrpIdByName("Echo of Death's Wail")
-                    ?: run {
-                        val tribute = game.humanPlayer.getZone(ZoneType.Hand).cards
-                            .first { it.name == "Tribute to Horobi" }
-                        error(
-                            "Echo of Death's Wail not registered in puzzle repo. " +
-                                "Tribute states=${tribute.states}, currentName=${tribute.name}, " +
-                                "isDoubleFaced=${tribute.isDoubleFaced}, " +
-                                "allRegistered=${TestCardRegistry.repo.findAllGrpIds().map { TestCardRegistry.repo.findNameByGrpId(it) }}",
-                        )
-                    }
+                val sagaFrontGrpId =
+                    TestCardRegistry.repo.findGrpIdByName("Tribute to Horobi")
+                        ?: error("Tribute to Horobi not registered in puzzle repo")
+                val echoBackGrpId =
+                    TestCardRegistry.repo.findGrpIdByName("Echo of Death's Wail")
+                        ?: run {
+                            val tribute =
+                                game.humanPlayer
+                                    .getZone(ZoneType.Hand)
+                                    .cards
+                                    .first { it.name == "Tribute to Horobi" }
+                            error(
+                                "Echo of Death's Wail not registered in puzzle repo. " +
+                                    "Tribute states=${tribute.states}, currentName=${tribute.name}, " +
+                                    "isDoubleFaced=${tribute.isDoubleFaced}, " +
+                                    "allRegistered=${TestCardRegistry.repo.findAllGrpIds().map {
+                                        TestCardRegistry.repo.findNameByGrpId(
+                                            it,
+                                        )
+                                    }}",
+                            )
+                        }
 
                 harness.castSpellByName("Tribute to Horobi").shouldBeTrue()
 
@@ -107,19 +117,23 @@ class SagaTransformPuzzleTest :
                 transformed.shouldBeTrue()
 
                 // --- Layer 2: wire-shape (emission structure) ---
-                val annotations = harness.allMessages
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList }
+                val annotations =
+                    harness.allMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.annotationsList }
 
                 val oicCount = annotations.count { AnnotationType.ObjectIdChanged in it.typeList }
                 oicCount shouldBeGreaterThanOrEqual 2
 
-                val zoneCategories = annotations
-                    .filter { AnnotationType.ZoneTransfer_af5a in it.typeList }
-                    .mapNotNull { ann ->
-                        ann.detailsList.firstOrNull { it.key == "category" }
-                            ?.valueStringList?.firstOrNull()
-                    }
+                val zoneCategories =
+                    annotations
+                        .filter { AnnotationType.ZoneTransfer_af5a in it.typeList }
+                        .mapNotNull { ann ->
+                            ann.detailsList
+                                .firstOrNull { it.key == "category" }
+                                ?.valueStringList
+                                ?.firstOrNull()
+                        }
                 ("Exile" in zoneCategories).shouldBeTrue()
                 ("Return" in zoneCategories).shouldBeTrue()
 
@@ -129,16 +143,19 @@ class SagaTransformPuzzleTest :
                 // reconstructed BF. The accumulator catches that.
                 harness.accumulator.assertConsistent("after saga transform")
 
-                val bfZone = harness.accumulator.zones[ZoneIds.BATTLEFIELD]
-                    ?: error("accumulator lost the battlefield zone")
-                val bfGrpIds = bfZone.objectInstanceIdsList
-                    .mapNotNull { harness.accumulator.objects[it]?.grpId }
+                val bfZone =
+                    harness.accumulator.zones[ZoneIds.BATTLEFIELD]
+                        ?: error("accumulator lost the battlefield zone")
+                val bfGrpIds =
+                    bfZone.objectInstanceIdsList
+                        .mapNotNull { harness.accumulator.objects[it]?.grpId }
                 (echoBackGrpId in bfGrpIds).shouldBeTrue()
                 (sagaFrontGrpId in bfGrpIds) shouldBe false
 
-                val echoObj = bfZone.objectInstanceIdsList
-                    .mapNotNull { harness.accumulator.objects[it] }
-                    .first { it.grpId == echoBackGrpId }
+                val echoObj =
+                    bfZone.objectInstanceIdsList
+                        .mapNotNull { harness.accumulator.objects[it] }
+                        .first { it.grpId == echoBackGrpId }
                 echoObj.type shouldBe GameObjectType.Card
                 // othersideGrpId flakes under some test-order sequences — the
                 // ObjectMapper resolveOthersideGrpId path is independently

@@ -16,7 +16,10 @@ class AccountStoreTest :
         tags(UnitTag)
 
         fun freshStore(): AccountStore {
-            val dbFile = java.io.File.createTempFile("account-test", ".db").also { it.deleteOnExit() }
+            val dbFile =
+                java.io.File
+                    .createTempFile("account-test", ".db")
+                    .also { it.deleteOnExit() }
             val db = Database.connect("jdbc:sqlite:${dbFile.absolutePath}", "org.sqlite.JDBC")
             val store = AccountStore(db)
             store.createTables()
@@ -87,13 +90,14 @@ class AccountStoreTest :
 
         test("seed inserts account with fixed IDs") {
             val store = freshStore()
-            val seeded = store.seed(
-                accountId = "fixed-account-id",
-                personaId = "fixed-persona-id",
-                email = "dev@local",
-                displayName = "DevPlayer#00001",
-                password = "dev",
-            )
+            val seeded =
+                store.seed(
+                    accountId = "fixed-account-id",
+                    personaId = "fixed-persona-id",
+                    email = "dev@local",
+                    displayName = "DevPlayer#00001",
+                    password = "dev",
+                )
             seeded.shouldBeTrue()
             val account = store.findByEmail("dev@local")
             assertSoftly {

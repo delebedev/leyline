@@ -89,8 +89,9 @@ class MatchFlowHarnessTest :
             missing.shouldBeEmpty()
 
             // Verify we have objects on battlefield (not just hand/library)
-            val battlefieldZone = h.accumulator.zones.values
-                .firstOrNull { it.type == ZoneType.Battlefield }
+            val battlefieldZone =
+                h.accumulator.zones.values
+                    .firstOrNull { it.type == ZoneType.Battlefield }
             battlefieldZone.shouldNotBeNull()
         }
 
@@ -194,9 +195,10 @@ class MatchFlowHarnessTest :
 
             // Game-start bundle is allowed to have AAR (it's the initial prompt).
             // Grab messages after game-start, which are AI turn diffs.
-            val gameStartSize = h.allMessages.indexOfLast {
-                it.hasGameStateMessage() && it.gameStateMessage.type == GameStateType.Full
-            } + 1
+            val gameStartSize =
+                h.allMessages.indexOfLast {
+                    it.hasGameStateMessage() && it.gameStateMessage.type == GameStateType.Full
+                } + 1
 
             val aiTurnMessages = h.allMessages.subList(gameStartSize, h.allMessages.size)
             val aars = aiTurnMessages.filter { it.hasActionsAvailableReq() }
@@ -221,9 +223,10 @@ class MatchFlowHarnessTest :
 
             // After passing through the AI turn, we should have received Diff messages
             val newMessages = h.allMessages.subList(messagesBeforePass, h.allMessages.size)
-            val diffs = newMessages.filter {
-                it.hasGameStateMessage() && it.gameStateMessage.type == GameStateType.Diff
-            }
+            val diffs =
+                newMessages.filter {
+                    it.hasGameStateMessage() && it.gameStateMessage.type == GameStateType.Diff
+                }
             diffs.size shouldBeGreaterThanOrEqualTo 2
         }
 
@@ -240,12 +243,13 @@ class MatchFlowHarnessTest :
             h.isGameOver().shouldBeFalse()
 
             val aiMessages = h.allMessages.subList(prePassCount, h.allMessages.size)
-            val newTurnAnno = checkNotNull(
-                aiMessages
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList }
-                    .firstOrNull { it.typeList.contains(AnnotationType.NewTurnStarted) },
-            ) { "No NewTurnStarted annotation in AI turn messages (${aiMessages.size} post-pass msgs)" }
+            val newTurnAnno =
+                checkNotNull(
+                    aiMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.annotationsList }
+                        .firstOrNull { it.typeList.contains(AnnotationType.NewTurnStarted) },
+                ) { "No NewTurnStarted annotation in AI turn messages (${aiMessages.size} post-pass msgs)" }
 
             newTurnAnno.affectedIdsList.shouldNotBeEmpty()
             newTurnAnno.affectorId shouldBeGreaterThan 0
@@ -263,12 +267,13 @@ class MatchFlowHarnessTest :
             h.isGameOver().shouldBeFalse()
 
             val aiMessages = h.allMessages.subList(prePassCount, h.allMessages.size)
-            val phaseAnno = checkNotNull(
-                aiMessages
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList }
-                    .firstOrNull { it.typeList.contains(AnnotationType.PhaseOrStepModified) },
-            ) { "No PhaseOrStepModified annotation in AI turn messages (${aiMessages.size} post-pass msgs)" }
+            val phaseAnno =
+                checkNotNull(
+                    aiMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.annotationsList }
+                        .firstOrNull { it.typeList.contains(AnnotationType.PhaseOrStepModified) },
+                ) { "No PhaseOrStepModified annotation in AI turn messages (${aiMessages.size} post-pass msgs)" }
 
             phaseAnno.affectedIdsList.shouldNotBeEmpty()
 

@@ -28,27 +28,34 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *   Later tasks populate each section as the corresponding mapper migrates.
  */
 object SnapshotCapture {
-    fun run(game: Game, bridge: GameBridge, matchId: String, gameStateId: Int): GsmSnapshot {
+    fun run(
+        game: Game,
+        bridge: GameBridge,
+        matchId: String,
+        gameStateId: Int,
+    ): GsmSnapshot {
         val human = bridge.getPlayer(SeatId(1))
-        val seats = listOf(1, 2).mapNotNull { seatNum ->
-            val player = bridge.getPlayer(SeatId(seatNum)) ?: return@mapNotNull null
-            SeatSnapshot(
-                seatId = SeatId(seatNum),
-                life = player.life,
-                startingLife = player.startingLife,
-                maxHandSize = player.maxHandSize,
-            )
-        }
+        val seats =
+            listOf(1, 2).mapNotNull { seatNum ->
+                val player = bridge.getPlayer(SeatId(seatNum)) ?: return@mapNotNull null
+                SeatSnapshot(
+                    seatId = SeatId(seatNum),
+                    life = player.life,
+                    startingLife = player.startingLife,
+                    maxHandSize = player.maxHandSize,
+                )
+            }
         val zones = captureZones(game, bridge)
         val objects = captureObjects(game, bridge, zones)
         val phase = capturePhase(game, human)
         val stack = captureStack(game, bridge, human)
         val abilityWordEntries = computeAbilityWordEntries(game, bridge)
-        val persistentAnnotationState = PersistentAnnotationState(
-            activeAnnotations = bridge.annotations.snapshot(),
-            nextAnnotationId = bridge.annotations.currentAnnotationId(),
-            nextPersistentId = bridge.annotations.currentPersistentId(),
-        )
+        val persistentAnnotationState =
+            PersistentAnnotationState(
+                activeAnnotations = bridge.annotations.snapshot(),
+                nextAnnotationId = bridge.annotations.currentAnnotationId(),
+                nextPersistentId = bridge.annotations.currentPersistentId(),
+            )
         return GsmSnapshot.forTest(
             matchId = matchId,
             gameStateId = gameStateId,
@@ -59,10 +66,11 @@ object SnapshotCapture {
             stack = stack,
             abilityWordEntries = abilityWordEntries,
             persistentAnnotationState = persistentAnnotationState,
-            capturedAt = CaptureMarker(
-                gsIdBeforeCapture = -1,
-                wallClockMs = System.currentTimeMillis(),
-            ),
+            capturedAt =
+                CaptureMarker(
+                    gsIdBeforeCapture = -1,
+                    wallClockMs = System.currentTimeMillis(),
+                ),
         )
     }
 
@@ -72,7 +80,10 @@ object SnapshotCapture {
      * Snapshot turn/phase/priority state from [game.phaseHandler].
      * [PhaseType] is a Forge enum value; safe to hold as immutable data.
      */
-    private fun capturePhase(game: Game, human: Player?): PhaseSnapshot {
+    private fun capturePhase(
+        game: Game,
+        human: Player?,
+    ): PhaseSnapshot {
         val handler = game.phaseHandler
         return PhaseSnapshot(
             turn = handler.turn.coerceAtLeast(1),
@@ -89,7 +100,11 @@ object SnapshotCapture {
      * grpId so that [leyline.game.mapping.ZoneMapper.addStackAbilitiesFromSnapshot] never
      * needs a live Forge reference.
      */
-    private fun captureStack(game: Game, bridge: GameBridge, human: Player?): StackSnapshot {
+    private fun captureStack(
+        game: Game,
+        bridge: GameBridge,
+        human: Player?,
+    ): StackSnapshot {
         val stack = game.getStack()
         if (stack.isEmpty) return StackSnapshot(emptyList())
         val entries = mutableListOf<StackEntry>()
@@ -144,10 +159,14 @@ object SnapshotCapture {
         val chapterIdx = chapterParam.toIntOrNull()?.takeIf { it >= 1 } ?: return null
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
         val cardData = bridge.cardRepository.findByGrpId(sourceGrpId) ?: return null
-        return leyline.game.mapping.ZoneMapper.chapterGrpIdFromCardData(cardData, chapterIdx)
+        return leyline.game.mapping.ZoneMapper
+            .chapterGrpIdFromCardData(cardData, chapterIdx)
     }
 
-    private fun captureZones(game: Game, bridge: GameBridge): Map<Int, ZoneSnapshot> {
+    private fun captureZones(
+        game: Game,
+        bridge: GameBridge,
+    ): Map<Int, ZoneSnapshot> {
         val result = linkedMapOf<Int, ZoneSnapshot>()
         for (seatNum in listOf(1, 2)) {
             val player = bridge.getPlayer(SeatId(seatNum)) ?: continue
@@ -172,13 +191,14 @@ object SnapshotCapture {
         val arenaZoneId = playerZoneId(seatNum, fz) ?: return
         val arenaType = arenaTypeFor(fz)
         val visibility = visibilityFor(fz)
-        out[arenaZoneId] = ZoneSnapshot(
-            id = arenaZoneId,
-            type = arenaType,
-            owner = SeatId(seatNum),
-            visibility = visibility,
-            contents = zone.cards.map { ForgeCardId(it.id) },
-        )
+        out[arenaZoneId] =
+            ZoneSnapshot(
+                id = arenaZoneId,
+                type = arenaType,
+                owner = SeatId(seatNum),
+                visibility = visibility,
+                contents = zone.cards.map { ForgeCardId(it.id) },
+            )
     }
 
     private fun captureSharedZone(
@@ -188,13 +208,14 @@ object SnapshotCapture {
     ) {
         val arenaZoneId = sharedZoneId(fz) ?: return
         val arenaType = arenaTypeFor(fz)
-        out[arenaZoneId] = ZoneSnapshot(
-            id = arenaZoneId,
-            type = arenaType,
-            owner = null,
-            visibility = Visibility.Public,
-            contents = game.getCardsIn(fz).map { ForgeCardId(it.id) },
-        )
+        out[arenaZoneId] =
+            ZoneSnapshot(
+                id = arenaZoneId,
+                type = arenaType,
+                owner = null,
+                visibility = Visibility.Public,
+                contents = game.getCardsIn(fz).map { ForgeCardId(it.id) },
+            )
     }
 
     // --- Task 6: object capture ---
@@ -240,17 +261,19 @@ object SnapshotCapture {
         val type = card.type
 
         // Live card types as proto CardType ordinal ints (mirrors overlayCardTypes logic)
-        val liveTypeNumbers = type.coreTypes
-            .mapNotNull { coreTypeToProto[it] }
-            .sortedBy { it.number }
-            .map { it.number }
+        val liveTypeNumbers =
+            type.coreTypes
+                .mapNotNull { coreTypeToProto[it] }
+                .sortedBy { it.number }
+                .map { it.number }
 
         // Combat role — only for battlefield creatures
-        val combatRole: CombatRole? = if (combat != null && onBf && type.isCreature) {
-            resolveCombatRole(card, combat, bridge, human)
-        } else {
-            null
-        }
+        val combatRole: CombatRole? =
+            if (combat != null && onBf && type.isCreature) {
+                resolveCombatRole(card, combat, bridge, human)
+            } else {
+                null
+            }
 
         // Attachment
         val attachedTo = card.attachedTo?.let { ForgeCardId(it.id) }
@@ -273,9 +296,10 @@ object SnapshotCapture {
         val isLand = type.isLand
         val isAdventureCard = card.isAdventureCard
         val hasManaAbilities = card.manaAbilities.isNotEmpty()
-        val hasNonManaActivatedAbilities = card.spellAbilities.any { sa ->
-            sa.isActivatedAbility && !sa.isManaAbility()
-        }
+        val hasNonManaActivatedAbilities =
+            card.spellAbilities.any { sa ->
+                sa.isActivatedAbility && !sa.isManaAbility()
+            }
 
         return CardSnapshot(
             forgeCardId = ForgeCardId(card.id),
@@ -315,15 +339,16 @@ object SnapshotCapture {
         human: Player?,
     ): CombatRole? {
         if (combat.isAttacking(card)) {
-            val targetInstanceId: Int = run {
-                val defender = combat.getDefenderByAttacker(card)
-                when {
-                    defender == null -> 0
-                    defender is Player -> if (defender.id == human?.id) 1 else 2
-                    defender is Card -> bridge.getOrAllocInstanceId(ForgeCardId(defender.id)).value
-                    else -> 0
+            val targetInstanceId: Int =
+                run {
+                    val defender = combat.getDefenderByAttacker(card)
+                    when {
+                        defender == null -> 0
+                        defender is Player -> if (defender.id == human?.id) 1 else 2
+                        defender is Card -> bridge.getOrAllocInstanceId(ForgeCardId(defender.id)).value
+                        else -> 0
+                    }
                 }
-            }
             val isBlocked: Boolean? = combat.getBandOfAttacker(card)?.isBlocked()
             return CombatRole.Attacker(
                 targetInstanceId = targetInstanceId,
@@ -331,9 +356,10 @@ object SnapshotCapture {
             )
         }
         if (combat.isBlocking(card)) {
-            val attackerIds = combat.getAttackersBlockedBy(card).map { atk ->
-                bridge.getOrAllocInstanceId(ForgeCardId(atk.id)).value
-            }
+            val attackerIds =
+                combat.getAttackersBlockedBy(card).map { atk ->
+                    bridge.getOrAllocInstanceId(ForgeCardId(atk.id)).value
+                }
             return CombatRole.Blocker(attackerInstanceIds = attackerIds)
         }
         return null
@@ -344,98 +370,105 @@ object SnapshotCapture {
 
     // --- Zone ID helpers (unchanged from before) ---
 
-    private fun playerZoneId(seat: Int, fz: ForgeZoneType): Int? = when (fz) {
-        ForgeZoneType.Hand -> if (seat == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
-        ForgeZoneType.Library -> if (seat == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
-        ForgeZoneType.Graveyard -> if (seat == 1) ZoneIds.P1_GRAVEYARD else ZoneIds.P2_GRAVEYARD
-        ForgeZoneType.Battlefield,
-        ForgeZoneType.Exile,
-        ForgeZoneType.Flashback,
-        ForgeZoneType.Command,
-        ForgeZoneType.Stack,
-        ForgeZoneType.Sideboard,
-        ForgeZoneType.Ante,
-        ForgeZoneType.Merged,
-        ForgeZoneType.SchemeDeck,
-        ForgeZoneType.PlanarDeck,
-        ForgeZoneType.AttractionDeck,
-        ForgeZoneType.Junkyard,
-        ForgeZoneType.ContraptionDeck,
-        ForgeZoneType.Subgame,
-        ForgeZoneType.ExtraHand,
-        ForgeZoneType.None,
-        -> null
-    }
+    private fun playerZoneId(
+        seat: Int,
+        fz: ForgeZoneType,
+    ): Int? =
+        when (fz) {
+            ForgeZoneType.Hand -> if (seat == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
+            ForgeZoneType.Library -> if (seat == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
+            ForgeZoneType.Graveyard -> if (seat == 1) ZoneIds.P1_GRAVEYARD else ZoneIds.P2_GRAVEYARD
+            ForgeZoneType.Battlefield,
+            ForgeZoneType.Exile,
+            ForgeZoneType.Flashback,
+            ForgeZoneType.Command,
+            ForgeZoneType.Stack,
+            ForgeZoneType.Sideboard,
+            ForgeZoneType.Ante,
+            ForgeZoneType.Merged,
+            ForgeZoneType.SchemeDeck,
+            ForgeZoneType.PlanarDeck,
+            ForgeZoneType.AttractionDeck,
+            ForgeZoneType.Junkyard,
+            ForgeZoneType.ContraptionDeck,
+            ForgeZoneType.Subgame,
+            ForgeZoneType.ExtraHand,
+            ForgeZoneType.None,
+            -> null
+        }
 
-    private fun sharedZoneId(fz: ForgeZoneType): Int? = when (fz) {
-        ForgeZoneType.Battlefield -> ZoneIds.BATTLEFIELD
-        ForgeZoneType.Stack -> ZoneIds.STACK
-        ForgeZoneType.Exile -> ZoneIds.EXILE
-        ForgeZoneType.Command -> ZoneIds.COMMAND
-        ForgeZoneType.Hand,
-        ForgeZoneType.Library,
-        ForgeZoneType.Graveyard,
-        ForgeZoneType.Flashback,
-        ForgeZoneType.Sideboard,
-        ForgeZoneType.Ante,
-        ForgeZoneType.Merged,
-        ForgeZoneType.SchemeDeck,
-        ForgeZoneType.PlanarDeck,
-        ForgeZoneType.AttractionDeck,
-        ForgeZoneType.Junkyard,
-        ForgeZoneType.ContraptionDeck,
-        ForgeZoneType.Subgame,
-        ForgeZoneType.ExtraHand,
-        ForgeZoneType.None,
-        -> null
-    }
+    private fun sharedZoneId(fz: ForgeZoneType): Int? =
+        when (fz) {
+            ForgeZoneType.Battlefield -> ZoneIds.BATTLEFIELD
+            ForgeZoneType.Stack -> ZoneIds.STACK
+            ForgeZoneType.Exile -> ZoneIds.EXILE
+            ForgeZoneType.Command -> ZoneIds.COMMAND
+            ForgeZoneType.Hand,
+            ForgeZoneType.Library,
+            ForgeZoneType.Graveyard,
+            ForgeZoneType.Flashback,
+            ForgeZoneType.Sideboard,
+            ForgeZoneType.Ante,
+            ForgeZoneType.Merged,
+            ForgeZoneType.SchemeDeck,
+            ForgeZoneType.PlanarDeck,
+            ForgeZoneType.AttractionDeck,
+            ForgeZoneType.Junkyard,
+            ForgeZoneType.ContraptionDeck,
+            ForgeZoneType.Subgame,
+            ForgeZoneType.ExtraHand,
+            ForgeZoneType.None,
+            -> null
+        }
 
-    private fun arenaTypeFor(fz: ForgeZoneType): ZoneType = when (fz) {
-        ForgeZoneType.Hand -> ZoneType.Hand
-        ForgeZoneType.Library -> ZoneType.Library
-        ForgeZoneType.Graveyard -> ZoneType.Graveyard
-        ForgeZoneType.Sideboard -> ZoneType.Sideboard
-        ForgeZoneType.Command -> ZoneType.Command
-        ForgeZoneType.Battlefield -> ZoneType.Battlefield
-        ForgeZoneType.Stack -> ZoneType.Stack
-        ForgeZoneType.Exile -> ZoneType.Exile
-        ForgeZoneType.Flashback,
-        ForgeZoneType.Ante,
-        ForgeZoneType.Merged,
-        ForgeZoneType.SchemeDeck,
-        ForgeZoneType.PlanarDeck,
-        ForgeZoneType.AttractionDeck,
-        ForgeZoneType.Junkyard,
-        ForgeZoneType.ContraptionDeck,
-        ForgeZoneType.Subgame,
-        ForgeZoneType.ExtraHand,
-        ForgeZoneType.None,
-        -> ZoneType.UNRECOGNIZED
-    }
+    private fun arenaTypeFor(fz: ForgeZoneType): ZoneType =
+        when (fz) {
+            ForgeZoneType.Hand -> ZoneType.Hand
+            ForgeZoneType.Library -> ZoneType.Library
+            ForgeZoneType.Graveyard -> ZoneType.Graveyard
+            ForgeZoneType.Sideboard -> ZoneType.Sideboard
+            ForgeZoneType.Command -> ZoneType.Command
+            ForgeZoneType.Battlefield -> ZoneType.Battlefield
+            ForgeZoneType.Stack -> ZoneType.Stack
+            ForgeZoneType.Exile -> ZoneType.Exile
+            ForgeZoneType.Flashback,
+            ForgeZoneType.Ante,
+            ForgeZoneType.Merged,
+            ForgeZoneType.SchemeDeck,
+            ForgeZoneType.PlanarDeck,
+            ForgeZoneType.AttractionDeck,
+            ForgeZoneType.Junkyard,
+            ForgeZoneType.ContraptionDeck,
+            ForgeZoneType.Subgame,
+            ForgeZoneType.ExtraHand,
+            ForgeZoneType.None,
+            -> ZoneType.UNRECOGNIZED
+        }
 
-    private fun visibilityFor(fz: ForgeZoneType): Visibility = when (fz) {
-        ForgeZoneType.Hand,
-        ForgeZoneType.Library,
-        ForgeZoneType.Sideboard,
-        -> Visibility.Private
-        ForgeZoneType.Battlefield,
-        ForgeZoneType.Exile,
-        ForgeZoneType.Flashback,
-        ForgeZoneType.Command,
-        ForgeZoneType.Stack,
-        ForgeZoneType.Graveyard,
-        ForgeZoneType.Ante,
-        ForgeZoneType.Merged,
-        ForgeZoneType.SchemeDeck,
-        ForgeZoneType.PlanarDeck,
-        ForgeZoneType.AttractionDeck,
-        ForgeZoneType.Junkyard,
-        ForgeZoneType.ContraptionDeck,
-        ForgeZoneType.Subgame,
-        ForgeZoneType.ExtraHand,
-        ForgeZoneType.None,
-        -> Visibility.Public
-    }
+    private fun visibilityFor(fz: ForgeZoneType): Visibility =
+        when (fz) {
+            ForgeZoneType.Hand,
+            ForgeZoneType.Library,
+            ForgeZoneType.Sideboard,
+            -> Visibility.Private
+            ForgeZoneType.Battlefield,
+            ForgeZoneType.Exile,
+            ForgeZoneType.Flashback,
+            ForgeZoneType.Command,
+            ForgeZoneType.Stack,
+            ForgeZoneType.Graveyard,
+            ForgeZoneType.Ante,
+            ForgeZoneType.Merged,
+            ForgeZoneType.SchemeDeck,
+            ForgeZoneType.PlanarDeck,
+            ForgeZoneType.AttractionDeck,
+            ForgeZoneType.Junkyard,
+            ForgeZoneType.ContraptionDeck,
+            ForgeZoneType.Subgame,
+            ForgeZoneType.ExtraHand,
+            ForgeZoneType.None,
+            -> Visibility.Public
+        }
 
     /**
      * Pre-run [leyline.game.annotations.AbilityWordScanner] at capture time so the diff
@@ -445,9 +478,10 @@ object SnapshotCapture {
         game: Game,
         bridge: GameBridge,
     ): List<AbilityWordScanner.AbilityWordEntry> {
-        val bfCards = game.registeredPlayers.flatMap {
-            it.getZone(ForgeZoneType.Battlefield).cards.toList()
-        }
+        val bfCards =
+            game.registeredPlayers.flatMap {
+                it.getZone(ForgeZoneType.Battlefield).cards.toList()
+            }
         return AbilityWordScanner.scan(
             battlefieldCards = bfCards,
             instanceIdResolver = { fid -> bridge.getOrAllocInstanceId(fid) },

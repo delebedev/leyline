@@ -231,14 +231,15 @@ class PuzzleBridgeTest :
 
             // Seat 1 (human): connect and run onPuzzleStart — normal path
             val sink1 = ListMessageSink()
-            val session1 = MatchSession(
-                seatId = SeatId(1),
-                matchId = matchId,
-                sink = sink1,
-                registry = registry,
-                gameBridge = b,
-                paceDelayMs = 0,
-            )
+            val session1 =
+                MatchSession(
+                    seatId = SeatId(1),
+                    matchId = matchId,
+                    sink = sink1,
+                    registry = registry,
+                    gameBridge = b,
+                    paceDelayMs = 0,
+                )
             registry.registerSession(matchId, 1, session1)
             session1.onPuzzleStart()
             b.getGame()!!.phaseHandler.phase shouldBe PhaseType.MAIN1
@@ -247,14 +248,15 @@ class PuzzleBridgeTest :
 
             // Seat 2 (Familiar): connect and run onPuzzleStart — this is the race
             val sink2 = ListMessageSink()
-            val session2 = MatchSession(
-                seatId = SeatId(2),
-                matchId = matchId,
-                sink = sink2,
-                registry = registry,
-                gameBridge = b,
-                paceDelayMs = 0,
-            )
+            val session2 =
+                MatchSession(
+                    seatId = SeatId(2),
+                    matchId = matchId,
+                    sink = sink2,
+                    registry = registry,
+                    gameBridge = b,
+                    paceDelayMs = 0,
+                )
             registry.registerSession(matchId, 2, session2)
             session2.onPuzzleStart()
 

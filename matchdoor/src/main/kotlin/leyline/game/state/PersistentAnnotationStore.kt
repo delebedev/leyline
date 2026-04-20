@@ -63,7 +63,6 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * [DiffSnapshotter], and [EffectTracker].
  */
 class PersistentAnnotationStore {
-
     /** Result of a pure [computeBatch] invocation. */
     data class BatchResult(
         /** All persistent annotations after applying the batch (for GSM embedding). */
@@ -141,8 +140,10 @@ class PersistentAnnotationStore {
             for (ann in mechanicResult.persistent) {
                 if (ann.typeList.any { it == AnnotationType.Counter_803b }) {
                     val iid = ann.affectedIdsList.firstOrNull()
-                    val ctype = ann.detailsList.firstOrNull { it.key == DetailKeys.COUNTER_TYPE }
-                        ?.let { if (it.valueInt32Count > 0) it.getValueInt32(0) else null }
+                    val ctype =
+                        ann.detailsList
+                            .firstOrNull { it.key == DetailKeys.COUNTER_TYPE }
+                            ?.let { if (it.valueInt32Count > 0) it.getValueInt32(0) else null }
                     if (iid != null && ctype != null) {
                         val oldId = findCounter(active, iid, ctype)
                         if (oldId != null) {
@@ -156,80 +157,88 @@ class PersistentAnnotationStore {
             }
 
             // 3b. AbilityWordActive — full-replacement upsert
-            nextId = upsertAbilityWords(
-                active,
-                deletions,
-                nextId,
-                mechanicResult.abilityWordPersistent,
-            )
+            nextId =
+                upsertAbilityWords(
+                    active,
+                    deletions,
+                    nextId,
+                    mechanicResult.abilityWordPersistent,
+                )
 
             // 3c. Qualification — full-replacement for adventure-exiled cards
             nextId = upsertQualifications(active, deletions, nextId, mechanicResult.qualificationPersistent)
 
             // 3d. CrewedThisTurn — full-replacement upsert (keyed by vehicle affectorId)
-            nextId = upsertByType(
-                active,
-                deletions,
-                nextId,
-                AnnotationType.CrewedThisTurn,
-                mechanicResult.crewedThisTurnPersistent,
-                { it.affectorId },
-                detectChanges = true,
-            )
+            nextId =
+                upsertByType(
+                    active,
+                    deletions,
+                    nextId,
+                    AnnotationType.CrewedThisTurn,
+                    mechanicResult.crewedThisTurnPersistent,
+                    { it.affectorId },
+                    detectChanges = true,
+                )
 
             // 3e. ModifiedType+LayeredEffect for crew type changes — full-replacement upsert
-            nextId = upsertByType(
-                active,
-                deletions,
-                nextId,
-                AnnotationType.ModifiedType,
-                mechanicResult.crewTypeChangePersistent,
-                { it.affectedIdsList.firstOrNull() ?: 0 },
-            )
+            nextId =
+                upsertByType(
+                    active,
+                    deletions,
+                    nextId,
+                    AnnotationType.ModifiedType,
+                    mechanicResult.crewTypeChangePersistent,
+                    { it.affectedIdsList.firstOrNull() ?: 0 },
+                )
 
             // 3f. TemporaryPermanent — full-replacement upsert (keyed by token affectorId)
-            nextId = upsertByType(
-                active,
-                deletions,
-                nextId,
-                AnnotationType.TemporaryPermanent,
-                mechanicResult.temporaryPermanentPersistent,
-                { it.affectorId },
-            )
+            nextId =
+                upsertByType(
+                    active,
+                    deletions,
+                    nextId,
+                    AnnotationType.TemporaryPermanent,
+                    mechanicResult.temporaryPermanentPersistent,
+                    { it.affectorId },
+                )
 
             // 3g. TargetSpec — full-replacement upsert (keyed by target instanceId + index)
-            nextId = upsertByType(
-                active,
-                deletions,
-                nextId,
-                AnnotationType.TargetSpec,
-                mechanicResult.targetSpecPersistent,
-                { ann ->
-                    val iid = ann.affectedIdsList.firstOrNull() ?: 0
-                    val idx = ann.detailsList
-                        .firstOrNull { it.key == DetailKeys.INDEX && it.valueInt32Count > 0 }
-                        ?.getValueInt32(0) ?: 0
-                    iid to idx
-                },
-            )
+            nextId =
+                upsertByType(
+                    active,
+                    deletions,
+                    nextId,
+                    AnnotationType.TargetSpec,
+                    mechanicResult.targetSpecPersistent,
+                    { ann ->
+                        val iid = ann.affectedIdsList.firstOrNull() ?: 0
+                        val idx =
+                            ann.detailsList
+                                .firstOrNull { it.key == DetailKeys.INDEX && it.valueInt32Count > 0 }
+                                ?.getValueInt32(0) ?: 0
+                        iid to idx
+                    },
+                )
 
             // 3h. DamagedThisTurn — grow-in-place within a turn, clear at Upkeep
-            nextId = updateDamagedThisTurn(
-                active,
-                deletions,
-                nextId,
-                combatResult.damagedThisTurnPersistent,
-                combatResult.clearDamagedThisTurn,
-            )
+            nextId =
+                updateDamagedThisTurn(
+                    active,
+                    deletions,
+                    nextId,
+                    combatResult.damagedThisTurnPersistent,
+                    combatResult.clearDamagedThisTurn,
+                )
 
             // 4-6. Cleanup: detached auras, exile sources, controller reverts
-            val cleanupReverts = cleanupDetachedAndReverted(
-                active,
-                deletions,
-                mechanicResult,
-                resolveInstanceId,
-                resolveForgeCardId,
-            )
+            val cleanupReverts =
+                cleanupDetachedAndReverted(
+                    active,
+                    deletions,
+                    mechanicResult,
+                    resolveInstanceId,
+                    resolveForgeCardId,
+                )
 
             return BatchResult(active.values.toList(), deletions, nextId, cleanupReverts)
         }
@@ -271,9 +280,11 @@ class PersistentAnnotationStore {
                     val ann = active[annId]
                     active.remove(annId)
                     deletions.add(annId)
-                    val effectId = ann?.detailsList
-                        ?.firstOrNull { it.key == DetailKeys.EFFECT_ID && it.valueInt32Count > 0 }
-                        ?.getValueInt32(0)
+                    val effectId =
+                        ann
+                            ?.detailsList
+                            ?.firstOrNull { it.key == DetailKeys.EFFECT_ID && it.valueInt32Count > 0 }
+                            ?.getValueInt32(0)
                     if (effectId != null) revertedEffectIds.add(effectId)
                 }
             }
@@ -282,9 +293,10 @@ class PersistentAnnotationStore {
         }
 
         private fun findDamagedThisTurn(active: Map<Int, AnnotationInfo>): Int? =
-            active.entries.firstOrNull { (_, ann) ->
-                ann.typeList.any { it == AnnotationType.DamagedThisTurn }
-            }?.key
+            active.entries
+                .firstOrNull { (_, ann) ->
+                    ann.typeList.any { it == AnnotationType.DamagedThisTurn }
+                }?.key
 
         /**
          * Grow-in-place, or clear, the per-turn `DamagedThisTurn` annotation.
@@ -317,51 +329,71 @@ class PersistentAnnotationStore {
             if (existingId != null) {
                 val existing = active.getValue(existingId)
                 val merged = (existing.affectedIdsList + incomingIds).distinct()
-                active[existingId] = existing.toBuilder()
-                    .clearAffectedIds()
-                    .addAllAffectedIds(merged)
-                    .build()
+                active[existingId] =
+                    existing
+                        .toBuilder()
+                        .clearAffectedIds()
+                        .addAllAffectedIds(merged)
+                        .build()
             } else {
                 val template = newAnnotations.first()
                 val merged = incomingIds.distinct()
-                val numbered = template.toBuilder()
-                    .setId(nextId++)
-                    .clearAffectedIds()
-                    .addAllAffectedIds(merged)
-                    .build()
+                val numbered =
+                    template
+                        .toBuilder()
+                        .setId(nextId++)
+                        .clearAffectedIds()
+                        .addAllAffectedIds(merged)
+                        .build()
                 active[numbered.id] = numbered
             }
             return nextId
         }
 
-        private fun findByEffectId(active: Map<Int, AnnotationInfo>, effectId: Int): Int? =
-            active.entries.firstOrNull { (_, ann) ->
-                ann.typeList.any { it == AnnotationType.LayeredEffect } &&
-                    ann.detailsList.any {
-                        it.key == DetailKeys.EFFECT_ID && it.valueInt32Count > 0 && it.getValueInt32(0) == effectId
-                    }
-            }?.key
-
-        private fun findCounter(active: Map<Int, AnnotationInfo>, instanceId: Int, counterType: Int): Int? =
-            active.entries.firstOrNull { (_, ann) ->
-                ann.typeList.any { it == AnnotationType.Counter_803b } &&
-                    ann.affectedIdsList.contains(instanceId) &&
-                    ann.detailsList.any {
-                        it.key == DetailKeys.COUNTER_TYPE && it.valueInt32Count > 0 && it.getValueInt32(0) == counterType
-                    }
-            }?.key
-
-        private fun findControllerChanged(active: Map<Int, AnnotationInfo>, cardIid: Int): Int? =
-            active.entries.firstOrNull { (_, ann) ->
-                ann.typeList.any { it == AnnotationType.ControllerChanged } &&
+        private fun findByEffectId(
+            active: Map<Int, AnnotationInfo>,
+            effectId: Int,
+        ): Int? =
+            active.entries
+                .firstOrNull { (_, ann) ->
                     ann.typeList.any { it == AnnotationType.LayeredEffect } &&
-                    ann.affectedIdsList.contains(cardIid)
-            }?.key
+                        ann.detailsList.any {
+                            it.key == DetailKeys.EFFECT_ID && it.valueInt32Count > 0 && it.getValueInt32(0) == effectId
+                        }
+                }?.key
+
+        private fun findCounter(
+            active: Map<Int, AnnotationInfo>,
+            instanceId: Int,
+            counterType: Int,
+        ): Int? =
+            active.entries
+                .firstOrNull { (_, ann) ->
+                    ann.typeList.any { it == AnnotationType.Counter_803b } &&
+                        ann.affectedIdsList.contains(instanceId) &&
+                        ann.detailsList.any {
+                            it.key == DetailKeys.COUNTER_TYPE && it.valueInt32Count > 0 && it.getValueInt32(0) == counterType
+                        }
+                }?.key
+
+        private fun findControllerChanged(
+            active: Map<Int, AnnotationInfo>,
+            cardIid: Int,
+        ): Int? =
+            active.entries
+                .firstOrNull { (_, ann) ->
+                    ann.typeList.any { it == AnnotationType.ControllerChanged } &&
+                        ann.typeList.any { it == AnnotationType.LayeredEffect } &&
+                        ann.affectedIdsList.contains(cardIid)
+                }?.key
 
         private fun abilityWordKey(ann: AnnotationInfo): Pair<Int, String> {
             val iid = ann.affectedIdsList.firstOrNull() ?: 0
-            val name = ann.detailsList.firstOrNull { it.key == DetailKeys.ABILITY_WORD_NAME }
-                ?.let { if (it.valueStringCount > 0) it.getValueString(0) else null }.orEmpty()
+            val name =
+                ann.detailsList
+                    .firstOrNull { it.key == DetailKeys.ABILITY_WORD_NAME }
+                    ?.let { if (it.valueStringCount > 0) it.getValueString(0) else null }
+                    .orEmpty()
             return iid to name
         }
 
@@ -390,20 +422,21 @@ class PersistentAnnotationStore {
             var nextId = startId
             val newByKey = newAnnotations.associateBy { keyFn(it) }
             // Remove stale
-            val staleIds = active.entries
-                .filter { (_, ann) ->
-                    ann.typeList.any { it == type } && keyFn(ann) !in newByKey
-                }
-                .map { it.key }
+            val staleIds =
+                active.entries
+                    .filter { (_, ann) ->
+                        ann.typeList.any { it == type } && keyFn(ann) !in newByKey
+                    }.map { it.key }
             for (id in staleIds) {
                 active.remove(id)
                 deletions.add(id)
             }
             // Upsert new/changed
             for ((key, ann) in newByKey) {
-                val existing = active.entries.firstOrNull { (_, e) ->
-                    e.typeList.any { it == type } && keyFn(e) == key
-                }
+                val existing =
+                    active.entries.firstOrNull { (_, e) ->
+                        e.typeList.any { it == type } && keyFn(e) == key
+                    }
                 if (existing != null) {
                     if (detectChanges && existing.value.detailsList != ann.detailsList) {
                         active.remove(existing.key)
@@ -424,20 +457,41 @@ class PersistentAnnotationStore {
             deletions: MutableList<Int>,
             startId: Int,
             newAnnotations: List<AnnotationInfo>,
-        ): Int = upsertByType(active, deletions, startId, AnnotationType.AbilityWordActive, newAnnotations, ::abilityWordKey, detectChanges = true)
+        ): Int =
+            upsertByType(
+                active,
+                deletions,
+                startId,
+                AnnotationType.AbilityWordActive,
+                newAnnotations,
+                ::abilityWordKey,
+                detectChanges = true,
+            )
 
         private fun upsertQualifications(
             active: MutableMap<Int, AnnotationInfo>,
             deletions: MutableList<Int>,
             startId: Int,
             newAnnotations: List<AnnotationInfo>,
-        ): Int = upsertByType(active, deletions, startId, AnnotationType.Qualification, newAnnotations, { it.affectedIdsList.firstOrNull() ?: 0 })
+        ): Int =
+            upsertByType(
+                active,
+                deletions,
+                startId,
+                AnnotationType.Qualification,
+                newAnnotations,
+                { it.affectedIdsList.firstOrNull() ?: 0 },
+            )
 
-        private fun findByAura(active: Map<Int, AnnotationInfo>, auraIid: Int): Int? =
-            active.entries.firstOrNull { (_, ann) ->
-                ann.typeList.any { it == AnnotationType.Attachment } &&
-                    ann.affectorId == auraIid
-            }?.key
+        private fun findByAura(
+            active: Map<Int, AnnotationInfo>,
+            auraIid: Int,
+        ): Int? =
+            active.entries
+                .firstOrNull { (_, ann) ->
+                    ann.typeList.any { it == AnnotationType.Attachment } &&
+                        ann.affectorId == auraIid
+                }?.key
 
         /**
          * Find DisplayCardUnderCard annotations whose exile source (affectorId)
@@ -452,8 +506,7 @@ class PersistentAnnotationStore {
                 .filter { (_, ann) ->
                     ann.typeList.any { it == AnnotationType.DisplayCardUnderCard } &&
                         resolveForgeCardId(InstanceId(ann.affectorId)) in leftPlayForgeIds
-                }
-                .map { it.key }
+                }.map { it.key }
     }
 
     // --- Monotonic ID counters ---
@@ -491,8 +544,7 @@ class PersistentAnnotationStore {
      * returns empty. For Full GSMs, deletions are embedded via [computeBatch]'s
      * [BatchResult.deletedIds] instead.
      */
-    fun drainDeletions(): List<Int> =
-        pendingDeletions.toList().also { pendingDeletions.clear() }
+    fun drainDeletions(): List<Int> = pendingDeletions.toList().also { pendingDeletions.clear() }
 
     /** All currently active persistent annotations. */
     fun getAll(): List<AnnotationInfo> = active.values.toList()

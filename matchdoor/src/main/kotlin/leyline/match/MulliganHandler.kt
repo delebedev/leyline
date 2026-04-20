@@ -111,10 +111,11 @@ class MulliganHandler(
         val tuckIds = if (groups.size >= 2) groups[1].idsList else groups.firstOrNull()?.idsList ?: emptyList()
         log.info("Match Door GRE: seat {} GroupResp tuck {} cards", seatId, tuckIds.size)
         val handCards = bridge.getHandCards(seatId)
-        val tuckCards = tuckIds.mapNotNull { iid ->
-            val forgeId = bridge.getForgeCardId(InstanceId(iid))?.value
-            handCards.firstOrNull { it.id == forgeId }
-        }
+        val tuckCards =
+            tuckIds.mapNotNull { iid ->
+                val forgeId = bridge.getForgeCardId(InstanceId(iid))?.value
+                handCards.firstOrNull { it.id == forgeId }
+            }
         bridge.submitTuck(seatId, tuckCards)
         bridge.awaitPriority()
         s.onMulliganKeep()
@@ -147,7 +148,10 @@ class MulliganHandler(
     }
 
     /** DealHand only (no MulliganReq) for this handler's seat. */
-    private fun sendDealHand(ctx: ChannelHandlerContext, diffDeletedInstanceIds: List<Int> = emptyList()) {
+    private fun sendDealHand(
+        ctx: ChannelHandlerContext,
+        diffDeletedInstanceIds: List<Int> = emptyList(),
+    ) {
         val s = session ?: return
         val bridge = s.gameBridge
         val gsId = s.counter.nextGsId()
@@ -164,18 +168,22 @@ class MulliganHandler(
      * @param reportedMulliganCount mulliganCount for the proto (default: internal counter).
      * @param numCards NumberOfCards prompt value (default: 7 for London).
      */
-    fun sendMulliganReq(reportedMulliganCount: Int = mulliganCount, numCards: Int = 7) {
+    fun sendMulliganReq(
+        reportedMulliganCount: Int = mulliganCount,
+        numCards: Int = 7,
+    ) {
         val c = ctx ?: return
         val s = session ?: return
         val bridge = s.gameBridge
         val gsId = s.counter.nextGsId()
-        val (msg, nextMsgId) = HandshakeMessages.mulliganReqSeat1(
-            s.counter.currentMsgId(),
-            gsId,
-            bridge,
-            mulliganCount = reportedMulliganCount,
-            numCards = numCards,
-        )
+        val (msg, nextMsgId) =
+            HandshakeMessages.mulliganReqSeat1(
+                s.counter.currentMsgId(),
+                gsId,
+                bridge,
+                mulliganCount = reportedMulliganCount,
+                numCards = numCards,
+            )
         s.counter.setMsgId(nextMsgId)
         Tap.outboundTemplate("MulliganReq seat=$seatId mulliganCount=$reportedMulliganCount numCards=$numCards")
         ProtoDump.dump(msg, "MulliganReq-seat$seatId")
@@ -203,15 +211,16 @@ class MulliganHandler(
         val handCards = bridge.getHandCards(seatId)
         val handInstanceIds = handCards.map { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
         val tuckCount = bridge.getTuckCount()
-        val (msg, nextMsgId) = HandshakeMessages.groupReqBundle(
-            s.counter.currentMsgId(),
-            gsId,
-            seatId,
-            mulliganCount,
-            handInstanceIds,
-            tuckCount,
-            bridge,
-        )
+        val (msg, nextMsgId) =
+            HandshakeMessages.groupReqBundle(
+                s.counter.currentMsgId(),
+                gsId,
+                seatId,
+                mulliganCount,
+                handInstanceIds,
+                tuckCount,
+                bridge,
+            )
         s.counter.setMsgId(nextMsgId)
         Tap.outboundTemplate("GroupReq seat=$seatId tuck=$tuckCount")
         ProtoDump.dump(msg, "GroupReq-seat$seatId")

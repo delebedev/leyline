@@ -26,13 +26,14 @@ object ScrySessionJournal {
     ) {
         runCatching {
             Files.createDirectories(journalPath.parent)
-            val line = buildJsonObject {
-                put("ts", Instant.now().toString())
-                put("matchId", matchId)
-                put("source", source)
-                put("eventName", eventName)
-                if (puzzleRef != null) put("puzzleRef", puzzleRef)
-            }.toString() + "\n"
+            val line =
+                buildJsonObject {
+                    put("ts", Instant.now().toString())
+                    put("matchId", matchId)
+                    put("source", source)
+                    put("eventName", eventName)
+                    if (puzzleRef != null) put("puzzleRef", puzzleRef)
+                }.toString() + "\n"
             Files.writeString(
                 journalPath,
                 line,

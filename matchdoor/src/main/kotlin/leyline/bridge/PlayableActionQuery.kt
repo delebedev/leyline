@@ -7,12 +7,14 @@ import forge.game.player.Player
 import forge.game.zone.ZoneType
 
 object PlayableActionQuery {
-
     /**
      * Returns true if [player] has any meaningful (non-mana) action available
      * in the current game state. Used for smart phase skipping.
      */
-    fun hasPlayableNonManaAction(game: Game, player: Player): Boolean {
+    fun hasPlayableNonManaAction(
+        game: Game,
+        player: Player,
+    ): Boolean {
         val handCards = player.getZone(ZoneType.Hand).cards
         val lands = CardLists.filter(handCards, CardPredicates.LANDS)
         for (card in lands) {

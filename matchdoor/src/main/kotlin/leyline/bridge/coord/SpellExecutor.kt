@@ -43,21 +43,30 @@ class SpellExecutor(
      * Picks the requested alternative by [abilityId] (Overload, Flashback, etc.)
      * when valid; otherwise falls back to the card's primary castable ability.
      */
-    fun castSpell(cardId: ForgeCardId, abilityId: Int?, targets: List<Target>): List<SpellAbility>? {
+    fun castSpell(
+        cardId: ForgeCardId,
+        abilityId: Int?,
+        targets: List<Target>,
+    ): List<SpellAbility>? {
         val card = findCard(game, cardId) ?: return null
         val candidates = getAllCastableAbilities(card, player)
         if (candidates.isEmpty()) return null
-        val sa = if (abilityId != null && abilityId < candidates.size) {
-            candidates[abilityId]
-        } else {
-            candidates.first()
-        }
+        val sa =
+            if (abilityId != null && abilityId < candidates.size) {
+                candidates[abilityId]
+            } else {
+                candidates.first()
+            }
         applyTargets(sa, targets)
         return listOf(sa)
     }
 
     /** Build the [SpellAbility] for a non-mana activated ability, resolving targets. */
-    fun activateAbility(cardId: ForgeCardId, abilityId: Int, targets: List<Target>): List<SpellAbility>? {
+    fun activateAbility(
+        cardId: ForgeCardId,
+        abilityId: Int,
+        targets: List<Target>,
+    ): List<SpellAbility>? {
         val card = findCard(game, cardId) ?: return null
         val abilities = getNonManaActivatedAbilities(card, player)
         val sa = abilities.getOrNull(abilityId) ?: return null
@@ -79,27 +88,30 @@ class SpellExecutor(
         if (playableAbilities.isEmpty()) return false
         log.debug("activateMana: {} ({} abilities)", card.name, playableAbilities.size)
 
-        val manaAbility = if (playableAbilities.size == 1) {
-            playableAbilities.first()
-        } else {
-            // Multiple distinct mana abilities — prompt to pick which one.
-            val labels = playableAbilities.map { ability ->
-                ability.manaPart?.origProduced ?: "?"
+        val manaAbility =
+            if (playableAbilities.size == 1) {
+                playableAbilities.first()
+            } else {
+                // Multiple distinct mana abilities — prompt to pick which one.
+                val labels =
+                    playableAbilities.map { ability ->
+                        ability.manaPart?.origProduced ?: "?"
+                    }
+                val optionsWithCancel = labels + "Cancel"
+                val request =
+                    PromptRequest(
+                        promptType = "choose_one",
+                        message = "Choose mana ability for ${card.name}",
+                        options = optionsWithCancel,
+                        min = 1,
+                        max = 1,
+                        defaultIndex = 0,
+                    )
+                val indices = bridge.requestChoice(request)
+                val idx = indices.firstOrNull() ?: return false
+                if (idx >= labels.size) return false // Cancel
+                playableAbilities[idx]
             }
-            val optionsWithCancel = labels + "Cancel"
-            val request = PromptRequest(
-                promptType = "choose_one",
-                message = "Choose mana ability for ${card.name}",
-                options = optionsWithCancel,
-                min = 1,
-                max = 1,
-                defaultIndex = 0,
-            )
-            val indices = bridge.requestChoice(request)
-            val idx = indices.firstOrNull() ?: return false
-            if (idx >= labels.size) return false // Cancel
-            playableAbilities[idx]
-        }
 
         manaAbility.setActivatingPlayer(player)
 
@@ -130,7 +142,10 @@ class SpellExecutor(
         return listOf(landAbility)
     }
 
-    private fun applyTargets(sa: SpellAbility, targets: List<Target>) {
+    private fun applyTargets(
+        sa: SpellAbility,
+        targets: List<Target>,
+    ) {
         if (targets.isEmpty() || !sa.usesTargeting()) return
         sa.resetTargets()
         for (t in targets) {

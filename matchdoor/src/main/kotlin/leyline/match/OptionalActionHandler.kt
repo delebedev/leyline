@@ -51,14 +51,16 @@ class OptionalActionHandler(
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val wpc = bridge.humanController ?: run {
-            log.warn("OptionalActionHandler: no humanController for OptionalActionResp")
-            return
-        }
-        val prompt = wpc.pendingOptionalAction ?: run {
-            log.warn("OptionalActionHandler: no pending prompt for OptionalActionResp")
-            return
-        }
+        val wpc =
+            bridge.humanController ?: run {
+                log.warn("OptionalActionHandler: no humanController for OptionalActionResp")
+                return
+            }
+        val prompt =
+            wpc.pendingOptionalAction ?: run {
+                log.warn("OptionalActionHandler: no pending prompt for OptionalActionResp")
+                return
+            }
 
         val resp = greMsg.optionalResp
         val accepted = resp.response == OptionResponse.AllowYes
@@ -99,46 +101,54 @@ class OptionalActionHandler(
             sink.sendRealGameState(bridge)
         }
 
-        val optionalMsg = OptionalActionMessage.newBuilder()
-            .setSourceId(sourceId)
-            .build()
+        val optionalMsg =
+            OptionalActionMessage
+                .newBuilder()
+                .setSourceId(sourceId)
+                .build()
 
         // TODO: shock land ETB needs promptId 2233 + ReplacementEffect pAnn with
         // allocated affectorId as sourceId. Currently uses generic prompt for all.
-        val promptProto = Prompt.newBuilder()
-            .setPromptId(PromptIds.OPTIONAL_ACTION)
-            .addParameters(
-                PromptParameter.newBuilder()
-                    .setParameterName("CardId")
-                    .setType(ParameterType.Number)
-                    .setNumberValue(sourceId),
-            )
-            .build()
+        val promptProto =
+            Prompt
+                .newBuilder()
+                .setPromptId(PromptIds.OPTIONAL_ACTION)
+                .addParameters(
+                    PromptParameter
+                        .newBuilder()
+                        .setParameterName("CardId")
+                        .setType(ParameterType.Number)
+                        .setNumberValue(sourceId),
+                ).build()
 
         // Bare GSM diff with pendingMessageCount=1 — signals the client that
         // OptionalActionMessage follows. Without this, the client may process
         // the preceding GSM before the prompt arrives.
         val prevGsId = counters.counter.currentGsId()
         val gsId = counters.counter.nextGsId()
-        val pendingGsm = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff)
-            .setGameStateId(gsId)
-            .setPrevGameStateId(prevGsId)
-            .setPendingMessageCount(1)
-            .setUpdate(GameStateUpdate.SendAndRecord)
-            .build()
+        val pendingGsm =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(gsId)
+                .setPrevGameStateId(prevGsId)
+                .setPendingMessageCount(1)
+                .setUpdate(GameStateUpdate.SendAndRecord)
+                .build()
 
-        val gsmGre = sink.makeGRE(GREMessageType.GameStateMessage_695e, gsId, counters.counter.nextMsgId()) {
-            it.gameStateMessage = pendingGsm
-        }
+        val gsmGre =
+            sink.makeGRE(GREMessageType.GameStateMessage_695e, gsId, counters.counter.nextMsgId()) {
+                it.gameStateMessage = pendingGsm
+            }
 
-        val optionalGre = sink.makeGRE(GREMessageType.OptionalActionMessage_695e, gsId, counters.counter.nextMsgId()) {
-            it.optionalActionMessage = optionalMsg
-            it.prompt = promptProto
-            // Controls Cancel button visibility, NOT whether declining is allowed.
-            // Player can always decline via CancelNo response regardless of this value.
-            it.allowCancel = AllowCancel.No_a526
-        }
+        val optionalGre =
+            sink.makeGRE(GREMessageType.OptionalActionMessage_695e, gsId, counters.counter.nextMsgId()) {
+                it.optionalActionMessage = optionalMsg
+                it.prompt = promptProto
+                // Controls Cancel button visibility, NOT whether declining is allowed.
+                // Player can always decline via CancelNo response regardless of this value.
+                it.allowCancel = AllowCancel.No_a526
+            }
 
         sink.sendBundledGRE(listOf(gsmGre, optionalGre))
     }

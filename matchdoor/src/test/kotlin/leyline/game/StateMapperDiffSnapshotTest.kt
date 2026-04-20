@@ -20,7 +20,10 @@ class StateMapperDiffSnapshotTest :
     FunSpec({
         tags(UnitTag)
 
-        fun seat(seatNum: Int, life: Int) = SeatSnapshot(
+        fun seat(
+            seatNum: Int,
+            life: Int,
+        ) = SeatSnapshot(
             seatId = SeatId(seatNum),
             life = life,
             startingLife = 20,
@@ -28,16 +31,18 @@ class StateMapperDiffSnapshotTest :
         )
 
         test("snap equality detects no change") {
-            val a = GsmSnapshot.forTest(
-                matchId = "m",
-                gameStateId = 5,
-                seats = listOf(seat(1, 20), seat(2, 20)),
-            )
-            val b = GsmSnapshot.forTest(
-                matchId = "m",
-                gameStateId = 5,
-                seats = listOf(seat(1, 20), seat(2, 20)),
-            )
+            val a =
+                GsmSnapshot.forTest(
+                    matchId = "m",
+                    gameStateId = 5,
+                    seats = listOf(seat(1, 20), seat(2, 20)),
+                )
+            val b =
+                GsmSnapshot.forTest(
+                    matchId = "m",
+                    gameStateId = 5,
+                    seats = listOf(seat(1, 20), seat(2, 20)),
+                )
             a shouldBe b
         }
 

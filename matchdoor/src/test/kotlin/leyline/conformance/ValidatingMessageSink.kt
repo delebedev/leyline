@@ -23,7 +23,6 @@ class ValidatingMessageSink(
     val inner: ListMessageSink = ListMessageSink(),
     private val strict: Boolean = true,
 ) : MessageSink {
-
     private val checker = InvariantChecker()
 
     /** Accumulated violation descriptions (useful when [strict] = false). */

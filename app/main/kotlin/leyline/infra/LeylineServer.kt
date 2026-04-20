@@ -122,23 +122,28 @@ class LeylineServer(
         startLocal(ssl, ssl)
     }
 
-    private fun buildSslContext(): SslContext = if (tlsFiles.first != null && tlsFiles.second != null) {
-        log.info("Loading TLS cert={} key={}", tlsFiles.first, tlsFiles.second)
-        SslContextBuilder.forServer(tlsFiles.first, tlsFiles.second).build()
-    } else {
-        log.info("Using self-signed TLS certificate")
-        val ssc = SelfSignedCertificate()
-        SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()).build()
-    }
+    private fun buildSslContext(): SslContext =
+        if (tlsFiles.first != null && tlsFiles.second != null) {
+            log.info("Loading TLS cert={} key={}", tlsFiles.first, tlsFiles.second)
+            SslContextBuilder.forServer(tlsFiles.first, tlsFiles.second).build()
+        } else {
+            log.info("Using self-signed TLS certificate")
+            val ssc = SelfSignedCertificate()
+            SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()).build()
+        }
 
-    private fun startLocal(fdSsl: SslContext, mdSsl: SslContext) {
+    private fun startLocal(
+        fdSsl: SslContext,
+        mdSsl: SslContext,
+    ) {
         val hasDb = playerDbFile.exists()
         if (!hasDb) log.warn("No player.db found — run `just seed-db` first. Using in-memory DB.")
 
-        val db = org.jetbrains.exposed.v1.jdbc.Database.connect(
-            if (hasDb) "jdbc:sqlite:${playerDbFile.absolutePath}" else "jdbc:sqlite::memory:",
-            "org.sqlite.JDBC",
-        )
+        val db =
+            org.jetbrains.exposed.v1.jdbc.Database.connect(
+                if (hasDb) "jdbc:sqlite:${playerDbFile.absolutePath}" else "jdbc:sqlite::memory:",
+                "org.sqlite.JDBC",
+            )
         val store = SqlitePlayerStore(db)
         store.createTables()
         val pid = PlayerId(playerId)
@@ -146,54 +151,59 @@ class LeylineServer(
         val deckService = DeckService(store)
         val playerService = PlayerService(store)
         val sealedPoolGen = SealedPoolGenerator(cardRepo)
-        val courseService = CourseService(store) { setCode ->
-            val pool = sealedPoolGen.generate(setCode)
-            GeneratedPool(
-                cards = pool.grpIds,
-                byCollation = listOf(CollationPool(pool.collationId, pool.grpIds)),
-                collationId = pool.collationId,
-            )
-        }
+        val courseService =
+            CourseService(store) { setCode ->
+                val pool = sealedPoolGen.generate(setCode)
+                GeneratedPool(
+                    cards = pool.grpIds,
+                    byCollation = listOf(CollationPool(pool.collationId, pool.grpIds)),
+                    collationId = pool.collationId,
+                )
+            }
         val draftRepo = store.asDraftSessionRepository()
         val draftPackGen = DraftPackGenerator(cardRepo)
-        val draftService = DraftService(draftRepo) { setCode ->
-            draftPackGen.generate(setCode)
-        }
+        val draftService =
+            DraftService(draftRepo) { setCode ->
+                draftPackGen.generate(setCode)
+            }
         val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)
-        val matchmakingService = MatchmakingService(
-            store,
-            externalHost,
-            matchDoorPort,
-            validateDeck = validateDeck,
-            matchIdFactory = ::createMatchId,
-        )
+        val matchmakingService =
+            MatchmakingService(
+                store,
+                externalHost,
+                matchDoorPort,
+                validateDeck = validateDeck,
+                matchIdFactory = ::createMatchId,
+            )
         val writer = FdResponseWriter()
         val bootstrapData = FrontDoorBootstrapData.loadFromClasspath()
 
-        val coordinator = AppMatchCoordinator(
-            playerId = pid,
-            deckService = deckService,
-            courseService = courseService,
-        )
-
-        frontDoorChannel = bindServer(fdSsl, frontDoorPort) { ch ->
-            ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-            ch.pipeline().addLast(
-                "handler",
-                FrontDoorHandler(
-                    playerId = pid,
-                    deckService = deckService,
-                    playerService = playerService,
-                    matchmaking = matchmakingService,
-                    collectionService = CollectionService { cardRepo.findAllGrpIds() },
-                    courseService = courseService,
-                    draftService = draftService,
-                    writer = writer,
-                    bootstrapData = bootstrapData,
-                    coordinator = coordinator,
-                ),
+        val coordinator =
+            AppMatchCoordinator(
+                playerId = pid,
+                deckService = deckService,
+                courseService = courseService,
             )
-        }
+
+        frontDoorChannel =
+            bindServer(fdSsl, frontDoorPort) { ch ->
+                ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
+                ch.pipeline().addLast(
+                    "handler",
+                    FrontDoorHandler(
+                        playerId = pid,
+                        deckService = deckService,
+                        playerService = playerService,
+                        matchmaking = matchmakingService,
+                        collectionService = CollectionService { cardRepo.findAllGrpIds() },
+                        courseService = courseService,
+                        draftService = draftService,
+                        writer = writer,
+                        bootstrapData = bootstrapData,
+                        coordinator = coordinator,
+                    ),
+                )
+            }
         log.info("Client Front Door (local) listening on :{}", frontDoorPort)
 
         matchDoorChannel = bindMatchDoor(mdSsl, coordinator)
@@ -215,24 +225,28 @@ class LeylineServer(
         return matchId
     }
 
-    private fun bindMatchDoor(mdSsl: SslContext, coordinator: AppMatchCoordinator): Channel {
-        val ch = bindServer(mdSsl, matchDoorPort) { ch ->
-            ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-            ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
-            ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
-            ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
-            ch.pipeline().addLast("protobufEncoder", ProtobufEncoder())
-            ch.pipeline().addLast(
-                "handler",
-                MatchHandler(
-                    matchConfig = matchConfig,
-                    coordinator = coordinator,
-                    cardRepository = cardRepo,
-                    debugSink = debugSink,
-                    puzzlePath = { runtimePuzzle.get() },
-                ),
-            )
-        }
+    private fun bindMatchDoor(
+        mdSsl: SslContext,
+        coordinator: AppMatchCoordinator,
+    ): Channel {
+        val ch =
+            bindServer(mdSsl, matchDoorPort) { ch ->
+                ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
+                ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
+                ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
+                ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
+                ch.pipeline().addLast("protobufEncoder", ProtobufEncoder())
+                ch.pipeline().addLast(
+                    "handler",
+                    MatchHandler(
+                        matchConfig = matchConfig,
+                        coordinator = coordinator,
+                        cardRepository = cardRepo,
+                        debugSink = debugSink,
+                        puzzlePath = { runtimePuzzle.get() },
+                    ),
+                )
+            }
         log.info("Client Match Door (local) listening on :{}", matchDoorPort)
         return ch
     }
@@ -249,36 +263,37 @@ class LeylineServer(
      * Compose DeckConverter + DeckLoader + FormatService into a single validation lambda.
      * Returns null if legal, error string if illegal. Keeps engine deps out of :frontdoor.
      */
-    private fun buildDeckValidator(
-        nameByGrpId: (Int) -> String?,
-    ): (List<DeckCard>, List<DeckCard>, String) -> String? = { mainDeck, sideboard, formatId ->
-        val mainEntries = mainDeck.map { CardEntry(it.grpId, it.quantity) }
-        val sideEntries = sideboard.map { CardEntry(it.grpId, it.quantity) }
-        val deckText = DeckConverter.toDeckText(mainEntries, sideEntries, nameByGrpId = nameByGrpId)
-        if (deckText.isBlank()) {
-            null
-        } else {
-            val forgeDeck = DeckLoader.parseDeckList(deckText)
-            FormatService.validateDeck(forgeDeck, formatId)
+    private fun buildDeckValidator(nameByGrpId: (Int) -> String?): (List<DeckCard>, List<DeckCard>, String) -> String? =
+        { mainDeck, sideboard, formatId ->
+            val mainEntries = mainDeck.map { CardEntry(it.grpId, it.quantity) }
+            val sideEntries = sideboard.map { CardEntry(it.grpId, it.quantity) }
+            val deckText = DeckConverter.toDeckText(mainEntries, sideEntries, nameByGrpId = nameByGrpId)
+            if (deckText.isBlank()) {
+                null
+            } else {
+                val forgeDeck = DeckLoader.parseDeckList(deckText)
+                FormatService.validateDeck(forgeDeck, formatId)
+            }
         }
-    }
 
     private fun bindServer(
         sslCtx: SslContext,
         port: Int,
         initChannel: (SocketChannel) -> Unit,
     ): Channel {
-        val bootstrap = ServerBootstrap()
-            .group(bossGroup, workerGroup)
-            .channel(NioServerSocketChannel::class.java)
-            .childHandler(object : ChannelInitializer<SocketChannel>() {
-                override fun initChannel(ch: SocketChannel) {
-                    ch.pipeline().addFirst("ssl", sslCtx.newHandler(ch.alloc()))
-                    initChannel(ch)
-                }
-            })
-            .option(ChannelOption.SO_BACKLOG, 128)
-            .childOption(ChannelOption.SO_KEEPALIVE, true)
+        val bootstrap =
+            ServerBootstrap()
+                .group(bossGroup, workerGroup)
+                .channel(NioServerSocketChannel::class.java)
+                .childHandler(
+                    object : ChannelInitializer<SocketChannel>() {
+                        override fun initChannel(ch: SocketChannel) {
+                            ch.pipeline().addFirst("ssl", sslCtx.newHandler(ch.alloc()))
+                            initChannel(ch)
+                        }
+                    },
+                ).option(ChannelOption.SO_BACKLOG, 128)
+                .childOption(ChannelOption.SO_KEEPALIVE, true)
 
         return bootstrap.bind(port).sync().channel()
     }

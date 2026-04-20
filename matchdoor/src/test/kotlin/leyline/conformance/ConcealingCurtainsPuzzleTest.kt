@@ -14,25 +14,26 @@ class ConcealingCurtainsPuzzleTest :
         afterEach { base.tearDown() }
 
         test("concealing curtains transform puzzle loads and starts") {
-            val pzl = """
-            [metadata]
-            Name:Concealing Curtains Transform
-            Goal:Win
-            Turns:4
-            Difficulty:Easy
-            Description:Transform Concealing Curtains into Revealing Eye and attack for lethal.
+            val pzl =
+                """
+                [metadata]
+                Name:Concealing Curtains Transform
+                Goal:Win
+                Turns:4
+                Difficulty:Easy
+                Description:Transform Concealing Curtains into Revealing Eye and attack for lethal.
 
-            [state]
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=3
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=3
 
-            humanbattlefield=Concealing Curtains;Swamp;Swamp;Swamp
-            humanlibrary=Swamp
-            aibattlefield=
-            ailibrary=Forest
-            """.trimIndent()
+                humanbattlefield=Concealing Curtains;Swamp;Swamp;Swamp
+                humanlibrary=Swamp
+                aibattlefield=
+                ailibrary=Forest
+                """.trimIndent()
             val (b, game, _) = base.startPuzzleAtMain1(pzl)
             val bf = game.humanPlayer.getZone(forge.game.zone.ZoneType.Battlefield).cards
             bf.any { it.name == "Concealing Curtains" } shouldBe true

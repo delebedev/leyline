@@ -18,9 +18,11 @@ class FamiliarSessionTest :
         test("sendBundledGRE forwards messages to sink") {
             val sink = ListMessageSink()
             val session = FamiliarSession(seatId = SeatId(2), matchId = "m-1", sink = sink)
-            val msg = GREToClientMessage.newBuilder()
-                .setType(GREMessageType.GameStateMessage_695e)
-                .build()
+            val msg =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.GameStateMessage_695e)
+                    .build()
 
             session.sendBundledGRE(listOf(msg))
 
@@ -66,11 +68,12 @@ class FamiliarSessionTest :
 
         test("makeGRE builds message with correct fields") {
             val session = FamiliarSession(seatId = SeatId(2), matchId = "m-1", sink = ListMessageSink())
-            val gre = session.makeGRE(
-                type = GREMessageType.GameStateMessage_695e,
-                gsId = 5,
-                msgId = 10,
-            ) { /* no extra config */ }
+            val gre =
+                session.makeGRE(
+                    type = GREMessageType.GameStateMessage_695e,
+                    gsId = 5,
+                    msgId = 10,
+                ) { /* no extra config */ }
 
             assertSoftly {
                 gre.type shouldBe GREMessageType.GameStateMessage_695e

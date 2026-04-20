@@ -10,20 +10,20 @@ import leyline.bridge.types.GrpId
  * grpId and qualificationType values can be recorded.
  */
 object KeywordQualifications {
-
     data class QualInfo(
         val grpId: GrpId,
         val qualificationType: QualificationType,
         val qualificationSubtype: Int = 0,
     )
 
-    private val table: Map<String, QualInfo> = mapOf(
-        "Menace" to QualInfo(grpId = GrpId(142), qualificationType = QualificationType.CombatKeyword),
-        // Add entries as more keywords are observed in protocol output:
-        // "Flying" to QualInfo(grpId = ?, qualificationType = ?),
-        // "Trample" to QualInfo(grpId = ?, qualificationType = ?),
-        // "Lifelink" to QualInfo(grpId = ?, qualificationType = ?),
-    )
+    private val table: Map<String, QualInfo> =
+        mapOf(
+            "Menace" to QualInfo(grpId = GrpId(142), qualificationType = QualificationType.CombatKeyword),
+            // Add entries as more keywords are observed in protocol output:
+            // "Flying" to QualInfo(grpId = ?, qualificationType = ?),
+            // "Trample" to QualInfo(grpId = ?, qualificationType = ?),
+            // "Lifelink" to QualInfo(grpId = ?, qualificationType = ?),
+        )
 
     /** Look up Qualification parameters for a keyword. Returns null if unknown. */
     fun forKeyword(keyword: String): QualInfo? = table[keyword]

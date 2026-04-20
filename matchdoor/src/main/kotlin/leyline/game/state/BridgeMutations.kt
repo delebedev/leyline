@@ -30,16 +30,18 @@ data class BridgeMutations(
     val nextAnnotationId: Int,
 ) {
     companion object {
-        val EMPTY: BridgeMutations = BridgeMutations(
-            idReallocations = emptyList(),
-            retiredIds = emptyList(),
-            zoneRecordings = emptyList(),
-            persistentBatch = PersistentAnnotationStore.BatchResult(
-                allAnnotations = emptyList(),
-                deletedIds = emptyList(),
-                nextPersistentId = 1,
-            ),
-            nextAnnotationId = 50,
-        )
+        val EMPTY: BridgeMutations =
+            BridgeMutations(
+                idReallocations = emptyList(),
+                retiredIds = emptyList(),
+                zoneRecordings = emptyList(),
+                persistentBatch =
+                    PersistentAnnotationStore.BatchResult(
+                        allAnnotations = emptyList(),
+                        deletedIds = emptyList(),
+                        nextPersistentId = 1,
+                    ),
+                nextAnnotationId = 50,
+            )
     }
 }

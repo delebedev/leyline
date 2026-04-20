@@ -22,14 +22,15 @@ class EffectAnnotationPipelineTest :
         tags(UnitTag)
 
         test("effectAnnotations emits Created + persistent LayeredEffect for new boost") {
-            val created = listOf(
-                EffectTracker.TrackedEffect(
-                    syntheticId = 7005,
-                    fingerprint = EffectTracker.EffectFingerprint(100, 1L, 0L),
-                    powerDelta = 3,
-                    toughnessDelta = 3,
-                ),
-            )
+            val created =
+                listOf(
+                    EffectTracker.TrackedEffect(
+                        syntheticId = 7005,
+                        fingerprint = EffectTracker.EffectFingerprint(100, 1L, 0L),
+                        powerDelta = 3,
+                        toughnessDelta = 3,
+                    ),
+                )
             val diff = EffectTracker.DiffResult(created, emptyList())
 
             val (transient, persistent) = MechanicAnnotations.effectAnnotations(diff)
@@ -55,14 +56,15 @@ class EffectAnnotationPipelineTest :
         }
 
         test("effectAnnotations emits Destroyed for removed boost") {
-            val destroyed = listOf(
-                EffectTracker.TrackedEffect(
-                    syntheticId = 7005,
-                    fingerprint = EffectTracker.EffectFingerprint(100, 1L, 0L),
-                    powerDelta = 3,
-                    toughnessDelta = 3,
-                ),
-            )
+            val destroyed =
+                listOf(
+                    EffectTracker.TrackedEffect(
+                        syntheticId = 7005,
+                        fingerprint = EffectTracker.EffectFingerprint(100, 1L, 0L),
+                        powerDelta = 3,
+                        toughnessDelta = 3,
+                    ),
+                )
             val diff = EffectTracker.DiffResult(emptyList(), destroyed)
 
             val (transient, persistent) = MechanicAnnotations.effectAnnotations(diff)
@@ -84,10 +86,11 @@ class EffectAnnotationPipelineTest :
 
         test("effectAnnotations uses multi-type array based on deltas (no LayeredEffectType)") {
             // Both power and toughness changed → [ModifiedToughness, ModifiedPower, LayeredEffect]
-            val both = EffectTracker.DiffResult(
-                listOf(EffectTracker.TrackedEffect(7005, EffectTracker.EffectFingerprint(100, 1L, 0L), 3, 3)),
-                emptyList(),
-            )
+            val both =
+                EffectTracker.DiffResult(
+                    listOf(EffectTracker.TrackedEffect(7005, EffectTracker.EffectFingerprint(100, 1L, 0L), 3, 3)),
+                    emptyList(),
+                )
             val (transientBoth, persistentBoth) = MechanicAnnotations.effectAnnotations(both)
             assertSoftly {
                 persistentBoth[0].typeList shouldContain AnnotationType.ModifiedPower
@@ -99,10 +102,11 @@ class EffectAnnotationPipelineTest :
             transientBoth.any { it.typeList.contains(AnnotationType.PowerToughnessModCreated) } shouldBe true
 
             // Only power changed → [ModifiedPower, LayeredEffect], no ModifiedToughness
-            val powerOnly = EffectTracker.DiffResult(
-                listOf(EffectTracker.TrackedEffect(7006, EffectTracker.EffectFingerprint(101, 2L, 0L), 2, 0)),
-                emptyList(),
-            )
+            val powerOnly =
+                EffectTracker.DiffResult(
+                    listOf(EffectTracker.TrackedEffect(7006, EffectTracker.EffectFingerprint(101, 2L, 0L), 2, 0)),
+                    emptyList(),
+                )
             val (_, persistentPower) = MechanicAnnotations.effectAnnotations(powerOnly)
             assertSoftly {
                 persistentPower[0].typeList shouldContain AnnotationType.ModifiedPower
@@ -111,10 +115,11 @@ class EffectAnnotationPipelineTest :
             }
 
             // Only toughness changed → [ModifiedToughness, LayeredEffect], no ModifiedPower
-            val toughOnly = EffectTracker.DiffResult(
-                listOf(EffectTracker.TrackedEffect(7007, EffectTracker.EffectFingerprint(102, 3L, 0L), 0, 1)),
-                emptyList(),
-            )
+            val toughOnly =
+                EffectTracker.DiffResult(
+                    listOf(EffectTracker.TrackedEffect(7007, EffectTracker.EffectFingerprint(102, 3L, 0L), 0, 1)),
+                    emptyList(),
+                )
             val (_, persistentTough) = MechanicAnnotations.effectAnnotations(toughOnly)
             assertSoftly {
                 persistentTough[0].typeList shouldContain AnnotationType.ModifiedToughness
@@ -125,14 +130,15 @@ class EffectAnnotationPipelineTest :
 
         test("effectAnnotations resolves sourceAbilityGrpId via staticId") {
             val staticId = 42L
-            val created = listOf(
-                EffectTracker.TrackedEffect(
-                    syntheticId = 7010,
-                    fingerprint = EffectTracker.EffectFingerprint(100, 1L, staticId),
-                    powerDelta = 1,
-                    toughnessDelta = 1,
-                ),
-            )
+            val created =
+                listOf(
+                    EffectTracker.TrackedEffect(
+                        syntheticId = 7010,
+                        fingerprint = EffectTracker.EffectFingerprint(100, 1L, staticId),
+                        powerDelta = 1,
+                        toughnessDelta = 1,
+                    ),
+                )
             val diff = EffectTracker.DiffResult(created, emptyList())
 
             val resolver: (InstanceId, Long) -> Int? = { _, sid ->
@@ -147,14 +153,15 @@ class EffectAnnotationPipelineTest :
         }
 
         test("effectAnnotations omits sourceAbilityGrpId when resolver returns null") {
-            val created = listOf(
-                EffectTracker.TrackedEffect(
-                    syntheticId = 7011,
-                    fingerprint = EffectTracker.EffectFingerprint(100, 1L, 0L),
-                    powerDelta = 2,
-                    toughnessDelta = 0,
-                ),
-            )
+            val created =
+                listOf(
+                    EffectTracker.TrackedEffect(
+                        syntheticId = 7011,
+                        fingerprint = EffectTracker.EffectFingerprint(100, 1L, 0L),
+                        powerDelta = 2,
+                        toughnessDelta = 0,
+                    ),
+                )
             val diff = EffectTracker.DiffResult(created, emptyList())
 
             // Resolver returns null for staticId=0 (SpellAbility effects)

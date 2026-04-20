@@ -8,13 +8,19 @@ package leyline.frontdoor.wire
  */
 sealed class FdResponse {
     /** JSON payload in Response envelope field 3. */
-    data class Json(val payload: String) : FdResponse()
+    data class Json(
+        val payload: String,
+    ) : FdResponse()
 
     /** Pre-built protobuf bytes in Response envelope field 2. */
-    data class RawProto(val bytes: ByteArray) : FdResponse()
+    data class RawProto(
+        val bytes: ByteArray,
+    ) : FdResponse()
 
     /** Empty protobuf Any with type URL in Response envelope field 2. */
-    data class TypedProto(val typeName: String) : FdResponse()
+    data class TypedProto(
+        val typeName: String,
+    ) : FdResponse()
 
     /** Response with only transactionId, no payload. */
     data object Empty : FdResponse()

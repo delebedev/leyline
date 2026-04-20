@@ -14,7 +14,11 @@ import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.jdbc.Database
 
-private fun Application.testModule(store: AccountStore, tokens: TokenService, cachedManifests: String? = null) {
+private fun Application.testModule(
+    store: AccountStore,
+    tokens: TokenService,
+    cachedManifests: String? = null,
+) {
     install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     routing {
         accountRoutes(store, tokens, "localhost:30010", cachedManifests)
@@ -26,8 +30,14 @@ class AccountRoutesTest :
 
         tags(UnitTag)
 
-        fun testAppWithManifests(cachedManifests: String?, block: suspend ApplicationTestBuilder.() -> Unit) {
-            val dbFile = java.io.File.createTempFile("routes-test", ".db").also { it.deleteOnExit() }
+        fun testAppWithManifests(
+            cachedManifests: String?,
+            block: suspend ApplicationTestBuilder.() -> Unit,
+        ) {
+            val dbFile =
+                java.io.File
+                    .createTempFile("routes-test", ".db")
+                    .also { it.deleteOnExit() }
             val db = Database.connect("jdbc:sqlite:${dbFile.absolutePath}", "org.sqlite.JDBC")
             val store = AccountStore(db)
             store.createTables()
@@ -48,10 +58,11 @@ class AccountRoutesTest :
 
         test("login with valid credentials returns 200 + tokens") {
             testApp {
-                val resp = client.post("/auth/oauth/token") {
-                    setBody("grant_type=password&username=existing%40test.com&password=password123")
-                    contentType(ContentType.Application.FormUrlEncoded)
-                }
+                val resp =
+                    client.post("/auth/oauth/token") {
+                        setBody("grant_type=password&username=existing%40test.com&password=password123")
+                        contentType(ContentType.Application.FormUrlEncoded)
+                    }
                 resp.status shouldBe HttpStatusCode.OK
                 val body = resp.bodyAsText()
                 body shouldContain "access_token"
@@ -62,10 +73,11 @@ class AccountRoutesTest :
 
         test("login with wrong password returns 401") {
             testApp {
-                val resp = client.post("/auth/oauth/token") {
-                    setBody("grant_type=password&username=existing%40test.com&password=wrong")
-                    contentType(ContentType.Application.FormUrlEncoded)
-                }
+                val resp =
+                    client.post("/auth/oauth/token") {
+                        setBody("grant_type=password&username=existing%40test.com&password=wrong")
+                        contentType(ContentType.Application.FormUrlEncoded)
+                    }
                 resp.status shouldBe HttpStatusCode.Unauthorized
                 resp.bodyAsText() shouldContain "INVALID ACCOUNT CREDENTIALS"
             }
@@ -73,10 +85,11 @@ class AccountRoutesTest :
 
         test("login with unknown email returns 401") {
             testApp {
-                val resp = client.post("/auth/oauth/token") {
-                    setBody("grant_type=password&username=nobody%40test.com&password=pass")
-                    contentType(ContentType.Application.FormUrlEncoded)
-                }
+                val resp =
+                    client.post("/auth/oauth/token") {
+                        setBody("grant_type=password&username=nobody%40test.com&password=pass")
+                        contentType(ContentType.Application.FormUrlEncoded)
+                    }
                 resp.status shouldBe HttpStatusCode.Unauthorized
             }
         }
@@ -84,17 +97,22 @@ class AccountRoutesTest :
         test("refresh token grant returns new tokens") {
             testApp {
                 // First login to get a refresh token
-                val loginResp = client.post("/auth/oauth/token") {
-                    setBody("grant_type=password&username=existing%40test.com&password=password123")
-                    contentType(ContentType.Application.FormUrlEncoded)
-                }
-                val refreshToken = """"refresh_token":"([^"]+)"""".toRegex()
-                    .find(loginResp.bodyAsText())!!.groupValues[1]
+                val loginResp =
+                    client.post("/auth/oauth/token") {
+                        setBody("grant_type=password&username=existing%40test.com&password=password123")
+                        contentType(ContentType.Application.FormUrlEncoded)
+                    }
+                val refreshToken =
+                    """"refresh_token":"([^"]+)""""
+                        .toRegex()
+                        .find(loginResp.bodyAsText())!!
+                        .groupValues[1]
 
-                val resp = client.post("/auth/oauth/token") {
-                    setBody("grant_type=refresh_token&refresh_token=$refreshToken")
-                    contentType(ContentType.Application.FormUrlEncoded)
-                }
+                val resp =
+                    client.post("/auth/oauth/token") {
+                        setBody("grant_type=refresh_token&refresh_token=$refreshToken")
+                        contentType(ContentType.Application.FormUrlEncoded)
+                    }
                 resp.status shouldBe HttpStatusCode.OK
                 resp.bodyAsText() shouldContain "access_token"
             }
@@ -102,13 +120,14 @@ class AccountRoutesTest :
 
         test("register is disabled") {
             testApp {
-                val resp = client.post("/accounts/register") {
-                    setBody(
-                        """{"displayName":"NewPlayer","email":"new@test.com","password":"secret",""" +
-                            """"country":"US","dateOfBirth":"1990-01-01","acceptedTC":true}""",
-                    )
-                    contentType(ContentType.Application.Json)
-                }
+                val resp =
+                    client.post("/accounts/register") {
+                        setBody(
+                            """{"displayName":"NewPlayer","email":"new@test.com","password":"secret",""" +
+                                """"country":"US","dateOfBirth":"1990-01-01","acceptedTC":true}""",
+                        )
+                        contentType(ContentType.Application.Json)
+                    }
                 resp.status shouldBe HttpStatusCode.Forbidden
                 resp.bodyAsText() shouldContain "REGISTRATION DISABLED"
             }
@@ -117,16 +136,21 @@ class AccountRoutesTest :
         test("profile with valid token returns account data") {
             testApp {
                 // Login first
-                val loginResp = client.post("/auth/oauth/token") {
-                    setBody("grant_type=password&username=existing%40test.com&password=password123")
-                    contentType(ContentType.Application.FormUrlEncoded)
-                }
-                val token = """"access_token":"([^"]+)"""".toRegex()
-                    .find(loginResp.bodyAsText())!!.groupValues[1]
+                val loginResp =
+                    client.post("/auth/oauth/token") {
+                        setBody("grant_type=password&username=existing%40test.com&password=password123")
+                        contentType(ContentType.Application.FormUrlEncoded)
+                    }
+                val token =
+                    """"access_token":"([^"]+)""""
+                        .toRegex()
+                        .find(loginResp.bodyAsText())!!
+                        .groupValues[1]
 
-                val resp = client.get("/profile") {
-                    header("Authorization", "Bearer $token")
-                }
+                val resp =
+                    client.get("/profile") {
+                        header("Authorization", "Bearer $token")
+                    }
                 resp.status shouldBe HttpStatusCode.OK
                 val body = resp.bodyAsText()
                 body shouldContain "accountID"
@@ -145,9 +169,10 @@ class AccountRoutesTest :
 
         test("profile rejects unknown bearer") {
             testApp {
-                val resp = client.get("/profile") {
-                    header("Authorization", "Bearer ll_fake")
-                }
+                val resp =
+                    client.get("/profile") {
+                        header("Authorization", "Bearer ll_fake")
+                    }
 
                 resp.status shouldBe HttpStatusCode.Unauthorized
                 resp.bodyAsText() shouldContain "INVALID TOKEN"
@@ -156,10 +181,11 @@ class AccountRoutesTest :
 
         test("doorbell returns FdURI with empty manifests") {
             testApp {
-                val resp = client.post("/api/doorbell/api/v2/ring") {
-                    setBody("{}")
-                    contentType(ContentType.Application.Json)
-                }
+                val resp =
+                    client.post("/api/doorbell/api/v2/ring") {
+                        setBody("{}")
+                        contentType(ContentType.Application.Json)
+                    }
                 resp.status shouldBe HttpStatusCode.OK
                 val body = resp.bodyAsText()
                 body shouldContain """"FdURI":"localhost:30010""""
@@ -170,10 +196,11 @@ class AccountRoutesTest :
         test("doorbell returns cached BundleManifests when available") {
             val manifests = """[{"category":"Audio","priority":50,"hash":"abc123"}]"""
             testAppWithManifests(manifests) {
-                val resp = client.post("/api/doorbell/api/v2/ring") {
-                    setBody("{}")
-                    contentType(ContentType.Application.Json)
-                }
+                val resp =
+                    client.post("/api/doorbell/api/v2/ring") {
+                        setBody("{}")
+                        contentType(ContentType.Application.Json)
+                    }
                 resp.status shouldBe HttpStatusCode.OK
                 val body = resp.bodyAsText()
                 body shouldContain """"FdURI":"localhost:30010""""
@@ -184,10 +211,11 @@ class AccountRoutesTest :
 
         test("age gate stub returns false") {
             testApp {
-                val resp = client.post("/accounts/requires-age-gate") {
-                    setBody("""{"Country":"US","DateOfBirth":"1990-01-01"}""")
-                    contentType(ContentType.Application.Json)
-                }
+                val resp =
+                    client.post("/accounts/requires-age-gate") {
+                        setBody("""{"Country":"US","DateOfBirth":"1990-01-01"}""")
+                        contentType(ContentType.Application.Json)
+                    }
                 resp.status shouldBe HttpStatusCode.OK
                 resp.bodyAsText() shouldContain "false"
             }
@@ -195,10 +223,11 @@ class AccountRoutesTest :
 
         test("moderate stub returns 200") {
             testApp {
-                val resp = client.post("/accounts/moderate") {
-                    setBody("""{"value":"test","name":"Display Name"}""")
-                    contentType(ContentType.Application.Json)
-                }
+                val resp =
+                    client.post("/accounts/moderate") {
+                        setBody("""{"value":"test","name":"Display Name"}""")
+                        contentType(ContentType.Application.Json)
+                    }
                 resp.status shouldBe HttpStatusCode.OK
             }
         }
