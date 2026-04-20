@@ -149,6 +149,11 @@ object HandshakeMessages {
         var msgId = msgIdStart
         val messages = mutableListOf<GREToClientMessage>()
 
+        // Wire sequencing (Arena protocol contract): the first-connecting seat (1)
+        // receives ConnectResp; the second (2) receives ChooseStartingPlayerReq.
+        // These literals are NOT role checks — they reflect the match-handshake
+        // sequence that Arena dictates, independent of which seat is human-controlled.
+        // Role-scoped decisions use `Seating` (see `GameBridge.seating`).
         if (seatId == 1) {
             // ConnectResp with deck + default settings
             messages.add(buildConnectResp(msgId++, seatId, deckMessage))
@@ -419,7 +424,8 @@ object HandshakeMessages {
         var msgId = msgIdStart
         val messages = mutableListOf<GREToClientMessage>()
 
-        if (seatId == 1) {
+        // Role gate: only the human seat gets a ConnectResp handshake.
+        if (seatId == bridge.seating.humanSeat.value) {
             // ConnectResp with empty deck (puzzle doesn't use deck message)
             val emptyDeck = GsmBuilder.buildDeckMessage(emptyList())
             messages.add(buildConnectResp(msgId++, seatId, emptyDeck))
