@@ -84,7 +84,7 @@ class PuzzleBridgeTest :
 
         test("start puzzle has pending actions") {
             val b = startPuzzle("puzzles/lands-only.pzl")
-            val pending = b.actionBridge(1).getPending()
+            val pending = b.actionBridge(SeatId(1)).getPending()
             pending.shouldNotBeNull()
         }
 
@@ -161,10 +161,10 @@ class PuzzleBridgeTest :
         test("puzzle can perform action") {
             val b = startPuzzle("puzzles/lands-only.pzl")
             // The puzzle should have actions available (at least Pass)
-            val pending = b.actionBridge(1).getPending()
+            val pending = b.actionBridge(SeatId(1)).getPending()
             pending.shouldNotBeNull()
             // Pass priority
-            b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PassPriority)
+            b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PassPriority)
             b.awaitPriority()
             // Should reach another priority stop or advance phases
             // (just verifying the engine doesn't crash)
@@ -187,7 +187,7 @@ class PuzzleBridgeTest :
             val ai = b.getPlayer(SeatId(2))!!
             ai.life shouldBe 3
             // Should have actions (Cast Lightning Bolt + Pass at minimum)
-            val pending = b.actionBridge(1).getPending()
+            val pending = b.actionBridge(SeatId(1)).getPending()
             pending.shouldNotBeNull()
         }
 
@@ -265,6 +265,6 @@ class PuzzleBridgeTest :
             // Phase must still be Main1
             b.getGame()!!.phaseHandler.phase shouldBe PhaseType.MAIN1
             // Seat 1's pending action must still be available
-            b.actionBridge(1).getPending().shouldNotBeNull()
+            b.actionBridge(SeatId(1)).getPending().shouldNotBeNull()
         }
     })

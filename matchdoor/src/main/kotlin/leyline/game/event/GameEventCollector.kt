@@ -536,7 +536,7 @@ class GameEventCollector(
     private fun isSearchedToHand(forgeCardId: Int): Boolean {
         val id = ForgeCardId(forgeCardId)
         for (seat in bridge.allSeatIds()) {
-            if (bridge.promptBridge(seat).journal.consumeSearched(id)) return true
+            if (bridge.promptBridge(SeatId(seat)).journal.consumeSearched(id)) return true
         }
         return false
     }
@@ -551,7 +551,7 @@ class GameEventCollector(
     private fun isLegendRuleVictim(forgeCardId: Int): Boolean {
         val id = ForgeCardId(forgeCardId)
         for (seat in bridge.allSeatIds()) {
-            if (bridge.promptBridge(seat).journal.consumeLegendVictim(id)) return true
+            if (bridge.promptBridge(SeatId(seat)).journal.consumeLegendVictim(id)) return true
         }
         return false
     }

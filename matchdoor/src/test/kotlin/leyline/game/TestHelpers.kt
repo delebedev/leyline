@@ -4,6 +4,7 @@ import forge.game.Game
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.SeatId
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -49,7 +50,7 @@ fun awaitFreshPending(
 ): GameActionBridge.PendingAction? {
     val deadline = System.currentTimeMillis() + timeoutMs
     while (System.currentTimeMillis() < deadline) {
-        val p = b.actionBridge(1).getPending()
+        val p = b.actionBridge(SeatId(1)).getPending()
         if (p != null && p.actionId != previousId && !p.future.isDone) return p
         Thread.sleep(50)
     }
@@ -77,7 +78,7 @@ fun awaitPrompt(
 ): InteractivePromptBridge.PendingPrompt? {
     val deadline = System.currentTimeMillis() + timeoutMs
     while (System.currentTimeMillis() < deadline) {
-        val p = b.promptBridge(1).getPendingPrompt()
+        val p = b.promptBridge(SeatId(1)).getPendingPrompt()
         if (p != null && !p.future.isDone) return p
         Thread.sleep(50)
     }
@@ -109,7 +110,7 @@ fun advanceTo(
             awaitFreshPending(b, lastId, timeoutMs)
                 ?: error("Timed out waiting for priority (phase=${game.phaseHandler.phase}, turn=${game.phaseHandler.turn})")
         if (predicate(pending.state.phase, pending.state.turn)) return pending
-        b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PassPriority)
+        b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PassPriority)
         lastId = pending.actionId
     }
     error(

@@ -12,6 +12,7 @@ import leyline.ConformanceTag
 import leyline.IntegrationTag
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -100,7 +101,7 @@ class DfcTransformTest :
             pending.shouldNotBeNull()
 
             val submitted =
-                b.actionBridge(1).submitAction(
+                b.actionBridge(SeatId(1)).submitAction(
                     pending.actionId,
                     PlayerAction.ActivateAbility(ForgeCardId(curtains.id), 0),
                 )
@@ -110,7 +111,7 @@ class DfcTransformTest :
             // Pass priority to let the ability resolve
             val pending2 = awaitFreshPending(b, pending.actionId)
             pending2.shouldNotBeNull()
-            b.actionBridge(1).submitAction(
+            b.actionBridge(SeatId(1)).submitAction(
                 pending2.actionId,
                 PlayerAction.PassPriority,
             )

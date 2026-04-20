@@ -147,7 +147,7 @@ open class CombatHandler(
         }
 
         // SubmitAttackersReq: finalize — use last known selection
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         val pending =
             seatBridge.action.getPending() ?: run {
                 log.warn("CombatHandler: SubmitAttackersReq but no pending action — recovering")
@@ -210,7 +210,7 @@ open class CombatHandler(
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         val pending =
             seatBridge.action.getPending() ?: run {
                 log.warn("CombatHandler: CancelAttackers but no pending action — recovering")
@@ -294,7 +294,7 @@ open class CombatHandler(
         }
 
         // SubmitBlockersReq: finalize
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         val pending =
             seatBridge.action.getPending() ?: run {
                 log.warn("CombatHandler: SubmitBlockersReq but no pending action — recovering")
@@ -381,7 +381,7 @@ open class CombatHandler(
                     val skipBlockers = sendDeclareBlockersReq(bridge)
                     if (skipBlockers) {
                         // Zero legal blockers — submit empty declaration and advance
-                        val seatBridge = bridge.seat(counters.seatId.value)
+                        val seatBridge = bridge.seat(counters.seatId)
                         val pending = seatBridge.action.getPending()
                         if (pending != null) {
                             seatBridge.action.submitAction(pending.actionId, PlayerAction.DeclareBlockers(emptyMap()))

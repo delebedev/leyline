@@ -42,7 +42,7 @@ class ActionPerformer(
         greMsg: ClientToGREMessage,
     ) {
         val bridge = ctx.bridge
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         log.info("ActionPerformer: perform enter gsId={} (current={})", greMsg.gameStateId, counters.counter.currentGsId())
 
         // Reject stale actions — client may resend with outdated gameStateId

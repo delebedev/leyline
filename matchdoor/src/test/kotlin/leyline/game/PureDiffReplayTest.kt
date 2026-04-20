@@ -5,6 +5,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.game.event.GameEvent
 import leyline.game.mapping.StateMapper
@@ -211,6 +212,6 @@ private fun advanceToEndOfTurn(bridge: GameBridge) {
         val pending = awaitFreshPending(bridge, null) ?: return
         val nowTurn = game.phaseHandler.turn
         if (nowTurn != startTurn) return
-        bridge.actionBridge(1).submitAction(pending.actionId, PlayerAction.PassPriority)
+        bridge.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PassPriority)
     }
 }

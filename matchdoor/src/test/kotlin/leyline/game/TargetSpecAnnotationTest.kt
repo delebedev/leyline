@@ -53,7 +53,7 @@ class TargetSpecAnnotationTest :
                     .first { it.name == "Murder" }
 
             // Simulate what selectTargetsInteractively does: add pending target
-            b.seat(1).prompt.addPendingTargetSpec(
+            b.seat(SeatId(1)).prompt.addPendingTargetSpec(
                 InteractivePromptBridge.PendingTarget(
                     spellForgeCardId = spell.id,
                     spellName = spell.name,
@@ -111,7 +111,7 @@ class TargetSpecAnnotationTest :
                     .cards
                     .first { it.name == "Murder" }
 
-            b.seat(1).prompt.addPendingTargetSpec(
+            b.seat(SeatId(1)).prompt.addPendingTargetSpec(
                 InteractivePromptBridge.PendingTarget(
                     spellForgeCardId = spell.id,
                     spellName = spell.name,

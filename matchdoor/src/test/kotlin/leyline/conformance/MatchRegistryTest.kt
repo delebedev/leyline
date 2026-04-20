@@ -157,7 +157,7 @@ class MatchRegistryTest :
         test("actionBridge throws for unknown seat") {
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             shouldThrow<IllegalStateException> {
-                bridge.actionBridge(99)
+                bridge.actionBridge(SeatId(99))
             }
         }
 

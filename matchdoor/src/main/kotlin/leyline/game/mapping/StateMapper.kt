@@ -447,7 +447,7 @@ object StateMapper {
                 .filter { id -> prev.zones[id] != cur.zones[id] }
                 .toSet()
         val opponentHandZoneId = ZoneMapper.opponentHandZone(viewingSeatId)
-        val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(it).journal.activeReveal() != null }
+        val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(SeatId(it)).journal.activeReveal() != null }
         // Protocol-only zones not tracked in GsmSnapshot must always be included when non-empty:
         //   - Limbo (id=30): grows monotonically; always send when it has content.
         //   - REVEALED_P1/P2 (id=18/19): synthesized by applyRevealProxies during active reveal.
@@ -461,7 +461,7 @@ object StateMapper {
                             .allSeatIds()
                             .firstNotNullOfOrNull {
                                 bridge
-                                    .promptBridge(it)
+                                    .promptBridge(SeatId(it))
                                     .journal
                                     .activeReveal()
                                     ?.ownerSeatId
@@ -937,7 +937,7 @@ object StateMapper {
      */
     private fun detectActiveReveal(bridge: GameBridge): PromptSideEffect.RevealStarted? =
         bridge.allSeatIds().firstNotNullOfOrNull { seatId ->
-            val prompt = bridge.promptBridge(seatId)
+            val prompt = bridge.promptBridge(SeatId(seatId))
             val reveal = prompt.journal.activeReveal() ?: return@firstNotNullOfOrNull null
             if (!bridge.revealProxies.isEmpty && prompt.getPendingPrompt() == null) {
                 TargetingCoordinator.Companion.endReveal(prompt) // stale — engine skipped choice

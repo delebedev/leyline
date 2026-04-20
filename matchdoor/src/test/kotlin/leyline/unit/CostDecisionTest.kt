@@ -89,7 +89,7 @@ class CostDecisionTest :
                         player,
                         ability,
                         false,
-                        localBridge.promptBridge(1),
+                        localBridge.promptBridge(SeatId(1)),
                         source,
                     ),
             )
