@@ -84,7 +84,9 @@ class HeadlessGuiBase(
             .warn("BugReporter: $title — ${text.take(300)}")
     }
 
-    override fun showImageDialog(image: ISkinImage, message: String, title: String): Unit = throw UnsupportedOperationException("Image dialog not supported in headless mode")
+    override fun showImageDialog(image: ISkinImage, message: String, title: String): Unit = throw UnsupportedOperationException(
+        "Image dialog not supported in headless mode",
+    )
 
     override fun showOptionDialog(
         message: String,
@@ -217,11 +219,17 @@ class HeadlessGuiBase(
         // no-op
     }
 
-    override fun showCardList(title: String, message: String, list: MutableList<PaperCard>): Unit = throw UnsupportedOperationException("Card list not supported in headless mode")
+    override fun showCardList(title: String, message: String, list: MutableList<PaperCard>): Unit = throw UnsupportedOperationException(
+        "Card list not supported in headless mode",
+    )
 
-    override fun showBoxedProduct(title: String, message: String, list: MutableList<PaperCard>): Boolean = throw UnsupportedOperationException("Boxed product not supported in headless mode")
+    override fun showBoxedProduct(title: String, message: String, list: MutableList<PaperCard>): Boolean = throw UnsupportedOperationException(
+        "Boxed product not supported in headless mode",
+    )
 
-    override fun chooseCard(title: String, message: String, list: MutableList<PaperCard>): PaperCard = throw UnsupportedOperationException("Card chooser not supported in headless mode")
+    override fun chooseCard(title: String, message: String, list: MutableList<PaperCard>): PaperCard = throw UnsupportedOperationException(
+        "Card chooser not supported in headless mode",
+    )
 
     override fun getAvatarCount(): Int = 0
 

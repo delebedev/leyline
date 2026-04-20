@@ -39,7 +39,7 @@ tasks.test {
 spotless {
     kotlin {
         target("src/**/*.kt")
-        ktlint("1.3.1").editorConfigOverride(
+        ktlint("1.5.0").editorConfigOverride(
             mapOf("ktlint_standard_no-wildcard-imports" to "disabled"),
         )
     }
