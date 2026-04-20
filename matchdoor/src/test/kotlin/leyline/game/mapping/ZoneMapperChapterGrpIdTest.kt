@@ -1,5 +1,6 @@
 package leyline.game.mapping
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -43,9 +44,11 @@ class ZoneMapperChapterGrpIdTest :
                 abilityIds = emptyList(),
                 chapterAbilityGrpIds = listOf(10001, 10002, 10003),
             )
-            ZoneMapper.chapterGrpIdFromCardData(data, 1) shouldBe 10001
-            ZoneMapper.chapterGrpIdFromCardData(data, 2) shouldBe 10002
-            ZoneMapper.chapterGrpIdFromCardData(data, 3) shouldBe 10003
+            assertSoftly {
+                ZoneMapper.chapterGrpIdFromCardData(data, 1) shouldBe 10001
+                ZoneMapper.chapterGrpIdFromCardData(data, 2) shouldBe 10002
+                ZoneMapper.chapterGrpIdFromCardData(data, 3) shouldBe 10003
+            }
         }
 
         test("prod shape: empty chapterAbilityGrpIds, chapters at leading abilityIds positions") {
@@ -61,9 +64,11 @@ class ZoneMapperChapterGrpIdTest :
                 ),
                 chapterAbilityGrpIds = emptyList(),
             )
-            ZoneMapper.chapterGrpIdFromCardData(data, 1) shouldBe 147926
-            ZoneMapper.chapterGrpIdFromCardData(data, 2) shouldBe 147927
-            ZoneMapper.chapterGrpIdFromCardData(data, 3) shouldBe 147760
+            assertSoftly {
+                ZoneMapper.chapterGrpIdFromCardData(data, 1) shouldBe 147926
+                ZoneMapper.chapterGrpIdFromCardData(data, 2) shouldBe 147927
+                ZoneMapper.chapterGrpIdFromCardData(data, 3) shouldBe 147760
+            }
         }
 
         test("populated list wins over abilityIds positional fallback") {

@@ -67,10 +67,12 @@ class EffectAnnotationPipelineTest :
 
             val (transient, persistent) = MechanicAnnotations.effectAnnotations(diff)
 
-            transient.size shouldBe 1
-            transient[0].typeList.first() shouldBe AnnotationType.LayeredEffectDestroyed
-            transient[0].affectedIdsList shouldBe listOf(7005)
-            persistent.shouldBeEmpty()
+            assertSoftly {
+                transient.size shouldBe 1
+                transient[0].typeList.first() shouldBe AnnotationType.LayeredEffectDestroyed
+                transient[0].affectedIdsList shouldBe listOf(7005)
+                persistent.shouldBeEmpty()
+            }
         }
 
         test("effectAnnotations empty diff produces no annotations") {
@@ -87,10 +89,12 @@ class EffectAnnotationPipelineTest :
                 emptyList(),
             )
             val (transientBoth, persistentBoth) = MechanicAnnotations.effectAnnotations(both)
-            persistentBoth[0].typeList shouldContain AnnotationType.ModifiedPower
-            persistentBoth[0].typeList shouldContain AnnotationType.ModifiedToughness
-            persistentBoth[0].typeList shouldContain AnnotationType.LayeredEffect
-            persistentBoth[0].detailsList.none { it.key == "LayeredEffectType" } shouldBe true
+            assertSoftly {
+                persistentBoth[0].typeList shouldContain AnnotationType.ModifiedPower
+                persistentBoth[0].typeList shouldContain AnnotationType.ModifiedToughness
+                persistentBoth[0].typeList shouldContain AnnotationType.LayeredEffect
+                persistentBoth[0].detailsList.none { it.key == "LayeredEffectType" } shouldBe true
+            }
             // Companion PowerToughnessModCreated emitted
             transientBoth.any { it.typeList.contains(AnnotationType.PowerToughnessModCreated) } shouldBe true
 
@@ -100,9 +104,11 @@ class EffectAnnotationPipelineTest :
                 emptyList(),
             )
             val (_, persistentPower) = MechanicAnnotations.effectAnnotations(powerOnly)
-            persistentPower[0].typeList shouldContain AnnotationType.ModifiedPower
-            persistentPower[0].typeList shouldContain AnnotationType.LayeredEffect
-            persistentPower[0].typeList.none { it == AnnotationType.ModifiedToughness } shouldBe true
+            assertSoftly {
+                persistentPower[0].typeList shouldContain AnnotationType.ModifiedPower
+                persistentPower[0].typeList shouldContain AnnotationType.LayeredEffect
+                persistentPower[0].typeList.none { it == AnnotationType.ModifiedToughness } shouldBe true
+            }
 
             // Only toughness changed → [ModifiedToughness, LayeredEffect], no ModifiedPower
             val toughOnly = EffectTracker.DiffResult(
@@ -110,9 +116,11 @@ class EffectAnnotationPipelineTest :
                 emptyList(),
             )
             val (_, persistentTough) = MechanicAnnotations.effectAnnotations(toughOnly)
-            persistentTough[0].typeList shouldContain AnnotationType.ModifiedToughness
-            persistentTough[0].typeList shouldContain AnnotationType.LayeredEffect
-            persistentTough[0].typeList.none { it == AnnotationType.ModifiedPower } shouldBe true
+            assertSoftly {
+                persistentTough[0].typeList shouldContain AnnotationType.ModifiedToughness
+                persistentTough[0].typeList shouldContain AnnotationType.LayeredEffect
+                persistentTough[0].typeList.none { it == AnnotationType.ModifiedPower } shouldBe true
+            }
         }
 
         test("effectAnnotations resolves sourceAbilityGrpId via staticId") {

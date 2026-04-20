@@ -1,5 +1,6 @@
 package leyline.frontdoor.service
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -31,11 +32,13 @@ class CourseServiceTest :
 
         test("join sealed event creates course with DeckSelect module and card pool") {
             val course = service.join(playerId, "Sealed_FDN_20260307")
-            course.module shouldBe CourseModule.DeckSelect
-            course.cardPool.size shouldBe 84
-            course.cardPoolByCollation.size shouldBe 1
-            course.wins shouldBe 0
-            course.losses shouldBe 0
+            assertSoftly {
+                course.module shouldBe CourseModule.DeckSelect
+                course.cardPool.size shouldBe 84
+                course.cardPoolByCollation.size shouldBe 1
+                course.wins shouldBe 0
+                course.losses shouldBe 0
+            }
         }
 
         test("join same event twice returns existing course") {
@@ -63,9 +66,11 @@ class CourseServiceTest :
 
         test("recordMatchResult updates wins") {
             val course = service.recordMatchResult(playerId, "Sealed_FDN_20260307", won = true)
-            course.wins shouldBe 1
-            course.losses shouldBe 0
-            course.module shouldBe CourseModule.CreateMatch
+            assertSoftly {
+                course.wins shouldBe 1
+                course.losses shouldBe 0
+                course.module shouldBe CourseModule.CreateMatch
+            }
         }
 
         test("recordMatchResult updates losses") {
@@ -88,9 +93,11 @@ class CourseServiceTest :
             service.join(playerId, "QuickDraft_ECL_20260223")
             val pickedCards = listOf(98353, 98519, 98350)
             val course = service.completeDraft(playerId, "QuickDraft_ECL_20260223", pickedCards, collationId = 100058)
-            course.module shouldBe CourseModule.DeckSelect
-            course.cardPool shouldBe pickedCards
-            course.cardPoolByCollation shouldBe listOf(CollationPool(100058, pickedCards))
+            assertSoftly {
+                course.module shouldBe CourseModule.DeckSelect
+                course.cardPool shouldBe pickedCards
+                course.cardPoolByCollation shouldBe listOf(CollationPool(100058, pickedCards))
+            }
         }
 
         test("join constructed event creates course at CreateMatch with empty pool") {
@@ -106,10 +113,12 @@ class CourseServiceTest :
 
         test("join after drop creates fresh course (re-join)") {
             val course = service.join(playerId, "Sealed_FDN_20260307")
-            course.module shouldBe CourseModule.DeckSelect
-            course.cardPool.size shouldBe 84
-            course.wins shouldBe 0
-            course.losses shouldBe 0
+            assertSoftly {
+                course.module shouldBe CourseModule.DeckSelect
+                course.cardPool.size shouldBe 84
+                course.wins shouldBe 0
+                course.losses shouldBe 0
+            }
             // old Complete course should be gone — only one course for this event
             val courses = service.getCoursesForPlayer(playerId)
             courses.count { it.eventName == "Sealed_FDN_20260307" } shouldBe 1

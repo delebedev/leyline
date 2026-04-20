@@ -3,10 +3,13 @@ package leyline.game
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import forge.util.MyRandom
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
@@ -257,13 +260,15 @@ class GameBridgeTest :
             gre1.gameStateMessage.hasGameInfo().shouldBeTrue()
             val phaseAnnotations1 = gre1.gameStateMessage.annotationsList.flatMap { it.typeList }
                 .count { it == Messages.AnnotationType.PhaseOrStepModified }
-            (phaseAnnotations1 >= 2).shouldBeTrue()
+            phaseAnnotations1 shouldBeGreaterThanOrEqualTo 2
 
             // GRE 2: SendHiFi echo
             val gre2 = messages[1]
-            gre2.gameStateMessage.type shouldBe Messages.GameStateType.Diff
-            gre2.gameStateMessage.update shouldBe Messages.GameStateUpdate.SendHiFi
-            (gre2.gameStateMessage.gameStateId > gre1.gameStateMessage.gameStateId).shouldBeTrue()
+            assertSoftly {
+                gre2.gameStateMessage.type shouldBe Messages.GameStateType.Diff
+                gre2.gameStateMessage.update shouldBe Messages.GameStateUpdate.SendHiFi
+                gre2.gameStateMessage.gameStateId shouldBeGreaterThan gre1.gameStateMessage.gameStateId
+            }
 
             // GRE 3: SendAndRecord with 1x PhaseOrStepModified
             val gre3 = messages[2]
@@ -279,7 +284,7 @@ class GameBridgeTest :
             // GRE 5: ActionsAvailableReq
             val gre5 = messages[4]
             gre5.type shouldBe Messages.GREMessageType.ActionsAvailableReq_695e
-            (gre5.actionsAvailableReq.actionsCount > 0).shouldBeTrue()
+            gre5.actionsAvailableReq.actionsCount shouldBeGreaterThan 0
         }
 
         test("post action state has consistent instanceIds") {
@@ -407,7 +412,7 @@ class GameBridgeTest :
             val gsIds = result.messages.filter { it.hasGameStateMessage() }
                 .map { it.gameStateMessage.gameStateId }
             for (i in 1 until gsIds.size) {
-                (gsIds[i] > gsIds[i - 1]).shouldBeTrue()
+                gsIds[i] shouldBeGreaterThan gsIds[i - 1]
             }
         }
 
@@ -440,7 +445,7 @@ class GameBridgeTest :
                 val cast = castActions.first()
                 // Real client Cast in AAR: no abilityGrpId, yes facetId=instanceId, yes manaCost
                 cast.abilityGrpId shouldBe 0
-                (cast.manaCostCount > 0).shouldBeTrue()
+                cast.manaCostCount shouldBeGreaterThan 0
                 cast.facetId shouldBe cast.instanceId
             }
             // If no castable spells (bad draw), test is a no-op — that's fine
@@ -458,7 +463,7 @@ class GameBridgeTest :
             val snapGb1 = GsmSnapshot.capture(game, b, "test-match", 1)
             val gs = StateMapper.buildFromSnapshot(snapGb1, 1, "test-match", b, actions).gsm
 
-            (gs.actionsCount > 0).shouldBeTrue()
+            gs.actionsCount shouldBeGreaterThan 0
             for (actionInfo in gs.actionsList) {
                 // Client expects no actionId on GSM embedded actions (default 0)
                 actionInfo.actionId shouldBe 0
@@ -489,7 +494,7 @@ class GameBridgeTest :
             for (msg in result.messages) {
                 if (msg.hasGameStateMessage()) {
                     val gsId = msg.gameStateMessage.gameStateId
-                    (gsId > prevGsId).shouldBeTrue()
+                    gsId shouldBeGreaterThan prevGsId
                     prevGsId = gsId
                 }
             }
@@ -597,7 +602,7 @@ class GameBridgeTest :
 
             gs.type shouldBe Messages.GameStateType.Diff
             // Diff always has players and turnInfo (metadata)
-            (gs.playersCount > 0).shouldBeTrue()
+            gs.playersCount shouldBeGreaterThan 0
             gs.hasTurnInfo().shouldBeTrue()
         }
 
@@ -614,7 +619,7 @@ class GameBridgeTest :
             val snapFull = GsmSnapshot.capture(game, b, "test-match", 1)
             val gs = StateMapper.buildDiff(null, snapFull, emptyList(), 1, "test-match", b).gsm
             gs.type shouldBe Messages.GameStateType.Full
-            (gs.zonesCount > 0).shouldBeTrue()
+            gs.zonesCount shouldBeGreaterThan 0
         }
 
         // --- skipMulligan tests ---
@@ -651,9 +656,11 @@ class GameBridgeTest :
             val snapGb5 = GsmSnapshot.capture(game, b, "test-match", 1)
             val gs = StateMapper.buildFromSnapshot(snapGb5, 1, "test-match", b).gsm
 
-            (gs.zonesCount > 0).shouldBeTrue()
-            (gs.gameObjectsCount > 0).shouldBeTrue()
-            gs.hasTurnInfo().shouldBeTrue()
-            (gs.turnInfo.turnNumber >= 1).shouldBeTrue()
+            assertSoftly {
+                gs.zonesCount shouldBeGreaterThan 0
+                gs.gameObjectsCount shouldBeGreaterThan 0
+                gs.hasTurnInfo().shouldBeTrue()
+                gs.turnInfo.turnNumber shouldBeGreaterThanOrEqualTo 1
+            }
         }
     })

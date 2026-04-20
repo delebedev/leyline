@@ -1,8 +1,10 @@
 package leyline.conformance
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.game.bundle.GsmBuilder
@@ -28,8 +30,7 @@ class DealHandConformanceTest :
         afterEach { base.tearDown() }
 
         /** Helper: extract GRE messages from a MatchServiceToClientMessage. */
-        fun greMessages(msg: MatchServiceToClientMessage): List<GREToClientMessage> =
-            msg.greToClientEvent.greToClientMessagesList
+        fun greMessages(msg: MatchServiceToClientMessage): List<GREToClientMessage> = msg.greToClientEvent.greToClientMessagesList
 
         // --- dealHand ---
 
@@ -49,13 +50,15 @@ class DealHandConformanceTest :
             gre.msgId shouldBe 6
 
             val gsm = gre.gameStateMessage
-            gsm.type shouldBe GameStateType.Diff
-            gsm.update shouldBe GameStateUpdate.SendAndRecord
-            gsm.gameStateId shouldBe 2
-            gsm.prevGameStateId shouldBe 1
+            assertSoftly {
+                gsm.type shouldBe GameStateType.Diff
+                gsm.update shouldBe GameStateUpdate.SendAndRecord
+                gsm.gameStateId shouldBe 2
+                gsm.prevGameStateId shouldBe 1
+            }
 
             gsm.zonesCount shouldBe 4
-            (gsm.gameObjectsCount > 0).shouldBeTrue()
+            gsm.gameObjectsCount shouldBeGreaterThan 0
 
             gsm.playersCount shouldBe 2
             for (player in gsm.playersList) {
@@ -79,17 +82,21 @@ class DealHandConformanceTest :
             nextMsgId shouldBe 8
 
             val gsm = messages[0]
-            gsm.type shouldBe GREMessageType.GameStateMessage_695e
-            gsm.gameStateMessage.type shouldBe GameStateType.Diff
-            gsm.gameStateMessage.update shouldBe GameStateUpdate.SendAndRecord
-            gsm.gameStateMessage.zonesCount shouldBe 4
-            (gsm.gameStateMessage.gameObjectsCount > 0).shouldBeTrue()
-            gsm.gameStateMessage.pendingMessageCount shouldBe 1
+            assertSoftly {
+                gsm.type shouldBe GREMessageType.GameStateMessage_695e
+                gsm.gameStateMessage.type shouldBe GameStateType.Diff
+                gsm.gameStateMessage.update shouldBe GameStateUpdate.SendAndRecord
+                gsm.gameStateMessage.zonesCount shouldBe 4
+                gsm.gameStateMessage.gameObjectsCount shouldBeGreaterThan 0
+                gsm.gameStateMessage.pendingMessageCount shouldBe 1
+            }
 
             val mull = messages[1]
-            mull.type shouldBe GREMessageType.MulliganReq_aa0d
-            mull.hasPrompt().shouldBeTrue()
-            mull.prompt.promptId shouldBe PromptIds.MULLIGAN
+            assertSoftly {
+                mull.type shouldBe GREMessageType.MulliganReq_aa0d
+                mull.hasPrompt().shouldBeTrue()
+                mull.prompt.promptId shouldBe PromptIds.MULLIGAN
+            }
         }
 
         // --- mulliganReqSeat1 ---
@@ -103,24 +110,30 @@ class DealHandConformanceTest :
             nextMsgId shouldBe 13
 
             val gsm = messages[0].gameStateMessage
-            messages[0].type shouldBe GREMessageType.GameStateMessage_695e
-            gsm.type shouldBe GameStateType.Diff
-            gsm.update shouldBe GameStateUpdate.SendAndRecord
-            gsm.zonesCount shouldBe 0
-            gsm.gameObjectsCount shouldBe 0
-            gsm.turnInfo.decisionPlayer shouldBe 1
-            gsm.pendingMessageCount shouldBe 2
-            gsm.prevGameStateId shouldBe 2
+            assertSoftly {
+                messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+                gsm.type shouldBe GameStateType.Diff
+                gsm.update shouldBe GameStateUpdate.SendAndRecord
+                gsm.zonesCount shouldBe 0
+                gsm.gameObjectsCount shouldBe 0
+                gsm.turnInfo.decisionPlayer shouldBe 1
+                gsm.pendingMessageCount shouldBe 2
+                gsm.prevGameStateId shouldBe 2
+            }
 
             val prompt = messages[1]
-            prompt.type shouldBe GREMessageType.PromptReq
-            prompt.hasPrompt().shouldBeTrue()
-            prompt.prompt.promptId shouldBe PromptIds.STARTING_PLAYER
+            assertSoftly {
+                prompt.type shouldBe GREMessageType.PromptReq
+                prompt.hasPrompt().shouldBeTrue()
+                prompt.prompt.promptId shouldBe PromptIds.STARTING_PLAYER
+            }
 
             val mull = messages[2]
-            mull.type shouldBe GREMessageType.MulliganReq_aa0d
-            mull.hasPrompt().shouldBeTrue()
-            mull.prompt.promptId shouldBe PromptIds.MULLIGAN
+            assertSoftly {
+                mull.type shouldBe GREMessageType.MulliganReq_aa0d
+                mull.hasPrompt().shouldBeTrue()
+                mull.prompt.promptId shouldBe PromptIds.MULLIGAN
+            }
         }
 
         // --- initialBundle ---
@@ -134,16 +147,20 @@ class DealHandConformanceTest :
             messages.size shouldBe 3
             nextMsgId shouldBe 5
 
-            messages[0].type shouldBe GREMessageType.ConnectResp_695e
-            messages[1].type shouldBe GREMessageType.DieRollResultsResp_695e
-            messages[2].type shouldBe GREMessageType.GameStateMessage_695e
+            assertSoftly {
+                messages[0].type shouldBe GREMessageType.ConnectResp_695e
+                messages[1].type shouldBe GREMessageType.DieRollResultsResp_695e
+                messages[2].type shouldBe GREMessageType.GameStateMessage_695e
+            }
 
             val gsm = messages[2].gameStateMessage
-            gsm.type shouldBe GameStateType.Full
-            gsm.zonesCount shouldBe 17
-            gsm.teamsCount shouldBe 2
-            gsm.playersCount shouldBe 2
-            gsm.gameInfo.stage shouldBe GameStage.Start_a920
+            assertSoftly {
+                gsm.type shouldBe GameStateType.Full
+                gsm.zonesCount shouldBe 17
+                gsm.teamsCount shouldBe 2
+                gsm.playersCount shouldBe 2
+                gsm.gameInfo.stage shouldBe GameStage.Start_a920
+            }
         }
 
         test("initialBundle seat 2: DieRoll + Full GSM + ChooseStartingPlayerReq") {
@@ -155,14 +172,18 @@ class DealHandConformanceTest :
             messages.size shouldBe 3
             nextMsgId shouldBe 6
 
-            messages[0].type shouldBe GREMessageType.DieRollResultsResp_695e
-            messages[1].type shouldBe GREMessageType.GameStateMessage_695e
-            messages[2].type shouldBe GREMessageType.ChooseStartingPlayerReq_695e
+            assertSoftly {
+                messages[0].type shouldBe GREMessageType.DieRollResultsResp_695e
+                messages[1].type shouldBe GREMessageType.GameStateMessage_695e
+                messages[2].type shouldBe GREMessageType.ChooseStartingPlayerReq_695e
+            }
 
             val gsm = messages[1].gameStateMessage
-            gsm.type shouldBe GameStateType.Full
-            gsm.zonesCount shouldBe 17
-            gsm.pendingMessageCount shouldBe 1
+            assertSoftly {
+                gsm.type shouldBe GameStateType.Full
+                gsm.zonesCount shouldBe 17
+                gsm.pendingMessageCount shouldBe 1
+            }
 
             val req = messages[2].chooseStartingPlayerReq
             req.systemSeatIdsCount shouldBe 2
@@ -188,9 +209,11 @@ class DealHandConformanceTest :
             nextMsgId shouldBe 10
 
             val gre = messages[0]
-            gre.type shouldBe GREMessageType.SetSettingsResp_695e
-            gre.msgId shouldBe 9
-            gre.setSettingsResp.settings shouldBe settings
+            assertSoftly {
+                gre.type shouldBe GREMessageType.SetSettingsResp_695e
+                gre.msgId shouldBe 9
+                gre.setSettingsResp.settings shouldBe settings
+            }
         }
 
         test("settingsResp with null settings produces empty resp") {

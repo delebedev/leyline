@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -25,16 +26,20 @@ class GamePlaybackCounterTest :
 
         test("MessageCounter nextGsId increments atomically") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 1)
-            counter.nextGsId() shouldBe 11
-            counter.nextGsId() shouldBe 12
-            counter.currentGsId() shouldBe 12
+            assertSoftly {
+                counter.nextGsId() shouldBe 11
+                counter.nextGsId() shouldBe 12
+                counter.currentGsId() shouldBe 12
+            }
         }
 
         test("MessageCounter nextMsgId increments atomically") {
             val counter = MessageCounter(initialGsId = 0, initialMsgId = 5)
-            counter.nextMsgId() shouldBe 6
-            counter.nextMsgId() shouldBe 7
-            counter.currentMsgId() shouldBe 7
+            assertSoftly {
+                counter.nextMsgId() shouldBe 6
+                counter.nextMsgId() shouldBe 7
+                counter.currentMsgId() shouldBe 7
+            }
         }
 
         test("Concurrent access produces unique IDs") {
@@ -51,19 +56,23 @@ class GamePlaybackCounterTest :
             t2.join()
 
             val all = ids.toList()
-            all.size shouldBe iterations * 2
-            all.toSet().size shouldBe all.size
-            counter.currentGsId() shouldBe iterations * 2
+            assertSoftly {
+                all.size shouldBe iterations * 2
+                all.toSet().size shouldBe all.size
+                counter.currentGsId() shouldBe iterations * 2
+            }
         }
 
         test("setGsId and setMsgId work for handshake setup") {
             val counter = MessageCounter()
             counter.setGsId(42)
             counter.setMsgId(99)
-            counter.currentGsId() shouldBe 42
-            counter.currentMsgId() shouldBe 99
-            counter.nextGsId() shouldBe 43
-            counter.nextMsgId() shouldBe 100
+            assertSoftly {
+                counter.currentGsId() shouldBe 42
+                counter.currentMsgId() shouldBe 99
+                counter.nextGsId() shouldBe 43
+                counter.nextMsgId() shouldBe 100
+            }
         }
 
         test("GamePlayback uses shared counter (no local atomics)") {

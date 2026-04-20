@@ -1,7 +1,8 @@
 package leyline.conformance
 
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.game.mapping.ZoneIds
@@ -105,10 +106,10 @@ class AiTurnConformanceTest :
                 .map { it.gameStateMessage }
 
             val gsmsWithZoneChanges = allGsms.filter { it.zonesCount > 0 }
-            gsmsWithZoneChanges.isNotEmpty().shouldBeTrue()
+            gsmsWithZoneChanges.shouldNotBeEmpty()
 
             val gsmsWithObjects = allGsms.filter { it.gameObjectsCount > 0 }
-            gsmsWithObjects.isNotEmpty().shouldBeTrue()
+            gsmsWithObjects.shouldNotBeEmpty()
 
             for (gsm in gsmsWithObjects) {
                 val bfOrStackObjs = gsm.gameObjectsList.filter {
@@ -120,8 +121,8 @@ class AiTurnConformanceTest :
                     AnnotationType.ZoneTransfer_af5a in it.typeList
                 }
 
-                (gsm.annotationsCount > 0).shouldBeTrue()
-                zoneTransfers.isNotEmpty().shouldBeTrue()
+                gsm.annotationsCount shouldBeGreaterThan 0
+                zoneTransfers.shouldNotBeEmpty()
             }
         }
     })

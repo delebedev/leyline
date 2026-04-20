@@ -1,5 +1,6 @@
 package leyline.frontdoor.repo
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -63,12 +64,14 @@ class SqlitePlayerStoreTest :
             store.save(deck)
 
             val found = store.findById(DeckId("deck-1"))
-            found shouldNotBe null
-            found!!.name shouldBe "White Weenie"
-            found.tileId shouldBe 93855
-            found.format shouldBe Format.Standard
-            found.mainDeck shouldHaveSize 2
-            found.sideboard shouldHaveSize 1
+            assertSoftly {
+                found shouldNotBe null
+                found!!.name shouldBe "White Weenie"
+                found.tileId shouldBe 93855
+                found.format shouldBe Format.Standard
+                found.mainDeck shouldHaveSize 2
+                found.sideboard shouldHaveSize 1
+            }
         }
 
         test("findAllForPlayer returns all decks") {
@@ -108,9 +111,11 @@ class SqlitePlayerStoreTest :
             store.save(updated)
 
             val found = store.findById(DeckId("deck-1"))!!
-            found.name shouldBe "Updated Weenie"
-            found.tileId shouldBe 99
-            found.format shouldBe Format.Historic
-            found.mainDeck shouldHaveSize 1
+            assertSoftly {
+                found.name shouldBe "Updated Weenie"
+                found.tileId shouldBe 99
+                found.format shouldBe Format.Historic
+                found.mainDeck shouldHaveSize 1
+            }
         }
     })

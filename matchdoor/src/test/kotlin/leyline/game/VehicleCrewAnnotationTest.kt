@@ -2,6 +2,7 @@ package leyline.game
 
 import forge.game.card.CardCollection
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
@@ -82,9 +83,11 @@ class VehicleCrewAnnotationTest :
                     obj.cardTypesList.contains(CardType.Creature)
             }
 
-            creatureObj.cardTypesList shouldContain CardType.Creature
-            creatureObj.power.value shouldBe 2
-            creatureObj.toughness.value shouldBe 2
+            assertSoftly {
+                creatureObj.cardTypesList shouldContain CardType.Creature
+                creatureObj.power.value shouldBe 2
+                creatureObj.toughness.value shouldBe 2
+            }
         }
 
         // --- Task 2: CrewedThisTurn builder shape test ---
@@ -95,11 +98,13 @@ class VehicleCrewAnnotationTest :
                 crewSourceInstanceIds = listOf(293.iid, 348.iid),
             )
 
-            ann.typeList shouldHaveSize 1
-            ann.typeList shouldContain AnnotationType.CrewedThisTurn
-            ann.affectorId shouldBe 304
-            ann.affectedIdsList shouldBe listOf(293, 348)
-            ann.detailsList shouldHaveSize 0
+            assertSoftly {
+                ann.typeList shouldHaveSize 1
+                ann.typeList shouldContain AnnotationType.CrewedThisTurn
+                ann.affectorId shouldBe 304
+                ann.affectedIdsList shouldBe listOf(293, 348)
+                ann.detailsList shouldHaveSize 0
+            }
         }
 
         // --- Task 3: ModifiedType+LayeredEffect builder shape test ---
@@ -111,12 +116,14 @@ class VehicleCrewAnnotationTest :
                 sourceAbilityGrpId = 76611.grp,
             )
 
-            ann.typeList shouldHaveSize 2
-            ann.typeList shouldContain AnnotationType.ModifiedType
-            ann.typeList shouldContain AnnotationType.LayeredEffect
-            ann.affectedIdsList shouldBe listOf(304)
-            ann.detailInt(DetailKeys.EFFECT_ID) shouldBe 7004
-            ann.detailInt(DetailKeys.SOURCE_ABILITY_GRPID) shouldBe 76611
+            assertSoftly {
+                ann.typeList shouldHaveSize 2
+                ann.typeList shouldContain AnnotationType.ModifiedType
+                ann.typeList shouldContain AnnotationType.LayeredEffect
+                ann.affectedIdsList shouldBe listOf(304)
+                ann.detailInt(DetailKeys.EFFECT_ID) shouldBe 7004
+                ann.detailInt(DetailKeys.SOURCE_ABILITY_GRPID) shouldBe 76611
+            }
         }
 
         test("modifiedTypeLayeredEffect without sourceAbilityGrpId omits that detail") {
@@ -125,10 +132,12 @@ class VehicleCrewAnnotationTest :
                 effectId = 7010.eid,
             )
 
-            ann.typeList shouldContain AnnotationType.ModifiedType
-            ann.typeList shouldContain AnnotationType.LayeredEffect
-            ann.detailInt(DetailKeys.EFFECT_ID) shouldBe 7010
-            ann.detailsList.none { it.key == DetailKeys.SOURCE_ABILITY_GRPID } shouldBe true
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.ModifiedType
+                ann.typeList shouldContain AnnotationType.LayeredEffect
+                ann.detailInt(DetailKeys.EFFECT_ID) shouldBe 7010
+                ann.detailsList.none { it.key == DetailKeys.SOURCE_ABILITY_GRPID } shouldBe true
+            }
         }
 
         // --- Task 2+3: Pipeline integration — crew state produces persistent annotations ---

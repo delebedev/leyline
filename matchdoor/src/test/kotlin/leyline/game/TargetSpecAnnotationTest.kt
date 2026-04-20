@@ -1,6 +1,7 @@
 package leyline.game
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -58,10 +59,12 @@ class TargetSpecAnnotationTest :
             val targetAnn = gs.persistentAnnotationsList.firstOrNull { ann ->
                 AnnotationType.TargetSpec in ann.typeList
             }
-            targetAnn shouldNotBe null
-            targetAnn!!.affectedIdsList.size shouldBe 1
-            targetAnn.detailInt("index") shouldBe 1
-            targetAnn.detailInt("abilityGrpId") shouldBeGreaterThan 0
+            assertSoftly {
+                targetAnn shouldNotBe null
+                targetAnn!!.affectedIdsList.size shouldBe 1
+                targetAnn.detailInt("index") shouldBe 1
+                targetAnn.detailInt("abilityGrpId") shouldBeGreaterThan 0
+            }
         }
 
         test("no pending targets emits no TargetSpec") {

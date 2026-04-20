@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -283,9 +284,11 @@ class ValidatingMessageSinkTest :
             val msg = gre(msgId = 1)
             sink.send(listOf(msg))
 
-            inner.messages.size shouldBe 1
-            inner.messages[0] shouldBe msg
-            sink.messages.size shouldBe 1
+            assertSoftly {
+                inner.messages.size shouldBe 1
+                inner.messages[0] shouldBe msg
+                sink.messages.size shouldBe 1
+            }
         }
 
         test("sendRaw delegates to inner sink") {

@@ -95,10 +95,12 @@ class TreasureTokenTest :
             val ai = h.bridge.getPlayer(SeatId(2))!!
 
             // --- Preconditions ---
-            human.getZone(ZoneType.Hand).cards.map { it.name } shouldContain "Prosperous Innkeeper"
-            human.getZone(ZoneType.Hand).cards.map { it.name } shouldContain "Lightning Bolt"
-            human.getZone(ZoneType.Battlefield).cards.count { it.name == "Forest" } shouldBe 2
-            ai.life shouldBe 3
+            assertSoftly {
+                human.getZone(ZoneType.Hand).cards.map { it.name } shouldContain "Prosperous Innkeeper"
+                human.getZone(ZoneType.Hand).cards.map { it.name } shouldContain "Lightning Bolt"
+                human.getZone(ZoneType.Battlefield).cards.count { it.name == "Forest" } shouldBe 2
+                ai.life shouldBe 3
+            }
 
             // --- Cast Prosperous Innkeeper (1G) ---
             h.castSpellByName("Prosperous Innkeeper").shouldBeTrue()
@@ -193,8 +195,10 @@ class TreasureTokenTest :
             manaActivateAnnotations.shouldNotBeEmpty()
 
             // --- Assert: game over, human wins ---
-            h.isGameOver().shouldBeTrue()
-            human.hasWon().shouldBeTrue()
-            ai.life shouldBe 0
+            assertSoftly {
+                h.isGameOver().shouldBeTrue()
+                human.hasWon().shouldBeTrue()
+                ai.life shouldBe 0
+            }
         }
     })

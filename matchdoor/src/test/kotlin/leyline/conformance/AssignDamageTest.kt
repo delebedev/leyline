@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -83,10 +84,12 @@ class AssignDamageTest :
                 it.assignedDamage shouldBe 2
             }
 
-            defenderSlot.shouldNotBeNull()
-            defenderSlot.instanceId shouldBe 2 // defending seatId
-            defenderSlot.maxDamage shouldBe 1 // 5 - 2 - 2 = 1 overflow
-            defenderSlot.assignedDamage shouldBe 1
+            assertSoftly {
+                defenderSlot.shouldNotBeNull()
+                defenderSlot.instanceId shouldBe 2 // defending seatId
+                defenderSlot.maxDamage shouldBe 1 // 5 - 2 - 2 = 1 overflow
+                defenderSlot.assignedDamage shouldBe 1
+            }
 
             // Send back the pre-filled assignments (lethal to blockers + overflow to defender)
             val responseAssignments = assigner.assignmentsList.map {

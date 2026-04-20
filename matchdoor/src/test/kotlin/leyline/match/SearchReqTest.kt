@@ -1,5 +1,6 @@
 package leyline.match
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -31,19 +32,23 @@ class SearchReqTest :
                 allowFailToFind = true,
             )
 
-            msg.type shouldBe GREMessageType.SearchReq_695e
-            msg.msgId shouldBe 42
-            msg.gameStateId shouldBe 10
-            msg.systemSeatIdsList shouldBe listOf(1)
-            msg.prompt.promptId shouldBe PromptIds.SEARCH
+            assertSoftly {
+                msg.type shouldBe GREMessageType.SearchReq_695e
+                msg.msgId shouldBe 42
+                msg.gameStateId shouldBe 10
+                msg.systemSeatIdsList shouldBe listOf(1)
+                msg.prompt.promptId shouldBe PromptIds.SEARCH
+            }
 
             val sr = msg.searchReq
-            sr.maxFind shouldBe 1
-            sr.zonesToSearchList shouldContainExactly listOf(32)
-            sr.itemsToSearchList shouldContainExactly listOf(100, 101, 102)
-            sr.itemsSoughtList shouldContainExactly listOf(100, 102)
-            sr.sourceId shouldBe 290
-            sr.allowFailToFind shouldBe AllowFailToFind.Any
+            assertSoftly {
+                sr.maxFind shouldBe 1
+                sr.zonesToSearchList shouldContainExactly listOf(32)
+                sr.itemsToSearchList shouldContainExactly listOf(100, 101, 102)
+                sr.itemsSoughtList shouldContainExactly listOf(100, 102)
+                sr.sourceId shouldBe 290
+                sr.allowFailToFind shouldBe AllowFailToFind.Any
+            }
         }
 
         test("PendingClientInteraction.Search stores promptId") {

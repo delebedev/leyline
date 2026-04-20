@@ -87,9 +87,11 @@ class LibraryOrderInteractionTest :
                 ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
                     ann.detailString("category") == "Surveil"
             }
-            surveilZt.shouldNotBeNull()
-            surveilZt.affectedIdsList shouldHaveSize 1
-            surveilZt.affectorId shouldNotBe 0
+            assertSoftly {
+                surveilZt.shouldNotBeNull()
+                surveilZt.affectedIdsList shouldHaveSize 1
+                surveilZt.affectorId shouldNotBe 0
+            }
 
             assertAccumulatorConsistent("after surveil to graveyard")
         }

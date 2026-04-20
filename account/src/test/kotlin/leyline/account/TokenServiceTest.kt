@@ -1,5 +1,6 @@
 package leyline.account
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -26,9 +27,11 @@ class TokenServiceTest :
 
         test("issueTokens returns arena-shaped JWT access and refresh tokens") {
             val pair = service.issueTokens(testAccount)
-            pair.accessToken shouldContain "."
-            pair.refreshToken shouldContain "."
-            pair.expiresIn shouldBe TokenService.ACCESS_EXPIRY_SECONDS
+            assertSoftly {
+                pair.accessToken shouldContain "."
+                pair.refreshToken shouldContain "."
+                pair.expiresIn shouldBe TokenService.ACCESS_EXPIRY_SECONDS
+            }
         }
 
         test("access token keeps only standard JWT claims") {
@@ -77,5 +80,4 @@ class TokenServiceTest :
         }
     })
 
-private fun decodePayload(jwt: String): String =
-    Base64.getUrlDecoder().decode(jwt.split(".")[1]).toString(Charsets.UTF_8)
+private fun decodePayload(jwt: String): String = Base64.getUrlDecoder().decode(jwt.split(".")[1]).toString(Charsets.UTF_8)

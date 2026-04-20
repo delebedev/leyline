@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
@@ -29,8 +30,10 @@ class GameBridgeApiContractTest :
             bridge.promptBridge(1).recordReveal(listOf(ForgeCardId(101)), ownerSeatId = SeatId(1))
             bridge.promptBridge(2).recordReveal(listOf(ForgeCardId(202)), ownerSeatId = SeatId(2))
 
-            bridge.drainReveals(1).map { it.ownerSeatId } shouldBe listOf(SeatId(1))
-            bridge.drainReveals(0).map { it.ownerSeatId } shouldBe listOf(SeatId(2))
-            bridge.drainReveals(0) shouldBe emptyList()
+            assertSoftly {
+                bridge.drainReveals(1).map { it.ownerSeatId } shouldBe listOf(SeatId(1))
+                bridge.drainReveals(0).map { it.ownerSeatId } shouldBe listOf(SeatId(2))
+                bridge.drainReveals(0) shouldBe emptyList()
+            }
         }
     })

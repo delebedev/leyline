@@ -58,10 +58,12 @@ class ShapeIntegrationTest :
 
             val messages = base.bundleBuilder(b).declareAttackersBundle(game, counter).messages
 
-            messages.size shouldBe 2
-            messages[0].type shouldBe GREMessageType.GameStateMessage_695e
-            messages[1].type shouldBe GREMessageType.DeclareAttackersReq_695e
-            messages[1].prompt.promptId shouldBe 6
+            assertSoftly {
+                messages.size shouldBe 2
+                messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+                messages[1].type shouldBe GREMessageType.DeclareAttackersReq_695e
+                messages[1].prompt.promptId shouldBe 6
+            }
         }
 
         test("edictalPass produces single EdictalMessage") {

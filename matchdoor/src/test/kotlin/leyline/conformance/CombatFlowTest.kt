@@ -5,6 +5,9 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
@@ -113,7 +116,7 @@ class CombatFlowTest :
             if (cast2) h.passPriority() // resolve
 
             val creatures = h.humanBattlefieldCreatures()
-            (creatures.size >= 2).shouldBeTrue()
+            creatures.size shouldBeGreaterThanOrEqualTo 2
             return creatures.map { it.first }
         }
 
@@ -162,7 +165,7 @@ class CombatFlowTest :
             daReq.shouldNotBeNull()
 
             val req = daReq.declareAttackersReq
-            (req.attackersCount > 0).shouldBeTrue()
+            req.attackersCount shouldBeGreaterThan 0
 
             // The Raging Goblin (haste) should be among eligible attackers
             val eligibleIds = req.attackersList.map { it.attackerInstanceId }
@@ -198,7 +201,7 @@ class CombatFlowTest :
 
             // Both Raging Goblins (haste) should be eligible
             val ourEligible = attackerIids.filter { it in eligibleIds }
-            (ourEligible.size >= 2).shouldBeTrue()
+            ourEligible.size shouldBeGreaterThanOrEqualTo 2
 
             // Declare 2 attackers
             val twoAttackers = ourEligible.take(2)
@@ -300,7 +303,7 @@ class CombatFlowTest :
 
             // Verify AI took damage (1/1 unblocked = 1 damage)
             val lifeAfter = aiPlayer.life
-            (lifeAfter < lifeBefore).shouldBeTrue()
+            lifeAfter shouldBeLessThan lifeBefore
 
             h.accumulator.assertConsistent("after combat damage")
         }
@@ -350,7 +353,7 @@ class CombatFlowTest :
                 ann.typeList.any { it == AnnotationType.ModifiedLife }
             }
             if (lifeAnn != null) {
-                (lifeAnn.affectorId > 0).shouldBeTrue()
+                lifeAnn.affectorId shouldBeGreaterThan 0
             }
 
             damageGsm.annotationsList.none { ann ->
@@ -438,7 +441,7 @@ class CombatFlowTest :
 
             // Validate full message chain
             val allMsgs = h.messagesSince(snap)
-            (allMsgs.size >= 3).shouldBeTrue()
+            allMsgs.size shouldBeGreaterThanOrEqualTo 3
 
             // gsId chain must be valid across all combat phases
             assertGsIdChain(h.allMessages, context = "full combat turn cycle")
@@ -492,7 +495,7 @@ class CombatFlowTest :
             qualAttacker.hasSelectedDamageRecipient().shouldBeFalse()
 
             // Conformance: manaCost present (empty entry)
-            (echoReq.declareAttackersReq.manaCostCount > 0).shouldBeTrue()
+            echoReq.declareAttackersReq.manaCostCount shouldBeGreaterThan 0
         }
 
         test("echo back deselect clears selectedDamageRecipient") {
@@ -541,7 +544,7 @@ class CombatFlowTest :
         test("multi toggle before submit") {
             val attackerIids = setupMultipleAttackers()
             val h = harness!!
-            (attackerIids.size >= 2).shouldBeTrue()
+            attackerIids.size shouldBeGreaterThanOrEqualTo 2
             val (iidA, iidB) = attackerIids
 
             val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
@@ -595,7 +598,7 @@ class CombatFlowTest :
 
             // Verify AI took damage — Raging Goblin 1/1 unblocked = 1 damage
             val lifeAfter = aiPlayer.life
-            (lifeAfter < lifeBefore).shouldBeTrue()
+            lifeAfter shouldBeLessThan lifeBefore
         }
 
         test("attack all then submit deals damage") {
@@ -623,7 +626,7 @@ class CombatFlowTest :
 
             // Verify AI took damage
             val lifeAfter = aiPlayer.life
-            (lifeAfter < lifeBefore).shouldBeTrue()
+            lifeAfter shouldBeLessThan lifeBefore
         }
 
         test("declare no attackers skips combat") {

@@ -1,5 +1,6 @@
 package leyline.protocol
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
@@ -34,10 +35,12 @@ class ProtocolTest :
             cards.register(12345, "Lightning Bolt")
             cards.register(67890, "Counterspell")
 
-            cards.findNameByGrpId(12345) shouldBe "Lightning Bolt"
-            cards.findNameByGrpId(67890) shouldBe "Counterspell"
-            cards.findGrpIdByName("Lightning Bolt") shouldBe 12345
-            cards.findGrpIdByName("Counterspell") shouldBe 67890
+            assertSoftly {
+                cards.findNameByGrpId(12345) shouldBe "Lightning Bolt"
+                cards.findNameByGrpId(67890) shouldBe "Counterspell"
+                cards.findGrpIdByName("Lightning Bolt") shouldBe 12345
+                cards.findGrpIdByName("Counterspell") shouldBe 67890
+            }
 
             cards.findNameByGrpId(99999).shouldBeNull()
             cards.findGrpIdByName("Nonexistent Card").shouldBeNull()
@@ -88,9 +91,11 @@ class ProtocolTest :
             parsed.greToClientEvent.greToClientMessagesCount shouldBe 1
 
             val innerGre = parsed.greToClientEvent.getGreToClientMessages(0)
-            innerGre.type shouldBe GREMessageType.GameStateMessage_695e
-            innerGre.hasGameStateMessage().shouldBeTrue()
-            innerGre.gameStateMessage.playersCount shouldBe 2
+            assertSoftly {
+                innerGre.type shouldBe GREMessageType.GameStateMessage_695e
+                innerGre.hasGameStateMessage().shouldBeTrue()
+                innerGre.gameStateMessage.playersCount shouldBe 2
+            }
         }
 
         test("connect resp builds correctly") {
@@ -108,9 +113,11 @@ class ProtocolTest :
             val bytes = greToClient.toByteArray()
             val parsed = GREToClientMessage.parseFrom(bytes)
 
-            parsed.type shouldBe GREMessageType.ConnectResp_695e
-            parsed.connectResp.status shouldBe ConnectionStatus.Success_aa9e
-            parsed.connectResp.protoVer shouldBe ProtoVersion.PersistentAnnotations
+            assertSoftly {
+                parsed.type shouldBe GREMessageType.ConnectResp_695e
+                parsed.connectResp.status shouldBe ConnectionStatus.Success_aa9e
+                parsed.connectResp.protoVer shouldBe ProtoVersion.PersistentAnnotations
+            }
         }
 
         test("lookup by name uses in memory cache") {
@@ -126,10 +133,12 @@ class ProtocolTest :
             val grpIds = listOf(100, 100, 200, 200, 300)
             val msg = GsmBuilder.buildDeckMessage(grpIds)
 
-            msg.deckCardsCount shouldBe 5
-            msg.getDeckCards(0) shouldBe 100
-            msg.getDeckCards(2) shouldBe 200
-            msg.getDeckCards(4) shouldBe 300
+            assertSoftly {
+                msg.deckCardsCount shouldBe 5
+                msg.getDeckCards(0) shouldBe 100
+                msg.getDeckCards(2) shouldBe 200
+                msg.getDeckCards(4) shouldBe 300
+            }
         }
 
         test("auth response builds correctly") {
@@ -147,9 +156,11 @@ class ProtocolTest :
             val bytes = response.toByteArray()
             val parsed = MatchServiceToClientMessage.parseFrom(bytes)
 
-            parsed.requestId shouldBe 42
-            parsed.hasAuthenticateResponse().shouldBeTrue()
-            parsed.authenticateResponse.clientId shouldBe "leyline-client-1"
-            parsed.authenticateResponse.screenName shouldBe "Player"
+            assertSoftly {
+                parsed.requestId shouldBe 42
+                parsed.hasAuthenticateResponse().shouldBeTrue()
+                parsed.authenticateResponse.clientId shouldBe "leyline-client-1"
+                parsed.authenticateResponse.screenName shouldBe "Player"
+            }
         }
     })

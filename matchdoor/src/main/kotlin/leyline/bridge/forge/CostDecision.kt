@@ -105,8 +105,7 @@ class CostDecision(
     // Non-interactive visit() methods
     // ═══════════════════════════════════════════════════════════════════
 
-    override fun visit(cost: CostAddMana): PaymentDecision =
-        PaymentDecision.number(cost.getAbilityAmount(ability))
+    override fun visit(cost: CostAddMana): PaymentDecision = PaymentDecision.number(cost.getAbilityAmount(ability))
 
     override fun visit(cost: CostChooseColor): PaymentDecision {
         val c = cost.getAbilityAmount(ability)
@@ -207,7 +206,9 @@ class CostDecision(
     override fun visit(cost: CostPayEnergy): PaymentDecision? {
         val c = cost.getAbilityAmount(ability)
         if (player.canPayEnergy(c) &&
-            confirmAction(Localizer.getInstance().getMessage("lblPayEnergyConfirm", cost.toString(), player.getCounters(CounterEnumType.ENERGY).toString(), "{E}"))
+            confirmAction(
+                Localizer.getInstance().getMessage("lblPayEnergyConfirm", cost.toString(), player.getCounters(CounterEnumType.ENERGY).toString(), "{E}"),
+            )
         ) {
             return PaymentDecision.number(c)
         }
@@ -388,7 +389,7 @@ class CostDecision(
                     1,
                     cancelAllowed = true,
                 ) ?: return null
-                val first = selected.first
+                val first = selected.first()
                 discarded.add(first)
                 hand = CardLists.filter(hand, CardPredicates.sharesNameWith(first).negate())
                 c--
@@ -412,7 +413,7 @@ class CostDecision(
                     1,
                     cancelAllowed = true,
                 ) ?: return null
-                val first = selected.first
+                val first = selected.first()
                 discarded.add(first)
                 hand = CardLists.filter(hand, CardPredicates.nameEquals(first.name))
                 (hand as CardCollection).remove(first)
@@ -585,8 +586,8 @@ class CostDecision(
 
         if (cost.zoneRestriction != 0) {
             if (cost.zoneRestriction == -1 && ability.isTrigger && c == 1 && list.size == 1) {
-                return if (confirmAction(Localizer.getInstance().getMessage("lblExileConfirm", list.first.translatedName))) {
-                    PaymentDecision.card(list.first)
+                return if (confirmAction(Localizer.getInstance().getMessage("lblExileConfirm", list.first().translatedName))) {
+                    PaymentDecision.card(list.first())
                 } else {
                     null
                 }
@@ -824,7 +825,7 @@ class CostDecision(
             ) ?: return null
             // Validate all selected share a color
             if (selected.size > 1) {
-                val first = selected.first
+                val first = selected.first()
                 if (!selected.all { it === first || CardPredicates.sharesColorWith(first).test(it) }) {
                     return null
                 }
@@ -998,7 +999,7 @@ class CostDecision(
             1,
             cancelAllowed = true,
         )
-        val card = selected?.first ?: return null
+        val card = selected?.first() ?: return null
 
         val counterTable = generateCounterTable(card, cntrs, cntRemoved)
         return if (counterTable.isEmpty) null else PaymentDecision.counters(counterTable)
@@ -1101,7 +1102,7 @@ class CostDecision(
                     1,
                     cancelAllowed = true,
                 ) ?: return null
-                val first = selected.first
+                val first = selected.first()
                 chosen.add(first)
                 list = CardLists.filter(list, CardPredicates.sharesNameWith(first).negate())
                 c--
@@ -1172,7 +1173,7 @@ class CostDecision(
                     1,
                     cancelAllowed = true,
                 ) ?: return null
-                val first = selected.first
+                val first = selected.first()
                 tapped.add(first)
                 typeList = CardLists.filter(typeList) { it.sharesCreatureTypeWith(first) }
                 typeList.remove(first)
@@ -1239,8 +1240,8 @@ class CostDecision(
 
     override fun visit(cost: CostUnattach): PaymentDecision? {
         val cardToUnattach = cost.findCardToUnattach(source, player, ability)
-        if (cardToUnattach.size == 1 && confirmAction(Localizer.getInstance().getMessage("lblUnattachCardConfirm", cardToUnattach.first.translatedName))) {
-            return PaymentDecision.card(cardToUnattach.first)
+        if (cardToUnattach.size == 1 && confirmAction(Localizer.getInstance().getMessage("lblUnattachCardConfirm", cardToUnattach.first().translatedName))) {
+            return PaymentDecision.card(cardToUnattach.first())
         }
         if (cardToUnattach.size > 1) {
             val c = cost.getAbilityAmount(ability)

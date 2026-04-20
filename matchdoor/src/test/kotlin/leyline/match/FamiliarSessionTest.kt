@@ -1,5 +1,6 @@
 package leyline.match
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
@@ -71,9 +72,11 @@ class FamiliarSessionTest :
                 msgId = 10,
             ) { /* no extra config */ }
 
-            gre.type shouldBe GREMessageType.GameStateMessage_695e
-            gre.gameStateId shouldBe 5
-            gre.msgId shouldBe 10
-            gre.systemSeatIdsList shouldBe listOf(2)
+            assertSoftly {
+                gre.type shouldBe GREMessageType.GameStateMessage_695e
+                gre.gameStateId shouldBe 5
+                gre.msgId shouldBe 10
+                gre.systemSeatIdsList shouldBe listOf(2)
+            }
         }
     })

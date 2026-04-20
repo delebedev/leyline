@@ -7,9 +7,6 @@
     <ID>MissingAssertSoftly:AccountRoutesTest.kt$AccountRoutesTest$body shouldContain """"FdURI":"localhost:30010""""</ID>
     <ID>MissingAssertSoftly:AccountRoutesTest.kt$AccountRoutesTest$body shouldContain "access_token"</ID>
     <ID>MissingAssertSoftly:AccountRoutesTest.kt$AccountRoutesTest$body shouldContain "accountID"</ID>
-    <ID>MissingAssertSoftly:AccountStoreTest.kt$AccountStoreTest$account.email shouldBe "test@example.com"</ID>
-    <ID>MissingAssertSoftly:AccountStoreTest.kt$AccountStoreTest$account.shouldNotBeNull()</ID>
-    <ID>MissingAssertSoftly:TokenServiceTest.kt$TokenServiceTest$pair.accessToken shouldContain "."</ID>
     <ID>MissingAssertSoftly:TokenServiceTest.kt$TokenServiceTest$payload shouldContain "\"sub\":\"TEST-PERSONA-ID\""</ID>
     <ID>MissingAssertSoftly:TokenServiceTest.kt$TokenServiceTest$service.validateRefreshToken("not.a.jwt").shouldBeNull()</ID>
     <ID>WeakAssertionOnly:AccountStoreTest.kt$AccountStoreTest$test("duplicate email throws") { val store = freshStore() store.create("dup@test.com", "pass", "One") val ex = runCatching { store.create("dup@test.com", "pass", "Two") } ex.isFailure.shouldBeTrue() }</ID>

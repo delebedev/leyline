@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldBeNull
@@ -17,10 +18,12 @@ class KeywordQualificationsTest :
 
         test("Menace has known QualInfo") {
             val info = KeywordQualifications.forKeyword("Menace")
-            info.shouldNotBeNull()
-            info.grpId shouldBe GrpId(142)
-            info.qualificationType shouldBe QualificationType.CombatKeyword
-            info.qualificationSubtype shouldBe 0
+            assertSoftly {
+                info.shouldNotBeNull()
+                info.grpId shouldBe GrpId(142)
+                info.qualificationType shouldBe QualificationType.CombatKeyword
+                info.qualificationSubtype shouldBe 0
+            }
         }
 
         test("unknown keyword returns null") {

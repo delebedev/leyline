@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
@@ -223,8 +224,10 @@ class MatchRegistryTest :
             val replacement = MatchSession(seatId = SeatId(1), matchId = matchId, sink = sink, registry = registry, gameBridge = stubBridge(), paceDelayMs = 0)
             registry.registerSession(matchId, 1, replacement)
 
-            recreated.state shouldBe MatchState.WAITING
-            registry.getMatch(matchId) shouldBeSameInstanceAs recreated
-            registry.activeSession() shouldBeSameInstanceAs replacement
+            assertSoftly {
+                recreated.state shouldBe MatchState.WAITING
+                registry.getMatch(matchId) shouldBeSameInstanceAs recreated
+                registry.activeSession() shouldBeSameInstanceAs replacement
+            }
         }
     })

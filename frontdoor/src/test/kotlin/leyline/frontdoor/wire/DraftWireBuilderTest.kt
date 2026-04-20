@@ -1,5 +1,6 @@
 package leyline.frontdoor.wire
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -38,9 +39,11 @@ class DraftWireBuilderTest :
             val payloadStr = outer["Payload"]?.jsonPrimitive?.content ?: error("no Payload")
             val inner = Json.parseToJsonElement(payloadStr).jsonObject
 
-            inner["Result"]?.jsonPrimitive?.content shouldBe "Success"
-            inner["EventName"]?.jsonPrimitive?.content shouldBe "QuickDraft_ECL_20260223"
-            inner["DraftStatus"]?.jsonPrimitive?.content shouldBe "PickNext"
+            assertSoftly {
+                inner["Result"]?.jsonPrimitive?.content shouldBe "Success"
+                inner["EventName"]?.jsonPrimitive?.content shouldBe "QuickDraft_ECL_20260223"
+                inner["DraftStatus"]?.jsonPrimitive?.content shouldBe "PickNext"
+            }
         }
 
         test("DraftPack contains string grpIds") {

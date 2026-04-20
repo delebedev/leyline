@@ -1,5 +1,6 @@
 package leyline.unit
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -15,9 +16,11 @@ class PriorityDecisionTest :
 
         test("default state — shouldAutoPass=false") {
             val state = ClientAutoPassState()
-            state.shouldAutoPass() shouldBe false
-            state.autoPassOption shouldBe AutoPassOption.None_a465
-            state.stackAutoPassOption shouldBe AutoPassOption.None_a465
+            assertSoftly {
+                state.shouldAutoPass() shouldBe false
+                state.autoPassOption shouldBe AutoPassOption.None_a465
+                state.stackAutoPassOption shouldBe AutoPassOption.None_a465
+            }
         }
 
         test("update from settings — ResolveAll → shouldAutoPass=true") {
@@ -116,9 +119,11 @@ class PriorityDecisionTest :
 
         test("opponent stops default empty") {
             val state = ClientAutoPassState()
-            state.hasOpponentStop(forge.game.phase.PhaseType.COMBAT_BEGIN) shouldBe false
-            state.hasOpponentStop(forge.game.phase.PhaseType.MAIN1) shouldBe false
-            state.hasOpponentStop(forge.game.phase.PhaseType.END_OF_TURN) shouldBe false
+            assertSoftly {
+                state.hasOpponentStop(forge.game.phase.PhaseType.COMBAT_BEGIN) shouldBe false
+                state.hasOpponentStop(forge.game.phase.PhaseType.MAIN1) shouldBe false
+                state.hasOpponentStop(forge.game.phase.PhaseType.END_OF_TURN) shouldBe false
+            }
         }
 
         test("setOpponentStop enables and disables") {
@@ -135,9 +140,11 @@ class PriorityDecisionTest :
             state.setOpponentStop(forge.game.phase.PhaseType.MAIN1, true)
             state.setOpponentStop(forge.game.phase.PhaseType.END_OF_TURN, true)
 
-            state.hasOpponentStop(forge.game.phase.PhaseType.MAIN1) shouldBe true
-            state.hasOpponentStop(forge.game.phase.PhaseType.END_OF_TURN) shouldBe true
-            state.hasOpponentStop(forge.game.phase.PhaseType.COMBAT_BEGIN) shouldBe false
+            assertSoftly {
+                state.hasOpponentStop(forge.game.phase.PhaseType.MAIN1) shouldBe true
+                state.hasOpponentStop(forge.game.phase.PhaseType.END_OF_TURN) shouldBe true
+                state.hasOpponentStop(forge.game.phase.PhaseType.COMBAT_BEGIN) shouldBe false
+            }
 
             // Clear one, other remains
             state.setOpponentStop(forge.game.phase.PhaseType.MAIN1, false)

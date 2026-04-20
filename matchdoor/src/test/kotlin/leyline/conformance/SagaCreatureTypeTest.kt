@@ -4,6 +4,8 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
+import io.kotest.matchers.nulls.shouldNotBeNull
 import leyline.IntegrationTag
 
 /**
@@ -60,7 +62,7 @@ class SagaCreatureTypeTest :
 
                 val saga = game.humanPlayer.getZone(ZoneType.Battlefield).cards
                     .firstOrNull { it.name == "Summon: Brynhildr" }
-                (saga != null).shouldBeTrue()
+                saga.shouldNotBeNull()
 
                 // Core assertion: live Forge card type view carries BOTH types.
                 val types = saga!!.type.coreTypes.map { it.name }.toSet()
@@ -69,8 +71,8 @@ class SagaCreatureTypeTest :
 
                 // Sanity: creature stats are live (printed 2/1).
                 saga.isCreature.shouldBeTrue()
-                (saga.currentPower >= 2).shouldBeTrue()
-                (saga.currentToughness >= 1).shouldBeTrue()
+                saga.currentPower shouldBeGreaterThanOrEqualTo 2
+                saga.currentToughness shouldBeGreaterThanOrEqualTo 1
 
                 // Client-accumulator assertion: the BF gameObject for the
                 // saga carries both Enchantment and Creature card types live.
@@ -80,7 +82,7 @@ class SagaCreatureTypeTest :
                         it.type == wotc.mtgo.gre.external.messaging.Messages.GameObjectType.Card &&
                             it.grpId == TestCardRegistry.repo.findGrpIdByName("Summon: Brynhildr")
                     }
-                (sagaAccObj != null).shouldBeTrue()
+                sagaAccObj.shouldNotBeNull()
                 val accTypes = sagaAccObj!!.cardTypesList.map { it.name }
                 (accTypes.any { it.startsWith("Enchantment") }).shouldBeTrue()
                 (accTypes.any { it == "Creature" }).shouldBeTrue()

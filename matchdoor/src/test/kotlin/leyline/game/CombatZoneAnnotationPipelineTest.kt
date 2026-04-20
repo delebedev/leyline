@@ -41,11 +41,13 @@ class CombatZoneAnnotationPipelineTest :
             )
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
-            annotations.size shouldBe 2
-            annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
-            annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-            annotations[1].detailString("category") shouldBe "Destroy"
-            persistent.shouldBeEmpty()
+            assertSoftly {
+                annotations.size shouldBe 2
+                annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
+                annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+                annotations[1].detailString("category") shouldBe "Destroy"
+                persistent.shouldBeEmpty()
+            }
         }
 
         test("sacrificeProducesAnnotations") {
@@ -112,9 +114,11 @@ class CombatZoneAnnotationPipelineTest :
             )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
-            annotations.size shouldBe 2
-            annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
-            annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+            assertSoftly {
+                annotations.size shouldBe 2
+                annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
+                annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+            }
         }
 
         test("Sacrifice with mana payment has correct UserActionTaken fields") {
@@ -294,11 +298,13 @@ class CombatZoneAnnotationPipelineTest :
             )
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
-            annotations.size shouldBe 2
-            annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
-            annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-            annotations[1].detailString("category") shouldBe "Return"
-            persistent.size shouldBe 1
+            assertSoftly {
+                annotations.size shouldBe 2
+                annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
+                annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+                annotations[1].detailString("category") shouldBe "Return"
+                persistent.size shouldBe 1
+            }
         }
 
         test("returnToHandNoPersistent") {
@@ -331,9 +337,11 @@ class CombatZoneAnnotationPipelineTest :
             )
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
-            annotations.size shouldBe 2
-            annotations[1].detailString("category") shouldBe "Search"
-            persistent.size shouldBe 1
+            assertSoftly {
+                annotations.size shouldBe 2
+                annotations[1].detailString("category") shouldBe "Search"
+                persistent.size shouldBe 1
+            }
         }
 
         // --- annotationsForTransfer: Put ---
@@ -350,8 +358,10 @@ class CombatZoneAnnotationPipelineTest :
             )
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
-            annotations.size shouldBe 2
-            annotations[1].detailString("category") shouldBe "Put"
-            persistent.shouldBeEmpty()
+            assertSoftly {
+                annotations.size shouldBe 2
+                annotations[1].detailString("category") shouldBe "Put"
+                persistent.shouldBeEmpty()
+            }
         }
     })

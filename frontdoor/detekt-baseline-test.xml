@@ -6,49 +6,18 @@
     <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"Explorer Deck","DeckTileId":0,"Attributes":[{"name":"Format","value":"Explorer"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""</ID>
     <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"Fav","DeckTileId":0,"Attributes":[{"name":"IsFavorite","value":"true"},{"name":"Format","value":"Standard"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""</ID>
     <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"My Deck","DeckTileId":99,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":100,"quantity":4}],"Sideboard":[],"CommandZone":[],"Companions":[],"CardSkins":[]},"ActionType":"CreatedNew"}"""</ID>
-    <ID>MissingAssertSoftly:CourseServiceTest.kt$CourseServiceTest$course.module shouldBe CourseModule.DeckSelect</ID>
-    <ID>MissingAssertSoftly:CourseServiceTest.kt$CourseServiceTest$course.wins shouldBe 1</ID>
-    <ID>MissingAssertSoftly:DeckTest.kt$DeckTest$Format.fromString("standard") shouldBe Format.Standard</ID>
-    <ID>MissingAssertSoftly:DeckWireBuilderTest.kt$DeckWireBuilderTest$attrs shouldNotBe null</ID>
-    <ID>MissingAssertSoftly:DeckWireBuilderTest.kt$DeckWireBuilderTest$entry["MainDeck"]?.jsonArray shouldNotBe null</ID>
-    <ID>MissingAssertSoftly:DeckWireBuilderTest.kt$DeckWireBuilderTest$legalities["Standard"]?.jsonPrimitive?.boolean shouldBe true</ID>
-    <ID>MissingAssertSoftly:DeckWireBuilderTest.kt$DeckWireBuilderTest$parsed shouldNotBe null</ID>
-    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$after.pickNumber shouldBe 1</ID>
-    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$session.packNumber shouldBe 1</ID>
-    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$session.status shouldBe DraftStatus.Completed</ID>
-    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$session.status shouldBe DraftStatus.PickNext</ID>
-    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$status shouldNotBe null</ID>
-    <ID>MissingAssertSoftly:DraftWireBuilderTest.kt$DraftWireBuilderTest$inner["Result"]?.jsonPrimitive?.content shouldBe "Success"</ID>
     <ID>MissingAssertSoftly:FormatServiceTest.kt$FormatServiceTest$EventRegistry.mapArenaFormat("Timeless").shouldBeNull()</ID>
-    <ID>MissingAssertSoftly:FormatServiceTest.kt$FormatServiceTest$EventRegistry.mapArenaFormat("TraditionalStandard") shouldBe "Standard"</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$course.shouldNotBeNull()</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$courses.shouldNotBeNull()</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$deck["DeckId"].shouldNotBeNull()</ID>
     <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$deck["MainDeck"].shouldNotBeNull()</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$draftCourse.shouldNotBeNull()</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$matchInfo.shouldNotBeNull()</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$obj["DeckSummaries"].shouldNotBeNull()</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$outer["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$payload["PickNumber"]?.jsonPrimitive?.int shouldBe 1</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$payload["Result"]?.jsonPrimitive?.content shouldBe "Success"</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$prefs.shouldNotBeNull()</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$saved.shouldNotBeNull()</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$summary.shouldNotBeNull()</ID>
-    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$summary["DeckId"]?.jsonPrimitive?.content shouldBe newDeckId</ID>
-    <ID>MissingAssertSoftly:SqliteCourseRepositoryTest.kt$SqliteCourseRepositoryTest$found shouldNotBe null</ID>
-    <ID>MissingAssertSoftly:SqliteCourseRepositoryTest.kt$SqliteCourseRepositoryTest$found.wins shouldBe 2</ID>
-    <ID>MissingAssertSoftly:SqlitePlayerStoreTest.kt$SqlitePlayerStoreTest$found shouldNotBe null</ID>
-    <ID>MissingAssertSoftly:SqlitePlayerStoreTest.kt$SqlitePlayerStoreTest$found.name shouldBe "Updated Weenie"</ID>
     <ID>WeakAssertionOnly:DraftWireBuilderTest.kt$DraftWireBuilderTest$test("DraftPack contains string grpIds") { val json = DraftWireBuilder.buildDraftResponse(session) val outer = Json.parseToJsonElement(json).jsonObject val payloadStr = outer["Payload"]!!.jsonPrimitive.content payloadStr shouldContain "\"98353\"" payloadStr shouldContain "\"98519\"" }</ID>
     <ID>WeakAssertionOnly:EventRegistryTest.kt$EventRegistryTest$test("queue config includes AIBotMatch") { val result = EventWireBuilder.toQueueConfigJson(EventRegistry.queues) result shouldContain "AIBotMatch" }</ID>
-    <ID>WeakAssertionOnly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$test("CmdType 1 - StartHook contains DeckSummaries and Decks") { val obj = sendJson(1) obj["DeckSummaries"].shouldNotBeNull() (obj["DeckSummaries"] as JsonArray).shouldNotBeEmpty() obj["Decks"].shouldNotBeNull() obj["InventoryInfo"].shouldNotBeNull() }</ID>
-    <ID>WeakAssertionOnly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$test("CmdType 1 - StartHook deck summaries have required fields") { val obj = sendJson(1) val summaries = obj["DeckSummaries"]!!.jsonArray summaries.shouldNotBeEmpty() val deck = summaries[0].jsonObject deck["DeckId"].shouldNotBeNull() deck["Name"].shouldNotBeNull() deck["DeckTileId"].shouldNotBeNull() deck["Attributes"].shouldNotBeNull() deck["PreferredCosmetics"].shouldNotBeNull() }</ID>
+    <ID>WeakAssertionOnly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$test("CmdType 1 - StartHook contains DeckSummaries and Decks") { val obj = sendJson(1) assertSoftly { obj["DeckSummaries"].shouldNotBeNull() (obj["DeckSummaries"] as JsonArray).shouldNotBeEmpty() obj["Decks"].shouldNotBeNull() obj["InventoryInfo"].shouldNotBeNull() } }</ID>
+    <ID>WeakAssertionOnly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$test("CmdType 1 - StartHook deck summaries have required fields") { val obj = sendJson(1) val summaries = obj["DeckSummaries"]!!.jsonArray summaries.shouldNotBeEmpty() val deck = summaries[0].jsonObject assertSoftly { deck["DeckId"].shouldNotBeNull() deck["Name"].shouldNotBeNull() deck["DeckTileId"].shouldNotBeNull() deck["Attributes"].shouldNotBeNull() deck["PreferredCosmetics"].shouldNotBeNull() } }</ID>
     <ID>WeakAssertionOnly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$test("CmdType 1100 - RankInfo returns required fields") { val obj = sendJson(1100) obj["constructedClass"].shouldNotBeNull() obj["limitedClass"].shouldNotBeNull() }</ID>
     <ID>WeakAssertionOnly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$test("CmdType 1700 - GraphDefinitions returns JSON") { val ch = fdChannel() val msg = ch.sendCmd(1700) msg.jsonPayload.shouldNotBeNull().shouldNotBeEmpty() json.parseToJsonElement(msg.jsonPayload!!) // valid JSON }</ID>
     <ID>WeakAssertionOnly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$test("CmdType 410 - PreconDecksV3 returns precon decks from bootstrap data") { val obj = sendJson(410) obj["PreconDecks"]?.jsonArray.shouldNotBeNull() }</ID>
     <ID>WeakAssertionOnly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$test("CmdType 6 - GetFormats returns proto response") { val ch = fdChannel() val msg = ch.sendCmd(6) msg.transactionId.shouldNotBeNull() // Proto response — jsonPayload may be null but response must exist }</ID>
     <ID>WeakAssertionOnly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$test("CmdType 613 - ActiveMatches returns empty list") { val obj = sendJson(613) obj["MatchesV3"]?.jsonArray.shouldNotBeNull() }</ID>
-    <ID>WeakAssertionOnly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$test("CmdType 623 - EventGetCoursesV2 returns courses with defaults") { val obj = sendJson(623) val courses = obj["Courses"]?.jsonArray courses.shouldNotBeNull() courses.shouldNotBeEmpty() courses.shouldNotBeEmpty() }</ID>
+    <ID>WeakAssertionOnly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$test("CmdType 623 - EventGetCoursesV2 returns courses with defaults") { val obj = sendJson(623) val courses = obj["Courses"]?.jsonArray assertSoftly { courses.shouldNotBeNull() courses.shouldNotBeEmpty() courses.shouldNotBeEmpty() } }</ID>
     <ID>WeakAssertionOnly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$test("CmdType 624 - ActiveEventsV2 has events and AiBotMatches") { val obj = sendJson(624) val events = obj["Events"]?.jsonArray events.shouldNotBeNull() events.shouldNotBeEmpty() val names = events.map { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content } names shouldNotContain "AIBotMatch" // lives in AiBotMatches, not Events val bots = obj["AiBotMatches"]?.jsonArray bots.shouldNotBeNull() bots.shouldNotBeEmpty() val botNames = bots.map { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content } botNames shouldContain "AIBotMatch" }</ID>
     <ID>WeakAssertionOnly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$test("CmdType 9999 - unknown returns response without error") { val ch = fdChannel() val msg = ch.sendCmd(9999) msg.transactionId.shouldNotBeNull() // Empty response is fine — just shouldn't crash }</ID>
   </CurrentIssues>

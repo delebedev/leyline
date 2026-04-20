@@ -1,5 +1,6 @@
 package leyline.frontdoor.service
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -32,12 +33,14 @@ class DraftServiceTest :
             val service = createService()
             val session = service.startDraft(playerId, eventName)
 
-            session.status shouldBe DraftStatus.PickNext
-            session.packNumber shouldBe 0
-            session.pickNumber shouldBe 0
-            session.draftPack shouldHaveSize 13
-            session.pickedCards shouldHaveSize 0
-            session.packs shouldHaveSize 3
+            assertSoftly {
+                session.status shouldBe DraftStatus.PickNext
+                session.packNumber shouldBe 0
+                session.pickNumber shouldBe 0
+                session.draftPack shouldHaveSize 13
+                session.pickedCards shouldHaveSize 0
+                session.packs shouldHaveSize 3
+            }
         }
 
         test("startDraft returns existing session if already started") {
@@ -54,11 +57,13 @@ class DraftServiceTest :
 
             val after = service.pick(playerId, eventName, cardToPick, packNumber = 0, pickNumber = 0)
 
-            after.pickNumber shouldBe 1
-            after.packNumber shouldBe 0
-            after.draftPack shouldHaveSize 12
-            after.pickedCards shouldBe listOf(cardToPick)
-            after.status shouldBe DraftStatus.PickNext
+            assertSoftly {
+                after.pickNumber shouldBe 1
+                after.packNumber shouldBe 0
+                after.draftPack shouldHaveSize 12
+                after.pickedCards shouldBe listOf(cardToPick)
+                after.status shouldBe DraftStatus.PickNext
+            }
         }
 
         test("picking all 13 cards in pack 0 advances to pack 1") {
@@ -70,10 +75,12 @@ class DraftServiceTest :
                 session = service.pick(playerId, eventName, card, packNumber = session.packNumber, pickNumber = session.pickNumber)
             }
 
-            session.packNumber shouldBe 1
-            session.pickNumber shouldBe 0
-            session.draftPack shouldHaveSize 13
-            session.pickedCards shouldHaveSize 13
+            assertSoftly {
+                session.packNumber shouldBe 1
+                session.pickNumber shouldBe 0
+                session.draftPack shouldHaveSize 13
+                session.pickedCards shouldHaveSize 13
+            }
         }
 
         test("picking all 39 cards completes draft") {
@@ -85,11 +92,13 @@ class DraftServiceTest :
                 session = service.pick(playerId, eventName, card, packNumber = session.packNumber, pickNumber = session.pickNumber)
             }
 
-            session.status shouldBe DraftStatus.Completed
-            session.pickedCards shouldHaveSize 39
-            session.draftPack shouldHaveSize 0
-            session.packNumber shouldBe 2
-            session.pickNumber shouldBe 12
+            assertSoftly {
+                session.status shouldBe DraftStatus.Completed
+                session.pickedCards shouldHaveSize 39
+                session.draftPack shouldHaveSize 0
+                session.packNumber shouldBe 2
+                session.pickNumber shouldBe 12
+            }
         }
 
         test("getStatus returns current session state") {
@@ -97,9 +106,11 @@ class DraftServiceTest :
             service.startDraft(playerId, eventName)
 
             val status = service.getStatus(playerId, eventName)
-            status shouldNotBe null
-            status!!.status shouldBe DraftStatus.PickNext
-            status.draftPack shouldHaveSize 13
+            assertSoftly {
+                status shouldNotBe null
+                status!!.status shouldBe DraftStatus.PickNext
+                status.draftPack shouldHaveSize 13
+            }
         }
 
         test("getStatus returns null for non-existent session") {
@@ -138,8 +149,10 @@ class DraftServiceTest :
                 session = service.pick(playerId, eventName, card, session.packNumber, session.pickNumber)
             }
 
-            session.status shouldBe DraftStatus.Completed
-            session.pickedCards shouldHaveSize totalCards
-            session.draftPack shouldHaveSize 0
+            assertSoftly {
+                session.status shouldBe DraftStatus.Completed
+                session.pickedCards shouldHaveSize totalCards
+                session.draftPack shouldHaveSize 0
+            }
         }
     })

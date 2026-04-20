@@ -61,9 +61,11 @@ class MechanicAnnotationPipelineTest :
             )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
-            annotations.size shouldBe 1
-            annotations[0].typeList shouldContain AnnotationType.CounterRemoved
-            annotations[0].detailInt("transaction_amount") shouldBe 3
+            assertSoftly {
+                annotations.size shouldBe 1
+                annotations[0].typeList shouldContain AnnotationType.CounterRemoved
+                annotations[0].detailInt("transaction_amount") shouldBe 3
+            }
         }
 
         test("counterUnchangedSkipped") {
@@ -96,10 +98,12 @@ class MechanicAnnotationPipelineTest :
             )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
-            annotations.size shouldBe 1
-            annotations[0].typeList shouldContain AnnotationType.Scry_af5a
-            annotations[0].detailInt("topCount") shouldBe 1
-            annotations[0].detailInt("bottomCount") shouldBe 2
+            assertSoftly {
+                annotations.size shouldBe 1
+                annotations[0].typeList shouldContain AnnotationType.Scry_af5a
+                annotations[0].detailInt("topCount") shouldBe 1
+                annotations[0].detailInt("bottomCount") shouldBe 2
+            }
         }
 
         // -- Surveil --
@@ -122,9 +126,11 @@ class MechanicAnnotationPipelineTest :
             )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
-            annotations.size shouldBe 1
-            annotations[0].typeList shouldContain AnnotationType.TokenCreated
-            annotations[0].affectedIdsList shouldContain 1099
+            assertSoftly {
+                annotations.size shouldBe 1
+                annotations[0].typeList shouldContain AnnotationType.TokenCreated
+                annotations[0].affectedIdsList shouldContain 1099
+            }
         }
 
         // -- TokenDestroyed --
@@ -135,10 +141,12 @@ class MechanicAnnotationPipelineTest :
             )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
-            annotations.size shouldBe 1
-            annotations[0].typeList shouldContain AnnotationType.TokenDeleted
-            annotations[0].affectorId shouldBe 1088
-            annotations[0].affectedIdsList shouldContain 1088
+            assertSoftly {
+                annotations.size shouldBe 1
+                annotations[0].typeList shouldContain AnnotationType.TokenDeleted
+                annotations[0].affectorId shouldBe 1088
+                annotations[0].affectedIdsList shouldContain 1088
+            }
         }
 
         // -- PowerToughnessChanged --
@@ -166,9 +174,11 @@ class MechanicAnnotationPipelineTest :
             )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
-            annotations.size shouldBe 2
-            annotations[0].typeList shouldContain AnnotationType.ModifiedPower
-            annotations[1].typeList shouldContain AnnotationType.PowerToughnessModCreated
+            assertSoftly {
+                annotations.size shouldBe 2
+                annotations[0].typeList shouldContain AnnotationType.ModifiedPower
+                annotations[1].typeList shouldContain AnnotationType.PowerToughnessModCreated
+            }
         }
 
         test("toughnessOnlyChangedOneAnnotation") {
@@ -177,9 +187,11 @@ class MechanicAnnotationPipelineTest :
             )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
-            annotations.size shouldBe 2
-            annotations[0].typeList shouldContain AnnotationType.ModifiedToughness
-            annotations[1].typeList shouldContain AnnotationType.PowerToughnessModCreated
+            assertSoftly {
+                annotations.size shouldBe 2
+                annotations[0].typeList shouldContain AnnotationType.ModifiedToughness
+                annotations[1].typeList shouldContain AnnotationType.PowerToughnessModCreated
+            }
         }
 
         // -- CardAttached --
@@ -226,9 +238,11 @@ class MechanicAnnotationPipelineTest :
             val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
             val annotations = result.transient
 
-            annotations.size shouldBe 1
-            annotations[0].typeList shouldContain AnnotationType.RemoveAttachment
-            annotations[0].affectedIdsList shouldContain testResolver(ForgeCardId(60)).value
+            assertSoftly {
+                annotations.size shouldBe 1
+                annotations[0].typeList shouldContain AnnotationType.RemoveAttachment
+                annotations[0].affectedIdsList shouldContain testResolver(ForgeCardId(60)).value
+            }
         }
 
         // -- Mixed events --
@@ -254,10 +268,12 @@ class MechanicAnnotationPipelineTest :
             )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
-            annotations.size shouldBe 1
-            annotations[0].typeList shouldContain AnnotationType.TappedUntappedPermanent
-            annotations[0].affectedIdsList shouldContain testResolver(ForgeCardId(70)).value
-            annotations[0].detailInt("tapped") shouldBe 1
+            assertSoftly {
+                annotations.size shouldBe 1
+                annotations[0].typeList shouldContain AnnotationType.TappedUntappedPermanent
+                annotations[0].affectedIdsList shouldContain testResolver(ForgeCardId(70)).value
+                annotations[0].detailInt("tapped") shouldBe 1
+            }
         }
 
         test("cardUntappedProducesAnnotation") {
@@ -266,9 +282,11 @@ class MechanicAnnotationPipelineTest :
             )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
-            annotations.size shouldBe 1
-            annotations[0].typeList shouldContain AnnotationType.TappedUntappedPermanent
-            annotations[0].detailInt("tapped") shouldBe 0
+            assertSoftly {
+                annotations.size shouldBe 1
+                annotations[0].typeList shouldContain AnnotationType.TappedUntappedPermanent
+                annotations[0].detailInt("tapped") shouldBe 0
+            }
         }
 
         test("mechanicAnnotationsMultipleEvents") {
@@ -279,8 +297,10 @@ class MechanicAnnotationPipelineTest :
                 GameEvent.Scry(seatId = SeatId(1), topCount = 2, bottomCount = 0),
             )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
-            annotations.size shouldBe 2
-            annotations[0].typeList shouldContain AnnotationType.CounterAdded
-            annotations[1].typeList shouldContain AnnotationType.Scry_af5a
+            assertSoftly {
+                annotations.size shouldBe 2
+                annotations[0].typeList shouldContain AnnotationType.CounterAdded
+                annotations[1].typeList shouldContain AnnotationType.Scry_af5a
+            }
         }
     })

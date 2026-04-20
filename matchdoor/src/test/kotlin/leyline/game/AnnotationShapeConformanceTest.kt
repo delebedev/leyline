@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.fail
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -182,22 +183,24 @@ class AnnotationShapeConformanceTest :
         }
 
         test("No-detail annotations: NewTurnStarted, EnteredZoneThisTurn, etc.") {
-            detailKeys(AnnotationBuilder.newTurnStarted(1.sid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.enteredZoneThisTurn(28, 1.iid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.abilityInstanceDeleted(1.iid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.tokenCreated(1.iid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.tokenDeleted(1.iid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.attachmentCreated(1.iid, 2.iid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.attachment(1.iid, 2.iid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.removeAttachment(1.iid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.shuffle(1.sid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.revealedCardCreated(1.iid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.revealedCardDeleted(1.iid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.layeredEffectDestroyed(1.eid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.playerSelectingTargets(1.iid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.playerSubmittedTargets(1.iid)) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.damagedThisTurn(listOf(1.iid))) shouldBe emptySet()
-            detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1.iid)) shouldBe emptySet()
+            assertSoftly {
+                detailKeys(AnnotationBuilder.newTurnStarted(1.sid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.enteredZoneThisTurn(28, 1.iid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.abilityInstanceDeleted(1.iid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.tokenCreated(1.iid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.tokenDeleted(1.iid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.attachmentCreated(1.iid, 2.iid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.attachment(1.iid, 2.iid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.removeAttachment(1.iid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.shuffle(1.sid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.revealedCardCreated(1.iid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.revealedCardDeleted(1.iid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.layeredEffectDestroyed(1.eid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.playerSelectingTargets(1.iid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.playerSubmittedTargets(1.iid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.damagedThisTurn(listOf(1.iid))) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1.iid)) shouldBe emptySet()
+            }
         }
 
         // =======================================================================

@@ -1,8 +1,10 @@
 package leyline.game
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
@@ -38,9 +40,11 @@ class StateMapperShapeTest :
             gs.timersCount shouldBeGreaterThanOrEqual 2
             val timer1 = gs.timersList.first { it.timerId == 1 }
             val timer2 = gs.timersList.first { it.timerId == 2 }
-            timer1.type shouldBe Messages.TimerType.Inactivity_a5e2
-            timer2.type shouldBe Messages.TimerType.Inactivity_a5e2
-            timer1.durationSec shouldBeGreaterThan 0
+            assertSoftly {
+                timer1.type shouldBe Messages.TimerType.Inactivity_a5e2
+                timer2.type shouldBe Messages.TimerType.Inactivity_a5e2
+                timer1.durationSec shouldBeGreaterThan 0
+            }
         }
 
         test("zone visibility matches compatibility shape") {
@@ -53,10 +57,12 @@ class StateMapperShapeTest :
             val gs = StateMapper.buildFromSnapshot(snap, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
 
             val byId = gs.zonesList.associateBy { it.zoneId }
-            byId[ZoneIds.SUPPRESSED]!!.visibility shouldBe Messages.Visibility.Public
-            byId[ZoneIds.PENDING]!!.visibility shouldBe Messages.Visibility.Public
-            byId[ZoneIds.P1_SIDEBOARD]!!.visibility shouldBe Messages.Visibility.Private
-            byId[ZoneIds.P2_SIDEBOARD]!!.visibility shouldBe Messages.Visibility.Private
+            assertSoftly {
+                byId[ZoneIds.SUPPRESSED]!!.visibility shouldBe Messages.Visibility.Public
+                byId[ZoneIds.PENDING]!!.visibility shouldBe Messages.Visibility.Public
+                byId[ZoneIds.P1_SIDEBOARD]!!.visibility shouldBe Messages.Visibility.Private
+                byId[ZoneIds.P2_SIDEBOARD]!!.visibility shouldBe Messages.Visibility.Private
+            }
 
             val gyObjects = gs.gameObjectsList.filter { obj ->
                 obj.zoneId == ZoneIds.P1_GRAVEYARD || obj.zoneId == ZoneIds.P2_GRAVEYARD
@@ -116,8 +122,8 @@ class StateMapperShapeTest :
             }
             lands.shouldNotBeEmpty()
             for (land in lands) {
-                land.superTypesList.contains(Messages.SuperType.Basic).shouldBeTrue()
-                land.subtypesList.contains(Messages.SubType.Forest).shouldBeTrue()
+                land.superTypesList shouldContain Messages.SuperType.Basic
+                land.subtypesList shouldContain Messages.SubType.Forest
             }
 
             val creatures = handObjects.filter {

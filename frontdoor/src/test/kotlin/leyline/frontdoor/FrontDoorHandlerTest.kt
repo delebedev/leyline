@@ -1,5 +1,6 @@
 package leyline.frontdoor
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -199,10 +200,12 @@ class FrontDoorHandlerTest :
 
         test("CmdType 1 - StartHook contains DeckSummaries and Decks") {
             val obj = sendJson(1)
-            obj["DeckSummaries"].shouldNotBeNull()
-            (obj["DeckSummaries"] as JsonArray).shouldNotBeEmpty()
-            obj["Decks"].shouldNotBeNull()
-            obj["InventoryInfo"].shouldNotBeNull()
+            assertSoftly {
+                obj["DeckSummaries"].shouldNotBeNull()
+                (obj["DeckSummaries"] as JsonArray).shouldNotBeEmpty()
+                obj["Decks"].shouldNotBeNull()
+                obj["InventoryInfo"].shouldNotBeNull()
+            }
         }
 
         test("CmdType 1 - StartHook deck summaries have required fields") {
@@ -210,11 +213,13 @@ class FrontDoorHandlerTest :
             val summaries = obj["DeckSummaries"]!!.jsonArray
             summaries.shouldNotBeEmpty()
             val deck = summaries[0].jsonObject
-            deck["DeckId"].shouldNotBeNull()
-            deck["Name"].shouldNotBeNull()
-            deck["DeckTileId"].shouldNotBeNull()
-            deck["Attributes"].shouldNotBeNull()
-            deck["PreferredCosmetics"].shouldNotBeNull()
+            assertSoftly {
+                deck["DeckId"].shouldNotBeNull()
+                deck["Name"].shouldNotBeNull()
+                deck["DeckTileId"].shouldNotBeNull()
+                deck["Attributes"].shouldNotBeNull()
+                deck["PreferredCosmetics"].shouldNotBeNull()
+            }
         }
 
         test("CmdType 1 - StartHook deck cards have MainDeck and CardSkins") {
@@ -247,11 +252,13 @@ class FrontDoorHandlerTest :
             val pushObj = json.parseToJsonElement(pushJson).jsonObject
             pushObj["Type"]?.jsonPrimitive?.content shouldBe "MatchCreated"
             val matchInfo = pushObj["MatchInfoV3"]?.jsonObject
-            matchInfo.shouldNotBeNull()
-            matchInfo["MatchEndpointHost"].shouldNotBeNull()
-            matchInfo["MatchEndpointPort"].shouldNotBeNull()
-            matchInfo["MatchId"].shouldNotBeNull()
-            matchInfo["EventId"]?.jsonPrimitive?.content shouldBe "AIBotMatch"
+            assertSoftly {
+                matchInfo.shouldNotBeNull()
+                matchInfo["MatchEndpointHost"].shouldNotBeNull()
+                matchInfo["MatchEndpointPort"].shouldNotBeNull()
+                matchInfo["MatchId"].shouldNotBeNull()
+                matchInfo["EventId"]?.jsonPrimitive?.content shouldBe "AIBotMatch"
+            }
         }
 
         test("CmdType 612 - always creates AIBotMatch regardless of payload") {
@@ -351,9 +358,11 @@ class FrontDoorHandlerTest :
         test("CmdType 623 - EventGetCoursesV2 returns courses with defaults") {
             val obj = sendJson(623)
             val courses = obj["Courses"]?.jsonArray
-            courses.shouldNotBeNull()
-            courses.shouldNotBeEmpty()
-            courses.shouldNotBeEmpty()
+            assertSoftly {
+                courses.shouldNotBeNull()
+                courses.shouldNotBeEmpty()
+                courses.shouldNotBeEmpty()
+            }
         }
 
         test("CmdType 623 - every course matches reference shape") {
@@ -443,18 +452,22 @@ class FrontDoorHandlerTest :
             val msg = ch.sendCmd(406, payload)
             val resp = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
             val summary = resp["Summary"]?.jsonObject
-            summary.shouldNotBeNull()
-            summary["DeckId"]?.jsonPrimitive?.content shouldBe newDeckId
-            summary["Name"]?.jsonPrimitive?.content shouldBe "New Deck"
-            summary["FormatLegalities"]?.jsonObject.shouldNotBeNull()
-            summary["PreferredCosmetics"]?.jsonObject.shouldNotBeNull()
-            summary["DeckValidationSummaries"]?.jsonArray.shouldNotBeNull()
+            assertSoftly {
+                summary.shouldNotBeNull()
+                summary["DeckId"]?.jsonPrimitive?.content shouldBe newDeckId
+                summary["Name"]?.jsonPrimitive?.content shouldBe "New Deck"
+                summary["FormatLegalities"]?.jsonObject.shouldNotBeNull()
+                summary["PreferredCosmetics"]?.jsonObject.shouldNotBeNull()
+                summary["DeckValidationSummaries"]?.jsonArray.shouldNotBeNull()
+            }
 
             val saved = deckService.getById(DeckId(newDeckId))
-            saved.shouldNotBeNull()
-            saved.name shouldBe "New Deck"
-            saved.mainDeck.size shouldBe 1
-            saved.mainDeck[0].grpId shouldBe 75515
+            assertSoftly {
+                saved.shouldNotBeNull()
+                saved.name shouldBe "New Deck"
+                saved.mainDeck.size shouldBe 1
+                saved.mainDeck[0].grpId shouldBe 75515
+            }
         }
 
         test("CmdType 412 - UpsertDeckV3 saves deck and returns bare 6-field summary") {
@@ -480,21 +493,27 @@ class FrontDoorHandlerTest :
             val msg = ch.sendCmd(412, payload)
             val summary = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
             // Response is bare summary — no outer {Summary: ...} wrapper
-            summary["DeckId"]?.jsonPrimitive?.content shouldBe newDeckId
-            summary["Name"]?.jsonPrimitive?.content shouldBe "V3 Deck"
-            summary["DeckTileId"]?.jsonPrimitive?.int shouldBe 22222
-            summary["DeckArtId"].shouldNotBeNull()
-            summary["Attributes"]?.jsonArray.shouldNotBeNull()
-            summary["PreferredCosmetics"]?.jsonObject.shouldNotBeNull()
+            assertSoftly {
+                summary["DeckId"]?.jsonPrimitive?.content shouldBe newDeckId
+                summary["Name"]?.jsonPrimitive?.content shouldBe "V3 Deck"
+                summary["DeckTileId"]?.jsonPrimitive?.int shouldBe 22222
+                summary["DeckArtId"].shouldNotBeNull()
+                summary["Attributes"]?.jsonArray.shouldNotBeNull()
+                summary["PreferredCosmetics"]?.jsonObject.shouldNotBeNull()
+            }
             // Trimmed fields MUST NOT appear — client's DeckSummary converter rejects them
-            summary["FormatLegalities"] shouldBe null
-            summary["DeckValidationSummaries"] shouldBe null
-            summary["UnownedCards"] shouldBe null
+            assertSoftly {
+                summary["FormatLegalities"] shouldBe null
+                summary["DeckValidationSummaries"] shouldBe null
+                summary["UnownedCards"] shouldBe null
+            }
 
             val saved = deckService.getById(DeckId(newDeckId))
-            saved.shouldNotBeNull()
-            saved.name shouldBe "V3 Deck"
-            saved.mainDeck[0].grpId shouldBe 75515
+            assertSoftly {
+                saved.shouldNotBeNull()
+                saved.name shouldBe "V3 Deck"
+                saved.mainDeck[0].grpId shouldBe 75515
+            }
         }
 
         test("CmdType 1912 - SetPlayerPreferences round-trips through 1911") {
@@ -506,9 +525,11 @@ class FrontDoorHandlerTest :
             val readMsg = ch.sendCmd(1911)
             val obj = json.parseToJsonElement(readMsg.jsonPayload.shouldNotBeNull()).jsonObject
             val prefs = obj["Preferences"]?.jsonObject
-            prefs.shouldNotBeNull()
-            prefs["AutoTapEnabled"]?.jsonPrimitive?.boolean shouldBe true
-            prefs["AutoOrderTriggeredAbilities"]?.jsonPrimitive?.boolean shouldBe false
+            assertSoftly {
+                prefs.shouldNotBeNull()
+                prefs["AutoTapEnabled"]?.jsonPrimitive?.boolean shouldBe true
+                prefs["AutoOrderTriggeredAbilities"]?.jsonPrimitive?.boolean shouldBe false
+            }
         }
 
         test("CmdType 9999 - unknown returns response without error") {
@@ -607,10 +628,12 @@ class FrontDoorHandlerTest :
             val ch = fdChannelWithCourseService()
             val obj = sendJson(600, """{"EventName":"QuickDraft_ECL_20260223"}""", ch)
             val course = obj["Course"]?.jsonObject
-            course.shouldNotBeNull()
-            course["CurrentModule"]?.jsonPrimitive?.content shouldBe "BotDraft"
-            course["CardPool"]?.jsonArray.shouldNotBeNull()
-            course["CardPool"]!!.jsonArray.shouldBeEmpty()
+            assertSoftly {
+                course.shouldNotBeNull()
+                course["CurrentModule"]?.jsonPrimitive?.content shouldBe "BotDraft"
+                course["CardPool"]?.jsonArray.shouldNotBeNull()
+                course["CardPool"]!!.jsonArray.shouldBeEmpty()
+            }
         }
 
         test("CmdType 1800 - BotDraft_StartDraft returns draft response with first pack") {
@@ -624,12 +647,14 @@ class FrontDoorHandlerTest :
             val payloadStr = obj["Payload"]?.jsonPrimitive?.content
             payloadStr.shouldNotBeNull()
             val payload = json.parseToJsonElement(payloadStr).jsonObject
-            payload["Result"]?.jsonPrimitive?.content shouldBe "Success"
-            payload["DraftStatus"]?.jsonPrimitive?.content shouldBe "PickNext"
-            payload["PackNumber"]?.jsonPrimitive?.int shouldBe 0
-            payload["PickNumber"]?.jsonPrimitive?.int shouldBe 0
-            payload["DraftPack"]?.jsonArray.shouldNotBeNull()
-            payload["DraftPack"]!!.jsonArray.size shouldBe 13
+            assertSoftly {
+                payload["Result"]?.jsonPrimitive?.content shouldBe "Success"
+                payload["DraftStatus"]?.jsonPrimitive?.content shouldBe "PickNext"
+                payload["PackNumber"]?.jsonPrimitive?.int shouldBe 0
+                payload["PickNumber"]?.jsonPrimitive?.int shouldBe 0
+                payload["DraftPack"]?.jsonArray.shouldNotBeNull()
+                payload["DraftPack"]!!.jsonArray.size shouldBe 13
+            }
         }
 
         test("CmdType 1801 - BotDraft_DraftPick advances pick and returns updated state") {
@@ -647,9 +672,11 @@ class FrontDoorHandlerTest :
             val pickObj = sendJson(1801, pickPayload, ch)
             pickObj["CurrentModule"]?.jsonPrimitive?.content shouldBe "BotDraft"
             val payload = json.parseToJsonElement(pickObj["Payload"]!!.jsonPrimitive.content).jsonObject
-            payload["PickNumber"]?.jsonPrimitive?.int shouldBe 1
-            payload["DraftPack"]!!.jsonArray.size shouldBe 12
-            payload["PickedCards"]!!.jsonArray.size shouldBe 1
+            assertSoftly {
+                payload["PickNumber"]?.jsonPrimitive?.int shouldBe 1
+                payload["DraftPack"]!!.jsonArray.size shouldBe 12
+                payload["PickedCards"]!!.jsonArray.size shouldBe 1
+            }
         }
 
         test("CmdType 1802 - BotDraft_DraftStatus returns current session") {
@@ -692,9 +719,11 @@ class FrontDoorHandlerTest :
             }
 
             // Final pick response should be completed
-            outer["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"
-            payload["DraftStatus"]?.jsonPrimitive?.content shouldBe "Completed"
-            payload["PickedCards"]!!.jsonArray.size shouldBe 39
+            assertSoftly {
+                outer["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"
+                payload["DraftStatus"]?.jsonPrimitive?.content shouldBe "Completed"
+                payload["PickedCards"]!!.jsonArray.size shouldBe 39
+            }
 
             // Course should have transitioned to DeckSelect with card pool
             ch.writeCmd(623)
@@ -705,9 +734,11 @@ class FrontDoorHandlerTest :
             val draftCourse = courses.firstOrNull {
                 it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "QuickDraft_ECL_20260223"
             }
-            draftCourse.shouldNotBeNull()
-            draftCourse.jsonObject["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"
-            draftCourse.jsonObject["CardPool"]!!.jsonArray.size shouldBe 39
+            assertSoftly {
+                draftCourse.shouldNotBeNull()
+                draftCourse.jsonObject["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"
+                draftCourse.jsonObject["CardPool"]!!.jsonArray.size shouldBe 39
+            }
         }
 
         test("CmdType 609 - Event_Resign drops draft course and session") {
@@ -743,12 +774,7 @@ private fun loadReferenceShape(resource: String): JsonObject {
  * Nested JsonObjects are checked recursively. Extra keys in actual are allowed
  * (server may add fields), but missing keys fail with a clear message.
  */
-private fun assertKeysMatch(
-    reference: JsonObject,
-    actual: JsonObject,
-    context: String,
-    path: String = "",
-) {
+private fun assertKeysMatch(reference: JsonObject, actual: JsonObject, context: String, path: String = "") {
     val loc = path.ifEmpty { "root" }
     withClue("$context: missing keys at $loc") {
         (reference.keys - actual.keys).shouldBeEmpty()

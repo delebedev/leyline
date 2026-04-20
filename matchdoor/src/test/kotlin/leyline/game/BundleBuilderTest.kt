@@ -1,9 +1,11 @@
 package leyline.game
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
@@ -41,8 +43,7 @@ class BundleBuilderTest :
         afterEach { base.tearDown() }
 
         /** Create a BundleBuilder for pure proto tests (no game state needed). */
-        fun pureBB(seatId: Int = 1, matchId: String = "test-match") =
-            BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), matchId, seatId)
+        fun pureBB(seatId: Int = 1, matchId: String = "test-match") = BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), matchId, seatId)
 
         // --- Unit tests (pure proto, no game) ---
 
@@ -55,9 +56,11 @@ class BundleBuilderTest :
             val msg = BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), "test-match", 2)
                 .queuedGameState(gs, MessageCounter(initialGsId = 42, initialMsgId = 9))
 
-            msg.type shouldBe GREMessageType.QueuedGameStateMessage
-            msg.hasGameStateMessage().shouldBeTrue()
-            msg.gameStateMessage.gameStateId shouldBe 42
+            assertSoftly {
+                msg.type shouldBe GREMessageType.QueuedGameStateMessage
+                msg.hasGameStateMessage().shouldBeTrue()
+                msg.gameStateMessage.gameStateId shouldBe 42
+            }
         }
 
         test("edictalPass sends server-forced Pass action") {
@@ -93,12 +96,14 @@ class BundleBuilderTest :
             }
 
             val gs1 = result.messages[0].gameStateMessage
-            gs1.hasGameInfo().shouldBeTrue()
-            gs1.gameInfo.matchState shouldBe Messages.MatchState.GameComplete
-            gs1.gameInfo.stage shouldBe Messages.GameStage.GameOver
-            gs1.gameInfo.resultsCount shouldBe 1
-            (gs1.teamsCount > 0).shouldBeTrue()
-            (gs1.annotationsCount > 0).shouldBeTrue()
+            assertSoftly {
+                gs1.hasGameInfo().shouldBeTrue()
+                gs1.gameInfo.matchState shouldBe Messages.MatchState.GameComplete
+                gs1.gameInfo.stage shouldBe Messages.GameStage.GameOver
+                gs1.gameInfo.resultsCount shouldBe 1
+                gs1.teamsCount shouldBeGreaterThan 0
+                gs1.annotationsCount shouldBeGreaterThan 0
+            }
 
             val gs2 = result.messages[1].gameStateMessage
             gs2.gameInfo.matchState shouldBe Messages.MatchState.MatchComplete
@@ -109,10 +114,12 @@ class BundleBuilderTest :
             gs3.hasGameInfo().shouldBeFalse()
 
             val intermission = result.messages[3]
-            intermission.type shouldBe GREMessageType.IntermissionReq_695e
-            intermission.hasIntermissionReq().shouldBeTrue()
-            intermission.intermissionReq.optionsCount shouldBe 2
-            intermission.intermissionReq.intermissionPrompt.promptId shouldBe PromptIds.MATCH_RESULT_WIN_LOSS
+            assertSoftly {
+                intermission.type shouldBe GREMessageType.IntermissionReq_695e
+                intermission.hasIntermissionReq().shouldBeTrue()
+                intermission.intermissionReq.optionsCount shouldBe 2
+                intermission.intermissionReq.intermissionPrompt.promptId shouldBe PromptIds.MATCH_RESULT_WIN_LOSS
+            }
         }
 
         test("gameOverBundle gsIds are strictly ascending") {
@@ -140,10 +147,12 @@ class BundleBuilderTest :
             )
 
             val gsms = result.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
-            gsms.size shouldBe 3
-            gsms[0].prevGameStateId shouldBe 10
-            gsms[1].prevGameStateId shouldBe gsms[0].gameStateId
-            gsms[2].prevGameStateId shouldBe gsms[1].gameStateId
+            assertSoftly {
+                gsms.size shouldBe 3
+                gsms[0].prevGameStateId shouldBe 10
+                gsms[1].prevGameStateId shouldBe gsms[0].gameStateId
+                gsms[2].prevGameStateId shouldBe gsms[1].gameStateId
+            }
         }
 
         test("gameOverBundle with Concede reason") {
@@ -168,10 +177,12 @@ class BundleBuilderTest :
 
             val result = base.bundleBuilder(b).declareAttackersBundle(game, counter)
 
-            result.messages.size shouldBe 2
-            result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
-            result.messages[1].type shouldBe GREMessageType.DeclareAttackersReq_695e
-            result.messages[1].prompt.promptId shouldBe 6
+            assertSoftly {
+                result.messages.size shouldBe 2
+                result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+                result.messages[1].type shouldBe GREMessageType.DeclareAttackersReq_695e
+                result.messages[1].prompt.promptId shouldBe 6
+            }
         }
 
         test("declareBlockersBundle shape") {
@@ -179,10 +190,12 @@ class BundleBuilderTest :
 
             val result = base.bundleBuilder(b).declareBlockersBundle(game, counter)
 
-            result.messages.size shouldBe 2
-            result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
-            result.messages[1].type shouldBe GREMessageType.DeclareBlockersReq_695e
-            result.messages[1].prompt.promptId shouldBe 7
+            assertSoftly {
+                result.messages.size shouldBe 2
+                result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+                result.messages[1].type shouldBe GREMessageType.DeclareBlockersReq_695e
+                result.messages[1].prompt.promptId shouldBe 7
+            }
         }
 
         test("selectTargetsBundle shape") {
@@ -205,12 +218,14 @@ class BundleBuilderTest :
             )
             val result = base.bundleBuilder(b).selectTargetsBundle(game, counter, prompt)
 
-            result.messages.size shouldBe 2
-            result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
-            result.messages[1].type shouldBe GREMessageType.SelectTargetsReq_695e
-            result.messages[1].prompt.promptId shouldBe PromptIds.SELECT_TARGETS
-            result.messages[1].allowCancel shouldBe Messages.AllowCancel.Abort
-            result.messages[1].allowUndo.shouldBeTrue()
+            assertSoftly {
+                result.messages.size shouldBe 2
+                result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+                result.messages[1].type shouldBe GREMessageType.SelectTargetsReq_695e
+                result.messages[1].prompt.promptId shouldBe PromptIds.SELECT_TARGETS
+                result.messages[1].allowCancel shouldBe Messages.AllowCancel.Abort
+                result.messages[1].allowUndo.shouldBeTrue()
+            }
         }
 
         test("echoAttackersBundle conformance — SendAndRecord, no combat state, actions present") {
@@ -225,13 +240,15 @@ class BundleBuilderTest :
 
             val result = base.bundleBuilder(b).echoAttackersBundle(game, counter, selectedIds, allIds)
 
-            result.messages.size shouldBe 2
-            result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
-            result.messages[1].type shouldBe GREMessageType.DeclareAttackersReq_695e
+            assertSoftly {
+                result.messages.size shouldBe 2
+                result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+                result.messages[1].type shouldBe GREMessageType.DeclareAttackersReq_695e
+            }
 
             val gsm = result.messages[0].gameStateMessage
             gsm.type shouldBe GameStateType.Diff
-            (gsm.gameObjectsCount > 0).shouldBeTrue()
+            gsm.gameObjectsCount shouldBeGreaterThan 0
 
             // Conformance: client uses SendAndRecord, no pendingMessageCount
             gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
@@ -258,12 +275,14 @@ class BundleBuilderTest :
 
             val result = base.bundleBuilder(b).echoBlockersBundle(game, counter, blockAssignments)
 
-            result.messages.size shouldBe 2
-            result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
-            result.messages[1].type shouldBe GREMessageType.DeclareBlockersReq_695e
+            assertSoftly {
+                result.messages.size shouldBe 2
+                result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+                result.messages[1].type shouldBe GREMessageType.DeclareBlockersReq_695e
+            }
 
             val gsm = result.messages[0].gameStateMessage
-            (gsm.gameObjectsCount > 0).shouldBeTrue()
+            gsm.gameObjectsCount shouldBeGreaterThan 0
 
             // Conformance: client uses SendAndRecord, no pendingMessageCount
             gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
@@ -285,10 +304,12 @@ class BundleBuilderTest :
                 .build()
             val result = base.bundleBuilder(b).selectNBundle(game, counter, req)
 
-            result.messages.size shouldBe 2
-            result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
-            result.messages[1].type shouldBe GREMessageType.SelectNreq
-            result.messages[1].prompt.promptId shouldBe PromptIds.SELECT_N
+            assertSoftly {
+                result.messages.size shouldBe 2
+                result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+                result.messages[1].type shouldBe GREMessageType.SelectNreq
+                result.messages[1].prompt.promptId shouldBe PromptIds.SELECT_N
+            }
         }
 
         test("discard SelectNReq uses Resolution context and Dynamic listType (#175)") {
@@ -316,15 +337,17 @@ class BundleBuilderTest :
 
             val req = RequestBuilder.buildSelectNReq(prompt, b)
 
-            req.context shouldBe Messages.SelectionContext.Resolution_a163
-            req.listType shouldBe Messages.SelectionListType.Dynamic
-            req.optionContext shouldBe Messages.OptionContext.Resolution_a9d7
-            req.idType shouldBe Messages.IdType.InstanceId_ab2c
-            req.validationType shouldBe Messages.SelectionValidationType.NonRepeatable
-            req.minSel shouldBe 1
-            req.maxSel shouldBe 1
-            req.idsCount shouldBe 2
-            req.prompt.promptId shouldBe PromptIds.SELECT_N
+            assertSoftly {
+                req.context shouldBe Messages.SelectionContext.Resolution_a163
+                req.listType shouldBe Messages.SelectionListType.Dynamic
+                req.optionContext shouldBe Messages.OptionContext.Resolution_a9d7
+                req.idType shouldBe Messages.IdType.InstanceId_ab2c
+                req.validationType shouldBe Messages.SelectionValidationType.NonRepeatable
+                req.minSel shouldBe 1
+                req.maxSel shouldBe 1
+                req.idsCount shouldBe 2
+                req.prompt.promptId shouldBe PromptIds.SELECT_N
+            }
         }
 
         test("payCostsBundle shape") {
@@ -333,9 +356,11 @@ class BundleBuilderTest :
             val req = Messages.PayCostsReq.newBuilder().build()
             val result = base.bundleBuilder(b).payCostsBundle(game, counter, req)
 
-            result.messages.size shouldBe 2
-            result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
-            result.messages[1].type shouldBe GREMessageType.PayCostsReq_695e
-            result.messages[1].prompt.promptId shouldBe PromptIds.PAY_COSTS
+            assertSoftly {
+                result.messages.size shouldBe 2
+                result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+                result.messages[1].type shouldBe GREMessageType.PayCostsReq_695e
+                result.messages[1].prompt.promptId shouldBe PromptIds.PAY_COSTS
+            }
         }
     })

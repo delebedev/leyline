@@ -1,6 +1,7 @@
 package leyline.game.mapping
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -242,10 +243,12 @@ class ActionMapperPureTest :
                 addManaCost(mana(ManaColor.Green_afc9, 1))
             }
 
-            s.instanceId shouldBe 100
-            s.manaCostCount shouldBe 2
-            s.grpId shouldBe 0
-            s.shouldStop shouldBe false
+            assertSoftly {
+                s.instanceId shouldBe 100
+                s.manaCostCount shouldBe 2
+                s.grpId shouldBe 0
+                s.shouldStop shouldBe false
+            }
         }
 
         test("stripActionForGsm preserves manaCost on CastAdventure") {
@@ -255,9 +258,11 @@ class ActionMapperPureTest :
                 addManaCost(mana(ManaColor.White_afc9, 1))
             }
 
-            s.instanceId shouldBe 200
-            s.manaCostCount shouldBe 1
-            s.grpId shouldBe 0
+            assertSoftly {
+                s.instanceId shouldBe 200
+                s.manaCostCount shouldBe 1
+                s.grpId shouldBe 0
+            }
         }
 
         test("stripActionForGsm strips everything except instanceId on Play") {
@@ -267,9 +272,11 @@ class ActionMapperPureTest :
                 shouldStop = true
             }
 
-            s.instanceId shouldBe 100
-            s.grpId shouldBe 0
-            s.manaCostList.shouldBeEmpty()
+            assertSoftly {
+                s.instanceId shouldBe 100
+                s.grpId shouldBe 0
+                s.manaCostList.shouldBeEmpty()
+            }
         }
 
         test("stripActionForGsm keeps abilityGrpId on ActivateMana") {
@@ -279,9 +286,11 @@ class ActionMapperPureTest :
                 grpId = 75570
             }
 
-            s.instanceId shouldBe 100
-            s.abilityGrpId shouldBe 1005
-            s.grpId shouldBe 0
+            assertSoftly {
+                s.instanceId shouldBe 100
+                s.abilityGrpId shouldBe 1005
+                s.grpId shouldBe 0
+            }
         }
 
         test("stripActionForGsm produces empty action for Pass") {

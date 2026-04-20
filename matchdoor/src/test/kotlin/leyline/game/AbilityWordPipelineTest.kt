@@ -59,10 +59,12 @@ class AbilityWordPipelineTest :
             val awAnns = result.allAnnotations.filter {
                 AnnotationType.AbilityWordActive in it.typeList
             }
-            awAnns shouldHaveSize 1
-            awAnns[0].detailString("AbilityWordName") shouldBe "Threshold"
-            awAnns[0].detailInt("value") shouldBe 5
-            result.deletedIds.shouldBeEmpty()
+            assertSoftly {
+                awAnns shouldHaveSize 1
+                awAnns[0].detailString("AbilityWordName") shouldBe "Threshold"
+                awAnns[0].detailInt("value") shouldBe 5
+                result.deletedIds.shouldBeEmpty()
+            }
         }
 
         test("AbilityWordActive upsert replaces on value change") {
@@ -95,10 +97,12 @@ class AbilityWordPipelineTest :
             val awAnns = result.allAnnotations.filter {
                 AnnotationType.AbilityWordActive in it.typeList
             }
-            awAnns shouldHaveSize 1
-            awAnns[0].detailInt("value") shouldBe 7
-            awAnns[0].id shouldBe 10
-            result.deletedIds shouldBe listOf(3)
+            assertSoftly {
+                awAnns shouldHaveSize 1
+                awAnns[0].detailInt("value") shouldBe 7
+                awAnns[0].id shouldBe 10
+                result.deletedIds shouldBe listOf(3)
+            }
         }
 
         test("AbilityWordActive removed when absent from new scan") {
@@ -156,9 +160,11 @@ class AbilityWordPipelineTest :
             val awAnns = result.allAnnotations.filter {
                 AnnotationType.AbilityWordActive in it.typeList
             }
-            awAnns shouldHaveSize 1
-            awAnns[0].id shouldBe 3
-            result.deletedIds.shouldBeEmpty()
+            assertSoftly {
+                awAnns shouldHaveSize 1
+                awAnns[0].id shouldBe 3
+                result.deletedIds.shouldBeEmpty()
+            }
         }
 
         test("Morbid boolean-only pAnn with seatId affector and multiple affectedIds") {
@@ -211,10 +217,12 @@ class AbilityWordPipelineTest :
             val qAnns = result.allAnnotations.filter {
                 AnnotationType.Qualification in it.typeList
             }
-            qAnns shouldHaveSize 1
-            qAnns[0].affectedIdsList shouldBe listOf(348)
-            qAnns[0].detailUint("QualificationType") shouldBe 47
-            result.deletedIds.shouldBeEmpty()
+            assertSoftly {
+                qAnns shouldHaveSize 1
+                qAnns[0].affectedIdsList shouldBe listOf(348)
+                qAnns[0].detailUint("QualificationType") shouldBe 47
+                result.deletedIds.shouldBeEmpty()
+            }
         }
 
         test("Qualification removed when card leaves exile") {
@@ -256,8 +264,10 @@ class AbilityWordPipelineTest :
             val qAnns = result.allAnnotations.filter {
                 AnnotationType.Qualification in it.typeList
             }
-            qAnns shouldHaveSize 1
-            qAnns[0].id shouldBe 5
-            result.deletedIds.shouldBeEmpty()
+            assertSoftly {
+                qAnns shouldHaveSize 1
+                qAnns[0].id shouldBe 5
+                result.deletedIds.shouldBeEmpty()
+            }
         }
     })
