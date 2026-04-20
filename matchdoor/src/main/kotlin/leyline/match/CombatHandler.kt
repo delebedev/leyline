@@ -672,7 +672,7 @@ open class CombatHandler(
 
     private fun sendDeclareBlockersReq(bridge: GameBridge): Boolean {
         val game = bridge.getGame() ?: return false
-        val req = RequestBuilder.buildDeclareBlockersReq(game, counters.seatId.value, bridge)
+        val req = RequestBuilder.buildDeclareBlockersReq(game, counters.seatId, bridge)
 
         if (req.blockersCount == 0) {
             log.info("CombatHandler: zero legal blockers — auto-submitting empty declaration")
