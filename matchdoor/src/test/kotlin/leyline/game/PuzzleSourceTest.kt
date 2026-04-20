@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -36,10 +37,12 @@ class PuzzleSourceTest :
             """.trimIndent()
 
             val meta = PuzzleSource.parseMetadata(content)
-            meta.name shouldBe "Lightning Bolt Test"
-            meta.goal shouldBe "Win"
-            meta.turns shouldBe 3
-            meta.difficulty shouldBe "Easy"
+            assertSoftly {
+                meta.name shouldBe "Lightning Bolt Test"
+                meta.goal shouldBe "Win"
+                meta.turns shouldBe 3
+                meta.difficulty shouldBe "Easy"
+            }
         }
 
         test("parseMetadata handles missing fields") {

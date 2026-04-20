@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
@@ -83,17 +84,21 @@ class LibrarySearchConformanceTest :
             // --- Field-by-field comparison against reference ---
 
             // Structure
-            mountain.type shouldBe GameObjectType.Card
-            mountain.visibility shouldBe Visibility.Private
-            mountain.viewersList shouldBe listOf(1)
-            mountain.ownerSeatId shouldBe 1
-            mountain.controllerSeatId shouldBe 1
-            mountain.zoneId shouldBe ZoneIds.P1_LIBRARY
+            assertSoftly {
+                mountain.type shouldBe GameObjectType.Card
+                mountain.visibility shouldBe Visibility.Private
+                mountain.viewersList shouldBe listOf(1)
+                mountain.ownerSeatId shouldBe 1
+                mountain.controllerSeatId shouldBe 1
+                mountain.zoneId shouldBe ZoneIds.P1_LIBRARY
+            }
 
             // Card identity
-            mountain.cardTypesList shouldBe listOf(CardType.Land_a80b)
-            mountain.superTypesList shouldBe listOf(SuperType.Basic)
-            mountain.subtypesList.map { it.name } shouldBe listOf("Mountain")
+            assertSoftly {
+                mountain.cardTypesList shouldBe listOf(CardType.Land_a80b)
+                mountain.superTypesList shouldBe listOf(SuperType.Basic)
+                mountain.subtypesList.map { it.name } shouldBe listOf("Mountain")
+            }
 
             // Abilities — reference shows uniqueAbilityCount=1 (mana ability)
             mountain.uniqueAbilitiesList.size shouldBe 1

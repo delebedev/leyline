@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.game.bundle.GsmBuilder
@@ -29,8 +30,7 @@ class DealHandConformanceTest :
         afterEach { base.tearDown() }
 
         /** Helper: extract GRE messages from a MatchServiceToClientMessage. */
-        fun greMessages(msg: MatchServiceToClientMessage): List<GREToClientMessage> =
-            msg.greToClientEvent.greToClientMessagesList
+        fun greMessages(msg: MatchServiceToClientMessage): List<GREToClientMessage> = msg.greToClientEvent.greToClientMessagesList
 
         // --- dealHand ---
 
@@ -58,7 +58,7 @@ class DealHandConformanceTest :
             }
 
             gsm.zonesCount shouldBe 4
-            (gsm.gameObjectsCount > 0).shouldBeTrue()
+            gsm.gameObjectsCount shouldBeGreaterThan 0
 
             gsm.playersCount shouldBe 2
             for (player in gsm.playersList) {
@@ -87,7 +87,7 @@ class DealHandConformanceTest :
                 gsm.gameStateMessage.type shouldBe GameStateType.Diff
                 gsm.gameStateMessage.update shouldBe GameStateUpdate.SendAndRecord
                 gsm.gameStateMessage.zonesCount shouldBe 4
-                (gsm.gameStateMessage.gameObjectsCount > 0).shouldBeTrue()
+                gsm.gameStateMessage.gameObjectsCount shouldBeGreaterThan 0
                 gsm.gameStateMessage.pendingMessageCount shouldBe 1
             }
 

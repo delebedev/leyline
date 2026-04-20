@@ -6,6 +6,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
@@ -92,11 +93,11 @@ class BlockerDeclarationTest :
 
             // Find the AI attacker instanceId from the DeclareBlockersReq
             val blockReq = h.allMessages.last { it.hasDeclareBlockersReq() }.declareBlockersReq
-            (blockReq.blockersCount > 0).shouldBeTrue()
+            blockReq.blockersCount shouldBeGreaterThan 0
 
             // The blocker should reference attacker instanceIds
             val blocker = blockReq.blockersList.first { it.blockerInstanceId == blockerIid }
-            (blocker.attackerInstanceIdsCount > 0).shouldBeTrue()
+            blocker.attackerInstanceIdsCount shouldBeGreaterThan 0
             val attackerIid = blocker.attackerInstanceIdsList.first()
 
             return blockerIid to attackerIid

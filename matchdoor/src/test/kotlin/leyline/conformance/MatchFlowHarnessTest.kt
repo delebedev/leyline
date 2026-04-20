@@ -1,10 +1,15 @@
 package leyline.conformance
 
 import forge.ai.LobbyPlayerAi
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
+import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
@@ -39,7 +44,7 @@ class MatchFlowHarnessTest :
             acc.actions.shouldNotBeNull()
 
             val missing = acc.actionInstanceIdsMissingFromObjects()
-            missing.isEmpty().shouldBeTrue()
+            missing.shouldBeEmpty()
 
             h.phase() shouldBe "MAIN1"
         }
@@ -55,7 +60,7 @@ class MatchFlowHarnessTest :
 
             // Verify state is valid after land play
             val missingAfterLand = h.accumulator.actionInstanceIdsMissingFromObjects()
-            missingAfterLand.isEmpty().shouldBeTrue()
+            missingAfterLand.shouldBeEmpty()
 
             // Pass priority to end turn
             h.passPriority()
@@ -64,7 +69,7 @@ class MatchFlowHarnessTest :
             h.isGameOver().shouldBeFalse()
 
             val missingAfterTurn = h.accumulator.actionInstanceIdsMissingFromObjects()
-            missingAfterTurn.isEmpty().shouldBeTrue()
+            missingAfterTurn.shouldBeEmpty()
         }
 
         test("cast creature tracks object through zones") {
@@ -81,7 +86,7 @@ class MatchFlowHarnessTest :
 
             // Verify accumulated state
             val missing = h.accumulator.actionInstanceIdsMissingFromObjects()
-            missing.isEmpty().shouldBeTrue()
+            missing.shouldBeEmpty()
 
             // Verify we have objects on battlefield (not just hand/library)
             val battlefieldZone = h.accumulator.zones.values
@@ -127,7 +132,7 @@ class MatchFlowHarnessTest :
             h.accumulator.assertConsistent("after AI-first connect")
 
             // Should have received at least game-start bundle (4 messages)
-            (h.allMessages.size >= 4).shouldBeTrue()
+            h.allMessages.size shouldBeGreaterThanOrEqualTo 4
         }
 
         test("gsId chain valid through phases") {
@@ -135,9 +140,11 @@ class MatchFlowHarnessTest :
             harness = h
             h.connectAndKeep()
 
-            h.turn() shouldBe 1
-            h.phase() shouldBe "MAIN1"
-            h.isAiTurn().shouldBeFalse()
+            assertSoftly {
+                h.turn() shouldBe 1
+                h.phase() shouldBe "MAIN1"
+                h.isAiTurn().shouldBeFalse()
+            }
 
             // Validate chain from game start
             assertGsIdChain(h.allMessages, context = "game start")
@@ -198,7 +205,7 @@ class MatchFlowHarnessTest :
             // actions, flooding the client with "waiting for input" prompts (~6-8 AARs).
             // After fix: only combat/stack resolution paths send AAR (legitimate prompts,
             // typically 1-2). Allow up to 3 for edge cases.
-            (aars.size <= 3).shouldBeTrue()
+            aars.size shouldBeLessThanOrEqualTo 3
         }
 
         test("AI turn produces Diff messages") {
@@ -217,7 +224,7 @@ class MatchFlowHarnessTest :
             val diffs = newMessages.filter {
                 it.hasGameStateMessage() && it.gameStateMessage.type == GameStateType.Diff
             }
-            (diffs.size >= 2).shouldBeTrue()
+            diffs.size shouldBeGreaterThanOrEqualTo 2
         }
 
         // DISABLED: passUntilTurn(3) hits AI_TURN_WAIT_MS (30s) timeout repeatedly because
@@ -241,7 +248,7 @@ class MatchFlowHarnessTest :
             ) { "No NewTurnStarted annotation in AI turn messages (${aiMessages.size} post-pass msgs)" }
 
             newTurnAnno.affectedIdsList.shouldNotBeEmpty()
-            (newTurnAnno.affectorId > 0).shouldBeTrue()
+            newTurnAnno.affectorId shouldBeGreaterThan 0
         }
 
         // DISABLED: same as above — passUntilTurn(3) timeout loop.

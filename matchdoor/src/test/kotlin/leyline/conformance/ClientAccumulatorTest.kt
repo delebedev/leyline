@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -27,10 +28,12 @@ class ClientAccumulatorTest :
                 .build()
             acc.process(greMessage(msgId = 1, gsm = gs))
 
-            acc.objects.size shouldBe 2
-            acc.objects.containsKey(100).shouldBeTrue()
-            acc.objects.containsKey(101).shouldBeTrue()
-            acc.latestGsId shouldBe 1
+            assertSoftly {
+                acc.objects.size shouldBe 2
+                acc.objects.containsKey(100).shouldBeTrue()
+                acc.objects.containsKey(101).shouldBeTrue()
+                acc.latestGsId shouldBe 1
+            }
         }
 
         test("diffMergesIntoExistingState") {
@@ -54,10 +57,12 @@ class ClientAccumulatorTest :
                 .build()
             acc.process(greMessage(msgId = 2, gsm = diff))
 
-            acc.objects.size shouldBe 2
-            acc.objects.containsKey(100).shouldBeTrue()
-            acc.objects.containsKey(101).shouldBeTrue()
-            acc.latestGsId shouldBe 2
+            assertSoftly {
+                acc.objects.size shouldBe 2
+                acc.objects.containsKey(100).shouldBeTrue()
+                acc.objects.containsKey(101).shouldBeTrue()
+                acc.latestGsId shouldBe 2
+            }
         }
 
         test("fullStateResetsObjects") {
@@ -81,9 +86,11 @@ class ClientAccumulatorTest :
                 .build()
             acc.process(greMessage(msgId = 2, gsm = full2))
 
-            acc.objects.size shouldBe 1
-            acc.objects.containsKey(100).shouldBeFalse()
-            acc.objects.containsKey(200).shouldBeTrue()
+            assertSoftly {
+                acc.objects.size shouldBe 1
+                acc.objects.containsKey(100).shouldBeFalse()
+                acc.objects.containsKey(200).shouldBeTrue()
+            }
         }
 
         test("zonesTrackedFromState") {

@@ -14,11 +14,7 @@ import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.jdbc.Database
 
-private fun Application.testModule(
-    store: AccountStore,
-    tokens: TokenService,
-    cachedManifests: String? = null,
-) {
+private fun Application.testModule(store: AccountStore, tokens: TokenService, cachedManifests: String? = null) {
     install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     routing {
         accountRoutes(store, tokens, "localhost:30010", cachedManifests)
@@ -30,10 +26,7 @@ class AccountRoutesTest :
 
         tags(UnitTag)
 
-        fun testAppWithManifests(
-            cachedManifests: String?,
-            block: suspend ApplicationTestBuilder.() -> Unit,
-        ) {
+        fun testAppWithManifests(cachedManifests: String?, block: suspend ApplicationTestBuilder.() -> Unit) {
             val dbFile = java.io.File.createTempFile("routes-test", ".db").also { it.deleteOnExit() }
             val db = Database.connect("jdbc:sqlite:${dbFile.absolutePath}", "org.sqlite.JDBC")
             val store = AccountStore(db)

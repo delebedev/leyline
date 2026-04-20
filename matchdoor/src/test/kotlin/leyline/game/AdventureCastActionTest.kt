@@ -1,6 +1,7 @@
 package leyline.game
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -70,13 +71,15 @@ class ProducedToManaColorTest :
         tags(UnitTag)
 
         test("maps single-letter color codes") {
-            ActionMapper.producedToManaColor("R") shouldBe ManaColor.Red_afc9
-            ActionMapper.producedToManaColor("W") shouldBe ManaColor.White_afc9
-            ActionMapper.producedToManaColor("U") shouldBe ManaColor.Blue_afc9
-            ActionMapper.producedToManaColor("B") shouldBe ManaColor.Black_afc9
-            ActionMapper.producedToManaColor("G") shouldBe ManaColor.Green_afc9
-            ActionMapper.producedToManaColor("C") shouldBe ManaColor.Colorless_afc9
-            ActionMapper.producedToManaColor("ANY") shouldBe ManaColor.Generic
+            assertSoftly {
+                ActionMapper.producedToManaColor("R") shouldBe ManaColor.Red_afc9
+                ActionMapper.producedToManaColor("W") shouldBe ManaColor.White_afc9
+                ActionMapper.producedToManaColor("U") shouldBe ManaColor.Blue_afc9
+                ActionMapper.producedToManaColor("B") shouldBe ManaColor.Black_afc9
+                ActionMapper.producedToManaColor("G") shouldBe ManaColor.Green_afc9
+                ActionMapper.producedToManaColor("C") shouldBe ManaColor.Colorless_afc9
+                ActionMapper.producedToManaColor("ANY") shouldBe ManaColor.Generic
+            }
         }
 
         test("case insensitive") {

@@ -69,9 +69,11 @@ class ScryETBFlowTest :
             val oic = allAnnotations.firstOrNull { ann ->
                 ann.typeList.any { it == AnnotationType.ObjectIdChanged }
             }
-            oic.shouldNotBeNull()
-            oic.detail("orig_id").shouldNotBeNull()
-            oic.detail("new_id").shouldNotBeNull()
+            assertSoftly {
+                oic.shouldNotBeNull()
+                oic.detail("orig_id").shouldNotBeNull()
+                oic.detail("new_id").shouldNotBeNull()
+            }
 
             // ZoneTransfer with PlayLand category (reference: zone_src=31, zone_dest=28)
             val zt = allAnnotations.firstOrNull { ann ->
@@ -211,9 +213,11 @@ class ScryETBFlowTest :
             val scryAnn = allAnnotations.firstOrNull { ann ->
                 ann.typeList.any { it == AnnotationType.Scry_af5a }
             }
-            scryAnn.shouldNotBeNull()
-            scryAnn.affectedIdsList.shouldNotBeEmpty()
-            scryAnn.detail("bottomCount").shouldNotBeNull()
+            assertSoftly {
+                scryAnn.shouldNotBeNull()
+                scryAnn.affectedIdsList.shouldNotBeEmpty()
+                scryAnn.detail("bottomCount").shouldNotBeNull()
+            }
 
             // ResolutionStart + ResolutionComplete for the creature spell
             val resStart = allAnnotations.firstOrNull { ann ->

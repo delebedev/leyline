@@ -1,5 +1,6 @@
 package leyline.protocol
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
@@ -88,9 +89,11 @@ class FrameCodecTest :
             val framed = enc.readOutbound<ByteBuf>()
                 ?: error("Encoder produced no output")
 
-            framed.getByte(0) shouldBe VERSION
-            framed.getByte(1) shouldBe TYPE_DATA_FD
-            framed.getIntLE(2) shouldBe payload.size
+            assertSoftly {
+                framed.getByte(0) shouldBe VERSION
+                framed.getByte(1) shouldBe TYPE_DATA_FD
+                framed.getIntLE(2) shouldBe payload.size
+            }
 
             framed.release()
         }
@@ -114,9 +117,11 @@ class FrameCodecTest :
             val ack = dec.readOutbound<ByteBuf>()
                 ?: error("CTRL_INIT should produce an ACK response")
 
-            ack.getByte(0) shouldBe VERSION
-            ack.getByte(1) shouldBe TYPE_CTRL_ACK
-            ack.getIntLE(2) shouldBe nonce.size
+            assertSoftly {
+                ack.getByte(0) shouldBe VERSION
+                ack.getByte(1) shouldBe TYPE_CTRL_ACK
+                ack.getIntLE(2) shouldBe nonce.size
+            }
 
             // Nonce echoed
             val echoedNonce = ByteArray(nonce.size)

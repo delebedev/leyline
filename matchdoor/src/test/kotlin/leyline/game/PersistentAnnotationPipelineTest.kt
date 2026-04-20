@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -39,9 +40,11 @@ class PersistentAnnotationPipelineTest :
             result.transient.shouldBeEmpty()
             result.persistent.size shouldBe 1
             val ann = result.persistent[0]
-            ann.typeList shouldContain AnnotationType.DisplayCardUnderCard
-            ann.affectorId shouldBe testResolver(ForgeCardId(90)).value
-            ann.affectedIdsList shouldBe listOf(testResolver(ForgeCardId(80)).value)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.DisplayCardUnderCard
+                ann.affectorId shouldBe testResolver(ForgeCardId(90)).value
+                ann.affectedIdsList shouldBe listOf(testResolver(ForgeCardId(80)).value)
+            }
             val tmpZone = ann.detailsList.first { it.key == "TemporaryZoneTransfer" }
             tmpZone.getValueInt32(0) shouldBe 1
         }

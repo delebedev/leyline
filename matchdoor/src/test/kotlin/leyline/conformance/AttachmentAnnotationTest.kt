@@ -3,6 +3,7 @@ package leyline.conformance
 import forge.game.ability.AbilityKey
 import forge.game.event.GameEventCardAttachment
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
@@ -49,17 +50,21 @@ class AttachmentAnnotationTest :
             val attachCreated = gsm.annotationsList.firstOrNull {
                 AnnotationType.AttachmentCreated in it.typeList
             }
-            attachCreated.shouldNotBeNull()
-            attachCreated.affectedIdsList shouldBe listOf(creatureIid)
-            attachCreated.affectorId shouldBe auraIid
+            assertSoftly {
+                attachCreated.shouldNotBeNull()
+                attachCreated.affectedIdsList shouldBe listOf(creatureIid)
+                attachCreated.affectorId shouldBe auraIid
+            }
 
             val attachPersistent = gsm.persistentAnnotationsList.firstOrNull {
                 AnnotationType.Attachment in it.typeList
             }
-            attachPersistent.shouldNotBeNull()
-            attachPersistent.affectedIdsList shouldBe listOf(creatureIid)
-            attachPersistent.affectorId shouldBe auraIid
-            attachPersistent.id shouldBeGreaterThan 0
+            assertSoftly {
+                attachPersistent.shouldNotBeNull()
+                attachPersistent.affectedIdsList shouldBe listOf(creatureIid)
+                attachPersistent.affectorId shouldBe auraIid
+                attachPersistent.id shouldBeGreaterThan 0
+            }
         }
 
         test("detach does not produce AttachmentCreated") {

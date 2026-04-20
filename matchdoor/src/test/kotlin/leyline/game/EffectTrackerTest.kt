@@ -88,10 +88,12 @@ class EffectTrackerTest :
             val tracker = EffectTracker()
             val result = tracker.emitInitEffects()
 
-            result.created.size shouldBe 3
-            result.destroyed.size shouldBe 3
-            result.created.map { it.syntheticId } shouldBe listOf(7002, 7003, 7004)
-            result.destroyed.map { it.syntheticId } shouldBe listOf(7002, 7003, 7004)
+            assertSoftly {
+                result.created.size shouldBe 3
+                result.destroyed.size shouldBe 3
+                result.created.map { it.syntheticId } shouldBe listOf(7002, 7003, 7004)
+                result.destroyed.map { it.syntheticId } shouldBe listOf(7002, 7003, 7004)
+            }
 
             // Next ID after init should be 7005
             tracker.nextEffectId() shouldBe 7005

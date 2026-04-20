@@ -1,6 +1,7 @@
 package leyline.unit
 
 import forge.game.phase.PhaseType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -20,21 +21,25 @@ class PhaseStopProfileTest :
             val profile = PhaseStopProfile.createDefaults(humanPlayerId = 1, aiPlayerId = 2)
 
             // Human own-turn defaults
-            profile.isEnabled(1, PhaseType.MAIN1) shouldBe true
-            profile.isEnabled(1, PhaseType.COMBAT_DECLARE_ATTACKERS) shouldBe true
-            profile.isEnabled(1, PhaseType.COMBAT_DECLARE_BLOCKERS) shouldBe true
-            profile.isEnabled(1, PhaseType.MAIN2) shouldBe true
-            profile.isEnabled(1, PhaseType.UPKEEP) shouldBe false
-            profile.isEnabled(1, PhaseType.DRAW) shouldBe false
-            profile.isEnabled(1, PhaseType.END_OF_TURN) shouldBe false
+            assertSoftly {
+                profile.isEnabled(1, PhaseType.MAIN1) shouldBe true
+                profile.isEnabled(1, PhaseType.COMBAT_DECLARE_ATTACKERS) shouldBe true
+                profile.isEnabled(1, PhaseType.COMBAT_DECLARE_BLOCKERS) shouldBe true
+                profile.isEnabled(1, PhaseType.MAIN2) shouldBe true
+                profile.isEnabled(1, PhaseType.UPKEEP) shouldBe false
+                profile.isEnabled(1, PhaseType.DRAW) shouldBe false
+                profile.isEnabled(1, PhaseType.END_OF_TURN) shouldBe false
+            }
 
             // AI engine-internal stops (for combat logic)
-            profile.isEnabled(2, PhaseType.COMBAT_BEGIN) shouldBe true
-            profile.isEnabled(2, PhaseType.COMBAT_DECLARE_ATTACKERS) shouldBe true
-            profile.isEnabled(2, PhaseType.COMBAT_DECLARE_BLOCKERS) shouldBe true
-            profile.isEnabled(2, PhaseType.END_OF_TURN) shouldBe true
-            profile.isEnabled(2, PhaseType.MAIN1) shouldBe false
-            profile.isEnabled(2, PhaseType.MAIN2) shouldBe false
+            assertSoftly {
+                profile.isEnabled(2, PhaseType.COMBAT_BEGIN) shouldBe true
+                profile.isEnabled(2, PhaseType.COMBAT_DECLARE_ATTACKERS) shouldBe true
+                profile.isEnabled(2, PhaseType.COMBAT_DECLARE_BLOCKERS) shouldBe true
+                profile.isEnabled(2, PhaseType.END_OF_TURN) shouldBe true
+                profile.isEnabled(2, PhaseType.MAIN1) shouldBe false
+                profile.isEnabled(2, PhaseType.MAIN2) shouldBe false
+            }
         }
 
         test("createDefaults — AI stops are independent from human stops") {
@@ -90,9 +95,11 @@ class PhaseStopProfileTest :
         }
 
         test("forPhaseKey maps canonical phases") {
-            PhaseStopProfile.forPhaseKey("MAIN1") shouldBe PhaseType.MAIN1
-            PhaseStopProfile.forPhaseKey("COMBAT_DECLARE_ATTACKERS") shouldBe PhaseType.COMBAT_DECLARE_ATTACKERS
-            PhaseStopProfile.forPhaseKey("CLEANUP") shouldBe PhaseType.CLEANUP
+            assertSoftly {
+                PhaseStopProfile.forPhaseKey("MAIN1") shouldBe PhaseType.MAIN1
+                PhaseStopProfile.forPhaseKey("COMBAT_DECLARE_ATTACKERS") shouldBe PhaseType.COMBAT_DECLARE_ATTACKERS
+                PhaseStopProfile.forPhaseKey("CLEANUP") shouldBe PhaseType.CLEANUP
+            }
         }
 
         test("forPhaseKey returns null for non-canonical or invalid") {

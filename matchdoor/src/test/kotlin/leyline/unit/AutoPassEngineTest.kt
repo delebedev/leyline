@@ -251,9 +251,11 @@ class AutoPassEngineTest :
 
             engine.autoPassAndAdvance(bridge)
 
-            ops.sendGameOverCount shouldBe 1
-            ops.sendRealGameStateCount shouldBe 0
-            ops.hasTrace(MatchEventType.GAME_OVER) shouldBe true
+            assertSoftly {
+                ops.sendGameOverCount shouldBe 1
+                ops.sendRealGameStateCount shouldBe 0
+                ops.hasTrace(MatchEventType.GAME_OVER) shouldBe true
+            }
         }
 
         test("autoPassAndAdvance — Grant from real actions sends state and exits") {
@@ -319,9 +321,11 @@ class AutoPassEngineTest :
 
             engine.autoPassAndAdvance(bridge)
 
-            ops.sendRealGameStateCount shouldBe 0
-            ops.sendGameOverCount shouldBe 0
-            ops.tracedEvents.size shouldBe 0
+            assertSoftly {
+                ops.sendRealGameStateCount shouldBe 0
+                ops.sendGameOverCount shouldBe 0
+                ops.tracedEvents.size shouldBe 0
+            }
         }
 
         // --- autoPassAndAdvance: combat signal tests ---

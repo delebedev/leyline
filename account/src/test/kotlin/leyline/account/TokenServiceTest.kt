@@ -80,5 +80,4 @@ class TokenServiceTest :
         }
     })
 
-private fun decodePayload(jwt: String): String =
-    Base64.getUrlDecoder().decode(jwt.split(".")[1]).toString(Charsets.UTF_8)
+private fun decodePayload(jwt: String): String = Base64.getUrlDecoder().decode(jwt.split(".")[1]).toString(Charsets.UTF_8)

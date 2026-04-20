@@ -3,9 +3,10 @@ package leyline.conformance
 import forge.game.ability.AbilityKey
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.types.ForgeCardId
@@ -53,7 +54,7 @@ class DiffDiagnosticTest :
 
                 val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
                 val origId = oic.detailInt("orig_id")
-                gsm.diffDeletedInstanceIdsList.contains(origId).shouldBeFalse()
+                gsm.diffDeletedInstanceIdsList shouldNotContain origId
             }
         }
 
@@ -142,7 +143,7 @@ class DiffDiagnosticTest :
             // remoteActionDiff may or may not include BF zone depending on
             // what changed. Core invariant: all objects have a valid zoneId.
             for (obj in gsm.gameObjectsList) {
-                (obj.zoneId > 0).shouldBeTrue()
+                obj.zoneId shouldBeGreaterThan 0
             }
         }
     })

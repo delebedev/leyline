@@ -1,6 +1,7 @@
 package leyline.game
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
@@ -161,9 +162,11 @@ class EffectLifecycleTest :
 
             // Multi-type array: [ModifiedToughness, ModifiedPower, LayeredEffect]
             val ptEffect = layeredEffects.first { it.affectedIdsList.contains(swiftspearIid) }
-            ptEffect.typeList shouldContain AnnotationType.ModifiedToughness
-            ptEffect.typeList shouldContain AnnotationType.ModifiedPower
-            ptEffect.typeList shouldContain AnnotationType.LayeredEffect
+            assertSoftly {
+                ptEffect.typeList shouldContain AnnotationType.ModifiedToughness
+                ptEffect.typeList shouldContain AnnotationType.ModifiedPower
+                ptEffect.typeList shouldContain AnnotationType.LayeredEffect
+            }
 
             // affectorId set
             ptEffect.affectorId shouldBe swiftspearIid

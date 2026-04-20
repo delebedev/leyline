@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
@@ -43,9 +44,11 @@ class KeywordGrantAnnotationTest :
 
             // One AddAbility+LayeredEffect pAnn
             val pAnn = persistent.first { it.typeList.contains(AnnotationType.AddAbility_af5a) }
-            pAnn.affectedIdsList shouldHaveSize 3
-            pAnn.detailsList.filter { it.key == "UniqueAbilityId" } shouldHaveSize 3
-            pAnn.detailUint("grpid") shouldBe 14
+            assertSoftly {
+                pAnn.affectedIdsList shouldHaveSize 3
+                pAnn.detailsList.filter { it.key == "UniqueAbilityId" } shouldHaveSize 3
+                pAnn.detailUint("grpid") shouldBe 14
+            }
         }
 
         test("effectAnnotations emits LayeredEffectDestroyed for expired keyword") {
@@ -100,9 +103,11 @@ class KeywordGrantAnnotationTest :
             // One persistent pAnn covering both creatures
             persistent shouldHaveSize 1
             val pAnn = persistent[0]
-            pAnn.affectedIdsList shouldHaveSize 2
-            pAnn.detailUint("grpid") shouldBe 8 // Flying
-            pAnn.detailInt("effect_id") shouldBe 7020
+            assertSoftly {
+                pAnn.affectedIdsList shouldHaveSize 2
+                pAnn.detailUint("grpid") shouldBe 8 // Flying
+                pAnn.detailInt("effect_id") shouldBe 7020
+            }
         }
 
         test("effectAnnotations handles mixed P/T boosts and keyword grants") {
@@ -135,8 +140,10 @@ class KeywordGrantAnnotationTest :
             transient.filter { it.typeList.contains(AnnotationType.LayeredEffectCreated) } shouldHaveSize 2
 
             // Persistent: LayeredEffect (boost) + AddAbility+LayeredEffect (keyword) = 2 total
-            persistent shouldHaveSize 2
-            persistent.filter { it.typeList.contains(AnnotationType.ModifiedPower) } shouldHaveSize 1
-            persistent.filter { it.typeList.contains(AnnotationType.AddAbility_af5a) } shouldHaveSize 1
+            assertSoftly {
+                persistent shouldHaveSize 2
+                persistent.filter { it.typeList.contains(AnnotationType.ModifiedPower) } shouldHaveSize 1
+                persistent.filter { it.typeList.contains(AnnotationType.AddAbility_af5a) } shouldHaveSize 1
+            }
         }
     })

@@ -1,5 +1,6 @@
 package leyline.unit
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -23,15 +24,19 @@ class TimerMessageTest :
 
             result.messages.size shouldBe 1
             val msg = result.messages[0]
-            msg.type shouldBe GREMessageType.TimerStateMessage_695e
-            msg.timerStateMessage.seatId shouldBe 1
-            msg.timerStateMessage.timersCount shouldBe 1
+            assertSoftly {
+                msg.type shouldBe GREMessageType.TimerStateMessage_695e
+                msg.timerStateMessage.seatId shouldBe 1
+                msg.timerStateMessage.timersCount shouldBe 1
+            }
 
             val timer = msg.timerStateMessage.timersList[0]
-            timer.type shouldBe TimerType.Decision
-            timer.durationSec shouldBe 30
-            timer.running shouldBe true
-            timer.elapsedSec shouldBe 0
+            assertSoftly {
+                timer.type shouldBe TimerType.Decision
+                timer.durationSec shouldBe 30
+                timer.running shouldBe true
+                timer.elapsedSec shouldBe 0
+            }
         }
 
         test("timerStop builds TimerStateMessage with running=false") {

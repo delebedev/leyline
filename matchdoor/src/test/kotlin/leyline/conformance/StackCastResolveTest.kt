@@ -6,6 +6,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -56,22 +57,26 @@ class StackCastResolveTest :
             val gsm = castSpellAndCapture() ?: error("No cast at seed 42")
 
             val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
-            zt.detailString("category") shouldBe "CastSpell"
-            zt.detailInt("zone_src") shouldBe ZoneIds.P1_HAND
-            zt.detailInt("zone_dest") shouldBe ZoneIds.STACK
+            assertSoftly {
+                zt.detailString("category") shouldBe "CastSpell"
+                zt.detailInt("zone_src") shouldBe ZoneIds.P1_HAND
+                zt.detailInt("zone_dest") shouldBe ZoneIds.STACK
+            }
         }
 
         test("CastSpell: annotation types — OIC, ZT, mana bracket, UAT") {
             val gsm = castSpellAndCapture() ?: error("No cast at seed 42")
             val types = gsm.annotationsList.map { it.typeList.first() }
 
-            types shouldContain AnnotationType.ObjectIdChanged
-            types shouldContain AnnotationType.ZoneTransfer_af5a
-            types shouldContain AnnotationType.AbilityInstanceCreated
-            types shouldContain AnnotationType.TappedUntappedPermanent
-            types shouldContain AnnotationType.ManaPaid
-            types shouldContain AnnotationType.AbilityInstanceDeleted
-            types shouldContain AnnotationType.UserActionTaken
+            assertSoftly {
+                types shouldContain AnnotationType.ObjectIdChanged
+                types shouldContain AnnotationType.ZoneTransfer_af5a
+                types shouldContain AnnotationType.AbilityInstanceCreated
+                types shouldContain AnnotationType.TappedUntappedPermanent
+                types shouldContain AnnotationType.ManaPaid
+                types shouldContain AnnotationType.AbilityInstanceDeleted
+                types shouldContain AnnotationType.UserActionTaken
+            }
         }
 
         test("CastSpell: OIC before ZT, Limbo contains old instanceId") {
@@ -142,9 +147,11 @@ class StackCastResolveTest :
             val aidIdx = types.indexOf(AnnotationType.AbilityInstanceDeleted)
 
             // Strict ordering (not necessarily consecutive — other annotations may interleave)
-            (aicIdx < tupIdx) shouldBe true
-            (tupIdx < mpIdx) shouldBe true
-            (mpIdx < aidIdx) shouldBe true
+            assertSoftly {
+                aicIdx shouldBeLessThan tupIdx
+                tupIdx shouldBeLessThan mpIdx
+                mpIdx shouldBeLessThan aidIdx
+            }
         }
 
         // TUP count depends on how many lands the engine taps for the spell's cost.

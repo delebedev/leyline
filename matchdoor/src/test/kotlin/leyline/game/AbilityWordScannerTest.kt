@@ -1,6 +1,7 @@
 package leyline.game
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -44,10 +45,12 @@ class AbilityWordScannerTest :
 
             results shouldHaveSize 1
             val r = results[0]
-            r.instanceId shouldBe iid
-            r.abilityWordName shouldBe "Threshold"
-            r.value shouldBe 5
-            r.threshold shouldBe 7
+            assertSoftly {
+                r.instanceId shouldBe iid
+                r.abilityWordName shouldBe "Threshold"
+                r.value shouldBe 5
+                r.threshold shouldBe 7
+            }
         }
 
         test("Morbid card with dead creature emits per-player AbilityWordEntry") {
@@ -76,11 +79,13 @@ class AbilityWordScannerTest :
             )
 
             val morbidEntry = results.firstOrNull { it.abilityWordName == "Morbid" }
-            morbidEntry.shouldNotBeNull()
-            morbidEntry.affectorId shouldBe 1 // human seatId
-            morbidEntry.affectedIds shouldContain prowlerIid
-            morbidEntry.value shouldBe null // boolean-only
-            morbidEntry.threshold shouldBe null // boolean-only
+            assertSoftly {
+                morbidEntry.shouldNotBeNull()
+                morbidEntry.affectorId shouldBe 1 // human seatId
+                morbidEntry.affectedIds shouldContain prowlerIid
+                morbidEntry.value shouldBe null // boolean-only
+                morbidEntry.threshold shouldBe null // boolean-only
+            }
         }
 
         test("Morbid card with no creature death emits no entry") {

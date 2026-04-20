@@ -3,6 +3,7 @@ package leyline.conformance
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
@@ -29,8 +30,7 @@ class PuzzleHandlerTest :
             TestCardRegistry.ensureRegistered()
         }
 
-        fun greMessages(msg: MatchServiceToClientMessage): List<GREToClientMessage> =
-            msg.greToClientEvent.greToClientMessagesList
+        fun greMessages(msg: MatchServiceToClientMessage): List<GREToClientMessage> = msg.greToClientEvent.greToClientMessagesList
 
         fun outbound(channel: EmbeddedChannel): List<MatchServiceToClientMessage> =
             generateSequence { channel.readOutbound<MatchServiceToClientMessage>() }.toList()
@@ -41,10 +41,9 @@ class PuzzleHandlerTest :
             return channel to (channel.pipeline().context(probe) as ChannelHandlerContext)
         }
 
-        fun tempPuzzleFile(name: String): File =
-            File.createTempFile("leyline-$name-", ".pzl").apply {
-                writeText(
-                    """
+        fun tempPuzzleFile(name: String): File = File.createTempFile("leyline-$name-", ".pzl").apply {
+            writeText(
+                """
                     [metadata]
                     Name:$name
                     Goal:Win
@@ -62,9 +61,9 @@ class PuzzleHandlerTest :
                     humanbattlefield=Mountain
                     humanlibrary=Mountain
                     ailibrary=Mountain
-                    """.trimIndent(),
-                )
-            }
+                """.trimIndent(),
+            )
+        }
 
         test("puzzle bridge + initial bundle send ConnectResp/GSM/ActionsAvailable, then enter puzzle loop") {
             val registry = MatchRegistry()
@@ -89,7 +88,7 @@ class PuzzleHandlerTest :
                 gre.map { it.type } shouldContain GREMessageType.ConnectResp_695e
                 gre.map { it.type } shouldContain GREMessageType.GameStateMessage_695e
                 gre.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
-                sink.messages.isNotEmpty().shouldBeTrue()
+                sink.messages.shouldNotBeEmpty()
                 session.gameBridge shouldBeSameInstanceAs bridge
                 channel.close()
                 bridge.shutdown()

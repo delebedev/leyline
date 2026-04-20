@@ -774,12 +774,7 @@ private fun loadReferenceShape(resource: String): JsonObject {
  * Nested JsonObjects are checked recursively. Extra keys in actual are allowed
  * (server may add fields), but missing keys fail with a clear message.
  */
-private fun assertKeysMatch(
-    reference: JsonObject,
-    actual: JsonObject,
-    context: String,
-    path: String = "",
-) {
+private fun assertKeysMatch(reference: JsonObject, actual: JsonObject, context: String, path: String = "") {
     val loc = path.ifEmpty { "root" }
     withClue("$context: missing keys at $loc") {
         (reference.keys - actual.keys).shouldBeEmpty()

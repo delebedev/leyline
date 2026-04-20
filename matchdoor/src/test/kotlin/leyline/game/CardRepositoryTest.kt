@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
@@ -32,9 +33,11 @@ class CardRepositoryTest :
         }
 
         test("parse token grp ids empty") {
-            parseTokenGrpIds(null) shouldBe emptyMap<Int, Int>()
-            parseTokenGrpIds("") shouldBe emptyMap<Int, Int>()
-            parseTokenGrpIds("  ") shouldBe emptyMap<Int, Int>()
+            assertSoftly {
+                parseTokenGrpIds(null) shouldBe emptyMap<Int, Int>()
+                parseTokenGrpIds("") shouldBe emptyMap<Int, Int>()
+                parseTokenGrpIds("  ") shouldBe emptyMap<Int, Int>()
+            }
         }
 
         test("parse token grp ids malformed") {

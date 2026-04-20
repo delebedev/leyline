@@ -1,7 +1,8 @@
 package leyline.bridge
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.shouldBe
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import leyline.UnitTag
@@ -48,18 +49,22 @@ class DeckConverterTest :
             val commander = listOf(CardEntry(75515, 1))
             val main = listOf(CardEntry(93848, 1))
             val text = DeckConverter.toDeckText(main, emptyList(), commander, nameByGrpId)
-            text shouldContain "[Commander]"
-            text shouldContain "[Deck]"
-            text shouldContain "1 Lightning Bolt"
-            text shouldContain "1 Counterspell"
+            assertSoftly {
+                text shouldContain "[Commander]"
+                text shouldContain "[Deck]"
+                text shouldContain "1 Lightning Bolt"
+                text shouldContain "1 Counterspell"
+            }
             // [Commander] → commander card → [Deck] → main deck cards
             val commanderIdx = text.indexOf("[Commander]")
             val boltIdx = text.indexOf("1 Lightning Bolt")
             val deckIdx = text.indexOf("[Deck]")
             val counterspellIdx = text.indexOf("1 Counterspell")
-            (commanderIdx < boltIdx) shouldBe true
-            (boltIdx < deckIdx) shouldBe true
-            (deckIdx < counterspellIdx) shouldBe true
+            assertSoftly {
+                commanderIdx shouldBeLessThan boltIdx
+                boltIdx shouldBeLessThan deckIdx
+                deckIdx shouldBeLessThan counterspellIdx
+            }
         }
 
         test("empty commandZone omits Commander header") {

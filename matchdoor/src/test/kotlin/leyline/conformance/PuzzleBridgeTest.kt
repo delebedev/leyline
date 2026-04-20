@@ -102,7 +102,7 @@ class PuzzleBridgeTest :
             val human = b.getPlayer(SeatId(1))!!
             val bears = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
             val instanceId = b.getOrAllocInstanceId(ForgeCardId(bears.id))
-            (instanceId.value > 0).shouldBeTrue()
+            instanceId.value shouldBeGreaterThan 0
             // Verify reverse lookup
             val forgeId = b.getForgeCardId(instanceId)
             forgeId?.value shouldBe bears.id
@@ -155,7 +155,7 @@ class PuzzleBridgeTest :
             val game = b.getGame()!!
             val snap = GsmSnapshot.capture(game, b, "test-puzzle", 1)
             val gsm = StateMapper.buildFromSnapshot(snap, 1, "test-puzzle", b, viewingSeatId = 1).gsm
-            (gsm.gameObjectsCount > 0).shouldBeTrue()
+            gsm.gameObjectsCount shouldBeGreaterThan 0
         }
 
         test("puzzle can perform action") {

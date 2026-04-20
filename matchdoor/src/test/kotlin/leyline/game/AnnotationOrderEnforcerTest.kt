@@ -1,6 +1,7 @@
 package leyline.game
 
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.toWireId
@@ -130,8 +131,8 @@ class AnnotationOrderEnforcerTest :
                     it.affectedIdsList.contains(400)
             }
 
-            (oic1Idx < zt1Idx) shouldBe true
-            (oic2Idx < zt2Idx) shouldBe true
+            oic1Idx shouldBeLessThan zt1Idx
+            oic2Idx shouldBeLessThan zt2Idx
         }
 
         test("affectorId reference also triggers reorder") {

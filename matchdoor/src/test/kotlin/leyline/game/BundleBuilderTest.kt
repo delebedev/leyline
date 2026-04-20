@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
@@ -42,8 +43,7 @@ class BundleBuilderTest :
         afterEach { base.tearDown() }
 
         /** Create a BundleBuilder for pure proto tests (no game state needed). */
-        fun pureBB(seatId: Int = 1, matchId: String = "test-match") =
-            BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), matchId, seatId)
+        fun pureBB(seatId: Int = 1, matchId: String = "test-match") = BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), matchId, seatId)
 
         // --- Unit tests (pure proto, no game) ---
 
@@ -101,8 +101,8 @@ class BundleBuilderTest :
                 gs1.gameInfo.matchState shouldBe Messages.MatchState.GameComplete
                 gs1.gameInfo.stage shouldBe Messages.GameStage.GameOver
                 gs1.gameInfo.resultsCount shouldBe 1
-                (gs1.teamsCount > 0).shouldBeTrue()
-                (gs1.annotationsCount > 0).shouldBeTrue()
+                gs1.teamsCount shouldBeGreaterThan 0
+                gs1.annotationsCount shouldBeGreaterThan 0
             }
 
             val gs2 = result.messages[1].gameStateMessage
@@ -248,7 +248,7 @@ class BundleBuilderTest :
 
             val gsm = result.messages[0].gameStateMessage
             gsm.type shouldBe GameStateType.Diff
-            (gsm.gameObjectsCount > 0).shouldBeTrue()
+            gsm.gameObjectsCount shouldBeGreaterThan 0
 
             // Conformance: client uses SendAndRecord, no pendingMessageCount
             gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
@@ -282,7 +282,7 @@ class BundleBuilderTest :
             }
 
             val gsm = result.messages[0].gameStateMessage
-            (gsm.gameObjectsCount > 0).shouldBeTrue()
+            gsm.gameObjectsCount shouldBeGreaterThan 0
 
             // Conformance: client uses SendAndRecord, no pendingMessageCount
             gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord

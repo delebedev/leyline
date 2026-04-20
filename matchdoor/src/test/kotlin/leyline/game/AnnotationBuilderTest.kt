@@ -708,9 +708,11 @@ class AnnotationBuilderTest :
 
         test("layeredEffect power-only has ModifiedPower co-type") {
             val ann = AnnotationBuilder.layeredEffect(instanceId = 100.iid, effectId = 7005.eid, powerDelta = 3)
-            ann.typeList shouldContain AnnotationType.ModifiedPower
-            ann.typeList shouldContain AnnotationType.LayeredEffect
-            ann.typeList.none { it == AnnotationType.ModifiedToughness } shouldBe true
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.ModifiedPower
+                ann.typeList shouldContain AnnotationType.LayeredEffect
+                ann.typeList.none { it == AnnotationType.ModifiedToughness } shouldBe true
+            }
         }
 
         test("layeredEffect no deltas has LayeredEffect only") {

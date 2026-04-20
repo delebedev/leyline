@@ -270,10 +270,12 @@ class TransferAnnotationPipelineTest :
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             // ZoneTransfer category produces ObjectIdChanged (when origId != newId) + ZoneTransfer
-            annotations.size shouldBe 2
-            annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
-            annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-            persistent.shouldBeEmpty()
+            assertSoftly {
+                annotations.size shouldBe 2
+                annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
+                annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+                persistent.shouldBeEmpty()
+            }
         }
 
         test("castSpellToStackGetsPersistentAnnotation") {
@@ -287,9 +289,11 @@ class TransferAnnotationPipelineTest :
                 ownerSeatId = 1,
             )
             val (_, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
-            persistent.size shouldBe 1
-            persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
-            persistent[0].affectorId shouldBe ZoneIds.STACK
+            assertSoftly {
+                persistent.size shouldBe 1
+                persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
+                persistent[0].affectorId shouldBe ZoneIds.STACK
+            }
         }
 
         test("resolveToGraveyardNoPersistentAnnotation") {

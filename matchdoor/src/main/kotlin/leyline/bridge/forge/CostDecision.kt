@@ -105,8 +105,7 @@ class CostDecision(
     // Non-interactive visit() methods
     // ═══════════════════════════════════════════════════════════════════
 
-    override fun visit(cost: CostAddMana): PaymentDecision =
-        PaymentDecision.number(cost.getAbilityAmount(ability))
+    override fun visit(cost: CostAddMana): PaymentDecision = PaymentDecision.number(cost.getAbilityAmount(ability))
 
     override fun visit(cost: CostChooseColor): PaymentDecision {
         val c = cost.getAbilityAmount(ability)
@@ -207,7 +206,9 @@ class CostDecision(
     override fun visit(cost: CostPayEnergy): PaymentDecision? {
         val c = cost.getAbilityAmount(ability)
         if (player.canPayEnergy(c) &&
-            confirmAction(Localizer.getInstance().getMessage("lblPayEnergyConfirm", cost.toString(), player.getCounters(CounterEnumType.ENERGY).toString(), "{E}"))
+            confirmAction(
+                Localizer.getInstance().getMessage("lblPayEnergyConfirm", cost.toString(), player.getCounters(CounterEnumType.ENERGY).toString(), "{E}"),
+            )
         ) {
             return PaymentDecision.number(c)
         }

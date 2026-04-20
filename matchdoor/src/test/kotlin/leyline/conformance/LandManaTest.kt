@@ -7,6 +7,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -92,7 +93,7 @@ class LandManaTest :
                 landObj.uniqueAbilitiesCount shouldBeGreaterThan 0
 
                 assertLimboContains(gsm, origId)
-                gsm.diffDeletedInstanceIdsList.contains(origId).shouldBeFalse()
+                gsm.diffDeletedInstanceIdsList shouldNotContain origId
             }
         }
 
@@ -120,7 +121,7 @@ class LandManaTest :
 
                 val handZone = acc.zones.values
                     .first { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
-                handZone.objectInstanceIdsList.contains(origId.value).shouldBeFalse()
+                handZone.objectInstanceIdsList shouldNotContain origId.value
 
                 acc.zones[ZoneIds.BATTLEFIELD]!!.objectInstanceIdsList.shouldContain(newId.value)
                 acc.zones[ZoneIds.LIMBO]!!.objectInstanceIdsList.shouldContain(origId.value)
@@ -281,12 +282,14 @@ class LandManaTest :
                 gsm.actionsList.map { it.action }.filter { it.actionType == type }
 
             val cast = actionStub(ActionType.Cast)
-            cast.shouldHaveSize(1)
-            cast[0].instanceId shouldNotBe 0
-            cast[0].grpId shouldBe 0
-            cast[0].facetId shouldBe 0
-            cast[0].shouldStop.shouldBeFalse()
-            cast[0].hasAutoTapSolution().shouldBeFalse()
+            assertSoftly {
+                cast.shouldHaveSize(1)
+                cast[0].instanceId shouldNotBe 0
+                cast[0].grpId shouldBe 0
+                cast[0].facetId shouldBe 0
+                cast[0].shouldStop.shouldBeFalse()
+                cast[0].hasAutoTapSolution().shouldBeFalse()
+            }
 
             val mana = actionStub(ActionType.ActivateMana)
             mana.shouldHaveSize(2)

@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -101,9 +102,11 @@ class PlaneswalkerSacrificeTest :
                 h.passPriority()
             }
 
-            h.isGameOver().shouldBeTrue()
-            human.hasWon().shouldBeTrue()
-            human.hasLost().shouldBeFalse()
-            ai.life shouldBe 0
+            assertSoftly {
+                h.isGameOver().shouldBeTrue()
+                human.hasWon().shouldBeTrue()
+                human.hasLost().shouldBeFalse()
+                ai.life shouldBe 0
+            }
         }
     })

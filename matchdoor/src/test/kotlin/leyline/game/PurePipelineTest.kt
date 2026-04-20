@@ -4,6 +4,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -43,29 +44,18 @@ class PurePipelineTest :
 
         tags(UnitTag)
 
-        fun gameObject(
-            instanceId: Int,
-            grpId: Int,
-            zoneId: Int,
-            ownerSeatId: Int,
-        ): GameObjectInfo =
-            GameObjectInfo.newBuilder()
-                .setInstanceId(instanceId)
-                .setGrpId(grpId)
-                .setZoneId(zoneId)
-                .setOwnerSeatId(ownerSeatId)
-                .build()
+        fun gameObject(instanceId: Int, grpId: Int, zoneId: Int, ownerSeatId: Int): GameObjectInfo = GameObjectInfo.newBuilder()
+            .setInstanceId(instanceId)
+            .setGrpId(grpId)
+            .setZoneId(zoneId)
+            .setOwnerSeatId(ownerSeatId)
+            .build()
 
-        fun zone(
-            zoneId: Int,
-            type: ZoneType,
-            vararg objectInstanceIds: Int,
-        ): ZoneInfo =
-            ZoneInfo.newBuilder()
-                .setZoneId(zoneId)
-                .setType(type)
-                .also { b -> objectInstanceIds.forEach { b.addObjectInstanceIds(it) } }
-                .build()
+        fun zone(zoneId: Int, type: ZoneType, vararg objectInstanceIds: Int): ZoneInfo = ZoneInfo.newBuilder()
+            .setZoneId(zoneId)
+            .setType(type)
+            .also { b -> objectInstanceIds.forEach { b.addObjectInstanceIds(it) } }
+            .build()
 
         // -----------------------------------------------------------------------
         // Test 1: hand-to-battlefield — PlayLand
@@ -250,7 +240,7 @@ class PurePipelineTest :
 
             // DamageDealt annotation with target iid = 20 + 1000 = 1020
             val damageAnnotation = result.annotations.first { it.getType(0) == AnnotationType.DamageDealt_af5a }
-            damageAnnotation.affectedIdsList.contains(1020) shouldBe true
+            damageAnnotation.affectedIdsList shouldContain 1020
         }
 
         test("combatAnnotations can keep pre-transfer battlefield ids for lethal combat") {
@@ -293,7 +283,7 @@ class PurePipelineTest :
             )
 
             val lifeAnnotation = result.annotations.first { it.getType(0) == AnnotationType.ModifiedLife }
-            lifeAnnotation.affectedIdsList.contains(2) shouldBe true
+            lifeAnnotation.affectedIdsList shouldContain 2
         }
 
         test("assembleTransferAndCombatAnnotations defers lethal-damage destroy transfer until after DamageDealt") {
@@ -477,14 +467,13 @@ class PurePipelineTest :
         val abilityIid = 500
         val cardGrpId = 12345
 
-        fun abilityObject(instanceId: Int = abilityIid, grpId: Int = cardGrpId): GameObjectInfo =
-            GameObjectInfo.newBuilder()
-                .setInstanceId(instanceId)
-                .setGrpId(grpId)
-                .setZoneId(ZoneIds.STACK)
-                .setOwnerSeatId(1)
-                .setType(GameObjectType.Ability)
-                .build()
+        fun abilityObject(instanceId: Int = abilityIid, grpId: Int = cardGrpId): GameObjectInfo = GameObjectInfo.newBuilder()
+            .setInstanceId(instanceId)
+            .setGrpId(grpId)
+            .setZoneId(ZoneIds.STACK)
+            .setOwnerSeatId(1)
+            .setType(GameObjectType.Ability)
+            .build()
 
         /** Standard lookup: maps ability instanceId → ability forgeId, source instanceId → source forgeId. */
         val forgeIdLookup: (InstanceId) -> ForgeCardId? = { iid ->

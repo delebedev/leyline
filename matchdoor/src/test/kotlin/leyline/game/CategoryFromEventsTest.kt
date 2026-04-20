@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -112,9 +113,11 @@ class CategoryFromEventsTest :
                 GameEvent.SpellCast(cardId = ForgeCardId(99), seatId = SeatId(1)),
                 GameEvent.SpellResolved(cardId = ForgeCardId(77), hasFizzled = false),
             )
-            TransferCategoryResolver.categoryFromEvents(ForgeCardId(42), events) shouldBe TransferCategory.PlayLand
-            TransferCategoryResolver.categoryFromEvents(ForgeCardId(99), events) shouldBe TransferCategory.CastSpell
-            TransferCategoryResolver.categoryFromEvents(ForgeCardId(77), events) shouldBe TransferCategory.Resolve
+            assertSoftly {
+                TransferCategoryResolver.categoryFromEvents(ForgeCardId(42), events) shouldBe TransferCategory.PlayLand
+                TransferCategoryResolver.categoryFromEvents(ForgeCardId(99), events) shouldBe TransferCategory.CastSpell
+                TransferCategoryResolver.categoryFromEvents(ForgeCardId(77), events) shouldBe TransferCategory.Resolve
+            }
             TransferCategoryResolver.categoryFromEvents(ForgeCardId(1), events).shouldBeNull()
         }
 

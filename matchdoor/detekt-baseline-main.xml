@@ -35,7 +35,6 @@
     <ID>MaxLineLength:ClientGuiGame.kt$ClientGuiGame$override fun openZones(controller: PlayerView, zones: Collection&lt;ZoneType&gt;, players: Map&lt;PlayerView, Any&gt;, backupLastZones: Boolean): PlayerZoneUpdates</ID>
     <ID>MaxLineLength:ClientGuiGame.kt$ClientGuiGame$override fun showConfirmDialog(message: String, title: String, yesText: String, noText: String): Boolean</ID>
     <ID>MaxLineLength:ClientGuiGame.kt$ClientGuiGame$override fun showInputDialog(message: String, title: String, icon: FSkinProp?, initialInput: String?): String</ID>
-    <ID>MaxLineLength:CostDecision.kt$CostDecision$confirmAction(Localizer.getInstance().getMessage("lblPayEnergyConfirm", cost.toString(), player.getCounters(CounterEnumType.ENERGY).toString(), "{E}"))</ID>
     <ID>MaxLineLength:HeadlessGuiBase.kt$HeadlessGuiBase$override fun chooseCard(title: String, message: String, list: MutableList&lt;PaperCard&gt;): PaperCard</ID>
     <ID>MaxLineLength:HeadlessGuiBase.kt$HeadlessGuiBase$override fun showBoxedProduct(title: String, message: String, list: MutableList&lt;PaperCard&gt;): Boolean</ID>
     <ID>MaxLineLength:HeadlessGuiBase.kt$HeadlessGuiBase$override fun showCardList(title: String, message: String, list: MutableList&lt;PaperCard&gt;): Unit</ID>
