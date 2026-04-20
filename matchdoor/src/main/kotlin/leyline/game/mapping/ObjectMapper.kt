@@ -22,7 +22,6 @@ import forge.card.CardType.CoreType as ForgeCoreType
  * sickness, damage, loyalty, combat state, and attachment info.
  */
 object ObjectMapper {
-
     private val log = LoggerFactory.getLogger(ObjectMapper::class.java)
 
     /** Offset added to source card IDs for stack ability instance IDs. */
@@ -37,7 +36,8 @@ object ObjectMapper {
         ownerSeatId: Int,
         cardProto: CardProtoBuilder,
     ): GameObjectInfo =
-        cardProto.buildObjectInfo(grpId)
+        cardProto
+            .buildObjectInfo(grpId)
             .setInstanceId(instanceId)
             .setType(GameObjectType.Ability)
             .setZoneId(ZoneIds.STACK)
@@ -63,7 +63,8 @@ object ObjectMapper {
         bridge: GameBridge,
     ): GameObjectInfo {
         val objType = if (cardSnap.isToken) GameObjectType.Token else GameObjectType.Card
-        return bridge.cardProto.buildObjectInfo(cardSnap.grpId)
+        return bridge.cardProto
+            .buildObjectInfo(cardSnap.grpId)
             .setInstanceId(instanceId)
             .setType(objType)
             .setZoneId(zoneId)
@@ -90,7 +91,8 @@ object ObjectMapper {
         viewerSeatId: Int,
         bridge: GameBridge,
     ): GameObjectInfo =
-        bridge.cardProto.buildObjectInfo(cardSnap.grpId)
+        bridge.cardProto
+            .buildObjectInfo(cardSnap.grpId)
             .setInstanceId(proxyInstanceId)
             .setType(GameObjectType.RevealedCard)
             .setZoneId(handZoneId)
@@ -121,10 +123,12 @@ object ObjectMapper {
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ): GameObjectInfo {
         val objType = if (cardSnap.isToken) GameObjectType.Token else GameObjectType.Card
-        val extrinsicKws = keywordSnapshot[instanceId]
-            ?.mapNotNull { KeywordGrpIds.forKeyword(it.keyword) }
-            ?: emptyList()
-        return bridge.cardProto.buildObjectInfo(cardSnap.grpId, extrinsicKeywordGrpIds = extrinsicKws)
+        val extrinsicKws =
+            keywordSnapshot[instanceId]
+                ?.mapNotNull { KeywordGrpIds.forKeyword(it.keyword) }
+                ?: emptyList()
+        return bridge.cardProto
+            .buildObjectInfo(cardSnap.grpId, extrinsicKeywordGrpIds = extrinsicKws)
             .setInstanceId(instanceId)
             .setType(objType)
             .setZoneId(zoneId)
@@ -230,29 +234,34 @@ object ObjectMapper {
     }
 
     /** Resolve the other face's grpId for DFC cards. Returns 0 for non-DFC. */
-    internal fun resolveOthersideGrpId(card: Card, cards: CardRepository): Int {
+    internal fun resolveOthersideGrpId(
+        card: Card,
+        cards: CardRepository,
+    ): Int {
         if (!card.isDoubleFaced) return 0
-        val otherStateName = if (card.currentState.stateName == forge.card.CardStateName.Backside) {
-            forge.card.CardStateName.Original
-        } else {
-            forge.card.CardStateName.Backside
-        }
+        val otherStateName =
+            if (card.currentState.stateName == forge.card.CardStateName.Backside) {
+                forge.card.CardStateName.Original
+            } else {
+                forge.card.CardStateName.Backside
+            }
         val otherState = card.getState(otherStateName) ?: return 0
         return cards.findGrpIdByName(otherState.name) ?: 0
     }
 
     /** Forge CoreType → proto CardType mapping. Shared with [leyline.game.snapshot.SnapshotCapture]. */
-    internal val coreTypeToProto: Map<ForgeCoreType, CardType> = mapOf(
-        ForgeCoreType.Artifact to CardType.Artifact_a80b,
-        ForgeCoreType.Creature to CardType.Creature,
-        ForgeCoreType.Enchantment to CardType.Enchantment,
-        ForgeCoreType.Instant to CardType.Instant,
-        ForgeCoreType.Land to CardType.Land_a80b,
-        ForgeCoreType.Planeswalker to CardType.Planeswalker,
-        ForgeCoreType.Sorcery to CardType.Sorcery,
-        ForgeCoreType.Kindred to CardType.Kindred,
-        ForgeCoreType.Battle to CardType.Battle,
-    )
+    internal val coreTypeToProto: Map<ForgeCoreType, CardType> =
+        mapOf(
+            ForgeCoreType.Artifact to CardType.Artifact_a80b,
+            ForgeCoreType.Creature to CardType.Creature,
+            ForgeCoreType.Enchantment to CardType.Enchantment,
+            ForgeCoreType.Instant to CardType.Instant,
+            ForgeCoreType.Land to CardType.Land_a80b,
+            ForgeCoreType.Planeswalker to CardType.Planeswalker,
+            ForgeCoreType.Sorcery to CardType.Sorcery,
+            ForgeCoreType.Kindred to CardType.Kindred,
+            ForgeCoreType.Battle to CardType.Battle,
+        )
 
     /**
      * Resolve grpId for a card. Tokens use the [TokenIdentityRegistry] cache,
@@ -272,11 +281,12 @@ object ObjectMapper {
             // 2. Copy token — use source permanent's grpId
             val copiedPermanent = card.copiedPermanent
             if (copiedPermanent != null) {
-                val sourceGrpId = cards.findGrpIdByNameAnyFace(copiedPermanent.name)
-                    ?: run {
-                        log.error("copy token grpId=0: source '{}' not in card DB", copiedPermanent.name)
-                        return GameBridge.FALLBACK_GRPID
-                    }
+                val sourceGrpId =
+                    cards.findGrpIdByNameAnyFace(copiedPermanent.name)
+                        ?: run {
+                            log.error("copy token grpId=0: source '{}' not in card DB", copiedPermanent.name)
+                            return GameBridge.FALLBACK_GRPID
+                        }
                 if (instanceId != 0) tokenRegistry.register(instanceId, sourceGrpId)
                 return sourceGrpId
             }
@@ -304,13 +314,17 @@ object ObjectMapper {
     }
 
     /** Resolve token grpId via source card's AbilityIdToLinkedTokenGrpId mapping. */
-    private fun resolveTokenGrpId(card: Card, cards: CardRepository): Int? {
+    private fun resolveTokenGrpId(
+        card: Card,
+        cards: CardRepository,
+    ): Int? {
         val sourceCard = card.tokenSpawningAbility?.hostCard ?: return null
         // Try current state name first (e.g. "Pest Problem" for adventure on stack),
         // then primary face name as fallback. Token mappings in Arena DB can be on
         // either face — adventure tokens map from the adventure face grpId.
-        val sourceGrpId = cards.findGrpIdByNameAnyFace(sourceCard.name)
-            ?: return null
+        val sourceGrpId =
+            cards.findGrpIdByNameAnyFace(sourceCard.name)
+                ?: return null
         return cards.tokenGrpIdForCard(sourceGrpId, card.name)
     }
 }

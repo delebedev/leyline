@@ -12,7 +12,9 @@ package leyline.frontdoor.domain
  * The Payload is a JSON string containing the draft state fields.
  */
 
-@JvmInline value class DraftSessionId(val value: String)
+@JvmInline value class DraftSessionId(
+    val value: String,
+)
 
 enum class DraftStatus {
     PickNext,

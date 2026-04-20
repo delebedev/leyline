@@ -23,26 +23,27 @@ class ChannelPuzzleTest :
         }
 
         test("Twinshot Sniper channel from hand kills opponent") {
-            val pzl = """
-            [metadata]
-            Name:Channel for Lethal
-            Goal:Win
-            Turns:1
-            Difficulty:Easy
-            Description:Channel Twinshot Sniper from hand to deal 2 damage to opponent for lethal.
+            val pzl =
+                """
+                [metadata]
+                Name:Channel for Lethal
+                Goal:Win
+                Turns:1
+                Difficulty:Easy
+                Description:Channel Twinshot Sniper from hand to deal 2 damage to opponent for lethal.
 
-            [state]
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=2
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=2
 
-            humanhand=Twinshot Sniper
-            humanbattlefield=Mountain;Mountain
-            humanlibrary=Mountain
-            aibattlefield=Centaur Courser
-            ailibrary=Mountain
-            """.trimIndent()
+                humanhand=Twinshot Sniper
+                humanbattlefield=Mountain;Mountain
+                humanlibrary=Mountain
+                aibattlefield=Centaur Courser
+                ailibrary=Mountain
+                """.trimIndent()
 
             val h = MatchFlowHarness(seed = 42L, validating = false)
             harness = h

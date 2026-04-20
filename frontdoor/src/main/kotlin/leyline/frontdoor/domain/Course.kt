@@ -1,6 +1,8 @@
 package leyline.frontdoor.domain
 
-@JvmInline value class CourseId(val value: String)
+@JvmInline value class CourseId(
+    val value: String,
+)
 
 /**
  * Client-visible course state machine modules.
@@ -32,7 +34,10 @@ enum class CourseModule {
     fun wireName(): String = name
 }
 
-data class CollationPool(val collationId: Int, val cardPool: List<Int>)
+data class CollationPool(
+    val collationId: Int,
+    val cardPool: List<Int>,
+)
 
 data class CourseDeck(
     val deckId: DeckId,

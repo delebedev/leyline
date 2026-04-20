@@ -44,7 +44,6 @@ class GamePlayback(
     /** Delay multiplier (1.0 = default, 0.5 = 2x speed, 0 = instant). Derived from config ai.speed. */
     private val delayMultiplier: Double = 1.0,
 ) : IGameEventVisitor.Base<Unit>() {
-
     private val bundleBuilder = BundleBuilder(bridge, matchId, seatId)
 
     private val log = LoggerFactory.getLogger(GamePlayback::class.java)
@@ -95,13 +94,14 @@ class GamePlayback(
         if (turn == lastCapturedTurn && phase == lastCapturedPhase) return
         lastCapturedTurn = turn
         lastCapturedPhase = phase
-        val delay = when (ev.phase()) {
-            PhaseType.COMBAT_DECLARE_ATTACKERS,
-            PhaseType.COMBAT_DECLARE_BLOCKERS,
-            PhaseType.COMBAT_END,
-            -> COMBAT_DELAY
-            else -> PHASE_DELAY
-        }
+        val delay =
+            when (ev.phase()) {
+                PhaseType.COMBAT_DECLARE_ATTACKERS,
+                PhaseType.COMBAT_DECLARE_BLOCKERS,
+                PhaseType.COMBAT_END,
+                -> COMBAT_DELAY
+                else -> PHASE_DELAY
+            }
         captureAndPause(delay)
     }
 
@@ -134,11 +134,12 @@ class GamePlayback(
     // -- Queue access (called from MatchHandler / Netty thread) --
 
     /** Drain all queued message batches. Returns empty list if nothing queued. */
-    fun drainQueue(): List<List<GREToClientMessage>> = buildList {
-        while (true) {
-            add(queue.poll() ?: break)
+    fun drainQueue(): List<List<GREToClientMessage>> =
+        buildList {
+            while (true) {
+                add(queue.poll() ?: break)
+            }
         }
-    }
 
     /** True if there are messages waiting to be sent. */
     fun hasPendingMessages(): Boolean = queue.isNotEmpty()
@@ -159,11 +160,12 @@ class GamePlayback(
         val game = bridge.getGame() ?: return
 
         try {
-            val result = bundleBuilder.remoteActionDiff(
-                game,
-                counter,
-                turnStarted = turnStarted,
-            )
+            val result =
+                bundleBuilder.remoteActionDiff(
+                    game,
+                    counter,
+                    turnStarted = turnStarted,
+                )
 
             queue.add(result.messages)
 

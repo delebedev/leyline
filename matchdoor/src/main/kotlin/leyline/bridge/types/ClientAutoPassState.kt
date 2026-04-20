@@ -66,7 +66,10 @@ class ClientAutoPassState {
     private val opponentStops: MutableSet<PhaseType> = ConcurrentHashMap.newKeySet()
 
     /** Update opponent-turn stops from parsed client settings. */
-    fun setOpponentStop(phase: PhaseType, enabled: Boolean) {
+    fun setOpponentStop(
+        phase: PhaseType,
+        enabled: Boolean,
+    ) {
         if (enabled) opponentStops.add(phase) else opponentStops.remove(phase)
     }
 

@@ -14,20 +14,20 @@ import wotc.mtgo.gre.external.messaging.Messages.StopType
  *
  */
 object StopTypeMapping {
-
-    private val stopToPhase: Map<StopType, PhaseType> = mapOf(
-        StopType.UpkeepStep to PhaseType.UPKEEP,
-        StopType.DrawStep to PhaseType.DRAW,
-        StopType.PrecombatMainPhase to PhaseType.MAIN1,
-        StopType.BeginCombatStep to PhaseType.COMBAT_BEGIN,
-        StopType.DeclareAttackersStep to PhaseType.COMBAT_DECLARE_ATTACKERS,
-        StopType.DeclareBlockersStep to PhaseType.COMBAT_DECLARE_BLOCKERS,
-        StopType.CombatDamageStep to PhaseType.COMBAT_DAMAGE,
-        StopType.EndCombatStep to PhaseType.COMBAT_END,
-        StopType.PostcombatMainPhase to PhaseType.MAIN2,
-        StopType.EndStep_ad1f to PhaseType.END_OF_TURN,
-        StopType.FirstStrikeDamageStep to PhaseType.COMBAT_FIRST_STRIKE_DAMAGE,
-    )
+    private val stopToPhase: Map<StopType, PhaseType> =
+        mapOf(
+            StopType.UpkeepStep to PhaseType.UPKEEP,
+            StopType.DrawStep to PhaseType.DRAW,
+            StopType.PrecombatMainPhase to PhaseType.MAIN1,
+            StopType.BeginCombatStep to PhaseType.COMBAT_BEGIN,
+            StopType.DeclareAttackersStep to PhaseType.COMBAT_DECLARE_ATTACKERS,
+            StopType.DeclareBlockersStep to PhaseType.COMBAT_DECLARE_BLOCKERS,
+            StopType.CombatDamageStep to PhaseType.COMBAT_DAMAGE,
+            StopType.EndCombatStep to PhaseType.COMBAT_END,
+            StopType.PostcombatMainPhase to PhaseType.MAIN2,
+            StopType.EndStep_ad1f to PhaseType.END_OF_TURN,
+            StopType.FirstStrikeDamageStep to PhaseType.COMBAT_FIRST_STRIKE_DAMAGE,
+        )
 
     private val phaseToStop: Map<PhaseType, StopType> =
         stopToPhase.entries.associate { (k, v) -> v to k }
@@ -44,9 +44,13 @@ object StopTypeMapping {
      * Only stops with [SettingStatus.Set] and a matching scope are included.
      * [SettingScope.AnyPlayer] matches any requested scope.
      */
-    fun parseStops(stops: List<Stop>, scope: SettingScope): Set<PhaseType> = stops
-        .filter { it.status == SettingStatus.Set }
-        .filter { it.appliesTo == scope || it.appliesTo == SettingScope.AnyPlayer }
-        .mapNotNull { toPhaseType(it.stopType) }
-        .toSet()
+    fun parseStops(
+        stops: List<Stop>,
+        scope: SettingScope,
+    ): Set<PhaseType> =
+        stops
+            .filter { it.status == SettingStatus.Set }
+            .filter { it.appliesTo == scope || it.appliesTo == SettingScope.AnyPlayer }
+            .mapNotNull { toPhaseType(it.stopType) }
+            .toSet()
 }

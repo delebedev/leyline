@@ -35,12 +35,12 @@ import org.jetbrains.exposed.v1.jdbc.update
  * Exposed DSL implementation over the player SQLite schema.
  * Implements both [DeckRepository] and [PlayerRepository].
  */
-class SqlitePlayerStore(private val database: Database) :
-    DeckRepository,
+class SqlitePlayerStore(
+    private val database: Database,
+) : DeckRepository,
     PlayerRepository,
     CourseRepository {
-
-    /* ---------- Exposed table objects (match existing schema exactly) ---------- */
+    // ---------- Exposed table objects (match existing schema exactly) ----------
 
     private object Players : Table("players") {
         val playerId = text("player_id")
@@ -92,13 +92,19 @@ class SqlitePlayerStore(private val database: Database) :
         override val primaryKey = PrimaryKey(id)
     }
 
-    /* ---------- JSON wire format for the cards column ---------- */
+    // ---------- JSON wire format for the cards column ----------
 
     @Serializable
-    private data class CardEntry(val cardId: Int, val quantity: Int)
+    private data class CardEntry(
+        val cardId: Int,
+        val quantity: Int,
+    )
 
     @Serializable
-    private data class CollationPoolDto(val collationId: Int, val cardPool: List<Int>)
+    private data class CollationPoolDto(
+        val collationId: Int,
+        val cardPool: List<Int>,
+    )
 
     @Serializable
     private data class CourseDeckDto(
@@ -125,33 +131,47 @@ class SqlitePlayerStore(private val database: Database) :
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    /* ---------- Schema bootstrap ---------- */
+    // ---------- Schema bootstrap ----------
 
     fun createTables() {
         transaction(database) { SchemaUtils.create(Players, Decks, Courses, DraftSessions) }
     }
 
-    /* ---------- DeckRepository ---------- */
+    // ---------- DeckRepository ----------
 
-    override fun findById(id: DeckId): Deck? = transaction(database) {
-        Decks.selectAll().where { Decks.deckId eq id.value }.firstOrNull()?.toDeck()
-    }
+    override fun findById(id: DeckId): Deck? =
+        transaction(database) {
+            Decks
+                .selectAll()
+                .where { Decks.deckId eq id.value }
+                .firstOrNull()
+                ?.toDeck()
+        }
 
-    override fun findByName(name: String): Deck? = transaction(database) {
-        Decks.selectAll().where { Decks.name eq name }.firstOrNull()?.toDeck()
-    }
+    override fun findByName(name: String): Deck? =
+        transaction(database) {
+            Decks
+                .selectAll()
+                .where { Decks.name eq name }
+                .firstOrNull()
+                ?.toDeck()
+        }
 
-    override fun findAllForPlayer(playerId: PlayerId): List<Deck> = transaction(database) {
-        Decks.selectAll()
-            .where { Decks.playerId eq playerId.value }
-            .map { it.toDeck() }
-    }
+    override fun findAllForPlayer(playerId: PlayerId): List<Deck> =
+        transaction(database) {
+            Decks
+                .selectAll()
+                .where { Decks.playerId eq playerId.value }
+                .map { it.toDeck() }
+        }
 
     override fun save(deck: Deck) {
         transaction(database) {
-            val exists = Decks.selectAll()
-                .where { Decks.deckId eq deck.id.value }
-                .count() > 0
+            val exists =
+                Decks
+                    .selectAll()
+                    .where { Decks.deckId eq deck.id.value }
+                    .count() > 0
             if (exists) {
                 Decks.update({ Decks.deckId eq deck.id.value }) {
                     it[Decks.name] = deck.name
@@ -179,28 +199,35 @@ class SqlitePlayerStore(private val database: Database) :
         transaction(database) { Decks.deleteWhere { deckId eq id.value } }
     }
 
-    /* ---------- PlayerRepository ---------- */
+    // ---------- PlayerRepository ----------
 
-    override fun findPlayer(id: PlayerId): Player? = transaction(database) {
-        Players.selectAll()
-            .where { Players.playerId eq id.value }
-            .firstOrNull()
-            ?.let {
-                Player(
-                    id = PlayerId(it[Players.playerId]),
-                    screenName = it[Players.screenName],
-                )
-            }
-    }
+    override fun findPlayer(id: PlayerId): Player? =
+        transaction(database) {
+            Players
+                .selectAll()
+                .where { Players.playerId eq id.value }
+                .firstOrNull()
+                ?.let {
+                    Player(
+                        id = PlayerId(it[Players.playerId]),
+                        screenName = it[Players.screenName],
+                    )
+                }
+        }
 
-    override fun getPreferences(id: PlayerId): Preferences? = transaction(database) {
-        Players.selectAll()
-            .where { Players.playerId eq id.value }
-            .firstOrNull()
-            ?.let { Preferences(it[Players.preferences]) }
-    }
+    override fun getPreferences(id: PlayerId): Preferences? =
+        transaction(database) {
+            Players
+                .selectAll()
+                .where { Players.playerId eq id.value }
+                .firstOrNull()
+                ?.let { Preferences(it[Players.preferences]) }
+        }
 
-    override fun savePreferences(id: PlayerId, prefs: Preferences) {
+    override fun savePreferences(
+        id: PlayerId,
+        prefs: Preferences,
+    ) {
         transaction(database) {
             Players.update({ Players.playerId eq id.value }) {
                 it[Players.preferences] = prefs.json
@@ -208,11 +235,16 @@ class SqlitePlayerStore(private val database: Database) :
         }
     }
 
-    override fun ensurePlayer(id: PlayerId, screenName: String) {
+    override fun ensurePlayer(
+        id: PlayerId,
+        screenName: String,
+    ) {
         transaction(database) {
-            val exists = Players.selectAll()
-                .where { Players.playerId eq id.value }
-                .count() > 0
+            val exists =
+                Players
+                    .selectAll()
+                    .where { Players.playerId eq id.value }
+                    .count() > 0
             if (!exists) {
                 Players.insert {
                     it[Players.playerId] = id.value
@@ -222,44 +254,59 @@ class SqlitePlayerStore(private val database: Database) :
         }
     }
 
-    /* ---------- CourseRepository ---------- */
+    // ---------- CourseRepository ----------
 
-    override fun findById(id: CourseId): Course? = transaction(database) {
-        Courses.selectAll().where { Courses.id eq id.value }.firstOrNull()?.toCourse()
-    }
-
-    override fun findByPlayer(playerId: PlayerId): List<Course> = transaction(database) {
-        Courses.selectAll().where { Courses.playerId eq playerId.value }.map { it.toCourse() }
-    }
-
-    override fun findByPlayerAndEvent(playerId: PlayerId, eventName: String): Course? =
+    override fun findById(id: CourseId): Course? =
         transaction(database) {
-            Courses.selectAll().where {
-                (Courses.playerId eq playerId.value) and (Courses.eventName eq eventName)
-            }.firstOrNull()?.toCourse()
+            Courses
+                .selectAll()
+                .where { Courses.id eq id.value }
+                .firstOrNull()
+                ?.toCourse()
+        }
+
+    override fun findByPlayer(playerId: PlayerId): List<Course> =
+        transaction(database) {
+            Courses.selectAll().where { Courses.playerId eq playerId.value }.map { it.toCourse() }
+        }
+
+    override fun findByPlayerAndEvent(
+        playerId: PlayerId,
+        eventName: String,
+    ): Course? =
+        transaction(database) {
+            Courses
+                .selectAll()
+                .where {
+                    (Courses.playerId eq playerId.value) and (Courses.eventName eq eventName)
+                }.firstOrNull()
+                ?.toCourse()
         }
 
     override fun save(course: Course) {
         transaction(database) {
             val existing = Courses.selectAll().where { Courses.id eq course.id.value }.count() > 0
             val poolJson = json.encodeToString(course.cardPool)
-            val collationJson = json.encodeToString(
-                course.cardPoolByCollation.map { CollationPoolDto(it.collationId, it.cardPool) },
-            )
-            val deckJson = course.deck?.let { d ->
+            val collationJson =
                 json.encodeToString(
-                    CourseDeckDto(
-                        d.deckId.value,
-                        d.mainDeck.map { CardEntry(it.grpId, it.quantity) },
-                        d.sideboard.map { CardEntry(it.grpId, it.quantity) },
-                    ),
+                    course.cardPoolByCollation.map { CollationPoolDto(it.collationId, it.cardPool) },
                 )
-            }
-            val summaryJson = course.deckSummary?.let { s ->
-                json.encodeToString(
-                    CourseDeckSummaryDto(s.deckId.value, s.name, s.tileId, s.format),
-                )
-            }
+            val deckJson =
+                course.deck?.let { d ->
+                    json.encodeToString(
+                        CourseDeckDto(
+                            d.deckId.value,
+                            d.mainDeck.map { CardEntry(it.grpId, it.quantity) },
+                            d.sideboard.map { CardEntry(it.grpId, it.quantity) },
+                        ),
+                    )
+                }
+            val summaryJson =
+                course.deckSummary?.let { s ->
+                    json.encodeToString(
+                        CourseDeckSummaryDto(s.deckId.value, s.name, s.tileId, s.format),
+                    )
+                }
             if (existing) {
                 Courses.update({ Courses.id eq course.id.value }) {
                     it[module] = course.module.name
@@ -291,76 +338,98 @@ class SqlitePlayerStore(private val database: Database) :
         transaction(database) { Courses.deleteWhere { Courses.id eq id.value } }
     }
 
-    /* ---------- DraftSessionRepository ---------- */
+    // ---------- DraftSessionRepository ----------
 
-    fun findDraftByPlayerAndEvent(playerId: PlayerId, eventName: String): DraftSession? =
+    fun findDraftByPlayerAndEvent(
+        playerId: PlayerId,
+        eventName: String,
+    ): DraftSession? =
         transaction(database) {
-            DraftSessions.selectAll().where {
-                (DraftSessions.playerId eq playerId.value) and (DraftSessions.eventName eq eventName)
-            }.firstOrNull()?.toDraftSession()
+            DraftSessions
+                .selectAll()
+                .where {
+                    (DraftSessions.playerId eq playerId.value) and (DraftSessions.eventName eq eventName)
+                }.firstOrNull()
+                ?.toDraftSession()
         }
 
-    fun findDraftById(id: DraftSessionId): DraftSession? = transaction(database) {
-        DraftSessions.selectAll().where { DraftSessions.id eq id.value }
-            .firstOrNull()?.toDraftSession()
-    }
+    fun findDraftById(id: DraftSessionId): DraftSession? =
+        transaction(database) {
+            DraftSessions
+                .selectAll()
+                .where { DraftSessions.id eq id.value }
+                .firstOrNull()
+                ?.toDraftSession()
+        }
 
-    fun saveDraft(session: DraftSession): Unit = transaction(database) {
-        val packsJson = json.encodeToString<List<List<Int>>>(session.packs)
-        val draftPackJson = json.encodeToString<List<Int>>(session.draftPack)
-        val pickedJson = json.encodeToString<List<Int>>(session.pickedCards)
+    fun saveDraft(session: DraftSession): Unit =
+        transaction(database) {
+            val packsJson = json.encodeToString<List<List<Int>>>(session.packs)
+            val draftPackJson = json.encodeToString<List<Int>>(session.draftPack)
+            val pickedJson = json.encodeToString<List<Int>>(session.pickedCards)
 
-        val exists = DraftSessions.selectAll()
-            .where { DraftSessions.id eq session.id.value }.count() > 0
-        if (exists) {
-            DraftSessions.update({ DraftSessions.id eq session.id.value }) {
-                it[status] = session.status.name
-                it[packNumber] = session.packNumber
-                it[pickNumber] = session.pickNumber
-                it[draftPack] = draftPackJson
-                it[packs] = packsJson
-                it[pickedCards] = pickedJson
-            }
-        } else {
-            DraftSessions.insert {
-                it[id] = session.id.value
-                it[playerId] = session.playerId.value
-                it[eventName] = session.eventName
-                it[status] = session.status.name
-                it[this.packNumber] = session.packNumber
-                it[this.pickNumber] = session.pickNumber
-                it[this.draftPack] = draftPackJson
-                it[this.packs] = packsJson
-                it[this.pickedCards] = pickedJson
+            val exists =
+                DraftSessions
+                    .selectAll()
+                    .where { DraftSessions.id eq session.id.value }
+                    .count() > 0
+            if (exists) {
+                DraftSessions.update({ DraftSessions.id eq session.id.value }) {
+                    it[status] = session.status.name
+                    it[packNumber] = session.packNumber
+                    it[pickNumber] = session.pickNumber
+                    it[draftPack] = draftPackJson
+                    it[packs] = packsJson
+                    it[pickedCards] = pickedJson
+                }
+            } else {
+                DraftSessions.insert {
+                    it[id] = session.id.value
+                    it[playerId] = session.playerId.value
+                    it[eventName] = session.eventName
+                    it[status] = session.status.name
+                    it[this.packNumber] = session.packNumber
+                    it[this.pickNumber] = session.pickNumber
+                    it[this.draftPack] = draftPackJson
+                    it[this.packs] = packsJson
+                    it[this.pickedCards] = pickedJson
+                }
             }
         }
-    }
 
-    fun deleteDraft(id: DraftSessionId): Unit = transaction(database) {
-        DraftSessions.deleteWhere { DraftSessions.id eq id.value }
-    }
+    fun deleteDraft(id: DraftSessionId): Unit =
+        transaction(database) {
+            DraftSessions.deleteWhere { DraftSessions.id eq id.value }
+        }
 
-    private fun ResultRow.toDraftSession(): DraftSession = DraftSession(
-        id = DraftSessionId(this[DraftSessions.id]),
-        playerId = PlayerId(this[DraftSessions.playerId]),
-        eventName = this[DraftSessions.eventName],
-        status = DraftStatus.valueOf(this[DraftSessions.status]),
-        packNumber = this[DraftSessions.packNumber],
-        pickNumber = this[DraftSessions.pickNumber],
-        draftPack = json.decodeFromString<List<Int>>(this[DraftSessions.draftPack]),
-        packs = json.decodeFromString<List<List<Int>>>(this[DraftSessions.packs]),
-        pickedCards = json.decodeFromString<List<Int>>(this[DraftSessions.pickedCards]),
-    )
+    private fun ResultRow.toDraftSession(): DraftSession =
+        DraftSession(
+            id = DraftSessionId(this[DraftSessions.id]),
+            playerId = PlayerId(this[DraftSessions.playerId]),
+            eventName = this[DraftSessions.eventName],
+            status = DraftStatus.valueOf(this[DraftSessions.status]),
+            packNumber = this[DraftSessions.packNumber],
+            pickNumber = this[DraftSessions.pickNumber],
+            draftPack = json.decodeFromString<List<Int>>(this[DraftSessions.draftPack]),
+            packs = json.decodeFromString<List<List<Int>>>(this[DraftSessions.packs]),
+            pickedCards = json.decodeFromString<List<Int>>(this[DraftSessions.pickedCards]),
+        )
 
-    fun asDraftSessionRepository(): DraftSessionRepository = object : DraftSessionRepository {
-        override fun findById(id: DraftSessionId) = findDraftById(id)
-        override fun findByPlayerAndEvent(playerId: PlayerId, eventName: String) =
-            findDraftByPlayerAndEvent(playerId, eventName)
-        override fun save(session: DraftSession) = saveDraft(session)
-        override fun delete(id: DraftSessionId) = deleteDraft(id)
-    }
+    fun asDraftSessionRepository(): DraftSessionRepository =
+        object : DraftSessionRepository {
+            override fun findById(id: DraftSessionId) = findDraftById(id)
 
-    /* ---------- Mapping helpers ---------- */
+            override fun findByPlayerAndEvent(
+                playerId: PlayerId,
+                eventName: String,
+            ) = findDraftByPlayerAndEvent(playerId, eventName)
+
+            override fun save(session: DraftSession) = saveDraft(session)
+
+            override fun delete(id: DraftSessionId) = deleteDraft(id)
+        }
+
+    // ---------- Mapping helpers ----------
 
     private fun ResultRow.toDeck(): Deck {
         val blob = json.decodeFromString<CardsBlob>(this[Decks.cards])
@@ -392,30 +461,35 @@ class SqlitePlayerStore(private val database: Database) :
             wins = this[Courses.wins],
             losses = this[Courses.losses],
             cardPool = json.decodeFromString(poolJson),
-            cardPoolByCollation = json.decodeFromString<List<CollationPoolDto>>(collationJson)
-                .map { CollationPool(it.collationId, it.cardPool) },
-            deck = deckJson?.let { d ->
-                val dto = json.decodeFromString<CourseDeckDto>(d)
-                CourseDeck(
-                    DeckId(dto.deckId),
-                    dto.mainDeck.map { DeckCard(it.cardId, it.quantity) },
-                    dto.sideboard.map { DeckCard(it.cardId, it.quantity) },
-                )
-            },
-            deckSummary = summaryJson?.let { s ->
-                val dto = json.decodeFromString<CourseDeckSummaryDto>(s)
-                CourseDeckSummary(DeckId(dto.deckId), dto.name, dto.tileId, dto.format)
-            },
+            cardPoolByCollation =
+                json
+                    .decodeFromString<List<CollationPoolDto>>(collationJson)
+                    .map { CollationPool(it.collationId, it.cardPool) },
+            deck =
+                deckJson?.let { d ->
+                    val dto = json.decodeFromString<CourseDeckDto>(d)
+                    CourseDeck(
+                        DeckId(dto.deckId),
+                        dto.mainDeck.map { DeckCard(it.cardId, it.quantity) },
+                        dto.sideboard.map { DeckCard(it.cardId, it.quantity) },
+                    )
+                },
+            deckSummary =
+                summaryJson?.let { s ->
+                    val dto = json.decodeFromString<CourseDeckSummaryDto>(s)
+                    CourseDeckSummary(DeckId(dto.deckId), dto.name, dto.tileId, dto.format)
+                },
         )
     }
 
     private fun encodeCards(deck: Deck): String {
-        val blob = CardsBlob(
-            MainDeck = deck.mainDeck.map { CardEntry(it.grpId, it.quantity) },
-            Sideboard = deck.sideboard.map { CardEntry(it.grpId, it.quantity) },
-            CommandZone = deck.commandZone.map { CardEntry(it.grpId, it.quantity) },
-            Companions = deck.companions.map { CardEntry(it.grpId, it.quantity) },
-        )
+        val blob =
+            CardsBlob(
+                MainDeck = deck.mainDeck.map { CardEntry(it.grpId, it.quantity) },
+                Sideboard = deck.sideboard.map { CardEntry(it.grpId, it.quantity) },
+                CommandZone = deck.commandZone.map { CardEntry(it.grpId, it.quantity) },
+                Companions = deck.companions.map { CardEntry(it.grpId, it.quantity) },
+            )
         return json.encodeToString(blob)
     }
 }

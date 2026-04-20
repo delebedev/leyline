@@ -29,7 +29,8 @@ class ValidatingMessageSinkTest :
             gsId: Int = 0,
             configure: GREToClientMessage.Builder.() -> Unit = {},
         ): GREToClientMessage =
-            GREToClientMessage.newBuilder()
+            GREToClientMessage
+                .newBuilder()
                 .setType(GREMessageType.GameStateMessage_695e)
                 .setMsgId(msgId)
                 .setGameStateId(gsId)
@@ -44,7 +45,8 @@ class ValidatingMessageSinkTest :
             update: GameStateUpdate = GameStateUpdate.None_a0c7,
             annotations: List<AnnotationInfo> = emptyList(),
         ): GameStateMessage =
-            GameStateMessage.newBuilder()
+            GameStateMessage
+                .newBuilder()
                 .setGameStateId(gsId)
                 .setPrevGameStateId(prevGsId)
                 .setType(type)
@@ -53,13 +55,18 @@ class ValidatingMessageSinkTest :
                 .addAllAnnotations(annotations)
                 .build()
 
-        fun annotation(id: Int, type: AnnotationType = AnnotationType.None_af5a): AnnotationInfo =
-            AnnotationInfo.newBuilder()
+        fun annotation(
+            id: Int,
+            type: AnnotationType = AnnotationType.None_af5a,
+        ): AnnotationInfo =
+            AnnotationInfo
+                .newBuilder()
                 .setId(id)
                 .addType(type)
                 .build()
 
         fun lenientSink() = ValidatingMessageSink(strict = false)
+
         fun strictSink() = ValidatingMessageSink(strict = true)
 
         // --- Positive: clean stream ---
@@ -154,11 +161,12 @@ class ValidatingMessageSinkTest :
             val sink = lenientSink()
 
             // IDs must be contiguous: 1,5 has a gap (expected 2 after 1)
-            val badGsm = gsm(
-                gsId = 1,
-                type = GameStateType.Full,
-                annotations = listOf(annotation(1), annotation(5)),
-            )
+            val badGsm =
+                gsm(
+                    gsId = 1,
+                    type = GameStateType.Full,
+                    annotations = listOf(annotation(1), annotation(5)),
+                )
 
             sink.send(listOf(greMessage(msgId = 1, gsm = badGsm)))
 
@@ -169,11 +177,12 @@ class ValidatingMessageSinkTest :
             val sink = lenientSink()
 
             // IDs 50,51,52 — contiguous, just not starting from 1
-            val goodGsm = gsm(
-                gsId = 1,
-                type = GameStateType.Full,
-                annotations = listOf(annotation(50), annotation(51), annotation(52)),
-            )
+            val goodGsm =
+                gsm(
+                    gsId = 1,
+                    type = GameStateType.Full,
+                    annotations = listOf(annotation(50), annotation(51), annotation(52)),
+                )
 
             sink.send(listOf(greMessage(msgId = 1, gsm = goodGsm)))
 
@@ -184,11 +193,12 @@ class ValidatingMessageSinkTest :
             val sink = lenientSink()
 
             // Mix of assigned and unassigned IDs — id=0 among non-zero triggers violation
-            val badGsm = gsm(
-                gsId = 1,
-                type = GameStateType.Full,
-                annotations = listOf(annotation(1), annotation(0)), // violation: id=0 mixed with assigned
-            )
+            val badGsm =
+                gsm(
+                    gsId = 1,
+                    type = GameStateType.Full,
+                    annotations = listOf(annotation(1), annotation(0)), // violation: id=0 mixed with assigned
+                )
 
             sink.send(listOf(greMessage(msgId = 1, gsm = badGsm)))
 
@@ -227,7 +237,8 @@ class ValidatingMessageSinkTest :
                     greMessage(msgId = 1, gsId = 1) {
                         setType(GameStateType.Full)
                         addZones(
-                            ZoneInfo.newBuilder()
+                            ZoneInfo
+                                .newBuilder()
                                 .setZoneId(1)
                                 .setType(ZoneType.Battlefield)
                                 .setVisibility(Visibility.Public)
@@ -248,18 +259,27 @@ class ValidatingMessageSinkTest :
                     greMessage(msgId = 1, gsId = 1) {
                         setType(GameStateType.Full)
                         addZones(
-                            ZoneInfo.newBuilder()
-                                .setZoneId(1).setType(ZoneType.Library).setVisibility(Visibility.Hidden)
+                            ZoneInfo
+                                .newBuilder()
+                                .setZoneId(1)
+                                .setType(ZoneType.Library)
+                                .setVisibility(Visibility.Hidden)
                                 .addObjectInstanceIds(100),
                         )
                         addZones(
-                            ZoneInfo.newBuilder()
-                                .setZoneId(2).setType(ZoneType.Hand).setVisibility(Visibility.Private)
+                            ZoneInfo
+                                .newBuilder()
+                                .setZoneId(2)
+                                .setType(ZoneType.Hand)
+                                .setVisibility(Visibility.Private)
                                 .addObjectInstanceIds(200),
                         )
                         addZones(
-                            ZoneInfo.newBuilder()
-                                .setZoneId(3).setType(ZoneType.Limbo).setVisibility(Visibility.Public)
+                            ZoneInfo
+                                .newBuilder()
+                                .setZoneId(3)
+                                .setType(ZoneType.Limbo)
+                                .setVisibility(Visibility.Public)
                                 .addObjectInstanceIds(300),
                         )
                     },
@@ -331,21 +351,25 @@ class ValidatingMessageSinkTest :
         test("Detects ObjectIdChanged after annotation referencing its newId") {
             val sink = lenientSink()
 
-            val zt = AnnotationInfo.newBuilder()
-                .setId(1)
-                .addType(AnnotationType.ZoneTransfer_af5a)
-                .addAffectedIds(200) // references newId=200
-                .build()
-            val oic = AnnotationInfo.newBuilder()
-                .setId(2)
-                .addType(AnnotationType.ObjectIdChanged)
-                .addAffectedIds(100) // origId
-                .addDetails(
-                    KeyValuePairInfo.newBuilder()
-                        .setKey("new_id")
-                        .addValueInt32(200),
-                )
-                .build()
+            val zt =
+                AnnotationInfo
+                    .newBuilder()
+                    .setId(1)
+                    .addType(AnnotationType.ZoneTransfer_af5a)
+                    .addAffectedIds(200) // references newId=200
+                    .build()
+            val oic =
+                AnnotationInfo
+                    .newBuilder()
+                    .setId(2)
+                    .addType(AnnotationType.ObjectIdChanged)
+                    .addAffectedIds(100) // origId
+                    .addDetails(
+                        KeyValuePairInfo
+                            .newBuilder()
+                            .setKey("new_id")
+                            .addValueInt32(200),
+                    ).build()
 
             // Wrong order: ZT before OIC
             val badGsm = gsm(gsId = 1, type = GameStateType.Full, annotations = listOf(zt, oic))
@@ -357,30 +381,36 @@ class ValidatingMessageSinkTest :
         test("No violation when ObjectIdChanged precedes referencing annotation") {
             val sink = lenientSink()
 
-            val oic = AnnotationInfo.newBuilder()
-                .setId(1)
-                .addType(AnnotationType.ObjectIdChanged)
-                .addAffectedIds(100)
-                .addDetails(
-                    KeyValuePairInfo.newBuilder()
-                        .setKey("new_id")
-                        .addValueInt32(200),
-                )
-                .build()
-            val zt = AnnotationInfo.newBuilder()
-                .setId(2)
-                .addType(AnnotationType.ZoneTransfer_af5a)
-                .addAffectedIds(200)
-                .build()
+            val oic =
+                AnnotationInfo
+                    .newBuilder()
+                    .setId(1)
+                    .addType(AnnotationType.ObjectIdChanged)
+                    .addAffectedIds(100)
+                    .addDetails(
+                        KeyValuePairInfo
+                            .newBuilder()
+                            .setKey("new_id")
+                            .addValueInt32(200),
+                    ).build()
+            val zt =
+                AnnotationInfo
+                    .newBuilder()
+                    .setId(2)
+                    .addType(AnnotationType.ZoneTransfer_af5a)
+                    .addAffectedIds(200)
+                    .build()
 
             // Include game objects so referential integrity check passes
             val obj200 = GameObjectInfo.newBuilder().setInstanceId(200).build()
-            val goodGsm = GameStateMessage.newBuilder()
-                .setGameStateId(1)
-                .setType(GameStateType.Full)
-                .addAllAnnotations(listOf(oic, zt))
-                .addGameObjects(obj200)
-                .build()
+            val goodGsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setGameStateId(1)
+                    .setType(GameStateType.Full)
+                    .addAllAnnotations(listOf(oic, zt))
+                    .addGameObjects(obj200)
+                    .build()
             sink.send(listOf(greMessage(msgId = 1, gsm = goodGsm)))
 
             sink.violations.shouldBeEmpty()

@@ -18,7 +18,8 @@ class DiscardInteractionTest :
 
         // --- Discard-as-cost (Mardu Outrider: {1}{B}{B} + discard a card) ---
 
-        val marduState = """
+        val marduState =
+            """
             ActivePlayer=Human
             ActivePhase=Main1
             HumanLife=20
@@ -28,7 +29,7 @@ class DiscardInteractionTest :
             humanbattlefield=Swamp;Swamp;Swamp
             humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-        """.trimIndent()
+            """.trimIndent()
 
         test("discard-as-cost — SelectNReq proto shape") {
             startPuzzle(marduState, name = "Mardu Outrider", turns = 2)
@@ -57,14 +58,19 @@ class DiscardInteractionTest :
 
             assertSoftly {
                 // Outrider on battlefield
-                val outriders = human.getZone(ForgeZoneType.Battlefield).cards
-                    .filter { it.name == "Mardu Outrider" }
+                val outriders =
+                    human
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .filter { it.name == "Mardu Outrider" }
                 outriders shouldHaveSize 1
                 outriders.first().netPower shouldBe 5
                 outriders.first().netToughness shouldBe 5
 
                 // Discarded Mountain in graveyard — exactly one
-                human.getZone(ForgeZoneType.Graveyard).cards
+                human
+                    .getZone(ForgeZoneType.Graveyard)
+                    .cards
                     .filter { it.name == "Mountain" } shouldHaveSize 1
 
                 // Original hand cards consumed — hand empty (started with 2, both gone)
@@ -117,8 +123,11 @@ class DiscardInteractionTest :
             human.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
 
             // Verify the discard prompt was answered via the bridge
-            val discardPrompts = harness.bridge.promptBridge(1).history
-                .filter { it.message.contains("iscard", ignoreCase = true) }
+            val discardPrompts =
+                harness.bridge
+                    .promptBridge(1)
+                    .history
+                    .filter { it.message.contains("iscard", ignoreCase = true) }
             discardPrompts shouldHaveSize 1
             discardPrompts.first().outcome shouldBe InteractivePromptBridge.PromptCallStatus.RESPONDED
         }

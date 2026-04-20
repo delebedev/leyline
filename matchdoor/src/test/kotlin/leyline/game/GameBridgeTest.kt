@@ -78,7 +78,11 @@ class GameBridgeTest :
             }
         }
 
-        fun advanceToPhase(b: GameBridge, target: String, maxPasses: Int = 50) {
+        fun advanceToPhase(
+            b: GameBridge,
+            target: String,
+            maxPasses: Int = 50,
+        ) {
             val game = b.getGame()!!
             var lastId: String? = null
             var passes = 0
@@ -197,15 +201,17 @@ class GameBridgeTest :
 
             val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
 
-            val hasPass = actions.actionsList.any {
-                it.actionType == Messages.ActionType.Pass
-            }
+            val hasPass =
+                actions.actionsList.any {
+                    it.actionType == Messages.ActionType.Pass
+                }
             hasPass.shouldBeTrue()
 
             // Deck has 32 Forest — must have a land play at Main1
-            val hasLand = actions.actionsList.any {
-                it.actionType == Messages.ActionType.Play_add3
-            }
+            val hasLand =
+                actions.actionsList.any {
+                    it.actionType == Messages.ActionType.Play_add3
+                }
             hasLand.shouldBeTrue()
         }
 
@@ -222,10 +228,12 @@ class GameBridgeTest :
             val handBefore = player.getZone(ZoneType.Hand).size()
             val bfBefore = player.getZone(ZoneType.Battlefield).size()
 
-            val landInHand = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
-                ?: error("No land in hand at seed 42")
-            val pending = awaitFreshPending(b, null)
-                ?: error("No pending action available")
+            val landInHand =
+                player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
+                    ?: error("No land in hand at seed 42")
+            val pending =
+                awaitFreshPending(b, null)
+                    ?: error("No pending action available")
 
             b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
             awaitFreshPending(b, pending.actionId)
@@ -245,10 +253,11 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
-                game,
-                MessageCounter(initialGsId = 10, initialMsgId = 0),
-            )
+            val result =
+                BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                    game,
+                    MessageCounter(initialGsId = 10, initialMsgId = 0),
+                )
             val messages = result.messages
 
             // Bundle has exactly 5 GRE messages
@@ -258,8 +267,10 @@ class GameBridgeTest :
             val gre1 = messages[0]
             gre1.gameStateMessage.update shouldBe Messages.GameStateUpdate.SendHiFi
             gre1.gameStateMessage.hasGameInfo().shouldBeTrue()
-            val phaseAnnotations1 = gre1.gameStateMessage.annotationsList.flatMap { it.typeList }
-                .count { it == Messages.AnnotationType.PhaseOrStepModified }
+            val phaseAnnotations1 =
+                gre1.gameStateMessage.annotationsList
+                    .flatMap { it.typeList }
+                    .count { it == Messages.AnnotationType.PhaseOrStepModified }
             phaseAnnotations1 shouldBeGreaterThanOrEqualTo 2
 
             // GRE 2: SendHiFi echo
@@ -273,8 +284,10 @@ class GameBridgeTest :
             // GRE 3: SendAndRecord with 1x PhaseOrStepModified
             val gre3 = messages[2]
             gre3.gameStateMessage.update shouldBe Messages.GameStateUpdate.SendAndRecord
-            val phaseAnnotations3 = gre3.gameStateMessage.annotationsList.flatMap { it.typeList }
-                .count { it == Messages.AnnotationType.PhaseOrStepModified }
+            val phaseAnnotations3 =
+                gre3.gameStateMessage.annotationsList
+                    .flatMap { it.typeList }
+                    .count { it == Messages.AnnotationType.PhaseOrStepModified }
             phaseAnnotations3 shouldBe 1
 
             // GRE 4: PromptReq
@@ -301,16 +314,18 @@ class GameBridgeTest :
             b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
             awaitFreshPending(b, pending.actionId)
 
-            val result = BundleBuilder(b, "test-match", 1).postAction(
-                game,
-                MessageCounter(initialGsId = 10, initialMsgId = 0),
-            )
+            val result =
+                BundleBuilder(b, "test-match", 1).postAction(
+                    game,
+                    MessageCounter(initialGsId = 10, initialMsgId = 0),
+                )
             val gs = result.messages.first().gameStateMessage
             val actions = result.messages.last().actionsAvailableReq
 
-            val allZoneInstanceIds = gs.zonesList
-                .flatMap { it.objectInstanceIdsList }
-                .toSet()
+            val allZoneInstanceIds =
+                gs.zonesList
+                    .flatMap { it.objectInstanceIdsList }
+                    .toSet()
             for (action in actions.actionsList) {
                 if (action.instanceId != 0) {
                     (action.instanceId in allZoneInstanceIds).shouldBeTrue()
@@ -378,10 +393,11 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
-                game,
-                MessageCounter(initialGsId = 10, initialMsgId = 0),
-            )
+            val result =
+                BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                    game,
+                    MessageCounter(initialGsId = 10, initialMsgId = 0),
+                )
 
             result.messages.size shouldBe 5
 
@@ -409,8 +425,10 @@ class GameBridgeTest :
             result.messages[4].prompt.promptId shouldBe 2
 
             // gsIds should be ascending across GSM messages
-            val gsIds = result.messages.filter { it.hasGameStateMessage() }
-                .map { it.gameStateMessage.gameStateId }
+            val gsIds =
+                result.messages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage.gameStateId }
             for (i in 1 until gsIds.size) {
                 gsIds[i] shouldBeGreaterThan gsIds[i - 1]
             }
@@ -437,9 +455,10 @@ class GameBridgeTest :
             }
 
             val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
-            val castActions = actions.actionsList.filter {
-                it.actionType == Messages.ActionType.Cast
-            }
+            val castActions =
+                actions.actionsList.filter {
+                    it.actionType == Messages.ActionType.Cast
+                }
 
             if (castActions.isNotEmpty()) {
                 val cast = castActions.first()
@@ -485,10 +504,11 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
-                game,
-                MessageCounter(initialGsId = 10, initialMsgId = 0),
-            )
+            val result =
+                BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                    game,
+                    MessageCounter(initialGsId = 10, initialMsgId = 0),
+                )
 
             var prevGsId = 0
             for (msg in result.messages) {
@@ -518,19 +538,22 @@ class GameBridgeTest :
 
             // Play a land
             val player = b.getPlayer(SeatId(1))!!
-            val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
-                ?: error("No land in hand at seed 42")
-            val pending = awaitFreshPending(b, null)
-                ?: error("No pending action available")
+            val land =
+                player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
+                    ?: error("No land in hand at seed 42")
+            val pending =
+                awaitFreshPending(b, null)
+                    ?: error("No pending action available")
             b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
             awaitFreshPending(b, pending.actionId)
 
             // Build post-action state — should have ZoneTransfer annotation
             val snapGb3 = GsmSnapshot.capture(game, b, "test-match", 2)
             val gs = StateMapper.buildFromSnapshot(snapGb3, 2, "test-match", b).gsm
-            val zoneTransfers = gs.annotationsList.filter {
-                it.typeList.contains(Messages.AnnotationType.ZoneTransfer_af5a)
-            }
+            val zoneTransfers =
+                gs.annotationsList.filter {
+                    it.typeList.contains(Messages.AnnotationType.ZoneTransfer_af5a)
+                }
             zoneTransfers.shouldNotBeEmpty()
             val ann = zoneTransfers.first()
             ann.detailString("category") shouldBe "PlayLand"
@@ -573,9 +596,10 @@ class GameBridgeTest :
             val gs = StateMapper.buildFromSnapshot(snapGb4, 1, "test-match", b).gsm
             val combat = game.phaseHandler.combat
             if (combat != null && combat.attackers.isNotEmpty()) {
-                val attacking = gs.gameObjectsList.filter {
-                    it.zoneId == ZoneIds.BATTLEFIELD && it.attackState == Messages.AttackState.Attacking
-                }
+                val attacking =
+                    gs.gameObjectsList.filter {
+                        it.zoneId == ZoneIds.BATTLEFIELD && it.attackState == Messages.AttackState.Attacking
+                    }
                 attacking.shouldNotBeEmpty()
             }
         }
@@ -594,10 +618,11 @@ class GameBridgeTest :
             // Seed snapshot — subsequent buildDiff should produce Diff
             b.seedDiffBaseline(game)
 
-            val result = BundleBuilder(b, "test-match", 1).postAction(
-                game,
-                MessageCounter(initialGsId = 10, initialMsgId = 0),
-            )
+            val result =
+                BundleBuilder(b, "test-match", 1).postAction(
+                    game,
+                    MessageCounter(initialGsId = 10, initialMsgId = 0),
+                )
             val gs = result.messages.first().gameStateMessage
 
             gs.type shouldBe Messages.GameStateType.Diff

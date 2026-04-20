@@ -116,20 +116,26 @@ class StackCastResolveTest :
             val (gsm, _, newId) = castSpellAndCaptureWithIds() ?: error("No cast at seed 42")
 
             assertSoftly {
-                gsm.annotation(AnnotationType.ZoneTransfer_af5a)
+                gsm
+                    .annotation(AnnotationType.ZoneTransfer_af5a)
                     .affectedIdsList shouldContain newId
-                gsm.annotation(AnnotationType.ManaPaid)
+                gsm
+                    .annotation(AnnotationType.ManaPaid)
                     .affectedIdsList shouldContain newId
 
-                val castUat = gsm.annotations(AnnotationType.UserActionTaken)
-                    .first { it.detailInt("actionType") == ActionType.Cast.number }
+                val castUat =
+                    gsm
+                        .annotations(AnnotationType.UserActionTaken)
+                        .first { it.detailInt("actionType") == ActionType.Cast.number }
                 castUat.affectedIdsList shouldContain newId
 
                 // AIC references the mana ability, not the spell
                 (
-                    newId in gsm.annotation(AnnotationType.AbilityInstanceCreated)
-                        .affectedIdsList
-                    ) shouldBe false
+                    newId in
+                        gsm
+                            .annotation(AnnotationType.AbilityInstanceCreated)
+                            .affectedIdsList
+                ) shouldBe false
             }
         }
 
@@ -170,11 +176,12 @@ class StackCastResolveTest :
         test("Resolve: exactly ResolutionStart, ResolutionComplete, ZoneTransfer") {
             val gsm = resolveAndCapture() ?: error("No resolve at seed 42")
 
-            gsm.annotationsList.map { it.typeList.first() } shouldBe listOf(
-                AnnotationType.ResolutionStart,
-                AnnotationType.ResolutionComplete,
-                AnnotationType.ZoneTransfer_af5a,
-            )
+            gsm.annotationsList.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.ResolutionStart,
+                    AnnotationType.ResolutionComplete,
+                    AnnotationType.ZoneTransfer_af5a,
+                )
         }
 
         test("Resolve: ZoneTransfer category=Resolve, Stack→Battlefield") {
@@ -250,9 +257,10 @@ class StackCastResolveTest :
             val (b, game, counter) = startGameAtMain1()
             val (stackCard, cardId) = castCreatureToStack(b, game, counter)
 
-            val gsm = capture(b, game, counter) {
-                game.action.moveToGraveyard(stackCard, null)
-            }
+            val gsm =
+                capture(b, game, counter) {
+                    game.action.moveToGraveyard(stackCard, null)
+                }
             val newId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId)) { "Should have ZoneTransfer" }
@@ -263,10 +271,11 @@ class StackCastResolveTest :
             val (b, game, counter) = startGameAtMain1()
             val (stackCard, cardId) = castCreatureToStack(b, game, counter)
 
-            val gsm = capture(b, game, counter) {
-                game.fireEvent(GameEventSpellResolved(stackCard.firstSpellAbility, true))
-                game.action.moveToGraveyard(stackCard, null)
-            }
+            val gsm =
+                capture(b, game, counter) {
+                    game.fireEvent(GameEventSpellResolved(stackCard.firstSpellAbility, true))
+                    game.action.moveToGraveyard(stackCard, null)
+                }
             val newId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId)) { "Should have ZoneTransfer" }

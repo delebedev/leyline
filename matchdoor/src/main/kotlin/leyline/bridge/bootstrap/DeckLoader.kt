@@ -6,7 +6,6 @@ import forge.item.PaperCard
 import forge.model.FModel
 
 object DeckLoader {
-
     /**
      * Parses a free-form text decklist into a Deck.
      * Accepts standard formats from Aetherhub/Moxfield/Arena/MTGO:
@@ -48,10 +47,11 @@ object DeckLoader {
 
     // --- Helpers ---
 
-    private val SECTION_HEADER = Regex(
-        """^\[.+]$|^(Deck|Sideboard|Maybeboard|Commander|Companion)\s*$""",
-        RegexOption.IGNORE_CASE,
-    )
+    private val SECTION_HEADER =
+        Regex(
+            """^\[.+]$|^(Deck|Sideboard|Maybeboard|Commander|Companion)\s*$""",
+            RegexOption.IGNORE_CASE,
+        )
 
     private fun isSectionHeader(line: String): Boolean = SECTION_HEADER.matches(line)
 
@@ -91,7 +91,10 @@ object DeckLoader {
         return Triple(count, cardName, setCode)
     }
 
-    private fun findPaperCard(cardName: String, setCode: String?): PaperCard? {
+    private fun findPaperCard(
+        cardName: String,
+        setCode: String?,
+    ): PaperCard? {
         val cardDb = FModel.getMagicDb().commonCards
 
         if (!setCode.isNullOrBlank()) {

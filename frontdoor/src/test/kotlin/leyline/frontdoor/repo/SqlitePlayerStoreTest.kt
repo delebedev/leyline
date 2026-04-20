@@ -50,17 +50,18 @@ class SqlitePlayerStoreTest :
         // --- DeckRepository ---
 
         test("save and find deck") {
-            val deck = Deck(
-                id = DeckId("deck-1"),
-                playerId = pid,
-                name = "White Weenie",
-                format = Format.Standard,
-                tileId = 93855,
-                mainDeck = listOf(DeckCard(93855, 4), DeckCard(93800, 3)),
-                sideboard = listOf(DeckCard(10000, 2)),
-                commandZone = emptyList(),
-                companions = emptyList(),
-            )
+            val deck =
+                Deck(
+                    id = DeckId("deck-1"),
+                    playerId = pid,
+                    name = "White Weenie",
+                    format = Format.Standard,
+                    tileId = 93855,
+                    mainDeck = listOf(DeckCard(93855, 4), DeckCard(93800, 3)),
+                    sideboard = listOf(DeckCard(10000, 2)),
+                    commandZone = emptyList(),
+                    companions = emptyList(),
+                )
             store.save(deck)
 
             val found = store.findById(DeckId("deck-1"))
@@ -97,17 +98,18 @@ class SqlitePlayerStoreTest :
         }
 
         test("save updates existing deck") {
-            val updated = Deck(
-                id = DeckId("deck-1"),
-                playerId = pid,
-                name = "Updated Weenie",
-                format = Format.Historic,
-                tileId = 99,
-                mainDeck = listOf(DeckCard(93855, 4)),
-                sideboard = emptyList(),
-                commandZone = emptyList(),
-                companions = emptyList(),
-            )
+            val updated =
+                Deck(
+                    id = DeckId("deck-1"),
+                    playerId = pid,
+                    name = "Updated Weenie",
+                    format = Format.Historic,
+                    tileId = 99,
+                    mainDeck = listOf(DeckCard(93855, 4)),
+                    sideboard = emptyList(),
+                    commandZone = emptyList(),
+                    companions = emptyList(),
+                )
             store.save(updated)
 
             val found = store.findById(DeckId("deck-1"))!!

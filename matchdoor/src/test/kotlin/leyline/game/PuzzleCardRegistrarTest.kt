@@ -107,9 +107,11 @@ class PuzzleCardRegistrarTest :
     })
 
 private fun loadCard(name: String): Card {
-    val db = FModel.getMagicDb()?.commonCards
-        ?: error("Forge card DB not loaded")
-    val paperCard = db.getCard(name)
-        ?: error("Card '$name' not found in Forge DB")
+    val db =
+        FModel.getMagicDb()?.commonCards
+            ?: error("Forge card DB not loaded")
+    val paperCard =
+        db.getCard(name)
+            ?: error("Card '$name' not found in Forge DB")
     return Card.fromPaperCard(paperCard, null)
 }

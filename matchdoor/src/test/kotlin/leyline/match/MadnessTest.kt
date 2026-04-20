@@ -32,43 +32,45 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
  * as the discard outlet driving the Madness trigger on Fiery Temper (1RR
  * instant, deal 3, Madness {R}).
  */
-private val MADNESS_PUZZLE = """
-[metadata]
-Name:Madness — Tormenting Voice into Fiery Temper
-Goal:Discard Fiery Temper via Tormenting Voice, then cast it for madness.
-Turns:5
-Difficulty:Easy
+private val MADNESS_PUZZLE =
+    """
+    [metadata]
+    Name:Madness — Tormenting Voice into Fiery Temper
+    Goal:Discard Fiery Temper via Tormenting Voice, then cast it for madness.
+    Turns:5
+    Difficulty:Easy
 
-[state]
-ActivePlayer=Human
-ActivePhase=Main1
-HumanLife=20
-AILife=20
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
 
-humanhand=Tormenting Voice;Fiery Temper
-humanbattlefield=Mountain;Mountain;Mountain;Mountain
-humanlibrary=Plains;Plains;Plains;Plains
-ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-""".trimIndent()
+    humanhand=Tormenting Voice;Fiery Temper
+    humanbattlefield=Mountain;Mountain;Mountain;Mountain
+    humanlibrary=Plains;Plains;Plains;Plains
+    ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+    """.trimIndent()
 
-private val HARDCAST_PUZZLE = """
-[metadata]
-Name:Madness — Fiery Temper hardcast
-Goal:Cast Fiery Temper from hand for its regular mana cost (no madness path).
-Turns:3
-Difficulty:Easy
+private val HARDCAST_PUZZLE =
+    """
+    [metadata]
+    Name:Madness — Fiery Temper hardcast
+    Goal:Cast Fiery Temper from hand for its regular mana cost (no madness path).
+    Turns:3
+    Difficulty:Easy
 
-[state]
-ActivePlayer=Human
-ActivePhase=Main1
-HumanLife=20
-AILife=20
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
 
-humanhand=Fiery Temper
-humanbattlefield=Mountain;Mountain;Mountain;Mountain
-humanlibrary=Plains;Plains;Plains
-ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-""".trimIndent()
+    humanhand=Fiery Temper
+    humanbattlefield=Mountain;Mountain;Mountain;Mountain
+    humanlibrary=Plains;Plains;Plains
+    ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+    """.trimIndent()
 
 class MadnessTest :
     FunSpec({
@@ -86,8 +88,10 @@ class MadnessTest :
                 // Capture Fiery Temper's grpId before it moves.
                 val fieryTemperGrpId = h.bridge.cardRepository.findGrpIdByName("Fiery Temper")!!
                 val cardData = h.bridge.cardRepository.findByGrpId(fieryTemperGrpId)!!
-                val madnessAbilityGrpId = cardData.keywordAbilityGrpIds.entries
-                    .firstOrNull { it.key.uppercase().startsWith("MADNESS") }?.value
+                val madnessAbilityGrpId =
+                    cardData.keywordAbilityGrpIds.entries
+                        .firstOrNull { it.key.uppercase().startsWith("MADNESS") }
+                        ?.value
                 madnessAbilityGrpId shouldNotBe null
                 madnessAbilityGrpId!! shouldBeGreaterThan 0
 
@@ -97,8 +101,11 @@ class MadnessTest :
 
                 // Pull the discardable id from the live SelectNReq — instanceIds
                 // here may differ from the hand-side iid due to discard realloc.
-                val selectNReq = h.allMessages.asReversed()
-                    .firstOrNull { it.hasSelectNReq() }?.selectNReq
+                val selectNReq =
+                    h.allMessages
+                        .asReversed()
+                        .firstOrNull { it.hasSelectNReq() }
+                        ?.selectNReq
                 selectNReq shouldNotBe null
                 val discardChoiceId = selectNReq!!.idsList.firstOrNull()
                 discardChoiceId shouldNotBe null
@@ -117,18 +124,27 @@ class MadnessTest :
                 // Fiery Temper landed on stack via madness — it MUST prompt for a
                 // target (ValidTgts$ Any). A missing prompt is a regression worth
                 // catching, so hard-assert rather than conditionally skipping.
-                val hasPendingTarget = h.allMessages.asReversed()
-                    .any { it.hasSelectTargetsReq() }
+                val hasPendingTarget =
+                    h.allMessages
+                        .asReversed()
+                        .any { it.hasSelectTargetsReq() }
                 hasPendingTarget.shouldBeTrue()
                 // AI player's seatId = 2; that's a valid "Any" target for Fiery Temper.
                 h.selectTargets(listOf(2))
 
                 // Drain until the stack empties or we run out of the passes budget.
-                h.passUntil(maxPasses = 6) { h.bridge.getGame()!!.stack.isEmpty }
-                    .shouldBeTrue()
+                h
+                    .passUntil(maxPasses = 6) {
+                        h.bridge
+                            .getGame()!!
+                            .stack.isEmpty
+                    }.shouldBeTrue()
 
                 // Fiery Temper resolves into Graveyard with damage to opponent.
-                player.getZone(ZoneType.Graveyard).cards.any { it.name == "Fiery Temper" }
+                player
+                    .getZone(ZoneType.Graveyard)
+                    .cards
+                    .any { it.name == "Fiery Temper" }
                     .shouldBeTrue()
 
                 // Wire-shape assertions across the captured GSM stream.
@@ -138,25 +154,31 @@ class MadnessTest :
                 //     stack-staged Fiery Temper, with the madness ability grpId.
                 //     This is the alt-cost signal: client renders the cast as
                 //     having gone through the madness path.
-                val cto = allGsms.flatMap { it.persistentAnnotationsList }
-                    .firstOrNull { it.typeList.contains(AnnotationType.CastingTimeOption) }
+                val cto =
+                    allGsms
+                        .flatMap { it.persistentAnnotationsList }
+                        .firstOrNull { it.typeList.contains(AnnotationType.CastingTimeOption) }
                 cto shouldNotBe null
                 cto!!.detailInt("type") shouldBe 13
                 cto.detailInt("alternateCostGrpId") shouldBe madnessAbilityGrpId
                 cto.detailInt("castAbilityGrpId") shouldBe madnessAbilityGrpId
 
                 // (2) UserActionTaken on the cast carries alternativeGrpId = madness ability.
-                val castUat = allGsms.flatMap { it.annotationsList }
-                    .filter { it.typeList.contains(AnnotationType.UserActionTaken) }
-                    .firstOrNull {
-                        it.detail("alternativeGrpId")?.getValueInt32(0) == madnessAbilityGrpId
-                    }
+                val castUat =
+                    allGsms
+                        .flatMap { it.annotationsList }
+                        .filter { it.typeList.contains(AnnotationType.UserActionTaken) }
+                        .firstOrNull {
+                            it.detail("alternativeGrpId")?.getValueInt32(0) == madnessAbilityGrpId
+                        }
                 castUat shouldNotBe null
 
                 // (3) Fiery Temper resolved (deals 3 damage to AI player).
-                val resolveZt = allGsms.flatMap { it.annotationsList }
-                    .filter { it.typeList.contains(AnnotationType.ZoneTransfer_af5a) }
-                    .firstOrNull { it.detailString("category") == "Resolve" }
+                val resolveZt =
+                    allGsms
+                        .flatMap { it.annotationsList }
+                        .filter { it.typeList.contains(AnnotationType.ZoneTransfer_af5a) }
+                        .firstOrNull { it.detailString("category") == "Resolve" }
                 resolveZt shouldNotBe null
 
                 // (4) OptionalActionMessage was emitted for the madness choice.
@@ -166,8 +188,9 @@ class MadnessTest :
                 //     because the existing plumbing is ready. See
                 //     PlayerController.playSaFromPlayEffect for rationale +
                 //     migration path.
-                val optionalPrompt = h.allMessages
-                    .firstOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
+                val optionalPrompt =
+                    h.allMessages
+                        .firstOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
                 optionalPrompt shouldNotBe null
 
                 // Known gap: Hand→Exile ZoneTransfer category is currently mis-tagged
@@ -197,29 +220,38 @@ class MadnessTest :
                 h.selectTargets(listOf(2)) // AI player
                 h.passPriority()
 
-                player.getZone(ZoneType.Graveyard).cards.any { it.name == "Fiery Temper" }
+                player
+                    .getZone(ZoneType.Graveyard)
+                    .cards
+                    .any { it.name == "Fiery Temper" }
                     .shouldBeTrue()
 
                 val allGsms = h.allMessages.mapNotNull { msgGsm(it) }
 
                 // No persistent CastingTimeOption emitted for hardcast.
-                val cto = allGsms.flatMap { it.persistentAnnotationsList }
-                    .firstOrNull { it.typeList.contains(AnnotationType.CastingTimeOption) }
+                val cto =
+                    allGsms
+                        .flatMap { it.persistentAnnotationsList }
+                        .firstOrNull { it.typeList.contains(AnnotationType.CastingTimeOption) }
                 cto shouldBe null
 
                 // No alternativeGrpId on any UAT (regular cast).
-                val anyAltUat = allGsms.flatMap { it.annotationsList }
-                    .filter { it.typeList.contains(AnnotationType.UserActionTaken) }
-                    .any { it.detailsList.any { d -> d.key == "alternativeGrpId" } }
+                val anyAltUat =
+                    allGsms
+                        .flatMap { it.annotationsList }
+                        .filter { it.typeList.contains(AnnotationType.UserActionTaken) }
+                        .any { it.detailsList.any { d -> d.key == "alternativeGrpId" } }
                 anyAltUat shouldBe false
 
                 // Hand→Stack direct (no Exile detour).
-                val handToStack = allGsms.flatMap { it.annotationsList }
-                    .filter { it.typeList.contains(AnnotationType.ZoneTransfer_af5a) }
-                    .firstOrNull {
-                        it.detailString("category") == "CastSpell" &&
-                            it.detailInt("zone_src") == leyline.game.mapping.ZoneIds.P1_HAND
-                    }
+                val handToStack =
+                    allGsms
+                        .flatMap { it.annotationsList }
+                        .filter { it.typeList.contains(AnnotationType.ZoneTransfer_af5a) }
+                        .firstOrNull {
+                            it.detailString("category") == "CastSpell" &&
+                                it.detailInt("zone_src") == leyline.game.mapping.ZoneIds.P1_HAND
+                        }
                 handToStack shouldNotBe null
             } finally {
                 h.shutdown()
@@ -239,21 +271,35 @@ class MadnessTest :
 
                 // Cast Tormenting Voice, pay discard cost on Fiery Temper.
                 h.castSpellByName("Tormenting Voice").shouldBeTrue()
-                val selectNReq = h.allMessages.asReversed()
-                    .firstOrNull { it.hasSelectNReq() }?.selectNReq
-                val discardChoiceId = selectNReq?.idsList?.firstOrNull()
-                    ?: error("No SelectNReq for discard cost")
+                val selectNReq =
+                    h.allMessages
+                        .asReversed()
+                        .firstOrNull { it.hasSelectNReq() }
+                        ?.selectNReq
+                val discardChoiceId =
+                    selectNReq?.idsList?.firstOrNull()
+                        ?: error("No SelectNReq for discard cost")
                 h.respondToSelectN(listOf(discardChoiceId))
 
                 // Drain through the trigger resolution + decline + Tormenting Voice resolve.
-                h.passUntil(maxPasses = 6) { h.bridge.getGame()!!.stack.isEmpty }
-                    .shouldBeTrue()
+                h
+                    .passUntil(maxPasses = 6) {
+                        h.bridge
+                            .getGame()!!
+                            .stack.isEmpty
+                    }.shouldBeTrue()
 
                 // Fiery Temper went to graveyard via the declined madness branch,
                 // NOT via cast — should not be in exile either.
-                player.getZone(ZoneType.Graveyard).cards.any { it.name == "Fiery Temper" }
+                player
+                    .getZone(ZoneType.Graveyard)
+                    .cards
+                    .any { it.name == "Fiery Temper" }
                     .shouldBeTrue()
-                player.getZone(ZoneType.Exile).cards.none { it.name == "Fiery Temper" }
+                player
+                    .getZone(ZoneType.Exile)
+                    .cards
+                    .none { it.name == "Fiery Temper" }
                     .shouldBeTrue()
 
                 val allGsms = h.allMessages.mapNotNull { msgGsm(it) }
@@ -268,20 +314,24 @@ class MadnessTest :
                 // TransferCategoryResolver.categoryFromEvents. For now we assert only the
                 // zone transition fires at all — the category assertion is the
                 // headline regression this gap blocks.
-                val exileToGyZt = allGsms.flatMap { it.annotationsList }
-                    .filter { it.typeList.contains(AnnotationType.ZoneTransfer_af5a) }
-                    .firstOrNull {
-                        it.detailInt("zone_src") == leyline.game.mapping.ZoneIds.EXILE &&
-                            it.detailInt("zone_dest") == leyline.game.mapping.ZoneIds.P1_GRAVEYARD
-                    }
+                val exileToGyZt =
+                    allGsms
+                        .flatMap { it.annotationsList }
+                        .filter { it.typeList.contains(AnnotationType.ZoneTransfer_af5a) }
+                        .firstOrNull {
+                            it.detailInt("zone_src") == leyline.game.mapping.ZoneIds.EXILE &&
+                                it.detailInt("zone_dest") == leyline.game.mapping.ZoneIds.P1_GRAVEYARD
+                        }
                 exileToGyZt shouldNotBe null
                 // TODO: exileToGyZt.detailString("category") shouldBe "Put" — blocked
                 //   on SpellResolved dispatcher scoping (see AnnotationBuilder.kt TODO).
 
                 // Decline branch means no cast fired — no UAT alternativeGrpId present.
-                val anyAltUat = allGsms.flatMap { it.annotationsList }
-                    .filter { it.typeList.contains(AnnotationType.UserActionTaken) }
-                    .any { it.hasDetail("alternativeGrpId") }
+                val anyAltUat =
+                    allGsms
+                        .flatMap { it.annotationsList }
+                        .filter { it.typeList.contains(AnnotationType.UserActionTaken) }
+                        .any { it.hasDetail("alternativeGrpId") }
                 anyAltUat shouldBe false
             } finally {
                 h.shutdown()
@@ -289,5 +339,4 @@ class MadnessTest :
         }
     })
 
-private fun msgGsm(msg: GREToClientMessage) =
-    if (msg.hasGameStateMessage()) msg.gameStateMessage else null
+private fun msgGsm(msg: GREToClientMessage) = if (msg.hasGameStateMessage()) msg.gameStateMessage else null

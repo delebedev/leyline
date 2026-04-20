@@ -22,7 +22,6 @@ class AppMatchCoordinator(
     private val deckService: DeckService,
     private val courseService: CourseService,
 ) : MatchCoordinator {
-
     private val log = LoggerFactory.getLogger(AppMatchCoordinator::class.java)
 
     @Volatile

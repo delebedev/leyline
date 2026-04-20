@@ -25,11 +25,15 @@ class DfcTransformTest :
         afterEach { base.tearDown() }
 
         test("transform emits Qualification pAnn for Menace on back face") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Concealing Curtains", human, ZoneType.Battlefield)
-            }
-            val card = game.humanPlayer.getZone(ZoneType.Battlefield).cards
-                .first { it.name == "Concealing Curtains" }
+            val (b, game, counter) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Concealing Curtains", human, ZoneType.Battlefield)
+                }
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Concealing Curtains" }
 
             // Prime the collector's backside cache with front-face state
             game.fireEvent(GameEventCardStatsChanged(card))
@@ -37,15 +41,17 @@ class DfcTransformTest :
             base.stateOnlyDiff(game, b, counter)
 
             // Simulate transform to back face and capture the diff GSM
-            val gsm = base.captureAfterAction(b, game, counter) {
-                card.setState(CardStateName.Backside, true)
-                card.setBackSide(true)
-                game.fireEvent(GameEventCardStatsChanged(card))
-            }
+            val gsm =
+                base.captureAfterAction(b, game, counter) {
+                    card.setState(CardStateName.Backside, true)
+                    card.setBackSide(true)
+                    game.fireEvent(GameEventCardStatsChanged(card))
+                }
 
-            val qualAnns = gsm.persistentAnnotationsList.filter {
-                AnnotationType.Qualification in it.typeList
-            }
+            val qualAnns =
+                gsm.persistentAnnotationsList.filter {
+                    AnnotationType.Qualification in it.typeList
+                }
             qualAnns.shouldNotBeEmpty()
             val menaceAnn = qualAnns.first()
             menaceAnn.detailUint("grpid") shouldBe 142 // Menace keyword grpId
@@ -53,7 +59,8 @@ class DfcTransformTest :
         }
 
         test("activated transform resolves through bridge").config(tags = setOf(IntegrationTag)) {
-            val puzzleText = """
+            val puzzleText =
+                """
                 [metadata]
                 Name:DFC Transform Test
                 Goal:Win
@@ -69,29 +76,34 @@ class DfcTransformTest :
 
                 humanbattlefield=Concealing Curtains;Swamp;Swamp;Swamp
                 aibattlefield=Runeclaw Bear
-            """.trimIndent()
+                """.trimIndent()
 
             val (b, game, _) = base.startPuzzleAtMain1(puzzleText)
             val player = game.humanPlayer
 
-            val curtains = player.getZone(ZoneType.Battlefield).cards
-                .first { it.name == "Concealing Curtains" }
+            val curtains =
+                player
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Concealing Curtains" }
             curtains.shouldNotBeNull()
 
             // Verify the transform ability is found as a non-mana activated ability
-            val abilities = curtains.spellAbilities.filter {
-                it.isActivatedAbility && !it.isManaAbility()
-            }
+            val abilities =
+                curtains.spellAbilities.filter {
+                    it.isActivatedAbility && !it.isManaAbility()
+                }
             abilities.shouldNotBeEmpty()
 
             // Submit ActivateAbility through the bridge
             val pending = awaitFreshPending(b, null)
             pending.shouldNotBeNull()
 
-            val submitted = b.actionBridge(1).submitAction(
-                pending.actionId,
-                PlayerAction.ActivateAbility(ForgeCardId(curtains.id), 0),
-            )
+            val submitted =
+                b.actionBridge(1).submitAction(
+                    pending.actionId,
+                    PlayerAction.ActivateAbility(ForgeCardId(curtains.id), 0),
+                )
             submitted.shouldBeTrue()
 
             // Wait for the engine to process (ability goes on stack, resolves)
@@ -114,7 +126,8 @@ class DfcTransformTest :
         }
 
         test("activated transform resolves through MatchSession").config(tags = setOf(IntegrationTag)) {
-            val puzzleText = """
+            val puzzleText =
+                """
                 [metadata]
                 Name:DFC Transform MatchSession Test
                 Goal:Win
@@ -130,7 +143,7 @@ class DfcTransformTest :
 
                 humanbattlefield=Concealing Curtains;Swamp;Swamp;Swamp
                 aibattlefield=Runeclaw Bear
-            """.trimIndent()
+                """.trimIndent()
 
             val harness = MatchFlowHarness(validating = false)
             try {
@@ -138,8 +151,11 @@ class DfcTransformTest :
 
                 val game = harness.bridge.getGame()!!
                 val player = game.humanPlayer
-                val curtains = player.getZone(ZoneType.Battlefield).cards
-                    .first { it.name == "Concealing Curtains" }
+                val curtains =
+                    player
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .first { it.name == "Concealing Curtains" }
 
                 // Activate the transform ability through MatchSession
                 val activated = harness.activateAbility("Concealing Curtains", 0)

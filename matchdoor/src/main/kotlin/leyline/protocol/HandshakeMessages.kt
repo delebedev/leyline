@@ -15,7 +15,6 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * which handles in-game state diffs.
  */
 object HandshakeMessages {
-
     /** Room state event — match room with both players. */
     fun roomState(
         matchId: String,
@@ -24,11 +23,13 @@ object HandshakeMessages {
         eventId: String = "AIBotMatch",
         isBot: Boolean = true,
     ): MatchServiceToClientMessage {
-        val roomInfo = MatchGameRoomInfo.newBuilder()
-            .setGameRoomConfig(buildRoomConfig(matchId, playerId, opponentName, eventId, isBot))
-            .setStateType(MatchGameRoomStateType.Playing)
-            .addPlayers(playerInfo(playerId, "Player", 1, 1))
-            .addPlayers(playerInfo("${playerId}_Familiar", opponentName, 2, 2))
+        val roomInfo =
+            MatchGameRoomInfo
+                .newBuilder()
+                .setGameRoomConfig(buildRoomConfig(matchId, playerId, opponentName, eventId, isBot))
+                .setStateType(MatchGameRoomStateType.Playing)
+                .addPlayers(playerInfo(playerId, "Player", 1, 1))
+                .addPlayers(playerInfo("${playerId}_Familiar", opponentName, 2, 2))
 
         return wrapRoomState(roomInfo)
     }
@@ -40,29 +41,39 @@ object HandshakeMessages {
      * Per protocol analysis (post-game), the client waits for
      * [MatchGameRoomStateType.MatchCompleted] before showing the result UI.
      */
-    fun matchCompleted(matchId: String, winningTeam: Int, playerId: String, reason: ResultReason = ResultReason.Concede): MatchServiceToClientMessage {
-        val result = FinalMatchResult.newBuilder()
-            .setMatchId(matchId)
-            .setMatchCompletedReason(MatchCompletedReasonType.Success_a26d)
-            .addResultList(
-                ResultSpec.newBuilder()
-                    .setScope(MatchScope.Game_a146)
-                    .setResult(ResultType.WinLoss)
-                    .setWinningTeamId(winningTeam)
-                    .setReason(reason),
-            )
-            .addResultList(
-                ResultSpec.newBuilder()
-                    .setScope(MatchScope.Match)
-                    .setResult(ResultType.WinLoss)
-                    .setWinningTeamId(winningTeam)
-                    .setReason(reason),
-            )
+    fun matchCompleted(
+        matchId: String,
+        winningTeam: Int,
+        playerId: String,
+        reason: ResultReason = ResultReason.Concede,
+    ): MatchServiceToClientMessage {
+        val result =
+            FinalMatchResult
+                .newBuilder()
+                .setMatchId(matchId)
+                .setMatchCompletedReason(MatchCompletedReasonType.Success_a26d)
+                .addResultList(
+                    ResultSpec
+                        .newBuilder()
+                        .setScope(MatchScope.Game_a146)
+                        .setResult(ResultType.WinLoss)
+                        .setWinningTeamId(winningTeam)
+                        .setReason(reason),
+                ).addResultList(
+                    ResultSpec
+                        .newBuilder()
+                        .setScope(MatchScope.Match)
+                        .setResult(ResultType.WinLoss)
+                        .setWinningTeamId(winningTeam)
+                        .setReason(reason),
+                )
 
-        val roomInfo = MatchGameRoomInfo.newBuilder()
-            .setGameRoomConfig(buildRoomConfig(matchId, playerId))
-            .setStateType(MatchGameRoomStateType.MatchCompleted)
-            .setFinalMatchResult(result)
+        val roomInfo =
+            MatchGameRoomInfo
+                .newBuilder()
+                .setGameRoomConfig(buildRoomConfig(matchId, playerId))
+                .setStateType(MatchGameRoomStateType.MatchCompleted)
+                .setFinalMatchResult(result)
 
         return wrapRoomState(roomInfo)
     }
@@ -73,10 +84,17 @@ object HandshakeMessages {
     // reconstruct from scratch (fine while data is static: matchId, playerId,
     // "AIBotMatch"). Matters when we have real player names, event types, deck IDs.
 
-    private fun playerInfo(userId: String, name: String, seat: Int, team: Int) =
-        MatchGameRoomPlayerInfo.newBuilder()
-            .setUserId(userId).setPlayerName(name)
-            .setSystemSeatId(seat).setTeamId(team)
+    private fun playerInfo(
+        userId: String,
+        name: String,
+        seat: Int,
+        team: Int,
+    ) = MatchGameRoomPlayerInfo
+        .newBuilder()
+        .setUserId(userId)
+        .setPlayerName(name)
+        .setSystemSeatId(seat)
+        .setTeamId(team)
 
     private fun buildRoomConfig(
         matchId: String,
@@ -86,27 +104,31 @@ object HandshakeMessages {
         isBot: Boolean = true,
     ): MatchGameRoomConfig.Builder {
         val familiarId = "${playerId}_Familiar"
-        val builder = MatchGameRoomConfig.newBuilder()
-            .setMatchId(matchId)
+        val builder =
+            MatchGameRoomConfig
+                .newBuilder()
+                .setMatchId(matchId)
         // Client expects eventId on each reservedPlayer, not on the config
         if (isBot) builder.setEventId(eventId)
-        val p1 = playerInfo(playerId, "Player", 1, 1)
-            .setCourseId("Avatar_Basic_Adventurer")
-            .setPlatformId("Mac")
-            .setEventId(eventId)
-        val p2 = playerInfo(familiarId, opponentName, 2, 2)
-            .setCourseId("Avatar_Basic_Sparky")
-            .setEventId(eventId)
+        val p1 =
+            playerInfo(playerId, "Player", 1, 1)
+                .setCourseId("Avatar_Basic_Adventurer")
+                .setPlatformId("Mac")
+                .setEventId(eventId)
+        val p2 =
+            playerInfo(familiarId, opponentName, 2, 2)
+                .setCourseId("Avatar_Basic_Sparky")
+                .setEventId(eventId)
         if (isBot) p2.setIsBotPlayer(true)
         return builder.addReservedPlayers(p1).addReservedPlayers(p2)
     }
 
     private fun wrapRoomState(roomInfo: MatchGameRoomInfo.Builder): MatchServiceToClientMessage =
-        MatchServiceToClientMessage.newBuilder()
+        MatchServiceToClientMessage
+            .newBuilder()
             .setMatchGameRoomStateChangedEvent(
                 MatchGameRoomStateChangedEvent.newBuilder().setGameRoomInfo(roomInfo),
-            )
-            .build()
+            ).build()
 
     /**
      * Initial GRE bundle — built dynamically.
@@ -140,7 +162,8 @@ object HandshakeMessages {
         val initSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, 0)
         val gsm = GsmBuilder.buildInitialGameState(matchId, gameStateId, bridge, initSnap, pendingCount)
         messages.add(
-            GREToClientMessage.newBuilder()
+            GREToClientMessage
+                .newBuilder()
                 .setType(GREMessageType.GameStateMessage_695e)
                 .addSystemSeatIds(seatId)
                 .setMsgId(msgId++)
@@ -152,17 +175,19 @@ object HandshakeMessages {
         if (seatId == 2) {
             // ChooseStartingPlayerReq
             messages.add(
-                GREToClientMessage.newBuilder()
+                GREToClientMessage
+                    .newBuilder()
                     .setType(GREMessageType.ChooseStartingPlayerReq_695e)
                     .addSystemSeatIds(seatId)
                     .setMsgId(msgId++)
                     .setGameStateId(gameStateId)
                     .setChooseStartingPlayerReq(
-                        ChooseStartingPlayerReq.newBuilder()
+                        ChooseStartingPlayerReq
+                            .newBuilder()
                             .setTeamType(TeamType.Individual)
-                            .addSystemSeatIds(2).addSystemSeatIds(1),
-                    )
-                    .build(),
+                            .addSystemSeatIds(2)
+                            .addSystemSeatIds(1),
+                    ).build(),
             )
         }
 
@@ -170,6 +195,7 @@ object HandshakeMessages {
     }
 
     /** DealHand for seat 1 (no MulliganReq) — built from game state. */
+
     /** DealHand only (no MulliganReq) for the given seat. */
     fun dealHand(
         msgId: Int,
@@ -180,13 +206,15 @@ object HandshakeMessages {
     ): Pair<MatchServiceToClientMessage, Int> {
         val dealSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
         val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, seatId, dealSnap, diffDeletedInstanceIds)
-        val gre = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.GameStateMessage_695e)
-            .addSystemSeatIds(seatId)
-            .setMsgId(msgId)
-            .setGameStateId(gameStateId)
-            .setGameStateMessage(gsm)
-            .build()
+        val gre =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .addSystemSeatIds(seatId)
+                .setMsgId(msgId)
+                .setGameStateId(gameStateId)
+                .setGameStateMessage(gsm)
+                .build()
         return wrapGre(gre) to (msgId + 1)
     }
 
@@ -198,15 +226,21 @@ object HandshakeMessages {
     ): Pair<MatchServiceToClientMessage, Int> {
         var msgId = msgIdStart
         val deal2Snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
-        val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, 2, deal2Snap)
-            .toBuilder().setPendingMessageCount(1).build()
-        val greGsm = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.GameStateMessage_695e)
-            .addSystemSeatIds(2)
-            .setMsgId(msgId++)
-            .setGameStateId(gameStateId)
-            .setGameStateMessage(gsm)
-            .build()
+        val gsm =
+            GsmBuilder
+                .buildDealHand(bridge, gameStateId, 2, deal2Snap)
+                .toBuilder()
+                .setPendingMessageCount(1)
+                .build()
+        val greGsm =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .addSystemSeatIds(2)
+                .setMsgId(msgId++)
+                .setGameStateId(gameStateId)
+                .setGameStateMessage(gsm)
+                .build()
         val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 2)
         return wrapGre(greGsm, greMull) to msgId
     }
@@ -225,48 +259,56 @@ object HandshakeMessages {
 
         // 1) Thin GSM Diff: seat 2 no longer pending, decisionPlayer=1
         val mulliganSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
-        val gsm = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff)
-            .setGameStateId(gameStateId)
-            .addPlayers(
-                PlayerMapper.buildFromSnapshot(mulliganSnap, 2),
-            )
-            .setTurnInfo(
-                TurnInfo.newBuilder().setActivePlayer(2).setDecisionPlayer(1),
-            )
-            .setPendingMessageCount(2)
-            .setPrevGameStateId(gameStateId - 1)
-            .addAllTimers(PlayerMapper.buildTimers())
-            .setUpdate(GameStateUpdate.SendAndRecord)
-            .build()
-        val greGsm = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.GameStateMessage_695e)
-            .addSystemSeatIds(1)
-            .setMsgId(msgId++)
-            .setGameStateId(gameStateId)
-            .setGameStateMessage(gsm)
-            .build()
+        val gsm =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(gameStateId)
+                .addPlayers(
+                    PlayerMapper.buildFromSnapshot(mulliganSnap, 2),
+                ).setTurnInfo(
+                    TurnInfo.newBuilder().setActivePlayer(2).setDecisionPlayer(1),
+                ).setPendingMessageCount(2)
+                .setPrevGameStateId(gameStateId - 1)
+                .addAllTimers(PlayerMapper.buildTimers())
+                .setUpdate(GameStateUpdate.SendAndRecord)
+                .build()
+        val greGsm =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .addSystemSeatIds(1)
+                .setMsgId(msgId++)
+                .setGameStateId(gameStateId)
+                .setGameStateMessage(gsm)
+                .build()
 
         // 2) PromptReq: "who's going first" notification (promptId=37, PlayerId→seat 2)
-        val grePrompt = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.PromptReq)
-            .addSystemSeatIds(2).addSystemSeatIds(1)
-            .setMsgId(msgId++)
-            .setGameStateId(gameStateId)
-            .setPrompt(
-                Prompt.newBuilder().setPromptId(PromptIds.STARTING_PLAYER)
-                    .addParameters(
-                        PromptParameter.newBuilder()
-                            .setParameterName("PlayerId")
-                            .setType(ParameterType.Reference_a14a)
-                            .setReference(
-                                Reference.newBuilder()
-                                    .setType(ReferenceType.PlayerSeatId)
-                                    .setId(2),
-                            ),
-                    ),
-            )
-            .build()
+        val grePrompt =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.PromptReq)
+                .addSystemSeatIds(2)
+                .addSystemSeatIds(1)
+                .setMsgId(msgId++)
+                .setGameStateId(gameStateId)
+                .setPrompt(
+                    Prompt
+                        .newBuilder()
+                        .setPromptId(PromptIds.STARTING_PLAYER)
+                        .addParameters(
+                            PromptParameter
+                                .newBuilder()
+                                .setParameterName("PlayerId")
+                                .setType(ParameterType.Reference_a14a)
+                                .setReference(
+                                    Reference
+                                        .newBuilder()
+                                        .setType(ReferenceType.PlayerSeatId)
+                                        .setId(2),
+                                ),
+                        ),
+                ).build()
 
         // 3) MulliganReq for seat 1
         val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 1, numCards = numCards, mulliganCount = mulliganCount)
@@ -295,53 +337,65 @@ object HandshakeMessages {
         val game = bridge.getGame()!!
         val mulliganRespSnap = GsmSnapshot.capture(game, bridge, "", 0)
         val actions = ActionMapper.buildFromSnapshot(seatId, mulliganRespSnap, bridge)
-        val gsm = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff)
-            .setGameStateId(gameStateId)
-            .addPlayers(
-                PlayerMapper.buildFromSnapshot(mulliganRespSnap, 1).toBuilder()
-                    .setMulliganCount(mulliganCount)
-                    .build(),
-            )
-            .setPendingMessageCount(2)
-            .setPrevGameStateId(gameStateId - 1)
-            .setUpdate(GameStateUpdate.SendAndRecord)
+        val gsm =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(gameStateId)
+                .addPlayers(
+                    PlayerMapper
+                        .buildFromSnapshot(mulliganRespSnap, 1)
+                        .toBuilder()
+                        .setMulliganCount(mulliganCount)
+                        .build(),
+                ).setPendingMessageCount(2)
+                .setPrevGameStateId(gameStateId - 1)
+                .setUpdate(GameStateUpdate.SendAndRecord)
         for (action in actions.actionsList) {
             gsm.addActions(
-                ActionInfo.newBuilder()
+                ActionInfo
+                    .newBuilder()
                     .setSeatId(seatId)
                     .setAction(ActionMapper.stripActionForGsm(action)),
             )
         }
-        val greGsm = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.GameStateMessage_695e)
-            .addSystemSeatIds(seatId)
-            .setMsgId(msgId++)
-            .setGameStateId(gameStateId)
-            .setGameStateMessage(gsm)
-            .build()
+        val greGsm =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .addSystemSeatIds(seatId)
+                .setMsgId(msgId++)
+                .setGameStateId(gameStateId)
+                .setGameStateMessage(gsm)
+                .build()
 
         // 2) PromptReq: who's going first (same as mulliganReqSeat1)
         val dieRollWinner = bridge.dieRollWinner
-        val grePrompt = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.PromptReq)
-            .addSystemSeatIds(seatId).addSystemSeatIds(if (dieRollWinner == seatId) seatId else 3 - seatId)
-            .setMsgId(msgId++)
-            .setGameStateId(gameStateId)
-            .setPrompt(
-                Prompt.newBuilder().setPromptId(PromptIds.STARTING_PLAYER)
-                    .addParameters(
-                        PromptParameter.newBuilder()
-                            .setParameterName("PlayerId")
-                            .setType(ParameterType.Reference_a14a)
-                            .setReference(
-                                Reference.newBuilder()
-                                    .setType(ReferenceType.PlayerSeatId)
-                                    .setId(dieRollWinner),
-                            ),
-                    ),
-            )
-            .build()
+        val grePrompt =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.PromptReq)
+                .addSystemSeatIds(seatId)
+                .addSystemSeatIds(if (dieRollWinner == seatId) seatId else 3 - seatId)
+                .setMsgId(msgId++)
+                .setGameStateId(gameStateId)
+                .setPrompt(
+                    Prompt
+                        .newBuilder()
+                        .setPromptId(PromptIds.STARTING_PLAYER)
+                        .addParameters(
+                            PromptParameter
+                                .newBuilder()
+                                .setParameterName("PlayerId")
+                                .setType(ParameterType.Reference_a14a)
+                                .setReference(
+                                    Reference
+                                        .newBuilder()
+                                        .setType(ReferenceType.PlayerSeatId)
+                                        .setId(dieRollWinner),
+                                ),
+                        ),
+                ).build()
 
         // 3) GroupReq
         val greGroup = GsmBuilder.buildGroupReq(msgId++, gameStateId, seatId, handInstanceIds, cardsToTuck)
@@ -373,21 +427,25 @@ object HandshakeMessages {
 
         // Full GSM built from live game state (stage=Play, cards in zones)
         val snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, gameStateId)
-        val fullResult = StateMapper.buildFromSnapshot(
-            snap = snap,
-            gameStateId = gameStateId,
-            matchId = matchId,
-            bridge = bridge,
-            viewingSeatId = seatId,
-            events = bridge.drainBundleEvents(seatId),
-        )
+        val fullResult =
+            StateMapper.buildFromSnapshot(
+                snap = snap,
+                gameStateId = gameStateId,
+                matchId = matchId,
+                bridge = bridge,
+                viewingSeatId = seatId,
+                events = bridge.drainBundleEvents(seatId),
+            )
         bridge.applyMutations(fullResult.mutations)
-        val gsm = fullResult.gsm.toBuilder()
-            .setPendingMessageCount(1) // ActionsAvailableReq follows
-            .build()
+        val gsm =
+            fullResult.gsm
+                .toBuilder()
+                .setPendingMessageCount(1) // ActionsAvailableReq follows
+                .build()
 
         messages.add(
-            GREToClientMessage.newBuilder()
+            GREToClientMessage
+                .newBuilder()
                 .setType(GREMessageType.GameStateMessage_695e)
                 .addSystemSeatIds(seatId)
                 .setMsgId(msgId++)
@@ -412,13 +470,15 @@ object HandshakeMessages {
         val game = bridge.getGame()!!
         val snap = GsmSnapshot.capture(game, bridge, "", 0)
         val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
-        val gre = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.ActionsAvailableReq_695e)
-            .addSystemSeatIds(seatId)
-            .setMsgId(msgId)
-            .setGameStateId(gameStateId)
-            .setActionsAvailableReq(actions)
-            .build()
+        val gre =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.ActionsAvailableReq_695e)
+                .addSystemSeatIds(seatId)
+                .setMsgId(msgId)
+                .setGameStateId(gameStateId)
+                .setActionsAvailableReq(actions)
+                .build()
         return wrapGre(gre) to (msgId + 1)
     }
 
@@ -431,13 +491,15 @@ object HandshakeMessages {
     ): Pair<MatchServiceToClientMessage, Int> {
         val resp = SetSettingsResp.newBuilder()
         if (clientSettings != null) resp.setSettings(clientSettings)
-        val gre = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.SetSettingsResp_695e)
-            .addSystemSeatIds(seatId)
-            .setMsgId(msgId)
-            .setGameStateId(gameStateId)
-            .setSetSettingsResp(resp)
-            .build()
+        val gre =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.SetSettingsResp_695e)
+                .addSystemSeatIds(seatId)
+                .setMsgId(msgId)
+                .setGameStateId(gameStateId)
+                .setSetSettingsResp(resp)
+                .build()
         return wrapGre(gre) to (msgId + 1)
     }
 
@@ -445,7 +507,10 @@ object HandshakeMessages {
 
     /** DieRollResults — [winner] seat rolls higher, random d20 values.
      *  Uses [forge.util.MyRandom] so a seeded game produces deterministic rolls. */
-    private fun buildDieRollResults(msgId: Int, winner: Int = 2): GREToClientMessage {
+    private fun buildDieRollResults(
+        msgId: Int,
+        winner: Int = 2,
+    ): GREToClientMessage {
         // Generate random d20 values; ensure winner > loser (re-roll on tie).
         // MyRandom.getRandom() respects the seed set in GameBridge.start().
         val rng = forge.util.MyRandom.getRandom()
@@ -457,58 +522,101 @@ object HandshakeMessages {
         } while (high <= low)
         val seat1Roll = if (winner == 1) high else low
         val seat2Roll = if (winner == 2) high else low
-        return GREToClientMessage.newBuilder()
+        return GREToClientMessage
+            .newBuilder()
             .setType(GREMessageType.DieRollResultsResp_695e)
-            .addSystemSeatIds(winner).addSystemSeatIds(if (winner == 1) 2 else 1)
+            .addSystemSeatIds(winner)
+            .addSystemSeatIds(if (winner == 1) 2 else 1)
             .setMsgId(msgId)
             .setDieRollResultsResp(
-                DieRollResultsResp.newBuilder()
+                DieRollResultsResp
+                    .newBuilder()
                     .addPlayerDieRolls(PlayerDieRoll.newBuilder().setSystemSeatId(1).setRollValue(seat1Roll))
                     .addPlayerDieRolls(PlayerDieRoll.newBuilder().setSystemSeatId(2).setRollValue(seat2Roll)),
-            )
-            .build()
+            ).build()
     }
 
     /** ConnectResp — success + deck + default settings + version info. */
-    private fun buildConnectResp(msgId: Int, seatId: Int, deckMessage: DeckMessage): GREToClientMessage =
-        GREToClientMessage.newBuilder()
+    private fun buildConnectResp(
+        msgId: Int,
+        seatId: Int,
+        deckMessage: DeckMessage,
+    ): GREToClientMessage =
+        GREToClientMessage
+            .newBuilder()
             .setType(GREMessageType.ConnectResp_695e)
             .addSystemSeatIds(seatId)
             .setMsgId(msgId)
             .setConnectResp(
-                ConnectResp.newBuilder()
+                ConnectResp
+                    .newBuilder()
                     .setStatus(ConnectionStatus.Success_aa9e)
                     .setProtoVer(ProtoVersion.PersistentAnnotations)
                     .setSettings(buildDefaultSettings())
                     .setDeckMessage(deckMessage)
-                    .setGrpVersion(Version.newBuilder().setMajorVersion(56).setMinorVersion(10).setBuildVersion(1))
-                    .setGreVersion(Version.newBuilder().setMajorVersion(56).setMinorVersion(10).setBuildVersion(1)),
-            )
-            .build()
+                    .setGrpVersion(
+                        Version
+                            .newBuilder()
+                            .setMajorVersion(56)
+                            .setMinorVersion(10)
+                            .setBuildVersion(1),
+                    ).setGreVersion(
+                        Version
+                            .newBuilder()
+                            .setMajorVersion(56)
+                            .setMinorVersion(10)
+                            .setBuildVersion(1),
+                    ),
+            ).build()
 
     /** Default stop settings matching the expected initial configuration. */
     private fun buildDefaultSettings(): SettingsMessage {
         // (StopType, Team status, Opponents status)
-        val stopDefs = listOf(
-            Triple(StopType.UpkeepStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
-            Triple(StopType.DrawStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
-            Triple(StopType.PrecombatMainPhase, SettingStatus.Set, SettingStatus.Clear_a3fe),
-            Triple(StopType.BeginCombatStep, SettingStatus.Set, SettingStatus.Set),
-            Triple(StopType.DeclareAttackersStep, SettingStatus.Set, SettingStatus.Set),
-            Triple(StopType.DeclareBlockersStep, SettingStatus.Set, SettingStatus.Set),
-            Triple(StopType.CombatDamageStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
-            Triple(StopType.EndCombatStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
-            Triple(StopType.PostcombatMainPhase, SettingStatus.Set, SettingStatus.Clear_a3fe),
-            Triple(StopType.EndStep_ad1f, SettingStatus.Clear_a3fe, SettingStatus.Set),
-            Triple(StopType.FirstStrikeDamageStep, SettingStatus.Set, SettingStatus.Set),
-        )
+        val stopDefs =
+            listOf(
+                Triple(StopType.UpkeepStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
+                Triple(StopType.DrawStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
+                Triple(StopType.PrecombatMainPhase, SettingStatus.Set, SettingStatus.Clear_a3fe),
+                Triple(StopType.BeginCombatStep, SettingStatus.Set, SettingStatus.Set),
+                Triple(StopType.DeclareAttackersStep, SettingStatus.Set, SettingStatus.Set),
+                Triple(StopType.DeclareBlockersStep, SettingStatus.Set, SettingStatus.Set),
+                Triple(StopType.CombatDamageStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
+                Triple(StopType.EndCombatStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
+                Triple(StopType.PostcombatMainPhase, SettingStatus.Set, SettingStatus.Clear_a3fe),
+                Triple(StopType.EndStep_ad1f, SettingStatus.Clear_a3fe, SettingStatus.Set),
+                Triple(StopType.FirstStrikeDamageStep, SettingStatus.Set, SettingStatus.Set),
+            )
         val builder = SettingsMessage.newBuilder()
         for ((type, teamStatus, oppStatus) in stopDefs) {
-            builder.addStops(Stop.newBuilder().setStopType(type).setAppliesTo(SettingScope.Team_ac6e).setStatus(teamStatus))
-            builder.addStops(Stop.newBuilder().setStopType(type).setAppliesTo(SettingScope.Opponents).setStatus(oppStatus))
+            builder.addStops(
+                Stop
+                    .newBuilder()
+                    .setStopType(type)
+                    .setAppliesTo(SettingScope.Team_ac6e)
+                    .setStatus(teamStatus),
+            )
+            builder.addStops(
+                Stop
+                    .newBuilder()
+                    .setStopType(type)
+                    .setAppliesTo(SettingScope.Opponents)
+                    .setStatus(oppStatus),
+            )
             // Transient stops — all Clear
-            builder.addTransientStops(Stop.newBuilder().setStopType(type).setAppliesTo(SettingScope.Team_ac6e).setStatus(SettingStatus.Clear_a3fe))
-            builder.addTransientStops(Stop.newBuilder().setStopType(type).setAppliesTo(SettingScope.Opponents).setStatus(SettingStatus.Clear_a3fe))
+            builder.addTransientStops(
+                Stop
+                    .newBuilder()
+                    .setStopType(type)
+                    .setAppliesTo(SettingScope.Team_ac6e)
+                    .setStatus(SettingStatus.Clear_a3fe),
+            )
+            builder.addTransientStops(
+                Stop
+                    .newBuilder()
+                    .setStopType(type)
+                    .setAppliesTo(SettingScope.Opponents)
+                    .setStatus(SettingStatus.Clear_a3fe),
+            )
         }
         builder
             .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
@@ -526,7 +634,8 @@ object HandshakeMessages {
     private fun wrapGre(vararg messages: GREToClientMessage): MatchServiceToClientMessage {
         val event = GreToClientEvent.newBuilder()
         for (msg in messages) event.addGreToClientMessages(msg)
-        return MatchServiceToClientMessage.newBuilder()
+        return MatchServiceToClientMessage
+            .newBuilder()
             .setGreToClientEvent(event)
             .build()
     }

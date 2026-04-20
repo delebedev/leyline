@@ -32,9 +32,15 @@ class PersistentAnnotationPipelineTest :
         // -- DisplayCardUnderCard --
 
         test("cardExiledWithSourceEmitsDisplayCardUnderCard") {
-            val events = listOf(
-                GameEvent.CardExiled(cardId = ForgeCardId(80), seatId = SeatId(1), sourceCardId = ForgeCardId(90), fromBattlefield = true),
-            )
+            val events =
+                listOf(
+                    GameEvent.CardExiled(
+                        cardId = ForgeCardId(80),
+                        seatId = SeatId(1),
+                        sourceCardId = ForgeCardId(90),
+                        fromBattlefield = true,
+                    ),
+                )
             val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
 
             result.transient.shouldBeEmpty()
@@ -50,42 +56,50 @@ class PersistentAnnotationPipelineTest :
         }
 
         test("cardExiledWithoutSourceDoesNotEmitDisplayCardUnderCard") {
-            val events = listOf(
-                GameEvent.CardExiled(cardId = ForgeCardId(80), seatId = SeatId(1)),
-            )
+            val events =
+                listOf(
+                    GameEvent.CardExiled(cardId = ForgeCardId(80), seatId = SeatId(1)),
+                )
             val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
             result.transient.shouldBeEmpty()
             result.persistent.shouldBeEmpty()
         }
 
         test("cardDestroyedPopulatesExileSourceLeftPlay") {
-            val events = listOf(
-                GameEvent.CardDestroyed(cardId = ForgeCardId(90), seatId = SeatId(1)),
-            )
+            val events =
+                listOf(
+                    GameEvent.CardDestroyed(cardId = ForgeCardId(90), seatId = SeatId(1)),
+                )
             val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
             result.exileSourceLeftPlayForgeCardIds shouldBe listOf(ForgeCardId(90))
         }
 
         test("computeBatchRemovesDisplayCardUnderCardWhenSourceLeavesPlay") {
-            val ann = AnnotationBuilder.displayCardUnderCard(affectorId = 1090.iid, instanceId = 1080.iid)
-                .toBuilder().setId(5).build()
+            val ann =
+                AnnotationBuilder
+                    .displayCardUnderCard(affectorId = 1090.iid, instanceId = 1080.iid)
+                    .toBuilder()
+                    .setId(5)
+                    .build()
             val active = mapOf(5 to ann)
-            val mechanicResult = MechanicAnnotationResult(
-                transient = emptyList(),
-                persistent = emptyList(),
-                exileSourceLeftPlayForgeCardIds = listOf(ForgeCardId(90)),
-            )
-            val result = PersistentAnnotationStore.computeBatch(
-                currentActive = active,
-                startPersistentId = 10,
-                effectPersistent = emptyList(),
-                effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
-                transferPersistent = emptyList(),
-                mechanicResult = mechanicResult,
-                resolveInstanceId = { fid -> InstanceId(fid.value + 1000) },
-                // Reverse lookup: iid 1090 → forgeCardId 90 (inverse of testResolver)
-                resolveForgeCardId = { iid -> ForgeCardId(iid.value - 1000) },
-            )
+            val mechanicResult =
+                MechanicAnnotationResult(
+                    transient = emptyList(),
+                    persistent = emptyList(),
+                    exileSourceLeftPlayForgeCardIds = listOf(ForgeCardId(90)),
+                )
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = active,
+                    startPersistentId = 10,
+                    effectPersistent = emptyList(),
+                    effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    transferPersistent = emptyList(),
+                    mechanicResult = mechanicResult,
+                    resolveInstanceId = { fid -> InstanceId(fid.value + 1000) },
+                    // Reverse lookup: iid 1090 → forgeCardId 90 (inverse of testResolver)
+                    resolveForgeCardId = { iid -> ForgeCardId(iid.value - 1000) },
+                )
             result.allAnnotations.shouldBeEmpty()
             result.deletedIds shouldBe listOf(5)
         }
@@ -95,26 +109,32 @@ class PersistentAnnotationPipelineTest :
             // DisplayCardUnderCard was created. After destruction (BF→GY), its iid
             // was reallocated to 125. The reverse lookup resolves the OLD iid (111)
             // back to forgeCardId 1, matching the exileSourceLeftPlayForgeCardIds.
-            val ann = AnnotationBuilder.displayCardUnderCard(affectorId = 111.iid, instanceId = 116.iid)
-                .toBuilder().setId(3).build()
+            val ann =
+                AnnotationBuilder
+                    .displayCardUnderCard(affectorId = 111.iid, instanceId = 116.iid)
+                    .toBuilder()
+                    .setId(3)
+                    .build()
             val active = mapOf(3 to ann)
-            val mechanicResult = MechanicAnnotationResult(
-                transient = emptyList(),
-                persistent = emptyList(),
-                exileSourceLeftPlayForgeCardIds = listOf(ForgeCardId(1)), // forgeCardId of Banishing Light
-            )
+            val mechanicResult =
+                MechanicAnnotationResult(
+                    transient = emptyList(),
+                    persistent = emptyList(),
+                    exileSourceLeftPlayForgeCardIds = listOf(ForgeCardId(1)), // forgeCardId of Banishing Light
+                )
             // Reverse lookup: old iid 111 → forgeCardId 1, new iid 125 → forgeCardId 1
             val forgeCardIdMap = mapOf(111 to 1, 125 to 1)
-            val result = PersistentAnnotationStore.computeBatch(
-                currentActive = active,
-                startPersistentId = 10,
-                effectPersistent = emptyList(),
-                effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
-                transferPersistent = emptyList(),
-                mechanicResult = mechanicResult,
-                resolveInstanceId = { fid -> InstanceId(fid.value + 1000) },
-                resolveForgeCardId = { iid -> forgeCardIdMap[iid.value]?.let { ForgeCardId(it) } },
-            )
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = active,
+                    startPersistentId = 10,
+                    effectPersistent = emptyList(),
+                    effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    transferPersistent = emptyList(),
+                    mechanicResult = mechanicResult,
+                    resolveInstanceId = { fid -> InstanceId(fid.value + 1000) },
+                    resolveForgeCardId = { iid -> forgeCardIdMap[iid.value]?.let { ForgeCardId(it) } },
+                )
             result.allAnnotations.shouldBeEmpty()
             result.deletedIds shouldBe listOf(3)
         }

@@ -25,6 +25,6 @@
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun storeStatus()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun telemetryAck()</ID>
     <ID>LongMethod:FrontDoorHandler.kt$FrontDoorHandler$@Suppress("CanBeNonNullable") // `json` comes from the decoder which may emit null for empty bodies. private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
-    <ID>MaxLineLength:LobbyStubs.kt$LobbyStubs$fun rankInfo()</ID>
+    <ID>MaxLineLength:LobbyStubs.kt$LobbyStubs$"""{"playerId":null,"constructedSeasonOrdinal":0,"constructedClass":"Bronze","constructedLevel":0,"constructedStep":0,"constructedMatchesWon":0,"constructedMatchesLost":0,"constructedMatchesDrawn":0,"limitedSeasonOrdinal":0,"limitedClass":"Bronze","limitedLevel":0,"limitedStep":0,"limitedMatchesWon":0,"limitedMatchesLost":0,"limitedMatchesDrawn":0}"""</ID>
   </CurrentIssues>
 </SmellBaseline>

@@ -100,13 +100,15 @@ object GameBootstrap {
         val players = mutableListOf<RegisteredPlayer>()
         val deck = Deck()
 
-        val human = RegisteredPlayer(deck)
-            .setPlayer(GamePlayerUtil.getGuiPlayer())
+        val human =
+            RegisteredPlayer(deck)
+                .setPlayer(GamePlayerUtil.getGuiPlayer())
         human.startingHand = 0
         players.add(human)
 
-        val ai = RegisteredPlayer(deck)
-            .setPlayer(LobbyPlayerAi("AI", null))
+        val ai =
+            RegisteredPlayer(deck)
+                .setPlayer(LobbyPlayerAi("AI", null))
         ai.startingHand = 0
         players.add(ai)
 
@@ -130,17 +132,22 @@ object GameBootstrap {
      * Zones are populated by the engine via [Match.startGame] when
      * [leyline.bridge.coord.GameLoopController.start] is called.
      */
-    fun createConstructedGame(humanDeck: Deck, aiDeck: Deck): Game {
+    fun createConstructedGame(
+        humanDeck: Deck,
+        aiDeck: Deck,
+    ): Game {
         ensureLocalization()
 
         val players = mutableListOf<RegisteredPlayer>()
 
-        val human = RegisteredPlayer(humanDeck)
-            .setPlayer(GamePlayerUtil.getGuiPlayer())
+        val human =
+            RegisteredPlayer(humanDeck)
+                .setPlayer(GamePlayerUtil.getGuiPlayer())
         players.add(human)
 
-        val ai = RegisteredPlayer(aiDeck)
-            .setPlayer(LobbyPlayerAi("AI", null))
+        val ai =
+            RegisteredPlayer(aiDeck)
+                .setPlayer(LobbyPlayerAi("AI", null))
         players.add(ai)
 
         val rules = GameRules(GameType.Constructed)
@@ -156,20 +163,28 @@ object GameBootstrap {
         return game
     }
 
-    fun createCommanderGame(humanDeck: Deck, aiDeck: Deck, variant: String = "commander"): Game {
+    fun createCommanderGame(
+        humanDeck: Deck,
+        aiDeck: Deck,
+        variant: String = "commander",
+    ): Game {
         ensureLocalization()
 
         val gameType = resolveCommanderVariant(variant)
         val isBrawl = gameType == GameType.Brawl
         val players = mutableListOf<RegisteredPlayer>()
 
-        val human = RegisteredPlayer.forCommander(humanDeck)
-            .setPlayer(GamePlayerUtil.getGuiPlayer())
+        val human =
+            RegisteredPlayer
+                .forCommander(humanDeck)
+                .setPlayer(GamePlayerUtil.getGuiPlayer())
         if (isBrawl) human.startingLife = BRAWL_STARTING_LIFE
         players.add(human)
 
-        val ai = RegisteredPlayer.forCommander(aiDeck)
-            .setPlayer(LobbyPlayerAi("AI", null))
+        val ai =
+            RegisteredPlayer
+                .forCommander(aiDeck)
+                .setPlayer(LobbyPlayerAi("AI", null))
         if (isBrawl) ai.startingLife = BRAWL_STARTING_LIFE
         players.add(ai)
 
@@ -192,7 +207,10 @@ object GameBootstrap {
      * No human controller, no headless GUI — both seats get the engine's
      * default [forge.ai.PlayerControllerAi].
      */
-    fun createAiVsAiGame(deck1: Deck, deck2: Deck): Game {
+    fun createAiVsAiGame(
+        deck1: Deck,
+        deck2: Deck,
+    ): Game {
         ensureLocalization()
 
         val players = mutableListOf<RegisteredPlayer>()
@@ -208,7 +226,11 @@ object GameBootstrap {
      * Create a commander-variant game between two AI players (mirror mode).
      * Same as [createAiVsAiGame] but with Commander/Brawl/Oathbreaker rules.
      */
-    fun createAiVsAiCommanderGame(deck1: Deck, deck2: Deck, variant: String = "commander"): Game {
+    fun createAiVsAiCommanderGame(
+        deck1: Deck,
+        deck2: Deck,
+        variant: String = "commander",
+    ): Game {
         ensureLocalization()
 
         val gameType = resolveCommanderVariant(variant)
@@ -273,8 +295,7 @@ object GameBootstrap {
         initialized = true
     }
 
-    private fun resolveLanguagesDir(): Path =
-        resolveForgeResource("forge-gui/res/languages") { Files.isDirectory(it) }
+    private fun resolveLanguagesDir(): Path = resolveForgeResource("forge-gui/res/languages") { Files.isDirectory(it) }
 
     private fun ensureGuiBase() {
         if (GuiBase.getInterface() == null) {
@@ -319,8 +340,7 @@ object GameBootstrap {
         cardDbInitError?.let { throw IllegalStateException("Card DB init failed on background thread", it) }
     }
 
-    private fun resolveAssetsDir(): Path =
-        resolveForgeResource("forge-gui") { Files.isDirectory(it.resolve("res")) }
+    private fun resolveAssetsDir(): Path = resolveForgeResource("forge-gui") { Files.isDirectory(it.resolve("res")) }
 
     private fun headlessGuiGame(): IGuiGame {
         ensureGuiBase()
@@ -328,10 +348,11 @@ object GameBootstrap {
     }
 
     /** Map a lowercase variant string to the engine [GameType]. */
-    private fun resolveCommanderVariant(variant: String): GameType = when (variant.lowercase()) {
-        "commander" -> GameType.Commander
-        "brawl" -> GameType.Brawl
-        "oathbreaker" -> GameType.Oathbreaker
-        else -> GameType.Commander
-    }
+    private fun resolveCommanderVariant(variant: String): GameType =
+        when (variant.lowercase()) {
+            "commander" -> GameType.Commander
+            "brawl" -> GameType.Brawl
+            "oathbreaker" -> GameType.Oathbreaker
+            else -> GameType.Commander
+        }
 }

@@ -169,20 +169,26 @@ object StateMapper {
         val isBrawl = bridge.isBrawlOrCommander
         val gameVariant = if (isBrawl) GameVariant.Brawl else GameVariant.Normal
 
-        val gameInfo = GameInfo.newBuilder()
-            .setMatchID(matchId)
-            .setGameNumber(1)
-            .setStage(GameStage.Play_a920)
-            .setType(GameType.Duel)
-            .setVariant(gameVariant)
-            .setMatchState(MatchState.GameInProgress)
-            .setMatchWinCondition(MatchWinCondition.SingleElimination)
-            .setMulliganType(MulliganType.London)
+        val gameInfo =
+            GameInfo
+                .newBuilder()
+                .setMatchID(matchId)
+                .setGameNumber(1)
+                .setStage(GameStage.Play_a920)
+                .setType(GameType.Duel)
+                .setVariant(gameVariant)
+                .setMatchState(MatchState.GameInProgress)
+                .setMatchWinCondition(MatchWinCondition.SingleElimination)
+                .setMulliganType(MulliganType.London)
         if (isBrawl) {
             gameInfo.setDeckConstraintInfo(
-                DeckConstraintInfo.newBuilder()
-                    .setMinDeckSize(58).setMaxDeckSize(59).setMaxSideboardSize(1)
-                    .setMinCommanderSize(1).setMaxCommanderSize(2),
+                DeckConstraintInfo
+                    .newBuilder()
+                    .setMinDeckSize(58)
+                    .setMaxDeckSize(59)
+                    .setMaxSideboardSize(1)
+                    .setMinCommanderSize(1)
+                    .setMaxCommanderSize(2),
             )
             gameInfo.setFreeMulliganCount(1)
         }
@@ -190,8 +196,18 @@ object StateMapper {
         val player1 = PlayerMapper.buildFromSnapshot(snap, 1)
         val player2 = PlayerMapper.buildFromSnapshot(snap, 2)
 
-        val team1 = TeamInfo.newBuilder().setId(1).addPlayerIds(1).setStatus(TeamStatus.InGame_a458)
-        val team2 = TeamInfo.newBuilder().setId(2).addPlayerIds(2).setStatus(TeamStatus.InGame_a458)
+        val team1 =
+            TeamInfo
+                .newBuilder()
+                .setId(1)
+                .addPlayerIds(1)
+                .setStatus(TeamStatus.InGame_a458)
+        val team2 =
+            TeamInfo
+                .newBuilder()
+                .setId(2)
+                .addPlayerIds(2)
+                .setStatus(TeamStatus.InGame_a458)
 
         val zones = mutableListOf<ZoneInfo>()
         val gameObjects = mutableListOf<GameObjectInfo>()
@@ -207,10 +223,12 @@ object StateMapper {
         zones.add(ZoneMapper.makeZone(ZoneIds.EXILE, ZoneType.Exile, 0, Visibility.Public))
         // Limbo zone: include all previously accumulated retired instanceIds.
         // New retirements are appended in the annotation loop below.
-        val limboZone = ZoneInfo.newBuilder()
-            .setZoneId(ZoneIds.LIMBO)
-            .setType(ZoneType.Limbo)
-            .setVisibility(Visibility.Public)
+        val limboZone =
+            ZoneInfo
+                .newBuilder()
+                .setZoneId(ZoneIds.LIMBO)
+                .setType(ZoneType.Limbo)
+                .setVisibility(Visibility.Public)
         for (id in bridge.getLimboInstanceIds()) {
             limboZone.addObjectInstanceIds(id.value)
         }
@@ -223,8 +241,16 @@ object StateMapper {
         // Player 1 zones
         if (human != null) {
             ZoneMapper.addPlayerZonesFromSnapshot(
-                1, snap, bridge, zones, gameObjects,
-                ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, viewingSeatId, revealForSeat,
+                1,
+                snap,
+                bridge,
+                zones,
+                gameObjects,
+                ZoneIds.P1_HAND,
+                ZoneIds.P1_LIBRARY,
+                ZoneIds.P1_GRAVEYARD,
+                viewingSeatId,
+                revealForSeat,
                 revealHand = revealedHandSeat == 1,
             )
         }
@@ -233,15 +259,32 @@ object StateMapper {
         // Player 2 zones
         if (ai != null) {
             ZoneMapper.addPlayerZonesFromSnapshot(
-                2, snap, bridge, zones, gameObjects,
-                ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, viewingSeatId, revealForSeat,
+                2,
+                snap,
+                bridge,
+                zones,
+                gameObjects,
+                ZoneIds.P2_HAND,
+                ZoneIds.P2_LIBRARY,
+                ZoneIds.P2_GRAVEYARD,
+                viewingSeatId,
+                revealForSeat,
                 revealHand = revealedHandSeat == 2,
             )
         }
         zones.add(ZoneMapper.makePrivateZone(ZoneIds.P2_SIDEBOARD, ZoneType.Sideboard, 2))
 
         // Populate shared zones with cards.
-        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Battlefield, ZoneIds.BATTLEFIELD, bridge, zones, gameObjects, human, keywordSnapshot)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(
+            snap,
+            ForgeZoneType.Battlefield,
+            ZoneIds.BATTLEFIELD,
+            bridge,
+            zones,
+            gameObjects,
+            human,
+            keywordSnapshot,
+        )
         ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects, human)
         ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects, human)
         ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects, human)
@@ -268,49 +311,74 @@ object StateMapper {
             computeAnnotations(eventsMutable, transferResult, actingSeat, bridge, prev = prev)
 
         // Snap-derived pAnn inputs — computed here where snap is in scope.
-        val qualificationPersistentFromSnap = snap.objects.values
-            .filter { it.isOnAdventure }
-            .map { AnnotationBuilder.qualification(instanceId = bridge.getOrAllocInstanceId(it.forgeCardId)) }
-        val temporaryPermanentPersistentFromSnap = snap.objects.values
-            .filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
-            .map { AnnotationBuilder.temporaryPermanent(bridge.getOrAllocInstanceId(it.forgeCardId)) }
-        val abilityWordPersistentFromSnap = snap.abilityWordEntries.map { entry ->
-            AnnotationBuilder.abilityWordActive(
-                instanceId = InstanceId(entry.instanceId),
-                abilityWordName = entry.abilityWordName,
-                value = entry.value,
-                threshold = entry.threshold,
-                abilityGrpId = entry.abilityGrpId?.let { GrpId(it) },
-                affectorId = InstanceId(entry.affectorId ?: entry.instanceId),
-                affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
-            )
-        }
+        val qualificationPersistentFromSnap =
+            snap.objects.values
+                .filter { it.isOnAdventure }
+                .map { AnnotationBuilder.qualification(instanceId = bridge.getOrAllocInstanceId(it.forgeCardId)) }
+        val temporaryPermanentPersistentFromSnap =
+            snap.objects.values
+                .filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
+                .map { AnnotationBuilder.temporaryPermanent(bridge.getOrAllocInstanceId(it.forgeCardId)) }
+        val abilityWordPersistentFromSnap =
+            snap.abilityWordEntries.map { entry ->
+                AnnotationBuilder.abilityWordActive(
+                    instanceId = InstanceId(entry.instanceId),
+                    abilityWordName = entry.abilityWordName,
+                    value = entry.value,
+                    threshold = entry.threshold,
+                    abilityGrpId = entry.abilityGrpId?.let { GrpId(it) },
+                    affectorId = InstanceId(entry.affectorId ?: entry.instanceId),
+                    affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
+                )
+            }
 
         // Stages 4-5 + persistent computation
-        val remaining = computeRemainingAnnotations(
-            eventsMutable, annotations, transferPersistent, initEffectDiff, effectDiff,
-            persistSnapshot, startPersistentId, startAnnotationId, bridge, keywordDiff,
-            combatResult,
-            qualificationPersistentFromSnap = qualificationPersistentFromSnap,
-            temporaryPermanentPersistentFromSnap = temporaryPermanentPersistentFromSnap,
-            abilityWordPersistentFromSnap = abilityWordPersistentFromSnap,
-        )
+        val remaining =
+            computeRemainingAnnotations(
+                eventsMutable,
+                annotations,
+                transferPersistent,
+                initEffectDiff,
+                effectDiff,
+                persistSnapshot,
+                startPersistentId,
+                startAnnotationId,
+                bridge,
+                keywordDiff,
+                combatResult,
+                qualificationPersistentFromSnap = qualificationPersistentFromSnap,
+                temporaryPermanentPersistentFromSnap = temporaryPermanentPersistentFromSnap,
+                abilityWordPersistentFromSnap = abilityWordPersistentFromSnap,
+            )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
-        val built = assembleGsm(
-            gameStateId, gameInfo.build(), frame, transferResult, remaining,
-            combatResult, team1.build(), team2.build(), player1, player2,
-            updateType, actions, actingSeat, prev?.gameStateId,
-        )
+        val built =
+            assembleGsm(
+                gameStateId,
+                gameInfo.build(),
+                frame,
+                transferResult,
+                remaining,
+                combatResult,
+                team1.build(),
+                team2.build(),
+                player1,
+                player2,
+                updateType,
+                actions,
+                actingSeat,
+                prev?.gameStateId,
+            )
 
         // ═══ COLLECT mutations (always) ═══
-        val mutations = BridgeMutations(
-            idReallocations = transferResult.idReallocations,
-            retiredIds = transferResult.retiredIds.map { InstanceId(it) },
-            zoneRecordings = transferResult.zoneRecordings.map { (iid, zid) -> InstanceId(iid) to zid },
-            persistentBatch = remaining.batch,
-            nextAnnotationId = remaining.nextAnnotationId,
-        )
+        val mutations =
+            BridgeMutations(
+                idReallocations = transferResult.idReallocations,
+                retiredIds = transferResult.retiredIds.map { InstanceId(it) },
+                zoneRecordings = transferResult.zoneRecordings.map { (iid, zid) -> InstanceId(iid) to zid },
+                persistentBatch = remaining.batch,
+                nextAnnotationId = remaining.nextAnnotationId,
+            )
 
         val hasCastSpell = transferResult.transfers.any { it.category == TransferCategory.CastSpell }
         return BuildResult(built, hasCastSpell, mutations)
@@ -345,7 +413,10 @@ object StateMapper {
         if (prev == null) {
             // First bundle — Full GSM with mutations returned for caller-apply.
             return buildFromSnapshot(
-                cur, gameStateId, matchId, bridge,
+                cur,
+                gameStateId,
+                matchId,
+                bridge,
                 actions = actions,
                 updateType = updateType,
                 viewingSeatId = viewingSeatId,
@@ -356,21 +427,24 @@ object StateMapper {
         }
 
         // Build current full GSM (viewingSeatId=0 to include all objects for accurate diff).
-        val fullResult = buildFromSnapshot(
-            cur,
-            gameStateId,
-            matchId,
-            bridge,
-            revealForSeat = revealForSeat,
-            prev = prev,
-            events = events,
-        )
+        val fullResult =
+            buildFromSnapshot(
+                cur,
+                gameStateId,
+                matchId,
+                bridge,
+                revealForSeat = revealForSeat,
+                prev = prev,
+                events = events,
+            )
         val current = fullResult.gsm
 
         // Snap-vs-snap zone delta: any zone whose snapshot field-equality differs.
-        val changedZoneIds = cur.zones.keys.asSequence()
-            .filter { id -> prev.zones[id] != cur.zones[id] }
-            .toSet()
+        val changedZoneIds =
+            cur.zones.keys
+                .asSequence()
+                .filter { id -> prev.zones[id] != cur.zones[id] }
+                .toSet()
         val opponentHandZoneId = ZoneMapper.opponentHandZone(viewingSeatId)
         val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(it).journal.activeReveal() != null }
         // Protocol-only zones not tracked in GsmSnapshot must always be included when non-empty:
@@ -378,89 +452,117 @@ object StateMapper {
         //   - REVEALED_P1/P2 (id=18/19): synthesized by applyRevealProxies during active reveal.
         //   - Hand zone of revealed seat: visibility flipped to Public by buildFromSnapshot but
         //     ZoneSnapshot still records Private, so snap equality check misses the change.
-        val opponentRevealedHandZoneId: Int? = when {
-            hasActiveReveal -> {
-                val ownerSeat = bridge.allSeatIds()
-                    .firstNotNullOfOrNull { bridge.promptBridge(it).journal.activeReveal()?.ownerSeatId?.value }
-                if (ownerSeat == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
+        val opponentRevealedHandZoneId: Int? =
+            when {
+                hasActiveReveal -> {
+                    val ownerSeat =
+                        bridge
+                            .allSeatIds()
+                            .firstNotNullOfOrNull {
+                                bridge
+                                    .promptBridge(it)
+                                    .journal
+                                    .activeReveal()
+                                    ?.ownerSeatId
+                                    ?.value
+                            }
+                    if (ownerSeat == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
+                }
+                else -> null
             }
-            else -> null
-        }
-        val changedZones = current.zonesList.filter { zone ->
-            zone.zoneId in changedZoneIds ||
-                (zone.zoneId == ZoneIds.LIMBO && zone.objectInstanceIdsCount > 0) ||
-                (zone.zoneId == ZoneIds.REVEALED_P1 || zone.zoneId == ZoneIds.REVEALED_P2) ||
-                (opponentRevealedHandZoneId != null && zone.zoneId == opponentRevealedHandZoneId)
-        }
+        val changedZones =
+            current.zonesList.filter { zone ->
+                zone.zoneId in changedZoneIds ||
+                    (zone.zoneId == ZoneIds.LIMBO && zone.objectInstanceIdsCount > 0) ||
+                    (zone.zoneId == ZoneIds.REVEALED_P1 || zone.zoneId == ZoneIds.REVEALED_P2) ||
+                    (opponentRevealedHandZoneId != null && zone.zoneId == opponentRevealedHandZoneId)
+            }
 
         // Snap-vs-snap object delta: any card whose CardSnapshot field-equality differs.
         // Plus opponent-hand filter + active-reveal exception preserved.
-        val cardSnapshotChangedFids = cur.objects.keys.asSequence()
-            .filter { fid -> prev.objects[fid] != cur.objects[fid] }
-            .toSet()
+        val cardSnapshotChangedFids =
+            cur.objects.keys
+                .asSequence()
+                .filter { fid -> prev.objects[fid] != cur.objects[fid] }
+                .toSet()
 
         // Cards whose zone changed (CardSnapshot doesn't carry zoneId; ZoneSnapshot.contents does).
-        val prevZoneOf: Map<ForgeCardId, Int> = prev.zones.values.flatMap { z -> z.contents.map { it to z.id } }.toMap()
-        val curZoneOf: Map<ForgeCardId, Int> = cur.zones.values.flatMap { z -> z.contents.map { it to z.id } }.toMap()
-        val zoneMovedFids = (prevZoneOf.keys + curZoneOf.keys).asSequence()
-            .filter { fid -> prevZoneOf[fid] != curZoneOf[fid] }
-            .toSet()
+        val prevZoneOf: Map<ForgeCardId, Int> =
+            prev.zones.values
+                .flatMap { z -> z.contents.map { it to z.id } }
+                .toMap()
+        val curZoneOf: Map<ForgeCardId, Int> =
+            cur.zones.values
+                .flatMap { z -> z.contents.map { it to z.id } }
+                .toMap()
+        val zoneMovedFids =
+            (prevZoneOf.keys + curZoneOf.keys)
+                .asSequence()
+                .filter { fid -> prevZoneOf[fid] != curZoneOf[fid] }
+                .toSet()
 
         val changedFids = cardSnapshotChangedFids + zoneMovedFids
         val changedInstanceIds = changedFids.map { bridge.getOrAllocInstanceId(it).value }.toSet()
         // instanceIds tracked in the prev snapshot (to detect truly new objects like RevealedCard proxies)
-        val prevInstanceIds = prev.objects.keys.map { bridge.getOrAllocInstanceId(it).value }.toSet()
-        val changedObjects = current.gameObjectsList.filter { obj ->
-            // Always include new objects absent from prev (e.g. RevealedCard proxies synthesized mid-diff).
-            if (obj.instanceId !in prevInstanceIds) {
-                // Still apply opponent-hand filter unless reveal is active
-                if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
-                    return@filter hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)
-                }
-                return@filter true
-            }
-            if (obj.instanceId !in changedInstanceIds) {
-                // During active reveal, always include opponent hand cards (visibility changed outside CardSnapshot)
-                if (hasActiveReveal &&
-                    opponentHandZoneId != 0 &&
-                    obj.zoneId == opponentHandZoneId &&
-                    (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)
-                ) {
+        val prevInstanceIds =
+            prev.objects.keys
+                .map { bridge.getOrAllocInstanceId(it).value }
+                .toSet()
+        val changedObjects =
+            current.gameObjectsList.filter { obj ->
+                // Always include new objects absent from prev (e.g. RevealedCard proxies synthesized mid-diff).
+                if (obj.instanceId !in prevInstanceIds) {
+                    // Still apply opponent-hand filter unless reveal is active
+                    if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
+                        return@filter hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)
+                    }
                     return@filter true
                 }
-                return@filter false
-            }
-            if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
-                if (hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)) {
-                    // fall through
-                } else {
+                if (obj.instanceId !in changedInstanceIds) {
+                    // During active reveal, always include opponent hand cards (visibility changed outside CardSnapshot)
+                    if (hasActiveReveal &&
+                        opponentHandZoneId != 0 &&
+                        obj.zoneId == opponentHandZoneId &&
+                        (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)
+                    ) {
+                        return@filter true
+                    }
                     return@filter false
                 }
+                if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
+                    if (hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)) {
+                        // fall through
+                    } else {
+                        return@filter false
+                    }
+                }
+                true
             }
-            true
-        }
 
         // Deleted IDs: in prev.objects but not in cur.objects, minus IDs still tracked
         // in cur zone listings (limbo-retired IDs that still appear in zone contents).
         val currentObjIds = current.gameObjectsList.map { it.instanceId }.toSet()
         val currentZoneTrackedIds = current.zonesList.flatMap { it.objectInstanceIdsList }.toSet()
-        val deletedIds = (prev.objects.keys - cur.objects.keys)
-            .map { bridge.getOrAllocInstanceId(it).value }
-            .filter { it !in currentObjIds && it !in currentZoneTrackedIds }
+        val deletedIds =
+            (prev.objects.keys - cur.objects.keys)
+                .map { bridge.getOrAllocInstanceId(it).value }
+                .filter { it !in currentObjIds && it !in currentZoneTrackedIds }
 
-        val builder = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff)
-            .setGameStateId(gameStateId)
-            .setTurnInfo(current.turnInfo)
-            .addAllPlayers(current.playersList)
-            .addAllZones(changedZones.sortedBy { it.zoneId })
-            .addAllGameObjects(changedObjects)
-            .addAllAnnotations(current.annotationsList)
-            .addAllPersistentAnnotations(current.persistentAnnotationsList)
-            .addAllDiffDeletedPersistentAnnotationIds(bridge.annotations.drainDeletions())
-            .addAllTimers(PlayerMapper.buildTimers())
-            .setUpdate(updateType)
-            .setPrevGameStateId(prev.gameStateId)
+        val builder =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(gameStateId)
+                .setTurnInfo(current.turnInfo)
+                .addAllPlayers(current.playersList)
+                .addAllZones(changedZones.sortedBy { it.zoneId })
+                .addAllGameObjects(changedObjects)
+                .addAllAnnotations(current.annotationsList)
+                .addAllPersistentAnnotations(current.persistentAnnotationsList)
+                .addAllDiffDeletedPersistentAnnotationIds(bridge.annotations.drainDeletions())
+                .addAllTimers(PlayerMapper.buildTimers())
+                .setUpdate(updateType)
+                .setPrevGameStateId(prev.gameStateId)
 
         if (deletedIds.isNotEmpty()) {
             builder.addAllDiffDeletedInstanceIds(deletedIds)
@@ -472,7 +574,8 @@ object StateMapper {
             val activeSeat = current.turnInfo.priorityPlayer
             for (action in actions.actionsList) {
                 builder.addActions(
-                    ActionInfo.newBuilder()
+                    ActionInfo
+                        .newBuilder()
                         .setSeatId(activeSeat)
                         .setAction(ActionMapper.stripActionForGsm(action)),
                 )
@@ -501,7 +604,10 @@ object StateMapper {
      * of whose turn it is. This heuristic (acting == viewing) is an approximation
      * used by postAction; remoteActionDiff hardcodes SendHiFi directly.
      */
-    fun resolveUpdateType(snap: GsmSnapshot, viewingSeatId: Int): GameStateUpdate {
+    fun resolveUpdateType(
+        snap: GsmSnapshot,
+        viewingSeatId: Int,
+    ): GameStateUpdate {
         val actingSeat = snap.phase.priorityPlayer?.value ?: snap.phase.activePlayer.value
         return if (actingSeat == viewingSeatId) {
             GameStateUpdate.SendAndRecord
@@ -528,25 +634,32 @@ object StateMapper {
         prioritySeat: Int,
         prevGsId: Int?,
     ): GameStateMessage {
-        val effectiveTurnInfo = if (combatResult.hasCombatDamage) {
-            frame.turnInfo().toBuilder().setPhase(Phase.Combat_a549).setStep(Step.CombatDamage_a2cb)
-        } else {
-            frame.turnInfo().toBuilder()
-        }
+        val effectiveTurnInfo =
+            if (combatResult.hasCombatDamage) {
+                frame
+                    .turnInfo()
+                    .toBuilder()
+                    .setPhase(Phase.Combat_a549)
+                    .setStep(Step.CombatDamage_a2cb)
+            } else {
+                frame.turnInfo().toBuilder()
+            }
 
-        val builder = GameStateMessage.newBuilder()
-            .setType(GameStateType.Full)
-            .setGameStateId(gameStateId)
-            .setGameInfo(gameInfo)
-            .addAllTeams(listOf(team1, team2))
-            .setTurnInfo(effectiveTurnInfo)
-            .addAllPlayers(listOf(player1, player2))
-            .addAllZones(transferResult.patchedZones.sortedBy { it.zoneId })
-            .addAllGameObjects(transferResult.patchedObjects)
-            .addAllAnnotations(remaining.numbered)
-            .addAllPersistentAnnotations(remaining.persistent)
-            .addAllTimers(PlayerMapper.buildTimers())
-            .setUpdate(updateType)
+        val builder =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Full)
+                .setGameStateId(gameStateId)
+                .setGameInfo(gameInfo)
+                .addAllTeams(listOf(team1, team2))
+                .setTurnInfo(effectiveTurnInfo)
+                .addAllPlayers(listOf(player1, player2))
+                .addAllZones(transferResult.patchedZones.sortedBy { it.zoneId })
+                .addAllGameObjects(transferResult.patchedObjects)
+                .addAllAnnotations(remaining.numbered)
+                .addAllPersistentAnnotations(remaining.persistent)
+                .addAllTimers(PlayerMapper.buildTimers())
+                .setUpdate(updateType)
         if (prevGsId != null && prevGsId > 0) {
             builder.setPrevGameStateId(prevGsId)
         }
@@ -554,7 +667,8 @@ object StateMapper {
         if (actions != null) {
             for (action in actions.actionsList) {
                 builder.addActions(
-                    ActionInfo.newBuilder()
+                    ActionInfo
+                        .newBuilder()
                         .setSeatId(prioritySeat)
                         .setAction(ActionMapper.stripActionForGsm(action)),
                 )
@@ -589,22 +703,26 @@ object StateMapper {
         temporaryPermanentPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         abilityWordPersistentFromSnap: List<AnnotationInfo> = emptyList(),
     ): RemainingAnnotationsResult {
-        val castSpellManaForgeIds = events
-            .filterIsInstance<GameEvent.SpellCast>()
-            .flatMap { it.manaPayments.map { mp -> mp.sourceCardId } }
-            .toSet()
-        val sacrificedManaForgeIds = events.filterIsInstance<GameEvent.ManaAbilityActivated>()
-            .filter { ma -> events.any { it is GameEvent.CardSacrificed && it.cardId == ma.cardId } }
-            .map { it.cardId }
-            .toSet()
+        val castSpellManaForgeIds =
+            events
+                .filterIsInstance<GameEvent.SpellCast>()
+                .flatMap { it.manaPayments.map { mp -> mp.sourceCardId } }
+                .toSet()
+        val sacrificedManaForgeIds =
+            events
+                .filterIsInstance<GameEvent.ManaAbilityActivated>()
+                .filter { ma -> events.any { it is GameEvent.CardSacrificed && it.cardId == ma.cardId } }
+                .map { it.cardId }
+                .toSet()
         val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds
-        val mechanicResult = MechanicAnnotations.mechanicAnnotations(
-            events,
-            manaPaidForgeCardIds,
-            idResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
-            effectIdAllocator = { bridge.effects.nextEffectId() },
-            activeStealForgeCardIds = bridge.annotations.activeStealForgeCardIds(),
-        )
+        val mechanicResult =
+            MechanicAnnotations.mechanicAnnotations(
+                events,
+                manaPaidForgeCardIds,
+                idResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
+                effectIdAllocator = { bridge.effects.nextEffectId() },
+                activeStealForgeCardIds = bridge.annotations.activeStealForgeCardIds(),
+            )
         annotations.addAll(mechanicResult.transient)
 
         // AbilityWordActive: consumed from pre-computed snap entries
@@ -616,20 +734,22 @@ object StateMapper {
         }
 
         val sourceAbilityResolver = SourceAbilityResolverFactory.build(bridge)
-        val (effectTransient, effectPersistent) = MechanicAnnotations.effectAnnotations(
-            diff = effectDiff,
-            sourceAbilityResolver = sourceAbilityResolver,
-            keywordDiff = keywordDiff,
-            keywordAffectorResolver = { _, _, _ ->
-                // Best-effort: use most recent SpellResolved event's instanceId as affector.
-                // Full resolver (tracing spell → keyword grant) comes later.
-                events.filterIsInstance<GameEvent.SpellResolved>()
-                    .lastOrNull()
-                    ?.let { bridge.getOrAllocInstanceId(it.cardId).value }
-                    ?: 0
-            },
-            uniqueAbilityIdAllocator = { bridge.effects.nextEffectId() },
-        )
+        val (effectTransient, effectPersistent) =
+            MechanicAnnotations.effectAnnotations(
+                diff = effectDiff,
+                sourceAbilityResolver = sourceAbilityResolver,
+                keywordDiff = keywordDiff,
+                keywordAffectorResolver = { _, _, _ ->
+                    // Best-effort: use most recent SpellResolved event's instanceId as affector.
+                    // Full resolver (tracing spell → keyword grant) comes later.
+                    events
+                        .filterIsInstance<GameEvent.SpellResolved>()
+                        .lastOrNull()
+                        ?.let { bridge.getOrAllocInstanceId(it.cardId).value }
+                        ?: 0
+                },
+                uniqueAbilityIdAllocator = { bridge.effects.nextEffectId() },
+            )
         annotations.addAll(effectTransient)
 
         // Qualification pAnn for adventure-exiled cards (cast-from-exile eligibility marker)
@@ -645,25 +765,27 @@ object StateMapper {
             computeCrewAnnotations(bridge)
         annotations.addAll(crewExpiredAnnotations)
 
-        val enrichedMechanicResult = mechanicResult.copy(
-            abilityWordPersistent = abilityWordPersistent,
-            qualificationPersistent = qualificationPersistent + mechanicResult.qualificationPersistent,
-            crewedThisTurnPersistent = crewedThisTurnPersistent,
-            crewTypeChangePersistent = crewTypeChangePersistent,
-            temporaryPermanentPersistent = temporaryPermanentPersistent,
-            targetSpecPersistent = targetSpecPersistent,
-        )
-        val batch = PersistentAnnotationStore.Companion.computeBatch(
-            currentActive = persistSnapshot,
-            startPersistentId = startPersistentId,
-            effectPersistent = effectPersistent,
-            effectDiff = effectDiff,
-            transferPersistent = transferPersistent,
-            mechanicResult = enrichedMechanicResult,
-            combatResult = combatResult,
-            resolveInstanceId = { fid -> bridge.getOrAllocInstanceId(fid) },
-            resolveForgeCardId = { iid -> bridge.getForgeCardId(iid) },
-        )
+        val enrichedMechanicResult =
+            mechanicResult.copy(
+                abilityWordPersistent = abilityWordPersistent,
+                qualificationPersistent = qualificationPersistent + mechanicResult.qualificationPersistent,
+                crewedThisTurnPersistent = crewedThisTurnPersistent,
+                crewTypeChangePersistent = crewTypeChangePersistent,
+                temporaryPermanentPersistent = temporaryPermanentPersistent,
+                targetSpecPersistent = targetSpecPersistent,
+            )
+        val batch =
+            PersistentAnnotationStore.Companion.computeBatch(
+                currentActive = persistSnapshot,
+                startPersistentId = startPersistentId,
+                effectPersistent = effectPersistent,
+                effectDiff = effectDiff,
+                transferPersistent = transferPersistent,
+                mechanicResult = enrichedMechanicResult,
+                combatResult = combatResult,
+                resolveInstanceId = { fid -> bridge.getOrAllocInstanceId(fid) },
+                resolveForgeCardId = { iid -> bridge.getForgeCardId(iid) },
+            )
 
         // Emit LayeredEffectDestroyed for reverted steals
         for (effectId in batch.revertedEffectIds) {
@@ -699,15 +821,17 @@ object StateMapper {
     ): Pair<MutableList<AnnotationInfo>, MutableList<AnnotationInfo>> {
         val annotations = mutableListOf<AnnotationInfo>()
         val transferPersistent = mutableListOf<AnnotationInfo>()
-        val lethalDamageVictims = events
-            .filterIsInstance<GameEvent.DamageDealtToCard>()
-            .map { it.targetCardId }
-            .toSet()
-        val (deferredTransfers, immediateTransfers) = transferResult.transfers.partition { transfer ->
-            transfer.category == TransferCategory.Destroy &&
-                transfer.forgeCardId != null &&
-                transfer.forgeCardId in lethalDamageVictims
-        }
+        val lethalDamageVictims =
+            events
+                .filterIsInstance<GameEvent.DamageDealtToCard>()
+                .map { it.targetCardId }
+                .toSet()
+        val (deferredTransfers, immediateTransfers) =
+            transferResult.transfers.partition { transfer ->
+                transfer.category == TransferCategory.Destroy &&
+                    transfer.forgeCardId != null &&
+                    transfer.forgeCardId in lethalDamageVictims
+            }
 
         fun emitTransfer(transfer: AppliedTransfer) {
             val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, SeatId(actingSeat))
@@ -757,9 +881,10 @@ object StateMapper {
         //  prompt-type mapping. Both require Arena card DB. Falls back to card grpId
         //  and 0 until wired.
         return pending.map { spec ->
-            val spellIid = bridge.getOrAllocInstanceId(
-                ForgeCardId(spec.spellForgeCardId + ObjectMapper.STACK_ABILITY_ID_OFFSET),
-            )
+            val spellIid =
+                bridge.getOrAllocInstanceId(
+                    ForgeCardId(spec.spellForgeCardId + ObjectMapper.STACK_ABILITY_ID_OFFSET),
+                )
             val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(spec.targetForgeCardId))
             val grpId = GrpId(bridge.cardRepository.findGrpIdByName(spec.spellName) ?: 0)
             AnnotationBuilder.targetSpec(
@@ -774,16 +899,15 @@ object StateMapper {
     }
 
     /** Crew annotation scan: CrewedThisTurn pAnns, ModifiedType pAnns, and expired effect annotations. */
-    private fun computeCrewAnnotations(
-        bridge: GameBridge,
-    ): Triple<List<AnnotationInfo>, List<AnnotationInfo>, List<AnnotationInfo>> {
+    private fun computeCrewAnnotations(bridge: GameBridge): Triple<List<AnnotationInfo>, List<AnnotationInfo>, List<AnnotationInfo>> {
         val crewSnapshots = bridge.snapshotCrewState()
-        val crewedThisTurn = crewSnapshots.map { snap ->
-            AnnotationBuilder.crewedThisTurn(
-                InstanceId(snap.vehicleInstanceId),
-                snap.crewSourceInstanceIds.map { InstanceId(it) },
-            )
-        }
+        val crewedThisTurn =
+            crewSnapshots.map { snap ->
+                AnnotationBuilder.crewedThisTurn(
+                    InstanceId(snap.vehicleInstanceId),
+                    snap.crewSourceInstanceIds.map { InstanceId(it) },
+                )
+            }
         val typeChange = mutableListOf<AnnotationInfo>()
         val expired = mutableListOf<AnnotationInfo>()
 
@@ -845,23 +969,25 @@ object StateMapper {
             val revealedZoneId = if (ownerSeat == 1) ZoneIds.REVEALED_P1 else ZoneIds.REVEALED_P2
 
             val revealedZoneIdx = zones.indexOfFirst { it.zoneId == revealedZoneId }
-            val revealedZoneBuilder = if (revealedZoneIdx >= 0) {
-                zones.removeAt(revealedZoneIdx).toBuilder()
-            } else {
-                ZoneMapper.makeZone(revealedZoneId, ZoneType.Revealed, ownerSeat, Visibility.Public).toBuilder()
-            }
+            val revealedZoneBuilder =
+                if (revealedZoneIdx >= 0) {
+                    zones.removeAt(revealedZoneIdx).toBuilder()
+                } else {
+                    ZoneMapper.makeZone(revealedZoneId, ZoneType.Revealed, ownerSeat, Visibility.Public).toBuilder()
+                }
 
             // Re-use proxy IDs across diffs during the same reveal (stable instanceIds).
             val needsAlloc = bridge.revealProxies.isEmpty
             for (forgeCardId in activeReveal.allHandCardIds) {
                 val cardSnap = snap.objects[forgeCardId] ?: continue
-                val proxyId = if (needsAlloc) {
-                    val id = bridge.ids.allocSynthetic()
-                    bridge.revealProxies.allocate(forgeCardId, id)
-                    id
-                } else {
-                    bridge.revealProxies.lookup(forgeCardId) ?: continue
-                }
+                val proxyId =
+                    if (needsAlloc) {
+                        val id = bridge.ids.allocSynthetic()
+                        bridge.revealProxies.allocate(forgeCardId, id)
+                        id
+                    } else {
+                        bridge.revealProxies.lookup(forgeCardId) ?: continue
+                    }
                 revealedZoneBuilder.addObjectInstanceIds(proxyId.value)
                 gameObjects.add(
                     ObjectMapper.buildRevealedCardProxy(cardSnap, proxyId.value, handZoneId, ownerSeat, viewerSeat, bridge),
@@ -875,6 +1001,7 @@ object StateMapper {
             events.add(GameEvent.RevealProxiesDeleted(deletedProxies))
         }
     }
+
     internal fun computeAnnotations(
         events: List<GameEvent>,
         transferResult: TransferResult,
@@ -882,21 +1009,24 @@ object StateMapper {
         bridge: GameBridge,
         prev: GsmSnapshot? = null,
     ): AnnotationPipelineResult {
-        val combatTransferredIds = transferResult.transfers
-            .mapNotNull { transfer -> transfer.forgeCardId?.let { it to transfer.origId } }
-            .toMap()
-        val combatResult = CombatAnnotations.combatAnnotations(
-            events = events,
-            bridge = bridge,
-            prev = prev,
-            transferredIds = combatTransferredIds,
-        )
-        val (annotations, transferPersistent) = assembleTransferAndCombatAnnotations(
-            events = events,
-            transferResult = transferResult,
-            actingSeat = actingSeat,
-            combatResult = combatResult,
-        )
+        val combatTransferredIds =
+            transferResult.transfers
+                .mapNotNull { transfer -> transfer.forgeCardId?.let { it to transfer.origId } }
+                .toMap()
+        val combatResult =
+            CombatAnnotations.combatAnnotations(
+                events = events,
+                bridge = bridge,
+                prev = prev,
+                transferredIds = combatTransferredIds,
+            )
+        val (annotations, transferPersistent) =
+            assembleTransferAndCombatAnnotations(
+                events = events,
+                transferResult = transferResult,
+                actingSeat = actingSeat,
+                combatResult = combatResult,
+            )
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }
 }

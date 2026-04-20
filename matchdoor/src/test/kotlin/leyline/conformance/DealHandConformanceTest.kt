@@ -35,10 +35,11 @@ class DealHandConformanceTest :
         // --- dealHand ---
 
         test("dealHand seat 1: 1 GRE msg, Diff GSM with zones and objects") {
-            val (b, _, _) = base.startWithBoard { _, human, _ ->
-                repeat(7) { base.addCard("Plains", human, ZoneType.Hand) }
-                repeat(53) { base.addCard("Plains", human, ZoneType.Library) }
-            }
+            val (b, _, _) =
+                base.startWithBoard { _, human, _ ->
+                    repeat(7) { base.addCard("Plains", human, ZoneType.Hand) }
+                    repeat(53) { base.addCard("Plains", human, ZoneType.Library) }
+                }
             val (msg, nextMsgId) = HandshakeMessages.dealHand(6, 2, b, seatId = 1)
             val messages = greMessages(msg)
 
@@ -69,12 +70,13 @@ class DealHandConformanceTest :
         // --- dealHandMulliganSeat2 ---
 
         test("dealHandMulliganSeat2: 2 msgs (GSM + MulliganReq)") {
-            val (b, _, _) = base.startWithBoard { _, human, ai ->
-                repeat(7) { base.addCard("Plains", human, ZoneType.Hand) }
-                repeat(53) { base.addCard("Plains", human, ZoneType.Library) }
-                repeat(7) { base.addCard("Plains", ai, ZoneType.Hand) }
-                repeat(53) { base.addCard("Plains", ai, ZoneType.Library) }
-            }
+            val (b, _, _) =
+                base.startWithBoard { _, human, ai ->
+                    repeat(7) { base.addCard("Plains", human, ZoneType.Hand) }
+                    repeat(53) { base.addCard("Plains", human, ZoneType.Library) }
+                    repeat(7) { base.addCard("Plains", ai, ZoneType.Hand) }
+                    repeat(53) { base.addCard("Plains", ai, ZoneType.Library) }
+                }
             val (msg, nextMsgId) = HandshakeMessages.dealHandMulliganSeat2(6, 2, b)
             val messages = greMessages(msg)
 
@@ -192,15 +194,17 @@ class DealHandConformanceTest :
         // --- settingsResp ---
 
         test("settingsResp round-trips settings and advances msgId") {
-            val settings = SettingsMessage.newBuilder()
-                .addStops(
-                    Stop.newBuilder()
-                        .setStopType(StopType.PrecombatMainPhase)
-                        .setAppliesTo(SettingScope.Team_ac6e)
-                        .setStatus(SettingStatus.Set),
-                )
-                .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
-                .build()
+            val settings =
+                SettingsMessage
+                    .newBuilder()
+                    .addStops(
+                        Stop
+                            .newBuilder()
+                            .setStopType(StopType.PrecombatMainPhase)
+                            .setAppliesTo(SettingScope.Team_ac6e)
+                            .setStatus(SettingStatus.Set),
+                    ).setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
+                    .build()
 
             val (msg, nextMsgId) = HandshakeMessages.settingsResp(1, 9, 2, settings)
             val messages = greMessages(msg)

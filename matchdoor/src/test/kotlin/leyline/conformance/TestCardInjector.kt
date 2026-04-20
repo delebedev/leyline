@@ -49,17 +49,19 @@ object TestCardInjector {
         tapped: Boolean = false,
         sick: Boolean = true,
     ): InjectedCard {
-        val player = bridge.getPlayer(SeatId(playerSeatId))
-            ?: error("No player for seatId=$playerSeatId")
+        val player =
+            bridge.getPlayer(SeatId(playerSeatId))
+                ?: error("No player for seatId=$playerSeatId")
 
         // 1. Create Forge Card object from paper card DB
         val db = FModel.getMagicDb().commonCards
-        val paperCard = db.getCard(cardName)
-            ?: run {
-                forge.StaticData.instance().attemptToLoadCard(cardName)
-                db.getCard(cardName)
-            }
-            ?: error("Card not found in Forge DB: $cardName")
+        val paperCard =
+            db.getCard(cardName)
+                ?: run {
+                    forge.StaticData.instance().attemptToLoadCard(cardName)
+                    db.getCard(cardName)
+                }
+                ?: error("Card not found in Forge DB: $cardName")
 
         val game = bridge.getGame() ?: error("GameBridge not started")
         val card = Card.fromPaperCard(paperCard, player)

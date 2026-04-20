@@ -30,22 +30,26 @@ object LeylinePaths {
         private set
 
     val SESSION_ROOT: File
-        get() = resolveOverride("leyline.sessions.root", "LEYLINE_SESSIONS_ROOT")
-            ?: File(TMP_ROOT, "sessions")
+        get() =
+            resolveOverride("leyline.sessions.root", "LEYLINE_SESSIONS_ROOT")
+                ?: File(TMP_ROOT, "sessions")
 
     val SESSION_DIR: File get() = File(SESSION_ROOT, sessionTag)
 
     val ENGINE_DUMP: File
-        get() = resolveOverride("leyline.engine.dump", "LEYLINE_ENGINE_DUMP")
-            ?: File(TMP_ROOT, "engine")
+        get() =
+            resolveOverride("leyline.engine.dump", "LEYLINE_ENGINE_DUMP")
+                ?: File(TMP_ROOT, "engine")
 
-    private fun resolveOverride(sysprop: String, env: String): File? =
+    private fun resolveOverride(
+        sysprop: String,
+        env: String,
+    ): File? =
         (System.getProperty(sysprop) ?: System.getenv(env))
             ?.takeIf { it.isNotBlank() }
             ?.let(::File)
 
-    private fun newSessionTag(): String =
-        LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
+    private fun newSessionTag(): String = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
 
     fun rotateSession() {
         sessionTag = newSessionTag()

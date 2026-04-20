@@ -134,13 +134,14 @@ class DraftServiceTest :
 
         test("variable pack sizes complete correctly") {
             val repo = InMemoryDraftSessionRepository()
-            val service = DraftService(repo) { _ ->
-                listOf(
-                    (1..14).toList(),
-                    (101..114).toList(),
-                    (201..213).toList(),
-                )
-            }
+            val service =
+                DraftService(repo) { _ ->
+                    listOf(
+                        (1..14).toList(),
+                        (101..114).toList(),
+                        (201..213).toList(),
+                    )
+                }
             var session = service.startDraft(playerId, eventName)
 
             val totalCards = 14 + 14 + 13

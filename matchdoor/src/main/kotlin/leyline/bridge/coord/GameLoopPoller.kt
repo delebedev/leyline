@@ -8,7 +8,6 @@ package leyline.bridge.coord
  * This consolidates the shared poll-sleep loop.
  */
 object GameLoopPoller {
-
     /**
      * Block until [condition] returns true, polling at [pollIntervalMs].
      *

@@ -23,7 +23,10 @@ import leyline.game.state.GameBridge
  * Returns the captured snapshot — tests that drive subsequent `buildDiff`
  * calls directly (not via a BundleBuilder) can pass it as `prev` explicitly.
  */
-fun GameBridge.seedDiffBaseline(game: Game, gameStateId: Int = 0): GsmSnapshot {
+fun GameBridge.seedDiffBaseline(
+    game: Game,
+    gameStateId: Int = 0,
+): GsmSnapshot {
     val snap = GsmSnapshot.capture(game, this, "", gameStateId)
     val result = StateMapper.buildFromSnapshot(snap, gameStateId, "", this)
     applyMutations(result.mutations)
@@ -60,6 +63,7 @@ fun awaitFreshPending(
  * polling `game.phaseHandler.phase` -- eliminates a race where the live phase
  * is checked before the pending is found, causing an accidental pass at Main1.
  */
+
 /**
  * Wait for a pending interactive prompt (targeting, choices, etc.).
  * Returns null on timeout.
@@ -101,13 +105,16 @@ fun advanceTo(
     val game = b.getGame()!!
     var lastId: String? = null
     repeat(maxPasses) {
-        val pending = awaitFreshPending(b, lastId, timeoutMs)
-            ?: error("Timed out waiting for priority (phase=${game.phaseHandler.phase}, turn=${game.phaseHandler.turn})")
+        val pending =
+            awaitFreshPending(b, lastId, timeoutMs)
+                ?: error("Timed out waiting for priority (phase=${game.phaseHandler.phase}, turn=${game.phaseHandler.turn})")
         if (predicate(pending.state.phase, pending.state.turn)) return pending
         b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PassPriority)
         lastId = pending.actionId
     }
-    error("Max passes ($maxPasses) exceeded advancing to target phase (current: ${game.phaseHandler.phase}, turn ${game.phaseHandler.turn})")
+    error(
+        "Max passes ($maxPasses) exceeded advancing to target phase (current: ${game.phaseHandler.phase}, turn ${game.phaseHandler.turn})",
+    )
 }
 
 /** Advance to a specific [phase], optionally on a specific [turn]. */
@@ -119,13 +126,20 @@ fun advanceToPhase(
 ) = advanceTo(b, maxPasses) { p, t -> p == phase && (turn == null || t == turn) }
 
 /** Advance to COMBAT_DECLARE_ATTACKERS. */
-fun advanceToCombat(b: GameBridge, turn: Int? = null) =
-    advanceToPhase(b, "COMBAT_DECLARE_ATTACKERS", turn)
+fun advanceToCombat(
+    b: GameBridge,
+    turn: Int? = null,
+) = advanceToPhase(b, "COMBAT_DECLARE_ATTACKERS", turn)
 
 /** Advance to MAIN2. */
-fun advanceToMain2(b: GameBridge, turn: Int? = null) =
-    advanceToPhase(b, "MAIN2", turn)
+fun advanceToMain2(
+    b: GameBridge,
+    turn: Int? = null,
+) = advanceToPhase(b, "MAIN2", turn)
 
-fun advanceToMain1(b: GameBridge, maxPasses: Int = 20) {
+fun advanceToMain1(
+    b: GameBridge,
+    maxPasses: Int = 20,
+) {
     advanceToPhase(b, "MAIN1", maxPasses = maxPasses)
 }

@@ -34,24 +34,25 @@ class ElectroduplicateTest :
         test("flashback from GY: targets creature, resolves, spell exiled") {
             // 2 creatures on BF so targeting prompt fires (not auto-resolved for single target).
             // Auto-pass advances to combat — declare no attackers, pass through to Main2.
-            val pzl = """
-            [metadata]
-            Name:Electroduplicate Flashback
-            Goal:Win
-            Turns:5
-            Difficulty:Easy
+            val pzl =
+                """
+                [metadata]
+                Name:Electroduplicate Flashback
+                Goal:Win
+                Turns:5
+                Difficulty:Easy
 
-            [state]
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=4
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=4
 
-            humangraveyard=Electroduplicate
-            humanbattlefield=Raging Goblin;Ornithopter;Mountain;Mountain;Mountain;Mountain
-            humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-            ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-            """.trimIndent()
+                humangraveyard=Electroduplicate
+                humanbattlefield=Raging Goblin;Ornithopter;Mountain;Mountain;Mountain;Mountain
+                humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+                """.trimIndent()
 
             val h = MatchFlowHarness(seed = 42L, validating = false)
             harness = h
@@ -59,12 +60,14 @@ class ElectroduplicateTest :
 
             // 1. Verify Cast action offered with abilityGrpId for flashback
             val player = h.bridge.getPlayer(SeatId(1))!!
-            val actions = h.allMessages
-                .filter { it.hasActionsAvailableReq() }
-                .flatMap { it.actionsAvailableReq.actionsList }
-            val flashbackAction = actions.firstOrNull {
-                it.actionType == ActionType.Cast && it.abilityGrpId > 0
-            }
+            val actions =
+                h.allMessages
+                    .filter { it.hasActionsAvailableReq() }
+                    .flatMap { it.actionsAvailableReq.actionsList }
+            val flashbackAction =
+                actions.firstOrNull {
+                    it.actionType == ActionType.Cast && it.abilityGrpId > 0
+                }
             flashbackAction.shouldNotBeNull()
             flashbackAction.abilityGrpId shouldBeGreaterThan 0
 
@@ -74,13 +77,18 @@ class ElectroduplicateTest :
                 h.passThroughCombat()
             }
 
-            val creaturesBefore = player.getZone(ForgeZoneType.Battlefield).cards
-                .filter { it.isCreature }
+            val creaturesBefore =
+                player
+                    .getZone(ForgeZoneType.Battlefield)
+                    .cards
+                    .filter { it.isCreature }
             creaturesBefore.size shouldBeGreaterThan 1
 
-            val targetIid = h.bridge.getOrAllocInstanceId(
-                ForgeCardId(creaturesBefore.first().id),
-            ).value
+            val targetIid =
+                h.bridge
+                    .getOrAllocInstanceId(
+                        ForgeCardId(creaturesBefore.first().id),
+                    ).value
 
             // 2. Cast from GY — triggers SelectTargetsReq
             val snap = h.messageSnapshot()
@@ -95,14 +103,18 @@ class ElectroduplicateTest :
 
             // 4. Spell not in GY/Hand/Stack after flashback resolve
             val nonExileZones = listOf(ForgeZoneType.Graveyard, ForgeZoneType.Hand, ForgeZoneType.Stack)
-            val strayCards = nonExileZones.flatMap { z ->
-                player.getZone(z)?.cards?.filter { it.name == "Electroduplicate" } ?: emptyList()
-            }
+            val strayCards =
+                nonExileZones.flatMap { z ->
+                    player.getZone(z)?.cards?.filter { it.name == "Electroduplicate" } ?: emptyList()
+                }
             strayCards.size shouldBe 0
 
             // 5. Copy token on BF (creature count increased)
-            val afterCreatures = player.getZone(ForgeZoneType.Battlefield).cards
-                .filter { it.isCreature }
+            val afterCreatures =
+                player
+                    .getZone(ForgeZoneType.Battlefield)
+                    .cards
+                    .filter { it.isCreature }
             afterCreatures.size shouldBeGreaterThan creaturesBefore.size
         }
     })

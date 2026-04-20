@@ -71,40 +71,44 @@ class MatchSession(
     }
 
     /** Sub-handlers for combat, targeting, optional actions, and auto-pass flows. */
-    val combatHandler = CombatHandler(
-        sink = this,
-        counters = this,
-        tracer = this,
-        bundles = this,
-        pacing = this,
-    )
-    val targetingHandler = TargetingHandler(
-        sink = this,
-        counters = this,
-        tracer = this,
-        bundles = this,
-    )
+    val combatHandler =
+        CombatHandler(
+            sink = this,
+            counters = this,
+            tracer = this,
+            bundles = this,
+            pacing = this,
+        )
+    val targetingHandler =
+        TargetingHandler(
+            sink = this,
+            counters = this,
+            tracer = this,
+            bundles = this,
+        )
     val optionalActionHandler = OptionalActionHandler(sink = this, counters = this)
-    val autoPassEngine = AutoPassEngine(
-        sink = this,
-        counters = this,
-        tracer = this,
-        bundles = this,
-        pacing = this,
-        combatHandler = combatHandler,
-        targetingHandler = targetingHandler,
-        optionalActionHandler = optionalActionHandler,
-        autoPassState = autoPassState,
-    )
-    val actionPerformer = ActionPerformer(
-        sink = this,
-        counters = this,
-        tracer = this,
-        bundles = this,
-        targetingHandler = targetingHandler,
-        autoPassEngine = autoPassEngine,
-        autoPassState = autoPassState,
-    )
+    val autoPassEngine =
+        AutoPassEngine(
+            sink = this,
+            counters = this,
+            tracer = this,
+            bundles = this,
+            pacing = this,
+            combatHandler = combatHandler,
+            targetingHandler = targetingHandler,
+            optionalActionHandler = optionalActionHandler,
+            autoPassState = autoPassState,
+        )
+    val actionPerformer =
+        ActionPerformer(
+            sink = this,
+            counters = this,
+            tracer = this,
+            bundles = this,
+            targetingHandler = targetingHandler,
+            autoPassEngine = autoPassEngine,
+            autoPassState = autoPassState,
+        )
 
     // --- Public entry points (called by MatchHandler) ---
 
@@ -112,158 +116,174 @@ class MatchSession(
      * After keep: wait for engine to reach priority, send real game state bundle.
      * Then auto-pass through phases where only Pass is available.
      */
-    override fun onMulliganKeep() = synchronized(sessionLock) {
-        val bridge = gameBridge
-        log.info("MatchSession: waiting for engine to reach priority after keep")
+    override fun onMulliganKeep() =
+        synchronized(sessionLock) {
+            val bridge = gameBridge
+            log.info("MatchSession: waiting for engine to reach priority after keep")
 
-        bridge.awaitPriority()
+            bridge.awaitPriority()
 
-        val ctx = resolveContext() ?: return
+            val ctx = resolveContext() ?: return
 
-        traceEvent(MatchEventType.GAME_START, ctx.game, "post-mulligan, entering Main1")
+            traceEvent(MatchEventType.GAME_START, ctx.game, "post-mulligan, entering Main1")
 
-        // Drain AI action diffs queued during awaitPriority.
-        // These have gsIds allocated by the engine thread via the shared counter
-        // during awaitPriority. Send them first (lower gsIds).
-        val playback = ctx.bridge.playbacks[seatId]
-        if (playback != null) {
-            for (batch in playback.drainQueue()) {
-                sendBundledGRE(batch)
+            // Drain AI action diffs queued during awaitPriority.
+            // These have gsIds allocated by the engine thread via the shared counter
+            // during awaitPriority. Send them first (lower gsIds).
+            val playback = ctx.bridge.playbacks[seatId]
+            if (playback != null) {
+                for (batch in playback.drainQueue()) {
+                    sendBundledGRE(batch)
+                }
             }
+
+            // phaseTransitionDiff after AI diffs — uses the shared counter which is
+            // now past whatever the engine allocated. gsIds are higher than AI diffs
+            // but the prevGsId chain is valid (references last AI diff's gsId).
+            val bb = bundleBuilder
+            val result = bb.phaseTransitionDiff(ctx.game, counter)
+            sendBundle(result)
+
+            // Seed state snapshot for subsequent diff computation.
+            val snap1 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
+            bb.cursor.lastSent = snap1
+
+            // Auto-pass through phases where human has no real actions
+            autoPassEngine.autoPassAndAdvance(ctx.bridge)
         }
-
-        // phaseTransitionDiff after AI diffs — uses the shared counter which is
-        // now past whatever the engine allocated. gsIds are higher than AI diffs
-        // but the prevGsId chain is valid (references last AI diff's gsId).
-        val bb = bundleBuilder
-        val result = bb.phaseTransitionDiff(ctx.game, counter)
-        sendBundle(result)
-
-        // Seed state snapshot for subsequent diff computation.
-        val snap1 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
-        bb.cursor.lastSent = snap1
-
-        // Auto-pass through phases where human has no real actions
-        autoPassEngine.autoPassAndAdvance(ctx.bridge)
-    }
 
     /**
      * Puzzle start: seed snapshot, enter auto-pass loop.
      * Similar to [onMulliganKeep] but without mulligan seeding or phaseTransitionDiff
      * — the puzzle initial bundle already sent a Full GSM with the board state.
      */
+
     /**
      * Trigger autoPassAndAdvance without submitting an action first.
      * Used by tests when the engine is already at a combat phase and
      * CombatHandler needs to send the prompt (DeclareBlockersReq).
      */
-    fun triggerAutoPass(bridge: GameBridge) = synchronized(sessionLock) {
-        autoPassEngine.autoPassAndAdvance(bridge)
-    }
-
-    /** Reset session-scoped handler state for puzzle hot-swap. */
-    fun resetForPuzzle() = synchronized(sessionLock) {
-        combatHandler.reset()
-        targetingHandler.reset()
-        autoPassEngine.reset()
-    }
-
-    override fun onPuzzleStart() = synchronized(sessionLock) {
-        // FamiliarSession inherits a no-op onPuzzleStart from SessionOps, so this
-        // path only fires for MatchSession. Warn if somehow called for a non-seat-1
-        // MatchSession — it would consume seat 1's pending priority via the shared
-        // ActionBridge, advancing the engine past Main1.
-        if (seatId.value != 1) {
-            log.warn("MatchSession: onPuzzleStart called for seat {} — expected seat 1 only", seatId.value)
-            return
+    fun triggerAutoPass(bridge: GameBridge) =
+        synchronized(sessionLock) {
+            autoPassEngine.autoPassAndAdvance(bridge)
         }
 
-        val ctx = resolveContext() ?: return
+    /** Reset session-scoped handler state for puzzle hot-swap. */
+    fun resetForPuzzle() =
+        synchronized(sessionLock) {
+            combatHandler.reset()
+            targetingHandler.reset()
+            autoPassEngine.reset()
+        }
 
-        log.info("MatchSession: puzzle start, seeding snapshot and entering game loop")
+    override fun onPuzzleStart() =
+        synchronized(sessionLock) {
+            // FamiliarSession inherits a no-op onPuzzleStart from SessionOps, so this
+            // path only fires for MatchSession. Warn if somehow called for a non-seat-1
+            // MatchSession — it would consume seat 1's pending priority via the shared
+            // ActionBridge, advancing the engine past Main1.
+            if (seatId.value != 1) {
+                log.warn("MatchSession: onPuzzleStart called for seat {} — expected seat 1 only", seatId.value)
+                return
+            }
 
-        traceEvent(MatchEventType.GAME_START, ctx.game, "puzzle-start")
+            val ctx = resolveContext() ?: return
 
-        // Seed state snapshot for subsequent diff computation.
-        // The puzzle initial bundle already sent the Full GSM, so the cursor
-        // needs a matching snapshot for the first Diff to be correct.
-        val snap2 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
-        bundleBuilder.cursor.lastSent = snap2
+            log.info("MatchSession: puzzle start, seeding snapshot and entering game loop")
 
-        // Auto-pass through phases where human has no real actions
-        autoPassEngine.autoPassAndAdvance(ctx.bridge)
-    }
+            traceEvent(MatchEventType.GAME_START, ctx.game, "puzzle-start")
+
+            // Seed state snapshot for subsequent diff computation.
+            // The puzzle initial bundle already sent the Full GSM, so the cursor
+            // needs a matching snapshot for the first Diff to be correct.
+            val snap2 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
+            bundleBuilder.cursor.lastSent = snap2
+
+            // Auto-pass through phases where human has no real actions
+            autoPassEngine.autoPassAndAdvance(ctx.bridge)
+        }
 
     /**
      * Handle a client action (land play, spell cast, pass) and advance the engine.
      * Delegates to [ActionPerformer] — this method is just the session-lock boundary
      * and context resolver.
      */
-    override fun onPerformAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
-        val ctx = resolveContext() ?: return
-        actionPerformer.perform(ctx, greMsg)
-    }
+    override fun onPerformAction(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val ctx = resolveContext() ?: return
+            actionPerformer.perform(ctx, greMsg)
+        }
 
     /** Handle DeclareAttackersResp — delegates to [CombatHandler]. */
-    override fun onDeclareAttackers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
-        val ctx = resolveContext() ?: return
-        combatHandler.onDeclareAttackers(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
-    }
+    override fun onDeclareAttackers(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val ctx = resolveContext() ?: return
+            combatHandler.onDeclareAttackers(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+        }
 
     /** Handle DeclareBlockersResp — delegates to [CombatHandler]. */
-    override fun onDeclareBlockers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
-        val ctx = resolveContext() ?: return
-        combatHandler.onDeclareBlockers(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
-    }
+    override fun onDeclareBlockers(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val ctx = resolveContext() ?: return
+            combatHandler.onDeclareBlockers(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+        }
 
     /** Handle AssignDamageResp — delegates to [CombatHandler]. */
-    override fun onAssignDamage(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
-        val ctx = resolveContext() ?: return
-        combatHandler.onAssignDamage(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
-    }
+    override fun onAssignDamage(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val ctx = resolveContext() ?: return
+            combatHandler.onAssignDamage(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+        }
 
     /** Handle OptionalActionResp — delegates to [OptionalActionHandler]. */
-    override fun onOptionalActionResp(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
-        val ctx = resolveContext() ?: return
-        optionalActionHandler.onOptionalActionResp(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
-    }
+    override fun onOptionalActionResp(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val ctx = resolveContext() ?: return
+            optionalActionHandler.onOptionalActionResp(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+        }
 
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
-    override fun onSelectTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
-        val ctx = resolveContext() ?: return
-        targetingHandler.onSelectTargets(greMsg, ctx.bridge)
-    }
+    override fun onSelectTargets(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val ctx = resolveContext() ?: return
+            targetingHandler.onSelectTargets(greMsg, ctx.bridge)
+        }
 
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */
-    override fun onSubmitTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
-        val ctx = resolveContext() ?: return
-        targetingHandler.onSubmitTargets(ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
-    }
+    override fun onSubmitTargets(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val ctx = resolveContext() ?: return
+            targetingHandler.onSubmitTargets(ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+        }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */
-    override fun onSelectN(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
-        val ctx = resolveContext() ?: return
-        targetingHandler.onSelectN(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
-    }
+    override fun onSelectN(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val ctx = resolveContext() ?: return
+            targetingHandler.onSelectN(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+        }
 
     /** Handle GroupResp for surveil/scry — delegates to [TargetingHandler]. */
-    override fun onGroupResp(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
-        val ctx = resolveContext() ?: return
-        targetingHandler.onGroupResp(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
-    }
+    override fun onGroupResp(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val ctx = resolveContext() ?: return
+            targetingHandler.onGroupResp(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+        }
 
     /** Handle CastingTimeOptionsResp — delegates to [TargetingHandler]. */
-    override fun onCastingTimeOptions(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
-        val ctx = resolveContext() ?: return
-        targetingHandler.onCastingTimeOptions(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
-    }
+    override fun onCastingTimeOptions(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val ctx = resolveContext() ?: return
+            targetingHandler.onCastingTimeOptions(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+        }
 
     /** Handle SearchResp — delegates to [TargetingHandler]. */
-    override fun onSearch(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
-        val ctx = resolveContext() ?: return
-        val itemsFound = greMsg.searchResp?.itemsFoundList ?: emptyList()
-        targetingHandler.onSearchResp(ctx.bridge, itemsFound) { autoPassEngine.autoPassAndAdvance(it) }
-    }
+    override fun onSearch(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val ctx = resolveContext() ?: return
+            val itemsFound = greMsg.searchResp?.itemsFoundList ?: emptyList()
+            targetingHandler.onSearchResp(ctx.bridge, itemsFound) { autoPassEngine.autoPassAndAdvance(it) }
+        }
 
     /**
      * Handle CancelActionReq — player cancelled targeting (backed out of spell cast).
@@ -272,47 +292,60 @@ class MatchSession(
      * to return `TargetSelectionResult(false, false)` → spell targeting fails →
      * engine unwinds the cast (removes from stack, returns mana).
      */
-    override fun onCancelAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
-        val ctx = resolveContext() ?: return
-        // During combat declaration, cancel means "pass combat" (submit empty attackers).
-        if (combatHandler.pendingLegalAttackers.isNotEmpty()) {
-            combatHandler.onCancelAttackers(ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
-            return
+    override fun onCancelAction(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val ctx = resolveContext() ?: return
+            // During combat declaration, cancel means "pass combat" (submit empty attackers).
+            if (combatHandler.pendingLegalAttackers.isNotEmpty()) {
+                combatHandler.onCancelAttackers(ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+                return
+            }
+            targetingHandler.onCancelAction(ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
         }
-        targetingHandler.onCancelAction(ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
-    }
 
     /** Handle concede: send game-over sequence, then route through centralized teardown. */
-    override fun onConcede() = synchronized(sessionLock) {
-        sendGameOver(ResultReason.Concede)
-    }
+    override fun onConcede() =
+        synchronized(sessionLock) {
+            sendGameOver(ResultReason.Concede)
+        }
 
     /** Handle SetSettingsReq: merge settings, apply stops to PhaseStopProfile, echo response. */
-    override fun onSettings(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
-        val reqSettings = greMsg.setSettingsReq
-        val incoming = reqSettings.settings
-        log.info(
-            "MatchSession: SetSettingsReq (stops={} transientStops={})",
-            incoming.stopsCount,
-            incoming.transientStopsCount,
-        )
+    override fun onSettings(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val reqSettings = greMsg.setSettingsReq
+            val incoming = reqSettings.settings
+            log.info(
+                "MatchSession: SetSettingsReq (stops={} transientStops={})",
+                incoming.stopsCount,
+                incoming.transientStopsCount,
+            )
 
-        // Merge incoming delta into accumulated clientSettings (client sends only changed fields).
-        clientSettings = mergeSettings(clientSettings, incoming)
+            // Merge incoming delta into accumulated clientSettings (client sends only changed fields).
+            clientSettings = mergeSettings(clientSettings, incoming)
 
-        // Apply stop changes to the live PhaseStopProfile so the engine
-        // respects client's phase ladder toggles — both Team and Opponents scopes.
-        applyStopsToProfile(incoming)
+            // Apply stop changes to the live PhaseStopProfile so the engine
+            // respects client's phase ladder toggles — both Team and Opponents scopes.
+            applyStopsToProfile(incoming)
 
-        // Track autoPassOption / stackAutoPassOption for priority decisions.
-        autoPassState.update(incoming)
-        log.debug("MatchSession: autoPassOption={} stackAutoPassOption={}", autoPassState.autoPassOption, autoPassState.stackAutoPassOption)
+            // Track autoPassOption / stackAutoPassOption for priority decisions.
+            autoPassState.update(incoming)
+            log.debug(
+                "MatchSession: autoPassOption={} stackAutoPassOption={}",
+                autoPassState.autoPassOption,
+                autoPassState.stackAutoPassOption,
+            )
 
-        val (msg, nextMsgId) = HandshakeMessages.settingsResp(seatId.value, counter.currentMsgId(), counter.currentGsId(), clientSettings)
-        counter.setMsgId(nextMsgId)
-        ProtoDump.dump(msg, "SettingsResp")
-        sink.sendRaw(msg)
-    }
+            val (msg, nextMsgId) =
+                HandshakeMessages.settingsResp(
+                    seatId.value,
+                    counter.currentMsgId(),
+                    counter.currentGsId(),
+                    clientSettings,
+                )
+            counter.setMsgId(nextMsgId)
+            ProtoDump.dump(msg, "SettingsResp")
+            sink.sendRaw(msg)
+        }
 
     /**
      * Map client [SettingsMessage] stops + transientStops to [PhaseStopProfile] updates.
@@ -349,11 +382,12 @@ class MatchSession(
         // Mirror Opponents-scope stops into ClientAutoPassState for session-layer
         // opponent-turn check (separate from engine-internal AI_DEFAULTS).
         val opponentEnabled = StopTypeMapping.parseStops(allStops, SettingScope.Opponents)
-        val opponentDisabled = allStops
-            .filter { it.status == SettingStatus.Clear_a3fe }
-            .filter { it.appliesTo == SettingScope.Opponents || it.appliesTo == SettingScope.AnyPlayer }
-            .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
-            .toSet()
+        val opponentDisabled =
+            allStops
+                .filter { it.status == SettingStatus.Clear_a3fe }
+                .filter { it.appliesTo == SettingScope.Opponents || it.appliesTo == SettingScope.AnyPlayer }
+                .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
+                .toSet()
         for (phase in opponentEnabled) autoPassState.setOpponentStop(phase, true)
         for (phase in opponentDisabled) autoPassState.setOpponentStop(phase, false)
 
@@ -372,11 +406,12 @@ class MatchSession(
         profile: PhaseStopProfile,
     ) {
         val enabled = StopTypeMapping.parseStops(stops, scope)
-        val disabled = stops
-            .filter { it.status == SettingStatus.Clear_a3fe }
-            .filter { it.appliesTo == scope || it.appliesTo == SettingScope.AnyPlayer }
-            .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
-            .toSet()
+        val disabled =
+            stops
+                .filter { it.status == SettingStatus.Clear_a3fe }
+                .filter { it.appliesTo == scope || it.appliesTo == SettingScope.AnyPlayer }
+                .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
+                .toSet()
 
         for (phase in enabled) profile.setEnabled(playerId, phase, true)
         for (phase in disabled) profile.setEnabled(playerId, phase, false)
@@ -388,7 +423,10 @@ class MatchSession(
      * Clear status marks a stop as disabled but does not remove it from the set.
      */
     companion object {
-        fun mergeSettings(existing: SettingsMessage?, incoming: SettingsMessage): SettingsMessage {
+        fun mergeSettings(
+            existing: SettingsMessage?,
+            incoming: SettingsMessage,
+        ): SettingsMessage {
             if (existing == null) return incoming
             val merged = existing.toBuilder()
 
@@ -429,11 +467,15 @@ class MatchSession(
     /**
      * Build and send current game state + available actions from the live Forge engine.
      */
-    override fun sendRealGameState(bridge: GameBridge, revealForSeat: Int?) {
-        val game = bridge.getGame() ?: run {
-            log.warn("MatchSession: sendRealGameState but game is null")
-            return
-        }
+    override fun sendRealGameState(
+        bridge: GameBridge,
+        revealForSeat: Int?,
+    ) {
+        val game =
+            bridge.getGame() ?: run {
+                log.warn("MatchSession: sendRealGameState but game is null")
+                return
+            }
 
         val bb = bundleBuilder
         val result = bb.postAction(game, counter, revealForSeat)
@@ -494,13 +536,14 @@ class MatchSession(
             }
         }
 
-        val result = bb.gameOverBundle(
-            winningTeam,
-            counter,
-            reason = reason,
-            losingPlayerSeatId = losingPlayerSeatId,
-            lossReason = lossReason,
-        )
+        val result =
+            bb.gameOverBundle(
+                winningTeam,
+                counter,
+                reason = reason,
+                losingPlayerSeatId = losingPlayerSeatId,
+                lossReason = lossReason,
+            )
         sendBundledGRE(result.messages)
         log.info("MatchSession: sent game-over GRE sequence (winner=team{}, reason={})", winningTeam, reason)
 
@@ -539,8 +582,13 @@ class MatchSession(
         msgId: Int,
         configure: (GREToClientMessage.Builder) -> Unit,
     ): GREToClientMessage {
-        val gre = GREToClientMessage.newBuilder()
-            .setType(type).setMsgId(msgId).setGameStateId(gsId).addSystemSeatIds(seatId.value)
+        val gre =
+            GREToClientMessage
+                .newBuilder()
+                .setType(type)
+                .setMsgId(msgId)
+                .setGameStateId(gsId)
+                .addSystemSeatIds(seatId.value)
         configure(gre)
         return gre.build()
     }
@@ -563,25 +611,31 @@ class MatchSession(
         // Filter out CastingTimeOptionsReq — Familiar must not auto-respond to modal prompts
         val filtered = messages.filter { it.type != GREMessageType.CastingTimeOptionsReq_695e }
         if (filtered.isEmpty()) return
-        val mirrored = filtered.map { gre ->
-            val builder = gre.toBuilder().clearSystemSeatIds().addSystemSeatIds(mirrorSeat)
-            // Strip Private gameObjects not visible to mirror seat (client
-            // omits Limbo objects from non-owner messages).
-            if (builder.hasGameStateMessage()) {
-                val gsm = builder.gameStateMessage.toBuilder()
-                val filtered = gsm.gameObjectsList.filter { obj ->
-                    obj.visibility != Visibility.Private || obj.viewersList.contains(mirrorSeat)
+        val mirrored =
+            filtered.map { gre ->
+                val builder = gre.toBuilder().clearSystemSeatIds().addSystemSeatIds(mirrorSeat)
+                // Strip Private gameObjects not visible to mirror seat (client
+                // omits Limbo objects from non-owner messages).
+                if (builder.hasGameStateMessage()) {
+                    val gsm = builder.gameStateMessage.toBuilder()
+                    val filtered =
+                        gsm.gameObjectsList.filter { obj ->
+                            obj.visibility != Visibility.Private || obj.viewersList.contains(mirrorSeat)
+                        }
+                    gsm.clearGameObjects().addAllGameObjects(filtered)
+                    builder.setGameStateMessage(gsm.build())
                 }
-                gsm.clearGameObjects().addAllGameObjects(filtered)
-                builder.setGameStateMessage(gsm.build())
+                builder.build()
             }
-            builder.build()
-        }
         peer.sink.send(mirrored)
     }
 
     /** No-op — priority trace events are inspected via separate prompt-analysis tooling. */
-    override fun traceEvent(type: MatchEventType, game: Game, detail: String) {}
+    override fun traceEvent(
+        type: MatchEventType,
+        game: Game,
+        detail: String,
+    ) {}
 
     /** Pacing delay — skipped when paceDelayMs == 0 (tests). */
     override fun paceDelay(multiplier: Int) {

@@ -29,22 +29,24 @@ fun main(args: Array<String>) {
     val cardRepo = openCardRepo()
     val fdPort = a["--fd-port"]?.toIntOrNull() ?: sc.fdPort
     val mdPort = a["--md-port"]?.toIntOrNull() ?: sc.mdPort
-    val fdHost = a["--fd-host"]
-        ?: System.getenv("LEYLINE_FD_HOST")
-        ?: "localhost:$fdPort"
+    val fdHost =
+        a["--fd-host"]
+            ?: System.getenv("LEYLINE_FD_HOST")
+            ?: "localhost:$fdPort"
 
     val playerDbPath = System.getenv("LEYLINE_PLAYER_DB") ?: sc.playerDb.ifEmpty { LeylinePaths.PLAYER_DB.absolutePath }
     val playerDbFile = File(playerDbPath).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), playerDbPath) }
 
-    val server = LeylineServer(
-        frontDoorPort = fdPort,
-        matchDoorPort = mdPort,
-        tlsFiles = tls,
-        matchConfig = config,
-        externalHost = fdHost.substringBefore(":"),
-        cardRepo = cardRepo,
-        playerDbFile = playerDbFile,
-    )
+    val server =
+        LeylineServer(
+            frontDoorPort = fdPort,
+            matchDoorPort = mdPort,
+            tlsFiles = tls,
+            matchConfig = config,
+            externalHost = fdHost.substringBefore(":"),
+            cardRepo = cardRepo,
+            playerDbFile = playerDbFile,
+        )
 
     val debugPort = a["--debug-port"]?.toIntOrNull() ?: sc.debugPort
     val mgmtPort = sc.managementPort
@@ -52,10 +54,11 @@ fun main(args: Array<String>) {
 
     val debugServer = buildDebugServer(debugPort, server)
     val mgmtServer = ManagementServer(port = mgmtPort, healthCheck = { server.isHealthy() })
-    val accountDb = org.jetbrains.exposed.v1.jdbc.Database.connect(
-        "jdbc:sqlite:${playerDbFile.absolutePath}",
-        "org.sqlite.JDBC",
-    )
+    val accountDb =
+        org.jetbrains.exposed.v1.jdbc.Database.connect(
+            "jdbc:sqlite:${playerDbFile.absolutePath}",
+            "org.sqlite.JDBC",
+        )
     val accountServer = buildAccountServer(a, accountPort, tls, fdHost, accountDb)
 
     installShutdownHook(accountServer, debugServer, mgmtServer, server)
@@ -68,8 +71,9 @@ fun main(args: Array<String>) {
 // -- Config & resources -------------------------------------------------------
 
 private fun loadConfig(a: Map<String, String>): MatchConfig {
-    val configFile = a["--config"]?.let { File(it) }
-        ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME)
+    val configFile =
+        a["--config"]?.let { File(it) }
+            ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME)
     return MatchConfig.load(configFile)
 }
 
@@ -82,8 +86,9 @@ private fun resolveTls(a: Map<String, String>): Pair<File?, File?> {
 }
 
 private fun openCardRepo(): ExposedCardRepository {
-    val cardDbPath = System.getenv("LEYLINE_CARD_DB")
-        ?: detectArenaCardDb()
+    val cardDbPath =
+        System.getenv("LEYLINE_CARD_DB")
+            ?: detectArenaCardDb()
     requireNotNull(cardDbPath) {
         "Card database not found. Set LEYLINE_CARD_DB or install the compatible client.\n" +
             "  macOS: ~/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga\n" +
@@ -100,7 +105,10 @@ private fun openCardRepo(): ExposedCardRepository {
 
 // -- Server builders ----------------------------------------------------------
 
-private fun buildDebugServer(port: Int, server: LeylineServer) = DebugServer(
+private fun buildDebugServer(
+    port: Int,
+    server: LeylineServer,
+) = DebugServer(
     port = port,
     sessionProvider = { server.debugSink.sessionProvider?.invoke() as? leyline.match.MatchSession },
     eventBus = server.eventBus,
@@ -219,7 +227,8 @@ private fun printBanner(
 private fun detectArenaCardDb(): String? {
     val rawDir = detectArenaDownloadsDir()?.resolve("Raw") ?: return null
     if (!rawDir.isDirectory) return null
-    return rawDir.listFiles()
+    return rawDir
+        .listFiles()
         ?.filter { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
         ?.maxByOrNull { it.lastModified() }
         ?.absolutePath
@@ -245,11 +254,12 @@ internal fun detectArenaDownloadsDir(): File? {
     if (os.contains("win")) {
         val programFiles = System.getenv("PROGRAMFILES") ?: "C:/Program Files"
         val programFilesX86 = System.getenv("PROGRAMFILES(X86)") ?: "C:/Program Files (x86)"
-        val candidates = listOf(
-            File(programFiles, "Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
-            File(programFilesX86, "Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
-            File(programFilesX86, "Steam/steamapps/common/MTGA/MTGA_Data/Downloads"),
-        )
+        val candidates =
+            listOf(
+                File(programFiles, "Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
+                File(programFilesX86, "Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
+                File(programFilesX86, "Steam/steamapps/common/MTGA/MTGA_Data/Downloads"),
+            )
         candidates.firstOrNull { it.isDirectory }?.let { return it }
     }
 

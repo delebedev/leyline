@@ -66,7 +66,9 @@ class TargetingInteractionTest :
                 creature.netToughness shouldBeGreaterThanOrEqual 4
 
                 // Spell moved Stack → GY
-                human.getZone(ForgeZoneType.Graveyard).cards
+                human
+                    .getZone(ForgeZoneType.Graveyard)
+                    .cards
                     .filter { it.name == "Giant Growth" } shouldHaveSize 1
             }
         }
@@ -134,7 +136,9 @@ class TargetingInteractionTest :
             assertSoftly {
                 game().stack.isEmpty.shouldBeTrue()
                 // Puzzle has exactly 1 Giant Growth; cancel returns it to hand.
-                human.getZone(ForgeZoneType.Hand).cards
+                human
+                    .getZone(ForgeZoneType.Hand)
+                    .cards
                     .filter { it.name == "Giant Growth" } shouldHaveSize 1
                 messagesSince(snap).any { it.hasActionsAvailableReq() }.shouldBeTrue()
             }
@@ -166,8 +170,10 @@ class TargetingInteractionTest :
 
             // sourceId matches stack iid (post-realloc)
             val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
-            val stackZone = gsms.flatMap { it.zonesList }
-                .firstOrNull { it.type == ProtoZoneType.Stack }
+            val stackZone =
+                gsms
+                    .flatMap { it.zonesList }
+                    .firstOrNull { it.type == ProtoZoneType.Stack }
             stackZone.shouldNotBeNull()
             val stackInstanceId = stackZone.objectInstanceIdsList.firstOrNull()
             stackInstanceId.shouldNotBeNull()
@@ -221,7 +227,8 @@ class TargetingInteractionTest :
 
         // ─── Two-phase targeting protocol ──────────────────────────────────────
 
-        val twoPhaseBoltState = """
+        val twoPhaseBoltState =
+            """
             ActivePlayer=Human
             ActivePhase=Main1
             HumanLife=20
@@ -231,7 +238,7 @@ class TargetingInteractionTest :
             humanbattlefield=Mountain
             humanlibrary=Mountain
             ailibrary=Mountain
-        """.trimIndent()
+            """.trimIndent()
 
         test("two-phase — phase-1 echo re-prompt shows selected target as Unselect") {
             startPuzzle(twoPhaseBoltState, name = "Bolt Conformance")
@@ -299,10 +306,11 @@ class TargetingInteractionTest :
             selectTargets(listOf(dealerIid))
             selectTargets(listOf(targetIid))
 
-            val damageAnn = allMessages
-                .filter { it.hasGameStateMessage() }
-                .flatMap { it.gameStateMessage.annotationsList }
-                .firstOrNull { AnnotationType.DamageDealt_af5a in it.typeList }
+            val damageAnn =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.annotationsList }
+                    .firstOrNull { AnnotationType.DamageDealt_af5a in it.typeList }
             damageAnn.shouldNotBeNull()
 
             assertSoftly {
@@ -318,10 +326,15 @@ class TargetingInteractionTest :
                 allMessages.firstWithTransferCategory("Destroy").shouldNotBeNull()
 
                 // Bite Down → human GY, Grizzly Bears → ai GY
-                human.getZone(ForgeZoneType.Graveyard).cards
+                human
+                    .getZone(ForgeZoneType.Graveyard)
+                    .cards
                     .filter { it.name == "Bite Down" } shouldHaveSize 1
-                ai.getZone(ForgeZoneType.Graveyard).cards
-                    .filter { it.name == "Grizzly Bears" }.shouldNotBeEmpty()
+                ai
+                    .getZone(ForgeZoneType.Graveyard)
+                    .cards
+                    .filter { it.name == "Grizzly Bears" }
+                    .shouldNotBeEmpty()
 
                 assertAccumulatorConsistent("after Bite Down resolution")
             }
@@ -337,10 +350,11 @@ class TargetingInteractionTest :
             selectTargets(listOf(dealerIid))
             selectTargets(listOf(targetIid))
 
-            val preResolve = allMessages
-                .filter { it.hasGameStateMessage() }
-                .flatMap { it.gameStateMessage.persistentAnnotationsList }
-                .filter { AnnotationType.TargetSpec in it.typeList }
+            val preResolve =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
+                    .filter { AnnotationType.TargetSpec in it.typeList }
             preResolve.shouldHaveSize(2)
 
             val group1 = preResolve.first { it.detailInt("index") == 1 }
@@ -354,10 +368,11 @@ class TargetingInteractionTest :
 
             // Force GSM rebuild to trigger upsert cleanup
             passPriority()
-            val allDeletedPannIds = allMessages
-                .filter { it.hasGameStateMessage() }
-                .flatMap { it.gameStateMessage.diffDeletedPersistentAnnotationIdsList }
-                .toSet()
+            val allDeletedPannIds =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.diffDeletedPersistentAnnotationIdsList }
+                    .toSet()
             preResolve.map { it.id }.all { it in allDeletedPannIds }.shouldBeTrue()
         }
 
@@ -385,7 +400,8 @@ class TargetingInteractionTest :
 
             // Simulate reference-client settings: auto-resolve own stack effects
             harness.session.autoPassState.update(
-                SettingsMessage.newBuilder()
+                SettingsMessage
+                    .newBuilder()
                     .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
                     .build(),
             )

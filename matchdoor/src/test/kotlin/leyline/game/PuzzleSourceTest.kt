@@ -25,7 +25,8 @@ class PuzzleSourceTest :
         }
 
         test("parseMetadata extracts fields") {
-            val content = """
+            val content =
+                """
                 [metadata]
                 Name:Lightning Bolt Test
                 Goal:Win
@@ -34,7 +35,7 @@ class PuzzleSourceTest :
                 
                 [state]
                 ActivePlayer=Human
-            """.trimIndent()
+                """.trimIndent()
 
             val meta = PuzzleSource.parseMetadata(content)
             assertSoftly {
@@ -46,13 +47,14 @@ class PuzzleSourceTest :
         }
 
         test("parseMetadata handles missing fields") {
-            val content = """
+            val content =
+                """
                 [metadata]
                 Name:Minimal
                 
                 [state]
                 ActivePlayer=Human
-            """.trimIndent()
+                """.trimIndent()
 
             val meta = PuzzleSource.parseMetadata(content)
             meta.name shouldBe "Minimal"
@@ -67,7 +69,8 @@ class PuzzleSourceTest :
         }
 
         test("loadFromText returns valid puzzle") {
-            val content = """
+            val content =
+                """
                 [metadata]
                 Name:Inline Test
                 Goal:Win
@@ -80,7 +83,7 @@ class PuzzleSourceTest :
                 AILife=20
                 humanlibrary=Forest;Forest;Forest;Forest;Forest
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-            """.trimIndent()
+                """.trimIndent()
 
             val puzzle = PuzzleSource.loadFromText(content, "inline-test")
             puzzle.shouldNotBeNull()

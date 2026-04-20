@@ -14,12 +14,14 @@ class PlayerMapperSnapshotTest :
         tags(UnitTag)
 
         test("buildFromSnapshot pulls life + startingLife + maxHandSize from the matching seat") {
-            val snap = GsmSnapshot.forTest(
-                seats = listOf(
-                    SeatSnapshot(SeatId(1), life = 15, startingLife = 20, maxHandSize = 7),
-                    SeatSnapshot(SeatId(2), life = 12, startingLife = 20, maxHandSize = 7),
-                ),
-            )
+            val snap =
+                GsmSnapshot.forTest(
+                    seats =
+                        listOf(
+                            SeatSnapshot(SeatId(1), life = 15, startingLife = 20, maxHandSize = 7),
+                            SeatSnapshot(SeatId(2), life = 12, startingLife = 20, maxHandSize = 7),
+                        ),
+                )
             val info = PlayerMapper.buildFromSnapshot(snap, seatId = 1)
             assertSoftly {
                 info.systemSeatNumber shouldBe 1

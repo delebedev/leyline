@@ -23,20 +23,23 @@ class NaiveActionsLandTest :
         afterEach { base.tearDown() }
 
         test("buildNaiveActions puts lands in inactiveActions, not actions") {
-            val (bridge, game) = base.startWithBoard { game, human, ai ->
-                base.addCard("Forest", human, ZoneType.Hand)
-                base.addCard("Forest", human, ZoneType.Hand)
-                base.addCard("Plains", human, ZoneType.Hand)
-            }
+            val (bridge, game) =
+                base.startWithBoard { game, human, ai ->
+                    base.addCard("Forest", human, ZoneType.Hand)
+                    base.addCard("Forest", human, ZoneType.Hand)
+                    base.addCard("Plains", human, ZoneType.Hand)
+                }
 
             val req = ActionMapper.buildNaiveActions(1, bridge)
 
-            val activeLands = req.actionsList.filter {
-                it.actionType == ActionType.Play_add3
-            }
-            val inactiveLands = req.inactiveActionsList.filter {
-                it.actionType == ActionType.Play_add3
-            }
+            val activeLands =
+                req.actionsList.filter {
+                    it.actionType == ActionType.Play_add3
+                }
+            val inactiveLands =
+                req.inactiveActionsList.filter {
+                    it.actionType == ActionType.Play_add3
+                }
 
             activeLands.shouldBeEmpty()
             inactiveLands.shouldNotBeEmpty()

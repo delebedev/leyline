@@ -26,25 +26,26 @@ class VehicleCrewPuzzleTest :
         }
 
         test("crew vehicle and attack for lethal") {
-            val pzl = """
-            [metadata]
-            Name:Crew and Attack
-            Goal:Win
-            Turns:4
-            Difficulty:Easy
-            Description:Crew Brute Suit with Centaur Courser, then attack for lethal.
+            val pzl =
+                """
+                [metadata]
+                Name:Crew and Attack
+                Goal:Win
+                Turns:4
+                Difficulty:Easy
+                Description:Crew Brute Suit with Centaur Courser, then attack for lethal.
 
-            [state]
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=10
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=10
 
-            humanbattlefield=Brute Suit|Centaur Courser
-            humanlibrary=Mountain|Mountain|Mountain|Mountain
-            aibattlefield=Coral Merfolk
-            ailibrary=Mountain|Mountain|Mountain|Mountain
-            """.trimIndent()
+                humanbattlefield=Brute Suit|Centaur Courser
+                humanlibrary=Mountain|Mountain|Mountain|Mountain
+                aibattlefield=Coral Merfolk
+                ailibrary=Mountain|Mountain|Mountain|Mountain
+                """.trimIndent()
 
             val h = MatchFlowHarness(seed = 42L, validating = false)
             harness = h

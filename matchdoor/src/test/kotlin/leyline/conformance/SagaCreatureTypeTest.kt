@@ -29,7 +29,8 @@ class SagaCreatureTypeTest :
         tags(IntegrationTag)
 
         test("summon: brynhildr casts with both Enchantment and Creature types live") {
-            val puzzleText = """
+            val puzzleText =
+                """
                 [metadata]
                 Name:Creature-Saga Type Overlay — Summon: Brynhildr
                 Goal:Survive
@@ -48,7 +49,7 @@ class SagaCreatureTypeTest :
                 humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 aibattlefield=Forest
                 ailibrary=Forest;Forest;Forest
-            """.trimIndent()
+                """.trimIndent()
 
             val harness = MatchFlowHarness(validating = false)
             try {
@@ -60,12 +61,19 @@ class SagaCreatureTypeTest :
                 harness.passPriority()
                 harness.passPriority()
 
-                val saga = game.humanPlayer.getZone(ZoneType.Battlefield).cards
-                    .firstOrNull { it.name == "Summon: Brynhildr" }
+                val saga =
+                    game.humanPlayer
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .firstOrNull { it.name == "Summon: Brynhildr" }
                 saga.shouldNotBeNull()
 
                 // Core assertion: live Forge card type view carries BOTH types.
-                val types = saga!!.type.coreTypes.map { it.name }.toSet()
+                val types =
+                    saga!!
+                        .type.coreTypes
+                        .map { it.name }
+                        .toSet()
                 types shouldContain "Enchantment"
                 types shouldContain "Creature"
 
@@ -77,11 +85,12 @@ class SagaCreatureTypeTest :
                 // Client-accumulator assertion: the BF gameObject for the
                 // saga carries both Enchantment and Creature card types live.
                 harness.accumulator.assertConsistent("after creature-saga cast")
-                val sagaAccObj = harness.accumulator.objects.values
-                    .firstOrNull {
-                        it.type == wotc.mtgo.gre.external.messaging.Messages.GameObjectType.Card &&
-                            it.grpId == TestCardRegistry.repo.findGrpIdByName("Summon: Brynhildr")
-                    }
+                val sagaAccObj =
+                    harness.accumulator.objects.values
+                        .firstOrNull {
+                            it.type == wotc.mtgo.gre.external.messaging.Messages.GameObjectType.Card &&
+                                it.grpId == TestCardRegistry.repo.findGrpIdByName("Summon: Brynhildr")
+                        }
                 sagaAccObj.shouldNotBeNull()
                 val accTypes = sagaAccObj!!.cardTypesList.map { it.name }
                 (accTypes.any { it.startsWith("Enchantment") }).shouldBeTrue()

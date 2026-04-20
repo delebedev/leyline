@@ -144,29 +144,31 @@ object ZoneTransferDetector {
             forwardOverlay[fid] ?: bridge.getOrAllocInstanceId(fid)
         }
 
-        val result = detectZoneTransfers(
-            gameObjects = gameObjects,
-            zones = zones,
-            events = events,
-            previousZones = bridge.diff.allZones(),
-            forgeIdLookup = forgeIdLookup,
-            idAllocator = idAllocator,
-            idLookup = idLookup,
-            manaAbilityGrpIdResolver = { fid ->
-                val card = bridge.getGame()?.let { findCard(it, fid) }
-                if (card != null) {
-                    val subtypes = card.type.subtypes.map { it.lowercase() }
-                    AbilityIdDeriver.BASIC_LAND_ABILITIES
-                        .firstOrNull { it.first in subtypes }?.second ?: 0
-                } else {
-                    0
-                }
-            },
-            grpIdResolver = { fid ->
-                val card = bridge.getGame()?.let { findCard(it, fid) }
-                if (card != null) bridge.cardRepository.findGrpIdByName(card.name) ?: 0 else 0
-            },
-        )
+        val result =
+            detectZoneTransfers(
+                gameObjects = gameObjects,
+                zones = zones,
+                events = events,
+                previousZones = bridge.diff.allZones(),
+                forgeIdLookup = forgeIdLookup,
+                idAllocator = idAllocator,
+                idLookup = idLookup,
+                manaAbilityGrpIdResolver = { fid ->
+                    val card = bridge.getGame()?.let { findCard(it, fid) }
+                    if (card != null) {
+                        val subtypes = card.type.subtypes.map { it.lowercase() }
+                        AbilityIdDeriver.BASIC_LAND_ABILITIES
+                            .firstOrNull { it.first in subtypes }
+                            ?.second ?: 0
+                    } else {
+                        0
+                    }
+                },
+                grpIdResolver = { fid ->
+                    val card = bridge.getGame()?.let { findCard(it, fid) }
+                    if (card != null) bridge.cardRepository.findGrpIdByName(card.name) ?: 0 else 0
+                },
+            )
         return result.copy(idReallocations = plannedReallocs.toList())
     }
 
@@ -203,19 +205,21 @@ object ZoneTransferDetector {
             val prevZone = previousZones[obj.instanceId]
             if (prevZone != null && prevZone != obj.zoneId) {
                 val forgeCardId = forgeIdLookup(InstanceId(obj.instanceId))
-                val category = if (forgeCardId != null && events.isNotEmpty()) {
-                    TransferCategoryResolver.categoryFromEvents(forgeCardId, events)
-                        ?: inferCategory(obj, prevZone, obj.zoneId)
-                } else {
-                    inferCategory(obj, prevZone, obj.zoneId)
-                }
+                val category =
+                    if (forgeCardId != null && events.isNotEmpty()) {
+                        TransferCategoryResolver.categoryFromEvents(forgeCardId, events)
+                            ?: inferCategory(obj, prevZone, obj.zoneId)
+                    } else {
+                        inferCategory(obj, prevZone, obj.zoneId)
+                    }
                 // Allocate new instanceId for zone transfer (protocol requires this).
                 // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
-                val realloc = if (!category.keepsSameInstanceId && forgeCardId != null) {
-                    idAllocator(forgeCardId)
-                } else {
-                    InstanceIdRegistry.IdReallocation(InstanceId(obj.instanceId), InstanceId(obj.instanceId))
-                }
+                val realloc =
+                    if (!category.keepsSameInstanceId && forgeCardId != null) {
+                        idAllocator(forgeCardId)
+                    } else {
+                        InstanceIdRegistry.IdReallocation(InstanceId(obj.instanceId), InstanceId(obj.instanceId))
+                    }
                 val origId = realloc.old.value
                 val newId = realloc.new.value
                 log.debug("zone transfer: iid {} → {} category={}", origId, newId, category)
@@ -229,46 +233,52 @@ object ZoneTransferDetector {
                 // Resolve affectorId: the ability instance that caused this transfer.
                 // For surveil (and future mechanics), the source card's ability on the
                 // stack has instanceId = getOrAlloc(sourceCardId + STACK_ABILITY_ID_OFFSET).
-                val affectorId = if (forgeCardId != null && events.isNotEmpty()) {
-                    val sourceCardId = TransferCategoryResolver.affectorSourceFromEvents(forgeCardId, events)
-                    if (sourceCardId != null) {
-                        idLookup(ForgeCardId(sourceCardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET)).value
+                val affectorId =
+                    if (forgeCardId != null && events.isNotEmpty()) {
+                        val sourceCardId = TransferCategoryResolver.affectorSourceFromEvents(forgeCardId, events)
+                        if (sourceCardId != null) {
+                            idLookup(ForgeCardId(sourceCardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET)).value
+                        } else {
+                            0
+                        }
                     } else {
                         0
                     }
-                } else {
-                    0
-                }
 
                 // Extract color ordinals from LandPlayed event for ColorProduction annotation.
-                val colorOrdinals = if (category == TransferCategory.PlayLand && forgeCardId != null) {
-                    events.filterIsInstance<GameEvent.LandPlayed>()
-                        .firstOrNull { it.cardId == forgeCardId }
-                        ?.colorOrdinals ?: emptyList()
-                } else {
-                    emptyList()
-                }
+                val colorOrdinals =
+                    if (category == TransferCategory.PlayLand && forgeCardId != null) {
+                        events
+                            .filterIsInstance<GameEvent.LandPlayed>()
+                            .firstOrNull { it.cardId == forgeCardId }
+                            ?.colorOrdinals ?: emptyList()
+                    } else {
+                        emptyList()
+                    }
 
                 // Extract mana payment info + adventure flag + alt-cost info from
                 // SpellCast events.
-                val spellCastEvent = if (category == TransferCategory.CastSpell && forgeCardId != null) {
-                    events.filterIsInstance<GameEvent.SpellCast>()
-                        .firstOrNull { it.cardId == forgeCardId }
-                } else {
-                    null
-                }
-                val manaPayments = spellCastEvent?.manaPayments?.map { mp ->
-                    val landIid = idLookup(mp.sourceCardId).value
-                    val manaAbilityIid = idLookup(ForgeCardId(mp.sourceCardId.value + MANA_ABILITY_ID_OFFSET)).value
-                    val abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId)
-                    ManaPaymentRecord(
-                        landInstanceId = landIid,
-                        manaAbilityInstanceId = manaAbilityIid,
-                        color = mp.color,
-                        abilityGrpId = abilityGrpId,
-                        spellInstanceId = newId,
-                    )
-                } ?: emptyList()
+                val spellCastEvent =
+                    if (category == TransferCategory.CastSpell && forgeCardId != null) {
+                        events
+                            .filterIsInstance<GameEvent.SpellCast>()
+                            .firstOrNull { it.cardId == forgeCardId }
+                    } else {
+                        null
+                    }
+                val manaPayments =
+                    spellCastEvent?.manaPayments?.map { mp ->
+                        val landIid = idLookup(mp.sourceCardId).value
+                        val manaAbilityIid = idLookup(ForgeCardId(mp.sourceCardId.value + MANA_ABILITY_ID_OFFSET)).value
+                        val abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId)
+                        ManaPaymentRecord(
+                            landInstanceId = landIid,
+                            manaAbilityInstanceId = manaAbilityIid,
+                            color = mp.color,
+                            abilityGrpId = abilityGrpId,
+                            spellInstanceId = newId,
+                        )
+                    } ?: emptyList()
                 val isAdventureCast = spellCastEvent?.isAdventure == true
                 val altCostAbilityGrpId = spellCastEvent?.altCostAbilityGrpId ?: 0
 
@@ -297,9 +307,17 @@ object ZoneTransferDetector {
 
         // Post-pass: detect token sacrifices invisible to the main loop.
         detectDisappearedSacrifices(
-            events, previousZones, patchedObjects, patchedZones,
-            transfers, retiredIds, zoneRecordings,
-            forgeIdLookup, idAllocator, idLookup, manaAbilityGrpIdResolver,
+            events,
+            previousZones,
+            patchedObjects,
+            patchedZones,
+            transfers,
+            retiredIds,
+            zoneRecordings,
+            forgeIdLookup,
+            idAllocator,
+            idLookup,
+            manaAbilityGrpIdResolver,
         )
 
         // Post-pass: detect exile-return transforms (saga final chapter,
@@ -320,22 +338,24 @@ object ZoneTransferDetector {
         // Post-pass: detect triggered ability lifecycle on the stack.
         val mainLoopIds = transfers.map { it.origId }.toSet()
         val gameObjectIds = patchedObjects.map { it.instanceId }.toSet()
-        val appearances = detectStackAbilityAppearances(
-            patchedObjects,
-            previousZones,
-            mainLoopIds,
-            forgeIdLookup,
-            idLookup,
-        )
-        val (disappearances, disappearedRetiredIds) = detectStackAbilityDisappearances(
-            events,
-            previousZones,
-            gameObjectIds,
-            mainLoopIds,
-            forgeIdLookup,
-            idLookup,
-            grpIdResolver,
-        )
+        val appearances =
+            detectStackAbilityAppearances(
+                patchedObjects,
+                previousZones,
+                mainLoopIds,
+                forgeIdLookup,
+                idLookup,
+            )
+        val (disappearances, disappearedRetiredIds) =
+            detectStackAbilityDisappearances(
+                events,
+                previousZones,
+                gameObjectIds,
+                mainLoopIds,
+                forgeIdLookup,
+                idLookup,
+                grpIdResolver,
+            )
         // Retire disappeared ability instanceIds to Limbo so annotation
         // references (affectedIds) remain resolvable by the validating sink.
         for (id in disappearedRetiredIds) {
@@ -366,33 +386,42 @@ object ZoneTransferDetector {
 
     /** Infer category for a zone transfer annotation from zone IDs. */
     @Suppress("CyclomaticComplexMethod", "UnusedParameter")
-    fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): TransferCategory =
+    fun inferCategory(
+        obj: GameObjectInfo,
+        srcZone: Int,
+        destZone: Int,
+    ): TransferCategory =
         when {
-            srcZone == ZoneIds.P1_HAND || srcZone == ZoneIds.P2_HAND -> when (destZone) {
-                ZoneIds.STACK -> TransferCategory.CastSpell
-                ZoneIds.BATTLEFIELD -> TransferCategory.PlayLand
-                else -> TransferCategory.ZoneTransfer
-            }
+            srcZone == ZoneIds.P1_HAND || srcZone == ZoneIds.P2_HAND ->
+                when (destZone) {
+                    ZoneIds.STACK -> TransferCategory.CastSpell
+                    ZoneIds.BATTLEFIELD -> TransferCategory.PlayLand
+                    else -> TransferCategory.ZoneTransfer
+                }
             srcZone == ZoneIds.STACK && destZone == ZoneIds.BATTLEFIELD -> TransferCategory.Resolve
-            srcZone == ZoneIds.BATTLEFIELD -> when (destZone) {
-                ZoneIds.P1_GRAVEYARD, ZoneIds.P2_GRAVEYARD -> TransferCategory.Destroy
-                ZoneIds.EXILE -> TransferCategory.Exile
-                else -> TransferCategory.ZoneTransfer
-            }
-            srcZone == ZoneIds.P1_LIBRARY || srcZone == ZoneIds.P2_LIBRARY -> when (destZone) {
-                ZoneIds.BATTLEFIELD -> TransferCategory.Search
-                else -> TransferCategory.ZoneTransfer
-            }
-            srcZone == ZoneIds.P1_GRAVEYARD || srcZone == ZoneIds.P2_GRAVEYARD -> when (destZone) {
-                ZoneIds.P1_HAND, ZoneIds.P2_HAND, ZoneIds.BATTLEFIELD -> TransferCategory.Return
-                ZoneIds.EXILE -> TransferCategory.Exile
-                else -> TransferCategory.ZoneTransfer
-            }
-            srcZone == ZoneIds.EXILE -> when (destZone) {
-                ZoneIds.P1_HAND, ZoneIds.P2_HAND, ZoneIds.BATTLEFIELD -> TransferCategory.Return
-                ZoneIds.STACK -> TransferCategory.CastSpell
-                else -> TransferCategory.ZoneTransfer
-            }
+            srcZone == ZoneIds.BATTLEFIELD ->
+                when (destZone) {
+                    ZoneIds.P1_GRAVEYARD, ZoneIds.P2_GRAVEYARD -> TransferCategory.Destroy
+                    ZoneIds.EXILE -> TransferCategory.Exile
+                    else -> TransferCategory.ZoneTransfer
+                }
+            srcZone == ZoneIds.P1_LIBRARY || srcZone == ZoneIds.P2_LIBRARY ->
+                when (destZone) {
+                    ZoneIds.BATTLEFIELD -> TransferCategory.Search
+                    else -> TransferCategory.ZoneTransfer
+                }
+            srcZone == ZoneIds.P1_GRAVEYARD || srcZone == ZoneIds.P2_GRAVEYARD ->
+                when (destZone) {
+                    ZoneIds.P1_HAND, ZoneIds.P2_HAND, ZoneIds.BATTLEFIELD -> TransferCategory.Return
+                    ZoneIds.EXILE -> TransferCategory.Exile
+                    else -> TransferCategory.ZoneTransfer
+                }
+            srcZone == ZoneIds.EXILE ->
+                when (destZone) {
+                    ZoneIds.P1_HAND, ZoneIds.P2_HAND, ZoneIds.BATTLEFIELD -> TransferCategory.Return
+                    ZoneIds.STACK -> TransferCategory.CastSpell
+                    else -> TransferCategory.ZoneTransfer
+                }
             else -> TransferCategory.ZoneTransfer
         }
 
@@ -418,11 +447,12 @@ object ZoneTransferDetector {
 
             // Derive source card from forge ID: ability forgeId = sourceCard.id + OFFSET.
             val abilityForgeId = forgeIdLookup(InstanceId(obj.instanceId))
-            val sourceCardForgeId = if (abilityForgeId != null) {
-                ForgeCardId(abilityForgeId.value - ObjectMapper.STACK_ABILITY_ID_OFFSET)
-            } else {
-                null
-            }
+            val sourceCardForgeId =
+                if (abilityForgeId != null) {
+                    ForgeCardId(abilityForgeId.value - ObjectMapper.STACK_ABILITY_ID_OFFSET)
+                } else {
+                    null
+                }
             val sourceCardIid = sourceCardForgeId?.let { idLookup(it).value } ?: 0
             val sourceZoneId = if (sourceCardIid > 0) previousZones[sourceCardIid] ?: 0 else 0
 
@@ -519,17 +549,21 @@ object ZoneTransferDetector {
         // Dedupe by ForgeCardId: if a card bounces exile→return multiple times in
         // one resolve (delayed-trigger + chapter interactions), we only synthesize
         // once — the later pairs would try to retire already-retired iids.
-        val exiled = events.filterIsInstance<GameEvent.CardExiled>()
-            .filter { it.fromBattlefield }
-            .distinctBy { it.cardId }
+        val exiled =
+            events
+                .filterIsInstance<GameEvent.CardExiled>()
+                .filter { it.fromBattlefield }
+                .distinctBy { it.cardId }
         if (exiled.isEmpty()) return
 
         for (ev in exiled) {
             // Match a subsequent Exile→BF ZoneChanged for the same Forge card.
-            val returned = events.filterIsInstance<GameEvent.ZoneChanged>()
-                .any {
-                    it.cardId == ev.cardId && it.from == Zone.Exile && it.to == Zone.Battlefield
-                }
+            val returned =
+                events
+                    .filterIsInstance<GameEvent.ZoneChanged>()
+                    .any {
+                        it.cardId == ev.cardId && it.from == Zone.Exile && it.to == Zone.Battlefield
+                    }
             if (!returned) continue
 
             val currentIid = idLookup(ev.cardId).value
@@ -582,8 +616,20 @@ object ZoneTransferDetector {
             // ZoneTransfer annotations referencing them resolve against a real
             // object (matches tribute-to-horobi.md gsId 145: both 288 and 318
             // persist in Limbo alongside 319 on BF for animation continuity).
-            patchedObjects.add(currentObj.toBuilder().setInstanceId(currentIid).setZoneId(ZoneIds.LIMBO).build())
-            patchedObjects.add(currentObj.toBuilder().setInstanceId(exileIid).setZoneId(ZoneIds.LIMBO).build())
+            patchedObjects.add(
+                currentObj
+                    .toBuilder()
+                    .setInstanceId(currentIid)
+                    .setZoneId(ZoneIds.LIMBO)
+                    .build(),
+            )
+            patchedObjects.add(
+                currentObj
+                    .toBuilder()
+                    .setInstanceId(exileIid)
+                    .setZoneId(ZoneIds.LIMBO)
+                    .build(),
+            )
             patchedObjects[objIdx] = currentObj.toBuilder().setInstanceId(returnIid).build()
             patchZoneInstanceId(patchedZones, ZoneIds.BATTLEFIELD, currentIid, returnIid)
 
@@ -634,30 +680,33 @@ object ZoneTransferDetector {
             val destZone = if (ownerSeat.value == 1) ZoneIds.P1_GRAVEYARD else ZoneIds.P2_GRAVEYARD
 
             // If still in gameObjects, strip it so the client sees it leave.
-            val resolvedGrpId = if (stillOnBattlefield) {
-                val idx = patchedObjects.indexOfFirst { it.instanceId == instanceId }
-                val grp = if (idx >= 0) {
-                    val g = patchedObjects[idx].grpId
-                    patchedObjects.removeAt(idx)
-                    g
+            val resolvedGrpId =
+                if (stillOnBattlefield) {
+                    val idx = patchedObjects.indexOfFirst { it.instanceId == instanceId }
+                    val grp =
+                        if (idx >= 0) {
+                            val g = patchedObjects[idx].grpId
+                            patchedObjects.removeAt(idx)
+                            g
+                        } else {
+                            0
+                        }
+                    removeFromZone(patchedZones, ZoneIds.BATTLEFIELD, instanceId)
+                    appendToZone(patchedZones, destZone, newId)
+                    grp
                 } else {
                     0
                 }
-                removeFromZone(patchedZones, ZoneIds.BATTLEFIELD, instanceId)
-                appendToZone(patchedZones, destZone, newId)
-                grp
-            } else {
-                0
-            }
 
-            val manaPayments = buildManaSacrificePayments(
-                forgeCardId,
-                origId,
-                manaAbilityEvents,
-                spellCastEvents,
-                idLookup,
-                manaAbilityGrpIdResolver,
-            )
+            val manaPayments =
+                buildManaSacrificePayments(
+                    forgeCardId,
+                    origId,
+                    manaAbilityEvents,
+                    spellCastEvents,
+                    idLookup,
+                    manaAbilityGrpIdResolver,
+                )
 
             // Remove this mana source from CastSpell transfers to avoid duplication.
             if (manaPayments.isNotEmpty()) {
@@ -702,9 +751,10 @@ object ZoneTransferDetector {
         manaAbilityGrpIdResolver: (ForgeCardId) -> Int,
     ): List<ManaPaymentRecord> {
         if (manaAbilityEvents.none { it.cardId == forgeCardId }) return emptyList()
-        val castEv = spellCastEvents.firstOrNull { sc ->
-            sc.manaPayments.any { it.sourceCardId == forgeCardId }
-        } ?: return emptyList()
+        val castEv =
+            spellCastEvents.firstOrNull { sc ->
+                sc.manaPayments.any { it.sourceCardId == forgeCardId }
+            } ?: return emptyList()
         val mp = castEv.manaPayments.first { it.sourceCardId == forgeCardId }
         return listOf(
             ManaPaymentRecord(
@@ -718,7 +768,12 @@ object ZoneTransferDetector {
     }
 
     /** Replace oldId with newId in a zone's objectInstanceIds list (after instanceId realloc). */
-    private fun patchZoneInstanceId(zones: MutableList<ZoneInfo>, zoneId: Int, oldId: Int, newId: Int) {
+    private fun patchZoneInstanceId(
+        zones: MutableList<ZoneInfo>,
+        zoneId: Int,
+        oldId: Int,
+        newId: Int,
+    ) {
         val idx = zones.indexOfFirst { it.zoneId == zoneId }
         if (idx < 0) return
         val zone = zones[idx]
@@ -726,29 +781,41 @@ object ZoneTransferDetector {
         val idIdx = ids.indexOf(oldId)
         if (idIdx >= 0) {
             ids[idIdx] = newId
-            zones[idx] = zone.toBuilder()
-                .clearObjectInstanceIds()
-                .addAllObjectInstanceIds(ids)
-                .build()
+            zones[idx] =
+                zone
+                    .toBuilder()
+                    .clearObjectInstanceIds()
+                    .addAllObjectInstanceIds(ids)
+                    .build()
         }
     }
 
     /** Append an instanceId to a zone's objectInstanceIds list. */
-    private fun appendToZone(zones: MutableList<ZoneInfo>, zoneId: Int, instanceId: Int) {
+    private fun appendToZone(
+        zones: MutableList<ZoneInfo>,
+        zoneId: Int,
+        instanceId: Int,
+    ) {
         val idx = zones.indexOfFirst { it.zoneId == zoneId }
         if (idx < 0) return
         zones[idx] = zones[idx].toBuilder().addObjectInstanceIds(instanceId).build()
     }
 
     /** Remove an instanceId from a zone's objectInstanceIds list (no-op if not found). */
-    private fun removeFromZone(zones: MutableList<ZoneInfo>, zoneId: Int, instanceId: Int) {
+    private fun removeFromZone(
+        zones: MutableList<ZoneInfo>,
+        zoneId: Int,
+        instanceId: Int,
+    ) {
         val idx = zones.indexOfFirst { it.zoneId == zoneId }
         if (idx < 0) return
         val zone = zones[idx]
         val ids = zone.objectInstanceIdsList.filter { it != instanceId }
-        zones[idx] = zone.toBuilder()
-            .clearObjectInstanceIds()
-            .addAllObjectInstanceIds(ids)
-            .build()
+        zones[idx] =
+            zone
+                .toBuilder()
+                .clearObjectInstanceIds()
+                .addAllObjectInstanceIds(ids)
+                .build()
     }
 }

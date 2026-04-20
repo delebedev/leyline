@@ -8,21 +8,21 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * false on Pass/FloatMana/ActivateMana.
  */
 object ShouldStopEvaluator {
-
-    fun shouldStop(actionType: ActionType): Boolean = when (actionType) {
-        ActionType.Cast,
-        ActionType.CastLeft,
-        ActionType.CastRight,
-        ActionType.CastAdventure,
-        ActionType.CastMdfc,
-        ActionType.CastPrototype,
-        ActionType.CastLeftRoom,
-        ActionType.CastRightRoom,
-        ActionType.CastOmen,
-        ActionType.Play_add3,
-        ActionType.PlayMdfc,
-        ActionType.Activate_add3,
-        -> true
-        else -> false
-    }
+    fun shouldStop(actionType: ActionType): Boolean =
+        when (actionType) {
+            ActionType.Cast,
+            ActionType.CastLeft,
+            ActionType.CastRight,
+            ActionType.CastAdventure,
+            ActionType.CastMdfc,
+            ActionType.CastPrototype,
+            ActionType.CastLeftRoom,
+            ActionType.CastRightRoom,
+            ActionType.CastOmen,
+            ActionType.Play_add3,
+            ActionType.PlayMdfc,
+            ActionType.Activate_add3,
+            -> true
+            else -> false
+        }
 }

@@ -58,16 +58,16 @@ install-forge:
 sync-proto:
     cd "{{project_dir}}" && ./gradlew syncProto -q
 
-# auto-format Kotlin sources (spotless/ktlint)
+# auto-format Kotlin sources (ktlint-gradle, reads .editorconfig)
 [group('build')]
 fmt:
-    cd "{{project_dir}}" && ./gradlew spotlessApply -q
+    cd "{{project_dir}}" && ./gradlew ktlintFormat -q
     @echo "fmt done."
 
 # check formatting without modifying (CI)
 [group('build')]
 fmt-check:
-    cd "{{project_dir}}" && ./gradlew spotlessCheck -q
+    cd "{{project_dir}}" && ./gradlew ktlintCheck -q
 
 # static analysis (detekt with type resolution — main + test source sets)
 [group('build')]

@@ -47,11 +47,12 @@ object RequestBuilder {
 
         // sourceId: map the spell's entity ID to its client instanceId
         val sourceEntityId = prompt.request.sourceEntityId
-        val sourceInstanceId = if (sourceEntityId != null) {
-            bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
-        } else {
-            0
-        }
+        val sourceInstanceId =
+            if (sourceEntityId != null) {
+                bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
+            } else {
+                0
+            }
         if (sourceInstanceId != 0) {
             builder.setSourceId(sourceInstanceId)
         }
@@ -71,7 +72,8 @@ object RequestBuilder {
                 highlight = HighlightType.Tepid
             }
             selBuilder.addTargets(
-                wotc.mtgo.gre.external.messaging.Messages.Target.newBuilder()
+                wotc.mtgo.gre.external.messaging.Messages.Target
+                    .newBuilder()
                     .setTargetInstanceId(instanceId)
                     .setLegalAction(SelectAction.Select_a1ad)
                     .setHighlight(highlight),
@@ -107,17 +109,19 @@ object RequestBuilder {
         selBuilder.setSelectedTargets(selectedInstanceIds.size)
 
         val sourceEntityId = prompt.request.sourceEntityId
-        val sourceInstanceId = if (sourceEntityId != null) {
-            bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
-        } else {
-            0
-        }
+        val sourceInstanceId =
+            if (sourceEntityId != null) {
+                bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
+            } else {
+                0
+            }
         if (sourceInstanceId != 0) builder.setSourceId(sourceInstanceId)
 
         // Only include selected targets with Unselect action, no highlight
         for (iid in selectedInstanceIds) {
             selBuilder.addTargets(
-                wotc.mtgo.gre.external.messaging.Messages.Target.newBuilder()
+                wotc.mtgo.gre.external.messaging.Messages.Target
+                    .newBuilder()
                     .setTargetInstanceId(iid)
                     .setLegalAction(SelectAction.Unselect),
             )
@@ -144,24 +148,29 @@ object RequestBuilder {
         bridge: GameBridge,
     ): SelectNReq {
         val semantic = prompt.request.semantic
-        val (context, listType, optionContext) = when (semantic) {
-            PromptSemantic.SelectNDiscard -> Triple(
-                SelectionContext.Discard_a163,
-                SelectionListType.Static,
-                OptionContext.Payment,
-            )
-            else -> Triple(
-                SelectionContext.Resolution_a163,
-                SelectionListType.Dynamic,
-                OptionContext.Resolution_a9d7,
-            )
-        }
-        val builder = SelectNReq.newBuilder()
-            .setContext(context)
-            .setListType(listType)
-            .setIdType(IdType.InstanceId_ab2c)
-            .setValidationType(SelectionValidationType.NonRepeatable)
-            .setOptionContext(optionContext)
+        val (context, listType, optionContext) =
+            when (semantic) {
+                PromptSemantic.SelectNDiscard ->
+                    Triple(
+                        SelectionContext.Discard_a163,
+                        SelectionListType.Static,
+                        OptionContext.Payment,
+                    )
+                else ->
+                    Triple(
+                        SelectionContext.Resolution_a163,
+                        SelectionListType.Dynamic,
+                        OptionContext.Resolution_a9d7,
+                    )
+            }
+        val builder =
+            SelectNReq
+                .newBuilder()
+                .setContext(context)
+                .setListType(listType)
+                .setIdType(IdType.InstanceId_ab2c)
+                .setValidationType(SelectionValidationType.NonRepeatable)
+                .setOptionContext(optionContext)
 
         // For reveal-choose with empty ids (no valid target), omit minSel/maxSel (defaults to 0).
         val hasValidChoices = prompt.request.candidateRefs.isNotEmpty()
@@ -220,27 +229,33 @@ object RequestBuilder {
         val builder = DeclareAttackersReq.newBuilder()
 
         val opponentSeatId = if (seatId == 1) 2 else 1
-        val defaultRecipient = DamageRecipient.newBuilder()
-            .setType(DamageRecType.Player_a0e5)
-            .setPlayerSystemSeatId(opponentSeatId)
-            .build()
+        val defaultRecipient =
+            DamageRecipient
+                .newBuilder()
+                .setType(DamageRecType.Player_a0e5)
+                .setPlayerSystemSeatId(opponentSeatId)
+                .build()
 
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
             if (!CombatUtil.canAttack(card)) continue
 
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-            val attacker = Attacker.newBuilder()
-                .setAttackerInstanceId(instanceId)
-                .addLegalDamageRecipients(defaultRecipient)
+            val attacker =
+                Attacker
+                    .newBuilder()
+                    .setAttackerInstanceId(instanceId)
+                    .addLegalDamageRecipients(defaultRecipient)
             if (instanceId in committedAttackerIds) {
                 attacker.setSelectedDamageRecipient(defaultRecipient)
             }
             builder.addAttackers(attacker)
             // qualifiedAttackers never has selectedDamageRecipient
-            val qualified = Attacker.newBuilder()
-                .setAttackerInstanceId(instanceId)
-                .addLegalDamageRecipients(defaultRecipient)
+            val qualified =
+                Attacker
+                    .newBuilder()
+                    .setAttackerInstanceId(instanceId)
+                    .addLegalDamageRecipients(defaultRecipient)
             builder.addQualifiedAttackers(qualified)
         }
         builder.setCanSubmitAttackers(true)
@@ -278,9 +293,11 @@ object RequestBuilder {
             if (legalAttackers.isEmpty()) continue
 
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-            val blocker = Blocker.newBuilder()
-                .setBlockerInstanceId(instanceId)
-                .setMaxAttackers(1)
+            val blocker =
+                Blocker
+                    .newBuilder()
+                    .setBlockerInstanceId(instanceId)
+                    .setMaxAttackers(1)
 
             val assignedAttacker = blockerAssignments[instanceId]
             if (assignedAttacker != null) {
@@ -302,7 +319,10 @@ object RequestBuilder {
      * Map a Forge [forge.game.player.Player.id] to the Arena seatId (1=human, 2=AI).
      * Returns null if the entityId doesn't match either player.
      */
-    private fun playerEntityIdToSeatId(entityId: Int, bridge: GameBridge): Int? {
+    private fun playerEntityIdToSeatId(
+        entityId: Int,
+        bridge: GameBridge,
+    ): Int? {
         val p1 = bridge.getPlayer(SeatId(1))
         val p2 = bridge.getPlayer(SeatId(2))
         return when (entityId) {

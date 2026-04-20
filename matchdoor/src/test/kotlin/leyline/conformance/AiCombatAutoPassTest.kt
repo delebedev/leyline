@@ -55,7 +55,8 @@ class AiCombatAutoPassTest :
             // COMBAT_DAMAGE and COMBAT_END where the fix must downgrade SEND_STATE
             // on AI turns — otherwise the client gets stuck (no Pass button →
             // 120s timeout).
-            val puzzleText = """
+            val puzzleText =
+                """
                 [metadata]
                 Name:AI Combat AutoPass
                 Goal:Win
@@ -74,7 +75,7 @@ class AiCombatAutoPassTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 aibattlefield=Raging Goblin|Attacking|Tapped;Mountain
                 ailibrary=Mountain;Mountain;Mountain
-            """.trimIndent()
+                """.trimIndent()
 
             val h = MatchFlowHarness(validating = false)
             harness = h

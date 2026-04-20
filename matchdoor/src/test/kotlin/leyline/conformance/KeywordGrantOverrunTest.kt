@@ -40,10 +40,11 @@ class KeywordGrantOverrunTest :
             h.passPriority()
 
             // Find AddAbility persistent annotation
-            val addAbility = h.allMessages
-                .filter { it.hasGameStateMessage() }
-                .flatMap { it.gameStateMessage.persistentAnnotationsList }
-                .firstOrNull { AnnotationType.AddAbility_af5a in it.typeList }
+            val addAbility =
+                h.allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
+                    .firstOrNull { AnnotationType.AddAbility_af5a in it.typeList }
             addAbility.shouldNotBeNull()
 
             assertSoftly {
@@ -60,8 +61,11 @@ class KeywordGrantOverrunTest :
             h.connectAndKeepPuzzle("puzzles/keyword-grant-overrun.pzl")
 
             val human = h.game().registeredPlayers.first()
-            val bears = human.getZone(ForgeZoneType.Battlefield).cards
-                .filter { it.name == "Grizzly Bears" }
+            val bears =
+                human
+                    .getZone(ForgeZoneType.Battlefield)
+                    .cards
+                    .filter { it.name == "Grizzly Bears" }
             bears.size shouldBe 2
 
             h.castSpellByName("Overrun").shouldBeTrue()
@@ -69,10 +73,11 @@ class KeywordGrantOverrunTest :
             h.passPriority()
 
             // Get the latest GSM with game objects
-            val lastGsm = h.allMessages
-                .filter { it.hasGameStateMessage() }
-                .last { it.gameStateMessage.gameObjectsCount > 0 }
-                .gameStateMessage
+            val lastGsm =
+                h.allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .last { it.gameStateMessage.gameObjectsCount > 0 }
+                    .gameStateMessage
 
             val bearIids = bears.map { h.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }.toSet()
             val bearObjects = lastGsm.gameObjectsList.filter { it.instanceId in bearIids }

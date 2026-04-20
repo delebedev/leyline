@@ -19,12 +19,18 @@ class DeckWireBuilderTest :
     FunSpec({
         tags(FdTag)
 
-        val deck = Deck(
-            id = DeckId("d1"), playerId = PlayerId("p1"), name = "Test Deck",
-            format = Format.Standard, tileId = 12345,
-            mainDeck = listOf(DeckCard(100, 4), DeckCard(200, 56)),
-            sideboard = emptyList(), commandZone = emptyList(), companions = emptyList(),
-        )
+        val deck =
+            Deck(
+                id = DeckId("d1"),
+                playerId = PlayerId("p1"),
+                name = "Test Deck",
+                format = Format.Standard,
+                tileId = 12345,
+                mainDeck = listOf(DeckCard(100, 4), DeckCard(200, 56)),
+                sideboard = emptyList(),
+                commandZone = emptyList(),
+                companions = emptyList(),
+            )
 
         test("V2 summary has Attributes as array of name/value pairs") {
             val obj = DeckWireBuilder.toV2Summary(deck)

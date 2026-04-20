@@ -24,16 +24,17 @@ enum class Zone {
 
     companion object {
         /** Map from forge ZoneType name. Called only in GameEventCollector. */
-        fun fromForge(forgeZone: ZoneType): Zone = when (forgeZone) {
-            ZoneType.Hand -> Hand
-            ZoneType.Library -> Library
-            ZoneType.Graveyard -> Graveyard
-            ZoneType.Battlefield -> Battlefield
-            ZoneType.Exile -> Exile
-            ZoneType.Stack -> Stack
-            ZoneType.Command -> Command
-            else -> Other
-        }
+        fun fromForge(forgeZone: ZoneType): Zone =
+            when (forgeZone) {
+                ZoneType.Hand -> Hand
+                ZoneType.Library -> Library
+                ZoneType.Graveyard -> Graveyard
+                ZoneType.Battlefield -> Battlefield
+                ZoneType.Exile -> Exile
+                ZoneType.Stack -> Stack
+                ZoneType.Command -> Command
+                else -> Other
+            }
     }
 }
 
@@ -57,7 +58,6 @@ enum class Zone {
  * Consider extending Forge when a new mechanic needs per-card category resolution.
  */
 sealed interface GameEvent {
-
     /** A land was played from hand to battlefield.
      *  [colorOrdinals] = client ManaColor proto ordinals (W=1, U=2, B=3, R=4, G=5).
      *  Single-ability lands produce one entry; dual/multi-lands produce multiple. */

@@ -38,24 +38,25 @@ class LibrarySearchConformanceTest :
         afterEach { base.tearDown() }
 
         test("library reveal GSM: basic land object shape matches reference") {
-            val puzzleText = """
-            [metadata]
-            Name:Library Search Conformance
-            Goal:Win
-            Turns:1
-            Description:Minimal board for library reveal test.
+            val puzzleText =
+                """
+                [metadata]
+                Name:Library Search Conformance
+                Goal:Win
+                Turns:1
+                Description:Minimal board for library reveal test.
 
-            [state]
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=20
-            humanhand=Sylvan Ranger
-            humanbattlefield=Forest;Forest
-            humanlibrary=Mountain;Mountain
-            aibattlefield=Forest
-            ailibrary=Forest
-            """.trimIndent()
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Sylvan Ranger
+                humanbattlefield=Forest;Forest
+                humanlibrary=Mountain;Mountain
+                aibattlefield=Forest
+                ailibrary=Forest
+                """.trimIndent()
 
             val (bridge, game, counter) = base.startPuzzleAtMain1(puzzleText)
 
@@ -63,23 +64,26 @@ class LibrarySearchConformanceTest :
             // reveal library for seat 1, then build a GSM
             val gsId1 = counter.nextGsId()
             val snapLib1 = GsmSnapshot.capture(game, bridge, ConformanceTestBase.TEST_MATCH_ID, gsId1)
-            val gsm = StateMapper.buildFromSnapshot(
-                snapLib1,
-                gsId1,
-                ConformanceTestBase.TEST_MATCH_ID,
-                bridge,
-                viewingSeatId = 1,
-                revealForSeat = 1,
-            ).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapLib1,
+                        gsId1,
+                        ConformanceTestBase.TEST_MATCH_ID,
+                        bridge,
+                        viewingSeatId = 1,
+                        revealForSeat = 1,
+                    ).gsm
 
             // Find library objects (seat 1 library = zone 32)
             val libraryObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.P1_LIBRARY }
             libraryObjects.shouldNotBeEmpty()
 
             // Find a Mountain (basic land)
-            val mountain = libraryObjects.first { obj ->
-                obj.cardTypesList.contains(CardType.Land_a80b)
-            }
+            val mountain =
+                libraryObjects.first { obj ->
+                    obj.cardTypesList.contains(CardType.Land_a80b)
+                }
 
             // --- Field-by-field comparison against reference ---
 
@@ -117,44 +121,50 @@ class LibrarySearchConformanceTest :
             sb.appendLine()
             sb.appendLine("=== All library objects summary ===")
             for (obj in libraryObjects) {
-                val fields = obj.allFields.keys.map { it.name }.sorted()
+                val fields =
+                    obj.allFields.keys
+                        .map { it.name }
+                        .sorted()
                 sb.appendLine("  instanceId=${obj.instanceId} grpId=${obj.grpId} fields=$fields")
             }
             outputDir.resolve("library-search-objects.txt").writeText(sb.toString())
         }
 
         test("library reveal GSM: all library objects have correct base shape") {
-            val puzzleText = """
-            [metadata]
-            Name:Library Search Shape
-            Goal:Win
-            Turns:1
-            Description:Verify all library card objects.
+            val puzzleText =
+                """
+                [metadata]
+                Name:Library Search Shape
+                Goal:Win
+                Turns:1
+                Description:Verify all library card objects.
 
-            [state]
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=20
-            humanhand=Sylvan Ranger
-            humanbattlefield=Forest;Forest
-            humanlibrary=Mountain;Mountain
-            aibattlefield=Forest
-            ailibrary=Forest
-            """.trimIndent()
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Sylvan Ranger
+                humanbattlefield=Forest;Forest
+                humanlibrary=Mountain;Mountain
+                aibattlefield=Forest
+                ailibrary=Forest
+                """.trimIndent()
 
             val (bridge, game, counter) = base.startPuzzleAtMain1(puzzleText)
 
             val gsId2 = counter.nextGsId()
             val snapLib2 = GsmSnapshot.capture(game, bridge, ConformanceTestBase.TEST_MATCH_ID, gsId2)
-            val gsm = StateMapper.buildFromSnapshot(
-                snapLib2,
-                gsId2,
-                ConformanceTestBase.TEST_MATCH_ID,
-                bridge,
-                viewingSeatId = 1,
-                revealForSeat = 1,
-            ).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapLib2,
+                        gsId2,
+                        ConformanceTestBase.TEST_MATCH_ID,
+                        bridge,
+                        viewingSeatId = 1,
+                        revealForSeat = 1,
+                    ).gsm
 
             val libraryObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.P1_LIBRARY }
 

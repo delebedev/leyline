@@ -21,7 +21,11 @@ object SeedDb {
     private const val PLAYER_NAME = "Denis"
 
     /** A card entry: qty, name, optional set code for precise lookup. */
-    private data class CardEntry(val quantity: Int, val name: String, val setCode: String? = null)
+    private data class CardEntry(
+        val quantity: Int,
+        val name: String,
+        val setCode: String? = null,
+    )
 
     /** Arena decklist line: `4 Hallowed Priest (ANB) 9` or simple: `4 Hallowed Priest` */
     private val ARENA_LINE = Regex("""^(\d+)\s+(.+?)\s+\((\w+)\)\s+\d+\s*$""")
@@ -50,11 +54,12 @@ object SeedDb {
                 section = "deck"
                 continue
             }
-            val entry = ARENA_LINE.matchEntire(line)?.let { m ->
-                CardEntry(m.groupValues[1].toInt(), m.groupValues[2], m.groupValues[3])
-            } ?: SIMPLE_LINE.matchEntire(line)?.let { m ->
-                CardEntry(m.groupValues[1].toInt(), m.groupValues[2])
-            } ?: continue
+            val entry =
+                ARENA_LINE.matchEntire(line)?.let { m ->
+                    CardEntry(m.groupValues[1].toInt(), m.groupValues[2], m.groupValues[3])
+                } ?: SIMPLE_LINE.matchEntire(line)?.let { m ->
+                    CardEntry(m.groupValues[1].toInt(), m.groupValues[2])
+                } ?: continue
 
             when (section) {
                 "commander" -> commander.add(entry)
@@ -67,7 +72,8 @@ object SeedDb {
     /** Load deck files from data/decks/. Filename (minus .txt) becomes deck name. */
     private fun loadDeckFiles(decksDir: File): List<Pair<String, ParsedDeck>> {
         if (!decksDir.isDirectory) return emptyList()
-        return decksDir.listFiles()
+        return decksDir
+            .listFiles()
             ?.filter { it.extension == "txt" }
             ?.sortedBy { it.name }
             ?.map { file ->
@@ -93,13 +99,14 @@ object SeedDb {
 
         // Seed starter decks (resolve card names → grpIds via card DB)
         val cardDbPath = System.getenv("LEYLINE_CARD_DB")
-        val cardDbFile = if (cardDbPath != null) {
-            File(cardDbPath).takeIf { it.exists() }
-        } else {
-            // Auto-detect from Arena install
-            val raw = leyline.detectArenaDownloadsDir()?.resolve("Raw")
-            raw?.listFiles()?.firstOrNull { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
-        }
+        val cardDbFile =
+            if (cardDbPath != null) {
+                File(cardDbPath).takeIf { it.exists() }
+            } else {
+                // Auto-detect from Arena install
+                val raw = leyline.detectArenaDownloadsDir()?.resolve("Raw")
+                raw?.listFiles()?.firstOrNull { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
+            }
         // Seed decks from data/decks/*.txt
         val decksDir = File(projectDir, "data/decks")
         val deckFiles = loadDeckFiles(decksDir)
@@ -136,15 +143,19 @@ object SeedDb {
         val errors = mutableListOf<String>()
 
         for ((deckName, parsed) in deckFiles) {
-            fun resolve(entries: List<CardEntry>, label: String): List<DeckCard> {
+            fun resolve(
+                entries: List<CardEntry>,
+                label: String,
+            ): List<DeckCard> {
                 val cards = mutableListOf<DeckCard>()
                 for (entry in entries) {
-                    val grpId = if (entry.setCode != null) {
-                        cardRepo.findGrpIdByNameAndSet(entry.name, entry.setCode)
-                            ?: cardRepo.findGrpIdByName(entry.name)
-                    } else {
-                        cardRepo.findGrpIdByName(entry.name)
-                    }
+                    val grpId =
+                        if (entry.setCode != null) {
+                            cardRepo.findGrpIdByNameAndSet(entry.name, entry.setCode)
+                                ?: cardRepo.findGrpIdByName(entry.name)
+                        } else {
+                            cardRepo.findGrpIdByName(entry.name)
+                        }
                     if (grpId != null) {
                         cards.add(DeckCard(grpId, entry.quantity))
                     } else {
@@ -173,17 +184,18 @@ object SeedDb {
             val deckId = UUID.nameUUIDFromBytes(rd.name.toByteArray()).toString()
             val isBrawl = rd.commandZone.isNotEmpty()
             val tileId = if (isBrawl) rd.commandZone.first().grpId else rd.mainDeck.first().grpId
-            val deck = Deck(
-                id = DeckId(deckId),
-                playerId = PlayerId(PLAYER_ID),
-                name = rd.name,
-                format = if (isBrawl) Format.Brawl else Format.Standard,
-                tileId = tileId,
-                mainDeck = rd.mainDeck,
-                sideboard = emptyList(),
-                commandZone = rd.commandZone,
-                companions = emptyList(),
-            )
+            val deck =
+                Deck(
+                    id = DeckId(deckId),
+                    playerId = PlayerId(PLAYER_ID),
+                    name = rd.name,
+                    format = if (isBrawl) Format.Brawl else Format.Standard,
+                    tileId = tileId,
+                    mainDeck = rd.mainDeck,
+                    sideboard = emptyList(),
+                    commandZone = rd.commandZone,
+                    companions = emptyList(),
+                )
             store.save(deck)
             val total = rd.mainDeck.sumOf { it.quantity } + rd.commandZone.sumOf { it.quantity }
             val suffix = if (isBrawl) " [Brawl]" else ""

@@ -26,10 +26,13 @@ import org.slf4j.LoggerFactory
 
 /** Decodes the 6-byte header framing. Outputs a ByteBuf per message (header + payload). */
 class ClientFrameDecoder : ByteToMessageDecoder() {
-
     private val log = LoggerFactory.getLogger(ClientFrameDecoder::class.java)
 
-    override fun decode(ctx: ChannelHandlerContext, buf: ByteBuf, out: MutableList<Any>) {
+    override fun decode(
+        ctx: ChannelHandlerContext,
+        buf: ByteBuf,
+        out: MutableList<Any>,
+    ) {
         if (buf.readableBytes() < HEADER_SIZE) return
 
         // Peek at payload length: uint32 LE at offset 2
@@ -68,10 +71,12 @@ class ClientFrameDecoder : ByteToMessageDecoder() {
  * Control frames: CTRL_INIT is echoed back as CTRL_ACK; CTRL_ACK is dropped.
  */
 class ClientHeaderStripper : ChannelInboundHandlerAdapter() {
-
     private val log = LoggerFactory.getLogger(ClientHeaderStripper::class.java)
 
-    override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
+    override fun channelRead(
+        ctx: ChannelHandlerContext,
+        msg: Any,
+    ) {
         if (msg is ByteBuf) {
             if (msg.readableBytes() <= ClientFrameDecoder.HEADER_SIZE) {
                 msg.release()
@@ -110,8 +115,11 @@ class ClientHeaderStripper : ChannelInboundHandlerAdapter() {
 class ClientHeaderPrepender(
     private val frameType: Byte = ClientFrameDecoder.TYPE_DATA_MATCH,
 ) : MessageToMessageEncoder<ByteBuf>() {
-
-    override fun encode(ctx: ChannelHandlerContext, msg: ByteBuf, out: MutableList<Any>) {
+    override fun encode(
+        ctx: ChannelHandlerContext,
+        msg: ByteBuf,
+        out: MutableList<Any>,
+    ) {
         val payloadLength = msg.readableBytes()
         val frame = ctx.alloc().buffer(ClientFrameDecoder.HEADER_SIZE + payloadLength)
         frame.writeByte(ClientFrameDecoder.VERSION.toInt()) // byte 0: version

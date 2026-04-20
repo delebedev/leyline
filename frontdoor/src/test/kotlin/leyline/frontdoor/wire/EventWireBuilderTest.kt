@@ -34,18 +34,20 @@ class EventWireBuilderTest :
             deckSummary = deckSummary,
         )
 
-        fun testDeck() = CourseDeck(
-            deckId = DeckId("deck1"),
-            mainDeck = (1..40).map { DeckCard(it, 1) },
-            sideboard = (41..84).map { DeckCard(it, 1) },
-        )
+        fun testDeck() =
+            CourseDeck(
+                deckId = DeckId("deck1"),
+                mainDeck = (1..40).map { DeckCard(it, 1) },
+                sideboard = (41..84).map { DeckCard(it, 1) },
+            )
 
-        fun testDeckSummary() = CourseDeckSummary(
-            deckId = DeckId("deck1"),
-            name = "Sealed Deck",
-            tileId = 12345,
-            format = "Limited",
-        )
+        fun testDeckSummary() =
+            CourseDeckSummary(
+                deckId = DeckId("deck1"),
+                name = "Sealed Deck",
+                tileId = 12345,
+                format = "Limited",
+            )
 
         test("buildCourseJson omits CurrentWins when zero") {
             val obj = EventWireBuilder.buildCourseJson(sealedCourse(wins = 0))
@@ -72,8 +74,11 @@ class EventWireBuilderTest :
             val eventsJson = EventWireBuilder.toActiveEventsJson(listOf(sealedDef))
             val obj = json.parseToJsonElement(eventsJson).jsonObject
             val event = obj["Events"]!!.jsonArray[0].jsonObject
-            val ldd = event["EventUXInfo"]!!.jsonObject["EventComponentData"]!!
-                .jsonObject["LossDetailsDisplay"]!!.jsonObject
+            val ldd =
+                event["EventUXInfo"]!!
+                    .jsonObject["EventComponentData"]!!
+                    .jsonObject["LossDetailsDisplay"]!!
+                    .jsonObject
             ldd["Games"]?.jsonPrimitive?.int shouldBe 3
         }
 
@@ -82,8 +87,10 @@ class EventWireBuilderTest :
             val eventsJson = EventWireBuilder.toActiveEventsJson(listOf(sealedDef))
             val obj = json.parseToJsonElement(eventsJson).jsonObject
             val event = obj["Events"]!!.jsonArray[0].jsonObject
-            val widget = event["EventUXInfo"]!!.jsonObject["EventComponentData"]!!
-                .jsonObject["SelectedDeckWidget"]
+            val widget =
+                event["EventUXInfo"]!!
+                    .jsonObject["EventComponentData"]!!
+                    .jsonObject["SelectedDeckWidget"]
             widget.shouldNotBeNull()
             widget.jsonObject["DeckButtonBehavior"]?.jsonPrimitive?.content shouldBe "Editable"
         }
@@ -93,8 +100,10 @@ class EventWireBuilderTest :
             val eventsJson = EventWireBuilder.toActiveEventsJson(listOf(ladderDef))
             val obj = json.parseToJsonElement(eventsJson).jsonObject
             val event = obj["Events"]!!.jsonArray[0].jsonObject
-            val widget = event["EventUXInfo"]!!.jsonObject["EventComponentData"]!!
-                .jsonObject["SelectedDeckWidget"]
+            val widget =
+                event["EventUXInfo"]!!
+                    .jsonObject["EventComponentData"]!!
+                    .jsonObject["SelectedDeckWidget"]
             widget.shouldBeNull()
         }
 

@@ -53,7 +53,10 @@ class MulliganBridge(
      *
      * @return true to keep, false to mulligan
      */
-    fun awaitKeepDecision(playerId: Int, mulliganCount: Int): Boolean {
+    fun awaitKeepDecision(
+        playerId: Int,
+        mulliganCount: Int,
+    ): Boolean {
         if (autoKeep) {
             log.debug("MulliganBridge: auto-keep for player {}", playerId)
             return true
@@ -89,7 +92,11 @@ class MulliganBridge(
      *
      * @return the cards to put on bottom of library
      */
-    fun awaitTuckDecision(playerId: Int, count: Int, hand: CardCollectionView): List<Card> {
+    fun awaitTuckDecision(
+        playerId: Int,
+        count: Int,
+        hand: CardCollectionView,
+    ): List<Card> {
         if (autoKeep) {
             log.debug("MulliganBridge: auto-tuck {} for player {}", count, playerId)
             return hand.toList().take(count)

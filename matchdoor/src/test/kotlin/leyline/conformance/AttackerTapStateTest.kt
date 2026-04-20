@@ -65,15 +65,17 @@ class AttackerTapStateTest :
             val postSubmit = h.messagesSince(snap)
 
             // Find post-submit GSM diffs
-            val postSubmitGsms = postSubmit
-                .filter { it.hasGameStateMessage() }
-                .map { it.gameStateMessage }
+            val postSubmitGsms =
+                postSubmit
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
             postSubmitGsms.shouldNotBeEmpty()
 
             // Find the creature with attackState=Attacking in any post-submit diff
-            val attackerObj = postSubmitGsms
-                .flatMap { it.gameObjectsList }
-                .firstOrNull { it.instanceId == attackerIid && it.attackState == AttackState.Attacking }
+            val attackerObj =
+                postSubmitGsms
+                    .flatMap { it.gameObjectsList }
+                    .firstOrNull { it.instanceId == attackerIid && it.attackState == AttackState.Attacking }
 
             attackerObj.shouldNotBeNull()
             attackerObj.isTapped.shouldBeTrue()
@@ -107,15 +109,17 @@ class AttackerTapStateTest :
             val postAttack = h.messagesSince(snap)
 
             // Collect all annotations from post-attack GSMs
-            val allAnnotations = postAttack
-                .filter { it.hasGameStateMessage() }
-                .flatMap { it.gameStateMessage.annotationsList }
+            val allAnnotations =
+                postAttack
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.annotationsList }
 
             // Find TappedUntappedPermanent for our attacker
-            val tapAnnotation = allAnnotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.TappedUntappedPermanent } &&
-                    attackerIid in ann.affectedIdsList
-            }
+            val tapAnnotation =
+                allAnnotations.firstOrNull { ann ->
+                    ann.typeList.any { it == AnnotationType.TappedUntappedPermanent } &&
+                        attackerIid in ann.affectedIdsList
+                }
 
             tapAnnotation.shouldNotBeNull()
 

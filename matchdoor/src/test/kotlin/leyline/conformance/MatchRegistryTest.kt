@@ -32,14 +32,16 @@ class MatchRegistryTest :
         test("getOrCreateMatch creates on first call, reuses on second") {
             val registry = MatchRegistry()
             var created = 0
-            val m1 = registry.getOrCreateMatch("m1") {
-                created++
-                Match("m1", GameBridge(cardRepository = InMemoryCardRepository()))
-            }
-            val m2 = registry.getOrCreateMatch("m1") {
-                created++
-                Match("m1", GameBridge(cardRepository = InMemoryCardRepository()))
-            }
+            val m1 =
+                registry.getOrCreateMatch("m1") {
+                    created++
+                    Match("m1", GameBridge(cardRepository = InMemoryCardRepository()))
+                }
+            val m2 =
+                registry.getOrCreateMatch("m1") {
+                    created++
+                    Match("m1", GameBridge(cardRepository = InMemoryCardRepository()))
+                }
             m1 shouldBeSameInstanceAs m2
             created shouldBe 1
         }
@@ -61,8 +63,24 @@ class MatchRegistryTest :
         test("registerSession + getPeer returns correct session") {
             val registry = MatchRegistry()
             val sink = ListMessageSink()
-            val s1 = MatchSession(seatId = SeatId(1), matchId = "m1", sink = sink, registry = registry, gameBridge = stubBridge(), paceDelayMs = 0)
-            val s2 = MatchSession(seatId = SeatId(2), matchId = "m1", sink = sink, registry = registry, gameBridge = stubBridge(), paceDelayMs = 0)
+            val s1 =
+                MatchSession(
+                    seatId = SeatId(1),
+                    matchId = "m1",
+                    sink = sink,
+                    registry = registry,
+                    gameBridge = stubBridge(),
+                    paceDelayMs = 0,
+                )
+            val s2 =
+                MatchSession(
+                    seatId = SeatId(2),
+                    matchId = "m1",
+                    sink = sink,
+                    registry = registry,
+                    gameBridge = stubBridge(),
+                    paceDelayMs = 0,
+                )
             registry.registerSession("m1", 1, s1)
             registry.getPeer("m1", 1).shouldBeNull()
             registry.registerSession("m1", 2, s2)
@@ -146,7 +164,15 @@ class MatchRegistryTest :
         test("registerSession accepts FamiliarSession via SessionOps interface") {
             val registry = MatchRegistry()
             val sink = ListMessageSink()
-            val human = MatchSession(seatId = SeatId(1), matchId = "m1", sink = sink, registry = registry, gameBridge = stubBridge(), paceDelayMs = 0)
+            val human =
+                MatchSession(
+                    seatId = SeatId(1),
+                    matchId = "m1",
+                    sink = sink,
+                    registry = registry,
+                    gameBridge = stubBridge(),
+                    paceDelayMs = 0,
+                )
             val familiar = FamiliarSession(seatId = SeatId(2), matchId = "m1", sink = sink)
             registry.registerSession("m1", 1, human)
             registry.registerSession("m1", 2, familiar)
@@ -157,7 +183,15 @@ class MatchRegistryTest :
         test("activeSession returns MatchSession, not FamiliarSession") {
             val registry = MatchRegistry()
             val sink = ListMessageSink()
-            val human = MatchSession(seatId = SeatId(1), matchId = "m1", sink = sink, registry = registry, gameBridge = stubBridge(), paceDelayMs = 0)
+            val human =
+                MatchSession(
+                    seatId = SeatId(1),
+                    matchId = "m1",
+                    sink = sink,
+                    registry = registry,
+                    gameBridge = stubBridge(),
+                    paceDelayMs = 0,
+                )
             val familiar = FamiliarSession(seatId = SeatId(2), matchId = "m1", sink = sink)
             registry.registerSession("m1", 1, human)
             registry.registerSession("m1", 2, familiar)
@@ -179,7 +213,15 @@ class MatchRegistryTest :
             val registry = MatchRegistry()
             val match = registry.getOrCreateMatch("m1") { Match("m1", GameBridge(cardRepository = InMemoryCardRepository())) }
             val sink = ListMessageSink()
-            val session = MatchSession(seatId = SeatId(1), matchId = "m1", sink = sink, registry = registry, gameBridge = match.bridge, paceDelayMs = 0)
+            val session =
+                MatchSession(
+                    seatId = SeatId(1),
+                    matchId = "m1",
+                    sink = sink,
+                    registry = registry,
+                    gameBridge = match.bridge,
+                    paceDelayMs = 0,
+                )
             val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
 
             registry.registerSession("m1", 1, session)
@@ -198,14 +240,15 @@ class MatchRegistryTest :
             val matchId = "forge-match-1"
             val match = registry.getOrCreateMatch(matchId) { Match(matchId, GameBridge(cardRepository = InMemoryCardRepository())) }
             val sink = ListMessageSink()
-            val session = MatchSession(
-                seatId = SeatId(1),
-                matchId = matchId,
-                sink = sink,
-                registry = registry,
-                gameBridge = match.bridge,
-                paceDelayMs = 0,
-            )
+            val session =
+                MatchSession(
+                    seatId = SeatId(1),
+                    matchId = matchId,
+                    sink = sink,
+                    registry = registry,
+                    gameBridge = match.bridge,
+                    paceDelayMs = 0,
+                )
 
             val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
             handler.session = session
@@ -221,7 +264,15 @@ class MatchRegistryTest :
             registry.activeSession().shouldBeNull()
 
             val recreated = registry.getOrCreateMatch(matchId) { Match(matchId, GameBridge(cardRepository = InMemoryCardRepository())) }
-            val replacement = MatchSession(seatId = SeatId(1), matchId = matchId, sink = sink, registry = registry, gameBridge = stubBridge(), paceDelayMs = 0)
+            val replacement =
+                MatchSession(
+                    seatId = SeatId(1),
+                    matchId = matchId,
+                    sink = sink,
+                    registry = registry,
+                    gameBridge = stubBridge(),
+                    paceDelayMs = 0,
+                )
             registry.registerSession(matchId, 1, replacement)
 
             assertSoftly {

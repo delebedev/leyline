@@ -14,7 +14,7 @@ test-debug class:
 # pre-commit gate: unit + conformance + fmt check + coverage (all modules)
 [group('test')]
 test-gate: docs-lint
-    cd "{{project_dir}}" && ./gradlew spotlessCheck detekt \
+    cd "{{project_dir}}" && ./gradlew ktlintCheck detekt \
         :matchdoor:testGate :matchdoor:jacocoTestReport \
         :frontdoor:test :frontdoor:jacocoTestReport \
         :account:test :account:jacocoTestReport

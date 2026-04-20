@@ -13,16 +13,18 @@ import org.slf4j.LoggerFactory
  * Same module boundary pattern as [SealedPoolGenerator] — lives in matchdoor
  * because it depends on Forge; frontdoor consumes via injected lambda.
  */
-class DraftPackGenerator(private val cards: CardRepository) {
-
+class DraftPackGenerator(
+    private val cards: CardRepository,
+) {
     private val log = LoggerFactory.getLogger(DraftPackGenerator::class.java)
 
     fun generate(setCode: String): List<List<Int>> {
         GameBootstrap.initializeCardDatabase()
 
         val effectiveSet = resolveSet(setCode)
-        val boosterTemplate = FModel.getMagicDb().getBoosters().get(effectiveSet)
-            ?: error("No booster template for set: $effectiveSet")
+        val boosterTemplate =
+            FModel.getMagicDb().getBoosters().get(effectiveSet)
+                ?: error("No booster template for set: $effectiveSet")
 
         val supplier = UnOpenedProduct(boosterTemplate)
         val packs = mutableListOf<List<Int>>()

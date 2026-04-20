@@ -9,8 +9,10 @@ class InMemoryDraftSessionRepository : DraftSessionRepository {
 
     override fun findById(id: DraftSessionId): DraftSession? = store[id]
 
-    override fun findByPlayerAndEvent(playerId: PlayerId, eventName: String): DraftSession? =
-        store.values.find { it.playerId == playerId && it.eventName == eventName }
+    override fun findByPlayerAndEvent(
+        playerId: PlayerId,
+        eventName: String,
+    ): DraftSession? = store.values.find { it.playerId == playerId && it.eventName == eventName }
 
     override fun save(session: DraftSession) {
         store[session.id] = session

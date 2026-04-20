@@ -35,11 +35,9 @@ class FrameCodecTest :
             channels.clear()
         }
 
-        fun encoder(type: Byte): EmbeddedChannel =
-            EmbeddedChannel(ClientHeaderPrepender(type)).also { channels += it }
+        fun encoder(type: Byte): EmbeddedChannel = EmbeddedChannel(ClientHeaderPrepender(type)).also { channels += it }
 
-        fun decoder(): EmbeddedChannel =
-            EmbeddedChannel(ClientFrameDecoder(), ClientHeaderStripper()).also { channels += it }
+        fun decoder(): EmbeddedChannel = EmbeddedChannel(ClientFrameDecoder(), ClientHeaderStripper()).also { channels += it }
 
         /** Roundtrip: payload → prepender → decoder+stripper → same payload bytes. */
         test("roundtrip data frame") {
@@ -47,15 +45,17 @@ class FrameCodecTest :
 
             val enc = encoder(TYPE_DATA_MATCH)
             enc.writeOutbound(Unpooled.wrappedBuffer(payload))
-            val framed = enc.readOutbound<ByteBuf>()
-                ?: error("Encoder produced no output")
+            val framed =
+                enc.readOutbound<ByteBuf>()
+                    ?: error("Encoder produced no output")
 
             framed.readableBytes() shouldBe HEADER_SIZE + payload.size
 
             val dec = decoder()
             dec.writeInbound(framed)
-            val decoded = dec.readInbound<ByteBuf>()
-                ?: error("Decoder produced no output")
+            val decoded =
+                dec.readInbound<ByteBuf>()
+                    ?: error("Decoder produced no output")
 
             val result = ByteArray(decoded.readableBytes())
             decoded.readBytes(result)
@@ -68,8 +68,9 @@ class FrameCodecTest :
         test("roundtrip empty payload") {
             val enc = encoder(TYPE_DATA_MATCH)
             enc.writeOutbound(Unpooled.EMPTY_BUFFER.retainedDuplicate())
-            val framed = enc.readOutbound<ByteBuf>()
-                ?: error("Encoder produced no output")
+            val framed =
+                enc.readOutbound<ByteBuf>()
+                    ?: error("Encoder produced no output")
 
             framed.readableBytes() shouldBe HEADER_SIZE
 
@@ -86,8 +87,9 @@ class FrameCodecTest :
 
             val enc = encoder(TYPE_DATA_FD)
             enc.writeOutbound(Unpooled.wrappedBuffer(payload))
-            val framed = enc.readOutbound<ByteBuf>()
-                ?: error("Encoder produced no output")
+            val framed =
+                enc.readOutbound<ByteBuf>()
+                    ?: error("Encoder produced no output")
 
             assertSoftly {
                 framed.getByte(0) shouldBe VERSION
@@ -114,8 +116,9 @@ class FrameCodecTest :
             dec.readInbound<Any>().shouldBeNull()
 
             // Should produce outbound ACK
-            val ack = dec.readOutbound<ByteBuf>()
-                ?: error("CTRL_INIT should produce an ACK response")
+            val ack =
+                dec.readOutbound<ByteBuf>()
+                    ?: error("CTRL_INIT should produce an ACK response")
 
             assertSoftly {
                 ack.getByte(0) shouldBe VERSION
@@ -137,8 +140,9 @@ class FrameCodecTest :
 
             val enc = encoder(TYPE_DATA_MATCH)
             enc.writeOutbound(Unpooled.wrappedBuffer(payload))
-            val framed = enc.readOutbound<ByteBuf>()
-                ?: error("Encoder produced no output")
+            val framed =
+                enc.readOutbound<ByteBuf>()
+                    ?: error("Encoder produced no output")
 
             val allBytes = ByteArray(framed.readableBytes())
             framed.readBytes(allBytes)
@@ -152,8 +156,9 @@ class FrameCodecTest :
 
             // Feed remaining bytes
             dec.writeInbound(Unpooled.wrappedBuffer(allBytes, 4, allBytes.size - 4))
-            val decoded = dec.readInbound<ByteBuf>()
-                ?: error("Complete frame should decode")
+            val decoded =
+                dec.readInbound<ByteBuf>()
+                    ?: error("Complete frame should decode")
 
             val result = ByteArray(decoded.readableBytes())
             decoded.readBytes(result)
@@ -167,13 +172,15 @@ class FrameCodecTest :
 
             val enc = encoder(TYPE_DATA_MATCH)
             enc.writeOutbound(Unpooled.wrappedBuffer(payload))
-            val framed = enc.readOutbound<ByteBuf>()
-                ?: error("Encoder produced no output")
+            val framed =
+                enc.readOutbound<ByteBuf>()
+                    ?: error("Encoder produced no output")
 
             val dec = decoder()
             dec.writeInbound(framed)
-            val decoded = dec.readInbound<ByteBuf>()
-                ?: error("Decoder produced no output")
+            val decoded =
+                dec.readInbound<ByteBuf>()
+                    ?: error("Decoder produced no output")
 
             val result = ByteArray(decoded.readableBytes())
             decoded.readBytes(result)

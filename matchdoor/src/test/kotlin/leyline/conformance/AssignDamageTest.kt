@@ -35,16 +35,17 @@ class AssignDamageTest :
 
             h.connectAndKeepPuzzleText(
                 puzzleText,
-                aiScript = listOf(
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.Block(
-                        mapOf(
-                            "Grizzly Bears" to "Charging Monstrosaur",
-                            "Runeclaw Bear" to "Charging Monstrosaur",
+                aiScript =
+                    listOf(
+                        ScriptedAction.DeclareNoAttackers,
+                        ScriptedAction.Block(
+                            mapOf(
+                                "Grizzly Bears" to "Charging Monstrosaur",
+                                "Runeclaw Bear" to "Charging Monstrosaur",
+                            ),
                         ),
+                        ScriptedAction.PassPriority,
                     ),
-                    ScriptedAction.PassPriority,
-                ),
             )
 
             val creatures = h.humanBattlefieldCreatures()
@@ -52,9 +53,10 @@ class AssignDamageTest :
             val dreadmawIid = creatures.first().first
 
             // Pass to combat → DeclareAttackersReq
-            val found = h.passUntil(maxPasses = 5) {
-                allMessages.any { it.hasDeclareAttackersReq() }
-            }
+            val found =
+                h.passUntil(maxPasses = 5) {
+                    allMessages.any { it.hasDeclareAttackersReq() }
+                }
             found.shouldBeTrue()
 
             // Attack. After submit, engine processes AI blockers → COMBAT_DAMAGE →
@@ -92,9 +94,10 @@ class AssignDamageTest :
             }
 
             // Send back the pre-filled assignments (lethal to blockers + overflow to defender)
-            val responseAssignments = assigner.assignmentsList.map {
-                it.instanceId to it.assignedDamage
-            }
+            val responseAssignments =
+                assigner.assignmentsList.map {
+                    it.instanceId to it.assignedDamage
+                }
 
             val snap = h.messageSnapshot()
             h.assignDamage(listOf(assigner.instanceId to responseAssignments))
@@ -108,7 +111,8 @@ class AssignDamageTest :
         }
 
         test("single blocker does not trigger AssignDamageReq") {
-            val puzzleText = """
+            val puzzleText =
+                """
                 [metadata]
                 Name:Single Blocker No Prompt
                 Goal:Win
@@ -126,26 +130,28 @@ class AssignDamageTest :
                 humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 aibattlefield=Forest;Grizzly Bears
                 ailibrary=Forest;Forest;Forest;Forest;Forest
-            """.trimIndent()
+                """.trimIndent()
 
             val h = MatchFlowHarness(validating = false)
             harness = h
             h.connectAndKeepPuzzleText(
                 puzzleText,
-                aiScript = listOf(
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.Block(mapOf("Grizzly Bears" to "Raging Goblin")),
-                    ScriptedAction.PassPriority,
-                ),
+                aiScript =
+                    listOf(
+                        ScriptedAction.DeclareNoAttackers,
+                        ScriptedAction.Block(mapOf("Grizzly Bears" to "Raging Goblin")),
+                        ScriptedAction.PassPriority,
+                    ),
             )
 
             val creatures = h.humanBattlefieldCreatures()
             creatures.shouldNotBeEmpty()
             val attackerIid = creatures.first().first
 
-            val found = h.passUntil(maxPasses = 5) {
-                allMessages.any { it.hasDeclareAttackersReq() }
-            }
+            val found =
+                h.passUntil(maxPasses = 5) {
+                    allMessages.any { it.hasDeclareAttackersReq() }
+                }
             found.shouldBeTrue()
 
             h.declareAttackers(listOf(attackerIid))

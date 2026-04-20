@@ -1,8 +1,12 @@
 package leyline.frontdoor.domain
 
-@JvmInline value class DeckId(val value: String)
+@JvmInline value class DeckId(
+    val value: String,
+)
 
-@JvmInline value class PlayerId(val value: String)
+@JvmInline value class PlayerId(
+    val value: String,
+)
 
 enum class Format {
     Standard,
@@ -14,12 +18,14 @@ enum class Format {
     ;
 
     companion object {
-        fun fromString(s: String): Format =
-            entries.firstOrNull { it.name.equals(s, ignoreCase = true) } ?: Standard
+        fun fromString(s: String): Format = entries.firstOrNull { it.name.equals(s, ignoreCase = true) } ?: Standard
     }
 }
 
-data class DeckCard(val grpId: Int, val quantity: Int)
+data class DeckCard(
+    val grpId: Int,
+    val quantity: Int,
+)
 
 data class Deck(
     val id: DeckId,

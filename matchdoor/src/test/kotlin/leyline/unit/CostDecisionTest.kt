@@ -83,14 +83,15 @@ class CostDecisionTest :
                 player = player,
                 source = source,
                 ability = ability,
-                decision = CostDecision(
-                    controller,
-                    player,
-                    ability,
-                    false,
-                    localBridge.promptBridge(1),
-                    source,
-                ),
+                decision =
+                    CostDecision(
+                        controller,
+                        player,
+                        ability,
+                        false,
+                        localBridge.promptBridge(1),
+                        source,
+                    ),
             )
         }
 
@@ -101,15 +102,16 @@ class CostDecisionTest :
             max: Int,
             cancelAllowed: Boolean,
         ): CardCollection? {
-            val method = CostDecision::class.java.getDeclaredMethod(
-                "selectCards",
-                String::class.java,
-                CardCollectionView::class.java,
-                Int::class.javaPrimitiveType,
-                Int::class.javaPrimitiveType,
-                Boolean::class.javaPrimitiveType,
-                PromptSemantic::class.java,
-            )
+            val method =
+                CostDecision::class.java.getDeclaredMethod(
+                    "selectCards",
+                    String::class.java,
+                    CardCollectionView::class.java,
+                    Int::class.javaPrimitiveType,
+                    Int::class.javaPrimitiveType,
+                    Boolean::class.javaPrimitiveType,
+                    PromptSemantic::class.java,
+                )
             method.isAccessible = true
             @Suppress("UNCHECKED_CAST")
             return method.invoke(decision, "pick", cards, min, max, cancelAllowed, PromptSemantic.Generic) as? CardCollection
@@ -125,7 +127,9 @@ class CostDecisionTest :
             val fx = fixture()
             val cards = CardCollection(fx.source)
 
-            invokeSelectCards(fx.decision, cards, min = 1, max = 1, cancelAllowed = false)!!.map { it.name } shouldContainExactly listOf("Lightning Bolt")
+            invokeSelectCards(fx.decision, cards, min = 1, max = 1, cancelAllowed = false)!!.map {
+                it.name
+            } shouldContainExactly listOf("Lightning Bolt")
         }
 
         test("visit pay life returns numeric payment when confirm defaults yes") {

@@ -44,18 +44,31 @@ class PurePipelineTest :
 
         tags(UnitTag)
 
-        fun gameObject(instanceId: Int, grpId: Int, zoneId: Int, ownerSeatId: Int): GameObjectInfo = GameObjectInfo.newBuilder()
-            .setInstanceId(instanceId)
-            .setGrpId(grpId)
-            .setZoneId(zoneId)
-            .setOwnerSeatId(ownerSeatId)
-            .build()
+        fun gameObject(
+            instanceId: Int,
+            grpId: Int,
+            zoneId: Int,
+            ownerSeatId: Int,
+        ): GameObjectInfo =
+            GameObjectInfo
+                .newBuilder()
+                .setInstanceId(instanceId)
+                .setGrpId(grpId)
+                .setZoneId(zoneId)
+                .setOwnerSeatId(ownerSeatId)
+                .build()
 
-        fun zone(zoneId: Int, type: ZoneType, vararg objectInstanceIds: Int): ZoneInfo = ZoneInfo.newBuilder()
-            .setZoneId(zoneId)
-            .setType(type)
-            .also { b -> objectInstanceIds.forEach { b.addObjectInstanceIds(it) } }
-            .build()
+        fun zone(
+            zoneId: Int,
+            type: ZoneType,
+            vararg objectInstanceIds: Int,
+        ): ZoneInfo =
+            ZoneInfo
+                .newBuilder()
+                .setZoneId(zoneId)
+                .setType(type)
+                .also { b -> objectInstanceIds.forEach { b.addObjectInstanceIds(it) } }
+                .build()
 
         // -----------------------------------------------------------------------
         // Test 1: hand-to-battlefield — PlayLand
@@ -63,22 +76,24 @@ class PurePipelineTest :
 
         test("detectZoneTransfers finds hand-to-battlefield transfer") {
             val obj = gameObject(instanceId = 100, grpId = 12345, zoneId = ZoneIds.BATTLEFIELD, ownerSeatId = 1)
-            val zones = listOf(
-                zone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 100),
-                zone(ZoneIds.LIMBO, ZoneType.Limbo),
-            )
+            val zones =
+                listOf(
+                    zone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 100),
+                    zone(ZoneIds.LIMBO, ZoneType.Limbo),
+                )
             val events = listOf(GameEvent.LandPlayed(cardId = ForgeCardId(42), seatId = SeatId(1)))
             val previousZones = mapOf(100 to ZoneIds.P1_HAND)
 
-            val result = ZoneTransferDetector.detectZoneTransfers(
-                gameObjects = listOf(obj),
-                zones = zones,
-                events = events,
-                previousZones = previousZones,
-                forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
-                idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
-                idLookup = { fid -> InstanceId(fid.value + 1000) },
-            )
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = listOf(obj),
+                    zones = zones,
+                    events = events,
+                    previousZones = previousZones,
+                    forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                    idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                    idLookup = { fid -> InstanceId(fid.value + 1000) },
+                )
 
             result.transfers.size shouldBe 1
             val transfer = result.transfers[0]
@@ -96,22 +111,24 @@ class PurePipelineTest :
 
         test("detectZoneTransfers finds hand-to-stack cast") {
             val obj = gameObject(instanceId = 100, grpId = 12345, zoneId = ZoneIds.STACK, ownerSeatId = 1)
-            val zones = listOf(
-                zone(ZoneIds.STACK, ZoneType.Stack, 100),
-                zone(ZoneIds.LIMBO, ZoneType.Limbo),
-            )
+            val zones =
+                listOf(
+                    zone(ZoneIds.STACK, ZoneType.Stack, 100),
+                    zone(ZoneIds.LIMBO, ZoneType.Limbo),
+                )
             val events = listOf(GameEvent.SpellCast(cardId = ForgeCardId(42), seatId = SeatId(1)))
             val previousZones = mapOf(100 to ZoneIds.P1_HAND)
 
-            val result = ZoneTransferDetector.detectZoneTransfers(
-                gameObjects = listOf(obj),
-                zones = zones,
-                events = events,
-                previousZones = previousZones,
-                forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
-                idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
-                idLookup = { fid -> InstanceId(fid.value + 1000) },
-            )
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = listOf(obj),
+                    zones = zones,
+                    events = events,
+                    previousZones = previousZones,
+                    forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                    idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                    idLookup = { fid -> InstanceId(fid.value + 1000) },
+                )
 
             result.transfers.size shouldBe 1
             result.transfers[0].category shouldBe TransferCategory.CastSpell
@@ -123,22 +140,24 @@ class PurePipelineTest :
 
         test("detectZoneTransfers Resolve keeps same instanceId") {
             val obj = gameObject(instanceId = 100, grpId = 12345, zoneId = ZoneIds.BATTLEFIELD, ownerSeatId = 1)
-            val zones = listOf(
-                zone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 100),
-                zone(ZoneIds.LIMBO, ZoneType.Limbo),
-            )
+            val zones =
+                listOf(
+                    zone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 100),
+                    zone(ZoneIds.LIMBO, ZoneType.Limbo),
+                )
             val events = listOf(GameEvent.SpellResolved(cardId = ForgeCardId(42), hasFizzled = false))
             val previousZones = mapOf(100 to ZoneIds.STACK)
 
-            val result = ZoneTransferDetector.detectZoneTransfers(
-                gameObjects = listOf(obj),
-                zones = zones,
-                events = events,
-                previousZones = previousZones,
-                forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
-                idAllocator = { _ -> error("should not realloc for Resolve") },
-                idLookup = { fid -> InstanceId(fid.value + 1000) },
-            )
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = listOf(obj),
+                    zones = zones,
+                    events = events,
+                    previousZones = previousZones,
+                    forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                    idAllocator = { _ -> error("should not realloc for Resolve") },
+                    idLookup = { fid -> InstanceId(fid.value + 1000) },
+                )
 
             result.transfers.size shouldBe 1
             val transfer = result.transfers[0]
@@ -156,22 +175,24 @@ class PurePipelineTest :
 
         test("detectZoneTransfers battlefield-to-graveyard with CardDestroyed") {
             val obj = gameObject(instanceId = 100, grpId = 12345, zoneId = ZoneIds.P1_GRAVEYARD, ownerSeatId = 1)
-            val zones = listOf(
-                zone(ZoneIds.P1_GRAVEYARD, ZoneType.Graveyard, 100),
-                zone(ZoneIds.LIMBO, ZoneType.Limbo),
-            )
+            val zones =
+                listOf(
+                    zone(ZoneIds.P1_GRAVEYARD, ZoneType.Graveyard, 100),
+                    zone(ZoneIds.LIMBO, ZoneType.Limbo),
+                )
             val events = listOf(GameEvent.CardDestroyed(cardId = ForgeCardId(42), seatId = SeatId(1)))
             val previousZones = mapOf(100 to ZoneIds.BATTLEFIELD)
 
-            val result = ZoneTransferDetector.detectZoneTransfers(
-                gameObjects = listOf(obj),
-                zones = zones,
-                events = events,
-                previousZones = previousZones,
-                forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
-                idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
-                idLookup = { fid -> InstanceId(fid.value + 1000) },
-            )
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = listOf(obj),
+                    zones = zones,
+                    events = events,
+                    previousZones = previousZones,
+                    forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                    idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                    idLookup = { fid -> InstanceId(fid.value + 1000) },
+                )
 
             result.transfers.size shouldBe 1
             result.transfers[0].category shouldBe TransferCategory.Destroy
@@ -183,21 +204,23 @@ class PurePipelineTest :
 
         test("detectZoneTransfers returns empty when no zone change") {
             val obj = gameObject(instanceId = 100, grpId = 12345, zoneId = ZoneIds.BATTLEFIELD, ownerSeatId = 1)
-            val zones = listOf(
-                zone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 100),
-                zone(ZoneIds.LIMBO, ZoneType.Limbo),
-            )
+            val zones =
+                listOf(
+                    zone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 100),
+                    zone(ZoneIds.LIMBO, ZoneType.Limbo),
+                )
             val previousZones = mapOf(100 to ZoneIds.BATTLEFIELD)
 
-            val result = ZoneTransferDetector.detectZoneTransfers(
-                gameObjects = listOf(obj),
-                zones = zones,
-                events = emptyList(),
-                previousZones = previousZones,
-                forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
-                idAllocator = { _ -> error("should not realloc") },
-                idLookup = { fid -> InstanceId(fid.value + 1000) },
-            )
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = listOf(obj),
+                    zones = zones,
+                    events = emptyList(),
+                    previousZones = previousZones,
+                    forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                    idAllocator = { _ -> error("should not realloc") },
+                    idLookup = { fid -> InstanceId(fid.value + 1000) },
+                )
 
             result.transfers.shouldBeEmpty()
             result.retiredIds.shouldBeEmpty()
@@ -209,12 +232,13 @@ class PurePipelineTest :
 
         // Test 1: no damage events → empty result
         test("combatAnnotations returns empty when no damage events") {
-            val result = CombatAnnotations.combatAnnotations(
-                events = emptyList(),
-                idResolver = { fid -> InstanceId(fid.value + 1000) },
-                previousLifeTotals = emptyMap(),
-                currentLifeTotals = emptyMap(),
-            )
+            val result =
+                CombatAnnotations.combatAnnotations(
+                    events = emptyList(),
+                    idResolver = { fid -> InstanceId(fid.value + 1000) },
+                    previousLifeTotals = emptyMap(),
+                    currentLifeTotals = emptyMap(),
+                )
 
             result.annotations.shouldBeEmpty()
             result.hasCombatDamage shouldBe false
@@ -225,12 +249,13 @@ class PurePipelineTest :
         test("combatAnnotations produces DamageDealt for creature-to-creature") {
             val events = listOf(GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3))
 
-            val result = CombatAnnotations.combatAnnotations(
-                events = events,
-                idResolver = { fid -> InstanceId(fid.value + 1000) },
-                previousLifeTotals = emptyMap(),
-                currentLifeTotals = emptyMap(),
-            )
+            val result =
+                CombatAnnotations.combatAnnotations(
+                    events = events,
+                    idResolver = { fid -> InstanceId(fid.value + 1000) },
+                    previousLifeTotals = emptyMap(),
+                    currentLifeTotals = emptyMap(),
+                )
 
             result.hasCombatDamage shouldBe true
 
@@ -244,80 +269,96 @@ class PurePipelineTest :
         }
 
         test("combatAnnotations can keep pre-transfer battlefield ids for lethal combat") {
-            val events = listOf(
-                GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3),
-                GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(20), targetCardId = ForgeCardId(10), amount = 2),
-            )
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3),
+                    GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(20), targetCardId = ForgeCardId(10), amount = 2),
+                )
 
-            val result = CombatAnnotations.combatAnnotations(
-                events = events,
-                idResolver = { fid ->
-                    when (fid.value) {
-                        10 -> InstanceId(121)
-                        20 -> InstanceId(125)
-                        else -> InstanceId(fid.value + 1000)
-                    }
-                },
-                previousLifeTotals = emptyMap(),
-                currentLifeTotals = emptyMap(),
-            )
+            val result =
+                CombatAnnotations.combatAnnotations(
+                    events = events,
+                    idResolver = { fid ->
+                        when (fid.value) {
+                            10 -> InstanceId(121)
+                            20 -> InstanceId(125)
+                            else -> InstanceId(fid.value + 1000)
+                        }
+                    },
+                    previousLifeTotals = emptyMap(),
+                    currentLifeTotals = emptyMap(),
+                )
 
-            result.annotations.filter { it.getType(0) == AnnotationType.DamageDealt_af5a }
-                .map { it.affectorId to it.affectedIdsList.single() } shouldBe listOf(
-                121 to 125,
-                125 to 121,
-            )
+            result.annotations
+                .filter { it.getType(0) == AnnotationType.DamageDealt_af5a }
+                .map { it.affectorId to it.affectedIdsList.single() } shouldBe
+                listOf(
+                    121 to 125,
+                    125 to 121,
+                )
         }
 
         // Test 3: creature-to-player damage + life change → ModifiedLife for seat 2
         test("combatAnnotations produces ModifiedLife when life changes") {
-            val events = listOf(
-                GameEvent.DamageDealtToPlayer(sourceCardId = ForgeCardId(10), targetSeatId = SeatId(2), amount = 5, combat = true),
-            )
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToPlayer(sourceCardId = ForgeCardId(10), targetSeatId = SeatId(2), amount = 5, combat = true),
+                )
 
-            val result = CombatAnnotations.combatAnnotations(
-                events = events,
-                idResolver = { fid -> InstanceId(fid.value + 1000) },
-                previousLifeTotals = mapOf(1 to 20, 2 to 20),
-                currentLifeTotals = mapOf(1 to 20, 2 to 15),
-            )
+            val result =
+                CombatAnnotations.combatAnnotations(
+                    events = events,
+                    idResolver = { fid -> InstanceId(fid.value + 1000) },
+                    previousLifeTotals = mapOf(1 to 20, 2 to 20),
+                    currentLifeTotals = mapOf(1 to 20, 2 to 15),
+                )
 
             val lifeAnnotation = result.annotations.first { it.getType(0) == AnnotationType.ModifiedLife }
             lifeAnnotation.affectedIdsList shouldContain 2
         }
 
         test("assembleTransferAndCombatAnnotations defers lethal-damage destroy transfer until after DamageDealt") {
-            val transferResult = TransferResult(
-                transfers = listOf(
-                    AppliedTransfer(
-                        origId = 200,
-                        newId = 300,
-                        category = TransferCategory.Destroy,
-                        srcZoneId = ZoneIds.BATTLEFIELD,
-                        destZoneId = ZoneIds.P1_GRAVEYARD,
-                        forgeCardId = ForgeCardId(20),
-                        grpId = 12345,
-                        ownerSeatId = 1,
-                    ),
-                ),
-                patchedObjects = emptyList(),
-                patchedZones = emptyList(),
-                retiredIds = emptyList(),
-                zoneRecordings = emptyList(),
-            )
-            val combatResult = CombatAnnotations.combatAnnotations(
-                events = listOf(GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3)),
-                idResolver = { fid -> InstanceId(fid.value + 1000) },
-                previousLifeTotals = emptyMap(),
-                currentLifeTotals = emptyMap(),
-            )
+            val transferResult =
+                TransferResult(
+                    transfers =
+                        listOf(
+                            AppliedTransfer(
+                                origId = 200,
+                                newId = 300,
+                                category = TransferCategory.Destroy,
+                                srcZoneId = ZoneIds.BATTLEFIELD,
+                                destZoneId = ZoneIds.P1_GRAVEYARD,
+                                forgeCardId = ForgeCardId(20),
+                                grpId = 12345,
+                                ownerSeatId = 1,
+                            ),
+                        ),
+                    patchedObjects = emptyList(),
+                    patchedZones = emptyList(),
+                    retiredIds = emptyList(),
+                    zoneRecordings = emptyList(),
+                )
+            val combatResult =
+                CombatAnnotations.combatAnnotations(
+                    events =
+                        listOf(
+                            GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3),
+                        ),
+                    idResolver = { fid -> InstanceId(fid.value + 1000) },
+                    previousLifeTotals = emptyMap(),
+                    currentLifeTotals = emptyMap(),
+                )
 
-            val (annotations, _) = StateMapper.assembleTransferAndCombatAnnotations(
-                events = listOf(GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3)),
-                transferResult = transferResult,
-                actingSeat = 1,
-                combatResult = combatResult,
-            )
+            val (annotations, _) =
+                StateMapper.assembleTransferAndCombatAnnotations(
+                    events =
+                        listOf(
+                            GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3),
+                        ),
+                    transferResult = transferResult,
+                    actingSeat = 1,
+                    combatResult = combatResult,
+                )
 
             val types = annotations.map { it.getType(0) }
             val damageIdx = types.indexOf(AnnotationType.DamageDealt_af5a)
@@ -332,37 +373,47 @@ class PurePipelineTest :
         }
 
         test("assembleTransferAndCombatAnnotations keeps non-damage destroy transfer before combat block") {
-            val transferResult = TransferResult(
-                transfers = listOf(
-                    AppliedTransfer(
-                        origId = 200,
-                        newId = 300,
-                        category = TransferCategory.Destroy,
-                        srcZoneId = ZoneIds.BATTLEFIELD,
-                        destZoneId = ZoneIds.P1_GRAVEYARD,
-                        forgeCardId = ForgeCardId(20),
-                        grpId = 12345,
-                        ownerSeatId = 1,
-                    ),
-                ),
-                patchedObjects = emptyList(),
-                patchedZones = emptyList(),
-                retiredIds = emptyList(),
-                zoneRecordings = emptyList(),
-            )
-            val combatResult = CombatAnnotations.combatAnnotations(
-                events = listOf(GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(99), amount = 3)),
-                idResolver = { fid -> InstanceId(fid.value + 1000) },
-                previousLifeTotals = emptyMap(),
-                currentLifeTotals = emptyMap(),
-            )
+            val transferResult =
+                TransferResult(
+                    transfers =
+                        listOf(
+                            AppliedTransfer(
+                                origId = 200,
+                                newId = 300,
+                                category = TransferCategory.Destroy,
+                                srcZoneId = ZoneIds.BATTLEFIELD,
+                                destZoneId = ZoneIds.P1_GRAVEYARD,
+                                forgeCardId = ForgeCardId(20),
+                                grpId = 12345,
+                                ownerSeatId = 1,
+                            ),
+                        ),
+                    patchedObjects = emptyList(),
+                    patchedZones = emptyList(),
+                    retiredIds = emptyList(),
+                    zoneRecordings = emptyList(),
+                )
+            val combatResult =
+                CombatAnnotations.combatAnnotations(
+                    events =
+                        listOf(
+                            GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(99), amount = 3),
+                        ),
+                    idResolver = { fid -> InstanceId(fid.value + 1000) },
+                    previousLifeTotals = emptyMap(),
+                    currentLifeTotals = emptyMap(),
+                )
 
-            val (annotations, _) = StateMapper.assembleTransferAndCombatAnnotations(
-                events = listOf(GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(99), amount = 3)),
-                transferResult = transferResult,
-                actingSeat = 1,
-                combatResult = combatResult,
-            )
+            val (annotations, _) =
+                StateMapper.assembleTransferAndCombatAnnotations(
+                    events =
+                        listOf(
+                            GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(99), amount = 3),
+                        ),
+                    transferResult = transferResult,
+                    actingSeat = 1,
+                    combatResult = combatResult,
+                )
 
             val types = annotations.map { it.getType(0) }
             assertSoftly {
@@ -381,51 +432,57 @@ class PurePipelineTest :
             val newAttacker = bridge.reallocInstanceId(attackerFid).new.value
             val newBlocker = bridge.reallocInstanceId(blockerFid).new.value
 
-            val transferResult = TransferResult(
-                transfers = listOf(
-                    AppliedTransfer(
-                        origId = oldAttacker,
-                        newId = newAttacker,
-                        category = TransferCategory.Destroy,
-                        srcZoneId = ZoneIds.BATTLEFIELD,
-                        destZoneId = ZoneIds.P1_GRAVEYARD,
-                        forgeCardId = attackerFid,
-                        grpId = 111,
-                        ownerSeatId = 1,
-                    ),
-                    AppliedTransfer(
-                        origId = oldBlocker,
-                        newId = newBlocker,
-                        category = TransferCategory.Destroy,
-                        srcZoneId = ZoneIds.BATTLEFIELD,
-                        destZoneId = ZoneIds.P2_GRAVEYARD,
-                        forgeCardId = blockerFid,
-                        grpId = 222,
-                        ownerSeatId = 2,
-                    ),
-                ),
-                patchedObjects = emptyList(),
-                patchedZones = emptyList(),
-                retiredIds = emptyList(),
-                zoneRecordings = emptyList(),
-            )
-            val events = listOf(
-                GameEvent.DamageDealtToCard(sourceCardId = attackerFid, targetCardId = blockerFid, amount = 3),
-                GameEvent.DamageDealtToCard(sourceCardId = blockerFid, targetCardId = attackerFid, amount = 5),
-            )
+            val transferResult =
+                TransferResult(
+                    transfers =
+                        listOf(
+                            AppliedTransfer(
+                                origId = oldAttacker,
+                                newId = newAttacker,
+                                category = TransferCategory.Destroy,
+                                srcZoneId = ZoneIds.BATTLEFIELD,
+                                destZoneId = ZoneIds.P1_GRAVEYARD,
+                                forgeCardId = attackerFid,
+                                grpId = 111,
+                                ownerSeatId = 1,
+                            ),
+                            AppliedTransfer(
+                                origId = oldBlocker,
+                                newId = newBlocker,
+                                category = TransferCategory.Destroy,
+                                srcZoneId = ZoneIds.BATTLEFIELD,
+                                destZoneId = ZoneIds.P2_GRAVEYARD,
+                                forgeCardId = blockerFid,
+                                grpId = 222,
+                                ownerSeatId = 2,
+                            ),
+                        ),
+                    patchedObjects = emptyList(),
+                    patchedZones = emptyList(),
+                    retiredIds = emptyList(),
+                    zoneRecordings = emptyList(),
+                )
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToCard(sourceCardId = attackerFid, targetCardId = blockerFid, amount = 3),
+                    GameEvent.DamageDealtToCard(sourceCardId = blockerFid, targetCardId = attackerFid, amount = 5),
+                )
 
             val pipeline = StateMapper.computeAnnotations(events, transferResult, actingSeat = 1, bridge = bridge)
             val ordered = AnnotationOrderEnforcer.enforce(pipeline.annotations)
 
-            ordered.filter { it.getType(0) == AnnotationType.DamageDealt_af5a }
-                .map { it.affectorId to it.affectedIdsList.single() } shouldBe listOf(
-                oldAttacker to oldBlocker,
-                oldBlocker to oldAttacker,
-            )
+            ordered
+                .filter { it.getType(0) == AnnotationType.DamageDealt_af5a }
+                .map { it.affectorId to it.affectedIdsList.single() } shouldBe
+                listOf(
+                    oldAttacker to oldBlocker,
+                    oldBlocker to oldAttacker,
+                )
 
-            val damageIndices = ordered.mapIndexedNotNull { index, ann ->
-                if (ann.getType(0) == AnnotationType.DamageDealt_af5a) index else null
-            }
+            val damageIndices =
+                ordered.mapIndexedNotNull { index, ann ->
+                    if (ann.getType(0) == AnnotationType.DamageDealt_af5a) index else null
+                }
             val firstOicIdx = ordered.indexOfFirst { it.getType(0) == AnnotationType.ObjectIdChanged }
             assertSoftly {
                 damageIndices.first() shouldBe 0
@@ -433,23 +490,26 @@ class PurePipelineTest :
                 firstOicIdx shouldBeGreaterThan damageIndices.last()
             }
 
-            ordered.filter { it.getType(0) == AnnotationType.ObjectIdChanged }
-                .map { it.detailInt("orig_id") to it.detailInt("new_id") } shouldBe listOf(
-                oldAttacker to newAttacker,
-                oldBlocker to newBlocker,
-            )
+            ordered
+                .filter { it.getType(0) == AnnotationType.ObjectIdChanged }
+                .map { it.detailInt("orig_id") to it.detailInt("new_id") } shouldBe
+                listOf(
+                    oldAttacker to newAttacker,
+                    oldBlocker to newBlocker,
+                )
         }
 
         // Test 4: non-combat events only → empty result
         test("combatAnnotations returns empty for non-combat events only") {
             val events = listOf(GameEvent.LandPlayed(cardId = ForgeCardId(42), seatId = SeatId(1)))
 
-            val result = CombatAnnotations.combatAnnotations(
-                events = events,
-                idResolver = { fid -> InstanceId(fid.value + 1000) },
-                previousLifeTotals = emptyMap(),
-                currentLifeTotals = emptyMap(),
-            )
+            val result =
+                CombatAnnotations.combatAnnotations(
+                    events = events,
+                    idResolver = { fid -> InstanceId(fid.value + 1000) },
+                    previousLifeTotals = emptyMap(),
+                    currentLifeTotals = emptyMap(),
+                )
 
             result.annotations.shouldBeEmpty()
             result.hasCombatDamage shouldBe false
@@ -467,13 +527,18 @@ class PurePipelineTest :
         val abilityIid = 500
         val cardGrpId = 12345
 
-        fun abilityObject(instanceId: Int = abilityIid, grpId: Int = cardGrpId): GameObjectInfo = GameObjectInfo.newBuilder()
-            .setInstanceId(instanceId)
-            .setGrpId(grpId)
-            .setZoneId(ZoneIds.STACK)
-            .setOwnerSeatId(1)
-            .setType(GameObjectType.Ability)
-            .build()
+        fun abilityObject(
+            instanceId: Int = abilityIid,
+            grpId: Int = cardGrpId,
+        ): GameObjectInfo =
+            GameObjectInfo
+                .newBuilder()
+                .setInstanceId(instanceId)
+                .setGrpId(grpId)
+                .setZoneId(ZoneIds.STACK)
+                .setOwnerSeatId(1)
+                .setType(GameObjectType.Ability)
+                .build()
 
         /** Standard lookup: maps ability instanceId → ability forgeId, source instanceId → source forgeId. */
         val forgeIdLookup: (InstanceId) -> ForgeCardId? = { iid ->
@@ -496,22 +561,24 @@ class PurePipelineTest :
 
         test("detectZoneTransfers finds new stack ability appearance") {
             val obj = abilityObject()
-            val zones = listOf(
-                zone(ZoneIds.STACK, ZoneType.Stack, abilityIid),
-                zone(ZoneIds.LIMBO, ZoneType.Limbo),
-            )
+            val zones =
+                listOf(
+                    zone(ZoneIds.STACK, ZoneType.Stack, abilityIid),
+                    zone(ZoneIds.LIMBO, ZoneType.Limbo),
+                )
             // Source card is on the battlefield in previous state.
             val previousZones = mapOf(sourceCardIid to ZoneIds.BATTLEFIELD)
 
-            val result = ZoneTransferDetector.detectZoneTransfers(
-                gameObjects = listOf(obj),
-                zones = zones,
-                events = emptyList(),
-                previousZones = previousZones,
-                forgeIdLookup = forgeIdLookup,
-                idAllocator = noOpAllocator,
-                idLookup = idLookup,
-            )
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = listOf(obj),
+                    zones = zones,
+                    events = emptyList(),
+                    previousZones = previousZones,
+                    forgeIdLookup = forgeIdLookup,
+                    idAllocator = noOpAllocator,
+                    idLookup = idLookup,
+                )
 
             result.transfers.shouldBeEmpty()
             result.stackAbilityAppearances shouldHaveSize 1
@@ -530,16 +597,17 @@ class PurePipelineTest :
             val previousZones = mapOf(abilityIid to ZoneIds.STACK, sourceCardIid to ZoneIds.BATTLEFIELD)
             val events = listOf(GameEvent.SpellResolved(cardId = sourceForgeId, hasFizzled = false))
 
-            val result = ZoneTransferDetector.detectZoneTransfers(
-                gameObjects = emptyList(),
-                zones = zones,
-                events = events,
-                previousZones = previousZones,
-                forgeIdLookup = forgeIdLookup,
-                idAllocator = noOpAllocator,
-                idLookup = idLookup,
-                grpIdResolver = { fid -> if (fid == sourceForgeId) cardGrpId else 0 },
-            )
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = emptyList(),
+                    zones = zones,
+                    events = events,
+                    previousZones = previousZones,
+                    forgeIdLookup = forgeIdLookup,
+                    idAllocator = noOpAllocator,
+                    idLookup = idLookup,
+                    grpIdResolver = { fid -> if (fid == sourceForgeId) cardGrpId else 0 },
+                )
 
             result.stackAbilityDisappearances shouldHaveSize 1
             val d = result.stackAbilityDisappearances[0]
@@ -556,27 +624,29 @@ class PurePipelineTest :
             val previousZones = mapOf(abilityIid to ZoneIds.STACK, sourceCardIid to ZoneIds.BATTLEFIELD)
             val events = listOf(GameEvent.SpellResolved(cardId = sourceForgeId, hasFizzled = true))
 
-            val result = ZoneTransferDetector.detectZoneTransfers(
-                gameObjects = emptyList(),
-                zones = zones,
-                events = events,
-                previousZones = previousZones,
-                forgeIdLookup = forgeIdLookup,
-                idAllocator = noOpAllocator,
-                idLookup = idLookup,
-                grpIdResolver = { fid -> if (fid == sourceForgeId) cardGrpId else 0 },
-            )
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = emptyList(),
+                    zones = zones,
+                    events = events,
+                    previousZones = previousZones,
+                    forgeIdLookup = forgeIdLookup,
+                    idAllocator = noOpAllocator,
+                    idLookup = idLookup,
+                    grpIdResolver = { fid -> if (fid == sourceForgeId) cardGrpId else 0 },
+                )
 
             result.stackAbilityDisappearances shouldHaveSize 1
             result.stackAbilityDisappearances[0].hasFizzled shouldBe true
         }
 
         test("annotation shape for stack ability appearance") {
-            val ann = AnnotationBuilder.abilityInstanceCreated(
-                abilityInstanceId = abilityIid.iid,
-                affectorId = sourceCardIid.iid,
-                sourceZoneId = ZoneIds.BATTLEFIELD,
-            )
+            val ann =
+                AnnotationBuilder.abilityInstanceCreated(
+                    abilityInstanceId = abilityIid.iid,
+                    affectorId = sourceCardIid.iid,
+                    sourceZoneId = ZoneIds.BATTLEFIELD,
+                )
 
             assertSoftly {
                 ann.typeList shouldBe listOf(AnnotationType.AbilityInstanceCreated)
@@ -604,49 +674,55 @@ class PurePipelineTest :
 
         test("regular spell on stack does not produce StackAbilityAppearance") {
             // A Card (not Ability) object on the stack — e.g. a cast creature.
-            val spellObj = GameObjectInfo.newBuilder()
-                .setInstanceId(600)
-                .setGrpId(99999)
-                .setZoneId(ZoneIds.STACK)
-                .setOwnerSeatId(1)
-                .setType(GameObjectType.Card)
-                .build()
-            val zones = listOf(
-                zone(ZoneIds.STACK, ZoneType.Stack, 600),
-                zone(ZoneIds.LIMBO, ZoneType.Limbo),
-            )
+            val spellObj =
+                GameObjectInfo
+                    .newBuilder()
+                    .setInstanceId(600)
+                    .setGrpId(99999)
+                    .setZoneId(ZoneIds.STACK)
+                    .setOwnerSeatId(1)
+                    .setType(GameObjectType.Card)
+                    .build()
+            val zones =
+                listOf(
+                    zone(ZoneIds.STACK, ZoneType.Stack, 600),
+                    zone(ZoneIds.LIMBO, ZoneType.Limbo),
+                )
 
-            val result = ZoneTransferDetector.detectZoneTransfers(
-                gameObjects = listOf(spellObj),
-                zones = zones,
-                events = emptyList(),
-                previousZones = emptyMap(),
-                forgeIdLookup = { null },
-                idAllocator = noOpAllocator,
-                idLookup = { fid -> InstanceId(fid.value + 1000) },
-            )
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = listOf(spellObj),
+                    zones = zones,
+                    events = emptyList(),
+                    previousZones = emptyMap(),
+                    forgeIdLookup = { null },
+                    idAllocator = noOpAllocator,
+                    idLookup = { fid -> InstanceId(fid.value + 1000) },
+                )
 
             result.stackAbilityAppearances.shouldBeEmpty()
         }
 
         test("ability already on stack from previous diff is not re-detected") {
             val obj = abilityObject()
-            val zones = listOf(
-                zone(ZoneIds.STACK, ZoneType.Stack, abilityIid),
-                zone(ZoneIds.LIMBO, ZoneType.Limbo),
-            )
+            val zones =
+                listOf(
+                    zone(ZoneIds.STACK, ZoneType.Stack, abilityIid),
+                    zone(ZoneIds.LIMBO, ZoneType.Limbo),
+                )
             // Ability was already on the stack last diff.
             val previousZones = mapOf(abilityIid to ZoneIds.STACK, sourceCardIid to ZoneIds.BATTLEFIELD)
 
-            val result = ZoneTransferDetector.detectZoneTransfers(
-                gameObjects = listOf(obj),
-                zones = zones,
-                events = emptyList(),
-                previousZones = previousZones,
-                forgeIdLookup = forgeIdLookup,
-                idAllocator = noOpAllocator,
-                idLookup = idLookup,
-            )
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = listOf(obj),
+                    zones = zones,
+                    events = emptyList(),
+                    previousZones = previousZones,
+                    forgeIdLookup = forgeIdLookup,
+                    idAllocator = noOpAllocator,
+                    idLookup = idLookup,
+                )
 
             result.stackAbilityAppearances.shouldBeEmpty()
             result.stackAbilityDisappearances.shouldBeEmpty()

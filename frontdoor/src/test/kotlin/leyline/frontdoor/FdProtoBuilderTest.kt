@@ -15,7 +15,12 @@ class FdProtoBuilderTest :
             val any = UnknownFieldSet.parseFrom(bytes)
 
             // field 1 = type_url
-            val typeUrl = any.getField(1).lengthDelimitedList.first().toStringUtf8()
+            val typeUrl =
+                any
+                    .getField(1)
+                    .lengthDelimitedList
+                    .first()
+                    .toStringUtf8()
             typeUrl shouldBe "type.googleapis.com/Wizards.Arena.Models.Network.GetFormatsResponse"
 
             // field 2 = inner message bytes
@@ -32,7 +37,12 @@ class FdProtoBuilderTest :
             val bytes = FdProtoBuilder.buildSetsProto()
             val any = UnknownFieldSet.parseFrom(bytes)
 
-            val typeUrl = any.getField(1).lengthDelimitedList.first().toStringUtf8()
+            val typeUrl =
+                any
+                    .getField(1)
+                    .lengthDelimitedList
+                    .first()
+                    .toStringUtf8()
             typeUrl shouldBe "type.googleapis.com/Wizards.Arena.Models.Network.SetMetadataResponse"
 
             val inner = UnknownFieldSet.parseFrom(any.getField(2).lengthDelimitedList.first())

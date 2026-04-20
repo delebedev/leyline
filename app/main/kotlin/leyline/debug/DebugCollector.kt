@@ -32,7 +32,13 @@ class DebugCollector(
         val thread: String,
     )
 
-    internal fun recordLog(ts: Long, level: String, logger: String, message: String, thread: String) {
+    internal fun recordLog(
+        ts: Long,
+        level: String,
+        logger: String,
+        message: String,
+        thread: String,
+    ) {
         val entry: LogEntry
         synchronized(logBuffer) {
             logSeq++
@@ -89,11 +95,15 @@ class DebugEventBus {
     fun addListener(listener: (String, String) -> Unit) {
         listeners.add(listener)
     }
+
     fun removeListener(listener: (String, String) -> Unit) {
         listeners.remove(listener)
     }
 
-    fun emit(type: String, data: String) {
+    fun emit(
+        type: String,
+        data: String,
+    ) {
         for (l in listeners) {
             try {
                 l(type, data)

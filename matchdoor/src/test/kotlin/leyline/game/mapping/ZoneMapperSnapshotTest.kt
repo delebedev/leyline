@@ -16,17 +16,20 @@ class ZoneMapperSnapshotTest :
         tags(UnitTag)
 
         test("snapshot carries a hand zone with ordered card contents") {
-            val snap = GsmSnapshot.forTest(
-                zones = mapOf(
-                    ZoneIds.P1_HAND to ZoneSnapshot(
-                        id = ZoneIds.P1_HAND,
-                        type = ZoneType.Hand,
-                        owner = SeatId(1),
-                        visibility = Visibility.Private,
-                        contents = listOf(ForgeCardId(101), ForgeCardId(102), ForgeCardId(103)),
-                    ),
-                ),
-            )
+            val snap =
+                GsmSnapshot.forTest(
+                    zones =
+                        mapOf(
+                            ZoneIds.P1_HAND to
+                                ZoneSnapshot(
+                                    id = ZoneIds.P1_HAND,
+                                    type = ZoneType.Hand,
+                                    owner = SeatId(1),
+                                    visibility = Visibility.Private,
+                                    contents = listOf(ForgeCardId(101), ForgeCardId(102), ForgeCardId(103)),
+                                ),
+                        ),
+                )
             snap.zones[ZoneIds.P1_HAND]?.contents shouldBe listOf(ForgeCardId(101), ForgeCardId(102), ForgeCardId(103))
         }
 

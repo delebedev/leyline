@@ -21,16 +21,17 @@ class SearchReqTest :
         tags(UnitTag)
 
         test("buildSearchReq populates inner SearchReq fields") {
-            val msg = BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), "test-match", 1).buildSearchReq(
-                msgId = 42,
-                gsId = 10,
-                sourceInstanceId = 290,
-                libraryZoneId = 32,
-                allLibraryIds = listOf(100, 101, 102),
-                validTargetIds = listOf(100, 102),
-                maxFind = 1,
-                allowFailToFind = true,
-            )
+            val msg =
+                BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), "test-match", 1).buildSearchReq(
+                    msgId = 42,
+                    gsId = 10,
+                    sourceInstanceId = 290,
+                    libraryZoneId = 32,
+                    allLibraryIds = listOf(100, 101, 102),
+                    validTargetIds = listOf(100, 102),
+                    maxFind = 1,
+                    allowFailToFind = true,
+                )
 
             assertSoftly {
                 msg.type shouldBe GREMessageType.SearchReq_695e

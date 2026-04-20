@@ -18,7 +18,6 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * card/ability object construction.
  */
 object ZoneMapper {
-
     private val log = LoggerFactory.getLogger(ZoneMapper::class.java)
 
     /** Offset added to source card IDs for stack ability instance IDs. */
@@ -51,10 +50,14 @@ object ZoneMapper {
         val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId || revealHand
         val handVisibility = if (revealHand) Visibility.Public else Visibility.Private
         val cardVisibility = if (revealHand) Visibility.Public else Visibility.Private
-        val handBuilder = ZoneInfo.newBuilder()
-            .setZoneId(handZoneId).setType(ZoneType.Hand)
-            .setOwnerSeatId(seatId).setVisibility(handVisibility)
-            .addViewers(seatId)
+        val handBuilder =
+            ZoneInfo
+                .newBuilder()
+                .setZoneId(handZoneId)
+                .setType(ZoneType.Hand)
+                .setOwnerSeatId(seatId)
+                .setVisibility(handVisibility)
+                .addViewers(seatId)
         if (revealHand) handBuilder.addViewers(if (seatId == 1) 2 else 1)
         for (fid in snap.zones[handZoneId]?.contents ?: emptyList()) {
             val instanceId = bridge.getOrAllocInstanceId(fid).value
@@ -67,9 +70,13 @@ object ZoneMapper {
         zones.add(handBuilder.build())
 
         val revealLib = revealForSeat == seatId
-        val libBuilder = ZoneInfo.newBuilder()
-            .setZoneId(libZoneId).setType(ZoneType.Library)
-            .setOwnerSeatId(seatId).setVisibility(Visibility.Hidden)
+        val libBuilder =
+            ZoneInfo
+                .newBuilder()
+                .setZoneId(libZoneId)
+                .setType(ZoneType.Library)
+                .setOwnerSeatId(seatId)
+                .setVisibility(Visibility.Hidden)
         for (fid in snap.zones[libZoneId]?.contents ?: emptyList()) {
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             libBuilder.addObjectInstanceIds(instanceId)
@@ -81,9 +88,13 @@ object ZoneMapper {
         zones.add(libBuilder.build())
 
         if (gyZoneId != null) {
-            val gyBuilder = ZoneInfo.newBuilder()
-                .setZoneId(gyZoneId).setType(ZoneType.Graveyard)
-                .setOwnerSeatId(seatId).setVisibility(Visibility.Public)
+            val gyBuilder =
+                ZoneInfo
+                    .newBuilder()
+                    .setZoneId(gyZoneId)
+                    .setType(ZoneType.Graveyard)
+                    .setOwnerSeatId(seatId)
+                    .setVisibility(Visibility.Public)
             for (fid in snap.zones[gyZoneId]?.contents ?: emptyList()) {
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
                 gyBuilder.addObjectInstanceIds(instanceId)
@@ -110,10 +121,11 @@ object ZoneMapper {
         visibility: Visibility,
         zoneName: String,
     ): GameObjectInfo? {
-        val cardSnap = snap.objects[fid] ?: run {
-            log.warn("no snapshot for {} card {} — skipping game object", zoneName, fid)
-            return null
-        }
+        val cardSnap =
+            snap.objects[fid] ?: run {
+                log.warn("no snapshot for {} card {} — skipping game object", zoneName, fid)
+                return null
+            }
         return ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, seatId, bridge, visibility)
     }
 
@@ -149,10 +161,11 @@ object ZoneMapper {
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             zoneBuilder.addObjectInstanceIds(instanceId)
 
-            val cardSnap = snap.objects[fid] ?: run {
-                log.warn("no snapshot for shared card {} in zone {} — skipping game object", fid, arenaZoneId)
-                continue
-            }
+            val cardSnap =
+                snap.objects[fid] ?: run {
+                    log.warn("no snapshot for shared card {} in zone {} — skipping game object", fid, arenaZoneId)
+                    continue
+                }
             gameObjects.add(
                 ObjectMapper.buildFromSnapshot(cardSnap, instanceId, arenaZoneId, ownerSeatId, bridge, Visibility.Public, keywordSnapshot),
             )
@@ -187,9 +200,11 @@ object ZoneMapper {
             if (cardInstanceId in existingIds) continue
 
             // Use a separate instance ID for the ability on the stack
-            val abilityInstanceId = bridge.getOrAllocInstanceId(
-                ForgeCardId(entry.forgeCardId.value + STACK_ABILITY_ID_OFFSET),
-            ).value
+            val abilityInstanceId =
+                bridge
+                    .getOrAllocInstanceId(
+                        ForgeCardId(entry.forgeCardId.value + STACK_ABILITY_ID_OFFSET),
+                    ).value
             val grpId = entry.grpId.takeIf { it != 0 } ?: GameBridge.FALLBACK_GRPID
 
             zoneBuilder.addObjectInstanceIds(abilityInstanceId)
@@ -204,7 +219,10 @@ object ZoneMapper {
      * paths (populated [CardData.chapterAbilityGrpIds] vs positional fallback
      * via [CardData.abilityIds]).
      */
-    internal fun chapterGrpIdFromCardData(cardData: CardData, chapterIdx: Int): Int? {
+    internal fun chapterGrpIdFromCardData(
+        cardData: CardData,
+        chapterIdx: Int,
+    ): Int? {
         cardData.chapterAbilityGrpIds.getOrNull(chapterIdx - 1)?.let { return it }
         return cardData.abilityIds.getOrNull(chapterIdx - 1)?.first
     }
@@ -229,12 +247,23 @@ object ZoneMapper {
     ) {
         // Hand — empty, with viewer
         zones.add(
-            ZoneInfo.newBuilder().setZoneId(handZoneId).setType(ZoneType.Hand)
-                .setOwnerSeatId(seatId).setVisibility(Visibility.Private).addViewers(seatId).build(),
+            ZoneInfo
+                .newBuilder()
+                .setZoneId(handZoneId)
+                .setType(ZoneType.Hand)
+                .setOwnerSeatId(seatId)
+                .setVisibility(Visibility.Private)
+                .addViewers(seatId)
+                .build(),
         )
         // Library — all cards (hand + library combined = full deck, pre-deal)
-        val libBuilder = ZoneInfo.newBuilder().setZoneId(libZoneId).setType(ZoneType.Library)
-            .setOwnerSeatId(seatId).setVisibility(Visibility.Hidden)
+        val libBuilder =
+            ZoneInfo
+                .newBuilder()
+                .setZoneId(libZoneId)
+                .setType(ZoneType.Library)
+                .setOwnerSeatId(seatId)
+                .setVisibility(Visibility.Hidden)
         for (fid in snap.zones[libZoneId]?.contents ?: emptyList()) {
             libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(fid).value)
         }
@@ -246,16 +275,28 @@ object ZoneMapper {
         zones.add(makeZone(gyZoneId, ZoneType.Graveyard, seatId, Visibility.Public))
         // Sideboard — empty, with viewer
         zones.add(
-            ZoneInfo.newBuilder().setZoneId(sbZoneId).setType(ZoneType.Sideboard)
-                .setOwnerSeatId(seatId).setVisibility(Visibility.Private).addViewers(seatId).build(),
+            ZoneInfo
+                .newBuilder()
+                .setZoneId(sbZoneId)
+                .setType(ZoneType.Sideboard)
+                .setOwnerSeatId(seatId)
+                .setVisibility(Visibility.Private)
+                .addViewers(seatId)
+                .build(),
         )
     }
 
     // --- Helpers ---
 
     /** Build a basic ZoneInfo with no cards. */
-    internal fun makeZone(zoneId: Int, type: ZoneType, ownerSeatId: Int, visibility: Visibility): ZoneInfo =
-        ZoneInfo.newBuilder()
+    internal fun makeZone(
+        zoneId: Int,
+        type: ZoneType,
+        ownerSeatId: Int,
+        visibility: Visibility,
+    ): ZoneInfo =
+        ZoneInfo
+            .newBuilder()
             .setZoneId(zoneId)
             .setType(type)
             .setOwnerSeatId(ownerSeatId)
@@ -263,8 +304,13 @@ object ZoneMapper {
             .build()
 
     /** Private zone with viewers=[ownerSeatId] (hand, sideboard). */
-    internal fun makePrivateZone(zoneId: Int, type: ZoneType, ownerSeatId: Int): ZoneInfo =
-        ZoneInfo.newBuilder()
+    internal fun makePrivateZone(
+        zoneId: Int,
+        type: ZoneType,
+        ownerSeatId: Int,
+    ): ZoneInfo =
+        ZoneInfo
+            .newBuilder()
             .setZoneId(zoneId)
             .setType(type)
             .setOwnerSeatId(ownerSeatId)
@@ -273,9 +319,10 @@ object ZoneMapper {
             .build()
 
     /** Returns the hand zone ID of the opponent, or 0 if viewingSeatId is 0 (no filtering). */
-    internal fun opponentHandZone(viewingSeatId: Int): Int = when (viewingSeatId) {
-        1 -> ZoneIds.P2_HAND
-        2 -> ZoneIds.P1_HAND
-        else -> 0
-    }
+    internal fun opponentHandZone(viewingSeatId: Int): Int =
+        when (viewingSeatId) {
+            1 -> ZoneIds.P2_HAND
+            2 -> ZoneIds.P1_HAND
+            else -> 0
+        }
 }

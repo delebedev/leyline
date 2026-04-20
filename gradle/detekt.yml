@@ -28,7 +28,7 @@ style:
   ReturnCount:
     max: 8
   MaxLineLength:
-    maxLineLength: 160
+    maxLineLength: 140
   ForbiddenComment:
     active: false
   UnusedPrivateMember:

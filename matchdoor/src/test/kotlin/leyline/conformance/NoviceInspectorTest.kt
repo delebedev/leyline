@@ -62,7 +62,8 @@ class NoviceInspectorTest :
             )
         }
 
-        val puzzleText = """
+        val puzzleText =
+            """
             [metadata]
             Name:Novice Inspector Investigate
             Goal:PlaySpecifiedPermanent
@@ -81,7 +82,7 @@ class NoviceInspectorTest :
             humanlibrary=Forest;Forest;Forest;Forest;Forest
             aibattlefield=Runeclaw Bear
             ailibrary=Mountain;Mountain;Mountain
-        """.trimIndent()
+            """.trimIndent()
 
         test("cast → ETB creates Clue token → sac Clue draws card") {
             val h = MatchFlowHarness(seed = 42L, validating = false)
@@ -92,10 +93,14 @@ class NoviceInspectorTest :
             h.castSpellByName("Novice Inspector").shouldBeTrue()
 
             // 2. Pass until Clue token appears (spell resolve + ETB trigger resolve)
-            h.passUntil(maxPasses = 15) {
-                human.getZone(ZoneType.Battlefield).cards.toList()
-                    .any { it.name.contains("Clue", ignoreCase = true) }
-            }.shouldBeTrue()
+            h
+                .passUntil(maxPasses = 15) {
+                    human
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .toList()
+                        .any { it.name.contains("Clue", ignoreCase = true) }
+                }.shouldBeTrue()
 
             val bfCards = human.getZone(ZoneType.Battlefield).cards.toList()
             bfCards.map { it.name } shouldContain "Novice Inspector"
@@ -110,20 +115,37 @@ class NoviceInspectorTest :
             clueData!!.abilityIds.any { it.first == 152 }.shouldBeTrue()
 
             // 3. Activate Clue — {2}, sacrifice: draw a card
-            val libBefore = human.getZone(ZoneType.Library).cards.toList().size
+            val libBefore =
+                human
+                    .getZone(ZoneType.Library)
+                    .cards
+                    .toList()
+                    .size
             h.activateAbility(clueCard.name).shouldBeTrue()
 
             // 4. Pass until Clue is gone (cost paid + ability resolves)
-            h.passUntil(maxPasses = 15) {
-                human.getZone(ZoneType.Battlefield).cards.toList()
-                    .none { it.name.contains("Clue", ignoreCase = true) }
-            }.shouldBeTrue()
+            h
+                .passUntil(maxPasses = 15) {
+                    human
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .toList()
+                        .none { it.name.contains("Clue", ignoreCase = true) }
+                }.shouldBeTrue()
 
             // Clue sacrificed — no longer on battlefield
-            human.getZone(ZoneType.Battlefield).cards.toList()
-                .none { it.name.contains("Clue", ignoreCase = true) }.shouldBeTrue()
+            human
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .toList()
+                .none { it.name.contains("Clue", ignoreCase = true) }
+                .shouldBeTrue()
 
             // Draw happened — library shrank by 1
-            human.getZone(ZoneType.Library).cards.toList().size shouldBe libBefore - 1
+            human
+                .getZone(ZoneType.Library)
+                .cards
+                .toList()
+                .size shouldBe libBefore - 1
         }
     })

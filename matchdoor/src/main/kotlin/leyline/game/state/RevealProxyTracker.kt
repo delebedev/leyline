@@ -21,7 +21,10 @@ class RevealProxyTracker {
 
     fun lookup(forgeCardId: ForgeCardId): InstanceId? = proxies[forgeCardId]
 
-    fun allocate(forgeCardId: ForgeCardId, id: InstanceId) {
+    fun allocate(
+        forgeCardId: ForgeCardId,
+        id: InstanceId,
+    ) {
         proxies[forgeCardId] = id
     }
 

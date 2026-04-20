@@ -31,12 +31,13 @@ class GameActionBridgeTest :
             val ready = CountDownLatch(1)
 
             // Simulate engine thread blocking on awaitAction
-            val engineThread = Thread {
-                ready.countDown()
-                bridge.awaitAction(
-                    PendingActionState(phase = "Main1", turn = 1, activePlayerId = 1, priorityPlayerId = 1),
-                )
-            }
+            val engineThread =
+                Thread {
+                    ready.countDown()
+                    bridge.awaitAction(
+                        PendingActionState(phase = "Main1", turn = 1, activePlayerId = 1, priorityPlayerId = 1),
+                    )
+                }
             engineThread.isDaemon = true
             engineThread.start()
             ready.await(2, TimeUnit.SECONDS)
@@ -56,12 +57,13 @@ class GameActionBridgeTest :
             val bridge = GameActionBridge(timeoutMs = 5000)
             val ready = CountDownLatch(1)
 
-            val engineThread = Thread {
-                ready.countDown()
-                bridge.awaitAction(
-                    PendingActionState(phase = "Main1", turn = 1, activePlayerId = 1, priorityPlayerId = 1),
-                )
-            }
+            val engineThread =
+                Thread {
+                    ready.countDown()
+                    bridge.awaitAction(
+                        PendingActionState(phase = "Main1", turn = 1, activePlayerId = 1, priorityPlayerId = 1),
+                    )
+                }
             engineThread.isDaemon = true
             engineThread.start()
             ready.await(2, TimeUnit.SECONDS)

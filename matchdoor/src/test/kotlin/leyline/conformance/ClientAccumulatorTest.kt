@@ -16,16 +16,16 @@ class ClientAccumulatorTest :
         test("fullStateReplacesAllObjects") {
             val acc = ClientAccumulator()
 
-            val gs = GameStateMessage.newBuilder()
-                .setType(GameStateType.Full)
-                .setGameStateId(1)
-                .addGameObjects(
-                    GameObjectInfo.newBuilder().setInstanceId(100).setType(GameObjectType.Card),
-                )
-                .addGameObjects(
-                    GameObjectInfo.newBuilder().setInstanceId(101).setType(GameObjectType.Card),
-                )
-                .build()
+            val gs =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Full)
+                    .setGameStateId(1)
+                    .addGameObjects(
+                        GameObjectInfo.newBuilder().setInstanceId(100).setType(GameObjectType.Card),
+                    ).addGameObjects(
+                        GameObjectInfo.newBuilder().setInstanceId(101).setType(GameObjectType.Card),
+                    ).build()
             acc.process(greMessage(msgId = 1, gsm = gs))
 
             assertSoftly {
@@ -39,22 +39,24 @@ class ClientAccumulatorTest :
         test("diffMergesIntoExistingState") {
             val acc = ClientAccumulator()
 
-            val full = GameStateMessage.newBuilder()
-                .setType(GameStateType.Full)
-                .setGameStateId(1)
-                .addGameObjects(
-                    GameObjectInfo.newBuilder().setInstanceId(100).setType(GameObjectType.Card),
-                )
-                .build()
+            val full =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Full)
+                    .setGameStateId(1)
+                    .addGameObjects(
+                        GameObjectInfo.newBuilder().setInstanceId(100).setType(GameObjectType.Card),
+                    ).build()
             acc.process(greMessage(msgId = 1, gsm = full))
 
-            val diff = GameStateMessage.newBuilder()
-                .setType(GameStateType.Diff)
-                .setGameStateId(2)
-                .addGameObjects(
-                    GameObjectInfo.newBuilder().setInstanceId(101).setType(GameObjectType.Card),
-                )
-                .build()
+            val diff =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Diff)
+                    .setGameStateId(2)
+                    .addGameObjects(
+                        GameObjectInfo.newBuilder().setInstanceId(101).setType(GameObjectType.Card),
+                    ).build()
             acc.process(greMessage(msgId = 2, gsm = diff))
 
             assertSoftly {
@@ -68,22 +70,24 @@ class ClientAccumulatorTest :
         test("fullStateResetsObjects") {
             val acc = ClientAccumulator()
 
-            val full1 = GameStateMessage.newBuilder()
-                .setType(GameStateType.Full)
-                .setGameStateId(1)
-                .addGameObjects(
-                    GameObjectInfo.newBuilder().setInstanceId(100).setType(GameObjectType.Card),
-                )
-                .build()
+            val full1 =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Full)
+                    .setGameStateId(1)
+                    .addGameObjects(
+                        GameObjectInfo.newBuilder().setInstanceId(100).setType(GameObjectType.Card),
+                    ).build()
             acc.process(greMessage(msgId = 1, gsm = full1))
 
-            val full2 = GameStateMessage.newBuilder()
-                .setType(GameStateType.Full)
-                .setGameStateId(2)
-                .addGameObjects(
-                    GameObjectInfo.newBuilder().setInstanceId(200).setType(GameObjectType.Card),
-                )
-                .build()
+            val full2 =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Full)
+                    .setGameStateId(2)
+                    .addGameObjects(
+                        GameObjectInfo.newBuilder().setInstanceId(200).setType(GameObjectType.Card),
+                    ).build()
             acc.process(greMessage(msgId = 2, gsm = full2))
 
             assertSoftly {
@@ -96,18 +100,25 @@ class ClientAccumulatorTest :
         test("zonesTrackedFromState") {
             val acc = ClientAccumulator()
 
-            val gs = GameStateMessage.newBuilder()
-                .setType(GameStateType.Full)
-                .setGameStateId(1)
-                .addZones(
-                    ZoneInfo.newBuilder().setZoneId(10).setType(ZoneType.Hand)
-                        .addObjectInstanceIds(100).addObjectInstanceIds(101),
-                )
-                .addZones(
-                    ZoneInfo.newBuilder().setZoneId(20).setType(ZoneType.Library)
-                        .addObjectInstanceIds(200),
-                )
-                .build()
+            val gs =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Full)
+                    .setGameStateId(1)
+                    .addZones(
+                        ZoneInfo
+                            .newBuilder()
+                            .setZoneId(10)
+                            .setType(ZoneType.Hand)
+                            .addObjectInstanceIds(100)
+                            .addObjectInstanceIds(101),
+                    ).addZones(
+                        ZoneInfo
+                            .newBuilder()
+                            .setZoneId(20)
+                            .setType(ZoneType.Library)
+                            .addObjectInstanceIds(200),
+                    ).build()
             acc.process(greMessage(msgId = 1, gsm = gs))
 
             acc.zones.size shouldBe 2
@@ -117,13 +128,21 @@ class ClientAccumulatorTest :
         test("gsIdMonotonicInvariant") {
             val acc = ClientAccumulator()
 
-            val gs1 = GameStateMessage.newBuilder()
-                .setType(GameStateType.Full).setGameStateId(5).build()
+            val gs1 =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Full)
+                    .setGameStateId(5)
+                    .build()
             acc.process(greMessage(msgId = 1, gsm = gs1))
             acc.latestGsId shouldBe 5
 
-            val gs2 = GameStateMessage.newBuilder()
-                .setType(GameStateType.Diff).setGameStateId(3).build()
+            val gs2 =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Diff)
+                    .setGameStateId(3)
+                    .build()
             acc.process(greMessage(msgId = 2, gsm = gs2))
 
             acc.latestGsId shouldBe 5
@@ -135,7 +154,8 @@ class ClientAccumulatorTest :
             acc.process(
                 actionsMessage(msgId = 1, gsId = 1) {
                     addActions(
-                        Action.newBuilder()
+                        Action
+                            .newBuilder()
                             .setActionType(ActionType.Play_add3)
                             .setInstanceId(100),
                     )
@@ -150,13 +170,14 @@ class ClientAccumulatorTest :
             val acc = ClientAccumulator()
 
             // Full state with object 100 only
-            val gs = GameStateMessage.newBuilder()
-                .setType(GameStateType.Full)
-                .setGameStateId(1)
-                .addGameObjects(
-                    GameObjectInfo.newBuilder().setInstanceId(100).setType(GameObjectType.Card),
-                )
-                .build()
+            val gs =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Full)
+                    .setGameStateId(1)
+                    .addGameObjects(
+                        GameObjectInfo.newBuilder().setInstanceId(100).setType(GameObjectType.Card),
+                    ).build()
             acc.process(greMessage(msgId = 1, gsm = gs))
 
             // Actions referencing iid 100 (exists) and 200 (missing)

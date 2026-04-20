@@ -55,14 +55,15 @@ class CostPaymentCoordinator(
         if (options.isEmpty()) return emptyMap()
 
         val keyword = if (artifacts) "improvise" else "convoke"
-        val request = PromptRequest(
-            promptType = "choose_cards",
-            message = "Choose cards to tap for $keyword",
-            options = options,
-            min = 0,
-            max = options.size.coerceAtMost(maxReduction ?: options.size),
-            defaultIndex = 0,
-        )
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = "Choose cards to tap for $keyword",
+                options = options,
+                min = 0,
+                max = options.size.coerceAtMost(maxReduction ?: options.size),
+                defaultIndex = 0,
+            )
         val indices = bridge.requestChoice(request)
         if (indices.isEmpty()) return emptyMap()
 
@@ -115,14 +116,15 @@ class CostPaymentCoordinator(
      * routes through `ClientGuiGame.getInteger`.
      */
     fun chooseKeywordCostBinary(prompt: String): Int {
-        val request = PromptRequest(
-            promptType = "confirm",
-            message = prompt,
-            options = listOf("Yes", "No"),
-            min = 1,
-            max = 1,
-            defaultIndex = 0,
-        )
+        val request =
+            PromptRequest(
+                promptType = "confirm",
+                message = prompt,
+                options = listOf("Yes", "No"),
+                min = 1,
+                max = 1,
+                defaultIndex = 0,
+            )
         val indices = bridge.requestChoice(request)
         return if (indices.firstOrNull() == 0) 1 else 0
     }
@@ -163,16 +165,20 @@ class CostPaymentCoordinator(
      * pass `false` through to `super.payCostToPreventEffect` for non-PayLife
      * costs (echo, cumulative upkeep) — those paths are not our concern here.
      */
-    fun payShockLand(lifePart: CostPayLife, sa: SpellAbility): Boolean {
+    fun payShockLand(
+        lifePart: CostPayLife,
+        sa: SpellAbility,
+    ): Boolean {
         val amount = lifePart.getAbilityAmount(sa)
         val hostCard = sa.hostCard
         log.info("payCostToPreventEffect: shock land PayLife<{}> for {}", amount, hostCard?.name)
         // Decline on timeout — land enters tapped, which is the safe outcome.
-        val accepted = optionalActionGate.await(
-            hostCard = hostCard,
-            defaultOnTimeout = false,
-            logContext = "payCostToPreventEffect",
-        )
+        val accepted =
+            optionalActionGate.await(
+                hostCard = hostCard,
+                defaultOnTimeout = false,
+                logContext = "payCostToPreventEffect",
+            )
         if (accepted) player.payLife(amount, sa, true)
         return accepted
     }
@@ -194,7 +200,6 @@ class CostPaymentCoordinator(
 
     companion object {
         /** Drain the optional cost stash from [bridge]'s journal, or null if none recorded. */
-        fun consumeStashFor(bridge: InteractivePromptBridge): List<Int>? =
-            bridge.journal.consumeOptionalCostStash()
+        fun consumeStashFor(bridge: InteractivePromptBridge): List<Int>? = bridge.journal.consumeOptionalCostStash()
     }
 }

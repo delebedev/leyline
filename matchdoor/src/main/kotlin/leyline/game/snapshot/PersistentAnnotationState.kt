@@ -18,10 +18,11 @@ data class PersistentAnnotationState(
     val nextPersistentId: Int,
 ) {
     companion object {
-        val INITIAL: PersistentAnnotationState = PersistentAnnotationState(
-            activeAnnotations = emptyMap(),
-            nextAnnotationId = 50,
-            nextPersistentId = 1,
-        )
+        val INITIAL: PersistentAnnotationState =
+            PersistentAnnotationState(
+                activeAnnotations = emptyMap(),
+                nextAnnotationId = 50,
+                nextPersistentId = 1,
+            )
     }
 }

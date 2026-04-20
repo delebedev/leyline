@@ -37,7 +37,10 @@ class ActionPerformer(
      *
      * Caller resolves [ctx]; this method does not re-resolve.
      */
-    fun perform(ctx: SessionContext, greMsg: ClientToGREMessage) {
+    fun perform(
+        ctx: SessionContext,
+        greMsg: ClientToGREMessage,
+    ) {
         val bridge = ctx.bridge
         val seatBridge = bridge.seat(counters.seatId.value)
         log.info("ActionPerformer: perform enter gsId={} (current={})", greMsg.gameStateId, counters.counter.currentGsId())
@@ -49,11 +52,12 @@ class ActionPerformer(
             return
         }
 
-        val pending = seatBridge.action.getPending() ?: run {
-            log.warn("ActionPerformer: PerformActionResp but no pending action — resyncing current state")
-            sink.sendRealGameState(bridge)
-            return
-        }
+        val pending =
+            seatBridge.action.getPending() ?: run {
+                log.warn("ActionPerformer: PerformActionResp but no pending action — resyncing current state")
+                sink.sendRealGameState(bridge)
+                return
+            }
 
         // Track autoPassPriority from PerformActionResp (full control / auto-pass OK)
         val autoPassPriority = greMsg.performActionResp.autoPassPriority
@@ -79,17 +83,19 @@ class ActionPerformer(
 
         // ActivateMana excluded: mana abilities don't use the stack (MTG 605.3),
         // so they don't reach handlePostCastPrompt or the post-stack-resolution check.
-        val isCastOrActivate = action.actionType == ActionType.Cast ||
-            action.actionType == ActionType.Activate_add3 ||
-            action.actionType == ActionType.CastAdventure
+        val isCastOrActivate =
+            action.actionType == ActionType.Cast ||
+                action.actionType == ActionType.Activate_add3 ||
+                action.actionType == ActionType.CastAdventure
         val game = ctx.game
         val stackWasNonEmpty = !game.stack.isEmpty
         val actionName = action.actionType.name.removeSuffix("_add3")
-        val cardName = if (action.instanceId != 0) {
-            bridge.cardRepository.findNameByGrpId(action.grpId)?.let { " ($it)" } ?: ""
-        } else {
-            ""
-        }
+        val cardName =
+            if (action.instanceId != 0) {
+                bridge.cardRepository.findNameByGrpId(action.grpId)?.let { " ($it)" } ?: ""
+            } else {
+                ""
+            }
         tracer.traceEvent(MatchEventType.CLIENT_ACTION, game, "$actionName iid=${action.instanceId}$cardName")
 
         when (action.actionType) {
@@ -98,11 +104,12 @@ class ActionPerformer(
             }
             ActionType.Play_add3 -> {
                 val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                val submitted = if (cardId != null) {
-                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PlayLand(cardId))
-                } else {
-                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
-                }
+                val submitted =
+                    if (cardId != null) {
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.PlayLand(cardId))
+                    } else {
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
+                    }
                 Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             ActionType.Cast -> {
@@ -114,61 +121,66 @@ class ActionPerformer(
                     // Don't submit to engine yet — wait for CastingTimeOptionsResp
                 } else {
                     val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                    val submitted = if (cardId != null) {
-                        seatBridge.action.submitAction(pending.actionId, PlayerAction.CastSpell(cardId))
-                    } else {
-                        seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
-                    }
+                    val submitted =
+                        if (cardId != null) {
+                            seatBridge.action.submitAction(pending.actionId, PlayerAction.CastSpell(cardId))
+                        } else {
+                            seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
+                        }
                     Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
                 }
             }
             ActionType.Activate_add3 -> {
                 val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
                 val abilityIndex = resolveAbilityIndex(action, bridge)
-                val submitted = if (cardId != null) {
-                    seatBridge.action.submitAction(
-                        pending.actionId,
-                        PlayerAction.ActivateAbility(cardId, abilityIndex),
-                    )
-                } else {
-                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
-                }
+                val submitted =
+                    if (cardId != null) {
+                        seatBridge.action.submitAction(
+                            pending.actionId,
+                            PlayerAction.ActivateAbility(cardId, abilityIndex),
+                        )
+                    } else {
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
+                    }
                 Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             ActionType.ActivateMana -> {
                 val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                val submitted = if (cardId != null) {
-                    seatBridge.action.submitAction(
-                        pending.actionId,
-                        PlayerAction.ActivateMana(cardId),
-                    )
-                } else {
-                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
-                }
+                val submitted =
+                    if (cardId != null) {
+                        seatBridge.action.submitAction(
+                            pending.actionId,
+                            PlayerAction.ActivateMana(cardId),
+                        )
+                    } else {
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
+                    }
                 Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             ActionType.CastAdventure -> {
                 val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                val submitted = if (cardId != null) {
-                    val card = findCard(game, cardId)
-                    val player = bridge.getPlayer(counters.seatId)
-                    val adventureIndex = if (card != null && player != null) {
-                        getAllCastableAbilities(card, player)
-                            .indexOfFirst { it.isAdventure }
-                            .takeIf { it >= 0 }
+                val submitted =
+                    if (cardId != null) {
+                        val card = findCard(game, cardId)
+                        val player = bridge.getPlayer(counters.seatId)
+                        val adventureIndex =
+                            if (card != null && player != null) {
+                                getAllCastableAbilities(card, player)
+                                    .indexOfFirst { it.isAdventure }
+                                    .takeIf { it >= 0 }
+                            } else {
+                                null
+                            }
+                        if (adventureIndex == null) {
+                            log.warn("CastAdventure: no adventure SA found for card={} iid={}", card?.name, action.instanceId)
+                        }
+                        seatBridge.action.submitAction(
+                            pending.actionId,
+                            PlayerAction.CastSpell(cardId, adventureIndex),
+                        )
                     } else {
-                        null
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                     }
-                    if (adventureIndex == null) {
-                        log.warn("CastAdventure: no adventure SA found for card={} iid={}", card?.name, action.instanceId)
-                    }
-                    seatBridge.action.submitAction(
-                        pending.actionId,
-                        PlayerAction.CastSpell(cardId, adventureIndex),
-                    )
-                } else {
-                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
-                }
                 Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             else -> {
@@ -219,24 +231,28 @@ class ActionPerformer(
      * Resolve abilityIndex from `action.abilityGrpId` using the AbilityRegistry's
      * SlotLayout. Falls back to 0 when any lookup step fails.
      */
-    private fun resolveAbilityIndex(action: Action, bridge: GameBridge): Int {
+    private fun resolveAbilityIndex(
+        action: Action,
+        bridge: GameBridge,
+    ): Int {
         val abilityGrpId = action.abilityGrpId
         if (abilityGrpId == 0) return 0
 
         // Resolve grpId: prefer action.grpId, fall back to instanceId lookup
         // (hand-zone Activate_add3 actions omit grpId to match client wire)
-        val grpId = if (action.grpId != 0) {
-            action.grpId
-        } else {
-            val forgeId = bridge.getForgeCardId(InstanceId(action.instanceId))
-            val game = bridge.getGame()
-            val card = if (forgeId != null && game != null) findCard(game, forgeId) else null
-            if (card != null) {
-                bridge.resolveGrpId(card, action.instanceId)
+        val grpId =
+            if (action.grpId != 0) {
+                action.grpId
             } else {
-                return 0
+                val forgeId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val game = bridge.getGame()
+                val card = if (forgeId != null && game != null) findCard(game, forgeId) else null
+                if (card != null) {
+                    bridge.resolveGrpId(card, action.instanceId)
+                } else {
+                    return 0
+                }
             }
-        }
         val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return 0
         val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return 0
         val game = bridge.getGame() ?: return 0

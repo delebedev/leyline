@@ -28,9 +28,10 @@ data class MatchConfig(
     companion object {
         private val log = LoggerFactory.getLogger(MatchConfig::class.java)
 
-        private val toml = Toml {
-            ignoreUnknownKeys = true
-        }
+        private val toml =
+            Toml {
+                ignoreUnknownKeys = true
+            }
 
         /** Default config file name. */
         const val DEFAULT_FILENAME = "leyline.toml"
@@ -78,17 +79,18 @@ data class MatchConfig(
     val aiDelayMultiplier: Double get() = if (ai.speed == 0.0) 0.0 else 1.0 / ai.speed
 
     /** One-line summary for startup log. */
-    fun summary(): String = buildString {
-        append("seed=")
-        append(game.seed ?: "random")
-        append(" first=")
-        append(game.dieRollWinner?.let { "seat$it" } ?: "random")
-        append(" skipMulligan=${game.skipMulligan}")
-        append(" aiSpeed=${ai.speed}x")
-        if (dev.strict || dev.strictPass) {
-            append(" dev.strict=${dev.strict} dev.strict_pass=${dev.strictPass}")
+    fun summary(): String =
+        buildString {
+            append("seed=")
+            append(game.seed ?: "random")
+            append(" first=")
+            append(game.dieRollWinner?.let { "seat$it" } ?: "random")
+            append(" skipMulligan=${game.skipMulligan}")
+            append(" aiSpeed=${ai.speed}x")
+            if (dev.strict || dev.strictPass) {
+                append(" dev.strict=${dev.strict} dev.strict_pass=${dev.strictPass}")
+            }
         }
-    }
 }
 
 /**
@@ -100,27 +102,21 @@ data class ServerConfig(
     /** Front Door port (client auth + deck management). CLI: --fd-port */
     @SerialName("fd_port")
     val fdPort: Int = 30010,
-
     /** Match Door port (game protocol). CLI: --md-port */
     @SerialName("md_port")
     val mdPort: Int = 30003,
-
     /** Debug panel HTTP port. CLI: --debug-port */
     @SerialName("debug_port")
     val debugPort: Int = 8090,
-
     /** AccountServer (auth) HTTPS port. CLI: --account-port */
     @SerialName("account_port")
     val accountPort: Int = 9443,
-
     /** Management HTTP port (health checks, always starts). */
     @SerialName("management_port")
     val managementPort: Int = 8091,
-
     /** Bridge timeout — how long the engine waits for client responses (ms). */
     @SerialName("bridge_timeout_ms")
     val bridgeTimeoutMs: Long = 45_000L,
-
     /**
      * How long `advanceOrWait` waits for the AI's turn to return priority
      * before giving up and suppressing [ActionsAvailableReq]. Large in production
@@ -128,11 +124,9 @@ data class ServerConfig(
      */
     @SerialName("ai_turn_wait_ms")
     val aiTurnWaitMs: Long = 30_000L,
-
     /** How long the engine waits for a mulligan decision from the client. */
     @SerialName("mulligan_wait_ms")
     val mulliganWaitMs: Long = 10_000L,
-
     /** Player database path (absolute, or relative to CWD). */
     @SerialName("player_db")
     val playerDb: String = "",
@@ -145,7 +139,6 @@ data class GameConfig(
      * Useful for reproducing specific board states.
      */
     val seed: Long? = null,
-
     /**
      * Which seat wins the die roll (and goes first).
      * 1 = human goes first, 2 = AI goes first.
@@ -153,27 +146,23 @@ data class GameConfig(
      */
     @SerialName("die_roll_winner")
     val dieRollWinner: Int? = null,
-
     /**
      * Skip the mulligan phase — auto-keep opening hand.
      * Speeds up playtesting by going straight to Main1.
      */
     @SerialName("skip_mulligan")
     val skipMulligan: Boolean = false,
-
     /**
      * Send TimerStateMessage (rope/countdown) on priority grant.
      * Disable to suppress the decision timer in the client UI.
      */
     val timer: Boolean = true,
-
     /**
      * AI opponent deck name (looked up in player.db by name).
      * Null = mirror match (AI uses the same deck as seat 1).
      */
     @SerialName("ai_deck")
     val aiDeck: String? = null,
-
 )
 
 @Serializable
@@ -197,7 +186,6 @@ data class AiConfig(
 @Serializable
 data class DevConfig(
     val strict: Boolean = false,
-
     @SerialName("strict_pass")
     val strictPass: Boolean = false,
 )

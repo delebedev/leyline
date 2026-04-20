@@ -15,11 +15,13 @@ import java.util.concurrent.ConcurrentHashMap
  * Lifecycle: one per [GameBridge]. Entries retired when instanceIds move to Limbo.
  */
 class TokenIdentityRegistry {
-
     private val grpIds = ConcurrentHashMap<Int, Int>()
 
     /** Register a token's resolved grpId. Idempotent — first write wins. */
-    fun register(instanceId: Int, grpId: Int) {
+    fun register(
+        instanceId: Int,
+        grpId: Int,
+    ) {
         grpIds.putIfAbsent(instanceId, grpId)
     }
 

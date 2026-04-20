@@ -15,7 +15,10 @@ object PuzzleSource {
     private val log = LoggerFactory.getLogger(PuzzleSource::class.java)
 
     /** Parse a puzzle from raw `.pzl` content string. */
-    fun loadFromText(content: String, name: String = "inline"): Puzzle {
+    fun loadFromText(
+        content: String,
+        name: String = "inline",
+    ): Puzzle {
         val lines = content.lines()
         val sections = PuzzleIO.parsePuzzleSections(lines)
         return Puzzle(sections, name, false)
@@ -33,8 +36,9 @@ object PuzzleSource {
 
     /** Load a puzzle from a classpath resource (e.g. test resources). */
     fun loadFromResource(resourcePath: String): Puzzle {
-        val stream = PuzzleSource::class.java.classLoader.getResourceAsStream(resourcePath)
-            ?: error("Puzzle resource not found: $resourcePath")
+        val stream =
+            PuzzleSource::class.java.classLoader.getResourceAsStream(resourcePath)
+                ?: error("Puzzle resource not found: $resourcePath")
         val content = stream.bufferedReader().readText()
         val name = resourcePath.substringAfterLast('/').removeSuffix(".pzl")
         log.info("Loaded puzzle from resource: {} ({} chars)", resourcePath, content.length)

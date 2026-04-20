@@ -14,7 +14,6 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
  * Pure function — no bridge access, no side effects. Independently testable.
  */
 object TransferAnnotations {
-
     /**
      * ManaPaid.id base value. Protocol uses sequential mana payment IDs
      * across the GSM. CastSpell payments typically start at id=3 (after prior

@@ -42,11 +42,12 @@ class StackResolutionGameOverTest :
             h.isGameOver().shouldBeTrue()
 
             // Verify MatchCompleted was sent
-            val matchCompleted = h.allRawMessages.firstOrNull {
-                it.hasMatchGameRoomStateChangedEvent() &&
-                    it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
-                    MatchGameRoomStateType.MatchCompleted
-            }
+            val matchCompleted =
+                h.allRawMessages.firstOrNull {
+                    it.hasMatchGameRoomStateChangedEvent() &&
+                        it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
+                        MatchGameRoomStateType.MatchCompleted
+                }
             matchCompleted.shouldNotBeNull()
 
             // Verify IntermissionReq with game result

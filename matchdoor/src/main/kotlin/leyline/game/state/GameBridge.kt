@@ -114,10 +114,11 @@ class GameBridge(
         // Seed seat-1 bridges (human seat) — matches previous singleton behaviour.
         actionBridges[1] = GameActionBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
         promptBridges[1] = InteractivePromptBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
-        mulliganBridges[1] = MulliganBridge(
-            autoKeep = matchConfig.game.skipMulligan,
-            timeoutMs = bridgeTimeoutMs,
-        )
+        mulliganBridges[1] =
+            MulliganBridge(
+                autoKeep = matchConfig.game.skipMulligan,
+                timeoutMs = bridgeTimeoutMs,
+            )
     }
 
     /** Small seat-scoped facade — keeps handlers off global seat-1 defaults. */
@@ -130,19 +131,16 @@ class GameBridge(
     }
 
     /** Parameterized accessor — throws if seat not populated. */
-    fun actionBridge(seatId: Int): GameActionBridge =
-        actionBridges[seatId] ?: error("No action bridge for seat $seatId")
+    fun actionBridge(seatId: Int): GameActionBridge = actionBridges[seatId] ?: error("No action bridge for seat $seatId")
 
     /** Parameterized accessor — throws if seat not populated. */
-    fun promptBridge(seatId: Int): InteractivePromptBridge =
-        promptBridges[seatId] ?: error("No prompt bridge for seat $seatId")
+    fun promptBridge(seatId: Int): InteractivePromptBridge = promptBridges[seatId] ?: error("No prompt bridge for seat $seatId")
 
     /** All populated seat IDs (for iterating prompt bridges). */
     fun allSeatIds(): Set<Int> = promptBridges.keys
 
     /** Parameterized accessor — throws if seat not populated. */
-    fun mulliganBridge(seatId: Int): MulliganBridge =
-        mulliganBridges[seatId] ?: error("No mulligan bridge for seat $seatId")
+    fun mulliganBridge(seatId: Int): MulliganBridge = mulliganBridges[seatId] ?: error("No mulligan bridge for seat $seatId")
 
     /** Seat-scoped facade — use in handlers instead of raw seat-1 aliases. */
     override fun seat(seatId: Int): SeatBridges =
@@ -209,8 +207,10 @@ class GameBridge(
      * @param card the Forge card to resolve
      * @param instanceId client instanceId for registry cache lookups (0 = skip cache)
      */
-    fun resolveGrpId(card: Card, instanceId: Int = 0): Int =
-        ObjectMapper.resolveGrpId(card, cardRepository, instanceId, tokenRegistry)
+    fun resolveGrpId(
+        card: Card,
+        instanceId: Int = 0,
+    ): Int = ObjectMapper.resolveGrpId(card, cardRepository, instanceId, tokenRegistry)
 
     // --- Composed components ---
 
@@ -237,7 +237,15 @@ class GameBridge(
      */
     @VisibleForTesting
     @Volatile
-    var diffListener: ((prev: GsmSnapshot?, cur: GsmSnapshot, events: List<GameEvent>, gameStateId: Int, diff: GameStateMessage) -> Unit)? = null
+    var diffListener: (
+        (
+            prev: GsmSnapshot?,
+            cur: GsmSnapshot,
+            events: List<GameEvent>,
+            gameStateId: Int,
+            diff: GameStateMessage,
+        ) -> Unit
+    )? = null
 
     // ── Reveal proxy lifecycle ──────────────────────────────────────────────
     // RevealedCard proxies exist during an active reveal-choose effect.
@@ -271,8 +279,7 @@ class GameBridge(
     private val activeCrewEffects = mutableMapOf<ForgeCardId, Int>()
 
     /** Get or allocate a synthetic effect ID for a crewed vehicle's type-change effect. */
-    fun getOrAllocCrewEffectId(vehicleId: ForgeCardId): Int =
-        activeCrewEffects.getOrPut(vehicleId) { effects.nextEffectId() }
+    fun getOrAllocCrewEffectId(vehicleId: ForgeCardId): Int = activeCrewEffects.getOrPut(vehicleId) { effects.nextEffectId() }
 
     /** Release expired crew effects. Returns effectIds that were removed. */
     fun releaseCrewEffects(currentCrewedIds: Set<ForgeCardId>): List<Int> {
@@ -281,7 +288,8 @@ class GameBridge(
     }
 
     /** Drain pending target specs from all seat prompt bridges. */
-    fun drainPendingTargetSpecs(): List<InteractivePromptBridge.PendingTarget> = promptBridges.values.flatMap { it.drainPendingTargetSpecs() }
+    fun drainPendingTargetSpecs(): List<InteractivePromptBridge.PendingTarget> =
+        promptBridges.values.flatMap { it.drainPendingTargetSpecs() }
 
     override fun nextAnnotationId(): Int = annotations.nextAnnotationId()
 
@@ -314,7 +322,10 @@ class GameBridge(
 
     override fun getLimboInstanceIds(): List<InstanceId> = limbo.all().map { InstanceId(it) }
 
-    override fun recordZone(instanceId: InstanceId, zoneId: Int): Int? = diff.recordZone(instanceId.value, zoneId)
+    override fun recordZone(
+        instanceId: InstanceId,
+        zoneId: Int,
+    ): Int? = diff.recordZone(instanceId.value, zoneId)
 
     override fun getPreviousZone(instanceId: InstanceId): Int? = diff.getPreviousZone(instanceId.value)
 
@@ -447,12 +458,13 @@ class GameBridge(
             deck2.main.countAll(),
         )
 
-        val g = if (variant != null && isCommanderVariant(variant)) {
-            log.info("GameBridge: creating commander-variant game (variant={})", variant)
-            GameBootstrap.createCommanderGame(deck1, deck2, variant)
-        } else {
-            GameBootstrap.createConstructedGame(deck1, deck2)
-        }
+        val g =
+            if (variant != null && isCommanderVariant(variant)) {
+                log.info("GameBridge: creating commander-variant game (variant={})", variant)
+                GameBootstrap.createCommanderGame(deck1, deck2, variant)
+            } else {
+                GameBootstrap.createConstructedGame(deck1, deck2)
+            }
         game = g
 
         populateSeatMap(g)
@@ -461,27 +473,29 @@ class GameBridge(
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
         phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
-        val controller = PlayerController(
-            game = g,
-            player = human,
-            lobbyPlayer = human.lobbyPlayer,
-            bridge = promptBridge(1),
-            actionBridge = actionBridge(1),
-            mulliganBridge = mulliganBridge(1),
-            phaseStopProfile = phaseStopProfile,
-        )
+        val controller =
+            PlayerController(
+                game = g,
+                player = human,
+                lobbyPlayer = human.lobbyPlayer,
+                bridge = promptBridge(1),
+                actionBridge = actionBridge(1),
+                mulliganBridge = mulliganBridge(1),
+                phaseStopProfile = phaseStopProfile,
+            )
         humanController = controller
         human.addController(Long.MAX_VALUE - 1, human, controller, false)
 
         // AI keeps its default controller — handles priority, combat, etc. natively
 
-        val loop = GameLoopController(
-            g,
-            actionBridges = actionBridges.values.toList(),
-            promptBridges = promptBridges.values.toList(),
-            mulliganBridges = mulliganBridges.values.toList(),
-            prioritySignal = prioritySignal,
-        )
+        val loop =
+            GameLoopController(
+                g,
+                actionBridges = actionBridges.values.toList(),
+                promptBridges = promptBridges.values.toList(),
+                mulliganBridges = mulliganBridges.values.toList(),
+                prioritySignal = prioritySignal,
+            )
         loopController = loop
         loop.start()
         loop.awaitStarted()
@@ -544,7 +558,10 @@ class GameBridge(
      * game types (constructed, tokens, zone transfers), built on first access
      * from the live [card] + [cardData].
      */
-    fun abilityRegistryFor(card: Card, cardData: CardData?): AbilityRegistry? {
+    fun abilityRegistryFor(
+        card: Card,
+        cardData: CardData?,
+    ): AbilityRegistry? {
         if (cardData == null) return null
         return abilityRegistries.computeIfAbsent(card.id) { AbilityRegistry.build(card, cardData) }
     }
@@ -625,7 +642,10 @@ class GameBridge(
      * Spin until the message counter advances past [entryGsId], proving engine output.
      * Capped at [PROGRESS_WAIT_MS] to avoid stalling on prompts that fire before any GSM.
      */
-    private fun awaitProgress(entryGsId: Int, deadline: Long) {
+    private fun awaitProgress(
+        entryGsId: Int,
+        deadline: Long,
+    ) {
         if (entryGsId == 0) return
         val progressDeadline = minOf(deadline, System.currentTimeMillis() + PROGRESS_WAIT_MS)
         while (messageCounter.currentGsId() <= entryGsId) {
@@ -642,6 +662,7 @@ class GameBridge(
     }
 
     // TODO: remove seatId == 1 guard — seat 2 needs mulligan support for paired flow
+
     /**
      * Submit mulligan decision for seat.
      * Blocks until engine re-deals and reaches mulligan again.
@@ -703,6 +724,7 @@ class GameBridge(
     }
 
     // TODO: parameterize by seatId for paired-flow mulligan support
+
     /** How many cards the player must put on bottom (London mulligan). */
     fun getTuckCount(): Int = mulliganBridge(1).pendingCardsToTuck
 
@@ -713,8 +735,12 @@ class GameBridge(
     }
 
     // TODO: remove seatId == 1 guard — seat 2 needs tuck support for paired flow
+
     /** Submit tuck decision — cards to put on bottom of library. */
-    fun submitTuck(seatId: Int, cards: List<Card>) {
+    fun submitTuck(
+        seatId: Int,
+        cards: List<Card>,
+    ) {
         log.info("GameBridge: seat {} tucking {} cards", seatId, cards.size)
         if (seatId == 1) mulliganBridge(1).submitTuck(cards)
     }
@@ -769,26 +795,28 @@ class GameBridge(
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
         phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
-        val controller = PlayerController(
-            game = g,
-            player = human,
-            lobbyPlayer = human.lobbyPlayer,
-            bridge = promptBridge(1),
-            actionBridge = actionBridge(1),
-            mulliganBridge = mulliganBridge(1),
-            phaseStopProfile = phaseStopProfile,
-        )
+        val controller =
+            PlayerController(
+                game = g,
+                player = human,
+                lobbyPlayer = human.lobbyPlayer,
+                bridge = promptBridge(1),
+                actionBridge = actionBridge(1),
+                mulliganBridge = mulliganBridge(1),
+                phaseStopProfile = phaseStopProfile,
+            )
         humanController = controller
         human.addController(Long.MAX_VALUE - 1, human, controller, false)
 
         // Start game loop from current state (skip Match.startGame/mulligan)
-        val loop = GameLoopController(
-            g,
-            actionBridges = actionBridges.values.toList(),
-            promptBridges = promptBridges.values.toList(),
-            mulliganBridges = mulliganBridges.values.toList(),
-            prioritySignal = prioritySignal,
-        )
+        val loop =
+            GameLoopController(
+                g,
+                actionBridges = actionBridges.values.toList(),
+                promptBridges = promptBridges.values.toList(),
+                mulliganBridges = mulliganBridges.values.toList(),
+                prioritySignal = prioritySignal,
+            )
         loopController = loop
         loop.startFromCurrentState()
         loop.awaitStarted()
@@ -893,22 +921,27 @@ class GameBridge(
      * Recursively install temp [PlayerController]s with zero-timeout bridges
      * on each human-controlled player during [block]. Removed automatically after.
      */
-    private fun runWithTempControllers(players: List<Player>, block: () -> Unit) {
-        val player = players.firstOrNull() ?: run {
-            block()
-            return
-        }
+    private fun runWithTempControllers(
+        players: List<Player>,
+        block: () -> Unit,
+    ) {
+        val player =
+            players.firstOrNull() ?: run {
+                block()
+                return
+            }
         val tempPrompt = InteractivePromptBridge(timeoutMs = 0)
         val tempAction = GameActionBridge(timeoutMs = 0)
         val tempMulligan = MulliganBridge(autoKeep = true, timeoutMs = 0)
-        val tempController = PlayerController(
-            game = player.game,
-            player = player,
-            lobbyPlayer = player.lobbyPlayer,
-            bridge = tempPrompt,
-            actionBridge = tempAction,
-            mulliganBridge = tempMulligan,
-        )
+        val tempController =
+            PlayerController(
+                game = player.game,
+                player = player,
+                lobbyPlayer = player.lobbyPlayer,
+                bridge = tempPrompt,
+                actionBridge = tempAction,
+                mulliganBridge = tempMulligan,
+            )
         player.runWithController(
             { runWithTempControllers(players.drop(1), block) },
             tempController,
@@ -920,14 +953,15 @@ class GameBridge(
      * [AbilityRegistry] for all cards in all zones.
      */
     private fun registerPuzzleCards(game: Game) {
-        val allZones = listOf(
-            ZoneType.Hand,
-            ZoneType.Battlefield,
-            ZoneType.Library,
-            ZoneType.Graveyard,
-            ZoneType.Exile,
-            ZoneType.Command,
-        )
+        val allZones =
+            listOf(
+                ZoneType.Hand,
+                ZoneType.Battlefield,
+                ZoneType.Library,
+                ZoneType.Graveyard,
+                ZoneType.Exile,
+                ZoneType.Command,
+            )
         var registered = 0
         for (player in game.players) {
             for (zone in allZones) {
@@ -958,8 +992,12 @@ class GameBridge(
                 val target = card.attachedTo ?: continue
                 val auraIid = ids.getOrAlloc(ForgeCardId(card.id))
                 val targetIid = ids.getOrAlloc(ForgeCardId(target.id))
-                val ann = AnnotationBuilder.attachment(auraIid, targetIid)
-                    .toBuilder().setId(annotations.nextPersistentAnnotationId()).build()
+                val ann =
+                    AnnotationBuilder
+                        .attachment(auraIid, targetIid)
+                        .toBuilder()
+                        .setId(annotations.nextPersistentAnnotationId())
+                        .build()
                 annotations.add(ann)
                 log.debug(
                     "seedAttachment: {} (iid={}) → {} (iid={})",
@@ -984,14 +1022,15 @@ class GameBridge(
                 val table = card.ptBoostTable
                 if (table.isEmpty) continue
                 val instanceId = ids.getOrAlloc(ForgeCardId(card.id))
-                val entries = table.cellSet().map { cell ->
-                    EffectTracker.BoostEntry(
-                        timestamp = cell.rowKey,
-                        staticId = cell.columnKey,
-                        power = cell.value.left,
-                        toughness = cell.value.right,
-                    )
-                }
+                val entries =
+                    table.cellSet().map { cell ->
+                        EffectTracker.BoostEntry(
+                            timestamp = cell.rowKey,
+                            staticId = cell.columnKey,
+                            power = cell.value.left,
+                            toughness = cell.value.right,
+                        )
+                    }
                 result[instanceId.value] = entries
             }
         }
@@ -1015,7 +1054,8 @@ class GameBridge(
                     val timestamp = cell.rowKey
                     val staticId = cell.columnKey
                     for (kw in cell.value.keywords) {
-                        result.getOrPut(instanceId.value) { mutableListOf() }
+                        result
+                            .getOrPut(instanceId.value) { mutableListOf() }
                             .add(EffectTracker.KeywordEntry(timestamp, staticId, kw.keyword.toString()))
                     }
                 }

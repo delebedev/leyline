@@ -35,7 +35,10 @@ fun Route.accountRoutes(
 
 // -- Local handlers -----------------------------------------------------------
 
-private fun Route.loginRoute(store: AccountStore, tokens: TokenService) {
+private fun Route.loginRoute(
+    store: AccountStore,
+    tokens: TokenService,
+) {
     post("/auth/oauth/token") {
         val body = call.receiveText()
         val params = parseFormEncoded(body)
@@ -43,12 +46,15 @@ private fun Route.loginRoute(store: AccountStore, tokens: TokenService) {
 
         when (grantType) {
             "password" -> {
-                val email = params["username"]
-                    ?: return@post call.respondError(AccountError.MISSING_FIELD)
-                val password = params["password"]
-                    ?: return@post call.respondError(AccountError.MISSING_PASSWORD)
-                val account = store.authenticate(email, password)
-                    ?: return@post call.respondError(AccountError.INVALID_CREDENTIALS)
+                val email =
+                    params["username"]
+                        ?: return@post call.respondError(AccountError.MISSING_FIELD)
+                val password =
+                    params["password"]
+                        ?: return@post call.respondError(AccountError.MISSING_PASSWORD)
+                val account =
+                    store.authenticate(email, password)
+                        ?: return@post call.respondError(AccountError.INVALID_CREDENTIALS)
                 val pair = tokens.issueTokens(account)
                 log.info("Login: {} -> {}", email, account.accountId.take(8))
                 call.respondText(
@@ -59,12 +65,15 @@ private fun Route.loginRoute(store: AccountStore, tokens: TokenService) {
             }
 
             "refresh_token" -> {
-                val refreshToken = params["refresh_token"]
-                    ?: return@post call.respondError(AccountError.MISSING_REFRESH_TOKEN)
-                val personaId = tokens.validateRefreshToken(refreshToken)
-                    ?: return@post call.respondError(AccountError.INVALID_CLIENT)
-                val account = store.findByPersonaId(personaId)
-                    ?: return@post call.respondError(AccountError.INVALID_CLIENT)
+                val refreshToken =
+                    params["refresh_token"]
+                        ?: return@post call.respondError(AccountError.MISSING_REFRESH_TOKEN)
+                val personaId =
+                    tokens.validateRefreshToken(refreshToken)
+                        ?: return@post call.respondError(AccountError.INVALID_CLIENT)
+                val account =
+                    store.findByPersonaId(personaId)
+                        ?: return@post call.respondError(AccountError.INVALID_CLIENT)
                 val pair = tokens.issueTokens(account)
                 log.info("Token refresh: {}", account.accountId.take(8))
                 call.respondText(
@@ -86,9 +95,16 @@ private fun Route.accountCreationStub() {
     }
 }
 
-private fun Route.profileRoute(store: AccountStore, tokens: TokenService) {
+private fun Route.profileRoute(
+    store: AccountStore,
+    tokens: TokenService,
+) {
     get("/profile") {
-        val bearer = call.request.header("Authorization")?.removePrefix("Bearer ")?.trim()
+        val bearer =
+            call.request
+                .header("Authorization")
+                ?.removePrefix("Bearer ")
+                ?.trim()
         if (bearer == null) {
             return@get call.respondError(AccountError.MISSING_AUTH)
         }
@@ -96,8 +112,9 @@ private fun Route.profileRoute(store: AccountStore, tokens: TokenService) {
         if (personaId == null) {
             return@get call.respondError(AccountError.INVALID_TOKEN)
         }
-        val account = store.findByPersonaId(personaId)
-            ?: return@get call.respondError(AccountError.NOT_FOUND)
+        val account =
+            store.findByPersonaId(personaId)
+                ?: return@get call.respondError(AccountError.NOT_FOUND)
         log.debug("Profile: {}", account.accountId.take(8))
         call.respondText(
             profileResponseJson(account),
@@ -109,19 +126,23 @@ private fun Route.profileRoute(store: AccountStore, tokens: TokenService) {
 
 // -- Doorbell -----------------------------------------------------------------
 
-private fun Route.doorbellRoute(fdHost: String, cachedManifests: String?) {
+private fun Route.doorbellRoute(
+    fdHost: String,
+    cachedManifests: String?,
+) {
     post("/api/doorbell/api/v2/ring") {
         call.receiveText() // drain body
         val hasManifests = cachedManifests != null
         log.info("Doorbell: FdURI={} manifests={}", fdHost, if (hasManifests) "cached" else "empty")
-        val response = buildJsonObject {
-            put("FdURI", fdHost)
-            if (cachedManifests != null) {
-                put("BundleManifests", Json.parseToJsonElement(cachedManifests))
-            } else {
-                putJsonArray("BundleManifests") {}
+        val response =
+            buildJsonObject {
+                put("FdURI", fdHost)
+                if (cachedManifests != null) {
+                    put("BundleManifests", Json.parseToJsonElement(cachedManifests))
+                } else {
+                    putJsonArray("BundleManifests") {}
+                }
             }
-        }
         call.respondText(response.toString(), ContentType.Application.Json, HttpStatusCode.OK)
     }
 }
@@ -168,7 +189,10 @@ private fun Route.catchAll() {
 
 // -- JSON response builders (injection-safe via kotlinx.serialization) --------
 
-private fun loginResponseJson(account: Account, pair: TokenService.TokenPair): String =
+private fun loginResponseJson(
+    account: Account,
+    pair: TokenService.TokenPair,
+): String =
     buildJsonObject {
         put("access_token", pair.accessToken)
         put("refresh_token", pair.refreshToken)
@@ -206,9 +230,10 @@ private fun profileResponseJson(account: Account): String =
 private fun parseFormEncoded(body: String): Map<String, String> {
     if (body.isBlank()) return emptyMap()
     return body.split("&").associate { part ->
-        val (k, v) = part.split("=", limit = 2).let {
-            if (it.size == 2) it[0] to it[1] else it[0] to ""
-        }
+        val (k, v) =
+            part.split("=", limit = 2).let {
+                if (it.size == 2) it[0] to it[1] else it[0] to ""
+            }
         java.net.URLDecoder.decode(k, "UTF-8") to java.net.URLDecoder.decode(v, "UTF-8")
     }
 }

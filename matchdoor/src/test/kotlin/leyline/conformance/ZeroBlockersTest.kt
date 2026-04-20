@@ -23,7 +23,8 @@ class ZeroBlockersTest :
 
         test("zero blockers auto-advances without DeclareBlockersReq") {
             // Human has only lands, AI has haste attackers
-            val pzl = """
+            val pzl =
+                """
                 [metadata]
                 Name:Zero Blockers AI Attack
                 Goal:Win
@@ -41,16 +42,17 @@ class ZeroBlockersTest :
                 humanlibrary=Plains;Plains;Plains;Plains;Plains
                 aibattlefield=Mountain;Mountain;Raging Goblin;Raging Goblin
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-            """.trimIndent()
+                """.trimIndent()
 
             val h = MatchFlowHarness(seed = 42L, validating = false)
             harness = h
             h.connectAndKeepPuzzleText(
                 pzl,
-                aiScript = listOf(
-                    ScriptedAction.Attack(listOf("Raging Goblin")),
-                    ScriptedAction.PassPriority,
-                ),
+                aiScript =
+                    listOf(
+                        ScriptedAction.Attack(listOf("Raging Goblin")),
+                        ScriptedAction.PassPriority,
+                    ),
             )
 
             val snap = h.messageSnapshot()

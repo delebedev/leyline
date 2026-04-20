@@ -18,17 +18,18 @@ class DraftWireBuilderTest :
 
         tags(FdTag)
 
-        val session = DraftSession(
-            id = DraftSessionId("test-id"),
-            playerId = PlayerId("test-player"),
-            eventName = "QuickDraft_ECL_20260223",
-            status = DraftStatus.PickNext,
-            packNumber = 0,
-            pickNumber = 0,
-            draftPack = listOf(98353, 98519, 98532),
-            packs = emptyList(),
-            pickedCards = emptyList(),
-        )
+        val session =
+            DraftSession(
+                id = DraftSessionId("test-id"),
+                playerId = PlayerId("test-player"),
+                eventName = "QuickDraft_ECL_20260223",
+                status = DraftStatus.PickNext,
+                packNumber = 0,
+                pickNumber = 0,
+                draftPack = listOf(98353, 98519, 98532),
+                packs = emptyList(),
+                pickedCards = emptyList(),
+            )
 
         test("buildDraftResponse wraps payload in Course-style double-encoded JSON") {
             val json = DraftWireBuilder.buildDraftResponse(session)
@@ -55,11 +56,12 @@ class DraftWireBuilderTest :
         }
 
         test("completed draft has DeckSelect module and empty pack") {
-            val completed = session.copy(
-                status = DraftStatus.Completed,
-                draftPack = emptyList(),
-                pickedCards = listOf(98353, 98519),
-            )
+            val completed =
+                session.copy(
+                    status = DraftStatus.Completed,
+                    draftPack = emptyList(),
+                    pickedCards = listOf(98353, 98519),
+                )
             val json = DraftWireBuilder.buildDraftResponse(completed)
             val outer = Json.parseToJsonElement(json).jsonObject
 

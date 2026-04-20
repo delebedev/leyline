@@ -33,15 +33,24 @@ class TargetSpecAnnotationTest :
         afterEach { base.tearDown() }
 
         test("pending target spec emits TargetSpec persistent annotation") {
-            val (b, game) = base.startWithBoard { _, human, _ ->
-                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                base.addCard("Murder", human, ZoneType.Hand)
-            }
+            val (b, game) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    base.addCard("Murder", human, ZoneType.Hand)
+                }
 
-            val creature = b.getPlayer(SeatId(1))!!
-                .getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
-            val spell = b.getPlayer(SeatId(1))!!
-                .getZone(ZoneType.Hand).cards.first { it.name == "Murder" }
+            val creature =
+                b
+                    .getPlayer(SeatId(1))!!
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Grizzly Bears" }
+            val spell =
+                b
+                    .getPlayer(SeatId(1))!!
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.name == "Murder" }
 
             // Simulate what selectTargetsInteractively does: add pending target
             b.seat(1).prompt.addPendingTargetSpec(
@@ -56,9 +65,10 @@ class TargetSpecAnnotationTest :
             val snapTarget1 = GsmSnapshot.capture(game, b, ConformanceTestBase.TEST_MATCH_ID, 1)
             val gs = StateMapper.buildFromSnapshot(snapTarget1, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
 
-            val targetAnn = gs.persistentAnnotationsList.firstOrNull { ann ->
-                AnnotationType.TargetSpec in ann.typeList
-            }
+            val targetAnn =
+                gs.persistentAnnotationsList.firstOrNull { ann ->
+                    AnnotationType.TargetSpec in ann.typeList
+                }
             assertSoftly {
                 targetAnn shouldNotBe null
                 targetAnn!!.affectedIdsList.size shouldBe 1
@@ -68,9 +78,10 @@ class TargetSpecAnnotationTest :
         }
 
         test("no pending targets emits no TargetSpec") {
-            val (b, game) = base.startWithBoard { _, human, _ ->
-                base.addCard("Divination", human, ZoneType.Hand)
-            }
+            val (b, game) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Divination", human, ZoneType.Hand)
+                }
 
             val snapTarget2 = GsmSnapshot.capture(game, b, ConformanceTestBase.TEST_MATCH_ID, 1)
             val gs = StateMapper.buildFromSnapshot(snapTarget2, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
@@ -81,15 +92,24 @@ class TargetSpecAnnotationTest :
         }
 
         test("TargetSpec removed when pending list is empty on next build") {
-            val (b, game) = base.startWithBoard { _, human, _ ->
-                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                base.addCard("Murder", human, ZoneType.Hand)
-            }
+            val (b, game) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    base.addCard("Murder", human, ZoneType.Hand)
+                }
 
-            val creature = b.getPlayer(SeatId(1))!!
-                .getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
-            val spell = b.getPlayer(SeatId(1))!!
-                .getZone(ZoneType.Hand).cards.first { it.name == "Murder" }
+            val creature =
+                b
+                    .getPlayer(SeatId(1))!!
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Grizzly Bears" }
+            val spell =
+                b
+                    .getPlayer(SeatId(1))!!
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.name == "Murder" }
 
             b.seat(1).prompt.addPendingTargetSpec(
                 InteractivePromptBridge.PendingTarget(

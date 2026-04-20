@@ -26,8 +26,7 @@ class AnnotationShapeConformanceTest :
 
         tags(UnitTag)
 
-        fun detailKeys(ann: AnnotationInfo): Set<String> =
-            ann.detailsList.map { it.key }.toSet()
+        fun detailKeys(ann: AnnotationInfo): Set<String> = ann.detailsList.map { it.key }.toSet()
 
         // =======================================================================
         // Per-builder detail-key shape tests
@@ -175,7 +174,8 @@ class AnnotationShapeConformanceTest :
         }
 
         test("DisplayCardUnderCard shape: {Disable, TemporaryZoneTransfer}") {
-            detailKeys(AnnotationBuilder.displayCardUnderCard(affectorId = 0.iid, instanceId = 1.iid)) shouldBe setOf("Disable", "TemporaryZoneTransfer")
+            detailKeys(AnnotationBuilder.displayCardUnderCard(affectorId = 0.iid, instanceId = 1.iid)) shouldBe
+                setOf("Disable", "TemporaryZoneTransfer")
         }
 
         test("PredictedDirectDamage shape: {value}") {
@@ -218,100 +218,103 @@ class AnnotationShapeConformanceTest :
         // =======================================================================
 
         /** Baseline: always-present detail keys per annotation type. */
-        val referenceAlwaysKeys: Map<String, Set<String>> = mapOf(
-            // --- Most-common types ---
-            "PhaseOrStepModified" to setOf("phase", "step"),
-            "ZoneTransfer" to setOf("category", "zone_dest", "zone_src"),
-            "EnteredZoneThisTurn" to emptySet(), // persistent, no details
-            "UserActionTaken" to setOf("abilityGrpId", "actionType"),
-            "ObjectIdChanged" to setOf("new_id", "orig_id"),
-            "TappedUntappedPermanent" to setOf("tapped"),
-            "AbilityInstanceCreated" to setOf("source_zone"),
-            "AbilityInstanceDeleted" to emptySet(),
-            "ManaPaid" to setOf("color", "id"),
-            "ResolutionComplete" to setOf("grpid"),
-            "ResolutionStart" to setOf("grpid"),
-
-            // --- Medium frequency ---
-            "NewTurnStarted" to emptySet(),
-            "DamageDealt" to setOf("damage", "markDamage", "type"),
-            "ModifiedToughness" to emptySet(), // all detail keys are optional
-            "ModifiedPower" to emptySet(), // all detail keys are optional
-            "ModifiedLife" to setOf("life"),
-            "SyntheticEvent" to setOf("type"),
-
-            // --- Rare types ---
-            "TokenCreated" to emptySet(),
-            "AttachmentCreated" to emptySet(),
-            "Attachment" to emptySet(),
-            "CounterAdded" to setOf("counter_type", "transaction_amount"),
-            "TokenDeleted" to emptySet(),
-            "Counter" to setOf("count", "counter_type"),
-            "AddAbility" to setOf("grpid", "effect_id", "UniqueAbilityId", "originalAbilityObjectZcid"),
-            "RemoveAbility" to setOf("effect_id"),
-            "AbilityExhausted" to setOf("AbilityGrpId", "UsesRemaining", "UniqueAbilityId"),
-            "GainDesignation" to setOf("DesignationType"),
-            "Designation" to setOf("DesignationType"),
-            "LayeredEffect" to setOf("effect_id"),
-            "LayeredEffectDestroyed" to emptySet(),
-            "PlayerSelectingTargets" to emptySet(),
-            "PlayerSubmittedTargets" to emptySet(),
-            "DamagedThisTurn" to emptySet(),
-            "InstanceRevealedToOpponent" to emptySet(),
-            "ColorProduction" to setOf("colors"),
-            "TriggeringObject" to setOf("source_zone"),
-            "TargetSpec" to setOf("abilityGrpId", "index", "promptId", "promptParameters"),
-            "PowerToughnessModCreated" to setOf("power", "toughness"),
-            "DisplayCardUnderCard" to setOf("Disable", "TemporaryZoneTransfer"),
-            "PredictedDirectDamage" to setOf("value"),
-        )
+        val referenceAlwaysKeys: Map<String, Set<String>> =
+            mapOf(
+                // --- Most-common types ---
+                "PhaseOrStepModified" to setOf("phase", "step"),
+                "ZoneTransfer" to setOf("category", "zone_dest", "zone_src"),
+                "EnteredZoneThisTurn" to emptySet(), // persistent, no details
+                "UserActionTaken" to setOf("abilityGrpId", "actionType"),
+                "ObjectIdChanged" to setOf("new_id", "orig_id"),
+                "TappedUntappedPermanent" to setOf("tapped"),
+                "AbilityInstanceCreated" to setOf("source_zone"),
+                "AbilityInstanceDeleted" to emptySet(),
+                "ManaPaid" to setOf("color", "id"),
+                "ResolutionComplete" to setOf("grpid"),
+                "ResolutionStart" to setOf("grpid"),
+                // --- Medium frequency ---
+                "NewTurnStarted" to emptySet(),
+                "DamageDealt" to setOf("damage", "markDamage", "type"),
+                "ModifiedToughness" to emptySet(), // all detail keys are optional
+                "ModifiedPower" to emptySet(), // all detail keys are optional
+                "ModifiedLife" to setOf("life"),
+                "SyntheticEvent" to setOf("type"),
+                // --- Rare types ---
+                "TokenCreated" to emptySet(),
+                "AttachmentCreated" to emptySet(),
+                "Attachment" to emptySet(),
+                "CounterAdded" to setOf("counter_type", "transaction_amount"),
+                "TokenDeleted" to emptySet(),
+                "Counter" to setOf("count", "counter_type"),
+                "AddAbility" to setOf("grpid", "effect_id", "UniqueAbilityId", "originalAbilityObjectZcid"),
+                "RemoveAbility" to setOf("effect_id"),
+                "AbilityExhausted" to setOf("AbilityGrpId", "UsesRemaining", "UniqueAbilityId"),
+                "GainDesignation" to setOf("DesignationType"),
+                "Designation" to setOf("DesignationType"),
+                "LayeredEffect" to setOf("effect_id"),
+                "LayeredEffectDestroyed" to emptySet(),
+                "PlayerSelectingTargets" to emptySet(),
+                "PlayerSubmittedTargets" to emptySet(),
+                "DamagedThisTurn" to emptySet(),
+                "InstanceRevealedToOpponent" to emptySet(),
+                "ColorProduction" to setOf("colors"),
+                "TriggeringObject" to setOf("source_zone"),
+                "TargetSpec" to setOf("abilityGrpId", "index", "promptId", "promptParameters"),
+                "PowerToughnessModCreated" to setOf("power", "toughness"),
+                "DisplayCardUnderCard" to setOf("Disable", "TemporaryZoneTransfer"),
+                "PredictedDirectDamage" to setOf("value"),
+            )
 
         /**
          * Our builder output per type — calls each builder with dummy args,
          * extracts detail keys.
          */
-        val ourBuilderKeys: Map<String, Set<String>> = mapOf(
-            "PhaseOrStepModified" to detailKeys(AnnotationBuilder.phaseOrStepModified(1.sid, 1, 2)),
-            "ZoneTransfer" to detailKeys(AnnotationBuilder.zoneTransfer(1.iid, 31, 28, "PlayLand")),
-            "EnteredZoneThisTurn" to detailKeys(AnnotationBuilder.enteredZoneThisTurn(28, 1.iid)),
-            "UserActionTaken" to detailKeys(AnnotationBuilder.userActionTaken(1.iid, 1.sid, ActionType.Cast, 0.grp)),
-            "ObjectIdChanged" to detailKeys(AnnotationBuilder.objectIdChanged(1.iid, 2.iid)),
-            "TappedUntappedPermanent" to detailKeys(AnnotationBuilder.tappedUntappedPermanent(1.iid, 2.iid)),
-            "AbilityInstanceCreated" to detailKeys(AnnotationBuilder.abilityInstanceCreated(1.iid, sourceZoneId = 31)),
-            "AbilityInstanceDeleted" to detailKeys(AnnotationBuilder.abilityInstanceDeleted(1.iid)),
-            "ManaPaid" to detailKeys(AnnotationBuilder.manaPaid(spellInstanceId = 1.iid, landInstanceId = 2.iid, manaId = 1, color = 4)),
-            "ResolutionComplete" to detailKeys(AnnotationBuilder.resolutionComplete(1.iid, 1.grp)),
-            "ResolutionStart" to detailKeys(AnnotationBuilder.resolutionStart(1.iid, 1.grp)),
-            "NewTurnStarted" to detailKeys(AnnotationBuilder.newTurnStarted(1.sid)),
-            "DamageDealt" to detailKeys(AnnotationBuilder.damageDealt(1.iid, 2.wid, 3)),
-            "ModifiedToughness" to detailKeys(AnnotationBuilder.modifiedToughness(1.iid)),
-            "ModifiedPower" to detailKeys(AnnotationBuilder.modifiedPower(1.iid)),
-            "ModifiedLife" to detailKeys(AnnotationBuilder.modifiedLife(1.sid, -3)),
-            "SyntheticEvent" to detailKeys(AnnotationBuilder.syntheticEvent(1.iid, 1.sid)),
-            "TokenCreated" to detailKeys(AnnotationBuilder.tokenCreated(1.iid)),
-            "AttachmentCreated" to detailKeys(AnnotationBuilder.attachmentCreated(1.iid, 2.iid)),
-            "Attachment" to detailKeys(AnnotationBuilder.attachment(1.iid, 2.iid)),
-            "CounterAdded" to detailKeys(AnnotationBuilder.counterAdded(1.iid, "P1P1", 2)),
-            "TokenDeleted" to detailKeys(AnnotationBuilder.tokenDeleted(1.iid)),
-            "Counter" to detailKeys(AnnotationBuilder.counter(1.iid, 1, 1)),
-            "AddAbility" to detailKeys(AnnotationBuilder.addAbility(1.iid, 1.grp, 1.eid, 1, 1)),
-            "RemoveAbility" to detailKeys(AnnotationBuilder.removeAbility(1.iid, 1.eid)),
-            "AbilityExhausted" to detailKeys(AnnotationBuilder.abilityExhausted(1.iid, 1.grp, 0, 1)),
-            "GainDesignation" to detailKeys(AnnotationBuilder.gainDesignation(1.sid, 19)),
-            "Designation" to detailKeys(AnnotationBuilder.designation(1.sid, 19)),
-            "LayeredEffect" to detailKeys(AnnotationBuilder.layeredEffect(1.iid, 7004.eid)),
-            "LayeredEffectDestroyed" to detailKeys(AnnotationBuilder.layeredEffectDestroyed(1.eid)),
-            "PlayerSelectingTargets" to detailKeys(AnnotationBuilder.playerSelectingTargets(1.iid)),
-            "PlayerSubmittedTargets" to detailKeys(AnnotationBuilder.playerSubmittedTargets(1.iid)),
-            "DamagedThisTurn" to detailKeys(AnnotationBuilder.damagedThisTurn(listOf(1.iid))),
-            "InstanceRevealedToOpponent" to detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1.iid)),
-            "ColorProduction" to detailKeys(AnnotationBuilder.colorProduction(1.iid, listOf(1))),
-            "TriggeringObject" to detailKeys(AnnotationBuilder.triggeringObject(1.iid, 27)),
-            "TargetSpec" to detailKeys(AnnotationBuilder.targetSpec(1.iid, 1.iid, 1.grp, 1, 1, 1)),
-            "PowerToughnessModCreated" to detailKeys(AnnotationBuilder.powerToughnessModCreated(1.iid, 1, 1)),
-            "DisplayCardUnderCard" to detailKeys(AnnotationBuilder.displayCardUnderCard(affectorId = 0.iid, instanceId = 1.iid)),
-            "PredictedDirectDamage" to detailKeys(AnnotationBuilder.predictedDirectDamage(1.iid, 1)),
-        )
+        val ourBuilderKeys: Map<String, Set<String>> =
+            mapOf(
+                "PhaseOrStepModified" to detailKeys(AnnotationBuilder.phaseOrStepModified(1.sid, 1, 2)),
+                "ZoneTransfer" to detailKeys(AnnotationBuilder.zoneTransfer(1.iid, 31, 28, "PlayLand")),
+                "EnteredZoneThisTurn" to detailKeys(AnnotationBuilder.enteredZoneThisTurn(28, 1.iid)),
+                "UserActionTaken" to detailKeys(AnnotationBuilder.userActionTaken(1.iid, 1.sid, ActionType.Cast, 0.grp)),
+                "ObjectIdChanged" to detailKeys(AnnotationBuilder.objectIdChanged(1.iid, 2.iid)),
+                "TappedUntappedPermanent" to detailKeys(AnnotationBuilder.tappedUntappedPermanent(1.iid, 2.iid)),
+                "AbilityInstanceCreated" to detailKeys(AnnotationBuilder.abilityInstanceCreated(1.iid, sourceZoneId = 31)),
+                "AbilityInstanceDeleted" to detailKeys(AnnotationBuilder.abilityInstanceDeleted(1.iid)),
+                "ManaPaid" to
+                    detailKeys(
+                        AnnotationBuilder.manaPaid(spellInstanceId = 1.iid, landInstanceId = 2.iid, manaId = 1, color = 4),
+                    ),
+                "ResolutionComplete" to detailKeys(AnnotationBuilder.resolutionComplete(1.iid, 1.grp)),
+                "ResolutionStart" to detailKeys(AnnotationBuilder.resolutionStart(1.iid, 1.grp)),
+                "NewTurnStarted" to detailKeys(AnnotationBuilder.newTurnStarted(1.sid)),
+                "DamageDealt" to detailKeys(AnnotationBuilder.damageDealt(1.iid, 2.wid, 3)),
+                "ModifiedToughness" to detailKeys(AnnotationBuilder.modifiedToughness(1.iid)),
+                "ModifiedPower" to detailKeys(AnnotationBuilder.modifiedPower(1.iid)),
+                "ModifiedLife" to detailKeys(AnnotationBuilder.modifiedLife(1.sid, -3)),
+                "SyntheticEvent" to detailKeys(AnnotationBuilder.syntheticEvent(1.iid, 1.sid)),
+                "TokenCreated" to detailKeys(AnnotationBuilder.tokenCreated(1.iid)),
+                "AttachmentCreated" to detailKeys(AnnotationBuilder.attachmentCreated(1.iid, 2.iid)),
+                "Attachment" to detailKeys(AnnotationBuilder.attachment(1.iid, 2.iid)),
+                "CounterAdded" to detailKeys(AnnotationBuilder.counterAdded(1.iid, "P1P1", 2)),
+                "TokenDeleted" to detailKeys(AnnotationBuilder.tokenDeleted(1.iid)),
+                "Counter" to detailKeys(AnnotationBuilder.counter(1.iid, 1, 1)),
+                "AddAbility" to detailKeys(AnnotationBuilder.addAbility(1.iid, 1.grp, 1.eid, 1, 1)),
+                "RemoveAbility" to detailKeys(AnnotationBuilder.removeAbility(1.iid, 1.eid)),
+                "AbilityExhausted" to detailKeys(AnnotationBuilder.abilityExhausted(1.iid, 1.grp, 0, 1)),
+                "GainDesignation" to detailKeys(AnnotationBuilder.gainDesignation(1.sid, 19)),
+                "Designation" to detailKeys(AnnotationBuilder.designation(1.sid, 19)),
+                "LayeredEffect" to detailKeys(AnnotationBuilder.layeredEffect(1.iid, 7004.eid)),
+                "LayeredEffectDestroyed" to detailKeys(AnnotationBuilder.layeredEffectDestroyed(1.eid)),
+                "PlayerSelectingTargets" to detailKeys(AnnotationBuilder.playerSelectingTargets(1.iid)),
+                "PlayerSubmittedTargets" to detailKeys(AnnotationBuilder.playerSubmittedTargets(1.iid)),
+                "DamagedThisTurn" to detailKeys(AnnotationBuilder.damagedThisTurn(listOf(1.iid))),
+                "InstanceRevealedToOpponent" to detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1.iid)),
+                "ColorProduction" to detailKeys(AnnotationBuilder.colorProduction(1.iid, listOf(1))),
+                "TriggeringObject" to detailKeys(AnnotationBuilder.triggeringObject(1.iid, 27)),
+                "TargetSpec" to detailKeys(AnnotationBuilder.targetSpec(1.iid, 1.iid, 1.grp, 1, 1, 1)),
+                "PowerToughnessModCreated" to detailKeys(AnnotationBuilder.powerToughnessModCreated(1.iid, 1, 1)),
+                "DisplayCardUnderCard" to detailKeys(AnnotationBuilder.displayCardUnderCard(affectorId = 0.iid, instanceId = 1.iid)),
+                "PredictedDirectDamage" to detailKeys(AnnotationBuilder.predictedDirectDamage(1.iid, 1)),
+            )
 
         /**
          * Known mismatches: types where our builder intentionally differs from
@@ -346,21 +349,23 @@ class AnnotationShapeConformanceTest :
 
                 // Mismatch — must be in expectedMismatch
                 if (typeName !in expectedMismatch) {
-                    failures += buildString {
-                        append("$typeName: MISMATCH not in expectedMismatch.")
-                        if (missing.isNotEmpty()) append(" missing=$missing")
-                        if (extra.isNotEmpty()) append(" extra=$extra")
-                        append(" Either fix the builder or add to expectedMismatch with a comment.")
-                    }
+                    failures +=
+                        buildString {
+                            append("$typeName: MISMATCH not in expectedMismatch.")
+                            if (missing.isNotEmpty()) append(" missing=$missing")
+                            if (extra.isNotEmpty()) append(" extra=$extra")
+                            append(" Either fix the builder or add to expectedMismatch with a comment.")
+                        }
                 }
             }
 
             if (failures.isNotEmpty()) {
-                val msg = buildString {
-                    appendLine("Golden reference conformance failures:")
-                    appendLine()
-                    for (f in failures) appendLine("  - $f")
-                }
+                val msg =
+                    buildString {
+                        appendLine("Golden reference conformance failures:")
+                        appendLine()
+                        for (f in failures) appendLine("  - $f")
+                    }
                 fail(msg)
             }
         }

@@ -5,4 +5,6 @@ package leyline.frontdoor.domain
  * We don't parse individual preferences yet — this prevents raw
  * strings from crossing service boundaries.
  */
-@JvmInline value class Preferences(val json: String)
+@JvmInline value class Preferences(
+    val json: String,
+)

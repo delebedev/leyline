@@ -62,24 +62,26 @@ class MatchHandler(
     internal var session: SessionOps? = null
 
     /** Mulligan flow delegate — owns mulligan state and DealHand/MulliganReq senders. */
-    internal val mulliganHandler = MulliganHandler(
-        matchConfig,
-        registry,
-        sessionProvider = { session as? MatchSession },
-        ctxProvider = { nettyCtx },
-        matchIdProvider = { matchId },
-        seatIdProvider = { seatId },
-    )
+    internal val mulliganHandler =
+        MulliganHandler(
+            matchConfig,
+            registry,
+            sessionProvider = { session as? MatchSession },
+            ctxProvider = { nettyCtx },
+            matchIdProvider = { matchId },
+            seatIdProvider = { seatId },
+        )
 
     /** Puzzle mode delegate — detection, loading, initial bundle. */
     private val puzzleHandler = PuzzleHandler(puzzlePath, cardRepository, registry, matchConfig)
 
     companion object {
         val defaultRegistry = MatchRegistry()
-        private val lenientJson = Json {
-            ignoreUnknownKeys = true
-            isLenient = true
-        }
+        private val lenientJson =
+            Json {
+                ignoreUnknownKeys = true
+                isLenient = true
+            }
     }
 
     init {
@@ -92,7 +94,10 @@ class MatchHandler(
         log.info("Match Door: client connected from {}", ctx.channel().remoteAddress())
     }
 
-    override fun channelRead0(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
+    override fun channelRead0(
+        ctx: ChannelHandlerContext,
+        msg: ClientToMatchServiceMessage,
+    ) {
         Tap.inbound(msg.clientToMatchServiceMessageType)
 
         when (msg.clientToMatchServiceMessageType) {
@@ -104,27 +109,35 @@ class MatchHandler(
         }
     }
 
-    private fun handleMatchAuth(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
+    private fun handleMatchAuth(
+        ctx: ChannelHandlerContext,
+        msg: ClientToMatchServiceMessage,
+    ) {
         val authReq = AuthenticateRequest.parseFrom(msg.payload)
         clientId = authReq.clientId.ifEmpty { "leyline-player-$seatId" }
         isFamiliar = clientId.endsWith("_Familiar")
         val playerName = authReq.playerName.ifEmpty { "Player" }
         log.info("Match Door: auth clientId={} playerName={} familiar={}", clientId, playerName, isFamiliar)
 
-        val resp = MatchServiceToClientMessage.newBuilder()
-            .setRequestId(msg.requestId)
-            .setAuthenticateResponse(
-                AuthenticateResponse.newBuilder()
-                    .setClientId(clientId)
-                    .setSessionId("forge-session-1")
-                    .setScreenName(playerName),
-            )
-            .build()
+        val resp =
+            MatchServiceToClientMessage
+                .newBuilder()
+                .setRequestId(msg.requestId)
+                .setAuthenticateResponse(
+                    AuthenticateResponse
+                        .newBuilder()
+                        .setClientId(clientId)
+                        .setSessionId("forge-session-1")
+                        .setScreenName(playerName),
+                ).build()
         ProtoDump.dump(resp, "AuthResp")
         ctx.writeAndFlush(resp)
     }
 
-    private fun handleMatchDoorConnect(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
+    private fun handleMatchDoorConnect(
+        ctx: ChannelHandlerContext,
+        msg: ClientToMatchServiceMessage,
+    ) {
         val connectReq = ClientToMatchDoorConnectRequest.parseFrom(msg.payload)
         if (connectReq.matchId.isNotEmpty()) matchId = connectReq.matchId
         log.info("Match Door: connect matchId={}", matchId)
@@ -143,18 +156,22 @@ class MatchHandler(
     }
 
     /** Create and register a [MatchSession] bound to [bridge]. */
-    private fun createAndRegisterMatchSession(ctx: ChannelHandlerContext, bridge: GameBridge): MatchSession {
+    private fun createAndRegisterMatchSession(
+        ctx: ChannelHandlerContext,
+        bridge: GameBridge,
+    ): MatchSession {
         val sink = NettyMessageSink(ctx, dumpEnabled = true)
         val rec = recorderFactory?.invoke()
-        val s = MatchSession(
-            seatId = SeatId(seatId),
-            matchId = matchId,
-            sink = sink,
-            registry = registry,
-            gameBridge = bridge,
-            recorder = rec,
-            coordinator = coordinator,
-        ).also { it.playerId = clientId.removeSuffix("_Familiar") }
+        val s =
+            MatchSession(
+                seatId = SeatId(seatId),
+                matchId = matchId,
+                sink = sink,
+                registry = registry,
+                gameBridge = bridge,
+                recorder = rec,
+                coordinator = coordinator,
+            ).also { it.playerId = clientId.removeSuffix("_Familiar") }
         session = s
         registry.registerSession(matchId, seatId, s)
         registry.registerHandler(matchId, seatId, this)
@@ -162,7 +179,10 @@ class MatchHandler(
     }
 
     /** Create and register a [FamiliarSession] sharing [counter] with the paired match's bridge. */
-    private fun createAndRegisterFamiliarSession(ctx: ChannelHandlerContext, counter: MessageCounter): FamiliarSession {
+    private fun createAndRegisterFamiliarSession(
+        ctx: ChannelHandlerContext,
+        counter: MessageCounter,
+    ): FamiliarSession {
         val sink = NettyMessageSink(ctx, dumpEnabled = false)
         val s = FamiliarSession(SeatId(seatId), matchId, sink, counter = counter)
         session = s
@@ -171,13 +191,19 @@ class MatchHandler(
         return s
     }
 
-    private fun handleGREMessage(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
+    private fun handleGREMessage(
+        ctx: ChannelHandlerContext,
+        msg: ClientToMatchServiceMessage,
+    ) {
         val greMsg = ClientToGREMessage.parseFrom(msg.payload)
         processGREMessage(ctx, greMsg)
     }
 
     @Suppress("LongMethod", "CyclomaticComplexMethod")
-    private fun processGREMessage(ctx: ChannelHandlerContext, greMsg: ClientToGREMessage) {
+    private fun processGREMessage(
+        ctx: ChannelHandlerContext,
+        greMsg: ClientToGREMessage,
+    ) {
         Tap.inboundGRE(greMsg.type, greMsg.systemSeatId, greMsg.gameStateId)
         val s = session
 
@@ -204,17 +230,19 @@ class MatchHandler(
                 } else {
                     // Constructed mode: normal local player + built-in AI flow.
                     val gameVariant = resolveGameVariant()
-                    val match = registry.getOrCreateMatch(matchId) {
-                        val bridge = GameBridge(matchConfig = matchConfig, messageCounter = MessageCounter(), cardRepository = cardRepository)
-                        Match(matchId, bridge).also {
-                            it.start(
-                                seed = matchConfig.game.seed,
-                                deckList1 = resolveSeat1Deck(),
-                                deckList2 = resolveSeat2Deck(),
-                                variant = gameVariant,
-                            )
+                    val match =
+                        registry.getOrCreateMatch(matchId) {
+                            val bridge =
+                                GameBridge(matchConfig = matchConfig, messageCounter = MessageCounter(), cardRepository = cardRepository)
+                            Match(matchId, bridge).also {
+                                it.start(
+                                    seed = matchConfig.game.seed,
+                                    deckList1 = resolveSeat1Deck(),
+                                    deckList2 = resolveSeat2Deck(),
+                                    variant = gameVariant,
+                                )
+                            }
                         }
-                    }
                     val bridge = match.bridge
                     if (isFamiliar) {
                         createAndRegisterFamiliarSession(ctx, bridge.messageCounter)
@@ -223,7 +251,12 @@ class MatchHandler(
                     }
                     mulliganHandler.seat1Hand = bridge.getHandGrpIds(1)
                     mulliganHandler.seat2Hand = bridge.getHandGrpIds(2)
-                    log.info("Match Door: seat {} connected, hands seat1={} seat2={}", seatId, mulliganHandler.seat1Hand, mulliganHandler.seat2Hand)
+                    log.info(
+                        "Match Door: seat {} connected, hands seat1={} seat2={}",
+                        seatId,
+                        mulliganHandler.seat1Hand,
+                        mulliganHandler.seat2Hand,
+                    )
                     sendRoomState(ctx)
                     sendInitialBundle(ctx)
                 }
@@ -316,15 +349,16 @@ class MatchHandler(
         val gsId = s.counter.nextGsId()
         val deckGrpIds = bridge.getDeckGrpIds(seatId)
         val deck = GsmBuilder.buildDeckMessage(deckGrpIds)
-        val (msg, nextMsgId) = HandshakeMessages.initialBundle(
-            seatId,
-            matchId,
-            s.counter.currentMsgId(),
-            gsId,
-            deck,
-            bridge,
-            dieRollWinner = bridge.dieRollWinner,
-        )
+        val (msg, nextMsgId) =
+            HandshakeMessages.initialBundle(
+                seatId,
+                matchId,
+                s.counter.currentMsgId(),
+                gsId,
+                deck,
+                bridge,
+                dieRollWinner = bridge.dieRollWinner,
+            )
         s.counter.setMsgId(nextMsgId)
         Tap.outboundTemplate("InitialBundle seat=$seatId")
         ProtoDump.dump(msg, "InitialBundle-seat$seatId")
@@ -343,7 +377,10 @@ class MatchHandler(
         super.channelInactive(ctx)
     }
 
-    override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
+    override fun exceptionCaught(
+        ctx: ChannelHandlerContext,
+        cause: Throwable,
+    ) {
         log.error("Match Door error: {}", cause.message, cause)
         registry.teardownMatch(
             matchId = matchId,

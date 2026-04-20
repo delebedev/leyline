@@ -38,9 +38,11 @@ class PriorityDecisionIntegrationTest :
             // For every ActionType: shouldStop=true means it should NOT auto-pass
             for (type in ActionType.values()) {
                 if (type == ActionType.UNRECOGNIZED) continue
-                val actions = ActionsAvailableReq.newBuilder()
-                    .addActions(Action.newBuilder().setActionType(type))
-                    .build()
+                val actions =
+                    ActionsAvailableReq
+                        .newBuilder()
+                        .addActions(Action.newBuilder().setActionType(type))
+                        .build()
                 val autoPass = BundleBuilder.shouldAutoPass(actions)
                 val shouldStop = ShouldStopEvaluator.shouldStop(type)
                 // If shouldStop is true, autoPass must be false (and vice versa)

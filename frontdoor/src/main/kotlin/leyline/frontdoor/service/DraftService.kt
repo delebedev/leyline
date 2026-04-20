@@ -21,21 +21,25 @@ class DraftService(
         const val TOTAL_PACKS = 3
     }
 
-    fun startDraft(playerId: PlayerId, eventName: String): DraftSession {
+    fun startDraft(
+        playerId: PlayerId,
+        eventName: String,
+    ): DraftSession {
         repo.findByPlayerAndEvent(playerId, eventName)?.let { return it }
 
         val packs = generatePacks(extractSetCode(eventName))
-        val session = DraftSession(
-            id = DraftSessionId(UUID.randomUUID().toString()),
-            playerId = playerId,
-            eventName = eventName,
-            status = DraftStatus.PickNext,
-            packNumber = 0,
-            pickNumber = 0,
-            draftPack = packs[0],
-            packs = packs,
-            pickedCards = emptyList(),
-        )
+        val session =
+            DraftSession(
+                id = DraftSessionId(UUID.randomUUID().toString()),
+                playerId = playerId,
+                eventName = eventName,
+                status = DraftStatus.PickNext,
+                packNumber = 0,
+                pickNumber = 0,
+                draftPack = packs[0],
+                packs = packs,
+                pickedCards = emptyList(),
+            )
         repo.save(session)
         return session
     }
@@ -47,8 +51,9 @@ class DraftService(
         packNumber: Int,
         pickNumber: Int,
     ): DraftSession {
-        val session = repo.findByPlayerAndEvent(playerId, eventName)
-            ?: throw IllegalArgumentException("No draft session for $eventName")
+        val session =
+            repo.findByPlayerAndEvent(playerId, eventName)
+                ?: throw IllegalArgumentException("No draft session for $eventName")
 
         require(session.status == DraftStatus.PickNext) { "Draft already completed" }
         require(cardId in session.draftPack) { "Card $cardId not in current pack" }
@@ -58,30 +63,37 @@ class DraftService(
         val totalPicksNeeded = session.packs.sumOf { it.size }
         val completed = newPickedCards.size >= totalPicksNeeded
 
-        val (nextPackNumber, nextPickNumber, nextDraftPack) = if (completed) {
-            Triple(session.packNumber, session.pickNumber, emptyList<Int>())
-        } else if (remainingPack.isEmpty()) {
-            val nextPN = session.packNumber + 1
-            Triple(nextPN, 0, session.packs[nextPN])
-        } else {
-            Triple(session.packNumber, session.pickNumber + 1, remainingPack)
-        }
+        val (nextPackNumber, nextPickNumber, nextDraftPack) =
+            if (completed) {
+                Triple(session.packNumber, session.pickNumber, emptyList<Int>())
+            } else if (remainingPack.isEmpty()) {
+                val nextPN = session.packNumber + 1
+                Triple(nextPN, 0, session.packs[nextPN])
+            } else {
+                Triple(session.packNumber, session.pickNumber + 1, remainingPack)
+            }
 
-        val updated = session.copy(
-            status = if (completed) DraftStatus.Completed else DraftStatus.PickNext,
-            packNumber = nextPackNumber,
-            pickNumber = nextPickNumber,
-            draftPack = nextDraftPack,
-            pickedCards = newPickedCards,
-        )
+        val updated =
+            session.copy(
+                status = if (completed) DraftStatus.Completed else DraftStatus.PickNext,
+                packNumber = nextPackNumber,
+                pickNumber = nextPickNumber,
+                draftPack = nextDraftPack,
+                pickedCards = newPickedCards,
+            )
         repo.save(updated)
         return updated
     }
 
-    fun getStatus(playerId: PlayerId, eventName: String): DraftSession? =
-        repo.findByPlayerAndEvent(playerId, eventName)
+    fun getStatus(
+        playerId: PlayerId,
+        eventName: String,
+    ): DraftSession? = repo.findByPlayerAndEvent(playerId, eventName)
 
-    fun drop(playerId: PlayerId, eventName: String) {
+    fun drop(
+        playerId: PlayerId,
+        eventName: String,
+    ) {
         val session = repo.findByPlayerAndEvent(playerId, eventName) ?: return
         repo.delete(session.id)
     }

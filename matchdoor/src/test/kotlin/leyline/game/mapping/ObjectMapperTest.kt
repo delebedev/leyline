@@ -23,10 +23,15 @@ class ObjectMapperTest :
             // Register back face in test card DB (startWithBoard only registers board cards)
             TestCardRegistry.ensureCardRegistered("Revealing Eye")
 
-            val (b, game, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Concealing Curtains", human, ZoneType.Battlefield)
-            }
-            val card = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.name == "Concealing Curtains" }
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Concealing Curtains", human, ZoneType.Battlefield)
+                }
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Concealing Curtains" }
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
             val zoneId = ZoneIds.BATTLEFIELD
@@ -42,10 +47,15 @@ class ObjectMapperTest :
         }
 
         test("non-DFC card has othersideGrpId zero") {
-            val (b, game, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-            }
-            val card = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Grizzly Bears" }
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
             val zoneId = ZoneIds.BATTLEFIELD

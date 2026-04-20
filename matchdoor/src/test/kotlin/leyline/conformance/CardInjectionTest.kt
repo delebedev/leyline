@@ -38,7 +38,9 @@ class CardInjectionTest :
             val snap1 = GsmSnapshot.capture(game, b, "test", gsId1)
             val gsm = StateMapper.buildFromSnapshot(snap1, gsId1, "test", b, viewingSeatId = 1).gsm
             val obj =
-                checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected card should appear in gameObjectsList" }
+                checkNotNull(
+                    gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId },
+                ) { "Injected card should appear in gameObjectsList" }
             obj.grpId shouldBe injected.grpId
             obj.cardTypesList.shouldContain(CardType.Creature)
             obj.hasPower().shouldBeTrue()
@@ -64,7 +66,9 @@ class CardInjectionTest :
             val snap2 = GsmSnapshot.capture(game, b, "test", gsId2)
             val gsm = StateMapper.buildFromSnapshot(snap2, gsId2, "test", b, viewingSeatId = 1).gsm
             val obj =
-                checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected card should appear in gameObjectsList" }
+                checkNotNull(
+                    gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId },
+                ) { "Injected card should appear in gameObjectsList" }
             obj.cardTypesList.shouldContain(CardType.Instant)
 
             val handZone =
@@ -105,7 +109,9 @@ class CardInjectionTest :
             val snap3 = GsmSnapshot.capture(game, b, "test", gsId3)
             val gsm = StateMapper.buildFromSnapshot(snap3, gsId3, "test", b, viewingSeatId = 1).gsm
             val obj =
-                checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected land should appear in gameObjectsList" }
+                checkNotNull(
+                    gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId },
+                ) { "Injected land should appear in gameObjectsList" }
             obj.cardTypesList.shouldContain(CardType.Land_a80b)
         }
     })

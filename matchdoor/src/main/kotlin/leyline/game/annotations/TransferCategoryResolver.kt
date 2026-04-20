@@ -17,7 +17,6 @@ import leyline.game.event.Zone
  * @see TransferCategory for the category label enum
  */
 object TransferCategoryResolver {
-
     /**
      * Resolve the annotation category for a zone transfer using captured events.
      *
@@ -29,7 +28,10 @@ object TransferCategoryResolver {
      * Priority: specific mechanic events > CardSacrificed override > zone-pair inference.
      */
     @Suppress("CyclomaticComplexMethod") // flat dispatch table, not actual complexity
-    fun categoryFromEvents(forgeCardId: ForgeCardId, events: List<GameEvent>): TransferCategory? {
+    fun categoryFromEvents(
+        forgeCardId: ForgeCardId,
+        events: List<GameEvent>,
+    ): TransferCategory? {
         var generic: GameEvent.ZoneChanged? = null
         var sacrificed = false
         var zoneCategory: TransferCategory? = null
@@ -44,14 +46,15 @@ object TransferCategoryResolver {
                 // transfer (Forge PlayEffect-driven casts).
                 is GameEvent.LandPlayed -> if (ev.cardId == forgeCardId) return TransferCategory.PlayLand
                 is GameEvent.SpellCast -> if (ev.cardId == forgeCardId) return TransferCategory.CastSpell
-                is GameEvent.SpellResolved -> if (ev.cardId == forgeCardId) {
-                    // Fizzled spells (countered) go Stack→GY — not a successful resolve
-                    if (ev.hasFizzled) {
-                        zoneCategory = TransferCategory.Countered
-                    } else {
-                        return TransferCategory.Resolve
+                is GameEvent.SpellResolved ->
+                    if (ev.cardId == forgeCardId) {
+                        // Fizzled spells (countered) go Stack→GY — not a successful resolve
+                        if (ev.hasFizzled) {
+                            zoneCategory = TransferCategory.Countered
+                        } else {
+                            return TransferCategory.Resolve
+                        }
                     }
-                }
                 // Legend rule SBA — highest zone-specific priority (immediate return)
                 is GameEvent.LegendRuleDeath -> if (ev.cardId == forgeCardId) return TransferCategory.SbaLegendRule
                 // Sacrifice flag — overrides Destroy when both fire for same card
@@ -98,7 +101,10 @@ object TransferCategoryResolver {
      *
      * @return Forge card ID of the causing ability's host card, or null if unknown.
      */
-    fun affectorSourceFromEvents(forgeCardId: ForgeCardId, events: List<GameEvent>): ForgeCardId? {
+    fun affectorSourceFromEvents(
+        forgeCardId: ForgeCardId,
+        events: List<GameEvent>,
+    ): ForgeCardId? {
         for (ev in events) {
             when {
                 ev is GameEvent.CardMilled && ev.cardId == forgeCardId -> return ev.sourceCardId
@@ -117,49 +123,56 @@ object TransferCategoryResolver {
      * Mill (Lib→GY), Countered (Stack→GY), and Exile (any→Exile).
      */
     @Suppress("CyclomaticComplexMethod") // flat zone-pair dispatch, not actual complexity
-    private fun zoneChangedCategory(ev: GameEvent.ZoneChanged): TransferCategory = when {
-        ev.from == Zone.Hand -> when (ev.to) {
-            Zone.Battlefield -> TransferCategory.PlayLand
-            Zone.Stack -> TransferCategory.CastSpell
-            Zone.Graveyard -> TransferCategory.Discard
-            Zone.Exile -> TransferCategory.Exile
-            Zone.Hand, Zone.Library, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
+    private fun zoneChangedCategory(ev: GameEvent.ZoneChanged): TransferCategory =
+        when {
+            ev.from == Zone.Hand ->
+                when (ev.to) {
+                    Zone.Battlefield -> TransferCategory.PlayLand
+                    Zone.Stack -> TransferCategory.CastSpell
+                    Zone.Graveyard -> TransferCategory.Discard
+                    Zone.Exile -> TransferCategory.Exile
+                    Zone.Hand, Zone.Library, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
+                }
+            ev.from == Zone.Stack ->
+                when (ev.to) {
+                    Zone.Battlefield -> TransferCategory.Resolve
+                    Zone.Graveyard -> TransferCategory.Countered
+                    Zone.Exile -> TransferCategory.Exile
+                    Zone.Hand, Zone.Library, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
+                }
+            ev.from == Zone.Battlefield ->
+                when (ev.to) {
+                    Zone.Graveyard -> TransferCategory.Destroy
+                    Zone.Exile -> TransferCategory.Exile
+                    Zone.Hand -> TransferCategory.Bounce
+                    Zone.Library -> TransferCategory.Bounce
+                    Zone.Battlefield, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
+                }
+            ev.from == Zone.Library ->
+                when (ev.to) {
+                    Zone.Hand -> TransferCategory.Draw
+                    Zone.Battlefield -> TransferCategory.Search
+                    Zone.Graveyard -> TransferCategory.Mill
+                    Zone.Exile -> TransferCategory.Exile
+                    Zone.Library, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
+                }
+            ev.from == Zone.Graveyard ->
+                when (ev.to) {
+                    Zone.Hand, Zone.Battlefield -> TransferCategory.Return
+                    Zone.Exile -> TransferCategory.Exile
+                    Zone.Library, Zone.Graveyard, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
+                }
+            ev.from == Zone.Exile ->
+                when (ev.to) {
+                    Zone.Hand, Zone.Battlefield -> TransferCategory.Return
+                    // Exile → Graveyard. Primary case: declined Madness — the madness
+                    // ability resolves without the player electing to cast, so the card
+                    // exits exile to its owner's graveyard. Tag as `Put`. Generic
+                    // enough to also cover cleanup of an exiled card moving to graveyard.
+                    Zone.Graveyard -> TransferCategory.Put
+                    Zone.Library, Zone.Exile, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
+                }
+            ev.to == Zone.Exile -> TransferCategory.Exile
+            else -> TransferCategory.ZoneTransfer
         }
-        ev.from == Zone.Stack -> when (ev.to) {
-            Zone.Battlefield -> TransferCategory.Resolve
-            Zone.Graveyard -> TransferCategory.Countered
-            Zone.Exile -> TransferCategory.Exile
-            Zone.Hand, Zone.Library, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
-        }
-        ev.from == Zone.Battlefield -> when (ev.to) {
-            Zone.Graveyard -> TransferCategory.Destroy
-            Zone.Exile -> TransferCategory.Exile
-            Zone.Hand -> TransferCategory.Bounce
-            Zone.Library -> TransferCategory.Bounce
-            Zone.Battlefield, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
-        }
-        ev.from == Zone.Library -> when (ev.to) {
-            Zone.Hand -> TransferCategory.Draw
-            Zone.Battlefield -> TransferCategory.Search
-            Zone.Graveyard -> TransferCategory.Mill
-            Zone.Exile -> TransferCategory.Exile
-            Zone.Library, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
-        }
-        ev.from == Zone.Graveyard -> when (ev.to) {
-            Zone.Hand, Zone.Battlefield -> TransferCategory.Return
-            Zone.Exile -> TransferCategory.Exile
-            Zone.Library, Zone.Graveyard, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
-        }
-        ev.from == Zone.Exile -> when (ev.to) {
-            Zone.Hand, Zone.Battlefield -> TransferCategory.Return
-            // Exile → Graveyard. Primary case: declined Madness — the madness
-            // ability resolves without the player electing to cast, so the card
-            // exits exile to its owner's graveyard. Tag as `Put`. Generic
-            // enough to also cover cleanup of an exiled card moving to graveyard.
-            Zone.Graveyard -> TransferCategory.Put
-            Zone.Library, Zone.Exile, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
-        }
-        ev.to == Zone.Exile -> TransferCategory.Exile
-        else -> TransferCategory.ZoneTransfer
-    }
 }

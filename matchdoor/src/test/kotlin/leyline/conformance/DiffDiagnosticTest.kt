@@ -35,14 +35,20 @@ class DiffDiagnosticTest :
         afterEach { base.tearDown() }
 
         test("diff after land play has correct GSM type, zones, and annotations") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Plains", human, ForgeZoneType.Hand)
-            }
+            val (b, game, counter) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Plains", human, ForgeZoneType.Hand)
+                }
 
-            val land = game.humanPlayer.getZone(ForgeZoneType.Hand).cards.first { it.isLand }
-            val gsm = base.captureAfterAction(b, game, counter) {
-                game.action.moveToPlay(land, null, AbilityKey.newMap())
-            }
+            val land =
+                game.humanPlayer
+                    .getZone(ForgeZoneType.Hand)
+                    .cards
+                    .first { it.isLand }
+            val gsm =
+                base.captureAfterAction(b, game, counter) {
+                    game.action.moveToPlay(land, null, AbilityKey.newMap())
+                }
 
             assertSoftly {
                 gsm.type shouldBe GameStateType.Diff
@@ -80,9 +86,10 @@ class DiffDiagnosticTest :
             acc.processAll(afterCast.messages)
 
             val creatureNewId = b.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
-            val creatureObj = checkNotNull(acc.objects[creatureNewId]) {
-                "Creature should exist in accumulated objects with instanceId $creatureNewId"
-            }
+            val creatureObj =
+                checkNotNull(acc.objects[creatureNewId]) {
+                    "Creature should exist in accumulated objects with instanceId $creatureNewId"
+                }
 
             if (game.stack.isEmpty) {
                 creatureObj.zoneId shouldBe ZoneIds.BATTLEFIELD
@@ -123,19 +130,25 @@ class DiffDiagnosticTest :
         }
 
         test("remoteActionDiff contains BF objects for AI land play") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Plains", human, ForgeZoneType.Hand)
-            }
+            val (b, game, counter) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Plains", human, ForgeZoneType.Hand)
+                }
 
-            val land = game.humanPlayer.getZone(ForgeZoneType.Hand).cards.first { it.isLand }
+            val land =
+                game.humanPlayer
+                    .getZone(ForgeZoneType.Hand)
+                    .cards
+                    .first { it.isLand }
             base.captureAfterAction(b, game, counter) {
                 game.action.moveToPlay(land, null, AbilityKey.newMap())
             }
 
-            val aiResult = base.bundleBuilder(b).remoteActionDiff(
-                game,
-                counter,
-            )
+            val aiResult =
+                base.bundleBuilder(b).remoteActionDiff(
+                    game,
+                    counter,
+                )
 
             val gsm = aiResult.gsm
             gsm.type shouldBe GameStateType.Diff

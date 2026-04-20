@@ -9,20 +9,21 @@ indent_style = space
 indent_size = 4
 
 [*.{kt,kts}]
-max_line_length = 160
-ktlint_standard_no-wildcard-imports = disabled
+# Adopt ktlint's official code style as the single source of truth.
+# Max line length aligns with the Kotlin ecosystem default.
+ktlint_code_style = ktlint_official
+max_line_length = 140
 
-# Keep the codebase's intentional style: multi-line function/class signatures
-# with trailing commas, `= expressionBody` on its own line for chains.
-# These rules would collapse those to single-line forms that fit under 160
-# chars but are harder to scan at review time.
-ktlint_standard_function-signature = disabled
-ktlint_standard_class-signature = disabled
-ktlint_standard_parameter-list-wrapping = disabled
-ktlint_standard_multiline-expression-wrapping = disabled
-# KDoc section headers and pre-function EOL comments are intentional patterns
-# in this codebase; the rule demands blank lines between them that add noise.
+# Repo-specific deviations (justified):
+# Wildcard imports exist in long-standing code and are readable in test DSLs.
+ktlint_standard_no-wildcard-imports = disabled
+# KDoc section headers stacked back-to-back are idiomatic; the rule wants noise
+# blank lines between every doc-comment pair.
 ktlint_standard_no-consecutive-comments = disabled
+# Inline argument comments (e.g. `foo(x, /* reason */ y)`) are a documentation
+# pattern used heavily in CardProtoBuilder / BundleBuilder; the rule would
+# require splitting them across lines, hurting local readability.
+ktlint_standard_discouraged-comment-location = disabled
 
 [*.{yml,yaml,json}]
 indent_size = 2

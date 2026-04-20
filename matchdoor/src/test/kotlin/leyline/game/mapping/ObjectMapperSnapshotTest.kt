@@ -31,10 +31,15 @@ class ObjectMapperSnapshotTest :
         afterEach { base.tearDown() }
 
         test("off-battlefield hand card: snapshot fields are correct") {
-            val (b, game, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Grizzly Bears", human, ZoneType.Hand)
-            }
-            val card = game.humanPlayer.getZone(ZoneType.Hand).cards.first { it.name == "Grizzly Bears" }
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Grizzly Bears", human, ZoneType.Hand)
+                }
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.name == "Grizzly Bears" }
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
@@ -54,10 +59,15 @@ class ObjectMapperSnapshotTest :
         }
 
         test("on-battlefield creature: P/T + tapped + sickness captured") {
-            val (b, game, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-            }
-            val card = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Grizzly Bears" }
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
@@ -71,14 +81,15 @@ class ObjectMapperSnapshotTest :
                 cardSnap.netToughness shouldNotBe null
             }
 
-            val fromSnap = ObjectMapper.buildFromSnapshot(
-                cardSnap,
-                instanceId,
-                ZoneIds.BATTLEFIELD,
-                1,
-                b,
-                Visibility.Public,
-            )
+            val fromSnap =
+                ObjectMapper.buildFromSnapshot(
+                    cardSnap,
+                    instanceId,
+                    ZoneIds.BATTLEFIELD,
+                    1,
+                    b,
+                    Visibility.Public,
+                )
 
             assertSoftly {
                 fromSnap.power.value shouldBe card.netPower
@@ -88,10 +99,15 @@ class ObjectMapperSnapshotTest :
         }
 
         test("graveyard card: visibility and zone are correct") {
-            val (b, game, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Grizzly Bears", human, ZoneType.Graveyard)
-            }
-            val card = game.humanPlayer.getZone(ZoneType.Graveyard).cards.first { it.name == "Grizzly Bears" }
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Grizzly Bears", human, ZoneType.Graveyard)
+                }
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Graveyard)
+                    .cards
+                    .first { it.name == "Grizzly Bears" }
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
@@ -101,14 +117,15 @@ class ObjectMapperSnapshotTest :
 
             cardSnap.isOnBattlefield shouldBe false
 
-            val fromSnap = ObjectMapper.buildFromSnapshot(
-                cardSnap,
-                instanceId,
-                ZoneIds.P1_GRAVEYARD,
-                1,
-                b,
-                Visibility.Public,
-            )
+            val fromSnap =
+                ObjectMapper.buildFromSnapshot(
+                    cardSnap,
+                    instanceId,
+                    ZoneIds.P1_GRAVEYARD,
+                    1,
+                    b,
+                    Visibility.Public,
+                )
 
             assertSoftly {
                 fromSnap.zoneId shouldBe ZoneIds.P1_GRAVEYARD
@@ -119,11 +136,15 @@ class ObjectMapperSnapshotTest :
         test("DFC card has othersideGrpId set in snapshot path") {
             TestCardRegistry.ensureCardRegistered("Revealing Eye")
 
-            val (b, game, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Concealing Curtains", human, ZoneType.Battlefield)
-            }
-            val card = game.humanPlayer.getZone(ZoneType.Battlefield).cards
-                .first { it.name == "Concealing Curtains" }
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Concealing Curtains", human, ZoneType.Battlefield)
+                }
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Concealing Curtains" }
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
@@ -134,14 +155,15 @@ class ObjectMapperSnapshotTest :
             val frontGrpId = b.cardRepository.findGrpIdByName("Concealing Curtains")!!
             val backGrpId = b.cardRepository.findGrpIdByName("Revealing Eye")!!
 
-            val fromSnap = ObjectMapper.buildFromSnapshot(
-                cardSnap,
-                instanceId,
-                ZoneIds.BATTLEFIELD,
-                1,
-                b,
-                Visibility.Public,
-            )
+            val fromSnap =
+                ObjectMapper.buildFromSnapshot(
+                    cardSnap,
+                    instanceId,
+                    ZoneIds.BATTLEFIELD,
+                    1,
+                    b,
+                    Visibility.Public,
+                )
 
             assertSoftly {
                 fromSnap.grpId shouldBe frontGrpId
@@ -152,11 +174,15 @@ class ObjectMapperSnapshotTest :
         test("planeswalker loyalty is captured in snapshot") {
             TestCardRegistry.ensureCardRegistered("Chandra, Torch of Defiance")
 
-            val (b, game, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Chandra, Torch of Defiance", human, ZoneType.Battlefield)
-            }
-            val card = game.humanPlayer.getZone(ZoneType.Battlefield).cards
-                .first { it.name == "Chandra, Torch of Defiance" }
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Chandra, Torch of Defiance", human, ZoneType.Battlefield)
+                }
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Chandra, Torch of Defiance" }
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
@@ -164,23 +190,29 @@ class ObjectMapperSnapshotTest :
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
-            val fromSnap = ObjectMapper.buildFromSnapshot(
-                cardSnap,
-                instanceId,
-                ZoneIds.BATTLEFIELD,
-                1,
-                b,
-                Visibility.Public,
-            )
+            val fromSnap =
+                ObjectMapper.buildFromSnapshot(
+                    cardSnap,
+                    instanceId,
+                    ZoneIds.BATTLEFIELD,
+                    1,
+                    b,
+                    Visibility.Public,
+                )
 
             fromSnap.loyalty.value shouldBe card.currentLoyalty
         }
 
         test("buildFromSnapshot owner/controller seats correct for AI cards") {
-            val (b, game, _) = base.startWithBoard { _, _, ai ->
-                base.addCard("Grizzly Bears", ai, ZoneType.Battlefield)
-            }
-            val card = game.aiPlayer.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            val (b, game, _) =
+                base.startWithBoard { _, _, ai ->
+                    base.addCard("Grizzly Bears", ai, ZoneType.Battlefield)
+                }
+            val card =
+                game.aiPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Grizzly Bears" }
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
@@ -193,14 +225,15 @@ class ObjectMapperSnapshotTest :
                 cardSnap.controller shouldBe SeatId(2)
             }
 
-            val fromSnap = ObjectMapper.buildFromSnapshot(
-                cardSnap,
-                instanceId,
-                ZoneIds.BATTLEFIELD,
-                2,
-                b,
-                Visibility.Public,
-            )
+            val fromSnap =
+                ObjectMapper.buildFromSnapshot(
+                    cardSnap,
+                    instanceId,
+                    ZoneIds.BATTLEFIELD,
+                    2,
+                    b,
+                    Visibility.Public,
+                )
 
             assertSoftly {
                 fromSnap.ownerSeatId shouldBe 2

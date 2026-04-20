@@ -56,7 +56,6 @@ class BundleBuilder(
      */
     val cursor: BundleCursor = bridge.bundleCursor,
 ) {
-
     data class BundleResult(
         val messages: List<GREToClientMessage>,
     )
@@ -79,17 +78,18 @@ class BundleBuilder(
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
         val previousSnap = cursor.lastSent
-        val result = StateMapper.buildDiff(
-            previousSnap,
-            snap,
-            events,
-            nextGs,
-            matchId,
-            bridge,
-            updateType = updateType,
-            viewingSeatId = seatId,
-            revealForSeat = revealForSeat,
-        )
+        val result =
+            StateMapper.buildDiff(
+                previousSnap,
+                snap,
+                events,
+                nextGs,
+                matchId,
+                bridge,
+                updateType = updateType,
+                viewingSeatId = seatId,
+                revealForSeat = revealForSeat,
+            )
         bridge.applyMutations(result.mutations)
         bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, result.gsm)
         val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
@@ -104,34 +104,35 @@ class BundleBuilder(
         @Suppress("UnusedPrivateProperty")
         val split: Triple<GameStateMessage, GameStateMessage, GameStateMessage>? = null
 
-        val messages = if (split != null) {
-            val (queued1, queued2, main) = split
-            listOf(
-                makeGRE(GREMessageType.QueuedGameStateMessage, queued1.gameStateId, counter.nextMsgId()) {
-                    it.gameStateMessage = queued1
-                },
-                makeGRE(GREMessageType.QueuedGameStateMessage, queued2.gameStateId, counter.nextMsgId()) {
-                    it.gameStateMessage = queued2
-                },
-                makeGRE(GREMessageType.GameStateMessage_695e, main.gameStateId, counter.nextMsgId()) {
-                    it.gameStateMessage = main
-                },
-                makeGRE(GREMessageType.ActionsAvailableReq_695e, main.gameStateId, counter.nextMsgId()) {
-                    it.actionsAvailableReq = actions
-                    it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-                },
-            )
-        } else {
-            listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                    it.gameStateMessage = gs
-                },
-                makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, counter.nextMsgId()) {
-                    it.actionsAvailableReq = actions
-                    it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-                },
-            )
-        }
+        val messages =
+            if (split != null) {
+                val (queued1, queued2, main) = split
+                listOf(
+                    makeGRE(GREMessageType.QueuedGameStateMessage, queued1.gameStateId, counter.nextMsgId()) {
+                        it.gameStateMessage = queued1
+                    },
+                    makeGRE(GREMessageType.QueuedGameStateMessage, queued2.gameStateId, counter.nextMsgId()) {
+                        it.gameStateMessage = queued2
+                    },
+                    makeGRE(GREMessageType.GameStateMessage_695e, main.gameStateId, counter.nextMsgId()) {
+                        it.gameStateMessage = main
+                    },
+                    makeGRE(GREMessageType.ActionsAvailableReq_695e, main.gameStateId, counter.nextMsgId()) {
+                        it.actionsAvailableReq = actions
+                        it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+                    },
+                )
+            } else {
+                listOf(
+                    makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                        it.gameStateMessage = gs
+                    },
+                    makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, counter.nextMsgId()) {
+                        it.actionsAvailableReq = actions
+                        it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+                    },
+                )
+            }
 
         cursor.lastSent = snap
         return BundleResult(messages)
@@ -152,16 +153,17 @@ class BundleBuilder(
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         val events = bridge.drainBundleEvents(seatId)
         val previousSnap = cursor.lastSent
-        val result = StateMapper.buildDiff(
-            previousSnap,
-            snap,
-            events,
-            nextGs,
-            matchId,
-            bridge,
-            updateType = updateType,
-            viewingSeatId = seatId,
-        )
+        val result =
+            StateMapper.buildDiff(
+                previousSnap,
+                snap,
+                events,
+                nextGs,
+                matchId,
+                bridge,
+                updateType = updateType,
+                viewingSeatId = seatId,
+            )
         bridge.applyMutations(result.mutations)
         bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, result.gsm)
 
@@ -169,26 +171,27 @@ class BundleBuilder(
         @Suppress("UnusedPrivateProperty")
         val split: Triple<GameStateMessage, GameStateMessage, GameStateMessage>? = null
 
-        val messages = if (split != null) {
-            val (queued1, queued2, main) = split
-            listOf(
-                makeGRE(GREMessageType.QueuedGameStateMessage, queued1.gameStateId, counter.nextMsgId()) {
-                    it.gameStateMessage = queued1
-                },
-                makeGRE(GREMessageType.QueuedGameStateMessage, queued2.gameStateId, counter.nextMsgId()) {
-                    it.gameStateMessage = queued2
-                },
-                makeGRE(GREMessageType.GameStateMessage_695e, main.gameStateId, counter.nextMsgId()) {
-                    it.gameStateMessage = main
-                },
-            )
-        } else {
-            listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                    it.gameStateMessage = result.gsm
-                },
-            )
-        }
+        val messages =
+            if (split != null) {
+                val (queued1, queued2, main) = split
+                listOf(
+                    makeGRE(GREMessageType.QueuedGameStateMessage, queued1.gameStateId, counter.nextMsgId()) {
+                        it.gameStateMessage = queued1
+                    },
+                    makeGRE(GREMessageType.QueuedGameStateMessage, queued2.gameStateId, counter.nextMsgId()) {
+                        it.gameStateMessage = queued2
+                    },
+                    makeGRE(GREMessageType.GameStateMessage_695e, main.gameStateId, counter.nextMsgId()) {
+                        it.gameStateMessage = main
+                    },
+                )
+            } else {
+                listOf(
+                    makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                        it.gameStateMessage = result.gsm
+                    },
+                )
+            }
 
         cursor.lastSent = snap
         return BundleResult(messages)
@@ -214,16 +217,17 @@ class BundleBuilder(
         // Build state first (triggers instanceId realloc), then actions with new IDs
         val events = bridge.drainBundleEvents(seatId)
         val previousSnap = cursor.lastSent
-        val remoteResult = StateMapper.buildDiff(
-            previousSnap,
-            snap,
-            events,
-            nextGs,
-            matchId,
-            bridge,
-            updateType = GameStateUpdate.SendHiFi,
-            viewingSeatId = seatId,
-        )
+        val remoteResult =
+            StateMapper.buildDiff(
+                previousSnap,
+                snap,
+                events,
+                nextGs,
+                matchId,
+                bridge,
+                updateType = GameStateUpdate.SendHiFi,
+                viewingSeatId = seatId,
+            )
         bridge.applyMutations(remoteResult.mutations)
         bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, remoteResult.gsm)
         val gsBase = remoteResult.gsm
@@ -233,30 +237,38 @@ class BundleBuilder(
 
         // Inject turn-start annotation when applicable. PhaseOrStepModified is now
         // emitted event-driven in Stage 2b (inside buildDiff above).
-        val gsWithAnnotations = if (turnStarted) {
-            gsBase.toBuilder().apply {
-                addAnnotations(
-                    AnnotationBuilder.newTurnStarted(SeatId(frame.activeSeat))
-                        .toBuilder().setId(bridge.nextAnnotationId()).build(),
-                )
-            }.build()
-        } else {
-            gsBase
-        }
+        val gsWithAnnotations =
+            if (turnStarted) {
+                gsBase
+                    .toBuilder()
+                    .apply {
+                        addAnnotations(
+                            AnnotationBuilder
+                                .newTurnStarted(SeatId(frame.activeSeat))
+                                .toBuilder()
+                                .setId(bridge.nextAnnotationId())
+                                .build(),
+                        )
+                    }.build()
+            } else {
+                gsBase
+            }
 
         // Embed actions WITHOUT pendingMessageCount (no follow-up message expected)
         val gs = gsWithAnnotations.toBuilder()
         for (action in actions.actionsList) {
             gs.addActions(
-                ActionInfo.newBuilder()
+                ActionInfo
+                    .newBuilder()
                     .setSeatId(seatId)
                     .setAction(ActionMapper.stripActionForGsm(action)),
             )
         }
 
-        val content = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-            it.gameStateMessage = gs.build()
-        }
+        val content =
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                it.gameStateMessage = gs.build()
+            }
         val echo = buildEchoDiffGsm(counter, GameStateUpdate.SendHiFi)
 
         cursor.lastSent = snap
@@ -294,9 +306,7 @@ class BundleBuilder(
     }
 
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
-    fun buildSelectNReq(
-        prompt: InteractivePromptBridge.PendingPrompt,
-    ): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge)
+    fun buildSelectNReq(prompt: InteractivePromptBridge.PendingPrompt): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge)
 
     /** Build a [SearchReq] GRE message with populated inner fields for library search. */
     fun buildSearchReq(
@@ -309,37 +319,40 @@ class BundleBuilder(
         maxFind: Int = 1,
         allowFailToFind: Boolean = true,
     ): GREToClientMessage {
-        val searchReq = SearchReq.newBuilder()
-            .setMaxFind(maxFind)
-            .addZonesToSearch(libraryZoneId)
-            .addAllItemsToSearch(allLibraryIds)
-            .addAllItemsSought(validTargetIds)
-            .setSourceId(sourceInstanceId)
+        val searchReq =
+            SearchReq
+                .newBuilder()
+                .setMaxFind(maxFind)
+                .addZonesToSearch(libraryZoneId)
+                .addAllItemsToSearch(allLibraryIds)
+                .addAllItemsSought(validTargetIds)
+                .setSourceId(sourceInstanceId)
         if (allowFailToFind) {
             searchReq.setAllowFailToFind(AllowFailToFind.Any)
         }
-        return GREToClientMessage.newBuilder()
+        return GREToClientMessage
+            .newBuilder()
             .setType(GREMessageType.SearchReq_695e)
             .setMsgId(msgId)
             .setGameStateId(gsId)
             .addSystemSeatIds(seatId)
             .setPrompt(
-                Prompt.newBuilder()
+                Prompt
+                    .newBuilder()
                     .setPromptId(PromptIds.SEARCH)
                     .addParameters(
-                        PromptParameter.newBuilder()
+                        PromptParameter
+                            .newBuilder()
                             .setParameterName("CardId")
                             .setType(ParameterType.Number)
                             .setNumberValue(sourceInstanceId),
                     ),
-            )
-            .setSearchReq(searchReq)
+            ).setSearchReq(searchReq)
             .build()
     }
 
     /** Build a [DeclareAttackersReq] listing legal attackers. */
-    fun buildDeclareAttackersReq(): DeclareAttackersReq =
-        RequestBuilder.buildDeclareAttackersReq(seatId, bridge)
+    fun buildDeclareAttackersReq(): DeclareAttackersReq = RequestBuilder.buildDeclareAttackersReq(seatId, bridge)
 
     /**
      * Phase transition bundle matching expected client-facing message pattern (5 messages):
@@ -364,60 +377,70 @@ class BundleBuilder(
         val actions = ActionMapper.buildNaiveActions(seatId, bridge)
 
         // Message 1: SendHiFi with 2x PhaseOrStepModified + gameInfo
-        val gs1 = GsmBuilder.buildTransitionState(
-            nextGs,
-            prevGameStateId = prevGs,
-            matchId,
-            bridge,
-            frame,
-            snap = snap,
-            isStageTransition = true,
-            actions = actions,
-            actionSeatId = seatId,
-        )
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-            it.gameStateMessage = gs1
-        }
+        val gs1 =
+            GsmBuilder.buildTransitionState(
+                nextGs,
+                prevGameStateId = prevGs,
+                matchId,
+                bridge,
+                frame,
+                snap = snap,
+                isStageTransition = true,
+                actions = actions,
+                actionSeatId = seatId,
+            )
+        val msg1 =
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                it.gameStateMessage = gs1
+            }
 
         // Message 2: SendHiFi echo (turnInfo + actions, no annotations)
         val msg1GsId = nextGs
         val echoGs = counter.nextGsId()
-        val echoBuilder = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff)
-            .setGameStateId(echoGs)
-            .setPrevGameStateId(msg1GsId)
-            .setTurnInfo(frame.turnInfo())
-            .setUpdate(GameStateUpdate.SendHiFi)
+        val echoBuilder =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(echoGs)
+                .setPrevGameStateId(msg1GsId)
+                .setTurnInfo(frame.turnInfo())
+                .setUpdate(GameStateUpdate.SendHiFi)
         embedActions(echoBuilder, actions, seatId, pending = false)
-        val msg2 = makeGRE(GREMessageType.GameStateMessage_695e, echoGs, counter.nextMsgId()) {
-            it.gameStateMessage = echoBuilder.build()
-        }
+        val msg2 =
+            makeGRE(GREMessageType.GameStateMessage_695e, echoGs, counter.nextMsgId()) {
+                it.gameStateMessage = echoBuilder.build()
+            }
 
         // Message 3: SendAndRecord with 1x PhaseOrStepModified
         val commitGs = counter.nextGsId()
-        val commitBuilder = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff)
-            .setGameStateId(commitGs)
-            .setPrevGameStateId(echoGs)
-            .setTurnInfo(frame.turnInfo())
-            .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() })
-            .addAllTimers(PlayerMapper.buildTimers())
-            .setUpdate(GameStateUpdate.SendAndRecord)
+        val commitBuilder =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(commitGs)
+                .setPrevGameStateId(echoGs)
+                .setTurnInfo(frame.turnInfo())
+                .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() })
+                .addAllTimers(PlayerMapper.buildTimers())
+                .setUpdate(GameStateUpdate.SendAndRecord)
         embedActions(commitBuilder, actions, seatId)
-        val msg3 = makeGRE(GREMessageType.GameStateMessage_695e, commitGs, counter.nextMsgId()) {
-            it.gameStateMessage = commitBuilder.build()
-        }
+        val msg3 =
+            makeGRE(GREMessageType.GameStateMessage_695e, commitGs, counter.nextMsgId()) {
+                it.gameStateMessage = commitBuilder.build()
+            }
 
         // Message 4: PromptReq (promptId=37)
-        val msg4 = makeGRE(GREMessageType.PromptReq, commitGs, counter.nextMsgId()) {
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.STARTING_PLAYER).build())
-        }
+        val msg4 =
+            makeGRE(GREMessageType.PromptReq, commitGs, counter.nextMsgId()) {
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.STARTING_PLAYER).build())
+            }
 
         // Message 5: ActionsAvailableReq (promptId=2)
-        val msg5 = makeGRE(GREMessageType.ActionsAvailableReq_695e, commitGs, counter.nextMsgId()) {
-            it.actionsAvailableReq = actions
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-        }
+        val msg5 =
+            makeGRE(GREMessageType.ActionsAvailableReq_695e, commitGs, counter.nextMsgId()) {
+                it.actionsAvailableReq = actions
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+            }
 
         cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2, msg3, msg4, msg5))
@@ -433,7 +456,8 @@ class BundleBuilder(
         if (pending) builder.setPendingMessageCount(1)
         for (action in actions.actionsList) {
             builder.addActions(
-                ActionInfo.newBuilder()
+                ActionInfo
+                    .newBuilder()
                     .setSeatId(seatId)
                     .setAction(ActionMapper.stripActionForGsm(action)),
             )
@@ -487,27 +511,32 @@ class BundleBuilder(
         // Client expects echo GSMs to include this running log.
         val actions = ActionMapper.buildNaiveActions(seatId, bridge)
 
-        val gsmBuilder = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff)
-            .setGameStateId(nextGs)
-            .addAllGameObjects(objects)
-            .setPrevGameStateId(nextGs - 1)
-            .setUpdate(GameStateUpdate.SendAndRecord)
+        val gsmBuilder =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(nextGs)
+                .addAllGameObjects(objects)
+                .setPrevGameStateId(nextGs - 1)
+                .setUpdate(GameStateUpdate.SendAndRecord)
         embedActions(gsmBuilder, actions, seatId, pending = false)
 
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-            it.gameStateMessage = gsmBuilder.build()
-        }
+        val msg1 =
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                it.gameStateMessage = gsmBuilder.build()
+            }
 
-        val req = RequestBuilder.buildDeclareAttackersReq(
-            seatId,
-            bridge,
-            committedAttackerIds = selectedAttackerIds.toSet(),
-        )
-        val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, counter.nextMsgId()) {
-            it.declareAttackersReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
-        }
+        val req =
+            RequestBuilder.buildDeclareAttackersReq(
+                seatId,
+                bridge,
+                committedAttackerIds = selectedAttackerIds.toSet(),
+            )
+        val msg2 =
+            makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, counter.nextMsgId()) {
+                it.declareAttackersReq = req
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
+            }
 
         return BundleResult(listOf(msg1, msg2))
     }
@@ -526,28 +555,31 @@ class BundleBuilder(
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         val events = bridge.drainBundleEvents(seatId)
         val previousSnap = cursor.lastSent
-        val attackersResult = StateMapper.buildDiff(
-            previousSnap,
-            snap,
-            events,
-            nextGs,
-            matchId,
-            bridge,
-            updateType = updateType,
-            viewingSeatId = seatId,
-        )
+        val attackersResult =
+            StateMapper.buildDiff(
+                previousSnap,
+                snap,
+                events,
+                nextGs,
+                matchId,
+                bridge,
+                updateType = updateType,
+                viewingSeatId = seatId,
+            )
         bridge.applyMutations(attackersResult.mutations)
         bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, attackersResult.gsm)
         val gs = attackersResult.gsm
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-            it.gameStateMessage = gs
-        }
+        val msg1 =
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                it.gameStateMessage = gs
+            }
 
         val req = prebuiltReq ?: RequestBuilder.buildDeclareAttackersReq(seatId, bridge)
-        val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, counter.nextMsgId()) {
-            it.declareAttackersReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
-        }
+        val msg2 =
+            makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, counter.nextMsgId()) {
+                it.declareAttackersReq = req
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
+            }
 
         cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
@@ -594,24 +626,28 @@ class BundleBuilder(
         // Cumulative turn-level actions — same pattern as attacker echo.
         val actions = ActionMapper.buildNaiveActions(seatId, bridge)
 
-        val gsmBuilder = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff)
-            .setGameStateId(nextGs)
-            .addAllGameObjects(objects)
-            .setPrevGameStateId(nextGs - 1)
-            .setUpdate(GameStateUpdate.SendAndRecord)
+        val gsmBuilder =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(nextGs)
+                .addAllGameObjects(objects)
+                .setPrevGameStateId(nextGs - 1)
+                .setUpdate(GameStateUpdate.SendAndRecord)
         embedActions(gsmBuilder, actions, seatId, pending = false)
 
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-            it.gameStateMessage = gsmBuilder.build()
-        }
+        val msg1 =
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                it.gameStateMessage = gsmBuilder.build()
+            }
 
         // Re-prompt with assigned blockers' attackerInstanceIds cleared
         val req = RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge, blockerAssignments = blockAssignments)
-        val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, counter.nextMsgId()) {
-            it.declareBlockersReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
-        }
+        val msg2 =
+            makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, counter.nextMsgId()) {
+                it.declareBlockersReq = req
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
+            }
 
         return BundleResult(listOf(msg1, msg2))
     }
@@ -629,28 +665,31 @@ class BundleBuilder(
         val updateType = StateMapper.resolveUpdateType(snap, seatId)
         val events = bridge.drainBundleEvents(seatId)
         val previousSnap = cursor.lastSent
-        val blockersResult = StateMapper.buildDiff(
-            previousSnap,
-            snap,
-            events,
-            nextGs,
-            matchId,
-            bridge,
-            updateType = updateType,
-            viewingSeatId = seatId,
-        )
+        val blockersResult =
+            StateMapper.buildDiff(
+                previousSnap,
+                snap,
+                events,
+                nextGs,
+                matchId,
+                bridge,
+                updateType = updateType,
+                viewingSeatId = seatId,
+            )
         bridge.applyMutations(blockersResult.mutations)
         bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, blockersResult.gsm)
         val gs = blockersResult.gsm
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-            it.gameStateMessage = gs
-        }
+        val msg1 =
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                it.gameStateMessage = gs
+            }
 
         val req = RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge)
-        val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, counter.nextMsgId()) {
-            it.declareBlockersReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
-        }
+        val msg2 =
+            makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, counter.nextMsgId()) {
+                it.declareBlockersReq = req
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
+            }
 
         cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
@@ -679,31 +718,34 @@ class BundleBuilder(
         val events = bridge.drainBundleEvents(seatId)
         // Build diff first — triggers instanceId reallocs for zone transfers
         val previousSnap = cursor.lastSent
-        val targetsResult = StateMapper.buildDiff(
-            previousSnap,
-            snap,
-            events,
-            nextGs,
-            matchId,
-            bridge,
-            updateType = GameStateUpdate.Send,
-            viewingSeatId = seatId,
-        )
+        val targetsResult =
+            StateMapper.buildDiff(
+                previousSnap,
+                snap,
+                events,
+                nextGs,
+                matchId,
+                bridge,
+                updateType = GameStateUpdate.Send,
+                viewingSeatId = seatId,
+            )
         bridge.applyMutations(targetsResult.mutations)
         bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, targetsResult.gsm)
         val gs = targetsResult.gsm
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-            it.gameStateMessage = gs
-        }
+        val msg1 =
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                it.gameStateMessage = gs
+            }
 
         // Build SelectTargetsReq AFTER diff so sourceId uses post-realloc instanceIds
         val req = RequestBuilder.buildSelectTargetsReq(prompt, bridge, seatId)
-        val msg2 = makeGRE(GREMessageType.SelectTargetsReq_695e, nextGs, counter.nextMsgId()) {
-            it.selectTargetsReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
-            it.allowCancel = AllowCancel.Abort
-            it.allowUndo = true
-        }
+        val msg2 =
+            makeGRE(GREMessageType.SelectTargetsReq_695e, nextGs, counter.nextMsgId()) {
+                it.selectTargetsReq = req
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
+                it.allowCancel = AllowCancel.Abort
+                it.allowUndo = true
+            }
 
         cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
@@ -725,50 +767,54 @@ class BundleBuilder(
 
         val events = bridge.drainBundleEvents(seatId)
         val previousSnap = cursor.lastSent
-        val selectNResult = StateMapper.buildDiff(
-            previousSnap,
-            snap,
-            events,
-            nextGs,
-            matchId,
-            bridge,
-            updateType = GameStateUpdate.Send,
-            viewingSeatId = seatId,
-        )
+        val selectNResult =
+            StateMapper.buildDiff(
+                previousSnap,
+                snap,
+                events,
+                nextGs,
+                matchId,
+                bridge,
+                updateType = GameStateUpdate.Send,
+                viewingSeatId = seatId,
+            )
         bridge.applyMutations(selectNResult.mutations)
         bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, selectNResult.gsm)
         val gs = selectNResult.gsm
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-            it.gameStateMessage = gs
-        }
+        val msg1 =
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                it.gameStateMessage = gs
+            }
 
-        val msg2 = makeGRE(GREMessageType.SelectNreq, nextGs, counter.nextMsgId()) {
-            it.selectNReq = req
-            when {
-                isLegendRule -> {
-                    // Legend rule: promptId=72 + CardId param, no cancel allowed.
-                    it.setPrompt(
-                        Prompt.newBuilder()
-                            .setPromptId(PromptIds.SELECT_N_LEGEND_RULE)
-                            .addParameters(
-                                PromptParameter.newBuilder()
-                                    .setParameterName("CardId")
-                                    .setType(ParameterType.Number),
-                            )
-                            .build(),
-                    )
-                    it.allowCancel = AllowCancel.No_a526
-                }
-                isRevealChoose -> {
-                    // Reveal-choose (Duress, Revealing Eye): no cancel.
-                    it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
-                    it.allowCancel = AllowCancel.No_a526
-                }
-                else -> {
-                    it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
+        val msg2 =
+            makeGRE(GREMessageType.SelectNreq, nextGs, counter.nextMsgId()) {
+                it.selectNReq = req
+                when {
+                    isLegendRule -> {
+                        // Legend rule: promptId=72 + CardId param, no cancel allowed.
+                        it.setPrompt(
+                            Prompt
+                                .newBuilder()
+                                .setPromptId(PromptIds.SELECT_N_LEGEND_RULE)
+                                .addParameters(
+                                    PromptParameter
+                                        .newBuilder()
+                                        .setParameterName("CardId")
+                                        .setType(ParameterType.Number),
+                                ).build(),
+                        )
+                        it.allowCancel = AllowCancel.No_a526
+                    }
+                    isRevealChoose -> {
+                        // Reveal-choose (Duress, Revealing Eye): no cancel.
+                        it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
+                        it.allowCancel = AllowCancel.No_a526
+                    }
+                    else -> {
+                        it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
+                    }
                 }
             }
-        }
 
         cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
@@ -782,6 +828,7 @@ class BundleBuilder(
      * followed by CastingTimeOptionsReq with the ModalReq payload. Sets
      * allowCancel=Abort and allowUndo=true (client shows Cancel button).
      */
+
     /**
      * @param sourceCardInstanceId instanceId of the source card (for ability parentId).
      *   Null for spell-time modals where the card itself is on the stack.
@@ -800,21 +847,24 @@ class BundleBuilder(
 
         val events = bridge.drainBundleEvents(seatId)
         val previousSnap = cursor.lastSent
-        val ctoResult = StateMapper.buildDiff(
-            previousSnap,
-            snap,
-            events,
-            nextGs,
-            matchId,
-            bridge,
-            updateType = GameStateUpdate.Send,
-            viewingSeatId = seatId,
-        )
+        val ctoResult =
+            StateMapper.buildDiff(
+                previousSnap,
+                snap,
+                events,
+                nextGs,
+                matchId,
+                bridge,
+                updateType = GameStateUpdate.Send,
+                viewingSeatId = seatId,
+            )
         bridge.applyMutations(ctoResult.mutations)
         bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, ctoResult.gsm)
         val gsResult = ctoResult
-        val gsBuilder = gsResult.gsm.toBuilder()
-            .setPendingMessageCount(1)
+        val gsBuilder =
+            gsResult.gsm
+                .toBuilder()
+                .setPendingMessageCount(1)
 
         // Synthesize the ability game object on the stack for ETB modals.
         // Forge adds the trigger to its stack AFTER mode choice (PlaySpellAbility line 733),
@@ -829,14 +879,16 @@ class BundleBuilder(
                 // Only inject if not already present (e.g. spell-time modals where card is on stack)
                 val alreadyPresent = gsBuilder.gameObjectsList.any { it.instanceId == abilityIid }
                 if (!alreadyPresent) {
-                    val abilityBuilder = GameObjectInfo.newBuilder()
-                        .setInstanceId(abilityIid)
-                        .setGrpId(abilityGrpId)
-                        .setType(GameObjectType.Ability)
-                        .setZoneId(ZoneIds.STACK)
-                        .setVisibility(Visibility.Public)
-                        .setOwnerSeatId(seatId)
-                        .setControllerSeatId(seatId)
+                    val abilityBuilder =
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(abilityIid)
+                            .setGrpId(abilityGrpId)
+                            .setType(GameObjectType.Ability)
+                            .setZoneId(ZoneIds.STACK)
+                            .setVisibility(Visibility.Public)
+                            .setOwnerSeatId(seatId)
+                            .setControllerSeatId(seatId)
                     if (sourceCardGrpId != null) {
                         abilityBuilder.setObjectSourceGrpId(sourceCardGrpId)
                     } else {
@@ -850,13 +902,17 @@ class BundleBuilder(
                     // Add to stack zone (create if absent in the diff)
                     val stackIdx = gsBuilder.zonesList.indexOfFirst { it.type == ZoneType.Stack }
                     if (stackIdx >= 0) {
-                        val updated = gsBuilder.getZones(stackIdx).toBuilder()
-                            .addObjectInstanceIds(abilityIid)
-                            .build()
+                        val updated =
+                            gsBuilder
+                                .getZones(stackIdx)
+                                .toBuilder()
+                                .addObjectInstanceIds(abilityIid)
+                                .build()
                         gsBuilder.setZones(stackIdx, updated)
                     } else {
                         gsBuilder.addZones(
-                            ZoneInfo.newBuilder()
+                            ZoneInfo
+                                .newBuilder()
                                 .setZoneId(ZoneIds.STACK)
                                 .setType(ZoneType.Stack)
                                 .setVisibility(Visibility.Public)
@@ -870,16 +926,18 @@ class BundleBuilder(
 
         val gs = gsBuilder.build()
 
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-            it.gameStateMessage = gs
-        }
+        val msg1 =
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                it.gameStateMessage = gs
+            }
 
-        val msg2 = makeGRE(GREMessageType.CastingTimeOptionsReq_695e, nextGs, counter.nextMsgId()) {
-            it.castingTimeOptionsReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.CASTING_TIME_OPTIONS).build())
-            it.allowCancel = AllowCancel.Abort
-            it.allowUndo = true
-        }
+        val msg2 =
+            makeGRE(GREMessageType.CastingTimeOptionsReq_695e, nextGs, counter.nextMsgId()) {
+                it.castingTimeOptionsReq = req
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.CASTING_TIME_OPTIONS).build())
+                it.allowCancel = AllowCancel.Abort
+                it.allowUndo = true
+            }
 
         cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
@@ -905,27 +963,30 @@ class BundleBuilder(
 
         val events = bridge.drainBundleEvents(seatId)
         val previousSnap = cursor.lastSent
-        val payCostsResult = StateMapper.buildDiff(
-            previousSnap,
-            snap,
-            events,
-            nextGs,
-            matchId,
-            bridge,
-            updateType = GameStateUpdate.Send,
-            viewingSeatId = seatId,
-        )
+        val payCostsResult =
+            StateMapper.buildDiff(
+                previousSnap,
+                snap,
+                events,
+                nextGs,
+                matchId,
+                bridge,
+                updateType = GameStateUpdate.Send,
+                viewingSeatId = seatId,
+            )
         bridge.applyMutations(payCostsResult.mutations)
         bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, payCostsResult.gsm)
         val gs = payCostsResult.gsm
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-            it.gameStateMessage = gs
-        }
+        val msg1 =
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                it.gameStateMessage = gs
+            }
 
-        val msg2 = makeGRE(GREMessageType.PayCostsReq_695e, nextGs, counter.nextMsgId()) {
-            it.payCostsReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
-        }
+        val msg2 =
+            makeGRE(GREMessageType.PayCostsReq_695e, nextGs, counter.nextMsgId()) {
+                it.payCostsReq = req
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
+            }
 
         cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
@@ -937,29 +998,34 @@ class BundleBuilder(
     fun queuedGameState(
         gameState: GameStateMessage,
         counter: MessageCounter,
-    ): GREToClientMessage = makeGRE(GREMessageType.QueuedGameStateMessage, counter.currentGsId(), counter.nextMsgId()) {
-        it.gameStateMessage = gameState
-    }
+    ): GREToClientMessage =
+        makeGRE(GREMessageType.QueuedGameStateMessage, counter.currentGsId(), counter.nextMsgId()) {
+            it.gameStateMessage = gameState
+        }
 
     /**
      * Server-forced pass (EdictalMessage). Tells the client "I'm passing priority for seat X".
      * Breaks the client out of autoPassPriority mode so it re-renders action buttons.
      */
     fun edictalPass(counter: MessageCounter): BundleResult {
-        val edictal = EdictalMessage.newBuilder()
-            .setEdictMessage(
-                ClientToGREMessage.newBuilder()
-                    .setType(ClientMessageType.PerformActionResp_097b)
-                    .setSystemSeatId(seatId)
-                    .setPerformActionResp(
-                        PerformActionResp.newBuilder()
-                            .addActions(Action.newBuilder().setActionType(ActionType.Pass)),
-                    ),
-            )
-            .build()
-        val msg = makeGRE(GREMessageType.EdictalMessage_695e, counter.currentGsId(), counter.nextMsgId()) {
-            it.edictalMessage = edictal
-        }
+        val edictal =
+            EdictalMessage
+                .newBuilder()
+                .setEdictMessage(
+                    ClientToGREMessage
+                        .newBuilder()
+                        .setType(ClientMessageType.PerformActionResp_097b)
+                        .setSystemSeatId(seatId)
+                        .setPerformActionResp(
+                            PerformActionResp
+                                .newBuilder()
+                                .addActions(Action.newBuilder().setActionType(ActionType.Pass)),
+                        ),
+                ).build()
+        val msg =
+            makeGRE(GREMessageType.EdictalMessage_695e, counter.currentGsId(), counter.nextMsgId()) {
+                it.edictalMessage = edictal
+            }
         return BundleResult(listOf(msg))
     }
 
@@ -989,49 +1055,72 @@ class BundleBuilder(
         val losingTeam = if (winningTeam == 1) 2 else 1
 
         // Shared GameInfo fields matching initial bundle (StateMapper.buildFromSnapshot)
-        fun baseGameInfo() = GameInfo.newBuilder()
-            .setMatchID(matchId)
-            .setGameNumber(1)
-            .setStage(GameStage.GameOver)
-            .setType(GameType.Duel)
-            .setVariant(GameVariant.Normal)
-            .setMatchWinCondition(MatchWinCondition.SingleElimination)
-            .setSuperFormat(SuperFormat.Constructed)
-            .setMulliganType(MulliganType.London)
-            .setDeckConstraintInfo(
-                DeckConstraintInfo.newBuilder()
-                    .setMinDeckSize(60).setMaxDeckSize(250).setMaxSideboardSize(15),
-            )
+        fun baseGameInfo() =
+            GameInfo
+                .newBuilder()
+                .setMatchID(matchId)
+                .setGameNumber(1)
+                .setStage(GameStage.GameOver)
+                .setType(GameType.Duel)
+                .setVariant(GameVariant.Normal)
+                .setMatchWinCondition(MatchWinCondition.SingleElimination)
+                .setSuperFormat(SuperFormat.Constructed)
+                .setMulliganType(MulliganType.London)
+                .setDeckConstraintInfo(
+                    DeckConstraintInfo
+                        .newBuilder()
+                        .setMinDeckSize(60)
+                        .setMaxDeckSize(250)
+                        .setMaxSideboardSize(15),
+                )
 
-        val gameResult = ResultSpec.newBuilder()
-            .setScope(MatchScope.Game_a146)
-            .setResult(ResultType.WinLoss)
-            .setWinningTeamId(winningTeam)
-            .setReason(reason)
+        val gameResult =
+            ResultSpec
+                .newBuilder()
+                .setScope(MatchScope.Game_a146)
+                .setResult(ResultType.WinLoss)
+                .setWinningTeamId(winningTeam)
+                .setReason(reason)
 
-        val matchResult = ResultSpec.newBuilder()
-            .setScope(MatchScope.Match)
-            .setResult(ResultType.WinLoss)
-            .setWinningTeamId(winningTeam)
-            .setReason(reason)
+        val matchResult =
+            ResultSpec
+                .newBuilder()
+                .setScope(MatchScope.Match)
+                .setResult(ResultType.WinLoss)
+                .setWinningTeamId(winningTeam)
+                .setReason(reason)
 
         // gs1: GameComplete with Game result only, PendingLoss players
-        val gs1Info = baseGameInfo()
-            .setMatchState(MatchState.GameComplete)
-            .addResults(gameResult)
+        val gs1Info =
+            baseGameInfo()
+                .setMatchState(MatchState.GameComplete)
+                .addResults(gameResult)
         val gs1Id = counter.nextGsId()
-        val gs1 = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff).setGameStateId(gs1Id)
-            .setPrevGameStateId(prevGsId)
-            .setGameInfo(gs1Info).setUpdate(GameStateUpdate.SendAndRecord)
+        val gs1 =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(gs1Id)
+                .setPrevGameStateId(prevGsId)
+                .setGameInfo(gs1Info)
+                .setUpdate(GameStateUpdate.SendAndRecord)
         // Teams with PendingLoss for losing team
-        gs1.addTeams(TeamInfo.newBuilder().setId(losingTeam).addPlayerIds(losingPlayerSeatId).setStatus(TeamStatus.PendingLoss_a458))
+        gs1.addTeams(
+            TeamInfo
+                .newBuilder()
+                .setId(losingTeam)
+                .addPlayerIds(losingPlayerSeatId)
+                .setStatus(TeamStatus.PendingLoss_a458),
+        )
         // Players: loser with full state (lifeTotal, maxHandSize, etc.) + PendingLoss status
         val game = bridge.getGame()
         if (game != null) {
             val gameOverSnap = GsmSnapshot.capture(game, bridge, matchId, 0)
-            val loserInfo = PlayerMapper.buildFromSnapshot(gameOverSnap, losingPlayerSeatId).toBuilder()
-                .setStatus(PlayerStatus.PendingLoss_a1c6)
+            val loserInfo =
+                PlayerMapper
+                    .buildFromSnapshot(gameOverSnap, losingPlayerSeatId)
+                    .toBuilder()
+                    .setStatus(PlayerStatus.PendingLoss_a1c6)
             gs1.addPlayers(loserInfo)
         }
         // Timers — inactivity timer on gs1
@@ -1042,61 +1131,73 @@ class BundleBuilder(
         }
 
         // gs2: MatchComplete with both Game + Match results
-        val gs2Info = baseGameInfo()
-            .setMatchState(MatchState.MatchComplete)
-            .addResults(gameResult)
-            .addResults(matchResult)
+        val gs2Info =
+            baseGameInfo()
+                .setMatchState(MatchState.MatchComplete)
+                .addResults(gameResult)
+                .addResults(matchResult)
         val gs2Id = counter.nextGsId()
-        val gs2 = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff).setGameStateId(gs2Id)
-            .setPrevGameStateId(gs1Id)
-            .setGameInfo(gs2Info).setUpdate(GameStateUpdate.SendAndRecord)
+        val gs2 =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(gs2Id)
+                .setPrevGameStateId(gs1Id)
+                .setGameInfo(gs2Info)
+                .setUpdate(GameStateUpdate.SendAndRecord)
 
         // gs3: bare diff with pendingMessageCount=1 (IntermissionReq follows)
         val gs3Id = counter.nextGsId()
-        val gs3 = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff).setGameStateId(gs3Id)
-            .setPrevGameStateId(gs2Id)
-            .setPendingMessageCount(1)
-            .setUpdate(GameStateUpdate.SendAndRecord)
+        val gs3 =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(gs3Id)
+                .setPrevGameStateId(gs2Id)
+                .setPendingMessageCount(1)
+                .setUpdate(GameStateUpdate.SendAndRecord)
 
-        val messages = mutableListOf(
-            makeGRE(GREMessageType.GameStateMessage_695e, gs1Id, counter.nextMsgId()) { it.gameStateMessage = gs1.build() },
-            makeGRE(GREMessageType.GameStateMessage_695e, gs2Id, counter.nextMsgId()) { it.gameStateMessage = gs2.build() },
-            makeGRE(GREMessageType.GameStateMessage_695e, gs3Id, counter.nextMsgId()) { it.gameStateMessage = gs3.build() },
-        )
+        val messages =
+            mutableListOf(
+                makeGRE(GREMessageType.GameStateMessage_695e, gs1Id, counter.nextMsgId()) { it.gameStateMessage = gs1.build() },
+                makeGRE(GREMessageType.GameStateMessage_695e, gs2Id, counter.nextMsgId()) { it.gameStateMessage = gs2.build() },
+                makeGRE(GREMessageType.GameStateMessage_695e, gs3Id, counter.nextMsgId()) { it.gameStateMessage = gs3.build() },
+            )
 
         messages.add(
             makeGRE(GREMessageType.IntermissionReq_695e, gs3Id, counter.nextMsgId()) {
-                it.intermissionReq = IntermissionReq.newBuilder()
-                    .setResult(
-                        ResultSpec.newBuilder()
-                            .setScope(MatchScope.Match)
-                            .setResult(ResultType.WinLoss)
-                            .setWinningTeamId(winningTeam)
-                            .setReason(reason),
-                    )
-                    .addOptions(
-                        UserOption.newBuilder()
-                            .setOptionPrompt(Prompt.newBuilder().setPromptId(PromptIds.DRAW_CARD))
-                            .setResponseType(ClientMessageType.DrawCardResp),
-                    )
-                    .addOptions(
-                        UserOption.newBuilder()
-                            .setOptionPrompt(Prompt.newBuilder().setPromptId(PromptIds.REVEAL_HAND))
-                            .setResponseType(ClientMessageType.RevealHandResp),
-                    )
-                    .setIntermissionPrompt(
-                        Prompt.newBuilder()
-                            .setPromptId(PromptIds.MATCH_RESULT_WIN_LOSS)
-                            .addParameters(
-                                PromptParameter.newBuilder()
-                                    .setParameterName("WinningTeamId")
-                                    .setType(ParameterType.Number)
-                                    .setNumberValue(winningTeam),
-                            ),
-                    )
-                    .build()
+                it.intermissionReq =
+                    IntermissionReq
+                        .newBuilder()
+                        .setResult(
+                            ResultSpec
+                                .newBuilder()
+                                .setScope(MatchScope.Match)
+                                .setResult(ResultType.WinLoss)
+                                .setWinningTeamId(winningTeam)
+                                .setReason(reason),
+                        ).addOptions(
+                            UserOption
+                                .newBuilder()
+                                .setOptionPrompt(Prompt.newBuilder().setPromptId(PromptIds.DRAW_CARD))
+                                .setResponseType(ClientMessageType.DrawCardResp),
+                        ).addOptions(
+                            UserOption
+                                .newBuilder()
+                                .setOptionPrompt(Prompt.newBuilder().setPromptId(PromptIds.REVEAL_HAND))
+                                .setResponseType(ClientMessageType.RevealHandResp),
+                        ).setIntermissionPrompt(
+                            Prompt
+                                .newBuilder()
+                                .setPromptId(PromptIds.MATCH_RESULT_WIN_LOSS)
+                                .addParameters(
+                                    PromptParameter
+                                        .newBuilder()
+                                        .setParameterName("WinningTeamId")
+                                        .setType(ParameterType.Number)
+                                        .setNumberValue(winningTeam),
+                                ),
+                        ).build()
             },
         )
 
@@ -1107,32 +1208,43 @@ class BundleBuilder(
      * Timer start: sends [TimerStateMessage] (GRE type 56) with Decision timer running.
      * Sent on priority grant — the client shows a rope countdown.
      */
-    fun timerStart(counter: MessageCounter, durationSec: Int = 30): BundleResult =
-        buildTimerBundle(counter, running = true, durationSec = durationSec)
+    fun timerStart(
+        counter: MessageCounter,
+        durationSec: Int = 30,
+    ): BundleResult = buildTimerBundle(counter, running = true, durationSec = durationSec)
 
     /**
      * Timer stop: sends [TimerStateMessage] with running=false.
      * Sent when client responds to an action (pass/cast/play).
      */
-    fun timerStop(counter: MessageCounter, durationSec: Int = 30): BundleResult =
-        buildTimerBundle(counter, running = false, durationSec = durationSec)
+    fun timerStop(
+        counter: MessageCounter,
+        durationSec: Int = 30,
+    ): BundleResult = buildTimerBundle(counter, running = false, durationSec = durationSec)
 
-    private fun buildTimerBundle(counter: MessageCounter, running: Boolean, durationSec: Int): BundleResult {
-        val timer = TimerStateMessage.newBuilder()
-            .setSeatId(seatId)
-            .addTimers(
-                TimerInfo.newBuilder()
-                    .setTimerId(1)
-                    .setType(TimerType.Decision)
-                    .setDurationSec(durationSec)
-                    .setElapsedSec(0)
-                    .setRunning(running)
-                    .setBehavior(TimerBehavior.Timeout_a3cd),
-            )
-            .build()
-        val msg = makeGRE(GREMessageType.TimerStateMessage_695e, counter.currentGsId(), counter.nextMsgId()) {
-            it.timerStateMessage = timer
-        }
+    private fun buildTimerBundle(
+        counter: MessageCounter,
+        running: Boolean,
+        durationSec: Int,
+    ): BundleResult {
+        val timer =
+            TimerStateMessage
+                .newBuilder()
+                .setSeatId(seatId)
+                .addTimers(
+                    TimerInfo
+                        .newBuilder()
+                        .setTimerId(1)
+                        .setType(TimerType.Decision)
+                        .setDurationSec(durationSec)
+                        .setElapsedSec(0)
+                        .setRunning(running)
+                        .setBehavior(TimerBehavior.Timeout_a3cd),
+                ).build()
+        val msg =
+            makeGRE(GREMessageType.TimerStateMessage_695e, counter.currentGsId(), counter.nextMsgId()) {
+                it.timerStateMessage = timer
+            }
         return BundleResult(listOf(msg))
     }
 
@@ -1160,25 +1272,30 @@ class BundleBuilder(
         ctoId: Int = 2,
         playerIdToPrompt: Int? = null,
     ): CastingTimeOptionsReq {
-        val modalReq = ModalReq.newBuilder()
-            .setAbilityGrpId(parentGrpId)
-            .setMinSel(minSel)
-            .setMaxSel(maxSel)
+        val modalReq =
+            ModalReq
+                .newBuilder()
+                .setAbilityGrpId(parentGrpId)
+                .setMinSel(minSel)
+                .setMaxSel(maxSel)
         for (childGrpId in childGrpIds) {
             modalReq.addModalOptions(ModalOption.newBuilder().setGrpId(childGrpId))
         }
-        val ctoBuilder = CastingTimeOptionReq.newBuilder()
-            .setCtoId(ctoId)
-            .setCastingTimeOptionType(CastingTimeOptionType.Modal_a7b4)
-            .setAffectedId(sourceInstanceId)
-            .setAffectorId(sourceInstanceId)
-            .setGrpId(grpId)
-            .setIsRequired(true)
-            .setModalReq(modalReq)
+        val ctoBuilder =
+            CastingTimeOptionReq
+                .newBuilder()
+                .setCtoId(ctoId)
+                .setCastingTimeOptionType(CastingTimeOptionType.Modal_a7b4)
+                .setAffectedId(sourceInstanceId)
+                .setAffectorId(sourceInstanceId)
+                .setGrpId(grpId)
+                .setIsRequired(true)
+                .setModalReq(modalReq)
         if (playerIdToPrompt != null) {
             ctoBuilder.setPlayerIdToPrompt(playerIdToPrompt)
         }
-        return CastingTimeOptionsReq.newBuilder()
+        return CastingTimeOptionsReq
+            .newBuilder()
             .addCastingTimeOptionReq(ctoBuilder)
             .build()
     }
@@ -1202,7 +1319,8 @@ class BundleBuilder(
             val ctoId = i + 1
             costCtoIds.add(ctoId)
             ctoReqBuilder.addCastingTimeOptionReq(
-                CastingTimeOptionReq.newBuilder()
+                CastingTimeOptionReq
+                    .newBuilder()
                     .setCtoId(ctoId)
                     .setCastingTimeOptionType(cost.first)
                     .setAffectedId(instanceId)
@@ -1211,7 +1329,8 @@ class BundleBuilder(
             )
         }
         ctoReqBuilder.addCastingTimeOptionReq(
-            CastingTimeOptionReq.newBuilder()
+            CastingTimeOptionReq
+                .newBuilder()
                 .setCtoId(0)
                 .setCastingTimeOptionType(CastingTimeOptionType.Done)
                 .setIsRequired(true),
@@ -1230,12 +1349,14 @@ class BundleBuilder(
     ): GREToClientMessage {
         val gsId = counter.nextGsId()
         return makeGRE(GREMessageType.GameStateMessage_695e, gsId, counter.nextMsgId()) {
-            it.gameStateMessage = GameStateMessage.newBuilder()
-                .setType(GameStateType.Diff)
-                .setGameStateId(gsId)
-                .setPrevGameStateId(gsId - 1)
-                .setUpdate(updateType)
-                .build()
+            it.gameStateMessage =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Diff)
+                    .setGameStateId(gsId)
+                    .setPrevGameStateId(gsId - 1)
+                    .setUpdate(updateType)
+                    .build()
         }
     }
 
@@ -1256,12 +1377,13 @@ class BundleBuilder(
         counter: MessageCounter,
     ): BundleResult? {
         val game = bridge.getGame() ?: return null
-        val resolved = candidateRefs
-            .filter { it.kind == "card" }
-            .mapNotNull { ref ->
-                val card = game.findById(ref.entityId)
-                if (card != null) card to bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value else null
-            }
+        val resolved =
+            candidateRefs
+                .filter { it.kind == "card" }
+                .mapNotNull { ref ->
+                    val card = game.findById(ref.entityId)
+                    if (card != null) card to bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value else null
+                }
         if (resolved.isEmpty()) return null
         val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
         val topCardSnaps = resolved.mapNotNull { (card, _) -> snap.objects[ForgeCardId(card.id)] }
@@ -1291,28 +1413,36 @@ class BundleBuilder(
         counter: MessageCounter,
     ): BundleResult {
         val libZoneId = if (seatId == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
-        val revealedObjects = topCardSnaps.zip(cardInstanceIds).map { (cardSnap, iid) ->
-            ObjectMapper.buildFromSnapshot(cardSnap, iid, libZoneId, seatId, bridge, Visibility.Private)
-                .toBuilder().addViewers(seatId).build()
-        }
+        val revealedObjects =
+            topCardSnaps.zip(cardInstanceIds).map { (cardSnap, iid) ->
+                ObjectMapper
+                    .buildFromSnapshot(cardSnap, iid, libZoneId, seatId, bridge, Visibility.Private)
+                    .toBuilder()
+                    .addViewers(seatId)
+                    .build()
+            }
         val gsId = counter.nextGsId()
-        val revealDiff = makeGRE(GREMessageType.GameStateMessage_695e, gsId, counter.nextMsgId()) {
-            it.gameStateMessage = GameStateMessage.newBuilder()
-                .setType(GameStateType.Diff)
-                .setGameStateId(gsId)
-                .setPrevGameStateId(gsId - 1)
-                .addAllGameObjects(revealedObjects)
-                .build()
-        }
+        val revealDiff =
+            makeGRE(GREMessageType.GameStateMessage_695e, gsId, counter.nextMsgId()) {
+                it.gameStateMessage =
+                    GameStateMessage
+                        .newBuilder()
+                        .setType(GameStateType.Diff)
+                        .setGameStateId(gsId)
+                        .setPrevGameStateId(gsId - 1)
+                        .addAllGameObjects(revealedObjects)
+                        .build()
+            }
 
-        val groupReq = GsmBuilder.buildSurveilScryGroupReq(
-            msgId = counter.nextMsgId(),
-            gameStateId = gsId,
-            seatId = seatId,
-            cardInstanceIds = cardInstanceIds,
-            context = context,
-            sourceInstanceId = sourceId,
-        )
+        val groupReq =
+            GsmBuilder.buildSurveilScryGroupReq(
+                msgId = counter.nextMsgId(),
+                gameStateId = gsId,
+                seatId = seatId,
+                cardInstanceIds = cardInstanceIds,
+                context = context,
+                sourceInstanceId = sourceId,
+            )
         return BundleResult(listOf(revealDiff, groupReq))
     }
 
@@ -1323,8 +1453,13 @@ class BundleBuilder(
         msgId: Int,
         configure: (GREToClientMessage.Builder) -> Unit,
     ): GREToClientMessage {
-        val gre = GREToClientMessage.newBuilder()
-            .setType(type).setMsgId(msgId).setGameStateId(gsId).addSystemSeatIds(seatId)
+        val gre =
+            GREToClientMessage
+                .newBuilder()
+                .setType(type)
+                .setMsgId(msgId)
+                .setGameStateId(gsId)
+                .addSystemSeatIds(seatId)
         configure(gre)
         return gre.build()
     }

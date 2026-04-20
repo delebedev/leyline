@@ -2,7 +2,6 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.power.assert)
-    alias(libs.plugins.spotless)
     id("leyline.test-conventions")
 }
 
@@ -29,13 +28,14 @@ dependencies {
 }
 
 powerAssert {
-    functions = listOf(
-        "kotlin.assert",
-        "kotlin.test.assertTrue",
-        "kotlin.test.assertFalse",
-        "kotlin.test.assertNull",
-        "kotlin.test.assertEquals",
-    )
+    functions =
+        listOf(
+            "kotlin.assert",
+            "kotlin.test.assertTrue",
+            "kotlin.test.assertFalse",
+            "kotlin.test.assertNull",
+            "kotlin.test.assertEquals",
+        )
 }
 
 // Spotless is configured uniformly for all subprojects in the root build.gradle.kts.

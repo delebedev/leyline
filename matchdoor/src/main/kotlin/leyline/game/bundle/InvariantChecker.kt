@@ -15,7 +15,6 @@ import kotlin.text.get
  * action instanceId consistency, zone-object consistency, msgId monotonicity.
  */
 class InvariantChecker {
-
     @Serializable
     data class Violation(
         val seq: Int,
@@ -173,7 +172,10 @@ class InvariantChecker {
 
     // --- Individual checks ---
 
-    private fun checkMsgIdMonotonicity(msg: GREToClientMessage, gsId: Int) {
+    private fun checkMsgIdMonotonicity(
+        msg: GREToClientMessage,
+        gsId: Int,
+    ) {
         val msgId = msg.msgId
         if (msgId == 0) return
         if (highWaterMsgId > 0 && msgId <= highWaterMsgId) {
@@ -309,10 +311,11 @@ class InvariantChecker {
         // Collect transient ability IDs created by AbilityInstanceCreated annotations.
         // These are mana ability instance IDs that exist only within the annotation
         // sequence (created then deleted in the same GSM) and don't appear as game objects.
-        val transientAbilityIds = annotations
-            .filter { it.typeList.any { t -> t == AnnotationType.AbilityInstanceCreated } }
-            .flatMap { it.affectedIdsList }
-            .toSet()
+        val transientAbilityIds =
+            annotations
+                .filter { it.typeList.any { t -> t == AnnotationType.AbilityInstanceCreated } }
+                .flatMap { it.affectedIdsList }
+                .toSet()
 
         fun isKnown(id: Int) = accumulator.isKnownEntity(id) || id in transientAbilityIds
 
@@ -321,9 +324,10 @@ class InvariantChecker {
             val isObjectIdChanged = ann.typeList.any { it == AnnotationType.ObjectIdChanged }
             if (isObjectIdChanged) continue
             // LayeredEffect annotations use synthetic effect IDs, not entity references
-            val isLayeredEffect = ann.typeList.any {
-                it == AnnotationType.LayeredEffectCreated || it == AnnotationType.LayeredEffectDestroyed
-            }
+            val isLayeredEffect =
+                ann.typeList.any {
+                    it == AnnotationType.LayeredEffectCreated || it == AnnotationType.LayeredEffectDestroyed
+                }
             if (isLayeredEffect) continue
 
             if (ann.affectorId != 0 && !isKnown(ann.affectorId)) {
@@ -347,7 +351,11 @@ class InvariantChecker {
         }
     }
 
-    private fun record(gsId: Int, check: String, message: String) {
+    private fun record(
+        gsId: Int,
+        check: String,
+        message: String,
+    ) {
         _violations.add(Violation(messageIndex, gsId, check, message))
     }
 }
@@ -359,7 +367,6 @@ class InvariantChecker {
  * Processes Full/Diff GSMs, tracks objects/zones/actions for invariant checking.
  */
 class RuntimeAccumulator {
-
     val objects = mutableMapOf<Int, GameObjectInfo>()
     val zones = mutableMapOf<Int, ZoneInfo>()
     var actions: ActionsAvailableReq? = null
@@ -381,8 +388,7 @@ class RuntimeAccumulator {
      * Check if an ID is a known entity: object instanceId, player seat (1/2), or zone ID.
      * Annotations use affectorId/affectedIds to reference any of these.
      */
-    fun isKnownEntity(id: Int): Boolean =
-        id in 1..2 || objects.containsKey(id) || zones.containsKey(id)
+    fun isKnownEntity(id: Int): Boolean = id in 1..2 || objects.containsKey(id) || zones.containsKey(id)
 
     fun actionInstanceIdsMissingFromObjects(): List<Int> {
         val req = actions ?: return emptyList()

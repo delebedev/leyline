@@ -7,7 +7,6 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.power.assert)
     alias(libs.plugins.protobuf)
-    alias(libs.plugins.spotless)
     id("leyline.test-conventions")
 }
 
@@ -31,12 +30,12 @@ dependencies {
     implementation(libs.serialization.json)
     api(libs.protobuf.java)
     api(libs.protobuf.java.util) // TextFormat (ProtoDump) — api so root sees proto classes
-    implementation(libs.tomlkt)             // MatchConfig TOML loading
-    implementation(libs.exposed.core)       // ExposedCardRepository
+    implementation(libs.tomlkt) // MatchConfig TOML loading
+    implementation(libs.exposed.core) // ExposedCardRepository
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite.jdbc)
-    implementation(libs.netty.handler)      // MatchHandler, NettyMessageSink
-    implementation(libs.netty.codec)        // ProtobufDecoder/Encoder
+    implementation(libs.netty.handler) // MatchHandler, NettyMessageSink
+    implementation(libs.netty.codec) // ProtobufDecoder/Encoder
     implementation(libs.logback.classic)
     api(libs.forge.core)
     api(libs.forge.game)
@@ -64,11 +63,14 @@ tasks.named("extractProto") {
 
 protobuf {
     protoc {
-        artifact = if (System.getProperty("os.name").lowercase().contains("win") &&
-            (System.getProperty("os.arch") == "aarch64" || System.getProperty("os.arch") == "arm64"))
-            "com.google.protobuf:protoc:3.25.5:windows-x86_64@exe"
-        else
-            "com.google.protobuf:protoc:3.25.5"
+        artifact =
+            if (System.getProperty("os.name").lowercase().contains("win") &&
+                (System.getProperty("os.arch") == "aarch64" || System.getProperty("os.arch") == "arm64")
+            ) {
+                "com.google.protobuf:protoc:3.25.5:windows-x86_64@exe"
+            } else {
+                "com.google.protobuf:protoc:3.25.5"
+            }
     }
 }
 
@@ -114,13 +116,14 @@ val testGate by tasks.registering(Test::class) {
 }
 
 powerAssert {
-    functions = listOf(
-        "kotlin.assert",
-        "kotlin.test.assertTrue",
-        "kotlin.test.assertFalse",
-        "kotlin.test.assertNull",
-        "kotlin.test.assertEquals",
-    )
+    functions =
+        listOf(
+            "kotlin.assert",
+            "kotlin.test.assertTrue",
+            "kotlin.test.assertFalse",
+            "kotlin.test.assertNull",
+            "kotlin.test.assertEquals",
+        )
 }
 
 // Spotless is configured uniformly for all subprojects in the root build.gradle.kts.

@@ -48,41 +48,42 @@ class AccountServer(
         val tokenService = tokens
         val serverLog = log
 
-        engine = embeddedServer(
-            Netty,
-            configure = {
-                sslConnector(
-                    keyStore = keyStore,
-                    keyAlias = KEY_ALIAS,
-                    keyStorePassword = { KEY_STORE_PASSWORD.toCharArray() },
-                    privateKeyPassword = { KEY_STORE_PASSWORD.toCharArray() },
-                ) {
-                    this.port = serverPort
+        engine =
+            embeddedServer(
+                Netty,
+                configure = {
+                    sslConnector(
+                        keyStore = keyStore,
+                        keyAlias = KEY_ALIAS,
+                        keyStorePassword = { KEY_STORE_PASSWORD.toCharArray() },
+                        privateKeyPassword = { KEY_STORE_PASSWORD.toCharArray() },
+                    ) {
+                        this.port = serverPort
+                    }
+                },
+            ) {
+                install(ContentNegotiation) {
+                    json(Json { ignoreUnknownKeys = true })
                 }
-            },
-        ) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true })
-            }
-            install(StatusPages) {
-                exception<Throwable> { call, cause ->
-                    serverLog.error(
-                        "Unhandled error: {} {}",
-                        call.request.local.method.value,
-                        call.request.local.uri,
-                        cause,
-                    )
-                    call.respondText(
-                        """{"code":500,"grpcCode":"13","error":"INTERNAL"}""",
-                        ContentType.Application.Json,
-                        HttpStatusCode.InternalServerError,
-                    )
+                install(StatusPages) {
+                    exception<Throwable> { call, cause ->
+                        serverLog.error(
+                            "Unhandled error: {} {}",
+                            call.request.local.method.value,
+                            call.request.local.uri,
+                            cause,
+                        )
+                        call.respondText(
+                            """{"code":500,"grpcCode":"13","error":"INTERNAL"}""",
+                            ContentType.Application.Json,
+                            HttpStatusCode.InternalServerError,
+                        )
+                    }
                 }
-            }
-            routing {
-                accountRoutes(accountStore, tokenService, host, cachedManifests)
-            }
-        }.also { it.start(wait = false) }
+                routing {
+                    accountRoutes(accountStore, tokenService, host, cachedManifests)
+                }
+            }.also { it.start(wait = false) }
 
         log.info("AccountServer: https://localhost:{} (local-only)", port)
     }
@@ -94,13 +95,14 @@ class AccountServer(
 
     private fun seedDevAccount() {
         if (store.isEmpty()) {
-            val seeded = store.seed(
-                accountId = DEV_ACCOUNT_ID,
-                personaId = DEV_PERSONA_ID,
-                email = "leyline@local",
-                displayName = "Player#00001",
-                password = "leyline",
-            )
+            val seeded =
+                store.seed(
+                    accountId = DEV_ACCOUNT_ID,
+                    personaId = DEV_PERSONA_ID,
+                    email = "leyline@local",
+                    displayName = "Player#00001",
+                    password = "leyline",
+                )
             if (seeded) {
                 log.info("Dev account seeded (leyline@local / leyline)")
             }
@@ -116,7 +118,10 @@ class AccountServer(
         internal const val KEY_STORE_PASSWORD = "leyline"
 
         /** Build or load a JKS keystore for HTTPS. */
-        fun resolveKeyStore(certFile: File?, keyFile: File?): KeyStore {
+        fun resolveKeyStore(
+            certFile: File?,
+            keyFile: File?,
+        ): KeyStore {
             if (certFile != null && keyFile != null && certFile.exists() && keyFile.exists()) {
                 return loadPemKeyStore(certFile, keyFile)
             }
@@ -128,21 +133,37 @@ class AccountServer(
             }
         }
 
-        private fun loadPemKeyStore(certFile: File, keyFile: File): KeyStore {
-            val cf = java.security.cert.CertificateFactory.getInstance("X.509")
-            val cert = certFile.inputStream().use {
-                cf.generateCertificate(it) as java.security.cert.X509Certificate
-            }
-            val keyPem = keyFile.readText()
-                .replace(Regex("-----\\w+ PRIVATE KEY-----"), "")
-                .replace("\\s".toRegex(), "")
-            val keyBytes = java.util.Base64.getDecoder().decode(keyPem)
+        private fun loadPemKeyStore(
+            certFile: File,
+            keyFile: File,
+        ): KeyStore {
+            val cf =
+                java.security.cert.CertificateFactory
+                    .getInstance("X.509")
+            val cert =
+                certFile.inputStream().use {
+                    cf.generateCertificate(it) as java.security.cert.X509Certificate
+                }
+            val keyPem =
+                keyFile
+                    .readText()
+                    .replace(Regex("-----\\w+ PRIVATE KEY-----"), "")
+                    .replace("\\s".toRegex(), "")
+            val keyBytes =
+                java.util.Base64
+                    .getDecoder()
+                    .decode(keyPem)
             val keySpec = java.security.spec.PKCS8EncodedKeySpec(keyBytes)
-            val privateKey = try {
-                java.security.KeyFactory.getInstance("RSA").generatePrivate(keySpec)
-            } catch (_: java.security.spec.InvalidKeySpecException) {
-                java.security.KeyFactory.getInstance("EC").generatePrivate(keySpec)
-            }
+            val privateKey =
+                try {
+                    java.security.KeyFactory
+                        .getInstance("RSA")
+                        .generatePrivate(keySpec)
+                } catch (_: java.security.spec.InvalidKeySpecException) {
+                    java.security.KeyFactory
+                        .getInstance("EC")
+                        .generatePrivate(keySpec)
+                }
 
             val ks = KeyStore.getInstance("JKS")
             ks.load(null, null)

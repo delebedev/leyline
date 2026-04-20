@@ -30,15 +30,16 @@ class CombatZoneAnnotationPipelineTest :
         }
 
         test("destroyProducesAnnotations") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Destroy,
-                srcZoneId = ZoneIds.BATTLEFIELD,
-                destZoneId = ZoneIds.P1_GRAVEYARD,
-                grpId = 0,
-                ownerSeatId = 1,
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Destroy,
+                    srcZoneId = ZoneIds.BATTLEFIELD,
+                    destZoneId = ZoneIds.P1_GRAVEYARD,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                )
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             assertSoftly {
@@ -51,38 +52,41 @@ class CombatZoneAnnotationPipelineTest :
         }
 
         test("sacrificeProducesAnnotations") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Sacrifice,
-                srcZoneId = ZoneIds.BATTLEFIELD,
-                destZoneId = ZoneIds.P1_GRAVEYARD,
-                grpId = 0,
-                ownerSeatId = 1,
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Sacrifice,
+                    srcZoneId = ZoneIds.BATTLEFIELD,
+                    destZoneId = ZoneIds.P1_GRAVEYARD,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Sacrifice"
         }
 
         test("Sacrifice with mana payment emits full mana-ability bracket") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Sacrifice,
-                srcZoneId = ZoneIds.BATTLEFIELD,
-                destZoneId = ZoneIds.P1_GRAVEYARD,
-                grpId = 95104, // Treasure token
-                ownerSeatId = 1,
-                manaPayments = listOf(
-                    ManaPaymentRecord(
-                        landInstanceId = 100,
-                        manaAbilityInstanceId = 200100,
-                        color = 8, // Red
-                        abilityGrpId = 183,
-                        spellInstanceId = 300,
-                    ),
-                ),
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Sacrifice,
+                    srcZoneId = ZoneIds.BATTLEFIELD,
+                    destZoneId = ZoneIds.P1_GRAVEYARD,
+                    grpId = 95104, // Treasure token
+                    ownerSeatId = 1,
+                    manaPayments =
+                        listOf(
+                            ManaPaymentRecord(
+                                landInstanceId = 100,
+                                manaAbilityInstanceId = 200100,
+                                color = 8, // Red
+                                abilityGrpId = 183,
+                                spellInstanceId = 300,
+                            ),
+                        ),
+                )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             assertSoftly {
@@ -102,16 +106,17 @@ class CombatZoneAnnotationPipelineTest :
         }
 
         test("Sacrifice without mana payment emits standard annotations") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Sacrifice,
-                srcZoneId = ZoneIds.BATTLEFIELD,
-                destZoneId = ZoneIds.P1_GRAVEYARD,
-                grpId = 95104,
-                ownerSeatId = 1,
-                manaPayments = emptyList(),
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Sacrifice,
+                    srcZoneId = ZoneIds.BATTLEFIELD,
+                    destZoneId = ZoneIds.P1_GRAVEYARD,
+                    grpId = 95104,
+                    ownerSeatId = 1,
+                    manaPayments = emptyList(),
+                )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             assertSoftly {
@@ -122,24 +127,26 @@ class CombatZoneAnnotationPipelineTest :
         }
 
         test("Sacrifice with mana payment has correct UserActionTaken fields") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Sacrifice,
-                srcZoneId = ZoneIds.BATTLEFIELD,
-                destZoneId = ZoneIds.P1_GRAVEYARD,
-                grpId = 95104,
-                ownerSeatId = 1,
-                manaPayments = listOf(
-                    ManaPaymentRecord(
-                        landInstanceId = 100,
-                        manaAbilityInstanceId = 200100,
-                        color = 8,
-                        abilityGrpId = 183,
-                        spellInstanceId = 300,
-                    ),
-                ),
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Sacrifice,
+                    srcZoneId = ZoneIds.BATTLEFIELD,
+                    destZoneId = ZoneIds.P1_GRAVEYARD,
+                    grpId = 95104,
+                    ownerSeatId = 1,
+                    manaPayments =
+                        listOf(
+                            ManaPaymentRecord(
+                                landInstanceId = 100,
+                                manaAbilityInstanceId = 200100,
+                                color = 8,
+                                abilityGrpId = 183,
+                                spellInstanceId = 300,
+                            ),
+                        ),
+                )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             val uat = annotations[4]
@@ -151,87 +158,93 @@ class CombatZoneAnnotationPipelineTest :
         }
 
         test("bounceProducesAnnotations") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Bounce,
-                srcZoneId = ZoneIds.BATTLEFIELD,
-                destZoneId = ZoneIds.P1_HAND,
-                grpId = 0,
-                ownerSeatId = 1,
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Bounce,
+                    srcZoneId = ZoneIds.BATTLEFIELD,
+                    destZoneId = ZoneIds.P1_HAND,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Bounce"
         }
 
         test("exileProducesAnnotations") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Exile,
-                srcZoneId = ZoneIds.BATTLEFIELD,
-                destZoneId = ZoneIds.EXILE,
-                grpId = 0,
-                ownerSeatId = 1,
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Exile,
+                    srcZoneId = ZoneIds.BATTLEFIELD,
+                    destZoneId = ZoneIds.EXILE,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Exile"
         }
 
         test("discardProducesAnnotations") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Discard,
-                srcZoneId = ZoneIds.P1_HAND,
-                destZoneId = ZoneIds.P1_GRAVEYARD,
-                grpId = 0,
-                ownerSeatId = 1,
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Discard,
+                    srcZoneId = ZoneIds.P1_HAND,
+                    destZoneId = ZoneIds.P1_GRAVEYARD,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Discard"
         }
 
         test("drawProducesAnnotations") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Draw,
-                srcZoneId = ZoneIds.P1_LIBRARY,
-                destZoneId = ZoneIds.P1_HAND,
-                grpId = 0,
-                ownerSeatId = 1,
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Draw,
+                    srcZoneId = ZoneIds.P1_LIBRARY,
+                    destZoneId = ZoneIds.P1_HAND,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Draw"
         }
 
         test("millProducesAnnotations") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Mill,
-                srcZoneId = ZoneIds.P1_LIBRARY,
-                destZoneId = ZoneIds.P1_GRAVEYARD,
-                grpId = 0,
-                ownerSeatId = 1,
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Mill,
+                    srcZoneId = ZoneIds.P1_LIBRARY,
+                    destZoneId = ZoneIds.P1_GRAVEYARD,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Mill"
         }
 
         test("surveilProducesAnnotationsWithAffectorId") {
             val abilityInstanceId = 500.iid
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Surveil,
-                srcZoneId = ZoneIds.P1_LIBRARY,
-                destZoneId = ZoneIds.P1_GRAVEYARD,
-                grpId = 0,
-                ownerSeatId = 1,
-                affectorId = abilityInstanceId.value,
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Surveil,
+                    srcZoneId = ZoneIds.P1_LIBRARY,
+                    destZoneId = ZoneIds.P1_GRAVEYARD,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                    affectorId = abilityInstanceId.value,
+                )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.size shouldBe 2
 
@@ -254,16 +267,17 @@ class CombatZoneAnnotationPipelineTest :
         }
 
         test("surveilWithoutAffectorIdHasZeroAffector") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Surveil,
-                srcZoneId = ZoneIds.P1_LIBRARY,
-                destZoneId = ZoneIds.P1_GRAVEYARD,
-                grpId = 0,
-                ownerSeatId = 1,
-                // no affectorId
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Surveil,
+                    srcZoneId = ZoneIds.P1_LIBRARY,
+                    destZoneId = ZoneIds.P1_GRAVEYARD,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                    // no affectorId
+                )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             // Without affectorId, annotations should still work but have 0 affector
             annotations[0].affectorId shouldBe 0
@@ -271,15 +285,16 @@ class CombatZoneAnnotationPipelineTest :
         }
 
         test("counteredProducesAnnotations") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Countered,
-                srcZoneId = ZoneIds.STACK,
-                destZoneId = ZoneIds.P1_GRAVEYARD,
-                grpId = 0,
-                ownerSeatId = 1,
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Countered,
+                    srcZoneId = ZoneIds.STACK,
+                    destZoneId = ZoneIds.P1_GRAVEYARD,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             annotations.last().detailString("category") shouldBe "Countered"
         }
@@ -287,15 +302,16 @@ class CombatZoneAnnotationPipelineTest :
         // --- annotationsForTransfer: Return ---
 
         test("returnFromGraveyardProducesAnnotations") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Return,
-                srcZoneId = ZoneIds.P1_GRAVEYARD,
-                destZoneId = ZoneIds.BATTLEFIELD,
-                grpId = 0,
-                ownerSeatId = 1,
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Return,
+                    srcZoneId = ZoneIds.P1_GRAVEYARD,
+                    destZoneId = ZoneIds.BATTLEFIELD,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                )
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             assertSoftly {
@@ -308,15 +324,16 @@ class CombatZoneAnnotationPipelineTest :
         }
 
         test("returnToHandNoPersistent") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Return,
-                srcZoneId = ZoneIds.P1_GRAVEYARD,
-                destZoneId = ZoneIds.P1_HAND,
-                grpId = 0,
-                ownerSeatId = 1,
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Return,
+                    srcZoneId = ZoneIds.P1_GRAVEYARD,
+                    destZoneId = ZoneIds.P1_HAND,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                )
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             annotations.last().detailString("category") shouldBe "Return"
@@ -326,15 +343,16 @@ class CombatZoneAnnotationPipelineTest :
         // --- annotationsForTransfer: Search ---
 
         test("searchProducesAnnotations") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Search,
-                srcZoneId = ZoneIds.P1_LIBRARY,
-                destZoneId = ZoneIds.BATTLEFIELD,
-                grpId = 0,
-                ownerSeatId = 1,
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Search,
+                    srcZoneId = ZoneIds.P1_LIBRARY,
+                    destZoneId = ZoneIds.BATTLEFIELD,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                )
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             assertSoftly {
@@ -347,15 +365,16 @@ class CombatZoneAnnotationPipelineTest :
         // --- annotationsForTransfer: Put ---
 
         test("putProducesAnnotations") {
-            val transfer = AppliedTransfer(
-                origId = 100,
-                newId = 200,
-                category = TransferCategory.Put,
-                srcZoneId = ZoneIds.EXILE,
-                destZoneId = ZoneIds.P1_GRAVEYARD,
-                grpId = 0,
-                ownerSeatId = 1,
-            )
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Put,
+                    srcZoneId = ZoneIds.EXILE,
+                    destZoneId = ZoneIds.P1_GRAVEYARD,
+                    grpId = 0,
+                    ownerSeatId = 1,
+                )
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             assertSoftly {

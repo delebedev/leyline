@@ -29,10 +29,11 @@ class AttachmentAnnotationTest :
         afterEach { base.tearDown() }
 
         test("attachment produces transient and persistent annotations") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                base.addCard("Holy Strength", human, ZoneType.Hand)
-            }
+            val (b, game, counter) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    base.addCard("Holy Strength", human, ZoneType.Hand)
+                }
             val human = game.humanPlayer
             val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             val auraCard = human.getZone(ZoneType.Hand).cards.first()
@@ -47,18 +48,20 @@ class AttachmentAnnotationTest :
             val auraIid = b.getOrAllocInstanceId(ForgeCardId(auraCard.id)).value
             val creatureIid = b.getOrAllocInstanceId(ForgeCardId(creature.id)).value
 
-            val attachCreated = gsm.annotationsList.firstOrNull {
-                AnnotationType.AttachmentCreated in it.typeList
-            }
+            val attachCreated =
+                gsm.annotationsList.firstOrNull {
+                    AnnotationType.AttachmentCreated in it.typeList
+                }
             assertSoftly {
                 attachCreated.shouldNotBeNull()
                 attachCreated.affectedIdsList shouldBe listOf(creatureIid)
                 attachCreated.affectorId shouldBe auraIid
             }
 
-            val attachPersistent = gsm.persistentAnnotationsList.firstOrNull {
-                AnnotationType.Attachment in it.typeList
-            }
+            val attachPersistent =
+                gsm.persistentAnnotationsList.firstOrNull {
+                    AnnotationType.Attachment in it.typeList
+                }
             assertSoftly {
                 attachPersistent.shouldNotBeNull()
                 attachPersistent.affectedIdsList shouldBe listOf(creatureIid)
@@ -68,10 +71,11 @@ class AttachmentAnnotationTest :
         }
 
         test("detach does not produce AttachmentCreated") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                base.addCard("Holy Strength", human, ZoneType.Hand)
-            }
+            val (b, game, counter) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    base.addCard("Holy Strength", human, ZoneType.Hand)
+                }
             val human = game.humanPlayer
             val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             val auraCard = human.getZone(ZoneType.Hand).cards.first()
@@ -83,8 +87,9 @@ class AttachmentAnnotationTest :
             val result = base.bundleBuilder(b).stateOnlyDiff(game, counter)
             val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 
-            gsm.annotationsList.firstOrNull {
-                AnnotationType.AttachmentCreated in it.typeList
-            }.shouldBeNull()
+            gsm.annotationsList
+                .firstOrNull {
+                    AnnotationType.AttachmentCreated in it.typeList
+                }.shouldBeNull()
         }
     })

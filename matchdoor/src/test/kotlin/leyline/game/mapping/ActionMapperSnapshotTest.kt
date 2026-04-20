@@ -41,11 +41,12 @@ class ActionMapperSnapshotTest :
             assertSoftly {
                 fromSnap.actionsList.any { it.actionType == ActionType.Pass }.shouldBeTrue()
                 fromSnap.actionsList.any { it.actionType == ActionType.FloatMana }.shouldBeTrue()
-                fromSnap.actionsList.none {
-                    it.actionType == ActionType.Cast ||
-                        it.actionType == ActionType.Play_add3 ||
-                        it.actionType == ActionType.ActivateMana
-                }.shouldBeTrue()
+                fromSnap.actionsList
+                    .none {
+                        it.actionType == ActionType.Cast ||
+                            it.actionType == ActionType.Play_add3 ||
+                            it.actionType == ActionType.ActivateMana
+                    }.shouldBeTrue()
                 fromSnap.inactiveActionsCount shouldBe 0
             }
         }
@@ -55,15 +56,17 @@ class ActionMapperSnapshotTest :
         // -----------------------------------------------------------------------
 
         test("land in hand — Play action present") {
-            val (b, game, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Island", human, ZoneType.Hand)
-            }
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Island", human, ZoneType.Hand)
+                }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
 
-            val hasPlay = fromSnap.actionsList.any { it.actionType == ActionType.Play_add3 } ||
-                fromSnap.inactiveActionsList.any { it.actionType == ActionType.Play_add3 }
+            val hasPlay =
+                fromSnap.actionsList.any { it.actionType == ActionType.Play_add3 } ||
+                    fromSnap.inactiveActionsList.any { it.actionType == ActionType.Play_add3 }
             hasPlay.shouldBeTrue()
         }
 
@@ -72,15 +75,17 @@ class ActionMapperSnapshotTest :
         // -----------------------------------------------------------------------
 
         test("non-land spell in hand — Cast action present (active or inactive)") {
-            val (b, game, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Llanowar Elves", human, ZoneType.Hand)
-            }
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Llanowar Elves", human, ZoneType.Hand)
+                }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
 
-            val hasCast = fromSnap.actionsList.any { it.actionType == ActionType.Cast } ||
-                fromSnap.inactiveActionsList.any { it.actionType == ActionType.Cast }
+            val hasCast =
+                fromSnap.actionsList.any { it.actionType == ActionType.Cast } ||
+                    fromSnap.inactiveActionsList.any { it.actionType == ActionType.Cast }
             hasCast.shouldBeTrue()
         }
 
@@ -89,9 +94,10 @@ class ActionMapperSnapshotTest :
         // -----------------------------------------------------------------------
 
         test("untapped land on battlefield — ActivateMana present") {
-            val (b, game, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Island", human, ZoneType.Battlefield)
-            }
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Island", human, ZoneType.Battlefield)
+                }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
@@ -104,10 +110,11 @@ class ActionMapperSnapshotTest :
         // -----------------------------------------------------------------------
 
         test("affordable Llanowar Elves — Cast in active actions") {
-            val (b, game, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Llanowar Elves", human, ZoneType.Hand)
-                base.addCard("Forest", human, ZoneType.Battlefield)
-            }
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Llanowar Elves", human, ZoneType.Hand)
+                    base.addCard("Forest", human, ZoneType.Battlefield)
+                }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
@@ -126,10 +133,11 @@ class ActionMapperSnapshotTest :
         // -----------------------------------------------------------------------
 
         test("CardSnapshot.isLand is true for lands, false for non-lands") {
-            val (b, game, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Island", human, ZoneType.Hand)
-                base.addCard("Llanowar Elves", human, ZoneType.Hand)
-            }
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Island", human, ZoneType.Hand)
+                    base.addCard("Llanowar Elves", human, ZoneType.Hand)
+                }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val humanCards = game.humanPlayer.getZone(ZoneType.Hand).cards

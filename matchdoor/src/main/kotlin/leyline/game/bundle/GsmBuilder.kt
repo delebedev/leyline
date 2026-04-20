@@ -28,29 +28,35 @@ data class GsmFrame(
     val step: Step,
 ) {
     /** Build a [TurnInfo] proto from this frame's fields. */
-    fun turnInfo(): TurnInfo = TurnInfo.newBuilder()
-        .setPhase(phase)
-        .setStep(step)
-        .setTurnNumber(turnNumber)
-        .setActivePlayer(activeSeat)
-        .setPriorityPlayer(prioritySeat)
-        .setDecisionPlayer(prioritySeat)
-        .build()
+    fun turnInfo(): TurnInfo =
+        TurnInfo
+            .newBuilder()
+            .setPhase(phase)
+            .setStep(step)
+            .setTurnNumber(turnNumber)
+            .setActivePlayer(activeSeat)
+            .setPriorityPlayer(prioritySeat)
+            .setDecisionPlayer(prioritySeat)
+            .build()
 
     /** Build a PhaseOrStepModified annotation, assigning an ID from [idSource]. */
     fun phaseAnnotation(idSource: () -> Int): AnnotationInfo =
-        AnnotationBuilder.phaseOrStepModified(SeatId(activeSeat), phase.number, step.number)
-            .toBuilder().setId(idSource()).build()
+        AnnotationBuilder
+            .phaseOrStepModified(SeatId(activeSeat), phase.number, step.number)
+            .toBuilder()
+            .setId(idSource())
+            .build()
 
     companion object {
         /** Build a frame from a pre-captured [GsmSnapshot]. */
-        fun from(snap: GsmSnapshot): GsmFrame = GsmFrame(
-            activeSeat = snap.phase.activePlayer.value,
-            prioritySeat = snap.phase.priorityPlayer?.value ?: snap.phase.activePlayer.value,
-            turnNumber = snap.phase.turn.coerceAtLeast(1),
-            phase = PlayerMapper.mapPhase(snap.phase.phase),
-            step = PlayerMapper.mapStep(snap.phase.phase),
-        )
+        fun from(snap: GsmSnapshot): GsmFrame =
+            GsmFrame(
+                activeSeat = snap.phase.activePlayer.value,
+                prioritySeat = snap.phase.priorityPlayer?.value ?: snap.phase.activePlayer.value,
+                turnNumber = snap.phase.turn.coerceAtLeast(1),
+                phase = PlayerMapper.mapPhase(snap.phase.phase),
+                step = PlayerMapper.mapStep(snap.phase.phase),
+            )
     }
 }
 
@@ -97,45 +103,80 @@ object GsmBuilder {
         // Only include GameObjectInfo for the viewing seat's hand — opponent's hand
         // cards appear in objectInstanceIds (for count) but render face-down.
         if (human != null) {
-            ZoneMapper.addPlayerZonesFromSnapshot(1, snap, bridge, zones, gameObjects, ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, viewingSeatId = seatId)
+            ZoneMapper.addPlayerZonesFromSnapshot(
+                1,
+                snap,
+                bridge,
+                zones,
+                gameObjects,
+                ZoneIds.P1_HAND,
+                ZoneIds.P1_LIBRARY,
+                viewingSeatId = seatId,
+            )
         }
         if (ai != null) {
-            ZoneMapper.addPlayerZonesFromSnapshot(2, snap, bridge, zones, gameObjects, ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, viewingSeatId = seatId)
+            ZoneMapper.addPlayerZonesFromSnapshot(
+                2,
+                snap,
+                bridge,
+                zones,
+                gameObjects,
+                ZoneIds.P2_HAND,
+                ZoneIds.P2_LIBRARY,
+                viewingSeatId = seatId,
+            )
         }
 
         // Players — both have pendingMessageType: MulliganResp during mulligan
-        val player1 = PlayerMapper.buildFromSnapshot(snap, 1).toBuilder()
-            .setPendingMessageType(ClientMessageType.MulliganResp_097b).build()
-        val player2 = PlayerMapper.buildFromSnapshot(snap, 2).toBuilder()
-            .setPendingMessageType(ClientMessageType.MulliganResp_097b).build()
+        val player1 =
+            PlayerMapper
+                .buildFromSnapshot(snap, 1)
+                .toBuilder()
+                .setPendingMessageType(ClientMessageType.MulliganResp_097b)
+                .build()
+        val player2 =
+            PlayerMapper
+                .buildFromSnapshot(snap, 2)
+                .toBuilder()
+                .setPendingMessageType(ClientMessageType.MulliganResp_097b)
+                .build()
 
         // activePlayer=2 (seat 2 won die roll in template), decisionPlayer=2
-        val turnInfo = TurnInfo.newBuilder()
-            .setActivePlayer(2).setDecisionPlayer(2)
+        val turnInfo =
+            TurnInfo
+                .newBuilder()
+                .setActivePlayer(2)
+                .setDecisionPlayer(2)
 
         // Build actions for the viewing seat's opening hand (Cast/Play from hand)
         val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
 
-        val gsm = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff)
-            .setGameStateId(gameStateId)
-            .addPlayers(player1).addPlayers(player2)
-            .setTurnInfo(turnInfo)
-            .addAllZones(zones.sortedBy { it.zoneId })
-            .addAllGameObjects(gameObjects)
-            .addAllDiffDeletedInstanceIds(diffDeletedInstanceIds)
-            .addAnnotations(
-                AnnotationInfo.newBuilder().setId(49)
-                    .setAffectorId(2).addAffectedIds(2)
-                    .addType(AnnotationType.NewTurnStarted),
-            )
-            .setPrevGameStateId(gameStateId - 1)
-            .setUpdate(GameStateUpdate.SendAndRecord)
+        val gsm =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(gameStateId)
+                .addPlayers(player1)
+                .addPlayers(player2)
+                .setTurnInfo(turnInfo)
+                .addAllZones(zones.sortedBy { it.zoneId })
+                .addAllGameObjects(gameObjects)
+                .addAllDiffDeletedInstanceIds(diffDeletedInstanceIds)
+                .addAnnotations(
+                    AnnotationInfo
+                        .newBuilder()
+                        .setId(49)
+                        .setAffectorId(2)
+                        .addAffectedIds(2)
+                        .addType(AnnotationType.NewTurnStarted),
+                ).setPrevGameStateId(gameStateId - 1)
+                .setUpdate(GameStateUpdate.SendAndRecord)
 
         // Embed stripped actions matching expected deal-hand shape
         for (action in actions.actionsList) {
             gsm.addActions(
-                ActionInfo.newBuilder()
+                ActionInfo
+                    .newBuilder()
                     .setSeatId(seatId)
                     .setAction(ActionMapper.stripActionForGsm(action)),
             )
@@ -154,27 +195,30 @@ object GsmBuilder {
         numCards: Int = 7,
         mulliganCount: Int = 0,
     ): GREToClientMessage =
-        GREToClientMessage.newBuilder()
+        GREToClientMessage
+            .newBuilder()
             .setType(GREMessageType.MulliganReq_aa0d)
             .addSystemSeatIds(seatId)
             .setMsgId(msgId)
             .setGameStateId(gameStateId)
             .setPrompt(
-                Prompt.newBuilder().setPromptId(PromptIds.MULLIGAN)
+                Prompt
+                    .newBuilder()
+                    .setPromptId(PromptIds.MULLIGAN)
                     .addParameters(
-                        PromptParameter.newBuilder()
+                        PromptParameter
+                            .newBuilder()
                             .setParameterName("NumberOfCards")
                             .setType(ParameterType.Number)
                             .setNumberValue(numCards),
                     ),
-            )
-            .setMulliganReq(
-                MulliganReq.newBuilder()
+            ).setMulliganReq(
+                MulliganReq
+                    .newBuilder()
                     .setMulliganType(MulliganType.London)
                     .setFreeMulliganCount(0)
                     .setMulliganCount(mulliganCount),
-            )
-            .build()
+            ).build()
 
     /**
      * Build a GroupReq GRE message for London mulligan tuck.
@@ -192,41 +236,44 @@ object GsmBuilder {
         cardsToTuck: Int,
     ): GREToClientMessage {
         val keepCount = handInstanceIds.size - cardsToTuck
-        return GREToClientMessage.newBuilder()
+        return GREToClientMessage
+            .newBuilder()
             .setType(GREMessageType.GroupReq_695e)
             .addSystemSeatIds(seatId)
             .setMsgId(msgId)
             .setGameStateId(gameStateId)
             .setPrompt(
-                Prompt.newBuilder().setPromptId(PromptIds.GROUP_SCRY)
+                Prompt
+                    .newBuilder()
+                    .setPromptId(PromptIds.GROUP_SCRY)
                     .addParameters(
-                        PromptParameter.newBuilder()
+                        PromptParameter
+                            .newBuilder()
                             .setParameterName("CardId")
                             .setType(ParameterType.Number),
                     ),
-            )
-            .setGroupReq(
-                GroupReq.newBuilder()
+            ).setGroupReq(
+                GroupReq
+                    .newBuilder()
                     .addAllInstanceIds(handInstanceIds)
                     .addGroupSpecs(
-                        GroupSpecification.newBuilder()
+                        GroupSpecification
+                            .newBuilder()
                             .setLowerBound(keepCount)
                             .setUpperBound(keepCount)
                             .setZoneType(ZoneType.Hand)
                             .setSubZoneType(SubZoneType.Top),
-                    )
-                    .addGroupSpecs(
-                        GroupSpecification.newBuilder()
+                    ).addGroupSpecs(
+                        GroupSpecification
+                            .newBuilder()
                             .setLowerBound(cardsToTuck)
                             .setUpperBound(cardsToTuck)
                             .setZoneType(ZoneType.Library)
                             .setSubZoneType(SubZoneType.Bottom),
-                    )
-                    .setGroupType(GroupType.Ordered)
+                    ).setGroupType(GroupType.Ordered)
                     .setContext(GroupingContext.LondonMulligan)
                     .setSourceId(seatId),
-            )
-            .setAllowCancel(AllowCancel.No_a526)
+            ).setAllowCancel(AllowCancel.No_a526)
             .build()
     }
 
@@ -247,54 +294,60 @@ object GsmBuilder {
         context: GroupingContext,
         sourceInstanceId: Int,
     ): GREToClientMessage {
-        val promptId = when (context) {
-            GroupingContext.Surveil -> PromptIds.GROUP_SURVEIL
-            GroupingContext.Scry_a0f6 -> PromptIds.GROUP_SCRY
-            else -> PromptIds.GROUP_SURVEIL
-        }
-        val awayZone = when (context) {
-            GroupingContext.Surveil -> ZoneType.Graveyard
-            else -> ZoneType.Library // scry puts on bottom
-        }
-        val awaySubZone = when (context) {
-            GroupingContext.Surveil -> SubZoneType.None_a455
-            else -> SubZoneType.Bottom
-        }
-        return GREToClientMessage.newBuilder()
+        val promptId =
+            when (context) {
+                GroupingContext.Surveil -> PromptIds.GROUP_SURVEIL
+                GroupingContext.Scry_a0f6 -> PromptIds.GROUP_SCRY
+                else -> PromptIds.GROUP_SURVEIL
+            }
+        val awayZone =
+            when (context) {
+                GroupingContext.Surveil -> ZoneType.Graveyard
+                else -> ZoneType.Library // scry puts on bottom
+            }
+        val awaySubZone =
+            when (context) {
+                GroupingContext.Surveil -> SubZoneType.None_a455
+                else -> SubZoneType.Bottom
+            }
+        return GREToClientMessage
+            .newBuilder()
             .setType(GREMessageType.GroupReq_695e)
             .addSystemSeatIds(seatId)
             .setMsgId(msgId)
             .setGameStateId(gameStateId)
             .setPrompt(
-                Prompt.newBuilder().setPromptId(promptId)
+                Prompt
+                    .newBuilder()
+                    .setPromptId(promptId)
                     .addParameters(
-                        PromptParameter.newBuilder()
+                        PromptParameter
+                            .newBuilder()
                             .setParameterName("CardId")
                             .setType(ParameterType.Number),
                     ),
-            )
-            .setGroupReq(
-                GroupReq.newBuilder()
+            ).setGroupReq(
+                GroupReq
+                    .newBuilder()
                     .addAllInstanceIds(cardInstanceIds)
                     .addGroupSpecs(
-                        GroupSpecification.newBuilder()
+                        GroupSpecification
+                            .newBuilder()
                             .setLowerBound(0)
                             .setUpperBound(cardInstanceIds.size)
                             .setZoneType(ZoneType.Library)
                             .setSubZoneType(SubZoneType.Top),
-                    )
-                    .addGroupSpecs(
-                        GroupSpecification.newBuilder()
+                    ).addGroupSpecs(
+                        GroupSpecification
+                            .newBuilder()
                             .setLowerBound(0)
                             .setUpperBound(cardInstanceIds.size)
                             .setZoneType(awayZone)
                             .setSubZoneType(awaySubZone),
-                    )
-                    .setGroupType(GroupType.Ordered)
+                    ).setGroupType(GroupType.Ordered)
                     .setContext(context)
                     .setSourceId(sourceInstanceId),
-            )
-            .setAllowCancel(AllowCancel.No_a526)
+            ).setAllowCancel(AllowCancel.No_a526)
             .build()
     }
 
@@ -317,33 +370,46 @@ object GsmBuilder {
         val gameVariant = if (isBrawl) GameVariant.Brawl else GameVariant.Normal
         val freeMulliganCount = if (isBrawl) 1 else 0
 
-        val deckConstraints = if (isBrawl) {
-            DeckConstraintInfo.newBuilder()
-                .setMinDeckSize(58).setMaxDeckSize(59).setMaxSideboardSize(1)
-                .setMinCommanderSize(1).setMaxCommanderSize(2)
-        } else {
-            DeckConstraintInfo.newBuilder()
-                .setMinDeckSize(60).setMaxDeckSize(250).setMaxSideboardSize(15)
-        }
+        val deckConstraints =
+            if (isBrawl) {
+                DeckConstraintInfo
+                    .newBuilder()
+                    .setMinDeckSize(58)
+                    .setMaxDeckSize(59)
+                    .setMaxSideboardSize(1)
+                    .setMinCommanderSize(1)
+                    .setMaxCommanderSize(2)
+            } else {
+                DeckConstraintInfo
+                    .newBuilder()
+                    .setMinDeckSize(60)
+                    .setMaxDeckSize(250)
+                    .setMaxSideboardSize(15)
+            }
 
-        val gameInfo = GameInfo.newBuilder()
-            .setMatchID(matchId)
-            .setGameNumber(1)
-            .setStage(GameStage.Start_a920)
-            .setType(GameType.Duel)
-            .setVariant(gameVariant)
-            .setMatchState(MatchState.GameInProgress)
-            .setMatchWinCondition(MatchWinCondition.SingleElimination)
-            .setSuperFormat(SuperFormat.Constructed)
-            .setMulliganType(MulliganType.London)
-            .setFreeMulliganCount(freeMulliganCount)
-            .setDeckConstraintInfo(deckConstraints)
+        val gameInfo =
+            GameInfo
+                .newBuilder()
+                .setMatchID(matchId)
+                .setGameNumber(1)
+                .setStage(GameStage.Start_a920)
+                .setType(GameType.Duel)
+                .setVariant(gameVariant)
+                .setMatchState(MatchState.GameInProgress)
+                .setMatchWinCondition(MatchWinCondition.SingleElimination)
+                .setSuperFormat(SuperFormat.Constructed)
+                .setMulliganType(MulliganType.London)
+                .setFreeMulliganCount(freeMulliganCount)
+                .setDeckConstraintInfo(deckConstraints)
 
         // Seat 2 has pending ChooseStartingPlayerResp
         val player1 = PlayerMapper.buildFromSnapshot(snap, 1)
-        val player2 = PlayerMapper.buildFromSnapshot(snap, 2).toBuilder()
-            .setPendingMessageType(ClientMessageType.ChooseStartingPlayerResp_097b)
-            .build()
+        val player2 =
+            PlayerMapper
+                .buildFromSnapshot(snap, 2)
+                .toBuilder()
+                .setPendingMessageType(ClientMessageType.ChooseStartingPlayerResp_097b)
+                .build()
 
         val zones = mutableListOf<ZoneInfo>()
         // Shared zones (9)
@@ -398,18 +464,31 @@ object GsmBuilder {
             )
         }
 
-        val builder = GameStateMessage.newBuilder()
-            .setType(GameStateType.Full)
-            .setGameStateId(gameStateId)
-            .setGameInfo(gameInfo)
-            .addTeams(TeamInfo.newBuilder().setId(1).addPlayerIds(1).setStatus(TeamStatus.InGame_a458))
-            .addTeams(TeamInfo.newBuilder().setId(2).addPlayerIds(2).setStatus(TeamStatus.InGame_a458))
-            .addPlayers(player1).addPlayers(player2)
-            .setTurnInfo(TurnInfo.newBuilder().setDecisionPlayer(2))
-            .addAllZones(zones.sortedBy { it.zoneId })
-            .addAllGameObjects(gameObjects)
-            .addAllTimers(PlayerMapper.buildTimers())
-            .setUpdate(GameStateUpdate.SendAndRecord)
+        val builder =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Full)
+                .setGameStateId(gameStateId)
+                .setGameInfo(gameInfo)
+                .addTeams(
+                    TeamInfo
+                        .newBuilder()
+                        .setId(1)
+                        .addPlayerIds(1)
+                        .setStatus(TeamStatus.InGame_a458),
+                ).addTeams(
+                    TeamInfo
+                        .newBuilder()
+                        .setId(2)
+                        .addPlayerIds(2)
+                        .setStatus(TeamStatus.InGame_a458),
+                ).addPlayers(player1)
+                .addPlayers(player2)
+                .setTurnInfo(TurnInfo.newBuilder().setDecisionPlayer(2))
+                .addAllZones(zones.sortedBy { it.zoneId })
+                .addAllGameObjects(gameObjects)
+                .addAllTimers(PlayerMapper.buildTimers())
+                .setUpdate(GameStateUpdate.SendAndRecord)
         if (pendingMessageCount > 0) builder.setPendingMessageCount(pendingMessageCount)
         return builder.build()
     }
@@ -430,21 +509,24 @@ object GsmBuilder {
         actions: ActionsAvailableReq? = null,
         actionSeatId: Int = 0,
     ): GameStateMessage {
-        val builder = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff)
-            .setGameStateId(gameStateId)
-            .setPrevGameStateId(prevGameStateId)
-            .setTurnInfo(frame.turnInfo())
-            .addPlayers(PlayerMapper.buildFromSnapshot(snap, 1))
-            .addPlayers(PlayerMapper.buildFromSnapshot(snap, 2))
-            .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() }) // phase change
-            .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() }) // step change
-            .addAllTimers(PlayerMapper.buildTimers())
-            .setUpdate(GameStateUpdate.SendHiFi)
+        val builder =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(gameStateId)
+                .setPrevGameStateId(prevGameStateId)
+                .setTurnInfo(frame.turnInfo())
+                .addPlayers(PlayerMapper.buildFromSnapshot(snap, 1))
+                .addPlayers(PlayerMapper.buildFromSnapshot(snap, 2))
+                .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() }) // phase change
+                .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() }) // step change
+                .addAllTimers(PlayerMapper.buildTimers())
+                .setUpdate(GameStateUpdate.SendHiFi)
 
         if (isStageTransition) {
             builder.setGameInfo(
-                GameInfo.newBuilder()
+                GameInfo
+                    .newBuilder()
                     .setMatchID(matchId)
                     .setStage(GameStage.Play_a920)
                     .setMatchState(MatchState.GameInProgress)
@@ -459,7 +541,8 @@ object GsmBuilder {
             builder.setPendingMessageCount(1)
             for (action in actions.actionsList) {
                 builder.addActions(
-                    ActionInfo.newBuilder()
+                    ActionInfo
+                        .newBuilder()
                         .setSeatId(embedSeat)
                         .setAction(ActionMapper.stripActionForGsm(action)),
                 )
@@ -471,7 +554,8 @@ object GsmBuilder {
 
     /** Empty Diff used as priority-pass marker in the double-diff pattern. */
     fun buildEmptyDiff(gameStateId: Int): GameStateMessage =
-        GameStateMessage.newBuilder()
+        GameStateMessage
+            .newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
             .addAllTimers(PlayerMapper.buildTimers())
@@ -490,12 +574,15 @@ object GsmBuilder {
         frame: GsmFrame,
         recipientSeatId: Int = 0,
     ): GameStateMessage {
-        val builder = gsm.toBuilder()
-            .setPendingMessageCount(1)
+        val builder =
+            gsm
+                .toBuilder()
+                .setPendingMessageCount(1)
         val seatForActions = if (recipientSeatId != 0) recipientSeatId else frame.prioritySeat
         for (action in actions.actionsList) {
             builder.addActions(
-                ActionInfo.newBuilder()
+                ActionInfo
+                    .newBuilder()
                     .setSeatId(seatForActions)
                     .setAction(ActionMapper.stripActionForGsm(action)),
             )

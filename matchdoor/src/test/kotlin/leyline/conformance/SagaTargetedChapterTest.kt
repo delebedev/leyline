@@ -28,7 +28,8 @@ class SagaTargetedChapterTest :
         tags(IntegrationTag)
 
         test("teachings of the kirin: targeted Ch II puts +1/+1 on sole valid target") {
-            val puzzleText = """
+            val puzzleText =
+                """
                 [metadata]
                 Name:Saga Targeted Chapter — Teachings of the Kirin
                 Goal:Survive
@@ -47,15 +48,18 @@ class SagaTargetedChapterTest :
                 humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest
                 aibattlefield=Mountain
                 ailibrary=Mountain;Mountain;Mountain;Mountain
-            """.trimIndent()
+                """.trimIndent()
 
             val harness = MatchFlowHarness(validating = false)
             try {
                 harness.connectAndKeepPuzzleText(puzzleText)
                 val game = harness.bridge.getGame()!!
 
-                val bear = game.humanPlayer.getZone(ZoneType.Battlefield).cards
-                    .first { it.name == "Grizzly Bears" }
+                val bear =
+                    game.humanPlayer
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .first { it.name == "Grizzly Bears" }
                 val bearIid = harness.bridge.getOrAllocInstanceId(ForgeCardId(bear.id)).value
 
                 harness.castSpellByName("Teachings of the Kirin").shouldBeTrue()
@@ -68,16 +72,20 @@ class SagaTargetedChapterTest :
                     if (harness.isGameOver()) return@repeat
 
                     // Check for new SelectTargetsReq since last iteration.
-                    val newSelectReq = harness.allMessages
-                        .drop(lastSeenTargetReq)
-                        .any { it.type == GREMessageType.SelectTargetsReq_695e }
+                    val newSelectReq =
+                        harness.allMessages
+                            .drop(lastSeenTargetReq)
+                            .any { it.type == GREMessageType.SelectTargetsReq_695e }
                     lastSeenTargetReq = harness.allMessages.size
                     if (newSelectReq) {
                         harness.selectTargets(listOf(bearIid))
                     }
 
-                    val liveBear = game.humanPlayer.getZone(ZoneType.Battlefield).cards
-                        .firstOrNull { it.name == "Grizzly Bears" }
+                    val liveBear =
+                        game.humanPlayer
+                            .getZone(ZoneType.Battlefield)
+                            .cards
+                            .firstOrNull { it.name == "Grizzly Bears" }
                     if (liveBear != null && liveBear.getCounters(CounterEnumType.P1P1) >= 1) {
                         bearHasCounter = true
                         return@repeat

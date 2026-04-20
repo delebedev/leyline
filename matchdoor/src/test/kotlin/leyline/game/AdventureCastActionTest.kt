@@ -22,19 +22,22 @@ class AdventureCastActionTest :
         afterEach { base.tearDown() }
 
         test("adventure card in hand produces both Cast and CastAdventure actions") {
-            val (b, _, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Ratcatcher Trainee", human, ZoneType.Hand)
-                repeat(3) { base.addCard("Mountain", human, ZoneType.Battlefield) }
-            }
+            val (b, _, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Ratcatcher Trainee", human, ZoneType.Hand)
+                    repeat(3) { base.addCard("Mountain", human, ZoneType.Battlefield) }
+                }
 
-            val creatureGrpId = b.cardRepository.findGrpIdByName("Ratcatcher Trainee")
-                ?: error("Ratcatcher Trainee not in card registry")
+            val creatureGrpId =
+                b.cardRepository.findGrpIdByName("Ratcatcher Trainee")
+                    ?: error("Ratcatcher Trainee not in card registry")
 
-            val actions = ActionMapper.buildActionList(
-                seatId = 1,
-                bridge = b,
-                checkLegality = true,
-            )
+            val actions =
+                ActionMapper.buildActionList(
+                    seatId = 1,
+                    bridge = b,
+                    checkLegality = true,
+                )
 
             val castActions = actions.actionsList.filter { it.actionType == ActionType.Cast }
             val adventureActions = actions.actionsList.filter { it.actionType == ActionType.CastAdventure }
@@ -50,16 +53,18 @@ class AdventureCastActionTest :
         }
 
         test("non-adventure card produces no CastAdventure") {
-            val (b, _, _) = base.startWithBoard { _, human, _ ->
-                base.addCard("Grizzly Bears", human, ZoneType.Hand)
-                repeat(2) { base.addCard("Forest", human, ZoneType.Battlefield) }
-            }
+            val (b, _, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Grizzly Bears", human, ZoneType.Hand)
+                    repeat(2) { base.addCard("Forest", human, ZoneType.Battlefield) }
+                }
 
-            val actions = ActionMapper.buildActionList(
-                seatId = 1,
-                bridge = b,
-                checkLegality = true,
-            )
+            val actions =
+                ActionMapper.buildActionList(
+                    seatId = 1,
+                    bridge = b,
+                    checkLegality = true,
+                )
 
             actions.actionsList.filter { it.actionType == ActionType.CastAdventure } shouldHaveSize 0
         }

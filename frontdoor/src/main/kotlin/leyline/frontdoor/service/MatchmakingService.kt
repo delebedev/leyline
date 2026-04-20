@@ -42,9 +42,13 @@ class MatchmakingService(
     /**
      * Create a match for any event. Validates deck legality against the event's format.
      */
-    fun startMatch(deckId: DeckId, eventName: String): MatchInfo {
-        val deck = decks.findById(deckId)
-            ?: throw IllegalArgumentException("Deck not found: ${deckId.value}")
+    fun startMatch(
+        deckId: DeckId,
+        eventName: String,
+    ): MatchInfo {
+        val deck =
+            decks.findById(deckId)
+                ?: throw IllegalArgumentException("Deck not found: ${deckId.value}")
 
         val forgeFormat = EventRegistry.forgeFormatFor(eventName)
         if (forgeFormat != null && validateDeck != null) {
@@ -62,14 +66,18 @@ class MatchmakingService(
     }
 
     /** Create MatchInfo without deck validation — for sealed events where deck is in Course. */
-    fun createMatchInfo(eventName: String): MatchInfo = MatchInfo(
-        matchId = createMatchId(eventName),
-        host = matchDoorHost,
-        port = matchDoorPort,
-        eventName = eventName,
-    )
+    fun createMatchInfo(eventName: String): MatchInfo =
+        MatchInfo(
+            matchId = createMatchId(eventName),
+            host = matchDoorHost,
+            port = matchDoorPort,
+            eventName = eventName,
+        )
 
     /** Convenience: delegates to [startMatch]. */
-    fun startAiMatch(@Suppress("UnusedParameter") playerId: PlayerId, deckId: DeckId, eventName: String = "AIBotMatch"): MatchInfo =
-        startMatch(deckId, eventName)
+    fun startAiMatch(
+        @Suppress("UnusedParameter") playerId: PlayerId,
+        deckId: DeckId,
+        eventName: String = "AIBotMatch",
+    ): MatchInfo = startMatch(deckId, eventName)
 }

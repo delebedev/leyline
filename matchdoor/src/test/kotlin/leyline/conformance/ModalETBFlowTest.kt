@@ -141,8 +141,11 @@ class ModalETBFlowTest :
 
             // Find Trufflesnout on battlefield — should have a +1/+1 counter
             val player = h.bridge.getPlayer(SeatId(1))!!
-            val trufflesnout = player.getZone(forge.game.zone.ZoneType.Battlefield).cards
-                .firstOrNull { it.name == "Trufflesnout" }
+            val trufflesnout =
+                player
+                    .getZone(forge.game.zone.ZoneType.Battlefield)
+                    .cards
+                    .firstOrNull { it.name == "Trufflesnout" }
             trufflesnout.shouldNotBeNull()
             trufflesnout.getCounters(CounterEnumType.P1P1) shouldBeGreaterThan 0
         }
@@ -162,12 +165,17 @@ class ModalETBFlowTest :
             // Protocol: affectedId/affectorId reference the ability on the stack,
             // not the card. The ability instanceId is derived from the source card's
             // forge ID + STACK_ABILITY_ID_OFFSET.
-            val princeCard = h.bridge.getPlayer(SeatId(1))!!
-                .getZone(forge.game.zone.ZoneType.Battlefield).cards
-                .first { it.name == "Charming Prince" }
-            val abilityInstanceId = h.bridge.getOrAllocInstanceId(
-                ForgeCardId(princeCard.id + ObjectMapper.STACK_ABILITY_ID_OFFSET),
-            ).value
+            val princeCard =
+                h.bridge
+                    .getPlayer(SeatId(1))!!
+                    .getZone(forge.game.zone.ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Charming Prince" }
+            val abilityInstanceId =
+                h.bridge
+                    .getOrAllocInstanceId(
+                        ForgeCardId(princeCard.id + ObjectMapper.STACK_ABILITY_ID_OFFSET),
+                    ).value
 
             option.affectedId shouldBe abilityInstanceId
             option.affectorId shouldBe abilityInstanceId
@@ -234,9 +242,12 @@ class ModalETBFlowTest :
             val abilityObj = gsm.gameObjectsList.first { it.type == GameObjectType.Ability }
 
             // parentId = source card instanceId on the battlefield
-            val trufflesnoutCard = h.bridge.getPlayer(SeatId(1))!!
-                .getZone(forge.game.zone.ZoneType.Battlefield).cards
-                .first { it.name == "Trufflesnout" }
+            val trufflesnoutCard =
+                h.bridge
+                    .getPlayer(SeatId(1))!!
+                    .getZone(forge.game.zone.ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Trufflesnout" }
             val cardInstanceId = h.bridge.getOrAllocInstanceId(ForgeCardId(trufflesnoutCard.id)).value
 
             abilityObj.parentId shouldBe cardInstanceId

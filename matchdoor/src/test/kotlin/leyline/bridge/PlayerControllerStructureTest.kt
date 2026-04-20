@@ -20,50 +20,51 @@ class PlayerControllerStructureTest :
         tags(UnitTag)
 
         // The current set of 42 PCHuman overrides. Alphabetical for review stability.
-        val expectedOverrides = setOf(
-            "applyManaToCost",
-            "arrangeForScry",
-            "arrangeForSurveil",
-            "assignCombatDamage",
-            "chooseBinary",
-            "chooseCardsForConvokeOrImprovise",
-            "chooseCardsForCost",
-            "chooseCardsForEffect",
-            "chooseCardsToDiscardFrom",
-            "chooseCardsToDiscardToMaximumHandSize",
-            "chooseCardsToDiscardUnlessType",
-            "chooseCardsToRevealFromHand",
-            "chooseColor",
-            "chooseEntitiesForEffect",
-            "chooseModeForAbility",
-            "chooseNumberForKeywordCost",
-            "chooseOptionalCosts",
-            "choosePermanentsToDestroy",
-            "choosePermanentsToSacrifice",
-            "chooseSingleEntityForEffect",
-            "chooseSpellAbilityToPlay",
-            "chooseStartingPlayer",
-            "confirmAction",
-            "confirmPayment",
-            "confirmReplacementEffect",
-            "confirmStaticApplication",
-            "confirmTrigger",
-            "declareAttackers",
-            "declareBlockers",
-            "getCostDecisionMaker",
-            "isAI",
-            "mulliganKeepHand",
-            "orderMoveToZoneList",
-            "payCostToPreventEffect",
-            "payManaCost",
-            "playChosenSpellAbility",
-            "playSaFromPlayEffect",
-            "playSpellAbilityNoStack",
-            "reveal",
-            "selectTargetsInteractively",
-            "tuckCardsViaMulligan",
-            "willPutCardOnTop",
-        )
+        val expectedOverrides =
+            setOf(
+                "applyManaToCost",
+                "arrangeForScry",
+                "arrangeForSurveil",
+                "assignCombatDamage",
+                "chooseBinary",
+                "chooseCardsForConvokeOrImprovise",
+                "chooseCardsForCost",
+                "chooseCardsForEffect",
+                "chooseCardsToDiscardFrom",
+                "chooseCardsToDiscardToMaximumHandSize",
+                "chooseCardsToDiscardUnlessType",
+                "chooseCardsToRevealFromHand",
+                "chooseColor",
+                "chooseEntitiesForEffect",
+                "chooseModeForAbility",
+                "chooseNumberForKeywordCost",
+                "chooseOptionalCosts",
+                "choosePermanentsToDestroy",
+                "choosePermanentsToSacrifice",
+                "chooseSingleEntityForEffect",
+                "chooseSpellAbilityToPlay",
+                "chooseStartingPlayer",
+                "confirmAction",
+                "confirmPayment",
+                "confirmReplacementEffect",
+                "confirmStaticApplication",
+                "confirmTrigger",
+                "declareAttackers",
+                "declareBlockers",
+                "getCostDecisionMaker",
+                "isAI",
+                "mulliganKeepHand",
+                "orderMoveToZoneList",
+                "payCostToPreventEffect",
+                "payManaCost",
+                "playChosenSpellAbility",
+                "playSaFromPlayEffect",
+                "playSpellAbilityNoStack",
+                "reveal",
+                "selectTargetsInteractively",
+                "tuckCardsViaMulligan",
+                "willPutCardOnTop",
+            )
 
         test("override count is pinned at 42") {
             expectedOverrides.size shouldBe 42
@@ -74,14 +75,19 @@ class PlayerControllerStructureTest :
             // Deduplicate by (name, parameterTypes) — not by name alone — so that an
             // accidental overload addition (two methods with the same name and different
             // signatures) cannot pass silently.
-            val overridingMethods = clazz.declaredMethods
-                .asSequence()
-                .filter { !it.isSynthetic }
-                .filter { !java.lang.reflect.Modifier.isPrivate(it.modifiers) }
-                .filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }
-                .filter { it.isDeclaredInAnyAncestor(clazz.superclass) }
-                .distinctBy { m -> m.name to m.parameterTypes.toList() }
-                .toList()
+            val overridingMethods =
+                clazz.declaredMethods
+                    .asSequence()
+                    .filter { !it.isSynthetic }
+                    .filter {
+                        !java.lang.reflect.Modifier
+                            .isPrivate(it.modifiers)
+                    }.filter {
+                        !java.lang.reflect.Modifier
+                            .isStatic(it.modifiers)
+                    }.filter { it.isDeclaredInAnyAncestor(clazz.superclass) }
+                    .distinctBy { m -> m.name to m.parameterTypes.toList() }
+                    .toList()
 
             overridingMethods.map { it.name }.toSet() shouldBe expectedOverrides
             overridingMethods.size shouldBe expectedOverrides.size

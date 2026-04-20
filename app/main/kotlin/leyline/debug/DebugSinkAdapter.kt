@@ -10,7 +10,6 @@ import leyline.match.MatchDebugSink
  * Other sink hooks keep the default no-op implementations.
  */
 class DebugSinkAdapter : MatchDebugSink {
-
     override var bridgeProvider: (() -> Map<String, Any>)? = null
 
     override var sessionProvider: (() -> Any?)? = null

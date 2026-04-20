@@ -23,21 +23,24 @@ class KeywordGrantAnnotationTest :
 
         test("effectAnnotations emits LayeredEffectCreated + AddAbility pAnn for keyword grant") {
             val boostDiff = EffectTracker.DiffResult(emptyList(), emptyList())
-            val kwDiff = EffectTracker.KeywordDiffResult(
-                created = listOf(
-                    EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L), "Trample"),
-                    EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(425, 1L, 5L), "Trample"),
-                    EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(432, 1L, 5L), "Trample"),
-                ),
-                destroyed = emptyList(),
-            )
+            val kwDiff =
+                EffectTracker.KeywordDiffResult(
+                    created =
+                        listOf(
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L), "Trample"),
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(425, 1L, 5L), "Trample"),
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(432, 1L, 5L), "Trample"),
+                        ),
+                    destroyed = emptyList(),
+                )
             var uniqueId = 330
-            val (transient, persistent) = MechanicAnnotations.effectAnnotations(
-                diff = boostDiff,
-                keywordDiff = kwDiff,
-                keywordAffectorResolver = { _, _, _ -> 435 },
-                uniqueAbilityIdAllocator = { uniqueId++ },
-            )
+            val (transient, persistent) =
+                MechanicAnnotations.effectAnnotations(
+                    diff = boostDiff,
+                    keywordDiff = kwDiff,
+                    keywordAffectorResolver = { _, _, _ -> 435 },
+                    uniqueAbilityIdAllocator = { uniqueId++ },
+                )
 
             // One LayeredEffectCreated for the keyword effect
             transient.filter { it.typeList.contains(AnnotationType.LayeredEffectCreated) } shouldHaveSize 1
@@ -52,50 +55,59 @@ class KeywordGrantAnnotationTest :
         }
 
         test("effectAnnotations emits LayeredEffectDestroyed for expired keyword") {
-            val kwDiff = EffectTracker.KeywordDiffResult(
-                created = emptyList(),
-                destroyed = listOf(
-                    EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L), "Trample"),
-                ),
-            )
-            val (transient, _) = MechanicAnnotations.effectAnnotations(
-                diff = EffectTracker.DiffResult(emptyList(), emptyList()),
-                keywordDiff = kwDiff,
-            )
+            val kwDiff =
+                EffectTracker.KeywordDiffResult(
+                    created = emptyList(),
+                    destroyed =
+                        listOf(
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L), "Trample"),
+                        ),
+                )
+            val (transient, _) =
+                MechanicAnnotations.effectAnnotations(
+                    diff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    keywordDiff = kwDiff,
+                )
             transient.filter { it.typeList.contains(AnnotationType.LayeredEffectDestroyed) } shouldHaveSize 1
         }
 
         test("effectAnnotations skips unknown keyword grpIds") {
-            val kwDiff = EffectTracker.KeywordDiffResult(
-                created = listOf(
-                    EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L), "Flanking"),
-                ),
-                destroyed = emptyList(),
-            )
-            val (_, persistent) = MechanicAnnotations.effectAnnotations(
-                diff = EffectTracker.DiffResult(emptyList(), emptyList()),
-                keywordDiff = kwDiff,
-                uniqueAbilityIdAllocator = { 1 },
-            )
+            val kwDiff =
+                EffectTracker.KeywordDiffResult(
+                    created =
+                        listOf(
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L), "Flanking"),
+                        ),
+                    destroyed = emptyList(),
+                )
+            val (_, persistent) =
+                MechanicAnnotations.effectAnnotations(
+                    diff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    keywordDiff = kwDiff,
+                    uniqueAbilityIdAllocator = { 1 },
+                )
             persistent.shouldBeEmpty()
         }
 
         test("effectAnnotations groups same keyword from same static ability into one pAnn") {
-            val kwDiff = EffectTracker.KeywordDiffResult(
-                created = listOf(
-                    // Two creatures get Flying from the same static ability (ts=2, staticId=10)
-                    EffectTracker.TrackedKeywordEffect(7020, EffectTracker.KeywordFingerprint(100, 2L, 10L), "Flying"),
-                    EffectTracker.TrackedKeywordEffect(7020, EffectTracker.KeywordFingerprint(200, 2L, 10L), "Flying"),
-                ),
-                destroyed = emptyList(),
-            )
+            val kwDiff =
+                EffectTracker.KeywordDiffResult(
+                    created =
+                        listOf(
+                            // Two creatures get Flying from the same static ability (ts=2, staticId=10)
+                            EffectTracker.TrackedKeywordEffect(7020, EffectTracker.KeywordFingerprint(100, 2L, 10L), "Flying"),
+                            EffectTracker.TrackedKeywordEffect(7020, EffectTracker.KeywordFingerprint(200, 2L, 10L), "Flying"),
+                        ),
+                    destroyed = emptyList(),
+                )
             var uniqueId = 400
-            val (transient, persistent) = MechanicAnnotations.effectAnnotations(
-                diff = EffectTracker.DiffResult(emptyList(), emptyList()),
-                keywordDiff = kwDiff,
-                keywordAffectorResolver = { _, _, _ -> 500 },
-                uniqueAbilityIdAllocator = { uniqueId++ },
-            )
+            val (transient, persistent) =
+                MechanicAnnotations.effectAnnotations(
+                    diff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    keywordDiff = kwDiff,
+                    keywordAffectorResolver = { _, _, _ -> 500 },
+                    uniqueAbilityIdAllocator = { uniqueId++ },
+                )
 
             // One transient (LayeredEffectCreated) for the group
             transient.filter { it.typeList.contains(AnnotationType.LayeredEffectCreated) } shouldHaveSize 1
@@ -111,30 +123,35 @@ class KeywordGrantAnnotationTest :
         }
 
         test("effectAnnotations handles mixed P/T boosts and keyword grants") {
-            val boostDiff = EffectTracker.DiffResult(
-                created = listOf(
-                    EffectTracker.TrackedEffect(
-                        syntheticId = 7005,
-                        fingerprint = EffectTracker.EffectFingerprint(100, 1L, 0L),
-                        powerDelta = 3,
-                        toughnessDelta = 3,
-                    ),
-                ),
-                destroyed = emptyList(),
-            )
-            val kwDiff = EffectTracker.KeywordDiffResult(
-                created = listOf(
-                    EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(100, 1L, 5L), "Trample"),
-                ),
-                destroyed = emptyList(),
-            )
+            val boostDiff =
+                EffectTracker.DiffResult(
+                    created =
+                        listOf(
+                            EffectTracker.TrackedEffect(
+                                syntheticId = 7005,
+                                fingerprint = EffectTracker.EffectFingerprint(100, 1L, 0L),
+                                powerDelta = 3,
+                                toughnessDelta = 3,
+                            ),
+                        ),
+                    destroyed = emptyList(),
+                )
+            val kwDiff =
+                EffectTracker.KeywordDiffResult(
+                    created =
+                        listOf(
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(100, 1L, 5L), "Trample"),
+                        ),
+                    destroyed = emptyList(),
+                )
             var uniqueId = 330
-            val (transient, persistent) = MechanicAnnotations.effectAnnotations(
-                diff = boostDiff,
-                keywordDiff = kwDiff,
-                keywordAffectorResolver = { _, _, _ -> 435 },
-                uniqueAbilityIdAllocator = { uniqueId++ },
-            )
+            val (transient, persistent) =
+                MechanicAnnotations.effectAnnotations(
+                    diff = boostDiff,
+                    keywordDiff = kwDiff,
+                    keywordAffectorResolver = { _, _, _ -> 435 },
+                    uniqueAbilityIdAllocator = { uniqueId++ },
+                )
 
             // Transient: LayeredEffectCreated (boost) + PtModCreated + LayeredEffectCreated (keyword)
             transient.filter { it.typeList.contains(AnnotationType.LayeredEffectCreated) } shouldHaveSize 2

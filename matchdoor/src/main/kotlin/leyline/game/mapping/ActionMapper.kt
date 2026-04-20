@@ -30,7 +30,6 @@ import forge.game.zone.ZoneType as ForgeZoneType
  */
 @Suppress("LargeClass") // buildFromSnapshot mirrors buildActionList — inherent size; split assessed
 object ActionMapper {
-
     private val log = LoggerFactory.getLogger(ActionMapper::class.java)
 
     private const val INITIAL_MANA_ID = 10
@@ -40,8 +39,10 @@ object ActionMapper {
      * ActivateMana for untapped permanents — no canPlay/canPay checks.
      * Client expects human's potential actions embedded during AI turn regardless of phase.
      */
-    fun buildNaiveActions(seatId: Int, bridge: GameBridge): ActionsAvailableReq =
-        buildActionList(seatId, bridge, checkLegality = false)
+    fun buildNaiveActions(
+        seatId: Int,
+        bridge: GameBridge,
+    ): ActionsAvailableReq = buildActionList(seatId, bridge, checkLegality = false)
 
     /**
      * Shared action list builder — bridge-backed overload.
@@ -85,7 +86,11 @@ object ActionMapper {
      * Mirrors [buildActionList] (checkLegality=true) branch by branch.
      */
     @Suppress("LongMethod", "CyclomaticComplexMethod") // mirrors buildActionList complexity
-    fun buildFromSnapshot(seatId: Int, snap: GsmSnapshot, bridge: GameBridge): ActionsAvailableReq {
+    fun buildFromSnapshot(
+        seatId: Int,
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+    ): ActionsAvailableReq {
         val builder = ActionsAvailableReq.newBuilder()
 
         val handZoneId = if (seatId == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
@@ -122,28 +127,33 @@ object ActionMapper {
                     if (!ability.isActivatedAbility) continue
                     if (ability.isManaAbility()) continue
                     if (!ability.canPlay()) continue
-                    val canPay = try {
-                        ComputerUtilMana.canPayManaCost(ability, player, 0, false)
-                    } catch (_: Exception) {
-                        false
-                    }
+                    val canPay =
+                        try {
+                            ComputerUtilMana.canPayManaCost(ability, player, 0, false)
+                        } catch (_: Exception) {
+                            false
+                        }
                     val registry = bridge.abilityRegistryFor(forgeCard, cardData)
                     val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
                     if (canPay) {
-                        val actionBuilder = Action.newBuilder()
-                            .setActionType(ActionType.Activate_add3)
-                            .setInstanceId(instanceId)
-                            .setGrpId(grpId)
-                            .setFacetId(instanceId)
-                            .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
+                        val actionBuilder =
+                            Action
+                                .newBuilder()
+                                .setActionType(ActionType.Activate_add3)
+                                .setInstanceId(instanceId)
+                                .setGrpId(grpId)
+                                .setFacetId(instanceId)
+                                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
                         if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
                         builder.addActions(actionBuilder)
                     } else {
-                        val inactiveBuilder = Action.newBuilder()
-                            .setActionType(ActionType.Activate_add3)
-                            .setInstanceId(instanceId)
-                            .setGrpId(grpId)
-                            .setFacetId(instanceId)
+                        val inactiveBuilder =
+                            Action
+                                .newBuilder()
+                                .setActionType(ActionType.Activate_add3)
+                                .setInstanceId(instanceId)
+                                .setGrpId(grpId)
+                                .setFacetId(instanceId)
                         if (abilityGrpId > 0) inactiveBuilder.setAbilityGrpId(abilityGrpId)
                         val abilityCost = ability.payCosts?.totalMana
                         if (abilityCost != null && !abilityCost.isNoCost) {
@@ -164,7 +174,8 @@ object ActionMapper {
             val legality = legalityFor(seatId, fid, bridge)
             if (legality.canPlayLand) {
                 builder.addActions(
-                    Action.newBuilder()
+                    Action
+                        .newBuilder()
                         .setActionType(ActionType.Play_add3)
                         .setInstanceId(instanceId)
                         .setGrpId(grpId)
@@ -173,7 +184,8 @@ object ActionMapper {
                 )
             } else {
                 builder.addInactiveActions(
-                    Action.newBuilder()
+                    Action
+                        .newBuilder()
                         .setActionType(ActionType.Play_add3)
                         .setGrpId(grpId)
                         .setInstanceId(instanceId)
@@ -193,20 +205,23 @@ object ActionMapper {
                 log.trace("ActionMapper.buildFromSnapshot: skipping {} — no legal targets", cardSnap.name)
                 continue
             }
-            val canPay = try {
-                ComputerUtilMana.canPayManaCost(sa, player, 0, false)
-            } catch (_: Exception) {
-                false
-            }
+            val canPay =
+                try {
+                    ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+                } catch (_: Exception) {
+                    false
+                }
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             val grpId = cardSnap.grpId
 
             if (!canPay) {
-                val inactiveBuilder = Action.newBuilder()
-                    .setActionType(ActionType.Cast)
-                    .setInstanceId(instanceId)
-                    .setGrpId(grpId)
-                    .setFacetId(instanceId)
+                val inactiveBuilder =
+                    Action
+                        .newBuilder()
+                        .setActionType(ActionType.Cast)
+                        .setInstanceId(instanceId)
+                        .setGrpId(grpId)
+                        .setFacetId(instanceId)
                 val effectiveCost = computeEffectiveCost(sa, player)
                 if (effectiveCost != null && !effectiveCost.isNoCost) {
                     addManaCostFromForge(effectiveCost, inactiveBuilder)
@@ -222,25 +237,28 @@ object ActionMapper {
                 continue
             }
 
-            val actionBuilder = Action.newBuilder()
-                .setActionType(ActionType.Cast)
-                .setInstanceId(instanceId)
-                .setGrpId(grpId)
-                .setFacetId(instanceId)
-                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+            val actionBuilder =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.Cast)
+                    .setInstanceId(instanceId)
+                    .setGrpId(grpId)
+                    .setFacetId(instanceId)
+                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
 
             val effectiveCost = computeEffectiveCost(sa, player)
             if (effectiveCost != null && !effectiveCost.isNoCost) {
                 addManaCostFromForge(effectiveCost, actionBuilder)
                 val costPairs = forgeManaCostToPairs(effectiveCost)
-                val autoTap = buildAutoTapSolution(
-                    costPairs,
-                    player,
-                    idResolver = { bridge.getOrAllocInstanceId(ForgeCardId(it)).value },
-                    grpIdResolver = { c -> bridge.resolveGrpId(c, bridge.getOrAllocInstanceId(ForgeCardId(c.id)).value) },
-                    cardDataLookup = { bridge.cardRepository.findByGrpId(it) },
-                    abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
-                )
+                val autoTap =
+                    buildAutoTapSolution(
+                        costPairs,
+                        player,
+                        idResolver = { bridge.getOrAllocInstanceId(ForgeCardId(it)).value },
+                        grpIdResolver = { c -> bridge.resolveGrpId(c, bridge.getOrAllocInstanceId(ForgeCardId(c.id)).value) },
+                        cardDataLookup = { bridge.cardRepository.findByGrpId(it) },
+                        abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
+                    )
                 if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
             } else {
                 val cardData = bridge.cardRepository.findByGrpId(grpId)
@@ -274,11 +292,12 @@ object ActionMapper {
                 if (!ability.isActivatedAbility) continue
                 if (ability.isManaAbility()) continue
                 if (!ability.canPlay()) continue
-                val canPay = try {
-                    ComputerUtilMana.canPayManaCost(ability, player, 0, false)
-                } catch (_: Exception) {
-                    false
-                }
+                val canPay =
+                    try {
+                        ComputerUtilMana.canPayManaCost(ability, player, 0, false)
+                    } catch (_: Exception) {
+                        false
+                    }
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
                 val grpId = cardSnap.grpId
                 val cardData = bridge.cardRepository.findByGrpId(grpId)
@@ -286,18 +305,22 @@ object ActionMapper {
                 val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
                 val abilityCost = ability.payCosts?.totalMana
                 if (canPay) {
-                    val actionBuilder = Action.newBuilder()
-                        .setActionType(ActionType.Activate_add3)
-                        .setInstanceId(instanceId)
+                    val actionBuilder =
+                        Action
+                            .newBuilder()
+                            .setActionType(ActionType.Activate_add3)
+                            .setInstanceId(instanceId)
                     if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
                     if (abilityCost != null && !abilityCost.isNoCost) {
                         addManaCostFromForge(abilityCost, actionBuilder, abilityGrpId)
                     }
                     builder.addActions(actionBuilder)
                 } else {
-                    val inactiveBuilder = Action.newBuilder()
-                        .setActionType(ActionType.Activate_add3)
-                        .setInstanceId(instanceId)
+                    val inactiveBuilder =
+                        Action
+                            .newBuilder()
+                            .setActionType(ActionType.Activate_add3)
+                            .setInstanceId(instanceId)
                     if (abilityGrpId > 0) inactiveBuilder.setAbilityGrpId(abilityGrpId)
                     if (abilityCost != null && !abilityCost.isNoCost) {
                         addManaCostFromForge(abilityCost, inactiveBuilder, abilityGrpId)
@@ -346,7 +369,11 @@ object ActionMapper {
      * Route cost/playability checks through live Forge — the snapshot path
      * delegates all Forge cost-solver calls here.
      */
-    private fun legalityFor(seatId: Int, fid: ForgeCardId, bridge: GameBridge): LegalityResult {
+    private fun legalityFor(
+        seatId: Int,
+        fid: ForgeCardId,
+        bridge: GameBridge,
+    ): LegalityResult {
         val forgeCard = bridge.findCard(fid) ?: return LegalityResult(canPlayLand = false)
         val player = bridge.getPlayer(SeatId(seatId)) ?: return LegalityResult(canPlayLand = false)
         val landAbility = LandAbility(forgeCard, forgeCard.currentState)
@@ -376,21 +403,28 @@ object ActionMapper {
                 if (castable.isEmpty()) continue
                 val sa = castable.first()
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
-                val grpId = snap.objects[fid]?.grpId
-                    ?: bridge.resolveGrpId(forgeCard, instanceId)
-                val actionBuilder = Action.newBuilder()
-                    .setActionType(ActionType.Cast)
-                    .setInstanceId(instanceId)
-                    .setGrpId(grpId)
-                    .setFacetId(instanceId)
-                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+                val grpId =
+                    snap.objects[fid]?.grpId
+                        ?: bridge.resolveGrpId(forgeCard, instanceId)
+                val actionBuilder =
+                    Action
+                        .newBuilder()
+                        .setActionType(ActionType.Cast)
+                        .setInstanceId(instanceId)
+                        .setGrpId(grpId)
+                        .setFacetId(instanceId)
+                        .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
 
                 val cardData = bridge.cardRepository.findByGrpId(grpId)
                 val altCost = sa.alternativeCost
                 if (altCost != null) {
                     val altCostName = altCost.name.uppercase()
-                    val abilityGrpId = cardData?.keywordAbilityGrpIds?.entries
-                        ?.firstOrNull { it.key.startsWith(altCostName) }?.value ?: 0
+                    val abilityGrpId =
+                        cardData
+                            ?.keywordAbilityGrpIds
+                            ?.entries
+                            ?.firstOrNull { it.key.startsWith(altCostName) }
+                            ?.value ?: 0
                     if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
                 }
 
@@ -456,28 +490,33 @@ object ActionMapper {
                     if (!ability.isActivatedAbility) continue
                     if (ability.isManaAbility()) continue
                     if (!ability.canPlay()) continue
-                    val canPay = try {
-                        ComputerUtilMana.canPayManaCost(ability, player, 0, false)
-                    } catch (_: Exception) {
-                        false
-                    }
+                    val canPay =
+                        try {
+                            ComputerUtilMana.canPayManaCost(ability, player, 0, false)
+                        } catch (_: Exception) {
+                            false
+                        }
                     val registry = abilityRegistryLookup(card, cardData)
                     val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
                     if (canPay) {
-                        val actionBuilder = Action.newBuilder()
-                            .setActionType(ActionType.Activate_add3)
-                            .setInstanceId(instanceId)
-                            .setGrpId(grpId)
-                            .setFacetId(instanceId)
-                            .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
+                        val actionBuilder =
+                            Action
+                                .newBuilder()
+                                .setActionType(ActionType.Activate_add3)
+                                .setInstanceId(instanceId)
+                                .setGrpId(grpId)
+                                .setFacetId(instanceId)
+                                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
                         if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
                         builder.addActions(actionBuilder)
                     } else {
-                        val inactiveBuilder = Action.newBuilder()
-                            .setActionType(ActionType.Activate_add3)
-                            .setInstanceId(instanceId)
-                            .setGrpId(grpId)
-                            .setFacetId(instanceId)
+                        val inactiveBuilder =
+                            Action
+                                .newBuilder()
+                                .setActionType(ActionType.Activate_add3)
+                                .setInstanceId(instanceId)
+                                .setGrpId(grpId)
+                                .setFacetId(instanceId)
                         if (abilityGrpId > 0) inactiveBuilder.setAbilityGrpId(abilityGrpId)
                         val abilityCost = ability.payCosts?.totalMana
                         if (abilityCost != null && !abilityCost.isNoCost) {
@@ -496,16 +535,18 @@ object ActionMapper {
         for (card in CardLists.filter(handCards, CardPredicates.LANDS)) {
             val instanceId = idResolver(card.id)
             val grpId = grpIdResolver(card)
-            val canPlay = if (checkLegality) {
-                val landAbility = LandAbility(card, card.currentState)
-                landAbility.activatingPlayer = player
-                player.canPlayLand(card, false, landAbility)
-            } else {
-                false
-            }
+            val canPlay =
+                if (checkLegality) {
+                    val landAbility = LandAbility(card, card.currentState)
+                    landAbility.activatingPlayer = player
+                    player.canPlayLand(card, false, landAbility)
+                } else {
+                    false
+                }
             if (canPlay) {
                 builder.addActions(
-                    Action.newBuilder()
+                    Action
+                        .newBuilder()
                         .setActionType(ActionType.Play_add3)
                         .setInstanceId(instanceId)
                         .setGrpId(grpId)
@@ -515,7 +556,8 @@ object ActionMapper {
             } else {
                 // Greyed-out: land can't be played (already played one this turn)
                 builder.addInactiveActions(
-                    Action.newBuilder()
+                    Action
+                        .newBuilder()
                         .setActionType(ActionType.Play_add3)
                         .setGrpId(grpId)
                         .setInstanceId(instanceId)
@@ -536,22 +578,25 @@ object ActionMapper {
                     log.trace("ActionMapper: skipping {} — no legal targets", card.name)
                     continue
                 }
-                canPay = try {
-                    ComputerUtilMana.canPayManaCost(sa, player, 0, false)
-                } catch (_: Exception) {
-                    false
-                }
+                canPay =
+                    try {
+                        ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+                    } catch (_: Exception) {
+                        false
+                    }
             }
             val instanceId = idResolver(card.id)
             val grpId = grpIdResolver(card)
 
             if (!canPay) {
                 // Unaffordable: inactive action with manaCost for display (no shouldStop/autoTap)
-                val inactiveBuilder = Action.newBuilder()
-                    .setActionType(ActionType.Cast)
-                    .setInstanceId(instanceId)
-                    .setGrpId(grpId)
-                    .setFacetId(instanceId)
+                val inactiveBuilder =
+                    Action
+                        .newBuilder()
+                        .setActionType(ActionType.Cast)
+                        .setInstanceId(instanceId)
+                        .setGrpId(grpId)
+                        .setFacetId(instanceId)
                 val effectiveCost = sa?.let { computeEffectiveCost(it, player) }
                 if (effectiveCost != null && !effectiveCost.isNoCost) {
                     addManaCostFromForge(effectiveCost, inactiveBuilder)
@@ -569,12 +614,14 @@ object ActionMapper {
                 continue
             }
 
-            val actionBuilder = Action.newBuilder()
-                .setActionType(ActionType.Cast)
-                .setInstanceId(instanceId)
-                .setGrpId(grpId)
-                .setFacetId(instanceId)
-                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+            val actionBuilder =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.Cast)
+                    .setInstanceId(instanceId)
+                    .setGrpId(grpId)
+                    .setFacetId(instanceId)
+                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
 
             // Cost: use Forge's effective cost (includes reductions/tax) when available,
             // fall back to static card DB cost for naive mode
@@ -620,11 +667,12 @@ object ActionMapper {
                     if (!ability.isActivatedAbility) continue
                     if (ability.isManaAbility()) continue
                     if (!ability.canPlay()) continue // Forge checks ActivationZone restriction
-                    val canPay = try {
-                        ComputerUtilMana.canPayManaCost(ability, player, 0, false)
-                    } catch (_: Exception) {
-                        false
-                    }
+                    val canPay =
+                        try {
+                            ComputerUtilMana.canPayManaCost(ability, player, 0, false)
+                        } catch (_: Exception) {
+                            false
+                        }
                     val instanceId = idResolver(card.id)
                     val grpId = grpIdResolver(card)
                     val cardData = cardDataLookup(grpId)
@@ -632,9 +680,11 @@ object ActionMapper {
                     val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
                     val abilityCost = ability.payCosts?.totalMana
                     if (canPay) {
-                        val actionBuilder = Action.newBuilder()
-                            .setActionType(ActionType.Activate_add3)
-                            .setInstanceId(instanceId)
+                        val actionBuilder =
+                            Action
+                                .newBuilder()
+                                .setActionType(ActionType.Activate_add3)
+                                .setInstanceId(instanceId)
                         if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
                         // Wire requires manaCost with abilityGrpId echoed in each ManaRequirement
                         if (abilityCost != null && !abilityCost.isNoCost) {
@@ -642,9 +692,11 @@ object ActionMapper {
                         }
                         builder.addActions(actionBuilder)
                     } else {
-                        val inactiveBuilder = Action.newBuilder()
-                            .setActionType(ActionType.Activate_add3)
-                            .setInstanceId(instanceId)
+                        val inactiveBuilder =
+                            Action
+                                .newBuilder()
+                                .setActionType(ActionType.Activate_add3)
+                                .setInstanceId(instanceId)
                         if (abilityGrpId > 0) inactiveBuilder.setAbilityGrpId(abilityGrpId)
                         if (abilityCost != null && !abilityCost.isNoCost) {
                             addManaCostFromForge(abilityCost, inactiveBuilder, abilityGrpId)
@@ -681,7 +733,14 @@ object ActionMapper {
                 builder.actionsCount,
             )
         } else {
-            log.debug("buildNaiveActions: seat={} mana={} lands={} casts={} total={}", seatId, manaCount, landCount, castCount, builder.actionsCount)
+            log.debug(
+                "buildNaiveActions: seat={} mana={} lands={} casts={} total={}",
+                seatId,
+                manaCount,
+                landCount,
+                castCount,
+                builder.actionsCount,
+            )
         }
 
         return builder.build()
@@ -703,17 +762,20 @@ object ActionMapper {
         val produced = if (mana != null && mana.isComboMana) mana.getComboColors(sa) else mana?.origProduced.orEmpty()
         val manaColor = produced.split(" ").firstNotNullOfOrNull { producedToManaColor(it) } ?: ManaColor.Generic
 
-        val actionBuilder = Action.newBuilder()
-            .setActionType(ActionType.ActivateMana)
-            .setInstanceId(instanceId)
-            .setGrpId(grpId)
-            .setFacetId(instanceId)
-            .setIsBatchable(true)
+        val actionBuilder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.ActivateMana)
+                .setInstanceId(instanceId)
+                .setGrpId(grpId)
+                .setFacetId(instanceId)
+                .setIsBatchable(true)
         if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
 
         actionBuilder.addManaPaymentOptions(
             ManaPaymentOption.newBuilder().addMana(
-                ManaInfo.newBuilder()
+                ManaInfo
+                    .newBuilder()
                     .setManaId(10)
                     .setColor(manaColor)
                     .setSrcInstanceId(instanceId)
@@ -724,7 +786,8 @@ object ActionMapper {
         )
 
         actionBuilder.addManaSelections(
-            ManaSelection.newBuilder()
+            ManaSelection
+                .newBuilder()
                 .setInstanceId(instanceId)
                 .setAbilityGrpId(abilityGrpId)
                 .addOptions(
@@ -750,22 +813,25 @@ object ActionMapper {
 
         if (checkLegality) {
             adventureSa.setActivatingPlayer(player)
-            val canCast = try {
-                adventureSa.canPlay() && ComputerUtilMana.canPayManaCost(adventureSa, player, 0, false)
-            } catch (_: Exception) {
-                false
-            }
+            val canCast =
+                try {
+                    adventureSa.canPlay() && ComputerUtilMana.canPayManaCost(adventureSa, player, 0, false)
+                } catch (_: Exception) {
+                    false
+                }
             if (!canCast) return null
         }
 
         // grpId = creature face — client can't resolve IsPrimaryCard=0 adventure
         // faces and rejects the action if grpId is unknown. manaCost from the
         // adventure SA provides the correct cost for the Choose One modal.
-        val builder = Action.newBuilder()
-            .setActionType(ActionType.CastAdventure)
-            .setInstanceId(instanceId)
-            .setGrpId(creatureGrpId)
-            .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastAdventure))
+        val builder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.CastAdventure)
+                .setInstanceId(instanceId)
+                .setGrpId(creatureGrpId)
+                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastAdventure))
         val advEffective = computeEffectiveCost(adventureSa, player)
         if (advEffective != null && !advEffective.isNoCost) {
             addManaCostFromForge(advEffective, builder)
@@ -791,10 +857,12 @@ object ActionMapper {
         adventureSa.setActivatingPlayer(player)
         // Only emit inactive if the adventure is legal but unaffordable
         if (!adventureSa.canPlay()) return null
-        val builder = Action.newBuilder()
-            .setActionType(ActionType.CastAdventure)
-            .setInstanceId(instanceId)
-            .setGrpId(creatureGrpId)
+        val builder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.CastAdventure)
+                .setInstanceId(instanceId)
+                .setGrpId(creatureGrpId)
         val advEffective = computeEffectiveCost(adventureSa, player)
         if (advEffective != null && !advEffective.isNoCost) {
             addManaCostFromForge(advEffective, builder)
@@ -823,20 +891,26 @@ object ActionMapper {
 
             val instanceId = idResolver(card.id)
             val grpId = grpIdResolver(card)
-            val actionBuilder = Action.newBuilder()
-                .setActionType(ActionType.Cast)
-                .setInstanceId(instanceId)
-                .setGrpId(grpId)
-                .setFacetId(instanceId)
-                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+            val actionBuilder =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.Cast)
+                    .setInstanceId(instanceId)
+                    .setGrpId(grpId)
+                    .setFacetId(instanceId)
+                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
 
             // Set abilityGrpId from the alternate cost keyword (flashback, escape, etc.)
             val cardData = cardDataLookup(grpId)
             val altCost = sa.alternativeCost
             if (altCost != null) {
                 val altCostName = altCost.name.uppercase()
-                val abilityGrpId = cardData?.keywordAbilityGrpIds?.entries
-                    ?.firstOrNull { it.key.startsWith(altCostName) }?.value ?: 0
+                val abilityGrpId =
+                    cardData
+                        ?.keywordAbilityGrpIds
+                        ?.entries
+                        ?.firstOrNull { it.key.startsWith(altCostName) }
+                        ?.value ?: 0
                 if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
             }
 
@@ -857,7 +931,8 @@ object ActionMapper {
     }
 
     internal fun passOnlyActions(): ActionsAvailableReq =
-        ActionsAvailableReq.newBuilder()
+        ActionsAvailableReq
+            .newBuilder()
             .addActions(Action.newBuilder().setActionType(ActionType.Pass))
             .build()
 
@@ -876,7 +951,12 @@ object ActionMapper {
     ): AutoTapSolution? {
         if (manaCost.isEmpty()) return null
 
-        data class ManaSource(val card: Card, val instanceId: Int, val color: ManaColor, val abilityGrpId: Int)
+        data class ManaSource(
+            val card: Card,
+            val instanceId: Int,
+            val color: ManaColor,
+            val abilityGrpId: Int,
+        )
 
         // Collect untapped mana sources with their produced color
         val sources = mutableListOf<ManaSource>()
@@ -941,12 +1021,14 @@ object ActionMapper {
         for ((src, payingColor) in matched) {
             val manaId = manaIdCounter++
             builder.addAutoTapActions(
-                AutoTapAction.newBuilder()
+                AutoTapAction
+                    .newBuilder()
                     .setInstanceId(src.instanceId)
                     .setAbilityGrpId(src.abilityGrpId)
                     .setManaPaymentOption(
                         ManaPaymentOption.newBuilder().addMana(
-                            ManaInfo.newBuilder()
+                            ManaInfo
+                                .newBuilder()
                                 .setManaId(manaId)
                                 .setColor(payingColor)
                                 .setSrcInstanceId(src.instanceId)
@@ -970,7 +1052,10 @@ object ActionMapper {
      *
      * Returns null if the spell has no mana cost.
      */
-    internal fun computeEffectiveCost(sa: SpellAbility, player: Player): forge.card.mana.ManaCost? {
+    internal fun computeEffectiveCost(
+        sa: SpellAbility,
+        player: Player,
+    ): forge.card.mana.ManaCost? {
         val baseCost = sa.payCosts ?: return null
         val adjusted = CostAdjustment.adjust(baseCost, sa, false)
         val manaCost = adjusted.totalMana ?: return null
@@ -1029,8 +1114,7 @@ object ActionMapper {
     }
 
     /** Map Forge's produced-mana string (e.g. "G", "W", "Any") to proto ManaColor. */
-    internal fun producedToManaColor(produced: String): ManaColor? =
-        ManaColorMapping.fromProduced(produced)
+    internal fun producedToManaColor(produced: String): ManaColor? = ManaColorMapping.fromProduced(produced)
 
     /**
      * Strip an Action down to the minimal format used inside GSM embedded actions.

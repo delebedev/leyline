@@ -26,26 +26,27 @@ class PlaneswalkerSacrificeTest :
         }
 
         test("Liliana -2 forces sacrifice, attack for lethal") {
-            val pzl = """
-            [metadata]
-            Name:Liliana Sacrifice
-            Goal:Win
-            Turns:1
-            Difficulty:Easy
-            Description:Cast Liliana, -2 to force sacrifice, attack for lethal.
+            val pzl =
+                """
+                [metadata]
+                Name:Liliana Sacrifice
+                Goal:Win
+                Turns:1
+                Difficulty:Easy
+                Description:Cast Liliana, -2 to force sacrifice, attack for lethal.
 
-            [state]
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=2
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=2
 
-            humanhand=Liliana of the Veil
-            humanbattlefield=Grizzly Bears;Swamp;Swamp;Swamp
-            humanlibrary=Swamp
-            aibattlefield=Centaur Courser
-            ailibrary=Mountain
-            """.trimIndent()
+                humanhand=Liliana of the Veil
+                humanbattlefield=Grizzly Bears;Swamp;Swamp;Swamp
+                humanlibrary=Swamp
+                aibattlefield=Centaur Courser
+                ailibrary=Mountain
+                """.trimIndent()
 
             val h = MatchFlowHarness(seed = 42L, validating = false)
             harness = h
@@ -65,8 +66,11 @@ class PlaneswalkerSacrificeTest :
                 if (human.getZone(ZoneType.Battlefield).cards.any { it.name.contains("Liliana") }) return@repeat
                 h.passPriority()
             }
-            human.getZone(ZoneType.Battlefield).cards
-                .any { it.name.contains("Liliana") }.shouldBeTrue()
+            human
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .any { it.name.contains("Liliana") }
+                .shouldBeTrue()
 
             // Activate -2 (second ability, index 1)
             h.activateAbility("Liliana of the Veil", abilityIndex = 1).shouldBeTrue()
@@ -81,8 +85,12 @@ class PlaneswalkerSacrificeTest :
                 h.passPriority()
             }
 
-            ai.getZone(ZoneType.Battlefield).cards
-                .filter { it.isCreature }.isEmpty().shouldBeTrue()
+            ai
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .filter { it.isCreature }
+                .isEmpty()
+                .shouldBeTrue()
 
             // Advance to combat, attack with Bears
             repeat(10) {
@@ -92,8 +100,11 @@ class PlaneswalkerSacrificeTest :
             }
             (h.isGameOver() || h.phase() == "COMBAT_DECLARE_ATTACKERS").shouldBeTrue()
 
-            val bearsIid = h.humanBattlefieldCreatures()
-                .first { it.second == "Grizzly Bears" }.first
+            val bearsIid =
+                h
+                    .humanBattlefieldCreatures()
+                    .first { it.second == "Grizzly Bears" }
+                    .first
             h.declareAttackers(listOf(bearsIid))
 
             // Pass through combat

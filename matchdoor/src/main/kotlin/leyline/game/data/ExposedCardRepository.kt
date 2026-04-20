@@ -22,8 +22,9 @@ import java.util.concurrent.ConcurrentHashMap
  * are owned by the Arena client. Entries are cached lazily per-key on first
  * access and never evicted; card data is immutable for a given client build.
  */
-class ExposedCardRepository(private val database: Database) : CardRepository {
-
+class ExposedCardRepository(
+    private val database: Database,
+) : CardRepository {
     private val log = LoggerFactory.getLogger(ExposedCardRepository::class.java)
 
     // --- Exposed table objects matching external schema ---
@@ -64,6 +65,7 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
 
     /** Strip HTML formatting tags (e.g. `<nobr>`) from localized card names. */
     private fun stripTags(name: String): String = name.replace(tagRegex, "")
+
     private val tagRegex = Regex("</?[a-zA-Z][^>]*>")
 
     // --- In-memory caches ---
@@ -108,21 +110,27 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
         }
     }
 
-    override fun findGrpIdByNameAndSet(name: String, setCode: String): Int? = queryGrpIdByNameAndSet(name, setCode)?.also { grpId ->
-        nameToGrpId[name] = grpId
-        grpIdToName[grpId] = name
-    }
-
-    override fun findAllGrpIds(): List<Int> = try {
-        transaction(database) {
-            Cards.selectAll()
-                .where { (Cards.isToken eq 0) and (Cards.isPrimaryCard eq 1) }
-                .map { it[Cards.grpId] }
+    override fun findGrpIdByNameAndSet(
+        name: String,
+        setCode: String,
+    ): Int? =
+        queryGrpIdByNameAndSet(name, setCode)?.also { grpId ->
+            nameToGrpId[name] = grpId
+            grpIdToName[grpId] = name
         }
-    } catch (e: Exception) {
-        log.warn("Failed to query all grpIds: {}", e.message)
-        emptyList()
-    }
+
+    override fun findAllGrpIds(): List<Int> =
+        try {
+            transaction(database) {
+                Cards
+                    .selectAll()
+                    .where { (Cards.isToken eq 0) and (Cards.isPrimaryCard eq 1) }
+                    .map { it[Cards.grpId] }
+            }
+        } catch (e: Exception) {
+            log.warn("Failed to query all grpIds: {}", e.message)
+            emptyList()
+        }
 
     override fun lookupModalOptions(cardGrpId: Int): ModalAbilityInfo? {
         modalCache[cardGrpId]?.let { return it }
@@ -133,68 +141,75 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
         return info
     }
 
-    override fun registerModalOptions(cardGrpId: Int, info: ModalAbilityInfo) {
+    override fun registerModalOptions(
+        cardGrpId: Int,
+        info: ModalAbilityInfo,
+    ) {
         modalCache[cardGrpId] = info
     }
 
-    private fun queryModalOptions(abilityGrpIds: List<Int>): ModalAbilityInfo? = try {
-        transaction(database) {
-            for (abilityId in abilityGrpIds) {
-                val row = Abilities.selectAll().where { Abilities.id eq abilityId }.firstOrNull() ?: continue
-                val modalChildren = row[Abilities.modalChildIds] ?: continue
-                if (modalChildren.isBlank()) continue
-                val childIds = modalChildren.split(",").mapNotNull { it.trim().toIntOrNull() }
-                if (childIds.isNotEmpty()) {
-                    return@transaction ModalAbilityInfo(parentGrpId = abilityId, childGrpIds = childIds)
+    private fun queryModalOptions(abilityGrpIds: List<Int>): ModalAbilityInfo? =
+        try {
+            transaction(database) {
+                for (abilityId in abilityGrpIds) {
+                    val row = Abilities.selectAll().where { Abilities.id eq abilityId }.firstOrNull() ?: continue
+                    val modalChildren = row[Abilities.modalChildIds] ?: continue
+                    if (modalChildren.isBlank()) continue
+                    val childIds = modalChildren.split(",").mapNotNull { it.trim().toIntOrNull() }
+                    if (childIds.isNotEmpty()) {
+                        return@transaction ModalAbilityInfo(parentGrpId = abilityId, childGrpIds = childIds)
+                    }
                 }
+                null
             }
+        } catch (e: Exception) {
+            log.warn("Failed to query modal options for abilities: {}", e.message)
             null
         }
-    } catch (e: Exception) {
-        log.warn("Failed to query modal options for abilities: {}", e.message)
-        null
-    }
 
     // --- Queries ---
 
-    private fun queryCardData(grpId: Int): CardData? = try {
-        transaction(database) {
-            Cards.selectAll().where { Cards.grpId eq grpId }.firstOrNull()?.let { row ->
-                CardData(
-                    grpId = row[Cards.grpId],
-                    titleId = row[Cards.titleId],
-                    power = row[Cards.power],
-                    toughness = row[Cards.toughness],
-                    colors = parseIntList(row[Cards.colors]),
-                    types = parseIntList(row[Cards.types]),
-                    subtypes = parseIntList(row[Cards.subtypes]),
-                    supertypes = parseIntList(row[Cards.supertypes]),
-                    abilityIds = parseAbilityIds(row[Cards.abilityIds]),
-                    manaCost = parseManaCost(row[Cards.oldSchoolManaText]),
-                    tokenGrpIds = parseTokenGrpIds(row[Cards.abilityIdToLinkedTokenGrpId]),
-                    linkedFaceGrpIds = parseIntList(row[Cards.linkedFaceGrpIds]),
-                )
+    private fun queryCardData(grpId: Int): CardData? =
+        try {
+            transaction(database) {
+                Cards.selectAll().where { Cards.grpId eq grpId }.firstOrNull()?.let { row ->
+                    CardData(
+                        grpId = row[Cards.grpId],
+                        titleId = row[Cards.titleId],
+                        power = row[Cards.power],
+                        toughness = row[Cards.toughness],
+                        colors = parseIntList(row[Cards.colors]),
+                        types = parseIntList(row[Cards.types]),
+                        subtypes = parseIntList(row[Cards.subtypes]),
+                        supertypes = parseIntList(row[Cards.supertypes]),
+                        abilityIds = parseAbilityIds(row[Cards.abilityIds]),
+                        manaCost = parseManaCost(row[Cards.oldSchoolManaText]),
+                        tokenGrpIds = parseTokenGrpIds(row[Cards.abilityIdToLinkedTokenGrpId]),
+                        linkedFaceGrpIds = parseIntList(row[Cards.linkedFaceGrpIds]),
+                    )
+                }
             }
+        } catch (e: Exception) {
+            log.warn("Failed to query card DB for grpId={}: {}", grpId, e.message)
+            null
         }
-    } catch (e: Exception) {
-        log.warn("Failed to query card DB for grpId={}: {}", grpId, e.message)
-        null
-    }
 
-    private fun queryNameByGrpId(grpId: Int): String? = try {
-        transaction(database) {
-            // Join Cards with Localizations on TitleId=LocId, Formatted=1
-            Cards.join(Localizations, JoinType.INNER, Cards.titleId, Localizations.locId)
-                .selectAll()
-                .where { (Cards.grpId eq grpId) and (Localizations.formatted eq 1) }
-                .firstOrNull()
-                ?.get(Localizations.loc)
-                ?.let(::stripTags)
+    private fun queryNameByGrpId(grpId: Int): String? =
+        try {
+            transaction(database) {
+                // Join Cards with Localizations on TitleId=LocId, Formatted=1
+                Cards
+                    .join(Localizations, JoinType.INNER, Cards.titleId, Localizations.locId)
+                    .selectAll()
+                    .where { (Cards.grpId eq grpId) and (Localizations.formatted eq 1) }
+                    .firstOrNull()
+                    ?.get(Localizations.loc)
+                    ?.let(::stripTags)
+            }
+        } catch (e: Exception) {
+            log.warn("Failed to query name for grpId={}: {}", grpId, e.message)
+            null
         }
-    } catch (e: Exception) {
-        log.warn("Failed to query name for grpId={}: {}", grpId, e.message)
-        null
-    }
 
     /**
      * Match card name against Loc column, tolerating HTML tags like `<nobr>`.
@@ -216,66 +231,72 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
                     stringLiteral("</nobr>"),
                     stringLiteral(""),
                 ) eq cardName
-                )
+            )
 
-    private fun queryGrpIdByNameAndSet(cardName: String, setCode: String): Int? = try {
-        transaction(database) {
-            Cards.join(Localizations, JoinType.INNER, Cards.titleId, Localizations.locId)
-                .selectAll()
-                .where {
-                    (Localizations.formatted eq 1) and
-                        locMatches(cardName) and
-                        (Cards.expansionCode eq setCode) and
-                        (Cards.isToken eq 0) and
-                        (Cards.isPrimaryCard eq 1)
-                }
-                .firstOrNull()
-                ?.get(Cards.grpId)
+    private fun queryGrpIdByNameAndSet(
+        cardName: String,
+        setCode: String,
+    ): Int? =
+        try {
+            transaction(database) {
+                Cards
+                    .join(Localizations, JoinType.INNER, Cards.titleId, Localizations.locId)
+                    .selectAll()
+                    .where {
+                        (Localizations.formatted eq 1) and
+                            locMatches(cardName) and
+                            (Cards.expansionCode eq setCode) and
+                            (Cards.isToken eq 0) and
+                            (Cards.isPrimaryCard eq 1)
+                    }.firstOrNull()
+                    ?.get(Cards.grpId)
+            }
+        } catch (e: Exception) {
+            log.warn("Failed to query grpId for name='{}' set='{}': {}", cardName, setCode, e.message)
+            null
         }
-    } catch (e: Exception) {
-        log.warn("Failed to query grpId for name='{}' set='{}': {}", cardName, setCode, e.message)
-        null
-    }
 
-    private fun queryGrpIdByName(cardName: String): Int? = try {
-        transaction(database) {
-            Cards.join(Localizations, JoinType.INNER, Cards.titleId, Localizations.locId)
-                .selectAll()
-                .where {
-                    (Localizations.formatted eq 1) and
-                        locMatches(cardName) and
-                        (Cards.isToken eq 0) and
-                        (Cards.isPrimaryCard eq 1)
-                }
-                .orderBy(Cards.isDigitalOnly)
-                .orderBy(Cards.isRebalanced)
-                .orderBy(Cards.grpId, order = SortOrder.DESC)
-                .firstOrNull()
-                ?.get(Cards.grpId)
+    private fun queryGrpIdByName(cardName: String): Int? =
+        try {
+            transaction(database) {
+                Cards
+                    .join(Localizations, JoinType.INNER, Cards.titleId, Localizations.locId)
+                    .selectAll()
+                    .where {
+                        (Localizations.formatted eq 1) and
+                            locMatches(cardName) and
+                            (Cards.isToken eq 0) and
+                            (Cards.isPrimaryCard eq 1)
+                    }.orderBy(Cards.isDigitalOnly)
+                    .orderBy(Cards.isRebalanced)
+                    .orderBy(Cards.grpId, order = SortOrder.DESC)
+                    .firstOrNull()
+                    ?.get(Cards.grpId)
+            }
+        } catch (e: Exception) {
+            log.warn("Failed to query grpId for name='{}': {}", cardName, e.message)
+            null
         }
-    } catch (e: Exception) {
-        log.warn("Failed to query grpId for name='{}': {}", cardName, e.message)
-        null
-    }
 
     /** Like [queryGrpIdByName] but without isPrimaryCard filter — finds adventure/DFC back faces. */
-    private fun queryGrpIdByNameAnyFace(cardName: String): Int? = try {
-        transaction(database) {
-            Cards.join(Localizations, JoinType.INNER, Cards.titleId, Localizations.locId)
-                .selectAll()
-                .where {
-                    (Localizations.formatted eq 1) and
-                        locMatches(cardName) and
-                        (Cards.isToken eq 0)
-                }
-                .orderBy(Cards.isDigitalOnly)
-                .orderBy(Cards.isRebalanced)
-                .orderBy(Cards.grpId, order = SortOrder.DESC)
-                .firstOrNull()
-                ?.get(Cards.grpId)
+    private fun queryGrpIdByNameAnyFace(cardName: String): Int? =
+        try {
+            transaction(database) {
+                Cards
+                    .join(Localizations, JoinType.INNER, Cards.titleId, Localizations.locId)
+                    .selectAll()
+                    .where {
+                        (Localizations.formatted eq 1) and
+                            locMatches(cardName) and
+                            (Cards.isToken eq 0)
+                    }.orderBy(Cards.isDigitalOnly)
+                    .orderBy(Cards.isRebalanced)
+                    .orderBy(Cards.grpId, order = SortOrder.DESC)
+                    .firstOrNull()
+                    ?.get(Cards.grpId)
+            }
+        } catch (e: Exception) {
+            log.warn("Failed to query grpId (any face) for name='{}': {}", cardName, e.message)
+            null
         }
-    } catch (e: Exception) {
-        log.warn("Failed to query grpId (any face) for name='{}': {}", cardName, e.message)
-        null
-    }
 }

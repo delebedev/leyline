@@ -15,8 +15,14 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  */
 interface GreMessageSink {
     fun sendBundledGRE(messages: List<GREToClientMessage>)
-    fun sendRealGameState(bridge: GameBridge, revealForSeat: Int? = null)
+
+    fun sendRealGameState(
+        bridge: GameBridge,
+        revealForSeat: Int? = null,
+    )
+
     fun sendBundle(result: BundleBuilder.BundleResult)
+
     fun sendGameOver(reason: ResultReason = ResultReason.Game_ae0a)
 
     /** Build a single GRE message with explicit IDs. */
@@ -43,7 +49,12 @@ interface SessionCounters {
 /** Optional tracing for conformance/replay telemetry. */
 interface SessionTracer {
     val recorder: MatchRecorder? get() = null
-    fun traceEvent(type: MatchEventType, game: Game, detail: String)
+
+    fun traceEvent(
+        type: MatchEventType,
+        game: Game,
+        detail: String,
+    )
 }
 
 /**
@@ -70,20 +81,35 @@ interface Pacing {
  */
 interface ActionReceiver {
     fun onPerformAction(greMsg: ClientToGREMessage) {}
+
     fun onDeclareAttackers(greMsg: ClientToGREMessage) {}
+
     fun onDeclareBlockers(greMsg: ClientToGREMessage) {}
+
     fun onSelectTargets(greMsg: ClientToGREMessage) {}
+
     fun onSubmitTargets(greMsg: ClientToGREMessage) {}
+
     fun onSelectN(greMsg: ClientToGREMessage) {}
+
     fun onGroupResp(greMsg: ClientToGREMessage) {}
+
     fun onCancelAction(greMsg: ClientToGREMessage) {}
+
     fun onCastingTimeOptions(greMsg: ClientToGREMessage) {}
+
     fun onSearch(greMsg: ClientToGREMessage) {}
+
     fun onAssignDamage(greMsg: ClientToGREMessage) {}
+
     fun onOptionalActionResp(greMsg: ClientToGREMessage) {}
+
     fun onConcede() {}
+
     fun onSettings(greMsg: ClientToGREMessage) {}
+
     fun onMulliganKeep() {}
+
     fun onPuzzleStart() {}
 }
 
@@ -111,7 +137,6 @@ interface SessionOps :
     BundleBuilderHolder,
     Pacing,
     ActionReceiver {
-
     val matchId: String
 
     /** Game bridge — non-null for [MatchSession], null for [FamiliarSession]. */

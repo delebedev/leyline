@@ -42,8 +42,9 @@ class AbilityGrpIdConformanceTest :
                 val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
 
                 // Find all Activate_add3 actions for the planeswalker
-                val activateActions = actions.actionsList
-                    .filter { it.actionType == ActionType.Activate_add3 && it.instanceId == injected.instanceId }
+                val activateActions =
+                    actions.actionsList
+                        .filter { it.actionType == ActionType.Activate_add3 && it.instanceId == injected.instanceId }
 
                 // Chandra has 4 loyalty abilities; at least some should be playable
                 activateActions.size shouldBeGreaterThan 0
@@ -59,10 +60,11 @@ class AbilityGrpIdConformanceTest :
 
                 // The abilityGrpIds should match CardData.abilityIds slots in order
                 val keywordCount = cardData.keywordAbilityGrpIds.size
-                val expectedSlots = cardData.abilityIds
-                    .drop(keywordCount) // skip keyword ability slots
-                    .take(activateActions.size) // match the playable count
-                    .map { it.first }
+                val expectedSlots =
+                    cardData.abilityIds
+                        .drop(keywordCount) // skip keyword ability slots
+                        .take(activateActions.size) // match the playable count
+                        .map { it.first }
                 grpIds shouldBe expectedSlots
             }
     })

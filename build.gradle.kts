@@ -5,11 +5,25 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.power.assert)
-    alias(libs.plugins.spotless)
+    alias(libs.plugins.ktlint) apply false
     alias(libs.plugins.detekt)
     alias(libs.plugins.versions)
     jacoco
     application
+}
+
+// Ktlint: applied to root + all subprojects. `.editorconfig` owns all rule config.
+val ktlintVersion = "1.5.0"
+apply(plugin = "org.jlleitschuh.gradle.ktlint")
+configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
+    version.set(ktlintVersion)
+}
+subprojects {
+    if (path == ":tools" || path == ":tools:detekt-rules") return@subprojects
+    apply(plugin = "org.jlleitschuh.gradle.ktlint")
+    configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
+        version.set(ktlintVersion)
+    }
 }
 
 group = "leyline"
@@ -106,39 +120,18 @@ tasks.named("compileKotlin") {
 
 // --- Code quality ---
 
-// Spotless: rule config lives in `.editorconfig`. `editorConfigOverride` must be called
-// with the repeated override map (even though `.editorconfig` carries the same setting)
-// — dropping or emptying it switches spotless into a different ktlint mode that activates
-// many opt-in rules and would reformat ~200 files. See .editorconfig comment block.
-val ktlintVersion = "1.5.0"
-val ktlintOverrides = mapOf("ktlint_standard_no-wildcard-imports" to "disabled")
-
-spotless {
-    kotlin {
-        target("app/**/*.kt")
-        ktlint(ktlintVersion).editorConfigOverride(ktlintOverrides)
-    }
-}
-
-subprojects {
-    plugins.withId("com.diffplug.spotless") {
-        extensions.configure<com.diffplug.gradle.spotless.SpotlessExtension> {
-            kotlin {
-                target("src/**/*.kt")
-                ktlint(ktlintVersion).editorConfigOverride(ktlintOverrides)
-            }
-        }
-    }
-}
+// Ktlint: the plugin is applied to root + all subprojects above.
+// All rule config lives in `.editorconfig` — no Kotlin-side overrides.
 
 powerAssert {
-    functions = listOf(
-        "kotlin.assert",
-        "kotlin.test.assertTrue",
-        "kotlin.test.assertFalse",
-        "kotlin.test.assertNull",
-        "kotlin.test.assertEquals",
-    )
+    functions =
+        listOf(
+            "kotlin.assert",
+            "kotlin.test.assertTrue",
+            "kotlin.test.assertFalse",
+            "kotlin.test.assertNull",
+            "kotlin.test.assertEquals",
+        )
 }
 
 detekt {
@@ -182,12 +175,16 @@ tasks.jacocoTestReport {
 
 application {
     mainClass.set("leyline.LeylineMainKt")
-    applicationDefaultJvmArgs = listOf(
-        "-Xms384m", "-Xmx1g",
-        "-Dio.netty.tryReflectionSetAccessible=true",
-        "--add-opens", "java.base/jdk.internal.misc=ALL-UNNAMED",
-        "--add-opens", "java.base/java.nio=ALL-UNNAMED",
-    )
+    applicationDefaultJvmArgs =
+        listOf(
+            "-Xms384m",
+            "-Xmx1g",
+            "-Dio.netty.tryReflectionSetAccessible=true",
+            "--add-opens",
+            "java.base/jdk.internal.misc=ALL-UNNAMED",
+            "--add-opens",
+            "java.base/java.nio=ALL-UNNAMED",
+        )
 }
 
 // --- Classpath file (for justfile launch helpers) ---
@@ -200,4 +197,3 @@ val writeClasspath by tasks.registering(WriteClasspathTask::class) {
 tasks.named("classes") {
     finalizedBy(writeClasspath)
 }
-

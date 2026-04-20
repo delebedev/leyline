@@ -35,7 +35,6 @@ object FdWireConstants {
  * - **Response** (S→C reply): raw_trans_id=1, {proto=2, json=3}, error=4, compressed=5
  */
 object FdEnvelope {
-
     private val BATTLEFIELDS = listOf("FDN", "DSK", "BLB", "OTJ", "MKM", "WOE", "FIN")
 
     // --- Cmd field numbers ---
@@ -88,9 +87,10 @@ object FdEnvelope {
         val field1 = fields.firstOrNull { it.fieldNumber == 1 }
 
         // Check for compressed flag (field 5 in Cmd/Response, field 7 in Request)
-        val isCompressed = fields.any {
-            it.wireType == WIRE_VARINT && it.fieldNumber in listOf(5, 7) && it.asVarint() != 0
-        }
+        val isCompressed =
+            fields.any {
+                it.wireType == WIRE_VARINT && it.fieldNumber in listOf(5, 7) && it.asVarint() != 0
+            }
 
         return when {
             // Response: field 1 is string (raw_trans_id)
@@ -126,13 +126,19 @@ object FdEnvelope {
         }
     }
 
-    private fun decodeCmd(fields: List<ProtoField>, cmdType: Int, isCompressed: Boolean): FdMessage {
+    private fun decodeCmd(
+        fields: List<ProtoField>,
+        cmdType: Int,
+        isCompressed: Boolean,
+    ): FdMessage {
         val transId = fields.firstOrNull { it.fieldNumber == 2 }?.asString()
         val rawField5 = fields.firstOrNull { it.fieldNumber == 5 }
         val rawField4 = fields.firstOrNull { it.fieldNumber == 4 }
-        val key = fields.firstOrNull { it.fieldNumber == 3 }
-            ?.takeIf { rawField5 != null }
-            ?.asString()
+        val key =
+            fields
+                .firstOrNull { it.fieldNumber == 3 }
+                ?.takeIf { rawField5 != null }
+                ?.asString()
 
         return if (rawField5 != null) {
             FdMessage(
@@ -153,12 +159,16 @@ object FdEnvelope {
     }
 
     private fun fallback(fields: List<ProtoField>): FdMessage {
-        val anyJson = fields.filter { it.wireType == WIRE_LENGTH_DELIMITED }
-            .mapNotNull { it.asString() }
-            .firstOrNull { it.startsWith("{") }
-        val anyUuid = fields.filter { it.wireType == WIRE_LENGTH_DELIMITED }
-            .mapNotNull { it.asString() }
-            .firstOrNull { UUID_PATTERN.matches(it) }
+        val anyJson =
+            fields
+                .filter { it.wireType == WIRE_LENGTH_DELIMITED }
+                .mapNotNull { it.asString() }
+                .firstOrNull { it.startsWith("{") }
+        val anyUuid =
+            fields
+                .filter { it.wireType == WIRE_LENGTH_DELIMITED }
+                .mapNotNull { it.asString() }
+                .firstOrNull { UUID_PATTERN.matches(it) }
         return FdMessage(null, anyUuid, anyJson)
     }
 
@@ -168,7 +178,10 @@ object FdEnvelope {
      * Compressed payloads have a 4-byte uint32 LE prefix (uncompressed size)
      * followed by standard gzip data (magic bytes 1f 8b).
      */
-    private fun decompress(data: ByteArray, compressed: Boolean): String? {
+    private fun decompress(
+        data: ByteArray,
+        compressed: Boolean,
+    ): String? {
         if (!compressed) {
             return try {
                 String(data, Charsets.UTF_8)
@@ -223,7 +236,10 @@ object FdEnvelope {
      * The Any contains the type URL and an empty value (default proto message).
      * Used for CmdTypes where the client expects protobuf, not JSON.
      */
-    fun encodeProtoResponse(transactionId: String, typeUrl: String): ByteArray {
+    fun encodeProtoResponse(
+        transactionId: String,
+        typeUrl: String,
+    ): ByteArray {
         // Build inner Any: field 1 = type_url, field 2 = empty bytes
         val anyBuf = ByteArrayOutputStream()
         writeString(anyBuf, ANY_TYPE_URL, typeUrl)
@@ -241,7 +257,10 @@ object FdEnvelope {
      * The [protoPayload] must already be a serialized google.protobuf.Any
      * (type_url + value).
      */
-    fun encodeRawProtoResponse(transactionId: String, protoPayload: ByteArray): ByteArray {
+    fun encodeRawProtoResponse(
+        transactionId: String,
+        protoPayload: ByteArray,
+    ): ByteArray {
         val buf = ByteArrayOutputStream()
         writeString(buf, RESP_TRANS_ID, transactionId)
         writeBytes(buf, RESP_PROTO_PAYLOAD, protoPayload)
@@ -251,7 +270,10 @@ object FdEnvelope {
     /**
      * Encode a Response envelope (S→C reply to a request) with JSON in field 3.
      */
-    fun encodeResponse(transactionId: String, json: String): ByteArray {
+    fun encodeResponse(
+        transactionId: String,
+        json: String,
+    ): ByteArray {
         val buf = ByteArrayOutputStream()
         writeString(buf, RESP_TRANS_ID, transactionId)
         writeBytes(buf, RESP_JSON_PAYLOAD, json.toByteArray(Charsets.UTF_8))
@@ -261,7 +283,11 @@ object FdEnvelope {
     /**
      * Encode a Cmd envelope (S→C push notification, e.g. MatchCreated).
      */
-    fun encodeCmd(cmdType: Int, transactionId: String, json: String): ByteArray {
+    fun encodeCmd(
+        cmdType: Int,
+        transactionId: String,
+        json: String,
+    ): ByteArray {
         val buf = ByteArrayOutputStream()
         writeVarintField(buf, CMD_TYPE, cmdType)
         writeString(buf, CMD_TRANS_ID, transactionId)
@@ -276,11 +302,12 @@ object FdEnvelope {
         val wireType: Int,
         val data: ByteArray,
     ) {
-        fun asString(): String? = try {
-            String(data, Charsets.UTF_8)
-        } catch (_: Exception) {
-            null
-        }
+        fun asString(): String? =
+            try {
+                String(data, Charsets.UTF_8)
+            } catch (_: Exception) {
+                null
+            }
 
         fun asVarint(): Int {
             var result = 0
@@ -339,7 +366,10 @@ object FdEnvelope {
     }
 
     /** Read a varint from bytes at offset. Returns (value, bytesConsumed). */
-    private fun readVarint(bytes: ByteArray, offset: Int): Pair<Int, Int> {
+    private fun readVarint(
+        bytes: ByteArray,
+        offset: Int,
+    ): Pair<Int, Int> {
         var result = 0
         var shift = 0
         var i = offset
@@ -356,26 +386,45 @@ object FdEnvelope {
 
     // --- Protobuf writing primitives ---
 
-    private fun writeVarintField(out: ByteArrayOutputStream, fieldNumber: Int, value: Int) {
+    private fun writeVarintField(
+        out: ByteArrayOutputStream,
+        fieldNumber: Int,
+        value: Int,
+    ) {
         writeTag(out, fieldNumber, WIRE_VARINT)
         writeVarint(out, value)
     }
 
-    private fun writeString(out: ByteArrayOutputStream, fieldNumber: Int, value: String) {
+    private fun writeString(
+        out: ByteArrayOutputStream,
+        fieldNumber: Int,
+        value: String,
+    ) {
         writeBytes(out, fieldNumber, value.toByteArray(Charsets.UTF_8))
     }
 
-    private fun writeBytes(out: ByteArrayOutputStream, fieldNumber: Int, data: ByteArray) {
+    private fun writeBytes(
+        out: ByteArrayOutputStream,
+        fieldNumber: Int,
+        data: ByteArray,
+    ) {
         writeTag(out, fieldNumber, WIRE_LENGTH_DELIMITED)
         writeVarint(out, data.size)
         out.write(data)
     }
 
-    private fun writeTag(out: ByteArrayOutputStream, fieldNumber: Int, wireType: Int) {
+    private fun writeTag(
+        out: ByteArrayOutputStream,
+        fieldNumber: Int,
+        wireType: Int,
+    ) {
         writeVarint(out, (fieldNumber shl 3) or wireType)
     }
 
-    private fun writeVarint(out: ByteArrayOutputStream, value: Int) {
+    private fun writeVarint(
+        out: ByteArrayOutputStream,
+        value: Int,
+    ) {
         var v = value
         while (v and 0x7F.inv() != 0) {
             out.write((v and 0x7F) or 0x80)
@@ -430,10 +479,11 @@ object FdEnvelope {
         eventId: String = "AIBotMatch",
         playerInfos: List<PlayerInfo>? = null,
     ): String {
-        val players = playerInfos ?: listOf(
-            PlayerInfo(seatId = 1, teamId = 1, name = "Player", avatarId = "Avatar_Basic_Adventurer"),
-            PlayerInfo(seatId = 2, teamId = 2, name = "AI Opponent", avatarId = "Avatar_Basic_Sparky"),
-        )
+        val players =
+            playerInfos ?: listOf(
+                PlayerInfo(seatId = 1, teamId = 1, name = "Player", avatarId = "Avatar_Basic_Adventurer"),
+                PlayerInfo(seatId = 2, teamId = 2, name = "AI Opponent", avatarId = "Avatar_Basic_Sparky"),
+            )
         return buildJsonObject {
             put("Type", "MatchCreated")
             putJsonObject("MatchInfoV3") {

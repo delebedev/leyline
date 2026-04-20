@@ -31,20 +31,21 @@ class MatchFlowHarness(
     private val seed: Long = 42L,
     private val deckList: String? = null,
     validating: Boolean = true,
-    private val matchConfig: MatchConfig = MatchConfig(
-        ai = AiConfig(speed = 0.0),
-        // Fail fast in tests. Production defaults are tuned for the client
-        // (120s bridge, 30s AI-turn wait, 10s mulligan); here the engine
-        // responds in <100ms so aggressive timeouts surface hangs quickly.
-        server = ServerConfig(
-            bridgeTimeoutMs = 5_000L,
-            aiTurnWaitMs = 2_000L,
-            mulliganWaitMs = 2_000L,
+    private val matchConfig: MatchConfig =
+        MatchConfig(
+            ai = AiConfig(speed = 0.0),
+            // Fail fast in tests. Production defaults are tuned for the client
+            // (120s bridge, 30s AI-turn wait, 10s mulligan); here the engine
+            // responds in <100ms so aggressive timeouts surface hangs quickly.
+            server =
+                ServerConfig(
+                    bridgeTimeoutMs = 5_000L,
+                    aiTurnWaitMs = 2_000L,
+                    mulliganWaitMs = 2_000L,
+                ),
         ),
-    ),
     private val variant: String? = null,
 ) {
-
     private val matchId = "test-match"
     private val seatId = 1
 
@@ -79,18 +80,25 @@ class MatchFlowHarness(
         TestCardRegistry.ensureRegistered()
         if (deckList != null) TestCardRegistry.ensureDeckRegistered(deckList)
 
-        bridge = GameBridge(bridgeTimeoutMs = 5_000L, matchConfig = matchConfig, messageCounter = MessageCounter(), cardRepository = TestCardRegistry.repo)
+        bridge =
+            GameBridge(
+                bridgeTimeoutMs = 5_000L,
+                matchConfig = matchConfig,
+                messageCounter = MessageCounter(),
+                cardRepository = TestCardRegistry.repo,
+            )
         bridge.priorityWaitMs = 2_000L
         bridge.start(seed = seed, deckList = deckList, variant = variant)
 
-        session = MatchSession(
-            seatId = SeatId(seatId),
-            matchId = matchId,
-            sink = effectiveSink,
-            registry = registry,
-            gameBridge = bridge,
-            paceDelayMs = 0,
-        )
+        session =
+            MatchSession(
+                seatId = SeatId(seatId),
+                matchId = matchId,
+                sink = effectiveSink,
+                registry = registry,
+                gameBridge = bridge,
+                paceDelayMs = 0,
+            )
         registry.registerSession(matchId, seatId, session)
 
         // Seed accumulator + validator with a Full GSM BEFORE submitKeep.
@@ -114,7 +122,10 @@ class MatchFlowHarness(
     }
 
     /** Start puzzle game from classpath resource, advance to first action phase. */
-    fun connectAndKeepPuzzle(resourcePath: String, aiScript: List<ScriptedAction>? = null) {
+    fun connectAndKeepPuzzle(
+        resourcePath: String,
+        aiScript: List<ScriptedAction>? = null,
+    ) {
         GameBootstrap.initializeCardDatabase(quiet = true)
         startPuzzleBridge(PuzzleSource.loadFromResource(resourcePath), aiScript)
     }
@@ -128,18 +139,30 @@ class MatchFlowHarness(
      * @param aiScript optional scripted actions for the AI — installed before
      *                 auto-pass runs so the AI follows the script on its first turn.
      */
-    fun connectAndKeepPuzzleText(puzzleText: String, aiScript: List<ScriptedAction>? = null) {
+    fun connectAndKeepPuzzleText(
+        puzzleText: String,
+        aiScript: List<ScriptedAction>? = null,
+    ) {
         // Card DB must init before PuzzleSource.loadFromText — the Puzzle
         // constructor triggers GameState.<clinit> which requires localization.
         GameBootstrap.initializeCardDatabase(quiet = true)
         startPuzzleBridge(PuzzleSource.loadFromText(puzzleText), aiScript)
     }
 
-    private fun startPuzzleBridge(puzzle: forge.gamemodes.puzzle.Puzzle, aiScript: List<ScriptedAction>?) {
+    private fun startPuzzleBridge(
+        puzzle: forge.gamemodes.puzzle.Puzzle,
+        aiScript: List<ScriptedAction>?,
+    ) {
         GameBootstrap.initializeCardDatabase(quiet = true)
         TestCardRegistry.ensureRegistered()
 
-        bridge = GameBridge(bridgeTimeoutMs = 5_000L, matchConfig = matchConfig, messageCounter = MessageCounter(), cardRepository = TestCardRegistry.repo)
+        bridge =
+            GameBridge(
+                bridgeTimeoutMs = 5_000L,
+                matchConfig = matchConfig,
+                messageCounter = MessageCounter(),
+                cardRepository = TestCardRegistry.repo,
+            )
         bridge.priorityWaitMs = 2_000L
         bridge.startPuzzle(puzzle)
         TestCardRegistry.registerPuzzleCards(bridge.getGame()!!)
@@ -150,14 +173,15 @@ class MatchFlowHarness(
             installScriptedAi(aiScript)
         }
 
-        session = MatchSession(
-            seatId = SeatId(seatId),
-            matchId = matchId,
-            sink = effectiveSink,
-            registry = registry,
-            gameBridge = bridge,
-            paceDelayMs = 0,
-        )
+        session =
+            MatchSession(
+                seatId = SeatId(seatId),
+                matchId = matchId,
+                sink = effectiveSink,
+                registry = registry,
+                gameBridge = bridge,
+                paceDelayMs = 0,
+            )
         registry.registerSession(matchId, seatId, session)
 
         val game = bridge.getGame()
@@ -176,14 +200,18 @@ class MatchFlowHarness(
     /** Play a land from hand. Returns true if successful. */
     fun playLand(): Boolean {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return false
-        val land = player.getZone(ZoneType.Hand).cards
-            .firstOrNull { it.isLand } ?: return false
+        val land =
+            player
+                .getZone(ZoneType.Hand)
+                .cards
+                .firstOrNull { it.isLand } ?: return false
 
-        val msg = performAction {
-            actionType = ActionType.Play_add3
-            instanceId = bridge.getOrAllocInstanceId(ForgeCardId(land.id)).value
-            grpId = bridge.cardRepository.findGrpIdByName(land.name) ?: 0
-        }
+        val msg =
+            performAction {
+                actionType = ActionType.Play_add3
+                instanceId = bridge.getOrAllocInstanceId(ForgeCardId(land.id)).value
+                grpId = bridge.cardRepository.findGrpIdByName(land.name) ?: 0
+            }
 
         session.onPerformAction(msg)
         drainSink()
@@ -193,14 +221,18 @@ class MatchFlowHarness(
     /** Cast a creature from hand. Returns true if successful. */
     fun castCreature(): Boolean {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return false
-        val creature = player.getZone(ZoneType.Hand).cards
-            .firstOrNull { it.isCreature } ?: return false
+        val creature =
+            player
+                .getZone(ZoneType.Hand)
+                .cards
+                .firstOrNull { it.isCreature } ?: return false
 
-        val msg = performAction {
-            actionType = ActionType.Cast
-            instanceId = bridge.getOrAllocInstanceId(ForgeCardId(creature.id)).value
-            grpId = bridge.cardRepository.findGrpIdByName(creature.name) ?: 0
-        }
+        val msg =
+            performAction {
+                actionType = ActionType.Cast
+                instanceId = bridge.getOrAllocInstanceId(ForgeCardId(creature.id)).value
+                grpId = bridge.cardRepository.findGrpIdByName(creature.name) ?: 0
+            }
 
         session.onPerformAction(msg)
         drainSink()
@@ -219,7 +251,10 @@ class MatchFlowHarness(
      * Returns true when [stopWhen] was observed before the pass budget ran out.
      * Prefer this over fixed `repeat(N) { passPriority() }` loops in integration tests.
      */
-    fun passUntil(maxPasses: Int = 20, stopWhen: MatchFlowHarness.() -> Boolean): Boolean {
+    fun passUntil(
+        maxPasses: Int = 20,
+        stopWhen: MatchFlowHarness.() -> Boolean,
+    ): Boolean {
         repeat(maxPasses) {
             if (stopWhen() || isGameOver()) return true
             passPriority()
@@ -239,7 +274,10 @@ class MatchFlowHarness(
      *  fix would be to add a turn-boundary stop in autoPassAndAdvance so the client
      *  always gets priority at the start of each new turn.
      */
-    fun passUntilTurn(targetTurn: Int, maxPasses: Int = 30) {
+    fun passUntilTurn(
+        targetTurn: Int,
+        maxPasses: Int = 30,
+    ) {
         repeat(maxPasses) {
             if (turn() >= targetTurn || isGameOver()) return
             passPriority()
@@ -250,7 +288,10 @@ class MatchFlowHarness(
      * Pass priority through remaining combat until the turn advances or game ends.
      * Replaces the verbose `repeat(15) { if (gameOver/nextTurn) return@repeat; passPriority() }` pattern.
      */
-    fun passThroughCombat(startTurn: Int = turn(), maxPasses: Int = 15) {
+    fun passThroughCombat(
+        startTurn: Int = turn(),
+        maxPasses: Int = 15,
+    ) {
         repeat(maxPasses) {
             if (isGameOver() || turn() > startTurn) return
             passPriority()
@@ -276,8 +317,9 @@ class MatchFlowHarness(
      */
     fun installScriptedAi(script: List<ScriptedAction>): ScriptedPlayerController {
         val game = game()
-        val aiPlayer = bridge.getPlayer(SeatId(2))
-            ?: error("No AI player found")
+        val aiPlayer =
+            bridge.getPlayer(SeatId(2))
+                ?: error("No AI player found")
         val controller = ScriptedPlayerController(game, aiPlayer, script)
         // Use highest timestamp so this controller takes priority over the default AI
         aiPlayer.addController(Long.MAX_VALUE, aiPlayer, controller, false)
@@ -290,26 +332,28 @@ class MatchFlowHarness(
      * Advance to a specific phase via bridge — one PassPriority at a time.
      * No AutoPassEngine involvement, no phase overshoot.
      */
-    fun advanceToPhase(phase: String, turn: Int? = null) =
-        leyline.game.advanceToPhase(bridge, phase, turn)
+    fun advanceToPhase(
+        phase: String,
+        turn: Int? = null,
+    ) = leyline.game.advanceToPhase(bridge, phase, turn)
 
     /** Advance to Main1 via bridge. */
     fun advanceToMain1() = leyline.game.advanceToMain1(bridge)
 
     /** Advance to COMBAT_DECLARE_ATTACKERS via bridge. */
-    fun advanceToCombat(turn: Int? = null) =
-        leyline.game.advanceToCombat(bridge, turn)
+    fun advanceToCombat(turn: Int? = null) = leyline.game.advanceToCombat(bridge, turn)
 
     /** Advance to MAIN2 via bridge. */
-    fun advanceToMain2(turn: Int? = null) =
-        leyline.game.advanceToMain2(bridge, turn)
+    fun advanceToMain2(turn: Int? = null) = leyline.game.advanceToMain2(bridge, turn)
 
     // --- Combat helpers ---
 
     /** Human's creatures on the battlefield: (instanceId, cardName). */
     fun humanBattlefieldCreatures(): List<Pair<Int, String>> {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return emptyList()
-        return player.getZone(ZoneType.Battlefield).cards
+        return player
+            .getZone(ZoneType.Battlefield)
+            .cards
             .filter { it.isCreature }
             .map { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value to it.name }
     }
@@ -474,27 +518,32 @@ class MatchFlowHarness(
      * @param awayInstanceIds cards to put into the away zone (group 1)
      * @param allInstanceIds all card instanceIds from the GroupReq (for the keep group)
      */
-    fun respondToGroupReq(awayInstanceIds: List<Int>, allInstanceIds: List<Int>) {
+    fun respondToGroupReq(
+        awayInstanceIds: List<Int>,
+        allInstanceIds: List<Int>,
+    ) {
         val keepIds = allInstanceIds.filter { it !in awayInstanceIds }
-        val msg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.GroupResp_097b)
-            .setGroupResp(
-                GroupResp.newBuilder()
-                    .addGroups(
-                        Group.newBuilder()
-                            .addAllIds(keepIds)
-                            .setZoneType(wotc.mtgo.gre.external.messaging.Messages.ZoneType.Library)
-                            .setSubZoneType(SubZoneType.Top),
-                    )
-                    .addGroups(
-                        Group.newBuilder()
-                            .addAllIds(awayInstanceIds)
-                            .setZoneType(wotc.mtgo.gre.external.messaging.Messages.ZoneType.Graveyard)
-                            .setSubZoneType(SubZoneType.None_a455),
-                    )
-                    .setGroupType(GroupType.Ordered),
-            )
-            .build()
+        val msg =
+            ClientToGREMessage
+                .newBuilder()
+                .setType(ClientMessageType.GroupResp_097b)
+                .setGroupResp(
+                    GroupResp
+                        .newBuilder()
+                        .addGroups(
+                            Group
+                                .newBuilder()
+                                .addAllIds(keepIds)
+                                .setZoneType(wotc.mtgo.gre.external.messaging.Messages.ZoneType.Library)
+                                .setSubZoneType(SubZoneType.Top),
+                        ).addGroups(
+                            Group
+                                .newBuilder()
+                                .addAllIds(awayInstanceIds)
+                                .setZoneType(wotc.mtgo.gre.external.messaging.Messages.ZoneType.Graveyard)
+                                .setSubZoneType(SubZoneType.None_a455),
+                        ).setGroupType(GroupType.Ordered),
+                ).build()
         session.onGroupResp(msg)
         drainSink()
     }
@@ -503,27 +552,32 @@ class MatchFlowHarness(
      * Respond to a GroupReq for scry. Places specified instanceIds on the bottom
      * of library. Remaining cards stay on top.
      */
-    fun respondToScry(bottomInstanceIds: List<Int>, allInstanceIds: List<Int>) {
+    fun respondToScry(
+        bottomInstanceIds: List<Int>,
+        allInstanceIds: List<Int>,
+    ) {
         val topIds = allInstanceIds.filter { it !in bottomInstanceIds }
-        val msg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.GroupResp_097b)
-            .setGroupResp(
-                GroupResp.newBuilder()
-                    .addGroups(
-                        Group.newBuilder()
-                            .addAllIds(topIds)
-                            .setZoneType(wotc.mtgo.gre.external.messaging.Messages.ZoneType.Library)
-                            .setSubZoneType(SubZoneType.Top),
-                    )
-                    .addGroups(
-                        Group.newBuilder()
-                            .addAllIds(bottomInstanceIds)
-                            .setZoneType(wotc.mtgo.gre.external.messaging.Messages.ZoneType.Library)
-                            .setSubZoneType(SubZoneType.Bottom),
-                    )
-                    .setGroupType(GroupType.Ordered),
-            )
-            .build()
+        val msg =
+            ClientToGREMessage
+                .newBuilder()
+                .setType(ClientMessageType.GroupResp_097b)
+                .setGroupResp(
+                    GroupResp
+                        .newBuilder()
+                        .addGroups(
+                            Group
+                                .newBuilder()
+                                .addAllIds(topIds)
+                                .setZoneType(wotc.mtgo.gre.external.messaging.Messages.ZoneType.Library)
+                                .setSubZoneType(SubZoneType.Top),
+                        ).addGroups(
+                            Group
+                                .newBuilder()
+                                .addAllIds(bottomInstanceIds)
+                                .setZoneType(wotc.mtgo.gre.external.messaging.Messages.ZoneType.Library)
+                                .setSubZoneType(SubZoneType.Bottom),
+                        ).setGroupType(GroupType.Ordered),
+                ).build()
         session.onGroupResp(msg)
         drainSink()
     }
@@ -533,16 +587,23 @@ class MatchFlowHarness(
      * For flashback/escape, use `zone = ZoneType.Graveyard`.
      * Returns false if card not found in the zone.
      */
-    fun castSpellByName(cardName: String, zone: ZoneType = ZoneType.Hand): Boolean {
+    fun castSpellByName(
+        cardName: String,
+        zone: ZoneType = ZoneType.Hand,
+    ): Boolean {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return false
-        val card = player.getZone(zone).cards
-            .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
+        val card =
+            player
+                .getZone(zone)
+                .cards
+                .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
 
-        val msg = performAction {
-            actionType = ActionType.Cast
-            instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-            grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
-        }
+        val msg =
+            performAction {
+                actionType = ActionType.Cast
+                instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+                grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+            }
 
         session.onPerformAction(msg)
         drainSink()
@@ -550,12 +611,10 @@ class MatchFlowHarness(
     }
 
     /** Alias for `castSpellByName(cardName, ZoneType.Graveyard)`. */
-    fun castFromGraveyard(cardName: String): Boolean =
-        castSpellByName(cardName, zone = ZoneType.Graveyard)
+    fun castFromGraveyard(cardName: String): Boolean = castSpellByName(cardName, zone = ZoneType.Graveyard)
 
     /** Alias for `castSpellByName(cardName, ZoneType.Exile)`. */
-    fun castFromExile(cardName: String): Boolean =
-        castSpellByName(cardName, zone = ZoneType.Exile)
+    fun castFromExile(cardName: String): Boolean = castSpellByName(cardName, zone = ZoneType.Exile)
 
     /**
      * Cast a spell and pass once to resolve it.
@@ -620,23 +679,38 @@ class MatchFlowHarness(
      *                     (e.g., planeswalker: 0=first loyalty, 1=second, 2=ultimate)
      * @return true if the card was found and action sent
      */
-    fun activateAbility(cardName: String, abilityIndex: Int = 0): Boolean {
+    fun activateAbility(
+        cardName: String,
+        abilityIndex: Int = 0,
+    ): Boolean {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return false
-        val card = player.getZone(ZoneType.Battlefield).cards
-            .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
+        val card =
+            player
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
         return submitActivateAction(card, abilityIndex)
     }
 
     /** Activate an ability on a card in the player's hand (Channel, Cycling, etc.). */
-    fun activateAbilityFromHand(cardName: String, abilityIndex: Int = 0): Boolean {
+    fun activateAbilityFromHand(
+        cardName: String,
+        abilityIndex: Int = 0,
+    ): Boolean {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return false
-        val card = player.getZone(ZoneType.Hand).cards
-            .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
+        val card =
+            player
+                .getZone(ZoneType.Hand)
+                .cards
+                .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
         return submitActivateAction(card, abilityIndex)
     }
 
     /** Common Activate_add3 submission for both battlefield and hand cards. */
-    private fun submitActivateAction(card: forge.game.card.Card, abilityIndex: Int): Boolean {
+    private fun submitActivateAction(
+        card: forge.game.card.Card,
+        abilityIndex: Int,
+    ): Boolean {
         val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
         val cardData = bridge.cardRepository.findByGrpId(grpId)
@@ -645,12 +719,13 @@ class MatchFlowHarness(
         val triggerCount = card.triggers?.count { it.isIntrinsic } ?: 0
         val abilityGrpId = cardData?.abilityIds?.getOrNull(keywordCount + triggerCount + abilityIndex)?.first ?: 0
 
-        val msg = performAction {
-            actionType = ActionType.Activate_add3
-            instanceId = iid
-            this.grpId = grpId
-            this.abilityGrpId = abilityGrpId
-        }
+        val msg =
+            performAction {
+                actionType = ActionType.Activate_add3
+                instanceId = iid
+                this.grpId = grpId
+                this.abilityGrpId = abilityGrpId
+            }
         session.onPerformAction(msg)
         drainSink()
         return true
@@ -690,8 +765,7 @@ class MatchFlowHarness(
     fun messageSnapshot(): Int = allMessages.size
 
     /** Get all messages since a snapshot point. */
-    fun messagesSince(snapshot: Int): List<GREToClientMessage> =
-        allMessages.subList(snapshot, allMessages.size).toList()
+    fun messagesSince(snapshot: Int): List<GREToClientMessage> = allMessages.subList(snapshot, allMessages.size).toList()
 
     /** Get all game-state messages since a snapshot point. */
     fun gameStateMessagesSince(snapshot: Int): List<GameStateMessage> =
@@ -699,17 +773,19 @@ class MatchFlowHarness(
             .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
 
     /** Get all annotations from game-state messages since a snapshot point. */
-    fun annotationsSince(snapshot: Int): List<AnnotationInfo> =
-        gameStateMessagesSince(snapshot).flatMap { it.annotationsList }
+    fun annotationsSince(snapshot: Int): List<AnnotationInfo> = gameStateMessagesSince(snapshot).flatMap { it.annotationsList }
 
     // --- State queries ---
 
     fun phase(): String? = game().phaseHandler.phase?.name
+
     fun turn(): Int = game().phaseHandler.turn
+
     fun isAiTurn(): Boolean {
         val human = bridge.getPlayer(SeatId(seatId)) ?: return false
         return game().phaseHandler.playerTurn != human
     }
+
     fun isGameOver(): Boolean {
         val game = bridge.getGame()
         if (game != null) return game.isGameOver
@@ -730,7 +806,9 @@ class MatchFlowHarness(
                 MatchGameRoomStateType.MatchCompleted
         }
     }
+
     fun game(): Game = bridge.getGame()!!
+
     fun shutdown() = bridge.shutdown()
 
     internal fun drainSink() {
@@ -756,15 +834,17 @@ class MatchFlowHarness(
         val response = nextOptionalResponse ?: OptionResponse.AllowYes
         nextOptionalResponse = null
 
-        val greMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.OptionalActionResp)
-            .setGameStateId(msg.gameStateId)
-            .setRespId(msg.msgId)
-            .setOptionalResp(
-                OptionalResp.newBuilder()
-                    .setResponse(response),
-            )
-            .build()
+        val greMsg =
+            ClientToGREMessage
+                .newBuilder()
+                .setType(ClientMessageType.OptionalActionResp)
+                .setGameStateId(msg.gameStateId)
+                .setRespId(msg.msgId)
+                .setOptionalResp(
+                    OptionalResp
+                        .newBuilder()
+                        .setResponse(response),
+                ).build()
         session.onOptionalActionResp(greMsg)
 
         // Drain follow-up messages without recursing
@@ -789,15 +869,17 @@ class MatchFlowHarness(
      */
     fun respondToOptionalAction(accept: Boolean) {
         val msg = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
-        val greMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.OptionalActionResp)
-            .setGameStateId(msg?.gameStateId ?: 0)
-            .setRespId(msg?.msgId ?: 0)
-            .setOptionalResp(
-                OptionalResp.newBuilder()
-                    .setResponse(if (accept) OptionResponse.AllowYes else OptionResponse.CancelNo),
-            )
-            .build()
+        val greMsg =
+            ClientToGREMessage
+                .newBuilder()
+                .setType(ClientMessageType.OptionalActionResp)
+                .setGameStateId(msg?.gameStateId ?: 0)
+                .setRespId(msg?.msgId ?: 0)
+                .setOptionalResp(
+                    OptionalResp
+                        .newBuilder()
+                        .setResponse(if (accept) OptionResponse.AllowYes else OptionResponse.CancelNo),
+                ).build()
         session.onOptionalActionResp(greMsg)
         allMessages.addAll(sink.messages)
         allRawMessages.addAll(sink.rawMessages)

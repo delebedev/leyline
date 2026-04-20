@@ -30,19 +30,24 @@ class HandshakeMessagesTest :
             bridge = null
         }
 
-        fun extractDieRolls(b: GameBridge, winner: Int = 2): Map<Int, Int> {
-            val bundle = HandshakeMessages.initialBundle(
-                seatId = 2,
-                matchId = "test",
-                msgIdStart = 1,
-                gameStateId = 1,
-                deckMessage = DeckMessage.getDefaultInstance(),
-                bridge = b,
-                dieRollWinner = winner,
-            )
-            val dieRoll = bundle.first.greToClientEvent.greToClientMessagesList
-                .first { it.type == GREMessageType.DieRollResultsResp_695e }
-                .dieRollResultsResp
+        fun extractDieRolls(
+            b: GameBridge,
+            winner: Int = 2,
+        ): Map<Int, Int> {
+            val bundle =
+                HandshakeMessages.initialBundle(
+                    seatId = 2,
+                    matchId = "test",
+                    msgIdStart = 1,
+                    gameStateId = 1,
+                    deckMessage = DeckMessage.getDefaultInstance(),
+                    bridge = b,
+                    dieRollWinner = winner,
+                )
+            val dieRoll =
+                bundle.first.greToClientEvent.greToClientMessagesList
+                    .first { it.type == GREMessageType.DieRollResultsResp_695e }
+                    .dieRollResultsResp
             return dieRoll.playerDieRollsList.associate { it.systemSeatId to it.rollValue }
         }
 

@@ -15,29 +15,30 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  * into the `List<Pair<ManaColor, Int>>` format used by [leyline.game.data.CardData].
  */
 object ManaColorMapping {
-
     /** ManaCostShard → proto ManaColor. Only simple shards mapped; hybrids skipped. */
-    val SHARD_MAP: Map<ManaCostShard, ManaColor> = mapOf(
-        ManaCostShard.WHITE to ManaColor.White_afc9,
-        ManaCostShard.BLUE to ManaColor.Blue_afc9,
-        ManaCostShard.BLACK to ManaColor.Black_afc9,
-        ManaCostShard.RED to ManaColor.Red_afc9,
-        ManaCostShard.GREEN to ManaColor.Green_afc9,
-        ManaCostShard.COLORLESS to ManaColor.Colorless_afc9,
-        ManaCostShard.X to ManaColor.X,
-    )
+    val SHARD_MAP: Map<ManaCostShard, ManaColor> =
+        mapOf(
+            ManaCostShard.WHITE to ManaColor.White_afc9,
+            ManaCostShard.BLUE to ManaColor.Blue_afc9,
+            ManaCostShard.BLACK to ManaColor.Black_afc9,
+            ManaCostShard.RED to ManaColor.Red_afc9,
+            ManaCostShard.GREEN to ManaColor.Green_afc9,
+            ManaCostShard.COLORLESS to ManaColor.Colorless_afc9,
+            ManaCostShard.X to ManaColor.X,
+        )
 
     /** Map Forge's produced-mana string (e.g. "G", "W", "Any") to proto ManaColor. */
-    fun fromProduced(produced: String): ManaColor? = when (produced.uppercase().trim()) {
-        "W" -> ManaColor.White_afc9
-        "U" -> ManaColor.Blue_afc9
-        "B" -> ManaColor.Black_afc9
-        "R" -> ManaColor.Red_afc9
-        "G" -> ManaColor.Green_afc9
-        "C" -> ManaColor.Colorless_afc9
-        "ANY" -> ManaColor.Generic
-        else -> null
-    }
+    fun fromProduced(produced: String): ManaColor? =
+        when (produced.uppercase().trim()) {
+            "W" -> ManaColor.White_afc9
+            "U" -> ManaColor.Blue_afc9
+            "B" -> ManaColor.Black_afc9
+            "R" -> ManaColor.Red_afc9
+            "G" -> ManaColor.Green_afc9
+            "C" -> ManaColor.Colorless_afc9
+            "ANY" -> ManaColor.Generic
+            else -> null
+        }
 
     /** Map a [ManaCostShard] to proto ManaColor, or null if unmapped (hybrid, etc.). */
     fun fromShard(shard: ManaCostShard): ManaColor? = SHARD_MAP[shard]

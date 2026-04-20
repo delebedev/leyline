@@ -78,12 +78,16 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * @param bridge used only to resolve Player → seatId and access prompt bridge flags
  *   (never mutated beyond flag consumption)
  */
+
 /** Wrapper making event drain's single-use nature visible in the type system. */
 @JvmInline
-value class DrainedEvents(val events: List<GameEvent>)
+value class DrainedEvents(
+    val events: List<GameEvent>,
+)
 
-class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Base<Unit>() {
-
+class GameEventCollector(
+    private val bridge: GameBridge,
+) : IGameEventVisitor.Base<Unit>() {
     private val log = LoggerFactory.getLogger(GameEventCollector::class.java)
 
     private val queue = ConcurrentLinkedQueue<GameEvent>()
@@ -101,13 +105,14 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
      * [leyline.game.mapping.StateMapper.buildFromSnapshot] calls this in the GATHER phase before any annotation
      * pipeline stages run.
      */
-    fun drainEvents(): DrainedEvents = DrainedEvents(
-        buildList {
-            while (true) {
-                add(queue.poll() ?: break)
-            }
-        },
-    )
+    fun drainEvents(): DrainedEvents =
+        DrainedEvents(
+            buildList {
+                while (true) {
+                    add(queue.poll() ?: break)
+                }
+            },
+        )
 
     /** Peek at queued events without draining (for tests). */
     fun peekEvents(): List<GameEvent> = queue.toList()
@@ -124,9 +129,11 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
 
     override fun visit(ev: GameEventLandPlayed) {
         val seat = seatOf(ev.player()) ?: return
-        val colorOrdinals = bridge.findCard(ForgeCardId(ev.land().id))
-            ?.let(::computeColorOrdinals)
-            ?: emptyList()
+        val colorOrdinals =
+            bridge
+                .findCard(ForgeCardId(ev.land().id))
+                ?.let(::computeColorOrdinals)
+                ?: emptyList()
         queue.add(GameEvent.LandPlayed(ForgeCardId(ev.land().id), seat, colorOrdinals))
         log.debug("event: LandPlayed card={} seat={} colors={}", ev.land().name, seat, colorOrdinals)
     }
@@ -134,37 +141,48 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     override fun visit(ev: GameEventSpellAbilityCast) {
         val card = ev.sa().hostCard ?: return
         val seat = seatOf(card.controller) ?: return
-        val payments = ev.manaPayments().map { mp ->
-            GameEvent.ManaPayment(
-                sourceCardId = ForgeCardId(mp.sourceCardId()),
-                color = mp.color().toInt() and 0xFF,
-            )
-        }
+        val payments =
+            ev.manaPayments().map { mp ->
+                GameEvent.ManaPayment(
+                    sourceCardId = ForgeCardId(mp.sourceCardId()),
+                    color = mp.color().toInt() and 0xFF,
+                )
+            }
         val realCard = bridge.findCard(ForgeCardId(card.id))
-        val isAdventure = realCard != null &&
-            realCard.isAdventureCard &&
-            realCard.currentStateName == CardStateName.Secondary
+        val isAdventure =
+            realCard != null &&
+                realCard.isAdventureCard &&
+                realCard.currentStateName == CardStateName.Secondary
         // Alt-cost detection (Madness, Flashback, Warp, Cycling, Impending).
         // ev.sa() is a SpellAbilityView snapshot which doesn't expose alt-cost.
         // Peek the live stack instead — the just-cast spell sits on top — then
         // resolve to the client ability grpId via the keyword→grpId lookup
         // (same path ActionMapper uses when offering the alt-cost cast action).
-        val topSa = bridge.getGame()?.stack?.peek()?.spellAbility
-        val saAltCost = if (topSa != null && topSa.hostCard?.id == card.id) {
-            topSa.getAlternativeCost()
-        } else {
-            null
-        }
-        val altCostAbilityGrpId = if (saAltCost != null) {
-            val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
-            val cardData = if (grpId != 0) bridge.cardRepository.findByGrpId(grpId) else null
-            val altCostName = saAltCost.name.uppercase()
-            cardData?.keywordAbilityGrpIds?.entries
-                ?.firstOrNull { it.key.uppercase().startsWith(altCostName) }
-                ?.value ?: 0
-        } else {
-            0
-        }
+        val topSa =
+            bridge
+                .getGame()
+                ?.stack
+                ?.peek()
+                ?.spellAbility
+        val saAltCost =
+            if (topSa != null && topSa.hostCard?.id == card.id) {
+                topSa.getAlternativeCost()
+            } else {
+                null
+            }
+        val altCostAbilityGrpId =
+            if (saAltCost != null) {
+                val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+                val cardData = if (grpId != 0) bridge.cardRepository.findByGrpId(grpId) else null
+                val altCostName = saAltCost.name.uppercase()
+                cardData
+                    ?.keywordAbilityGrpIds
+                    ?.entries
+                    ?.firstOrNull { it.key.uppercase().startsWith(altCostName) }
+                    ?.value ?: 0
+            } else {
+                0
+            }
         queue.add(
             GameEvent.SpellCast(
                 cardId = ForgeCardId(card.id),
@@ -207,37 +225,50 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         // Emit the most specific variant possible based on zone pair.
         // When seat is unavailable or source zone is null (e.g. token entering
         // Command zone from nowhere), fall back to generic ZoneChanged.
-        val event = if (seat != null && from != null) {
-            when {
-                from == ZoneType.Battlefield && to == ZoneType.Graveyard && isLegendRuleVictim(card.id) ->
-                    GameEvent.LegendRuleDeath(ForgeCardId(card.id), seat)
-                // BF→GY without legend rule: fall through to ZoneChanged.
-                // CardDestroyed is emitted from GameEventCardDestroyed (with activator).
-                from == ZoneType.Battlefield && (to == ZoneType.Hand || to == ZoneType.Library) ->
-                    GameEvent.CardBounced(ForgeCardId(card.id), seat)
-                // Hand→Exile via the discard pipeline (Madness, Mayhem — keyword
-                // replacement effects exile-on-discard). The card has the keyword
-                // and the move originates from Hand, so still treat it as Discard
-                // rather than a generic exile.
-                from == ZoneType.Hand && to == ZoneType.Exile && hasDiscardReplacementKeyword(card) ->
-                    GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
-                to == ZoneType.Exile -> {
-                    val sourceId = card.exiledWith?.id
-                    GameEvent.CardExiled(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }, fromBattlefield = from == ZoneType.Battlefield)
+        val event =
+            if (seat != null && from != null) {
+                when {
+                    from == ZoneType.Battlefield && to == ZoneType.Graveyard && isLegendRuleVictim(card.id) ->
+                        GameEvent.LegendRuleDeath(ForgeCardId(card.id), seat)
+                    // BF→GY without legend rule: fall through to ZoneChanged.
+                    // CardDestroyed is emitted from GameEventCardDestroyed (with activator).
+                    from == ZoneType.Battlefield && (to == ZoneType.Hand || to == ZoneType.Library) ->
+                        GameEvent.CardBounced(ForgeCardId(card.id), seat)
+                    // Hand→Exile via the discard pipeline (Madness, Mayhem — keyword
+                    // replacement effects exile-on-discard). The card has the keyword
+                    // and the move originates from Hand, so still treat it as Discard
+                    // rather than a generic exile.
+                    from == ZoneType.Hand && to == ZoneType.Exile && hasDiscardReplacementKeyword(card) ->
+                        GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
+                    to == ZoneType.Exile -> {
+                        val sourceId = card.exiledWith?.id
+                        GameEvent.CardExiled(
+                            ForgeCardId(card.id),
+                            seat,
+                            sourceId?.let { ForgeCardId(it) },
+                            fromBattlefield = from == ZoneType.Battlefield,
+                        )
+                    }
+                    from == ZoneType.Hand && to == ZoneType.Graveyard ->
+                        GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
+                    from == ZoneType.Library && to == ZoneType.Graveyard -> {
+                        val sourceId =
+                            bridge
+                                .getGame()
+                                ?.stack
+                                ?.peek()
+                                ?.spellAbility
+                                ?.hostCard
+                                ?.id
+                        GameEvent.CardMilled(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) })
+                    }
+                    from == ZoneType.Library && to == ZoneType.Hand && isSearchedToHand(card.id) ->
+                        GameEvent.CardSearchedToHand(ForgeCardId(card.id))
+                    else -> GameEvent.ZoneChanged(ForgeCardId(card.id), Zone.fromForge(from), Zone.fromForge(to))
                 }
-                from == ZoneType.Hand && to == ZoneType.Graveyard ->
-                    GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
-                from == ZoneType.Library && to == ZoneType.Graveyard -> {
-                    val sourceId = bridge.getGame()?.stack?.peek()?.spellAbility?.hostCard?.id
-                    GameEvent.CardMilled(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) })
-                }
-                from == ZoneType.Library && to == ZoneType.Hand && isSearchedToHand(card.id) ->
-                    GameEvent.CardSearchedToHand(ForgeCardId(card.id))
-                else -> GameEvent.ZoneChanged(ForgeCardId(card.id), Zone.fromForge(from), Zone.fromForge(to))
+            } else {
+                GameEvent.ZoneChanged(ForgeCardId(card.id), from?.let { Zone.fromForge(it) } ?: Zone.Other, Zone.fromForge(to))
             }
-        } else {
-            GameEvent.ZoneChanged(ForgeCardId(card.id), from?.let { Zone.fromForge(it) } ?: Zone.Other, Zone.fromForge(to))
-        }
 
         // Clear cached P/T and state name when a card leaves the battlefield so re-entering
         // cards diff against fresh values instead of stale prior-lifetime stats.
@@ -313,9 +344,10 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     override fun visit(ev: GameEventBlockersDeclared) {
         val seat = seatOf(ev.defendingPlayer()) ?: return
         // Flatten all blocking creatures from the nested map
-        val ids = ev.blockers().values.flatMap { multimap ->
-            multimap.keys().map { ForgeCardId(it.id) }
-        }
+        val ids =
+            ev.blockers().values.flatMap { multimap ->
+                multimap.keys().map { ForgeCardId(it.id) }
+            }
         if (ids.isNotEmpty()) {
             queue.add(GameEvent.BlockersDeclared(ids, seat))
         }
@@ -534,7 +566,8 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
      * proto ordinal (W=1, U=2, B=3, R=4, G=5).
      */
     private fun computeColorOrdinals(card: Card): List<Int> =
-        card.getManaAbilities()
+        card
+            .getManaAbilities()
             .flatMap { sa ->
                 val mana = sa.manaPart ?: return@flatMap emptyList()
                 val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced

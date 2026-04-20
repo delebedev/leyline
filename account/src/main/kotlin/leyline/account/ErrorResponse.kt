@@ -4,7 +4,11 @@ import io.ktor.http.*
 import io.ktor.server.response.*
 
 /** Account server error codes. Keep response shape stable for local client flows. */
-enum class AccountError(val httpCode: Int, val grpcCode: String, val message: String) {
+enum class AccountError(
+    val httpCode: Int,
+    val grpcCode: String,
+    val message: String,
+) {
     MISSING_FIELD(400, "3", "MISSING USERNAME"),
     MISSING_PASSWORD(400, "3", "MISSING PASSWORD"),
     MISSING_REFRESH_TOKEN(400, "3", "MISSING REFRESH TOKEN"),

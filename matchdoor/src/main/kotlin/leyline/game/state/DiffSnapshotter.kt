@@ -14,14 +14,17 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Thread-safe: zone map uses [ConcurrentHashMap].
  */
-class DiffSnapshotter(@Suppress("UnusedPrivateProperty") private val idRegistry: InstanceIdRegistry) {
-
+class DiffSnapshotter(
+    @Suppress("UnusedPrivateProperty") private val idRegistry: InstanceIdRegistry,
+) {
     /** Previous zone assignment per instanceId — for detecting zone transfers. */
     private val previousZones = ConcurrentHashMap<Int, Int>()
 
     /** Record current zone for an instance. Returns previous zone or null if new. */
-    fun recordZone(instanceId: Int, zoneId: Int): Int? =
-        previousZones.put(instanceId, zoneId)
+    fun recordZone(
+        instanceId: Int,
+        zoneId: Int,
+    ): Int? = previousZones.put(instanceId, zoneId)
 
     /** Get the zone an instanceId was last seen in. */
     fun getPreviousZone(instanceId: Int): Int? = previousZones[instanceId]

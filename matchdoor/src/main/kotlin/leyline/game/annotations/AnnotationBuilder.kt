@@ -47,7 +47,6 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
  */
 @Suppress("LargeClass")
 object AnnotationBuilder {
-
     /** DamageDealt `type` wire value for combat damage. Non-combat (0) isn't exercised yet. */
     private const val COMBAT_DAMAGE_TYPE = 1
 
@@ -59,9 +58,10 @@ object AnnotationBuilder {
      * Many annotations treat `affectorId` as optional — a null or zero value means
      * "no affector", and the client expects the proto field to be omitted (default 0).
      */
-    private fun AnnotationInfo.Builder.setOptionalAffector(id: InstanceId?): AnnotationInfo.Builder = apply {
-        if (id != null && id.value != 0) setAffectorId(id.value)
-    }
+    private fun AnnotationInfo.Builder.setOptionalAffector(id: InstanceId?): AnnotationInfo.Builder =
+        apply {
+            if (id != null && id.value != 0) setAffectorId(id.value)
+        }
 
     fun zoneTransfer(
         instanceId: InstanceId,
@@ -70,26 +70,32 @@ object AnnotationBuilder {
         category: String,
         actingSeatId: SeatId? = null,
         affectorId: InstanceId? = null,
-    ): AnnotationInfo = AnnotationInfo.newBuilder()
-        .addType(AnnotationType.ZoneTransfer_af5a)
-        .apply {
-            // affectorId takes precedence (ability instance); fall back to actingSeatId (player seat)
-            val aff = when {
-                affectorId != null && affectorId.value != 0 -> affectorId.value
-                actingSeatId != null && actingSeatId.value != 0 -> actingSeatId.value
-                else -> 0
-            }
-            if (aff != 0) setAffectorId(aff)
-        }
-        .addAffectedIds(instanceId.value)
-        .addDetails(int32Detail(DetailKeys.ZONE_SRC, srcZoneId))
-        .addDetails(int32Detail(DetailKeys.ZONE_DEST, destZoneId))
-        .addDetails(typedStringDetail(DetailKeys.CATEGORY, category))
-        .build()
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.ZoneTransfer_af5a)
+            .apply {
+                // affectorId takes precedence (ability instance); fall back to actingSeatId (player seat)
+                val aff =
+                    when {
+                        affectorId != null && affectorId.value != 0 -> affectorId.value
+                        actingSeatId != null && actingSeatId.value != 0 -> actingSeatId.value
+                        else -> 0
+                    }
+                if (aff != 0) setAffectorId(aff)
+            }.addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.ZONE_SRC, srcZoneId))
+            .addDetails(int32Detail(DetailKeys.ZONE_DEST, destZoneId))
+            .addDetails(typedStringDetail(DetailKeys.CATEGORY, category))
+            .build()
 
     /** Spell/ability begins resolving. Client uses this to start resolution animation. */
-    fun resolutionStart(instanceId: InstanceId, grpId: GrpId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun resolutionStart(
+        instanceId: InstanceId,
+        grpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.ResolutionStart)
             .setAffectorId(instanceId.value)
             .addAffectedIds(instanceId.value)
@@ -99,7 +105,8 @@ object AnnotationBuilder {
     /** A new turn started. Client uses this to reset turn-scoped state.
      *  [activeSeat] = the active player's seat for the new turn. */
     fun newTurnStarted(activeSeat: SeatId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.NewTurnStarted)
             .setAffectorId(activeSeat.value)
             .addAffectedIds(activeSeat.value)
@@ -107,8 +114,13 @@ object AnnotationBuilder {
 
     /** Phase/step changed. Client uses this to animate the phase tracker.
      *  [activeSeat] = active player seat, [phase]/[step] = proto enum ordinals. */
-    fun phaseOrStepModified(activeSeat: SeatId, phase: Int, step: Int): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun phaseOrStepModified(
+        activeSeat: SeatId,
+        phase: Int,
+        step: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.PhaseOrStepModified)
             .addAffectedIds(activeSeat.value)
             .addDetails(int32Detail(DetailKeys.PHASE, phase))
@@ -117,8 +129,13 @@ object AnnotationBuilder {
 
     /** Card's instanceId changed (e.g. zone move creates new object).
      *  [affectorId] = ability instance that caused the change (null = unset). */
-    fun objectIdChanged(origId: InstanceId, newId: InstanceId, affectorId: InstanceId? = null): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun objectIdChanged(
+        origId: InstanceId,
+        newId: InstanceId,
+        affectorId: InstanceId? = null,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.ObjectIdChanged)
             .setOptionalAffector(affectorId)
             .addAffectedIds(origId.value)
@@ -142,7 +159,8 @@ object AnnotationBuilder {
         abilityGrpId: GrpId = GrpId(0),
         alternativeGrpId: GrpId = GrpId(0),
     ): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.UserActionTaken)
             .setAffectorId(seatId.value)
             .addAffectedIds(instanceId.value)
@@ -152,8 +170,7 @@ object AnnotationBuilder {
                 if (alternativeGrpId.value != 0) {
                     addDetails(int32Detail(DetailKeys.ALTERNATIVE_GRP_ID, alternativeGrpId.value))
                 }
-            }
-            .build()
+            }.build()
 
     /**
      * CastingTimeOption — persistent annotation marking how a spell on the stack was cast.
@@ -180,7 +197,8 @@ object AnnotationBuilder {
         alternateCostGrpId: GrpId,
         castAbilityGrpId: GrpId = alternateCostGrpId,
     ): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.CastingTimeOption)
             .setAffectorId(stackInstanceId.value)
             .addAffectedIds(stackInstanceId.value)
@@ -203,7 +221,8 @@ object AnnotationBuilder {
         manaId: Int = 0,
         color: Int = 0,
     ): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.ManaPaid)
             .setAffectorId(landInstanceId.value)
             .addAffectedIds(spellInstanceId.value)
@@ -217,8 +236,13 @@ object AnnotationBuilder {
      * [abilityId] = the ability instance that caused the tap (affectorId).
      *   Client expects a transient mana ability id; we approximate with the spell id.
      */
-    fun tappedUntappedPermanent(permanentId: InstanceId, abilityId: InstanceId, tapped: Boolean = true): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun tappedUntappedPermanent(
+        permanentId: InstanceId,
+        abilityId: InstanceId,
+        tapped: Boolean = true,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.TappedUntappedPermanent)
             .setAffectorId(abilityId.value)
             .addAffectedIds(permanentId.value)
@@ -238,7 +262,8 @@ object AnnotationBuilder {
         affectorId: InstanceId? = null,
         sourceZoneId: Int = 0,
     ): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.AbilityInstanceCreated)
             .setAffectorId(affectorId?.value ?: 0)
             .addAffectedIds(abilityInstanceId.value)
@@ -252,16 +277,24 @@ object AnnotationBuilder {
      * [affectorId] = the permanent that owns the ability, when applicable (e.g. tapped land).
      *   Pass null when not applicable.
      */
-    fun abilityInstanceDeleted(abilityInstanceId: InstanceId, affectorId: InstanceId? = null): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun abilityInstanceDeleted(
+        abilityInstanceId: InstanceId,
+        affectorId: InstanceId? = null,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.AbilityInstanceDeleted)
             .setAffectorId(affectorId?.value ?: 0)
             .addAffectedIds(abilityInstanceId.value)
             .build()
 
     /** Spell/ability done resolving. Client uses this to finalize stack→battlefield move. */
-    fun resolutionComplete(instanceId: InstanceId, grpId: GrpId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun resolutionComplete(
+        instanceId: InstanceId,
+        grpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.ResolutionComplete)
             .setAffectorId(instanceId.value)
             .addAffectedIds(instanceId.value)
@@ -277,8 +310,13 @@ object AnnotationBuilder {
      * [targetId] is polymorphic — creatures pass their [InstanceId.toWireId]; player damage
      * passes their [SeatId.toWireId].
      */
-    fun damageDealt(sourceInstanceId: InstanceId, targetId: WireId, amount: Int): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun damageDealt(
+        sourceInstanceId: InstanceId,
+        targetId: WireId,
+        amount: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.DamageDealt_af5a)
             .setAffectorId(sourceInstanceId.value)
             .addAffectedIds(targetId.value)
@@ -288,8 +326,13 @@ object AnnotationBuilder {
             .build()
 
     /** Player life total changed. Client uses this for life counter animation. */
-    fun modifiedLife(playerSeatId: SeatId, lifeDelta: Int, affectorId: InstanceId? = null): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun modifiedLife(
+        playerSeatId: SeatId,
+        lifeDelta: Int,
+        affectorId: InstanceId? = null,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.ModifiedLife)
             .setOptionalAffector(affectorId)
             .addAffectedIds(playerSeatId.value)
@@ -299,7 +342,8 @@ object AnnotationBuilder {
     /** Card's power changed. State parser — P/T values from gameObject fields, not annotation.
      *  Optional details (context needed): effect_id, counter_type, count, sourceAbilityGRPID. */
     fun modifiedPower(instanceId: InstanceId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.ModifiedPower)
             .addAffectedIds(instanceId.value)
             .build()
@@ -307,7 +351,8 @@ object AnnotationBuilder {
     /** Card's toughness changed. State parser — P/T values from gameObject fields, not annotation.
      *  Optional details (context needed): effect_id, counter_type, count, sourceAbilityGRPID. */
     fun modifiedToughness(instanceId: InstanceId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.ModifiedToughness)
             .addAffectedIds(instanceId.value)
             .build()
@@ -317,16 +362,24 @@ object AnnotationBuilder {
      * [affectedPlayerSeatId] = seat of the losing player.
      * [reason] = [AnnotationLossReason] (LifeTotal, Concede).
      */
-    fun lossOfGame(affectedPlayerSeatId: SeatId, reason: AnnotationLossReason): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun lossOfGame(
+        affectedPlayerSeatId: SeatId,
+        reason: AnnotationLossReason,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.LossOfGame_af5a)
             .addAffectedIds(affectedPlayerSeatId.value)
             .addDetails(int32Detail(DetailKeys.REASON, reason.wireValue))
             .build()
 
     /** Generic combat result marker. Client dispatches synthetic GameRulesEvent based on type. */
-    fun syntheticEvent(attackerIid: InstanceId, targetSeatId: SeatId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun syntheticEvent(
+        attackerIid: InstanceId,
+        targetSeatId: SeatId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.SyntheticEvent)
             .setAffectorId(attackerIid.value)
             .addAffectedIds(targetSeatId.value)
@@ -334,24 +387,34 @@ object AnnotationBuilder {
             .build()
 
     /** Persistent annotation: card entered a zone this turn. Client uses for summoning sickness, ETB display. */
-    fun enteredZoneThisTurn(zoneId: Int, instanceIds: List<InstanceId>): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun enteredZoneThisTurn(
+        zoneId: Int,
+        instanceIds: List<InstanceId>,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.EnteredZoneThisTurn)
             .setAffectorId(zoneId)
             .apply { instanceIds.forEach { addAffectedIds(it.value) } }
             .build()
 
     /** Convenience for single-instance [enteredZoneThisTurn]. */
-    fun enteredZoneThisTurn(zoneId: Int, instanceId: InstanceId): AnnotationInfo =
-        enteredZoneThisTurn(zoneId, listOf(instanceId))
+    fun enteredZoneThisTurn(
+        zoneId: Int,
+        instanceId: InstanceId,
+    ): AnnotationInfo = enteredZoneThisTurn(zoneId, listOf(instanceId))
 
     // -- Group A+ annotation builders (attachments) --
 
     /** Transient: Aura/Equipment attached to target. client type 70 (AttachmentCreated).
      *  [auraIid] = the aura/equipment instanceId, [targetIid] = the enchanted/equipped permanent.
      *  Wire shape: affectorId=auraIid, affectedIds=[targetIid]. */
-    fun attachmentCreated(auraIid: InstanceId, targetIid: InstanceId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun attachmentCreated(
+        auraIid: InstanceId,
+        targetIid: InstanceId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.AttachmentCreated)
             .setAffectorId(auraIid.value)
             .addAffectedIds(targetIid.value)
@@ -360,8 +423,12 @@ object AnnotationBuilder {
     /** Persistent: Ongoing attachment relationship. client type 20 (Attachment).
      *  [auraIid] = the aura/equipment instanceId, [targetIid] = the enchanted/equipped permanent.
      *  Wire shape: affectorId=auraIid, affectedIds=[targetIid]. */
-    fun attachment(auraIid: InstanceId, targetIid: InstanceId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun attachment(
+        auraIid: InstanceId,
+        targetIid: InstanceId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.Attachment)
             .setAffectorId(auraIid.value)
             .addAffectedIds(targetIid.value)
@@ -370,7 +437,8 @@ object AnnotationBuilder {
     /** Transient: Aura/Equipment detached from target. client type 12 (RemoveAttachment).
      *  [auraIid] = the aura/equipment instanceId that was removed. */
     fun removeAttachment(auraIid: InstanceId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.RemoveAttachment)
             .addAffectedIds(auraIid.value)
             .build()
@@ -380,7 +448,8 @@ object AnnotationBuilder {
     /** Card revealed to all players. client type 59 (RevealedCardCreated).
      *  [instanceId] = the revealed card's instanceId. */
     fun revealedCardCreated(instanceId: InstanceId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.RevealedCardCreated)
             .addAffectedIds(instanceId.value)
             .build()
@@ -388,7 +457,8 @@ object AnnotationBuilder {
     /** Card un-revealed (no longer visible). client type 60 (RevealedCardDeleted).
      *  [instanceId] = the card's instanceId being removed from revealed zone. */
     fun revealedCardDeleted(instanceId: InstanceId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.RevealedCardDeleted)
             .addAffectedIds(instanceId.value)
             .build()
@@ -398,7 +468,8 @@ object AnnotationBuilder {
     /** Token was created. client type 35 (TokenCreated).
      *  [instanceId] = the new token's instanceId in the game state. */
     fun tokenCreated(instanceId: InstanceId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.TokenCreated)
             .addAffectedIds(instanceId.value)
             .build()
@@ -406,15 +477,21 @@ object AnnotationBuilder {
     /** Token was destroyed (left battlefield). client type 41 (TokenDeleted).
      *  [instanceId] = the token's instanceId. */
     fun tokenDeleted(instanceId: InstanceId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.TokenDeleted)
             .setAffectorId(instanceId.value)
             .addAffectedIds(instanceId.value)
             .build()
 
     /** Counter added to a permanent. client type 16 (CounterAdded). */
-    fun counterAdded(instanceId: InstanceId, counterType: String, amount: Int): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun counterAdded(
+        instanceId: InstanceId,
+        counterType: String,
+        amount: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.CounterAdded)
             .addAffectedIds(instanceId.value)
             .addDetails(typedStringDetail(DetailKeys.COUNTER_TYPE, counterType))
@@ -422,8 +499,13 @@ object AnnotationBuilder {
             .build()
 
     /** Counter removed from a permanent. client type 17 (CounterRemoved). */
-    fun counterRemoved(instanceId: InstanceId, counterType: String, amount: Int): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun counterRemoved(
+        instanceId: InstanceId,
+        counterType: String,
+        amount: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.CounterRemoved)
             .addAffectedIds(instanceId.value)
             .addDetails(typedStringDetail(DetailKeys.COUNTER_TYPE, counterType))
@@ -432,14 +514,20 @@ object AnnotationBuilder {
 
     /** Library shuffled. client type 56 (Shuffle). */
     fun shuffle(seatId: SeatId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.Shuffle)
             .addAffectedIds(seatId.value)
             .build()
 
     /** Scry action. client annotation type 65 (Scry_af5a). */
-    fun scry(seatId: SeatId, topCount: Int, bottomCount: Int): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun scry(
+        seatId: SeatId,
+        topCount: Int,
+        bottomCount: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.Scry_af5a)
             .addAffectedIds(seatId.value)
             .addDetails(int32Detail(DetailKeys.TOP_COUNT, topCount))
@@ -451,8 +539,13 @@ object AnnotationBuilder {
     /** Counter state: authoritative counter count on a permanent. client type 14 (Counter_803b).
      *  Three-parser pattern: type 14 (this, state) + 16 (CounterAdded, event) + 17 (CounterRemoved, event).
      *  [counterType] = numeric counter type (1 = +1/+1). */
-    fun counter(instanceId: InstanceId, counterType: Int, count: Int): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun counter(
+        instanceId: InstanceId,
+        counterType: Int,
+        count: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.Counter_803b)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.COUNT, count))
@@ -476,17 +569,18 @@ object AnnotationBuilder {
         abilityGrpId: GrpId? = null,
         affectorId: InstanceId = instanceId,
         affectedIds: List<InstanceId> = listOf(instanceId),
-    ): AnnotationInfo = AnnotationInfo.newBuilder()
-        .addType(AnnotationType.AbilityWordActive)
-        .setAffectorId(affectorId.value)
-        .apply { affectedIds.forEach { addAffectedIds(it.value) } }
-        .addDetails(typedStringDetail(DetailKeys.ABILITY_WORD_NAME, abilityWordName))
-        .apply {
-            if (value != null) addDetails(int32Detail(DetailKeys.VALUE, value))
-            if (threshold != null) addDetails(int32Detail(DetailKeys.THRESHOLD, threshold))
-            if (abilityGrpId != null) addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId.value))
-        }
-        .build()
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.AbilityWordActive)
+            .setAffectorId(affectorId.value)
+            .apply { affectedIds.forEach { addAffectedIds(it.value) } }
+            .addDetails(typedStringDetail(DetailKeys.ABILITY_WORD_NAME, abilityWordName))
+            .apply {
+                if (value != null) addDetails(int32Detail(DetailKeys.VALUE, value))
+                if (threshold != null) addDetails(int32Detail(DetailKeys.THRESHOLD, threshold))
+                if (abilityGrpId != null) addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId.value))
+            }.build()
 
     /**
      * Keyword grant via layered effect — multi-creature form.
@@ -502,13 +596,15 @@ object AnnotationBuilder {
         originalAbilityObjectZcid: Int,
         affectorId: InstanceId,
     ): AnnotationInfo {
-        val builder = AnnotationInfo.newBuilder()
-            .addType(AnnotationType.AddAbility_af5a)
-            .addType(AnnotationType.LayeredEffect)
-            .setAffectorId(affectorId.value)
-            .addDetails(uint32Detail(DetailKeys.GRPID, grpId.value))
-            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
-            .addDetails(int32Detail(DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID, originalAbilityObjectZcid))
+        val builder =
+            AnnotationInfo
+                .newBuilder()
+                .addType(AnnotationType.AddAbility_af5a)
+                .addType(AnnotationType.LayeredEffect)
+                .setAffectorId(affectorId.value)
+                .addDetails(uint32Detail(DetailKeys.GRPID, grpId.value))
+                .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+                .addDetails(int32Detail(DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID, originalAbilityObjectZcid))
         affectedIds.forEach { builder.addAffectedIds(it.value) }
         uniqueAbilityIds.forEach { builder.addDetails(int32Detail(DetailKeys.UNIQUE_ABILITY_ID, it)) }
         return builder.build()
@@ -527,12 +623,14 @@ object AnnotationBuilder {
         affectorId: InstanceId,
     ): AnnotationInfo {
         require(grpIds.size == uniqueAbilityIds.size) { "grpIds and uniqueAbilityIds must match" }
-        val builder = AnnotationInfo.newBuilder()
-            .addType(AnnotationType.AddAbility_af5a)
-            .addType(AnnotationType.LayeredEffect)
-            .setAffectorId(affectorId.value)
-            .addAffectedIds(affectedId.value)
-            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+        val builder =
+            AnnotationInfo
+                .newBuilder()
+                .addType(AnnotationType.AddAbility_af5a)
+                .addType(AnnotationType.LayeredEffect)
+                .setAffectorId(affectorId.value)
+                .addAffectedIds(affectedId.value)
+                .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
         grpIds.forEach { builder.addDetails(uint32Detail(DetailKeys.GRPID, it.value)) }
         uniqueAbilityIds.forEach { builder.addDetails(int32Detail(DetailKeys.UNIQUE_ABILITY_ID, it)) }
         originalAbilityObjectZcids.forEach {
@@ -554,14 +652,16 @@ object AnnotationBuilder {
         qualificationSubtype: Int = 0,
         grpId: GrpId = AnnotationConstants.ADVENTURE_QUALIFICATION_GRP_ID,
         sourceParent: InstanceId = InstanceId(0),
-    ): AnnotationInfo = AnnotationInfo.newBuilder()
-        .addType(AnnotationType.Qualification)
-        .addAffectedIds(instanceId.value)
-        .addDetails(uint32Detail(DetailKeys.SOURCE_PARENT, sourceParent.value))
-        .addDetails(uint32Detail(DetailKeys.GRPID, grpId.value))
-        .addDetails(uint32Detail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
-        .addDetails(uint32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType.wireValue))
-        .build()
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Qualification)
+            .addAffectedIds(instanceId.value)
+            .addDetails(uint32Detail(DetailKeys.SOURCE_PARENT, sourceParent.value))
+            .addDetails(uint32Detail(DetailKeys.GRPID, grpId.value))
+            .addDetails(uint32Detail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
+            .addDetails(uint32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType.wireValue))
+            .build()
 
     // -- Tier 1 state annotations (abilities, effects, designations) --
 
@@ -573,7 +673,8 @@ object AnnotationBuilder {
         uniqueAbilityId: Int,
         originalAbilityObjectZcid: Int,
     ): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.AddAbility_af5a)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.GRPID, grpId.value))
@@ -583,8 +684,12 @@ object AnnotationBuilder {
             .build()
 
     /** Ability removed by effect. client type 23 (RemoveAbility). */
-    fun removeAbility(instanceId: InstanceId, effectId: EffectId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun removeAbility(
+        instanceId: InstanceId,
+        effectId: EffectId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.RemoveAbility)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
@@ -597,7 +702,8 @@ object AnnotationBuilder {
         usesRemaining: Int,
         uniqueAbilityId: Int,
     ): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.AbilityExhausted)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId.value))
@@ -607,8 +713,12 @@ object AnnotationBuilder {
 
     /** Designation gained (Monarch, City's Blessing, Initiative). client type 46 (GainDesignation).
      *  Event parser — emits DesignationCreatedEvent. */
-    fun gainDesignation(seatId: SeatId, designationType: Int): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun gainDesignation(
+        seatId: SeatId,
+        designationType: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.GainDesignation)
             .addAffectedIds(seatId.value)
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
@@ -617,8 +727,12 @@ object AnnotationBuilder {
     /** Designation state (persistent). client type 45 (Designation).
      *  Stub — always-present key only. Full version needs PromptMessage, CostIncrease,
      *  grpid, ActivePlayerSpellCount, value, ColorIdentity (context needed). */
-    fun designation(seatId: SeatId, designationType: Int): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun designation(
+        seatId: SeatId,
+        designationType: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.Designation)
             .addAffectedIds(seatId.value)
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
@@ -628,8 +742,12 @@ object AnnotationBuilder {
      *  Transient — fires once when the effect begins. No detail keys on this annotation;
      *  all metadata lives on the companion LayeredEffect persistent annotation.
      *  [affectorId] = ability instance on stack that created the effect (optional — ~35% omitted). */
-    fun layeredEffectCreated(effectId: EffectId, affectorId: InstanceId? = null): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun layeredEffectCreated(
+        effectId: EffectId,
+        affectorId: InstanceId? = null,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.LayeredEffectCreated)
             .addAffectedIds(effectId.value)
             .setOptionalAffector(affectorId)
@@ -651,29 +769,33 @@ object AnnotationBuilder {
         toughnessDelta: Int = 0,
         affectorId: InstanceId? = null,
         sourceAbilityGrpId: GrpId? = null,
-    ): AnnotationInfo = AnnotationInfo.newBuilder()
-        // Multi-type: co-type with ModifiedPower/ModifiedToughness for P/T buffs
-        .apply {
-            if (toughnessDelta != 0) addType(AnnotationType.ModifiedToughness)
-            if (powerDelta != 0) addType(AnnotationType.ModifiedPower)
-        }
-        .addType(AnnotationType.LayeredEffect)
-        .addAffectedIds(instanceId.value)
-        .setOptionalAffector(affectorId)
-        .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
-        .apply {
-            if (sourceAbilityGrpId != null) {
-                addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
-            }
-        }
-        .build()
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            // Multi-type: co-type with ModifiedPower/ModifiedToughness for P/T buffs
+            .apply {
+                if (toughnessDelta != 0) addType(AnnotationType.ModifiedToughness)
+                if (powerDelta != 0) addType(AnnotationType.ModifiedPower)
+            }.addType(AnnotationType.LayeredEffect)
+            .addAffectedIds(instanceId.value)
+            .setOptionalAffector(affectorId)
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+            .apply {
+                if (sourceAbilityGrpId != null) {
+                    addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
+                }
+            }.build()
 
     // -- Tier 2 detail-carrying annotations --
 
     /** Land color production for card frame rendering. client type 110 (ColorProduction).
      *  [colors] = client ManaColor ordinals (W=1, U=2, B=3, R=4, G=5). */
-    fun colorProduction(instanceId: InstanceId, colors: List<Int>): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun colorProduction(
+        instanceId: InstanceId,
+        colors: List<Int>,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.ColorProduction)
             .setAffectorId(instanceId.value)
             .addAffectedIds(instanceId.value)
@@ -681,8 +803,12 @@ object AnnotationBuilder {
             .build()
 
     /** Which object triggered an ability + source zone. client type 32 (TriggeringObject). */
-    fun triggeringObject(instanceId: InstanceId, sourceZone: Int): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun triggeringObject(
+        instanceId: InstanceId,
+        sourceZone: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.TriggeringObject)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.SOURCE_ZONE, sourceZone))
@@ -697,7 +823,8 @@ object AnnotationBuilder {
         promptId: Int,
         promptParameters: Int,
     ): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.TargetSpec)
             .setAffectorId(affectorId.value)
             .addAffectedIds(instanceId.value)
@@ -715,7 +842,8 @@ object AnnotationBuilder {
         toughness: Int,
         affectorId: InstanceId? = null,
     ): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.PowerToughnessModCreated)
             .addAffectedIds(instanceId.value)
             .setOptionalAffector(affectorId)
@@ -732,7 +860,8 @@ object AnnotationBuilder {
         disable: Int = 0,
         temporaryZoneTransfer: Int = 1,
     ): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.DisplayCardUnderCard)
             .setAffectorId(affectorId.value)
             .addAffectedIds(instanceId.value)
@@ -741,8 +870,12 @@ object AnnotationBuilder {
             .build()
 
     /** Predicted direct damage preview text. client type 66 (PredictedDirectDamage). */
-    fun predictedDirectDamage(instanceId: InstanceId, value: Int): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun predictedDirectDamage(
+        instanceId: InstanceId,
+        value: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.PredictedDirectDamage)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.VALUE, value))
@@ -753,8 +886,12 @@ object AnnotationBuilder {
     /** Transient: controller changed event. client type 15 (ControllerChanged).
      *  Wire shape: affectorId = spell/ability instance, affectedIds = [stolen permanent].
      *  No details field. */
-    fun controllerChanged(affectorId: InstanceId, instanceId: InstanceId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun controllerChanged(
+        affectorId: InstanceId,
+        instanceId: InstanceId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.ControllerChanged)
             .setAffectorId(affectorId.value)
             .addAffectedIds(instanceId.value)
@@ -762,8 +899,13 @@ object AnnotationBuilder {
 
     /** Persistent: controller change continuous effect. Types: [ControllerChanged, LayeredEffect].
      *  Details: effect_id. Persists while steal is active; removed on expiry. */
-    fun controllerChangedEffect(affectorId: InstanceId, instanceId: InstanceId, effectId: EffectId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun controllerChangedEffect(
+        affectorId: InstanceId,
+        instanceId: InstanceId,
+        effectId: EffectId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.ControllerChanged)
             .addType(AnnotationType.LayeredEffect)
             .setAffectorId(affectorId.value)
@@ -775,8 +917,12 @@ object AnnotationBuilder {
 
     /** Layered effect ended. [affectorId] = source of the destruction (e.g. aura iid for
      *  SBA_UnattachedAura; 0/omitted for EOT expiry). client type 19. */
-    fun layeredEffectDestroyed(effectId: EffectId, affectorId: InstanceId? = null): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun layeredEffectDestroyed(
+        effectId: EffectId,
+        affectorId: InstanceId? = null,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.LayeredEffectDestroyed)
             .setOptionalAffector(affectorId)
             .addAffectedIds(effectId.value)
@@ -784,14 +930,16 @@ object AnnotationBuilder {
 
     /** Player is selecting targets for a spell/ability. client type 92. */
     fun playerSelectingTargets(instanceId: InstanceId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.PlayerSelectingTargets)
             .addAffectedIds(instanceId.value)
             .build()
 
     /** Player submitted target selections. client type 93. */
     fun playerSubmittedTargets(instanceId: InstanceId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.PlayerSubmittedTargets)
             .addAffectedIds(instanceId.value)
             .build()
@@ -801,8 +949,12 @@ object AnnotationBuilder {
      * Wire shape: affectorId = vehicle instanceId, affectedIds = crew source instanceIds.
      * Emitted when crew resolves; persists until end of turn.
      */
-    fun crewedThisTurn(vehicleInstanceId: InstanceId, crewSourceInstanceIds: List<InstanceId>): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+    fun crewedThisTurn(
+        vehicleInstanceId: InstanceId,
+        crewSourceInstanceIds: List<InstanceId>,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.CrewedThisTurn)
             .setAffectorId(vehicleInstanceId.value)
             .apply { crewSourceInstanceIds.forEach { addAffectedIds(it.value) } }
@@ -818,18 +970,19 @@ object AnnotationBuilder {
         effectId: EffectId,
         affectorId: InstanceId? = null,
         sourceAbilityGrpId: GrpId? = null,
-    ): AnnotationInfo = AnnotationInfo.newBuilder()
-        .addType(AnnotationType.ModifiedType)
-        .addType(AnnotationType.LayeredEffect)
-        .addAffectedIds(instanceId.value)
-        .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
-        .setOptionalAffector(affectorId)
-        .apply {
-            if (sourceAbilityGrpId != null) {
-                addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
-            }
-        }
-        .build()
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.ModifiedType)
+            .addType(AnnotationType.LayeredEffect)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+            .setOptionalAffector(affectorId)
+            .apply {
+                if (sourceAbilityGrpId != null) {
+                    addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
+                }
+            }.build()
 
     /** Creatures dealt damage this turn. Persistent badge. client type 90.
      *  `affectorId` defaults to the shared Battlefield zone.
@@ -838,7 +991,8 @@ object AnnotationBuilder {
         affectedIds: List<InstanceId>,
         affectorId: InstanceId = AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR,
     ): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.DamagedThisTurn)
             .setAffectorId(affectorId.value)
             .addAllAffectedIds(affectedIds.map { it.value })
@@ -852,16 +1006,19 @@ object AnnotationBuilder {
     fun temporaryPermanent(
         tokenInstanceId: InstanceId,
         abilityGrpId: GrpId = AnnotationConstants.EOT_SACRIFICE_GRP_ID,
-    ): AnnotationInfo = AnnotationInfo.newBuilder()
-        .addType(AnnotationType.TemporaryPermanent)
-        .setAffectorId(tokenInstanceId.value)
-        .addAffectedIds(tokenInstanceId.value)
-        .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId.value))
-        .build()
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.TemporaryPermanent)
+            .setAffectorId(tokenInstanceId.value)
+            .addAffectedIds(tokenInstanceId.value)
+            .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId.value))
+            .build()
 
     /** Card in hidden zone revealed to opponent. Persistent badge. client type 75. */
     fun instanceRevealedToOpponent(instanceId: InstanceId): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.InstanceRevealedToOpponent)
             .addAffectedIds(instanceId.value)
             .build()
@@ -878,7 +1035,8 @@ object AnnotationBuilder {
         qualificationSubtype: Int = 0,
         sourceParent: InstanceId,
     ): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+        AnnotationInfo
+            .newBuilder()
             .addType(AnnotationType.Qualification)
             .setAffectorId(affectorId.value)
             .addAffectedIds(instanceId.value)
@@ -888,29 +1046,45 @@ object AnnotationBuilder {
             .addDetails(uint32Detail(DetailKeys.SOURCE_PARENT, sourceParent.value))
             .build()
 
-    private fun typedStringDetail(key: String, value: String): KeyValuePairInfo =
-        KeyValuePairInfo.newBuilder()
+    private fun typedStringDetail(
+        key: String,
+        value: String,
+    ): KeyValuePairInfo =
+        KeyValuePairInfo
+            .newBuilder()
             .setKey(key)
             .setType(KeyValuePairValueType.String)
             .addValueString(value)
             .build()
 
-    private fun uint32Detail(key: String, value: Int): KeyValuePairInfo =
-        KeyValuePairInfo.newBuilder()
+    private fun uint32Detail(
+        key: String,
+        value: Int,
+    ): KeyValuePairInfo =
+        KeyValuePairInfo
+            .newBuilder()
             .setKey(key)
             .setType(KeyValuePairValueType.Uint32)
             .addValueUint32(value)
             .build()
 
-    private fun int32Detail(key: String, value: Int): KeyValuePairInfo =
-        KeyValuePairInfo.newBuilder()
+    private fun int32Detail(
+        key: String,
+        value: Int,
+    ): KeyValuePairInfo =
+        KeyValuePairInfo
+            .newBuilder()
             .setKey(key)
             .setType(KeyValuePairValueType.Int32)
             .addValueInt32(value)
             .build()
 
-    private fun int32ListDetail(key: String, values: List<Int>): KeyValuePairInfo =
-        KeyValuePairInfo.newBuilder()
+    private fun int32ListDetail(
+        key: String,
+        values: List<Int>,
+    ): KeyValuePairInfo =
+        KeyValuePairInfo
+            .newBuilder()
             .setKey(key)
             .setType(KeyValuePairValueType.Int32)
             .apply { values.forEach { addValueInt32(it) } }

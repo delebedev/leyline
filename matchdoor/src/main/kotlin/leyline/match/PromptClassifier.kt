@@ -59,19 +59,22 @@ object PromptClassifier {
             }
 
             req.semantic == PromptSemantic.ModalChoice -> ClassifiedPrompt.ModalChoice(pendingPrompt)
-            req.semantic == PromptSemantic.SelectNLegendRule -> ClassifiedPrompt.SelectN(
-                pendingPrompt,
-                ClassifiedPrompt.SelectN.Reason.LegendRule,
-            )
+            req.semantic == PromptSemantic.SelectNLegendRule ->
+                ClassifiedPrompt.SelectN(
+                    pendingPrompt,
+                    ClassifiedPrompt.SelectN.Reason.LegendRule,
+                )
             req.semantic == PromptSemantic.Search -> ClassifiedPrompt.Search(pendingPrompt)
-            req.semantic == PromptSemantic.SelectNDiscard -> ClassifiedPrompt.SelectN(
-                pendingPrompt,
-                ClassifiedPrompt.SelectN.Reason.Discard,
-            )
-            req.semantic == PromptSemantic.RevealChoose -> ClassifiedPrompt.SelectN(
-                pendingPrompt,
-                ClassifiedPrompt.SelectN.Reason.RevealChoose,
-            )
+            req.semantic == PromptSemantic.SelectNDiscard ->
+                ClassifiedPrompt.SelectN(
+                    pendingPrompt,
+                    ClassifiedPrompt.SelectN.Reason.Discard,
+                )
+            req.semantic == PromptSemantic.RevealChoose ->
+                ClassifiedPrompt.SelectN(
+                    pendingPrompt,
+                    ClassifiedPrompt.SelectN.Reason.RevealChoose,
+                )
             // Ordering: explicit semantics above must precede candidateRefs fallback,
             // since reveal-choose prompts also have candidateRefs populated.
             req.candidateRefs.isNotEmpty() -> ClassifiedPrompt.Targeting(pendingPrompt)

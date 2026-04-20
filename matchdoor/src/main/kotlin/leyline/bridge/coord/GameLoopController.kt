@@ -73,30 +73,34 @@ class GameLoopController(
         }
     }
 
-    private fun launchGameThread(name: String, block: () -> Unit) {
+    private fun launchGameThread(
+        name: String,
+        block: () -> Unit,
+    ) {
         if (!running.compareAndSet(false, true)) {
             log.warn("Game loop already running for game ${game.id}")
             return
         }
-        gameThread = Thread({
-            try {
-                block()
-                log.info("Game loop ended for game ${game.id}, gameOver=${game.isGameOver}")
-            } catch (ex: Exception) {
-                if (running.get()) {
-                    log.error("Game loop crashed for game ${game.id}", ex)
-                } else {
-                    log.debug("Game loop interrupted during shutdown for game ${game.id}")
+        gameThread =
+            Thread({
+                try {
+                    block()
+                    log.info("Game loop ended for game ${game.id}, gameOver=${game.isGameOver}")
+                } catch (ex: Exception) {
+                    if (running.get()) {
+                        log.error("Game loop crashed for game ${game.id}", ex)
+                    } else {
+                        log.debug("Game loop interrupted during shutdown for game ${game.id}")
+                    }
+                } finally {
+                    running.set(false)
+                    // Wake up any awaitPriority() blocked on the semaphore — game over
+                    // means no more priority stops, so without this signal the caller
+                    // waits the full 15s timeout before detecting isGameOver.
+                    prioritySignal?.signal()
+                    started.countDown()
                 }
-            } finally {
-                running.set(false)
-                // Wake up any awaitPriority() blocked on the semaphore — game over
-                // means no more priority stops, so without this signal the caller
-                // waits the full 15s timeout before detecting isGameOver.
-                prioritySignal?.signal()
-                started.countDown()
-            }
-        }, name)
+            }, name)
         gameThread!!.isDaemon = true
         gameThread!!.start()
         started.countDown()
@@ -147,6 +151,5 @@ class GameLoopController(
     /**
      * Wait for the game loop thread to start (useful in tests).
      */
-    fun awaitStarted(timeoutMs: Long = 5_000): Boolean =
-        started.await(timeoutMs, TimeUnit.MILLISECONDS)
+    fun awaitStarted(timeoutMs: Long = 5_000): Boolean = started.await(timeoutMs, TimeUnit.MILLISECONDS)
 }

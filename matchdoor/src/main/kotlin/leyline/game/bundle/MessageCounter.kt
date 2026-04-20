@@ -17,8 +17,10 @@ import java.util.concurrent.atomic.AtomicInteger
  * @param initialGsId starting gameStateId (handshake advances before game start)
  * @param initialMsgId starting msgId (handshake advances before game start)
  */
-class MessageCounter(initialGsId: Int = 0, initialMsgId: Int = 1) {
-
+class MessageCounter(
+    initialGsId: Int = 0,
+    initialMsgId: Int = 1,
+) {
     private val gsId = AtomicInteger(initialGsId)
     private val msgId = AtomicInteger(initialMsgId)
 

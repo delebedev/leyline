@@ -85,7 +85,10 @@ class GameActionBridge(
     @Volatile private var diagnosticThread: Thread? = null
 
     /** Set diagnostic context for timeout messages. Called by [leyline.bridge.coord.GameLoopController]. */
-    fun setDiagnosticContext(game: Game, engineThread: Thread) {
+    fun setDiagnosticContext(
+        game: Game,
+        engineThread: Thread,
+    ) {
         diagnosticGame = game
         diagnosticThread = engineThread
     }
@@ -131,14 +134,16 @@ class GameActionBridge(
         return try {
             future.get(effectiveTimeout, TimeUnit.MILLISECONDS)
         } catch (_: TimeoutException) {
-            val diagnostic = BridgeTimeoutDiagnostic.buildMessage(
-                bridgeName = "GameActionBridge",
-                timeoutMs = effectiveTimeout,
-                game = diagnosticGame,
-                engineThread = diagnosticThread,
-                lastContext = "PendingAction(id=${actionId.take(8)}, phase=${state.phase}, " +
-                    "active=${state.activePlayerId}, priority=${state.priorityPlayerId})",
-            )
+            val diagnostic =
+                BridgeTimeoutDiagnostic.buildMessage(
+                    bridgeName = "GameActionBridge",
+                    timeoutMs = effectiveTimeout,
+                    game = diagnosticGame,
+                    engineThread = diagnosticThread,
+                    lastContext =
+                        "PendingAction(id=${actionId.take(8)}, phase=${state.phase}, " +
+                            "active=${state.activePlayerId}, priority=${state.priorityPlayerId})",
+                )
             log.warn("Action timed out, auto-passing\n{}", diagnostic)
             DevCheck.failOnAutoPass { "Action timed out after ${effectiveTimeout}ms" }
             PlayerAction.PassPriority
@@ -158,7 +163,10 @@ class GameActionBridge(
      *
      * @return true if the action was matched and completed
      */
-    fun submitAction(actionId: String, action: PlayerAction): Boolean {
+    fun submitAction(
+        actionId: String,
+        action: PlayerAction,
+    ): Boolean {
         val current = pending.get() ?: return false
         if (current.actionId != actionId) {
             log.warn("Action ID mismatch: expected=${current.actionId}, got=$actionId")
@@ -204,8 +212,13 @@ data class PendingActionState(
 
 /** A game entity that can be targeted: card or player. */
 sealed class Target {
-    data class Card(val cardId: ForgeCardId) : Target()
-    data class Player(val playerId: ForgePlayerId) : Target()
+    data class Card(
+        val cardId: ForgeCardId,
+    ) : Target()
+
+    data class Player(
+        val playerId: ForgePlayerId,
+    ) : Target()
 }
 
 /**
@@ -213,12 +226,35 @@ sealed class Target {
  */
 sealed class PlayerAction {
     data object PassPriority : PlayerAction()
-    data class CastSpell(val cardId: ForgeCardId, val abilityId: Int? = null, val targets: List<Target> = emptyList()) : PlayerAction()
-    data class ActivateAbility(val cardId: ForgeCardId, val abilityId: Int, val targets: List<Target> = emptyList()) : PlayerAction()
-    data class ActivateMana(val cardId: ForgeCardId) : PlayerAction()
-    data class PlayLand(val cardId: ForgeCardId) : PlayerAction()
-    data class DeclareAttackers(val attackerIds: List<ForgeCardId>, val defender: Target? = null) : PlayerAction()
-    data class DeclareBlockers(val blockAssignments: Map<ForgeCardId, ForgeCardId>) : PlayerAction()
+
+    data class CastSpell(
+        val cardId: ForgeCardId,
+        val abilityId: Int? = null,
+        val targets: List<Target> = emptyList(),
+    ) : PlayerAction()
+
+    data class ActivateAbility(
+        val cardId: ForgeCardId,
+        val abilityId: Int,
+        val targets: List<Target> = emptyList(),
+    ) : PlayerAction()
+
+    data class ActivateMana(
+        val cardId: ForgeCardId,
+    ) : PlayerAction()
+
+    data class PlayLand(
+        val cardId: ForgeCardId,
+    ) : PlayerAction()
+
+    data class DeclareAttackers(
+        val attackerIds: List<ForgeCardId>,
+        val defender: Target? = null,
+    ) : PlayerAction()
+
+    data class DeclareBlockers(
+        val blockAssignments: Map<ForgeCardId, ForgeCardId>,
+    ) : PlayerAction()
 
     /** Auto-pass all remaining priority in this turn (matches desktop "End Turn" button). */
     data object EndTurn : PlayerAction()

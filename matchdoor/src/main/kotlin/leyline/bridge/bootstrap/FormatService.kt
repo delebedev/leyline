@@ -35,7 +35,10 @@ object FormatService {
      * Returns null if legal, error string if illegal.
      * Throws if the format name doesn't resolve (configuration bug).
      */
-    fun validateDeck(deck: Deck, formatId: String?): String? {
+    fun validateDeck(
+        deck: Deck,
+        formatId: String?,
+    ): String? {
         val format = resolve(formatId) ?: return null
         return format.getDeckConformanceProblem(deck)
     }
