@@ -8,6 +8,7 @@ import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.bridge.types.SeatId
 import leyline.IntegrationTag
 import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -102,7 +103,7 @@ class GameEndTest :
             }
 
             h.registry.getMatch("test-match").shouldBeNull()
-            h.registry.getPeer("test-match", 1).shouldBeNull()
+            h.registry.getPeer("test-match", SeatId(1)).shouldBeNull()
         }
 
         test("lethal damage produces MatchCompleted room state") {

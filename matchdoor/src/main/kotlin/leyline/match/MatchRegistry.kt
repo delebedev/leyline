@@ -37,19 +37,19 @@ class MatchRegistry {
 
     fun registerSession(
         matchId: String,
-        seatId: Int,
+        seatId: SeatId,
         session: SessionOps,
     ) {
-        sessions.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId] = session
+        sessions.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId.value] = session
     }
 
     /** Get the OTHER seat's session (seat 1 -> seat 2, seat 2 -> seat 1). */
     fun getPeer(
         matchId: String,
-        seatId: Int,
+        seatId: SeatId,
     ): SessionOps? {
-        val peerSeat = SeatId(seatId).opponent.value
-        return sessions[matchId]?.get(peerSeat)
+        val peerSeat = seatId.opponent
+        return sessions[matchId]?.get(peerSeat.value)
     }
 
     /**
@@ -65,23 +65,23 @@ class MatchRegistry {
 
     fun registerHandler(
         matchId: String,
-        seatId: Int,
+        seatId: SeatId,
         handler: MatchHandler,
     ) {
-        handlers.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId] = handler
+        handlers.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId.value] = handler
     }
 
     fun getHandler(
         matchId: String,
-        seatId: Int,
-    ): MatchHandler? = handlers[matchId]?.get(seatId)
+        seatId: SeatId,
+    ): MatchHandler? = handlers[matchId]?.get(seatId.value)
 
     fun removeMatch(matchId: String): Match? = matches.remove(matchId)
 
     fun teardownMatch(
         matchId: String,
         reason: MatchTeardownReason,
-        seatId: Int? = null,
+        seatId: SeatId? = null,
         recorder: MatchRecorder? = null,
         fallbackBridge: GameBridge? = null,
     ) {

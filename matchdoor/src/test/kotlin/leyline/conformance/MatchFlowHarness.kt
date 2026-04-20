@@ -99,7 +99,7 @@ class MatchFlowHarness(
                 gameBridge = bridge,
                 paceDelayMs = 0,
             )
-        registry.registerSession(matchId, seatId.value, session)
+        registry.registerSession(matchId, seatId, session)
 
         // Seed accumulator + validator with a Full GSM BEFORE submitKeep.
         // At this point the engine is blocked at mulligan — safe to call
@@ -182,7 +182,7 @@ class MatchFlowHarness(
                 gameBridge = bridge,
                 paceDelayMs = 0,
             )
-        registry.registerSession(matchId, seatId.value, session)
+        registry.registerSession(matchId, seatId, session)
 
         val game = bridge.getGame()
         if (game != null) {

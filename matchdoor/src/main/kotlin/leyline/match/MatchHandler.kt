@@ -173,8 +173,8 @@ class MatchHandler(
                 coordinator = coordinator,
             ).also { it.playerId = clientId.removeSuffix("_Familiar") }
         session = s
-        registry.registerSession(matchId, seatId, s)
-        registry.registerHandler(matchId, seatId, this)
+        registry.registerSession(matchId, SeatId(seatId), s)
+        registry.registerHandler(matchId, SeatId(seatId), this)
         return s
     }
 
@@ -186,8 +186,8 @@ class MatchHandler(
         val sink = NettyMessageSink(ctx, dumpEnabled = false)
         val s = FamiliarSession(SeatId(seatId), matchId, sink, counter = counter)
         session = s
-        registry.registerSession(matchId, seatId, s)
-        registry.registerHandler(matchId, seatId, this)
+        registry.registerSession(matchId, SeatId(seatId), s)
+        registry.registerHandler(matchId, SeatId(seatId), this)
         return s
     }
 
@@ -370,7 +370,7 @@ class MatchHandler(
         registry.teardownMatch(
             matchId = matchId,
             reason = MatchTeardownReason.Disconnect,
-            seatId = seatId,
+            seatId = SeatId(seatId),
             recorder = session?.recorder,
             fallbackBridge = session?.gameBridge,
         )
@@ -385,7 +385,7 @@ class MatchHandler(
         registry.teardownMatch(
             matchId = matchId,
             reason = MatchTeardownReason.Exception,
-            seatId = seatId,
+            seatId = SeatId(seatId),
             recorder = session?.recorder,
             fallbackBridge = session?.gameBridge,
         )

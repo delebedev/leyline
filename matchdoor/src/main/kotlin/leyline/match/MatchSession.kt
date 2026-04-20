@@ -568,7 +568,7 @@ class MatchSession(
         registry.teardownMatch(
             matchId = matchId,
             reason = if (reason == ResultReason.Concede) MatchTeardownReason.Concede else MatchTeardownReason.GameOver,
-            seatId = seatId.value,
+            seatId = seatId,
             recorder = recorder,
             fallbackBridge = bridge,
         )
@@ -604,7 +604,7 @@ class MatchSession(
     /** Send a copy of GRE messages to the Familiar (seat 2) via registry. */
     private fun mirrorToFamiliar(messages: List<GREToClientMessage>) {
         if (seatId != gameBridge.seating.humanSeat) return
-        val peer = registry.getPeer(matchId, seatId.value) ?: return
+        val peer = registry.getPeer(matchId, seatId) ?: return
         // Only mirror to FamiliarSession — paired peers build their own state
         // via per-seat GamePlayback.
         if (peer !is FamiliarSession) return

@@ -240,7 +240,7 @@ class PuzzleBridgeTest :
                     gameBridge = b,
                     paceDelayMs = 0,
                 )
-            registry.registerSession(matchId, 1, session1)
+            registry.registerSession(matchId, SeatId(1), session1)
             session1.onPuzzleStart()
             b.getGame()!!.phaseHandler.phase shouldBe PhaseType.MAIN1
 
@@ -257,7 +257,7 @@ class PuzzleBridgeTest :
                     gameBridge = b,
                     paceDelayMs = 0,
                 )
-            registry.registerSession(matchId, 2, session2)
+            registry.registerSession(matchId, SeatId(2), session2)
             session2.onPuzzleStart()
 
             // Turn must not have advanced — seat 2 must not consume seat 1's actions

@@ -56,13 +56,13 @@ class MulliganHandler(
             log.info("Match Door GRE: skipMulligan — bypassing mulligan phase")
             // Send DealHand on this seat's channel — use handler's session (may be FamiliarSession)
             sendDealHandViaHandler(ctx!!, matchHandlerRef.session, match?.bridge)
-            val seat1Handler = registry.getHandler(matchId, 1)
+            val seat1Handler = registry.getHandler(matchId, SeatId(1))
             seat1Handler?.mulliganHandler?.sendDealHandPublic()
             seat1Handler?.session?.onMulliganKeep()
         } else {
             log.info("Match Door GRE: seat {} chose starting player", seatId.value)
             sendDealHandAndMulligan(ctx!!)
-            val seat1Handler = registry.getHandler(matchId, 1)
+            val seat1Handler = registry.getHandler(matchId, SeatId(1))
             if (seat1Handler != null) {
                 seat1Handler.mulliganHandler.sendDealHandPublic()
                 seat1Handler.mulliganHandler.sendMulliganReq()
