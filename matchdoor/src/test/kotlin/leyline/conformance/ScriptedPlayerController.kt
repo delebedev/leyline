@@ -84,6 +84,8 @@ class ScriptedPlayerController(
      * the action stays at the top of the script queue and we pass — the engine
      * advances to the next priority window where the action may become valid.
      */
+    // Irrelevant sealed subclasses deliberately fall through.
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     override fun chooseSpellAbilityToPlay(): List<SpellAbility>? {
         val action = peekAction()
         return when (action) {
@@ -116,6 +118,8 @@ class ScriptedPlayerController(
         }
     }
 
+    // Non-matched scripted actions fall through to super's AI behavior.
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     override fun declareAttackers(
         attacker: Player,
         combat: Combat,
@@ -149,6 +153,8 @@ class ScriptedPlayerController(
         }
     }
 
+    // Same fall-through-to-super pattern as declareAttackers.
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     override fun declareBlockers(
         defender: Player,
         combat: Combat,

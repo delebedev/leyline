@@ -129,6 +129,8 @@ class ClientAccumulator {
 
     // --- Internal ---
 
+    // GameStateType has variants (None_*, etc.) we intentionally skip.
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun processGameState(gs: GameStateMessage) {
         val gsId = gs.gameStateId
         gsIdHistory.add(gsId)

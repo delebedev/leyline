@@ -3,6 +3,7 @@ package leyline.game.mapping
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 
 /**
@@ -41,6 +42,6 @@ class PromptIdsTest :
 
         test("DECLARE_ATTACKERS is distinct from SELECT_TARGETS") {
             // Previously both used the same constant name — ensure they're separate
-            (PromptIds.DECLARE_ATTACKERS != PromptIds.SELECT_TARGETS) shouldBe true
+            PromptIds.DECLARE_ATTACKERS shouldNotBe PromptIds.SELECT_TARGETS
         }
     })

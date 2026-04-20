@@ -109,9 +109,8 @@ class RevealTest :
                 }
 
             val proxies = gsm.revealedCardProxies()
-            proxies shouldHaveSize 2
-
             assertSoftly {
+                proxies shouldHaveSize 2
                 for (proxy in proxies) {
                     proxy.visibility shouldBe Visibility.Public
                     proxy.zoneId shouldBe ZoneIds.P2_HAND

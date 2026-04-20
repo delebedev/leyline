@@ -1,3 +1,6 @@
+// Golden JSON payload assertions — wrapping strings breaks grep and diff readability.
+@file:Suppress("MaxLineLength")
+
 package leyline.frontdoor.wire
 
 import io.kotest.assertions.assertSoftly

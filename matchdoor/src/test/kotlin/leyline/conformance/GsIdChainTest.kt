@@ -76,9 +76,8 @@ class GsIdChainTest :
             result.messages.size shouldBe 5
 
             val gsms = result.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
-            gsms.size shouldBeGreaterThanOrEqual 3
-
             assertSoftly {
+                gsms.size shouldBeGreaterThanOrEqual 3
                 // msg2 (echo) chains from msg1, no pendingMessageCount
                 gsms[1].prevGameStateId shouldBe gsms[0].gameStateId
                 gsms[1].pendingMessageCount shouldBe 0

@@ -28,9 +28,8 @@ class ActivatedAbilityTest :
                 }
 
             val activate = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b).ofType(ActionType.Activate_add3)
-            activate.shouldHaveSize(2) // {1}: evasion + {2},{T},Sac: gain 3 life
-
             assertSoftly {
+                activate.shouldHaveSize(2) // {1}: evasion + {2},{T},Sac: gain 3 life
                 for (a in activate) {
                     a.shouldStop shouldBe true
                     a.instanceId shouldNotBe 0

@@ -6,6 +6,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
@@ -329,6 +330,6 @@ class CopyTokenIntegrationTest :
                         ann.typeList.contains(AnnotationType.TemporaryPermanent) &&
                             ann.affectorId == copyIid
                     }
-            (tempPerm == null) shouldBe true
+            tempPerm.shouldBeNull()
         }
     })

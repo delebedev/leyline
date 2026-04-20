@@ -161,9 +161,8 @@ class GameEndTest :
                     "Should have IntermissionReq after lethal damage"
                 }
             val req = intermission.intermissionReq
-            req.result.reason shouldBe ResultReason.Game_ae0a
-
             assertSoftly {
+                req.result.reason shouldBe ResultReason.Game_ae0a
                 req.optionsCount shouldBeGreaterThanOrEqualTo 2
                 req.hasIntermissionPrompt().shouldBeTrue()
                 req.intermissionPrompt.promptId shouldBe PromptIds.MATCH_RESULT_WIN_LOSS

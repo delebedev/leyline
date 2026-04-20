@@ -1,3 +1,8 @@
+// Integration test hitting all Front Door endpoints end-to-end. Splitting by endpoint
+// would hurt the shared harness/setup; keep as one file and treat size as intentional.
+// MaxLineLength suppressed for inline JSON payloads — wrapping breaks grep'ability.
+@file:Suppress("LargeClass", "MaxLineLength")
+
 package leyline.frontdoor
 
 import io.kotest.assertions.assertSoftly

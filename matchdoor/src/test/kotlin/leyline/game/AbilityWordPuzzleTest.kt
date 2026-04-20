@@ -54,8 +54,8 @@ class AbilityWordPuzzleTest :
                 gsm.persistentAnnotationsList.filter {
                     AnnotationType.AbilityWordActive in it.typeList
                 }
-            awAnns shouldHaveSize 1
             assertSoftly {
+                awAnns shouldHaveSize 1
                 awAnns[0].affectorId shouldBe iid
                 awAnns[0].affectedIdsList shouldBe listOf(iid)
                 awAnns[0].detailString("AbilityWordName") shouldBe "Threshold"
@@ -121,8 +121,8 @@ class AbilityWordPuzzleTest :
                     AnnotationType.AbilityWordActive in it.typeList &&
                         it.detailString("AbilityWordName") == "Morbid"
                 }
-            morbidAnns shouldHaveSize 1
             assertSoftly {
+                morbidAnns shouldHaveSize 1
                 morbidAnns[0].affectorId shouldBe 1 // P1 seatId
                 morbidAnns[0].affectedIdsList shouldContain prowlerIid
                 morbidAnns[0].detailString("AbilityWordName") shouldBe "Morbid"

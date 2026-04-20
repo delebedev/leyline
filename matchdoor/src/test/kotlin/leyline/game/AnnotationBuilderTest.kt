@@ -35,8 +35,8 @@ class AnnotationBuilderTest :
                     destZoneId = 28, // Battlefield
                     category = "PlayLand",
                 )
-            ann.typeList shouldContain AnnotationType.ZoneTransfer_af5a
             assertSoftly {
+                ann.typeList shouldContain AnnotationType.ZoneTransfer_af5a
                 ann.detailInt("zone_src") shouldBe 31
                 ann.detailInt("zone_dest") shouldBe 28
                 ann.detailString("category") shouldBe "PlayLand"
@@ -87,10 +87,9 @@ class AnnotationBuilderTest :
 
         test("objectIdChangedHasOrigAndNewId") {
             val ann = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 150.iid)
-            ann.typeList shouldContain AnnotationType.ObjectIdChanged
-            ann.affectedIdsList shouldContain 100
-
             assertSoftly {
+                ann.typeList shouldContain AnnotationType.ObjectIdChanged
+                ann.affectedIdsList shouldContain 100
                 ann.detailInt("orig_id") shouldBe 100
                 ann.detailInt("new_id") shouldBe 150
             }
@@ -468,10 +467,9 @@ class AnnotationBuilderTest :
 
         test("counterAddedFields") {
             val ann = AnnotationBuilder.counterAdded(instanceId = 100.iid, counterType = "P1P1", amount = 2)
-            ann.typeList shouldContain AnnotationType.CounterAdded
-            ann.affectedIdsList shouldContain 100
-
             assertSoftly {
+                ann.typeList shouldContain AnnotationType.CounterAdded
+                ann.affectedIdsList shouldContain 100
                 ann.detailString("counter_type") shouldBe "P1P1"
                 ann.detailInt("transaction_amount") shouldBe 2
             }
@@ -481,10 +479,9 @@ class AnnotationBuilderTest :
 
         test("counterRemovedFields") {
             val ann = AnnotationBuilder.counterRemoved(instanceId = 200.iid, counterType = "LOYALTY", amount = 3)
-            ann.typeList shouldContain AnnotationType.CounterRemoved
-            ann.affectedIdsList shouldContain 200
-
             assertSoftly {
+                ann.typeList shouldContain AnnotationType.CounterRemoved
+                ann.affectedIdsList shouldContain 200
                 ann.detailString("counter_type") shouldBe "LOYALTY"
                 ann.detailInt("transaction_amount") shouldBe 3
             }
@@ -558,10 +555,9 @@ class AnnotationBuilderTest :
 
         test("scryFields") {
             val ann = AnnotationBuilder.scry(seatId = 1.sid, topCount = 2, bottomCount = 1)
-            ann.typeList shouldContain AnnotationType.Scry_af5a
-            ann.affectedIdsList shouldContain 1
-
             assertSoftly {
+                ann.typeList shouldContain AnnotationType.Scry_af5a
+                ann.affectedIdsList shouldContain 1
                 ann.detailInt("topCount") shouldBe 2
                 ann.detailInt("bottomCount") shouldBe 1
             }
@@ -571,20 +567,20 @@ class AnnotationBuilderTest :
 
         test("counterStateFields") {
             val ann = AnnotationBuilder.counter(instanceId = 100.iid, counterType = 1, count = 1)
-            ann.typeList shouldContain AnnotationType.Counter_803b
-            ann.affectedIdsList shouldContain 100
             assertSoftly {
+                ann.typeList shouldContain AnnotationType.Counter_803b
+                ann.affectedIdsList shouldContain 100
                 ann.detailInt("count") shouldBe 1
                 ann.detailInt("counter_type") shouldBe 1
             }
         }
 
         test("counterTypeIdMapsForgeNames") {
-            // Exact matches (P1P1, M1M1 already uppercase in both)
-            CounterTypes.counterTypeId("P1P1") shouldBe 1
-            CounterTypes.counterTypeId("M1M1") shouldBe 2
-            // Forge UPPERCASE → proto PascalCase
             assertSoftly {
+                // Exact matches (P1P1, M1M1 already uppercase in both)
+                CounterTypes.counterTypeId("P1P1") shouldBe 1
+                CounterTypes.counterTypeId("M1M1") shouldBe 2
+                // Forge UPPERCASE → proto PascalCase
                 CounterTypes.counterTypeId("LOYALTY") shouldBe 7
                 CounterTypes.counterTypeId("CHARGE") shouldBe 19
                 CounterTypes.counterTypeId("AGE") shouldBe 9
@@ -592,9 +588,9 @@ class AnnotationBuilderTest :
                 CounterTypes.counterTypeId("STUN") shouldBe 172
                 CounterTypes.counterTypeId("POISON") shouldBe 3
                 CounterTypes.counterTypeId("LORE") shouldBe 108
+                // Unknown falls back to 0
+                CounterTypes.counterTypeId("NONEXISTENT") shouldBe 0
             }
-            // Unknown falls back to 0
-            CounterTypes.counterTypeId("NONEXISTENT") shouldBe 0
         }
 
         // --- AddAbility (Tier 1) ---
@@ -608,9 +604,9 @@ class AnnotationBuilderTest :
                     uniqueAbilityId = 217,
                     originalAbilityObjectZcid = 372,
                 )
-            ann.typeList shouldContain AnnotationType.AddAbility_af5a
-            ann.affectedIdsList shouldContain 100
             assertSoftly {
+                ann.typeList shouldContain AnnotationType.AddAbility_af5a
+                ann.affectedIdsList shouldContain 100
                 ann.detailInt("grpid") shouldBe 6
                 ann.detailInt("effect_id") shouldBe 7005
                 ann.detailInt("UniqueAbilityId") shouldBe 217
@@ -640,9 +636,9 @@ class AnnotationBuilderTest :
                     usesRemaining = 0,
                     uniqueAbilityId = 205,
                 )
-            ann.typeList shouldContain AnnotationType.AbilityExhausted
-            ann.affectedIdsList shouldContain 294
             assertSoftly {
+                ann.typeList shouldContain AnnotationType.AbilityExhausted
+                ann.affectedIdsList shouldContain 294
                 ann.detailInt("AbilityGrpId") shouldBe 137955
                 ann.detailInt("UsesRemaining") shouldBe 0
                 ann.detailInt("UniqueAbilityId") shouldBe 205
@@ -889,9 +885,9 @@ class AnnotationBuilderTest :
                     promptId = 1330,
                     promptParameters = 303,
                 )
-            ann.typeList shouldContain AnnotationType.TargetSpec
-            ann.affectedIdsList shouldContain 293
             assertSoftly {
+                ann.typeList shouldContain AnnotationType.TargetSpec
+                ann.affectedIdsList shouldContain 293
                 ann.detailInt("abilityGrpId") shouldBe 176387
                 ann.detailInt("index") shouldBe 1
                 ann.detailInt("promptId") shouldBe 1330
@@ -903,9 +899,9 @@ class AnnotationBuilderTest :
 
         test("powerToughnessModCreatedFields") {
             val ann = AnnotationBuilder.powerToughnessModCreated(instanceId = 335.iid, power = 1, toughness = 1)
-            ann.typeList shouldContain AnnotationType.PowerToughnessModCreated
-            ann.affectedIdsList shouldContain 335
             assertSoftly {
+                ann.typeList shouldContain AnnotationType.PowerToughnessModCreated
+                ann.affectedIdsList shouldContain 335
                 ann.detailInt("power") shouldBe 1
                 ann.detailInt("toughness") shouldBe 1
             }
@@ -941,8 +937,8 @@ class AnnotationBuilderTest :
 
         test("qualificationAdventure") {
             val ann = AnnotationBuilder.qualification(instanceId = 348.iid)
-            ann.typeList shouldContain AnnotationType.Qualification
             assertSoftly {
+                ann.typeList shouldContain AnnotationType.Qualification
                 ann.affectedIdsList shouldBe listOf(348)
                 ann.detailUint("QualificationType") shouldBe 47
                 ann.detailUint("QualificationSubtype") shouldBe 0
@@ -963,8 +959,8 @@ class AnnotationBuilderTest :
                     threshold = 7,
                     abilityGrpId = 175886.grp,
                 )
-            ann.typeList shouldContain AnnotationType.AbilityWordActive
             assertSoftly {
+                ann.typeList shouldContain AnnotationType.AbilityWordActive
                 ann.affectorId shouldBe 295
                 ann.affectedIdsList shouldBe listOf(295)
                 ann.detailString("AbilityWordName") shouldBe "Threshold"
@@ -981,8 +977,8 @@ class AnnotationBuilderTest :
                     abilityWordName = "Descended",
                     affectorId = 1.iid,
                 )
-            ann.typeList shouldContain AnnotationType.AbilityWordActive
             assertSoftly {
+                ann.typeList shouldContain AnnotationType.AbilityWordActive
                 ann.affectorId shouldBe 1
                 ann.affectedIdsList shouldBe listOf(303)
                 ann.detailString("AbilityWordName") shouldBe "Descended"

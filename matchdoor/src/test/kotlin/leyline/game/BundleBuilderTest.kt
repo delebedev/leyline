@@ -278,8 +278,8 @@ class BundleBuilderTest :
                 obj.blockState shouldBe Messages.BlockState.None_aa2d
             }
 
-            // Conformance: actions array present (cumulative turn log)
-            (gsm.actionsCount >= 0).shouldBeTrue() // naive actions may be empty in test
+            // Conformance note: actions array is a cumulative turn log. In the naive
+            // board-only setup here it's expected to be empty, so no assertion is needed.
         }
 
         test("echoBlockersBundle conformance — SendAndRecord, no combat state, actions present") {
