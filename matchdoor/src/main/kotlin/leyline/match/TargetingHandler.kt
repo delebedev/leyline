@@ -61,21 +61,43 @@ class TargetingHandler(
                 return
             }
 
-        val selectedTarget = resp.target
-        val selectedInstanceIds = selectedTarget.targetsList.map { it.targetInstanceId }
+        // Client sends one tap per SelectTargetsResp (Select_a1ad = add, Unselect = remove).
+        // Accumulate across taps until SubmitTargetsReq finalizes the selection.
+        val existing =
+            (pendingInteraction as? PendingClientInteraction.TargetSelection)
+                ?.takeIf { it.promptId == pendingPrompt.promptId }
+                ?.selectedInstanceIds
+                .orEmpty()
+
+        val accumulated = existing.toMutableList()
+        for (target in resp.target.targetsList) {
+            val iid = target.targetInstanceId
+            if (target.legalAction == SelectAction.Unselect) {
+                accumulated.remove(iid)
+            } else if (iid !in accumulated) {
+                accumulated.add(iid)
+            }
+        }
+        val selectedInstanceIds: List<Int> = accumulated
+
         val selectedIndices =
-            selectedTarget.targetsList
-                .mapNotNull { target ->
-                    val instanceId = target.targetInstanceId
+            selectedInstanceIds
+                .mapNotNull { instanceId ->
                     val playerIdx = resolvePlayerTarget(instanceId, bridge, pendingPrompt)
                     if (playerIdx != null) return@mapNotNull playerIdx
                     val cardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@mapNotNull null
                     pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
                 }.filter { it >= 0 }
 
-        log.info("TargetingHandler: SelectTargetsResp iids={} indices={} (awaiting SubmitTargetsReq)", selectedInstanceIds, selectedIndices)
+        log.info(
+            "TargetingHandler: SelectTargetsResp tap={} accumulated iids={} indices={} (awaiting SubmitTargetsReq)",
+            resp.target.targetsList.map { "${it.targetInstanceId}:${it.legalAction}" },
+            selectedInstanceIds,
+            selectedIndices,
+        )
 
-        pendingInteraction = PendingClientInteraction.TargetSelection(pendingPrompt.promptId, selectedIndices)
+        pendingInteraction =
+            PendingClientInteraction.TargetSelection(pendingPrompt.promptId, selectedIndices, selectedInstanceIds)
 
         // Echo-back: actions-only GSM diff + re-prompt with selection reflected
         val game = bridge.getGame() ?: return

@@ -1,10 +1,14 @@
 package leyline.game.bundle
 
 import forge.game.Game
+import forge.game.GameEntity
 import forge.game.combat.CombatUtil
+import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
+import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
@@ -58,19 +62,7 @@ object RequestBuilder {
         }
 
         for (ref in prompt.request.candidateRefs) {
-            val instanceId: Int
-            val highlight: HighlightType
-            if (ref.kind == "player") {
-                val seatId = playerEntityIdToSeatId(ref.entityId, bridge) ?: continue
-                instanceId = seatId
-                highlight = if (seatId == opponentSeatId) HighlightType.Hot else HighlightType.Cold
-            } else {
-                instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
-                // Tepid = blue/cyan "legal target" glow (matches reference client visuals).
-                // Cold (1) = yellowish-green, Hot (3) = bright/suggested,
-                // None (0) = no glow at all (proto default, field omitted).
-                highlight = HighlightType.Tepid
-            }
+            val (instanceId, highlight) = resolveRefToIidAndHighlight(ref, bridge, opponentSeatId) ?: continue
             selBuilder.addTargets(
                 wotc.mtgo.gre.external.messaging.Messages.Target
                     .newBuilder()
@@ -88,11 +80,19 @@ object RequestBuilder {
     /**
      * Build a re-prompt [SelectTargetsReq] reflecting the current selection.
      *
-     * Client-facing re-prompt differences from initial:
-     * - Only selected targets remain (unselected removed)
-     * - `legalAction: Unselect` (was Select)
-     * - `highlight` absent (proto default = None)
-     * - `selectedTargets` count set
+     * Shape:
+     * - Already-selected targets: `legalAction=Unselect`, no highlight.
+     * - Remaining legal candidates: `legalAction=Select_a1ad`, `highlight=Tepid`
+     *   (Hot for opponent player targets, Cold for own-player).
+     * - Illegal-after-selection candidates omitted entirely. Legality uses
+     *   Forge's [SpellAbility.canTarget] with hypothetical selections applied
+     *   via clone-and-swap on `sa.targets` (safe because the engine thread is
+     *   blocked inside `requestChoice` between phase-1 and phase-2).
+     * - `selectedTargets` set to selection count; minTargets/maxTargets preserved.
+     *
+     * When [InteractivePromptBridge.PendingPrompt.targetingSa] is null, falls back
+     * to emitting all non-selected candidates as Select — unblocks the client
+     * without a legality filter.
      */
     fun buildSelectTargetsRePrompt(
         prompt: InteractivePromptBridge.PendingPrompt,
@@ -117,18 +117,121 @@ object RequestBuilder {
             }
         if (sourceInstanceId != 0) builder.setSourceId(sourceInstanceId)
 
-        // Only include selected targets with Unselect action, no highlight
-        for (iid in selectedInstanceIds) {
+        val selectedSet = selectedInstanceIds.toSet()
+        val opponentSeatId = if (chooserSeatId == 1) 2 else 1
+        val sa = prompt.targetingSa
+        val game = bridge.getGame()
+        val hypotheticalSelections: List<GameEntity> =
+            if (sa != null && game != null) {
+                selectedInstanceIds.mapNotNull { resolveEntityByInstanceId(it, bridge, game) }
+            } else {
+                emptyList()
+            }
+
+        // When all target slots are filled (e.g. min=max=1 after one pick), the
+        // re-prompt omits Select entries — only the Unselect echo remains.
+        val slotsRemaining = selectedInstanceIds.size < prompt.request.max
+
+        for (ref in prompt.request.candidateRefs) {
+            val (instanceId, highlight) = resolveRefToIidAndHighlight(ref, bridge, opponentSeatId) ?: continue
+            if (instanceId == 0) continue
+
+            if (instanceId in selectedSet) {
+                selBuilder.addTargets(
+                    wotc.mtgo.gre.external.messaging.Messages.Target
+                        .newBuilder()
+                        .setTargetInstanceId(instanceId)
+                        .setLegalAction(SelectAction.Unselect),
+                )
+                continue
+            }
+
+            // Remaining candidate — only emit if more slots are open and still legal.
+            if (!slotsRemaining) continue
+            val stillLegal =
+                if (sa != null && game != null) {
+                    val candidate = resolveEntityByRef(ref, bridge, game)
+                    candidate == null || canTargetWithHypothetical(sa, candidate, hypotheticalSelections)
+                } else {
+                    true
+                }
+            if (!stillLegal) continue
+
             selBuilder.addTargets(
                 wotc.mtgo.gre.external.messaging.Messages.Target
                     .newBuilder()
-                    .setTargetInstanceId(iid)
-                    .setLegalAction(SelectAction.Unselect),
+                    .setTargetInstanceId(instanceId)
+                    .setLegalAction(SelectAction.Select_a1ad)
+                    .setHighlight(highlight),
             )
         }
 
         builder.addTargets(selBuilder)
         return builder.build()
+    }
+
+    /**
+     * Check whether [candidate] is still a legal target for [sa] given that
+     * [hypothetical] are already selected. Applied via clone-and-swap on
+     * `sa.targets` — never mutates the caller-visible TargetChoices.
+     */
+    private fun canTargetWithHypothetical(
+        sa: SpellAbility,
+        candidate: GameEntity,
+        hypothetical: List<GameEntity>,
+    ): Boolean {
+        val original = sa.targets
+        val clone = original.clone()
+        for (e in hypothetical) clone.add(e)
+        return try {
+            sa.setTargets(clone)
+            sa.canTarget(candidate)
+        } finally {
+            sa.setTargets(original)
+        }
+    }
+
+    /** Map a client instanceId (seatId for player targets, card iid otherwise) back to a Forge [GameEntity]. */
+    private fun resolveEntityByInstanceId(
+        instanceId: Int,
+        bridge: GameBridge,
+        game: Game,
+    ): GameEntity? {
+        bridge.getPlayer(SeatId(instanceId))?.let { return it }
+        val cardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return null
+        return game.findById(cardId.value)
+    }
+
+    /** Resolve a [candidateRef] (player- or card-kind) to a Forge [GameEntity]. */
+    private fun resolveEntityByRef(
+        ref: PromptCandidateRefDto,
+        bridge: GameBridge,
+        game: Game,
+    ): GameEntity? {
+        if (ref.kind == "player") {
+            val seatId = playerEntityIdToSeatId(ref.entityId, bridge) ?: return null
+            return bridge.getPlayer(SeatId(seatId))
+        }
+        return game.findById(ref.entityId)
+    }
+
+    /**
+     * Resolve a prompt [candidateRef] to its client-facing `(instanceId, highlight)` tuple.
+     * Players map to seatId with Hot/Cold highlight by friend/foe; cards map to their allocated
+     * instanceId with Tepid. Returns null when the entityId doesn't resolve.
+     */
+    private fun resolveRefToIidAndHighlight(
+        ref: PromptCandidateRefDto,
+        bridge: GameBridge,
+        opponentSeatId: Int,
+    ): Pair<Int, HighlightType>? {
+        if (ref.kind == "player") {
+            val seatId = playerEntityIdToSeatId(ref.entityId, bridge) ?: return null
+            val hl = if (seatId == opponentSeatId) HighlightType.Hot else HighlightType.Cold
+            return seatId to hl
+        }
+        val iid = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
+        return iid to HighlightType.Tepid
     }
 
     /**

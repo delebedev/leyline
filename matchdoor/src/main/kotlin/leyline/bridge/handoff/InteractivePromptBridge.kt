@@ -1,6 +1,7 @@
 package leyline.bridge.handoff
 
 import forge.game.Game
+import forge.game.spellability.SpellAbility
 import leyline.DevCheck
 import leyline.bridge.BridgeTimeoutDiagnostic
 import leyline.bridge.coord.GameLoopPoller
@@ -78,6 +79,12 @@ class InteractivePromptBridge(
         val promptId: String,
         val request: PromptRequest,
         val future: CompletableFuture<List<Int>>,
+        /**
+         * Live Forge SpellAbility for targeting prompts — session-only, never serialized.
+         * Enables legality checks on remaining candidates during re-prompt building.
+         * Null for non-targeting prompts.
+         */
+        val targetingSa: SpellAbility? = null,
     )
 
     // ── Call history ────────────────────────────────────────────────────────
@@ -201,14 +208,17 @@ class InteractivePromptBridge(
      * @param request describes the prompt to show the client
      * @return list of selected indices into [request.options]
      */
-    fun requestChoice(request: PromptRequest): List<Int> {
+    fun requestChoice(
+        request: PromptRequest,
+        targetingSa: SpellAbility? = null,
+    ): List<Int> {
         if (timeoutMs <= 0L) {
             return listOf(request.defaultIndex)
         }
 
         val promptId = UUID.randomUUID().toString()
         val future = CompletableFuture<List<Int>>()
-        val prompt = PendingPrompt(promptId, request, future)
+        val prompt = PendingPrompt(promptId, request, future, targetingSa)
 
         if (!pending.compareAndSet(null, prompt)) {
             val fallback = listOf(request.defaultIndex)

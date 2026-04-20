@@ -14,10 +14,14 @@ import io.kotest.matchers.shouldNotBe
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.HighlightType
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
+import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsResp
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
+import wotc.mtgo.gre.external.messaging.Messages.TargetSelection
 import forge.game.zone.ZoneType as ForgeZoneType
+import wotc.mtgo.gre.external.messaging.Messages.Target as ProtoTarget
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
 /**
@@ -291,6 +295,143 @@ class TargetingInteractionTest :
             passUntilResolved()
             // Damage landed only after submit
             (preBoltAiLife - ai.life) shouldBe 3
+        }
+
+        // ─── Run Away Together: multi-target + TargetsWithDifferentControllers ──
+
+        val runAwayTogetherState =
+            """
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=20
+
+            humanhand=Run Away Together
+            humanbattlefield=Island;Island;Grizzly Bears
+            humanlibrary=Island
+            aibattlefield=Coral Merfolk
+            ailibrary=Island
+            """.trimIndent()
+
+        test("Run Away Together — initial prompt: both creatures legal with min=max=2") {
+            startPuzzle(runAwayTogetherState, name = "RAT Initial")
+
+            val snap = messageSnapshot()
+            castSpellByName("Run Away Together").shouldBeTrue()
+
+            val stMsg = messagesSince(snap).firstOrNull { it.hasSelectTargetsReq() }
+            stMsg.shouldNotBeNull()
+            val group = stMsg.selectTargetsReq.getTargets(0)
+
+            val humanBearsIid = instanceIdOf("Grizzly Bears", player = human)
+            val aiMerfolkIid = instanceIdOf("Coral Merfolk", player = ai)
+
+            assertSoftly {
+                group.minTargets shouldBe 2
+                group.maxTargets shouldBe 2
+                group.selectedTargets shouldBe 0
+                group.targetsList shouldHaveSize 2
+                group.targetsList.map { it.targetInstanceId } shouldContain humanBearsIid
+                group.targetsList.map { it.targetInstanceId } shouldContain aiMerfolkIid
+                group.targetsList.forEach {
+                    it.legalAction shouldBe SelectAction.Select_a1ad
+                    it.highlight shouldBe HighlightType.Tepid
+                }
+            }
+        }
+
+        test("Run Away Together — re-prompt: picked = Unselect, opposite-controller = Select+Tepid") {
+            startPuzzle(runAwayTogetherState, name = "RAT RePrompt")
+
+            val humanBearsIid = instanceIdOf("Grizzly Bears", player = human)
+            val aiMerfolkIid = instanceIdOf("Coral Merfolk", player = ai)
+
+            castSpellByName("Run Away Together").shouldBeTrue()
+
+            val snap = messageSnapshot()
+            selectTargetsIterative(listOf(humanBearsIid))
+            val rePromptMsg = messagesSince(snap).firstOrNull { it.hasSelectTargetsReq() }
+            rePromptMsg.shouldNotBeNull()
+            val group = rePromptMsg.selectTargetsReq.getTargets(0)
+
+            assertSoftly {
+                group.minTargets shouldBe 2
+                group.maxTargets shouldBe 2
+                group.selectedTargets shouldBe 1
+                group.targetsList shouldHaveSize 2
+
+                val pickedEntry = group.targetsList.first { it.targetInstanceId == humanBearsIid }
+                pickedEntry.legalAction shouldBe SelectAction.Unselect
+
+                val remainingEntry = group.targetsList.first { it.targetInstanceId == aiMerfolkIid }
+                remainingEntry.legalAction shouldBe SelectAction.Select_a1ad
+                remainingEntry.highlight shouldBe HighlightType.Tepid
+            }
+        }
+
+        test("Run Away Together — Unselect tap removes from accumulation") {
+            startPuzzle(runAwayTogetherState, name = "RAT Unselect")
+
+            val humanBearsIid = instanceIdOf("Grizzly Bears", player = human)
+            val aiMerfolkIid = instanceIdOf("Coral Merfolk", player = ai)
+
+            castSpellByName("Run Away Together").shouldBeTrue()
+
+            // Pick Grizzly, then tap it again with legalAction=Unselect — accumulation clears.
+            selectTargetsIterative(listOf(humanBearsIid))
+            harness.session.onSelectTargets(
+                clientMessage(ClientMessageType.SelectTargetsResp_097b) {
+                    setSelectTargetsResp(
+                        SelectTargetsResp.newBuilder().setTarget(
+                            TargetSelection.newBuilder().addTargets(
+                                ProtoTarget
+                                    .newBuilder()
+                                    .setTargetInstanceId(humanBearsIid)
+                                    .setLegalAction(SelectAction.Unselect),
+                            ),
+                        ),
+                    )
+                },
+            )
+            harness.drainSink()
+
+            // Re-prompt after Unselect: both creatures selectable, selectedTargets=0.
+            val snap = messageSnapshot()
+            // Trigger one more tap to observe the latest re-prompt.
+            selectTargetsIterative(listOf(aiMerfolkIid))
+            val rePromptMsg = messagesSince(snap).firstOrNull { it.hasSelectTargetsReq() }
+            rePromptMsg.shouldNotBeNull()
+            val group = rePromptMsg.selectTargetsReq.getTargets(0)
+
+            assertSoftly {
+                // Only Merfolk is picked now; Grizzly should be Select (opposite-controller still legal).
+                group.selectedTargets shouldBe 1
+                val picked = group.targetsList.first { it.targetInstanceId == aiMerfolkIid }
+                picked.legalAction shouldBe SelectAction.Unselect
+                val remaining = group.targetsList.first { it.targetInstanceId == humanBearsIid }
+                remaining.legalAction shouldBe SelectAction.Select_a1ad
+            }
+        }
+
+        test("Run Away Together — submit both: creatures return to owners' hands") {
+            startPuzzle(runAwayTogetherState, name = "RAT Resolve")
+
+            val humanBearsIid = instanceIdOf("Grizzly Bears", player = human)
+            val aiMerfolkIid = instanceIdOf("Coral Merfolk", player = ai)
+
+            castSpellByName("Run Away Together").shouldBeTrue()
+            // Real client sends one tap per SelectTargetsResp — server accumulates.
+            selectTargetsIterative(listOf(humanBearsIid))
+            selectTargetsIterative(listOf(aiMerfolkIid))
+            submitTargets()
+            passUntilResolved()
+
+            assertSoftly {
+                human.getZone(ForgeZoneType.Hand).cards.any { it.name == "Grizzly Bears" }.shouldBeTrue()
+                ai.getZone(ForgeZoneType.Hand).cards.any { it.name == "Coral Merfolk" }.shouldBeTrue()
+                human.getZone(ForgeZoneType.Battlefield).cards.none { it.name == "Grizzly Bears" }.shouldBeTrue()
+                ai.getZone(ForgeZoneType.Battlefield).cards.none { it.name == "Coral Merfolk" }.shouldBeTrue()
+            }
         }
 
         // ─── Bite Down: multi-group fight targeting ────────────────────────────

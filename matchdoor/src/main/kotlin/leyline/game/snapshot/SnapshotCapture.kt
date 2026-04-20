@@ -287,11 +287,9 @@ object SnapshotCapture {
         // grpId — delegate to the same resolution used by buildCardObject.
         // Pass the live instanceId so that copy/token registry entries are populated.
         // EFFECT cards (Puzzle Goal, Monarch, The Ring, Radiation, City's Blessing,
-        // DetachedCardEffect, keywordEffect) are Forge's engine-bookkeeping surrogates
-        // for state Arena represents via dedicated annotations, not card objects.
-        // They have no client-DB grpId by design — skip strict resolution and let the
-        // wire layer drop them via (gamePieceType==EFFECT && grpId==0). See arena-lab-axx
-        // for the proper refactor (lift grpId out of CardSnapshot entirely).
+        // DetachedCardEffect, keywordEffect) are engine-bookkeeping surrogates without
+        // a client-DB grpId by design — skip strict resolution; wire layer drops them
+        // via (gamePieceType==EFFECT && grpId==0).
         val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
         val grpId =
             if (card.gamePieceType == GamePieceType.EFFECT) {

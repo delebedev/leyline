@@ -17,6 +17,13 @@ sealed interface PendingClientInteraction {
     data class TargetSelection(
         val promptId: String,
         val selectedIndices: List<Int>,
+        /**
+         * Accumulated client-facing instanceIds for the current targeting round.
+         * Each SelectTargetsResp is a single tap (Select or Unselect); the session
+         * accumulates here across taps until SubmitTargetsReq. Feeds the echo-back
+         * re-prompt so the client sees both already-picked and still-legal candidates.
+         */
+        val selectedInstanceIds: List<Int> = emptyList(),
     ) : PendingClientInteraction
 
     data class OptionalCost(
