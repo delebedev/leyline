@@ -133,16 +133,19 @@ class GameBridge(
     }
 
     /** Parameterized accessor — throws if seat not populated. */
-    fun actionBridge(seatId: SeatId): GameActionBridge = actionBridges[seatId.value] ?: error("No action bridge for seat ${seatId.value}")
+    fun actionBridge(seatId: SeatId): GameActionBridge =
+        actionBridges[seatId.value] ?: error("No action bridge for seat ${seatId.value}")
 
     /** Parameterized accessor — throws if seat not populated. */
-    fun promptBridge(seatId: SeatId): InteractivePromptBridge = promptBridges[seatId.value] ?: error("No prompt bridge for seat ${seatId.value}")
+    fun promptBridge(seatId: SeatId): InteractivePromptBridge =
+        promptBridges[seatId.value] ?: error("No prompt bridge for seat ${seatId.value}")
 
     /** All populated seat IDs (for iterating prompt bridges). */
     fun allSeatIds(): Set<Int> = promptBridges.keys
 
     /** Parameterized accessor — throws if seat not populated. */
-    fun mulliganBridge(seatId: SeatId): MulliganBridge = mulliganBridges[seatId.value] ?: error("No mulligan bridge for seat ${seatId.value}")
+    fun mulliganBridge(seatId: SeatId): MulliganBridge =
+        mulliganBridges[seatId.value] ?: error("No mulligan bridge for seat ${seatId.value}")
 
     /** Seat-scoped facade — use in handlers instead of raw seat-1 aliases. */
     override fun seat(seatId: SeatId): SeatBridges =
