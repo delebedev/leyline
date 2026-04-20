@@ -481,6 +481,7 @@ class GameBridge(
                 player = human,
                 lobbyPlayer = human.lobbyPlayer,
                 bridge = promptBridge(1),
+                seating = seating,
                 actionBridge = actionBridge(1),
                 mulliganBridge = mulliganBridge(1),
                 phaseStopProfile = phaseStopProfile,
@@ -815,6 +816,7 @@ class GameBridge(
                 player = human,
                 lobbyPlayer = human.lobbyPlayer,
                 bridge = promptBridge(1),
+                seating = seating,
                 actionBridge = actionBridge(1),
                 mulliganBridge = mulliganBridge(1),
                 phaseStopProfile = phaseStopProfile,
@@ -953,6 +955,7 @@ class GameBridge(
                 player = player,
                 lobbyPlayer = player.lobbyPlayer,
                 bridge = tempPrompt,
+                seating = seating,
                 actionBridge = tempAction,
                 mulliganBridge = tempMulligan,
             )

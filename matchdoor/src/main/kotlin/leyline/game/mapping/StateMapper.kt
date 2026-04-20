@@ -7,6 +7,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.opponent
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.annotations.AppliedTransfer
@@ -964,9 +965,9 @@ object StateMapper {
     ) {
         if (activeReveal != null) {
             val ownerSeat = activeReveal.ownerSeatId.value
-            val viewerSeat = if (ownerSeat == 1) 2 else 1
+            val viewerSeat = SeatId(ownerSeat).opponent.value
             val handZoneId = ZoneIds.handOf(ownerSeat)
-            val revealedZoneId = if (ownerSeat == 1) ZoneIds.REVEALED_P1 else ZoneIds.REVEALED_P2
+            val revealedZoneId = ZoneIds.revealedOf(ownerSeat)
 
             val revealedZoneIdx = zones.indexOfFirst { it.zoneId == revealedZoneId }
             val revealedZoneBuilder =

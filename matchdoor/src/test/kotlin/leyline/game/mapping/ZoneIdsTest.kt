@@ -20,4 +20,9 @@ class ZoneIdsTest : FunSpec({
     test("handOf(SeatId(1)) delegates to P1_HAND") { ZoneIds.handOf(SeatId(1)) shouldBe ZoneIds.P1_HAND }
     test("libraryOf(SeatId(2)) delegates to P2_LIBRARY") { ZoneIds.libraryOf(SeatId(2)) shouldBe ZoneIds.P2_LIBRARY }
     test("graveyardOf(SeatId(1)) delegates to P1_GRAVEYARD") { ZoneIds.graveyardOf(SeatId(1)) shouldBe ZoneIds.P1_GRAVEYARD }
+
+    test("revealedOf(1) == REVEALED_P1") { ZoneIds.revealedOf(1) shouldBe ZoneIds.REVEALED_P1 }
+    test("revealedOf(2) == REVEALED_P2") { ZoneIds.revealedOf(2) shouldBe ZoneIds.REVEALED_P2 }
+    test("revealedOf(SeatId(1)) delegates to REVEALED_P1") { ZoneIds.revealedOf(SeatId(1)) shouldBe ZoneIds.REVEALED_P1 }
+    test("revealedOf(SeatId(2)) delegates to REVEALED_P2") { ZoneIds.revealedOf(SeatId(2)) shouldBe ZoneIds.REVEALED_P2 }
 })

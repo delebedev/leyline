@@ -29,4 +29,7 @@ object ZoneIds {
     fun handOf(seat: SeatId): Int = handOf(seat.value)
     fun libraryOf(seat: SeatId): Int = libraryOf(seat.value)
     fun graveyardOf(seat: SeatId): Int = graveyardOf(seat.value)
+
+    fun revealedOf(seatId: Int): Int = if (seatId == 1) REVEALED_P1 else REVEALED_P2
+    fun revealedOf(seat: SeatId): Int = revealedOf(seat.value)
 }

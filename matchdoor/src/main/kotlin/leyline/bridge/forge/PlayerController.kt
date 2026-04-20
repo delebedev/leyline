@@ -51,6 +51,7 @@ import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PriorityDecision
+import leyline.bridge.types.Seating
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
@@ -177,6 +178,7 @@ class PlayerController(
     player: Player,
     lobbyPlayer: LobbyPlayer,
     private val bridge: InteractivePromptBridge,
+    seating: Seating,
     private val actionBridge: GameActionBridge? = null,
     private val mulliganBridge: MulliganBridge? = null,
     private val phaseStopProfile: PhaseStopProfile? = null,
@@ -247,7 +249,7 @@ class PlayerController(
 
     private val optionalActionGate = OptionalActionGate(this, actionBridge)
     private val spellExecutor = SpellExecutor(game, player, bridge)
-    private val targetingCoordinator = TargetingCoordinator(bridge)
+    private val targetingCoordinator = TargetingCoordinator(bridge, seating)
     private val costPaymentCoordinator = CostPaymentCoordinator(bridge, player, optionalActionGate)
     private val priorityLoopCoordinator: PriorityLoopCoordinator? =
         actionBridge?.let { ab ->
