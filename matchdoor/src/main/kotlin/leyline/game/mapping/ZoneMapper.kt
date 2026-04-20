@@ -2,6 +2,8 @@ package leyline.game.mapping
 
 import forge.game.player.Player
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.bridge.types.opponent
 import leyline.game.data.CardData
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.EffectTracker
@@ -58,7 +60,7 @@ object ZoneMapper {
                 .setOwnerSeatId(seatId)
                 .setVisibility(handVisibility)
                 .addViewers(seatId)
-        if (revealHand) handBuilder.addViewers(if (seatId == 1) 2 else 1)
+        if (revealHand) handBuilder.addViewers(SeatId(seatId).opponent.value)
         for (fid in snap.zones[handZoneId]?.contents ?: emptyList()) {
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             handBuilder.addObjectInstanceIds(instanceId)

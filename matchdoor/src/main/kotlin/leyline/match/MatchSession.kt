@@ -4,6 +4,7 @@ import forge.game.Game
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.opponent
 import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
@@ -360,7 +361,7 @@ class MatchSession(
         val bridge = gameBridge
         val profile = bridge.phaseStopProfile ?: return
         val humanPlayer = bridge.getPlayer(seatId) ?: return
-        val aiSeatId = SeatId(if (seatId.value == 1) 2 else 1)
+        val aiSeatId = seatId.opponent
         val aiPlayer = bridge.getPlayer(aiSeatId) ?: return
 
         // Honor clear-all flags even when no explicit stops present

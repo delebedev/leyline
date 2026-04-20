@@ -10,6 +10,8 @@ import leyline.bridge.handoff.Target
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ForgePlayerId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
+import leyline.bridge.types.opponent
 import leyline.game.bundle.RequestBuilder
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
@@ -567,7 +569,7 @@ open class CombatHandler(
         // Trample overflow → defender (player) slot
         if (prompt.hasTrample && prompt.defender != null) {
             val overflow = prompt.damageDealt - assigned
-            val defendingSeatId = if (counters.seatId.value == 1) 2 else 1
+            val defendingSeatId = counters.seatId.opponent.value
             assignments.add(
                 DamageAssignment
                     .newBuilder()

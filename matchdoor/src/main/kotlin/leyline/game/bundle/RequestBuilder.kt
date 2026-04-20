@@ -10,6 +10,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.opponent
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
@@ -331,7 +332,7 @@ object RequestBuilder {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return DeclareAttackersReq.getDefaultInstance()
         val builder = DeclareAttackersReq.newBuilder()
 
-        val opponentSeatId = if (seatId == 1) 2 else 1
+        val opponentSeatId = SeatId(seatId).opponent.value
         val defaultRecipient =
             DamageRecipient
                 .newBuilder()
