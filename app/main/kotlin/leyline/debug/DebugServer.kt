@@ -171,7 +171,7 @@ class DebugServer(
 
         // PlayerController decisions (engine thread)
         val bridge = session.gameBridge
-        val controller = bridge?.humanController
+        val controller = bridge.humanController
         if (controller != null) {
             for (e in controller.decisionLog()) {
                 entries.add(Entry(e.ts, "engine", e.phase, e.turn, e.decision.toString()))
