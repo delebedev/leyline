@@ -426,11 +426,16 @@ class TargetingInteractionTest :
             submitTargets()
             passUntilResolved()
 
+            val bearsInHumanHand = human.getZone(ForgeZoneType.Hand).cards.filter { it.name == "Grizzly Bears" }
+            val merfolkInAiHand = ai.getZone(ForgeZoneType.Hand).cards.filter { it.name == "Coral Merfolk" }
+            val bearsOnHumanBf = human.getZone(ForgeZoneType.Battlefield).cards.filter { it.name == "Grizzly Bears" }
+            val merfolkOnAiBf = ai.getZone(ForgeZoneType.Battlefield).cards.filter { it.name == "Coral Merfolk" }
+
             assertSoftly {
-                human.getZone(ForgeZoneType.Hand).cards.any { it.name == "Grizzly Bears" }.shouldBeTrue()
-                ai.getZone(ForgeZoneType.Hand).cards.any { it.name == "Coral Merfolk" }.shouldBeTrue()
-                human.getZone(ForgeZoneType.Battlefield).cards.none { it.name == "Grizzly Bears" }.shouldBeTrue()
-                ai.getZone(ForgeZoneType.Battlefield).cards.none { it.name == "Coral Merfolk" }.shouldBeTrue()
+                bearsInHumanHand shouldHaveSize 1
+                merfolkInAiHand shouldHaveSize 1
+                bearsOnHumanBf shouldHaveSize 0
+                merfolkOnAiBf shouldHaveSize 0
             }
         }
 

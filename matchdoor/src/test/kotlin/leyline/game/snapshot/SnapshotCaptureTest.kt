@@ -4,6 +4,7 @@ import forge.card.GamePieceType
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.types.ForgeCardId
@@ -50,6 +51,6 @@ class SnapshotCaptureTest :
                     .cards
                     .first { it.name == "Grizzly Bears" }
             val bearsSnap = snap.objects.getValue(ForgeCardId(bearsCard.id))
-            (bearsSnap.grpId > 0) shouldBe true
+            bearsSnap.grpId shouldBeGreaterThan 0
         }
     })
