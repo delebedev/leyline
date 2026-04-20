@@ -1,0 +1,18 @@
+[metadata]
+Name:Run Away Together Re-prompt
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast Run Away Together (min=2 max=2 TargetsWithDifferentControllers). Pick one creature — re-prompt should still offer the opposite-controller creature as a legal Select target.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Run Away Together
+humanbattlefield=Island;Island;Grizzly Bears
+humanlibrary=Island
+aibattlefield=Coral Merfolk
+ailibrary=Island

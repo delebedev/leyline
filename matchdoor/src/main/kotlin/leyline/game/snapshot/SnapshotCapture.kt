@@ -1,5 +1,6 @@
 package leyline.game.snapshot
 
+import forge.card.GamePieceType
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
@@ -285,8 +286,19 @@ object SnapshotCapture {
 
         // grpId — delegate to the same resolution used by buildCardObject.
         // Pass the live instanceId so that copy/token registry entries are populated.
+        // EFFECT cards (Puzzle Goal, Monarch, The Ring, Radiation, City's Blessing,
+        // DetachedCardEffect, keywordEffect) are Forge's engine-bookkeeping surrogates
+        // for state Arena represents via dedicated annotations, not card objects.
+        // They have no client-DB grpId by design — skip strict resolution and let the
+        // wire layer drop them via (gamePieceType==EFFECT && grpId==0). See arena-lab-axx
+        // for the proper refactor (lift grpId out of CardSnapshot entirely).
         val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-        val grpId = ObjectMapper.resolveGrpId(card, bridge.cardRepository, instanceId = instanceId, bridge.tokenRegistry)
+        val grpId =
+            if (card.gamePieceType == GamePieceType.EFFECT) {
+                0
+            } else {
+                ObjectMapper.resolveGrpId(card, bridge.cardRepository, instanceId = instanceId, bridge.tokenRegistry)
+            }
 
         // Owner/controller seats: seat 1 = human
         val ownerSeat = SeatId(if (card.owner == human) 1 else 2)
