@@ -767,7 +767,7 @@ class TargetingHandler(
         val req = pendingPrompt.request
         val player = bridge.getPlayer(counters.seatId)
         val library = player?.getZone(forge.game.zone.ZoneType.Library)
-        val libZoneId = if (counters.seatId.value == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
+        val libZoneId = ZoneIds.libraryOf(counters.seatId)
 
         // All library card instanceIds
         val allLibIds =

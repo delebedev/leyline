@@ -1412,7 +1412,7 @@ class BundleBuilder(
         context: GroupingContext,
         counter: MessageCounter,
     ): BundleResult {
-        val libZoneId = if (seatId == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
+        val libZoneId = ZoneIds.libraryOf(seatId)
         val revealedObjects =
             topCardSnaps.zip(cardInstanceIds).map { (cardSnap, iid) ->
                 ObjectMapper

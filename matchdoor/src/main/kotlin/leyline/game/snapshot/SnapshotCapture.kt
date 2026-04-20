@@ -385,9 +385,9 @@ object SnapshotCapture {
         fz: ForgeZoneType,
     ): Int? =
         when (fz) {
-            ForgeZoneType.Hand -> if (seat == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
-            ForgeZoneType.Library -> if (seat == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
-            ForgeZoneType.Graveyard -> if (seat == 1) ZoneIds.P1_GRAVEYARD else ZoneIds.P2_GRAVEYARD
+            ForgeZoneType.Hand -> ZoneIds.handOf(seat)
+            ForgeZoneType.Library -> ZoneIds.libraryOf(seat)
+            ForgeZoneType.Graveyard -> ZoneIds.graveyardOf(seat)
             ForgeZoneType.Battlefield,
             ForgeZoneType.Exile,
             ForgeZoneType.Flashback,
