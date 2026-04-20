@@ -30,7 +30,7 @@ package leyline.bridge.types
  * Player seat identity, match-global. Allocated at match open.
  *
  * Which seat is human-controlled vs AI/Familiar is match-scoped state —
- * see [leyline.match.Seating] held on `GameBridge`. Do NOT assume seat 1 = human.
+ * see [leyline.bridge.types.Seating] held on `GameBridge`. Do NOT assume seat 1 = human.
  */
 @JvmInline value class SeatId(
     val value: Int,

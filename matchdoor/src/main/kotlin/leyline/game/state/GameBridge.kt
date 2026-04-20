@@ -25,6 +25,8 @@ import leyline.bridge.types.MulliganPhase
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.Seating
+import leyline.bridge.types.opponent
 import leyline.config.MatchConfig
 import leyline.game.GamePlayback
 import leyline.game.annotations.AnnotationBuilder
@@ -571,9 +573,21 @@ class GameBridge(
         abilityRegistries.remove(forgeCardId)
     }
 
+    /**
+     * Seat role mapping for this match — human vs Familiar.
+     * Populated by [populateSeatMap] at game-start.
+     */
+    lateinit var seating: Seating
+        private set
+
     /** Populate seat map by registration order (seat 1 = first, seat 2 = second). */
     private fun populateSeatMap(g: Game) {
         g.players.forEachIndexed { index, player -> players[index + 1] = player }
+        val humanIdx = g.players.indexOfFirst { it.lobbyPlayer !is LobbyPlayerAi }
+        if (humanIdx < 0) error("GameBridge.populateSeatMap: no human player in game (all LobbyPlayerAi)")
+        val humanSeat = SeatId(humanIdx + 1)
+        seating = Seating(humanSeat = humanSeat, familiarSeat = humanSeat.opponent)
+        log.info("GameBridge: seating resolved human={} familiar={}", seating.humanSeat.value, seating.familiarSeat.value)
     }
 
     /**
