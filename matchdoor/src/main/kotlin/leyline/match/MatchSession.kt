@@ -338,7 +338,7 @@ class MatchSession(
 
             val (msg, nextMsgId) =
                 HandshakeMessages.settingsResp(
-                    seatId.value,
+                    seatId,
                     counter.currentMsgId(),
                     counter.currentGsId(),
                     clientSettings,

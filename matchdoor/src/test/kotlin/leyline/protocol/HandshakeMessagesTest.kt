@@ -2,6 +2,7 @@ package leyline.protocol
 
 import forge.util.MyRandom
 import io.kotest.core.spec.style.FunSpec
+import leyline.bridge.types.SeatId
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.shouldBe
@@ -36,7 +37,7 @@ class HandshakeMessagesTest :
         ): Map<Int, Int> {
             val bundle =
                 HandshakeMessages.initialBundle(
-                    seatId = 2,
+                    seatId = SeatId(2),
                     matchId = "test",
                     msgIdStart = 1,
                     gameStateId = 1,

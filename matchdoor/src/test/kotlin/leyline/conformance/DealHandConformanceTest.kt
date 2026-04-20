@@ -41,7 +41,7 @@ class DealHandConformanceTest :
                     repeat(7) { base.addCard("Plains", human, ZoneType.Hand) }
                     repeat(53) { base.addCard("Plains", human, ZoneType.Library) }
                 }
-            val (msg, nextMsgId) = HandshakeMessages.dealHand(6, 2, b, seatId = 1)
+            val (msg, nextMsgId) = HandshakeMessages.dealHand(6, 2, b, seatId = SeatId(1))
             val messages = greMessages(msg)
 
             messages.size shouldBe 1
@@ -144,7 +144,7 @@ class DealHandConformanceTest :
         test("initialBundle seat 1: ConnectResp + DieRoll + Full GSM (3 msgs)") {
             val (b, _, _) = base.startWithBoard { _, _, _ -> }
             val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(SeatId(1)))
-            val (msg, nextMsgId) = HandshakeMessages.initialBundle(1, ConformanceTestBase.TEST_MATCH_ID, 2, 1, deck, b)
+            val (msg, nextMsgId) = HandshakeMessages.initialBundle(SeatId(1), ConformanceTestBase.TEST_MATCH_ID, 2, 1, deck, b)
             val messages = greMessages(msg)
 
             assertSoftly {
@@ -168,7 +168,7 @@ class DealHandConformanceTest :
         test("initialBundle seat 2: DieRoll + Full GSM + ChooseStartingPlayerReq") {
             val (b, _, _) = base.startWithBoard { _, _, _ -> }
             val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(SeatId(2)))
-            val (msg, nextMsgId) = HandshakeMessages.initialBundle(2, ConformanceTestBase.TEST_MATCH_ID, 3, 1, deck, b)
+            val (msg, nextMsgId) = HandshakeMessages.initialBundle(SeatId(2), ConformanceTestBase.TEST_MATCH_ID, 3, 1, deck, b)
             val messages = greMessages(msg)
 
             assertSoftly {
@@ -205,7 +205,7 @@ class DealHandConformanceTest :
                     ).setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
                     .build()
 
-            val (msg, nextMsgId) = HandshakeMessages.settingsResp(1, 9, 2, settings)
+            val (msg, nextMsgId) = HandshakeMessages.settingsResp(SeatId(1), 9, 2, settings)
             val messages = greMessages(msg)
 
             messages.size shouldBe 1
@@ -220,7 +220,7 @@ class DealHandConformanceTest :
         }
 
         test("settingsResp with null settings produces empty resp") {
-            val (msg, nextMsgId) = HandshakeMessages.settingsResp(2, 8, 2, null)
+            val (msg, nextMsgId) = HandshakeMessages.settingsResp(SeatId(2), 8, 2, null)
             val messages = greMessages(msg)
 
             messages.size shouldBe 1

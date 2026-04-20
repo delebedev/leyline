@@ -3,6 +3,7 @@ package leyline.match
 import forge.gamemodes.puzzle.Puzzle
 import io.netty.channel.ChannelHandlerContext
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
@@ -73,7 +74,7 @@ class PuzzleHandler(
 
         val (bundleMsg, nextMsgId) =
             HandshakeMessages.puzzleInitialBundle(
-                seatId,
+                SeatId(seatId),
                 matchId,
                 session.counter.currentMsgId(),
                 gsId,
@@ -89,7 +90,7 @@ class PuzzleHandler(
             HandshakeMessages.puzzleActionsReq(
                 session.counter.currentMsgId(),
                 gsId,
-                seatId,
+                SeatId(seatId),
                 bridge,
             )
         session.counter.setMsgId(nextMsgId2)

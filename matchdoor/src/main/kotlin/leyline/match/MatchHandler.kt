@@ -351,7 +351,7 @@ class MatchHandler(
         val deck = GsmBuilder.buildDeckMessage(deckGrpIds)
         val (msg, nextMsgId) =
             HandshakeMessages.initialBundle(
-                seatId,
+                SeatId(seatId),
                 matchId,
                 s.counter.currentMsgId(),
                 gsId,

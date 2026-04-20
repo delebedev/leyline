@@ -135,7 +135,7 @@ class MulliganHandler(
     ) {
         if (s == null || bridge == null) return
         val gsId = s.counter.nextGsId()
-        val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId.value)
+        val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId)
         s.counter.setMsgId(nextMsgId)
         Tap.outboundTemplate("DealHand seat=${seatId.value} deletedIds=0")
         ProtoDump.dump(msg, "DealHand-seat${seatId.value}")
@@ -156,7 +156,7 @@ class MulliganHandler(
         val s = session ?: return
         val bridge = s.gameBridge
         val gsId = s.counter.nextGsId()
-        val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId.value, diffDeletedInstanceIds)
+        val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId, diffDeletedInstanceIds)
         s.counter.setMsgId(nextMsgId)
         Tap.outboundTemplate("DealHand seat=${seatId.value} deletedIds=${diffDeletedInstanceIds.size}")
         ProtoDump.dump(msg, "DealHand-seat${seatId.value}")
@@ -216,7 +216,7 @@ class MulliganHandler(
             HandshakeMessages.groupReqBundle(
                 s.counter.currentMsgId(),
                 gsId,
-                seatId.value,
+                seatId,
                 mulliganCount,
                 handInstanceIds,
                 tuckCount,
