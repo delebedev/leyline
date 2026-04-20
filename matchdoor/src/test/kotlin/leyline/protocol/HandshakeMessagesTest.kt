@@ -2,12 +2,12 @@ package leyline.protocol
 
 import forge.util.MyRandom
 import io.kotest.core.spec.style.FunSpec
-import leyline.bridge.types.SeatId
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.DeckMessage

@@ -133,8 +133,7 @@ class GameBridge(
     }
 
     /** Parameterized accessor — throws if seat not populated. */
-    fun actionBridge(seatId: SeatId): GameActionBridge =
-        actionBridges[seatId.value] ?: error("No action bridge for seat ${seatId.value}")
+    fun actionBridge(seatId: SeatId): GameActionBridge = actionBridges[seatId.value] ?: error("No action bridge for seat ${seatId.value}")
 
     /** Parameterized accessor — throws if seat not populated. */
     fun promptBridge(seatId: SeatId): InteractivePromptBridge =

@@ -10,7 +10,6 @@ import leyline.bridge.handoff.Target
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ForgePlayerId
 import leyline.bridge.types.InstanceId
-import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.bundle.RequestBuilder
 import leyline.game.mapping.PromptIds

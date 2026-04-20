@@ -8,8 +8,8 @@ import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.SeatId
 import leyline.IntegrationTag
+import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.*
 
