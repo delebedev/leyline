@@ -123,11 +123,4 @@ powerAssert {
     )
 }
 
-spotless {
-    kotlin {
-        target("src/**/*.kt")
-        ktlint("1.3.1").editorConfigOverride(
-            mapOf("ktlint_standard_no-wildcard-imports" to "disabled"),
-        )
-    }
-}
+// Spotless is configured uniformly for all subprojects in the root build.gradle.kts.

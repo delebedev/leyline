@@ -1,6 +1,7 @@
 package leyline.frontdoor.service
 
 /** Stub responses for unimplemented lobby endpoints. Each graduates to a real service when implemented. */
+@Suppress("ktlint:standard:max-line-length")
 object LobbyStubs {
     fun activeMatches() = """{"MatchesV3":[]}"""
 

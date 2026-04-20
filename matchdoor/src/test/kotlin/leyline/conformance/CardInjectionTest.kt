@@ -14,7 +14,6 @@ import leyline.bridge.types.InstanceId
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.CardType
-import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
 /**
  * Verifies [TestCardInjector] + [CardDataDeriver] produce cards that are
@@ -38,9 +37,8 @@ class CardInjectionTest :
             val gsId1 = counter.nextGsId()
             val snap1 = GsmSnapshot.capture(game, b, "test", gsId1)
             val gsm = StateMapper.buildFromSnapshot(snap1, gsId1, "test", b, viewingSeatId = 1).gsm
-            val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) {
-                "Injected card should appear in gameObjectsList"
-            }
+            val obj =
+                checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected card should appear in gameObjectsList" }
             obj.grpId shouldBe injected.grpId
             obj.cardTypesList.shouldContain(CardType.Creature)
             obj.hasPower().shouldBeTrue()
@@ -65,14 +63,16 @@ class CardInjectionTest :
             val gsId2 = counter.nextGsId()
             val snap2 = GsmSnapshot.capture(game, b, "test", gsId2)
             val gsm = StateMapper.buildFromSnapshot(snap2, gsId2, "test", b, viewingSeatId = 1).gsm
-            val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) {
-                "Injected card should appear in gameObjectsList"
-            }
+            val obj =
+                checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected card should appear in gameObjectsList" }
             obj.cardTypesList.shouldContain(CardType.Instant)
 
-            val handZone = checkNotNull(
-                gsm.zonesList.firstOrNull { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 },
-            ) { "Hand zone should exist for seat 1" }
+            val handZone =
+                checkNotNull(
+                    gsm.zonesList.firstOrNull {
+                        it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand && it.ownerSeatId == 1
+                    },
+                ) { "Hand zone should exist for seat 1" }
             handZone.objectInstanceIdsList.shouldContain(injected.instanceId)
         }
 
@@ -104,9 +104,8 @@ class CardInjectionTest :
             val gsId3 = counter.nextGsId()
             val snap3 = GsmSnapshot.capture(game, b, "test", gsId3)
             val gsm = StateMapper.buildFromSnapshot(snap3, gsId3, "test", b, viewingSeatId = 1).gsm
-            val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) {
-                "Injected land should appear in gameObjectsList"
-            }
+            val obj =
+                checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected land should appear in gameObjectsList" }
             obj.cardTypesList.shouldContain(CardType.Land_a80b)
         }
     })

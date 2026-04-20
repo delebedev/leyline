@@ -1,0 +1,31 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{kt,kts}]
+max_line_length = 160
+ktlint_standard_no-wildcard-imports = disabled
+
+# Keep the codebase's intentional style: multi-line function/class signatures
+# with trailing commas, `= expressionBody` on its own line for chains.
+# These rules would collapse those to single-line forms that fit under 160
+# chars but are harder to scan at review time.
+ktlint_standard_function-signature = disabled
+ktlint_standard_class-signature = disabled
+ktlint_standard_parameter-list-wrapping = disabled
+ktlint_standard_multiline-expression-wrapping = disabled
+# KDoc section headers and pre-function EOL comments are intentional patterns
+# in this codebase; the rule demands blank lines between them that add noise.
+ktlint_standard_no-consecutive-comments = disabled
+
+[*.{yml,yaml,json}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false

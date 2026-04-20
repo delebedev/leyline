@@ -70,7 +70,12 @@ class ClientGuiGame(
 
     override fun showConfirmDialog(message: String, title: String, defaultYes: Boolean): Boolean = confirm(null, "$title: $message", defaultYes, null)
 
-    override fun showConfirmDialog(message: String, title: String, yesText: String, noText: String): Boolean = confirm(null, "$title: $message", true, listOf(yesText, noText))
+    override fun showConfirmDialog(message: String, title: String, yesText: String, noText: String): Boolean = confirm(
+        null,
+        "$title: $message",
+        true,
+        listOf(yesText, noText),
+    )
 
     override fun showConfirmDialog(
         message: String,
@@ -426,7 +431,14 @@ class ClientGuiGame(
 
     override fun showInputDialog(message: String, title: String, icon: FSkinProp): String = showInputDialog(message, title, icon, null, null, false)
 
-    override fun showInputDialog(message: String, title: String, icon: FSkinProp?, initialInput: String?): String = showInputDialog(message, title, icon, initialInput, null, false)
+    override fun showInputDialog(message: String, title: String, icon: FSkinProp?, initialInput: String?): String = showInputDialog(
+        message,
+        title,
+        icon,
+        initialInput,
+        null,
+        false,
+    )
 
     override fun showInputDialog(
         message: String,
@@ -539,7 +551,12 @@ class ClientGuiGame(
     override fun setPanelSelection(hostCard: CardView) {}
     override fun setCard(card: CardView) {}
     override fun setPlayerAvatar(player: LobbyPlayer, ihi: IHasIcon) {}
-    override fun openZones(controller: PlayerView, zones: Collection<ZoneType>, players: Map<PlayerView, Any>, backupLastZones: Boolean): PlayerZoneUpdates = PlayerZoneUpdates()
+    override fun openZones(
+        controller: PlayerView,
+        zones: Collection<ZoneType>,
+        players: Map<PlayerView, Any>,
+        backupLastZones: Boolean,
+    ): PlayerZoneUpdates = PlayerZoneUpdates()
     override fun restoreOldZones(playerView: PlayerView, playerZoneUpdates: PlayerZoneUpdates) {}
     override fun setHighlighted(pv: PlayerView, b: Boolean) {}
     override fun setUsedToPay(card: CardView, value: Boolean) {}
