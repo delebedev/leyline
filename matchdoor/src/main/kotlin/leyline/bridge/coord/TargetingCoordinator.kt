@@ -385,7 +385,7 @@ class TargetingCoordinator(
                 candidateRefs = candidateRefs,
                 sourceEntityId = sa.hostCard?.id,
             )
-        val indices = bridge.requestChoice(request)
+        val indices = bridge.requestChoice(request, targetingSa = sa)
 
         if (indices.isEmpty() && mandatory && minTargets > 0) {
             return TargetSelectionResult(false, false)

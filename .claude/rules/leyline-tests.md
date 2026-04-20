@@ -92,6 +92,7 @@ Existing tests using `val base = ConformanceTestBase()` pattern still work — m
 - **Category assertions mandatory** on zone transfer tests. `zt.shouldNotBeNull()` alone is lax — always check `zt.category shouldBe "..."`.
 - **Bail-out loops need terminal assertions.** Always assert the condition after the loop, or use `passUntil` / `passThroughCombat` which fail on exhaustion.
 - **Use helpers, not raw proto access.** Check `TestExtensions.kt` (assertions) and `ProtoDsl.kt` (proto builders — actions, mana, GRE messages, stops) before writing inline builders. If a pattern appears 2+ times and no helper exists, add one to the appropriate file.
+- **Prefer domain matchers over structural assertions** for end-state checks. `"Grizzly Bears" should beInHandOf(human)` reads like MTG and fails with a self-describing message. Matchers live alongside `TestExtensions.kt` (e.g. `ZoneMatchers.kt`). Known gap: `WeakAssertionOnly` does not yet classify `subject should matcher()` as strong, so tests whose only assertions are matcher infixes may need a baseline entry.
 - **Tests should read like specs.** Extract helpers that name the intent.
 - **No `when` with `else -> {}`** — silently ignores unknown variants. Filter by type explicitly.
 - **No tautological assertions.** `uint >= 0` is always true. Use `shouldBeGreaterThan 0` if value must be positive.
