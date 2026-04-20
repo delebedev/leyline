@@ -2,16 +2,17 @@ package leyline.conformance
 
 import forge.game.Game
 import forge.game.zone.ZoneType
-import leyline.bridge.ForgeCardId
-import leyline.bridge.GameBootstrap
-import leyline.bridge.SeatId
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
 import leyline.config.MatchConfig
 import leyline.config.ServerConfig
-import leyline.game.GameBridge
-import leyline.game.PuzzleSource
-import leyline.game.StateMapper
+import leyline.game.bundle.MessageCounter
+import leyline.game.generator.PuzzleSource
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
@@ -32,7 +33,7 @@ class MatchFlowHarness(
     validating: Boolean = true,
     private val matchConfig: MatchConfig = MatchConfig(
         ai = AiConfig(speed = 0.0),
-        // Fail fast in tests. Production defaults are tuned for real clients
+        // Fail fast in tests. Production defaults are tuned for the client
         // (120s bridge, 30s AI-turn wait, 10s mulligan); here the engine
         // responds in <100ms so aggressive timeouts surface hangs quickly.
         server = ServerConfig(
@@ -78,19 +79,18 @@ class MatchFlowHarness(
         TestCardRegistry.ensureRegistered()
         if (deckList != null) TestCardRegistry.ensureDeckRegistered(deckList)
 
+        bridge = GameBridge(bridgeTimeoutMs = 5_000L, matchConfig = matchConfig, messageCounter = MessageCounter(), cardRepository = TestCardRegistry.repo)
+        bridge.priorityWaitMs = 2_000L
+        bridge.start(seed = seed, deckList = deckList, variant = variant)
+
         session = MatchSession(
             seatId = SeatId(seatId),
             matchId = matchId,
             sink = effectiveSink,
             registry = registry,
+            gameBridge = bridge,
             paceDelayMs = 0,
         )
-
-        bridge = GameBridge(bridgeTimeoutMs = 5_000L, matchConfig = matchConfig, messageCounter = session.counter, cardRepository = TestCardRegistry.repo)
-        bridge.priorityWaitMs = 2_000L
-        bridge.start(seed = seed, deckList = deckList, variant = variant)
-
-        session.connectBridge(bridge)
         registry.registerSession(matchId, seatId, session)
 
         // Seed accumulator + validator with a Full GSM BEFORE submitKeep.
@@ -139,15 +139,7 @@ class MatchFlowHarness(
         GameBootstrap.initializeCardDatabase(quiet = true)
         TestCardRegistry.ensureRegistered()
 
-        session = MatchSession(
-            seatId = SeatId(seatId),
-            matchId = matchId,
-            sink = effectiveSink,
-            registry = registry,
-            paceDelayMs = 0,
-        )
-
-        bridge = GameBridge(bridgeTimeoutMs = 5_000L, matchConfig = matchConfig, messageCounter = session.counter, cardRepository = TestCardRegistry.repo)
+        bridge = GameBridge(bridgeTimeoutMs = 5_000L, matchConfig = matchConfig, messageCounter = MessageCounter(), cardRepository = TestCardRegistry.repo)
         bridge.priorityWaitMs = 2_000L
         bridge.startPuzzle(puzzle)
         TestCardRegistry.registerPuzzleCards(bridge.getGame()!!)
@@ -158,7 +150,14 @@ class MatchFlowHarness(
             installScriptedAi(aiScript)
         }
 
-        session.connectBridge(bridge)
+        session = MatchSession(
+            seatId = SeatId(seatId),
+            matchId = matchId,
+            sink = effectiveSink,
+            registry = registry,
+            gameBridge = bridge,
+            paceDelayMs = 0,
+        )
         registry.registerSession(matchId, seatId, session)
 
         val game = bridge.getGame()
@@ -347,7 +346,7 @@ class MatchFlowHarness(
     /**
      * Send SubmitAttackersReq (type=31, no payload) — the reference client's "Done" button.
      *
-     * In Arena's two-phase combat protocol, iterative creature toggles send
+     * In the two-phase combat protocol, iterative creature toggles send
      * [DeclareAttackersResp] (type=30) with selection state, while the final
      * confirmation sends [SubmitAttackersReq] (type=31) which is **type-only,
      * no payload**. The server must use the last known selection.

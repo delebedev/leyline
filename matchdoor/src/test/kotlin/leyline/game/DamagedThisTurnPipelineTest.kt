@@ -9,9 +9,17 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.UnitTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.InstanceId
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
+import leyline.game.annotations.AnnotationBuilder
+import leyline.game.annotations.AnnotationConstants
+import leyline.game.annotations.CombatAnnotationResult
+import leyline.game.annotations.CombatAnnotations
+import leyline.game.annotations.MechanicAnnotationResult
+import leyline.game.event.GameEvent
+import leyline.game.state.EffectTracker
+import leyline.game.state.PersistentAnnotationStore
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.Step
 

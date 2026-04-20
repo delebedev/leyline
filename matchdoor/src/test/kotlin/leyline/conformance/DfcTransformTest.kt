@@ -10,8 +10,8 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.IntegrationTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.PlayerAction
+import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.ForgeCardId
 import leyline.game.awaitFreshPending
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 

@@ -8,12 +8,15 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.GameBootstrap
-import leyline.bridge.PlayerAction
-import leyline.bridge.SeatId
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.conformance.TestCardRegistry
+import leyline.game.generator.PuzzleSource
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**

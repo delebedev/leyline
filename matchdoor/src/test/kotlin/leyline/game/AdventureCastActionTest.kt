@@ -7,7 +7,7 @@ import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.UnitTag
 import leyline.conformance.ConformanceTestBase
-import leyline.game.mapper.ActionMapper
+import leyline.game.mapping.ActionMapper
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 

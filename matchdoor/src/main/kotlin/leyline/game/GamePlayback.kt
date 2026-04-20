@@ -3,7 +3,10 @@ package leyline.game
 import com.google.common.eventbus.Subscribe
 import forge.game.event.*
 import forge.game.phase.PhaseType
-import leyline.bridge.SeatId
+import leyline.bridge.types.SeatId
+import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.MessageCounter
+import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -16,14 +19,14 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * the game thread -- sleeping here freezes engine progress and state, making
  * it safe to snapshot and diff. Mirrors [leyline.bridge.WebGamePlayback].
  *
- * Uses the shared [MessageCounter] for protocol sequencing. Both the session
+ * Uses the shared [leyline.game.bundle.MessageCounter] for protocol sequencing. Both the session
  * thread and this (engine thread) call `counter.nextMsgId()`/`counter.nextGsId()`
  * on the same atomic — no seeding or syncing needed.
  *
- * Shares [BundleCursor] with the session-layer `BundleBuilder` via
- * [GameBridge.bundleCursor]: the two builders must agree on the diff baseline
+ * Shares [leyline.game.bundle.BundleCursor] with the session-layer `BundleBuilder` via
+ * [leyline.game.state.GameBridge.bundleCursor]: the two builders must agree on the diff baseline
  * or `buildDiff` produces a Full when the client expects a Diff. See
- * [BundleCursor] KDoc for the sharing invariant.
+ * [leyline.game.bundle.BundleCursor] KDoc for the sharing invariant.
  *
  * The [MatchHandler][leyline.match.MatchHandler] drains the queue
  * via [drainQueue] and sends messages to the TCP socket.

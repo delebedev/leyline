@@ -6,10 +6,14 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.GameBootstrap
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.conformance.detailInt
 import leyline.conformance.detailUint
-import leyline.game.mapper.ZoneIds
+import leyline.game.annotations.AppliedTransfer
+import leyline.game.annotations.ManaPaymentRecord
+import leyline.game.annotations.TransferAnnotations
+import leyline.game.annotations.TransferCategory
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**

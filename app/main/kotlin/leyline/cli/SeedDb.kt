@@ -7,7 +7,7 @@ import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.Format
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.repo.SqlitePlayerStore
-import leyline.game.ExposedCardRepository
+import leyline.game.data.ExposedCardRepository
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 import java.util.UUID

@@ -8,15 +8,16 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.ForgeCardId
-import leyline.bridge.InteractivePromptBridge
-import leyline.bridge.PromptCandidateRefDto
-import leyline.bridge.PromptRequest
-import leyline.bridge.PromptSemantic
-import leyline.bridge.SeatId
-import leyline.bridge.TargetingCoordinator
-import leyline.game.RequestBuilder
-import leyline.game.mapper.ZoneIds
+import leyline.bridge.coord.TargetingCoordinator
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PromptCandidateRefDto
+import leyline.bridge.types.SeatId
+import leyline.game.bundle.RequestBuilder
+import leyline.game.mapping.ZoneIds
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
@@ -24,6 +25,7 @@ import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
+import java.util.concurrent.CompletableFuture
 
 /**
  * Reveal subsystem tests.
@@ -254,7 +256,7 @@ class RevealTest :
 
         /** Set up activeReveal + recordReveal in one call. */
         private fun activateReveal(
-            b: leyline.game.GameBridge,
+            b: GameBridge,
             cardIds: List<ForgeCardId>,
             ownerSeat: SeatId,
         ) {
@@ -283,7 +285,7 @@ class RevealTest :
                     unfilteredRefs = unfilteredRefs,
                     sourceEntityId = sourceEntityId,
                 ),
-                future = java.util.concurrent.CompletableFuture(),
+                future = CompletableFuture(),
             )
     }
 }

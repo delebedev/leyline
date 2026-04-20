@@ -14,15 +14,17 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.aiPlayer
 import leyline.conformance.humanPlayer
+import leyline.game.event.GameEvent
+import leyline.game.event.Zone
 
 /**
- * Tests for [GameEventCollector] — verifies that Forge engine events are
- * captured and converted to the correct [GameEvent] variants.
+ * Tests for [leyline.game.event.GameEventCollector] — verifies that Forge engine events are
+ * captured and converted to the correct [leyline.game.event.GameEvent] variants.
  *
  * Uses startWithBoard{} — fires events directly via game.fireEvent(),
  * then asserts on collector.drainEvents(). ~0.01s per test.

@@ -12,15 +12,15 @@ import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.GameBootstrap
-import leyline.bridge.PlayerAction
-import leyline.bridge.SeatId
-import leyline.game.GameBridge
-import leyline.game.PuzzleSource
-import leyline.game.StateMapper
-import leyline.game.mapper.ActionMapper
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.game.generator.PuzzleSource
+import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
@@ -236,10 +236,9 @@ class PuzzleBridgeTest :
                 matchId = matchId,
                 sink = sink1,
                 registry = registry,
+                gameBridge = b,
                 paceDelayMs = 0,
-                counter = b.messageCounter,
             )
-            session1.connectBridge(b)
             registry.registerSession(matchId, 1, session1)
             session1.onPuzzleStart()
             b.getGame()!!.phaseHandler.phase shouldBe PhaseType.MAIN1
@@ -253,10 +252,9 @@ class PuzzleBridgeTest :
                 matchId = matchId,
                 sink = sink2,
                 registry = registry,
+                gameBridge = b,
                 paceDelayMs = 0,
-                counter = b.messageCounter,
             )
-            session2.connectBridge(b)
             registry.registerSession(matchId, 2, session2)
             session2.onPuzzleStart()
 

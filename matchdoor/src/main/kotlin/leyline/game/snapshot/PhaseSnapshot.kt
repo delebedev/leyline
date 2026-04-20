@@ -1,7 +1,7 @@
 package leyline.game.snapshot
 
 import forge.game.phase.PhaseType
-import leyline.bridge.SeatId
+import leyline.bridge.types.SeatId
 
 /**
  * Phase/step + active player + priority player. `PhaseType` is a Forge enum

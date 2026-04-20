@@ -3,6 +3,7 @@ package leyline.conformance
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
+import leyline.bridge.types.SeatId
 import leyline.infra.ListMessageSink
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
@@ -27,13 +28,13 @@ class PerformActionRecoveryTest :
 
             val sink = ListMessageSink()
             val session = MatchSession(
-                seatId = leyline.bridge.SeatId(1),
+                seatId = SeatId(1),
                 matchId = "test-missing-pending",
                 sink = sink,
                 registry = MatchRegistry(),
+                gameBridge = bridge,
                 paceDelayMs = 0,
             )
-            session.connectBridge(bridge)
 
             session.onPerformAction(performAction { actionType = wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass })
 

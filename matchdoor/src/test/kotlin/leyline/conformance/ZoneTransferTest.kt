@@ -10,9 +10,9 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.ForgeCardId
-import leyline.game.mapper.ObjectMapper
-import leyline.game.mapper.ZoneIds
+import leyline.bridge.types.ForgeCardId
+import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 

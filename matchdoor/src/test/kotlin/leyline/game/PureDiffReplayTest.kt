@@ -4,8 +4,12 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
+import leyline.bridge.handoff.PlayerAction
 import leyline.conformance.ConformanceTestBase
+import leyline.game.event.GameEvent
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
@@ -200,6 +204,6 @@ private fun advanceToEndOfTurn(bridge: GameBridge) {
         val pending = awaitFreshPending(bridge, null) ?: return
         val nowTurn = game.phaseHandler.turn
         if (nowTurn != startTurn) return
-        bridge.actionBridge(1).submitAction(pending.actionId, leyline.bridge.PlayerAction.PassPriority)
+        bridge.actionBridge(1).submitAction(pending.actionId, PlayerAction.PassPriority)
     }
 }

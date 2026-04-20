@@ -9,11 +9,11 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.bridge.ForgeCardId
-import leyline.game.GameBridge
-import leyline.game.MessageCounter
-import leyline.game.mapper.ZoneIds
+import leyline.bridge.types.ForgeCardId
+import leyline.game.bundle.MessageCounter
+import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 

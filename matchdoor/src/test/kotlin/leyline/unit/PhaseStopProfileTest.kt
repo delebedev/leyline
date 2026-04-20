@@ -4,7 +4,8 @@ import forge.game.phase.PhaseType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.PhaseStopProfile
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.PhaseStopProfile
 
 class PhaseStopProfileTest :
     FunSpec({
@@ -12,7 +13,7 @@ class PhaseStopProfileTest :
         tags(UnitTag)
 
         beforeSpec {
-            leyline.bridge.GameBootstrap.initializeCardDatabase(quiet = true)
+            GameBootstrap.initializeCardDatabase(quiet = true)
         }
 
         test("createDefaults — human has own-turn stops, AI has combat stops") {

@@ -1,10 +1,12 @@
 package leyline.game
 
 import forge.game.Game
-import leyline.bridge.GameActionBridge
-import leyline.bridge.InteractivePromptBridge
-import leyline.bridge.PlayerAction
+import leyline.bridge.handoff.GameActionBridge
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PlayerAction
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
 
 /**
  * Shared test helpers for GameBridge-based tests.
@@ -14,8 +16,8 @@ import leyline.game.snapshot.GsmSnapshot
  */
 
 /**
- * Build a Full GSM, apply its [BridgeMutations], and seed the shared
- * [BundleCursor] so the next bundle built through any `BundleBuilder`
+ * Build a Full GSM, apply its [leyline.game.state.BridgeMutations], and seed the shared
+ * [leyline.game.bundle.BundleCursor] so the next bundle built through any `BundleBuilder`
  * bound to this bridge starts from a valid diff baseline.
  *
  * Returns the captured snapshot — tests that drive subsequent `buildDiff`

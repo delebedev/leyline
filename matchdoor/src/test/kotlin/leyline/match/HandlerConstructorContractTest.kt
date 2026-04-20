@@ -3,11 +3,11 @@ package leyline.match
 import forge.game.Game
 import io.kotest.core.spec.style.FunSpec
 import leyline.UnitTag
-import leyline.bridge.ClientAutoPassState
-import leyline.bridge.SeatId
-import leyline.game.BundleBuilder
-import leyline.game.GameBridge
-import leyline.game.MessageCounter
+import leyline.bridge.types.ClientAutoPassState
+import leyline.bridge.types.SeatId
+import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.MessageCounter
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**

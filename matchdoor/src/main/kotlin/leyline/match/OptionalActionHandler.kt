@@ -1,9 +1,9 @@
 package leyline.match
 
-import leyline.bridge.ForgeCardId
-import leyline.bridge.WebPlayerController
-import leyline.game.GameBridge
-import leyline.game.mapper.PromptIds
+import leyline.bridge.forge.PlayerController
+import leyline.bridge.types.ForgeCardId
+import leyline.game.mapping.PromptIds
+import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -11,8 +11,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Handles "you may" trigger decisions via OptionalActionMessage (GRE type 45).
  *
  * Lifecycle (mirrors [CombatHandler]'s damage assignment pattern):
- * 1. Engine thread calls [WebPlayerController.confirmTrigger] → sets
- *    [WebPlayerController.pendingOptionalAction] → blocks on CompletableFuture
+ * 1. Engine thread calls [PlayerController.confirmTrigger] → sets
+ *    [PlayerController.pendingOptionalAction] → blocks on CompletableFuture
  * 2. Auto-pass loop calls [checkPendingOptionalAction] → detects non-null →
  *    sends OptionalActionMessage to client → returns true (loop exits)
  * 3. Client responds with OptionalResp (AllowYes / CancelNo)
@@ -79,7 +79,7 @@ class OptionalActionHandler(
 
     private fun sendOptionalActionMessage(
         bridge: GameBridge,
-        prompt: WebPlayerController.OptionalActionPrompt,
+        prompt: PlayerController.OptionalActionPrompt,
     ) {
         val hostCard = prompt.hostCard
         if (hostCard == null) {

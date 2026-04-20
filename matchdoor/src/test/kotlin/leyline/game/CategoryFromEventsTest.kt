@@ -4,13 +4,17 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.SeatId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.game.annotations.TransferCategory
+import leyline.game.annotations.TransferCategoryResolver
+import leyline.game.event.GameEvent
+import leyline.game.event.Zone
 
 /**
- * Unit tests for [TransferCategoryResolver.categoryFromEvents] — verifies that
- * captured [GameEvent] instances resolve to the correct annotation
- * categories, matching the behavior of [ZoneTransferDetector.inferCategory]
+ * Unit tests for [leyline.game.annotations.TransferCategoryResolver.categoryFromEvents] — verifies that
+ * captured [leyline.game.event.GameEvent] instances resolve to the correct annotation
+ * categories, matching the behavior of [leyline.game.annotations.ZoneTransferDetector.inferCategory]
  * but using rich event data instead of zone-pair heuristics.
  */
 class CategoryFromEventsTest :

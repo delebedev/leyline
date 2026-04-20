@@ -1,6 +1,6 @@
 package leyline.game.snapshot
 
-import leyline.bridge.ForgeCardId
+import leyline.bridge.types.ForgeCardId
 
 /**
  * Combat declarations. Null on [GsmSnapshot] outside combat phases. Fields grow

@@ -1,17 +1,17 @@
 package leyline.protocol
 
-import leyline.game.GameBridge
-import leyline.game.GsmBuilder
-import leyline.game.StateMapper
-import leyline.game.mapper.ActionMapper
-import leyline.game.mapper.PlayerMapper
-import leyline.game.mapper.PromptIds
+import leyline.game.bundle.GsmBuilder
+import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.PlayerMapper
+import leyline.game.mapping.PromptIds
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
  * Pre-game handshake message factory: roomState, initialBundle, dealHand,
- * mulliganReq, settingsResp. Distinct from [leyline.game.StateMapper]
+ * mulliganReq, settingsResp. Distinct from [StateMapper]
  * which handles in-game state diffs.
  */
 object HandshakeMessages {

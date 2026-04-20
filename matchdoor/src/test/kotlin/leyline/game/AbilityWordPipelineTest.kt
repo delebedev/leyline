@@ -7,12 +7,16 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.InstanceId
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
 import leyline.conformance.detail
 import leyline.conformance.detailInt
 import leyline.conformance.detailString
 import leyline.conformance.detailUint
+import leyline.game.annotations.AnnotationBuilder
+import leyline.game.annotations.MechanicAnnotationResult
+import leyline.game.state.EffectTracker
+import leyline.game.state.PersistentAnnotationStore
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class AbilityWordPipelineTest :

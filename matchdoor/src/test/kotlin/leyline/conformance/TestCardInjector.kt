@@ -3,9 +3,9 @@ package leyline.conformance
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import forge.model.FModel
-import leyline.bridge.ForgeCardId
-import leyline.bridge.SeatId
-import leyline.game.GameBridge
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 
 /**
@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory
  *
  * Wraps `Player.getZone().add()` and additionally:
  * - Registers in the shared [InMemoryCardRepository] via [TestCardRegistry.ensureCardRegistered]
- * - Registers in [leyline.game.InstanceIdRegistry] (forgeCardId → instanceId)
+ * - Registers in [leyline.game.state.InstanceIdRegistry] (forgeCardId → instanceId)
  *
  * Result: injected card is indistinguishable from a "real" deck card in proto output.
  */

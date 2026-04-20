@@ -5,8 +5,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import leyline.IntegrationTag
-import leyline.bridge.GameBootstrap
-import leyline.bridge.SeatId
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
 
 /**
  * Tests for [ScriptedPlayerController] — verifies the scripted AI

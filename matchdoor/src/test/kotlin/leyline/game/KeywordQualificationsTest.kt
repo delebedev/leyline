@@ -6,7 +6,9 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.GrpId
+import leyline.bridge.types.GrpId
+import leyline.game.codes.KeywordQualifications
+import leyline.game.codes.QualificationType
 
 class KeywordQualificationsTest :
     FunSpec({

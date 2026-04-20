@@ -9,9 +9,9 @@
 
   <!-- Bridge timeouts are expected in tests (auto-pass on unhandled phases).
        Suppress the 15-line stack-trace diagnostic that fires per timeout. -->
-  <logger name="leyline.bridge.GameActionBridge" level="ERROR"/>
-  <logger name="leyline.bridge.InteractivePromptBridge" level="ERROR"/>
-  <logger name="leyline.bridge.MulliganBridge" level="ERROR"/>
+  <logger name="leyline.bridge.handoff.GameActionBridge" level="ERROR"/>
+  <logger name="leyline.bridge.handoff.InteractivePromptBridge" level="ERROR"/>
+  <logger name="leyline.bridge.handoff.MulliganBridge" level="ERROR"/>
   <logger name="leyline.bridge.BridgeTimeoutDiagnostic" level="ERROR"/>
 
   <!-- Only WARN+ during tests — keeps gate output clean -->

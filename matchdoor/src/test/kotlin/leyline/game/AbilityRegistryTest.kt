@@ -9,6 +9,7 @@ import leyline.ConformanceTag
 import leyline.conformance.CardDataDeriver
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.TestCardInjector
+import leyline.game.state.AbilityRegistry
 
 class AbilityRegistryTest :
     FunSpec({

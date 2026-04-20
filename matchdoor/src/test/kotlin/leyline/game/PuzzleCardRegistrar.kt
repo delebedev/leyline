@@ -5,15 +5,19 @@ import forge.card.CardType.CoreType
 import forge.card.CardType.Supertype
 import forge.game.card.Card
 import forge.model.FModel
+import leyline.game.codes.ManaColorMapping
+import leyline.game.data.AbilityIdDeriver
+import leyline.game.data.CardData
+import leyline.game.data.CardRepository
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Registers puzzle cards in an [InMemoryCardRepository] at runtime.
  *
- * Derives [CardData] from Forge's in-memory [forge.card.CardRules] —
+ * Derives [leyline.game.data.CardData] from Forge's in-memory [forge.card.CardRules] —
  * no client SQLite needed. Synthetic grpIds start at 300000 (above test range
- * at 200000 and real Arena grpIds which reach ~100000+).
+ * at 200000 and production grpIds which reach ~100000+).
  *
  * Production counterpart of the test-only `CardDataDeriver` / `TestCardRegistry`.
  */
@@ -135,7 +139,7 @@ class PuzzleCardRegistrar(
         return ensureCardRegistered(tempCard)
     }
 
-    /** Derive [CardData] from a live Forge [Card], optionally overriding the name (for alternate faces). */
+    /** Derive [leyline.game.data.CardData] from a live Forge [Card], optionally overriding the name (for alternate faces). */
     private fun fromForgeCard(card: Card, overrideName: String? = null): CardData {
         val name = overrideName ?: card.name
         val grpId = nameToGrpId.getOrPut(name) { nextGrpId.getAndIncrement() }

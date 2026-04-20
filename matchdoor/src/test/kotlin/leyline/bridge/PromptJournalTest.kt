@@ -4,6 +4,10 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.handoff.PromptJournal
+import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 
 class PromptJournalTest :
     FunSpec({

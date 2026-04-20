@@ -6,9 +6,11 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
-import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.detailInt
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -35,9 +37,9 @@ class TargetSpecAnnotationTest :
                 base.addCard("Murder", human, ZoneType.Hand)
             }
 
-            val creature = b.getPlayer(leyline.bridge.SeatId(1))!!
+            val creature = b.getPlayer(SeatId(1))!!
                 .getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
-            val spell = b.getPlayer(leyline.bridge.SeatId(1))!!
+            val spell = b.getPlayer(SeatId(1))!!
                 .getZone(ZoneType.Hand).cards.first { it.name == "Murder" }
 
             // Simulate what selectTargetsInteractively does: add pending target
@@ -81,9 +83,9 @@ class TargetSpecAnnotationTest :
                 base.addCard("Murder", human, ZoneType.Hand)
             }
 
-            val creature = b.getPlayer(leyline.bridge.SeatId(1))!!
+            val creature = b.getPlayer(SeatId(1))!!
                 .getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
-            val spell = b.getPlayer(leyline.bridge.SeatId(1))!!
+            val spell = b.getPlayer(SeatId(1))!!
                 .getZone(ZoneType.Hand).cards.first { it.name == "Murder" }
 
             b.seat(1).prompt.addPendingTargetSpec(

@@ -4,10 +4,10 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.UnitTag
-import leyline.bridge.InteractivePromptBridge
-import leyline.bridge.PromptCandidateRefDto
-import leyline.bridge.PromptRequest
-import leyline.bridge.PromptSemantic
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.types.PromptCandidateRefDto
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.util.concurrent.CompletableFuture
 

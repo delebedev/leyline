@@ -1,6 +1,6 @@
 package leyline.match
 
-import leyline.game.GameBridge
+import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 

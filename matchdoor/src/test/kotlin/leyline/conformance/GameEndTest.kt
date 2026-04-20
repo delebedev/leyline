@@ -6,7 +6,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.game.mapper.PromptIds
+import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**

@@ -1,7 +1,11 @@
 package leyline.game
 
+import leyline.game.data.CardData
+import leyline.game.data.CardRepository
+import leyline.game.data.ModalAbilityInfo
+
 /**
- * In-memory [CardRepository] for tests and puzzle mode.
+ * In-memory [leyline.game.data.CardRepository] for tests and puzzle mode.
  *
  * Provides [register], [registerData], and [clear] for populating
  * card data without a client SQLite database.

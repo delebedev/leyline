@@ -6,9 +6,9 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.string.shouldNotBeBlank
 import leyline.IntegrationTag
-import leyline.bridge.DeckLoader
-import leyline.bridge.FormatService
-import leyline.bridge.GameBootstrap
+import leyline.bridge.bootstrap.DeckLoader
+import leyline.bridge.bootstrap.FormatService
+import leyline.bridge.bootstrap.GameBootstrap
 
 /**
  * Integration tests for [FormatService] deck validation with real card data.

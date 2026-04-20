@@ -3,7 +3,7 @@ package leyline.conformance
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.handoff.InteractivePromptBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 

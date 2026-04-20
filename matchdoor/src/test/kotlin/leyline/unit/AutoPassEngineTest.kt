@@ -7,13 +7,13 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.ConformanceTag
-import leyline.bridge.AutoPassReason
-import leyline.bridge.ClientAutoPassState
-import leyline.bridge.PriorityDecision
+import leyline.bridge.types.AutoPassReason
+import leyline.bridge.types.ClientAutoPassState
+import leyline.bridge.types.PriorityDecision
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.settingsMessage
-import leyline.game.GameBridge
 import leyline.game.InMemoryCardRepository
+import leyline.game.state.GameBridge
 import leyline.match.AutoPassEngine
 import leyline.match.CombatHandler
 import leyline.match.MatchEventType

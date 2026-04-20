@@ -3,7 +3,7 @@ package leyline.unit
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.ClientAutoPassState
+import leyline.bridge.types.ClientAutoPassState
 import leyline.conformance.settingsMessage
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority

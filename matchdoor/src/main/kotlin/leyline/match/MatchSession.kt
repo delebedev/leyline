@@ -1,16 +1,16 @@
 package leyline.match
 
 import forge.game.Game
-import leyline.bridge.ClientAutoPassState
-import leyline.bridge.PhaseStopProfile
-import leyline.bridge.SeatId
+import leyline.bridge.types.ClientAutoPassState
+import leyline.bridge.types.PhaseStopProfile
+import leyline.bridge.types.SeatId
 import leyline.frontdoor.service.MatchCoordinator
-import leyline.game.AnnotationLossReason
-import leyline.game.BundleBuilder
-import leyline.game.GameBridge
-import leyline.game.MessageCounter
-import leyline.game.mapper.StopTypeMapping
+import leyline.game.annotations.AnnotationLossReason
+import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.MessageCounter
+import leyline.game.mapping.StopTypeMapping
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
@@ -37,9 +37,10 @@ class MatchSession(
     override val matchId: String,
     val sink: MessageSink,
     val registry: MatchRegistry,
+    override val gameBridge: GameBridge,
     val paceDelayMs: Long = 200L,
     override val recorder: MatchRecorder? = null,
-    override var counter: MessageCounter = MessageCounter(),
+    override var counter: MessageCounter = gameBridge.messageCounter,
     /** Cross-BC coordinator — match results flow back to FD services. */
     val coordinator: MatchCoordinator? = null,
 ) : SessionOps {
@@ -48,18 +49,13 @@ class MatchSession(
     /** Serializes all game-logic entry points (Netty I/O threads are concurrent). */
     private val sessionLock = Any()
 
-    /** Returns null if bridge not connected or game not started. */
+    /** Returns null only if the game has not started yet. */
     private fun resolveContext(): SessionContext? {
-        val b = gameBridge ?: return null
-        val g = b.getGame() ?: return null
-        return SessionContext(g, b)
+        val g = gameBridge.getGame() ?: return null
+        return SessionContext(g, gameBridge)
     }
 
-    override var gameBridge: GameBridge? = null
-        private set
-
-    override var bundleBuilder: BundleBuilder? = null
-        private set
+    override val bundleBuilder: BundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
 
     /** Client player ID — set by MatchHandler after auth, used in MatchCompleted room state. */
     var playerId: String = "forge-player-1"
@@ -69,6 +65,10 @@ class MatchSession(
 
     /** Client auto-pass settings (autoPassOption / stackAutoPassOption). */
     val autoPassState = ClientAutoPassState()
+
+    init {
+        gameBridge.humanController?.setAutoPassState(autoPassState)
+    }
 
     /** Sub-handlers for combat, targeting, optional actions, and auto-pass flows. */
     val combatHandler = CombatHandler(
@@ -106,25 +106,6 @@ class MatchSession(
         autoPassState = autoPassState,
     )
 
-    /**
-     * Wire the game bridge (called by [MatchHandler] after bridge creation).
-     *
-     * Normally the session and bridge share the same [MessageCounter] — passed
-     * at construction time via the `existingCounter` lookup in [MatchHandler].
-     * When both connections arrive simultaneously (race between human + Familiar),
-     * the match may not exist yet during session creation, causing a counter
-     * mismatch. In that case, adopt the bridge's counter from the bridge itself.
-     */
-    override fun connectBridge(bridge: GameBridge): Unit = synchronized(sessionLock) {
-        gameBridge = bridge
-        bundleBuilder = BundleBuilder(bridge, matchId, seatId.value)
-        if (bridge.messageCounter !== counter) {
-            log.debug("connectBridge: adopting bridge counter (race: session created before match)")
-            counter = bridge.messageCounter
-        }
-        bridge.humanController?.setAutoPassState(autoPassState)
-    }
-
     // --- Public entry points (called by MatchHandler) ---
 
     /**
@@ -132,7 +113,7 @@ class MatchSession(
      * Then auto-pass through phases where only Pass is available.
      */
     override fun onMulliganKeep() = synchronized(sessionLock) {
-        val bridge = gameBridge ?: return
+        val bridge = gameBridge
         log.info("MatchSession: waiting for engine to reach priority after keep")
 
         bridge.awaitPriority()
@@ -154,7 +135,7 @@ class MatchSession(
         // phaseTransitionDiff after AI diffs — uses the shared counter which is
         // now past whatever the engine allocated. gsIds are higher than AI diffs
         // but the prevGsId chain is valid (references last AI diff's gsId).
-        val bb = bundleBuilder!!
+        val bb = bundleBuilder
         val result = bb.phaseTransitionDiff(ctx.game, counter)
         sendBundle(result)
 
@@ -207,7 +188,7 @@ class MatchSession(
         // The puzzle initial bundle already sent the Full GSM, so the cursor
         // needs a matching snapshot for the first Diff to be correct.
         val snap2 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
-        bundleBuilder!!.cursor.lastSent = snap2
+        bundleBuilder.cursor.lastSent = snap2
 
         // Auto-pass through phases where human has no real actions
         autoPassEngine.autoPassAndAdvance(ctx.bridge)
@@ -343,7 +324,7 @@ class MatchSession(
      * (no one-shot consume yet).
      */
     private fun applyStopsToProfile(settings: SettingsMessage) {
-        val bridge = gameBridge ?: return
+        val bridge = gameBridge
         val profile = bridge.phaseStopProfile ?: return
         val humanPlayer = bridge.getPlayer(seatId) ?: return
         val aiSeatId = SeatId(if (seatId.value == 1) 2 else 1)
@@ -454,7 +435,7 @@ class MatchSession(
             return
         }
 
-        val bb = bundleBuilder!!
+        val bb = bundleBuilder
         val result = bb.postAction(game, counter, revealForSeat)
 
         // Warn on empty diffs — usually means the caller emitted a GSM at the wrong moment
@@ -494,7 +475,7 @@ class MatchSession(
      */
     override fun sendGameOver(reason: ResultReason) {
         val bridge = gameBridge
-        val humanPlayer = bridge?.getPlayer(seatId)
+        val humanPlayer = bridge.getPlayer(seatId)
         val humanWon = humanPlayer?.getOutcome()?.hasWon() ?: false
         val winningTeam = if (humanWon) 1 else 2
         val losingPlayerSeatId = if (humanWon) 2 else 1
@@ -504,7 +485,7 @@ class MatchSession(
         // build a final diff GSM to emit those annotations before the game-over bundle.
         // This mirrors client behavior, which sends a resolution GSM before GameComplete.
         val bb = bundleBuilder
-        if (bridge != null && bb != null && bridge.hasPendingEvents()) {
+        if (bridge.hasPendingEvents()) {
             val game = bridge.getGame()
             if (game != null) {
                 val resolutionBundle = bb.stateOnlyDiff(game, counter)
@@ -513,7 +494,7 @@ class MatchSession(
             }
         }
 
-        val result = bb!!.gameOverBundle(
+        val result = bb.gameOverBundle(
             winningTeam,
             counter,
             reason = reason,

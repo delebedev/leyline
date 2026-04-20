@@ -1,6 +1,6 @@
 package leyline.match
 
-import leyline.game.GameBridge
+import leyline.game.state.GameBridge
 import java.util.concurrent.atomic.AtomicReference
 
 /** Lifecycle states for a match. */

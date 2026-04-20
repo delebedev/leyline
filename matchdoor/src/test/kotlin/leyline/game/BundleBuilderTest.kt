@@ -7,17 +7,26 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
-import leyline.bridge.ForgeCardId
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PromptCandidateRefDto
+import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
-import leyline.game.mapper.PromptIds
+import leyline.game.annotations.AnnotationLossReason
+import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.RequestBuilder
+import leyline.game.mapping.PromptIds
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
 /**
- * Tests for [BundleBuilder] proto assembly.
+ * Tests for [leyline.game.bundle.BundleBuilder] proto assembly.
  *
  * Unit group: pure proto wrappers (no game needed).
  * Conformance group: bundle shape checks via [startWithBoard].
@@ -180,11 +189,11 @@ class BundleBuilderTest :
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
 
             val candidateRefs = listOf(
-                leyline.bridge.PromptCandidateRefDto(0, "card", 999, "Battlefield"),
+                PromptCandidateRefDto(0, "card", 999, "Battlefield"),
             )
-            val prompt = leyline.bridge.InteractivePromptBridge.PendingPrompt(
+            val prompt = InteractivePromptBridge.PendingPrompt(
                 promptId = "test-prompt",
-                request = leyline.bridge.PromptRequest(
+                request = PromptRequest(
                     promptType = "choose_cards",
                     message = "Choose target",
                     options = listOf("Target A"),
@@ -288,18 +297,18 @@ class BundleBuilderTest :
                 base.addCard("Forest", human, ZoneType.Hand)
             }
 
-            val handCards = b.getPlayer(leyline.bridge.SeatId(1))!!
+            val handCards = b.getPlayer(SeatId(1))!!
                 .getZone(ZoneType.Hand).cards.toList()
-            val prompt = leyline.bridge.InteractivePromptBridge.PendingPrompt(
+            val prompt = InteractivePromptBridge.PendingPrompt(
                 promptId = "discard-test",
-                request = leyline.bridge.PromptRequest(
+                request = PromptRequest(
                     promptType = "choose_cards",
                     message = "Choose a card to discard",
                     options = listOf("Discard"),
                     min = 1,
                     max = 1,
                     candidateRefs = handCards.mapIndexed { i, c ->
-                        leyline.bridge.PromptCandidateRefDto(i, "card", c.id, "Hand")
+                        PromptCandidateRefDto(i, "card", c.id, "Hand")
                     },
                 ),
                 future = java.util.concurrent.CompletableFuture(),

@@ -6,7 +6,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import leyline.ConformanceTag
 import leyline.conformance.ConformanceTestBase
-import leyline.game.mapper.ActionMapper
+import leyline.game.mapping.ActionMapper
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**

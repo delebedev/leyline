@@ -3,6 +3,7 @@ package leyline.bridge
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.types.PrioritySignal
 
 class PrioritySignalResolvedTest :
     FunSpec({

@@ -7,7 +7,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.ForgeCardId
+import leyline.bridge.types.ForgeCardId
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType

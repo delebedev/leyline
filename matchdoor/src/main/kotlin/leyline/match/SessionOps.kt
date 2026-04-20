@@ -1,10 +1,10 @@
 package leyline.match
 
 import forge.game.Game
-import leyline.bridge.SeatId
-import leyline.game.BundleBuilder
-import leyline.game.GameBridge
-import leyline.game.MessageCounter
+import leyline.bridge.types.SeatId
+import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.MessageCounter
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -31,9 +31,9 @@ interface GreMessageSink {
 /**
  * Session identity and the shared protocol counter.
  *
- * `counter` is a `var` because the bridge-connection race can force
- * adoption of the bridge's counter after session construction
- * (see `MatchSession.connectBridge`).
+ * `counter` is a `var` so sessions can adopt a peer's counter when paired —
+ * e.g. the Familiar seat shares the human seat's [MessageCounter] via the
+ * bridge.
  */
 interface SessionCounters {
     val seatId: SeatId
@@ -47,11 +47,11 @@ interface SessionTracer {
 }
 
 /**
- * Late-bound accessor for the per-session [BundleBuilder].
+ * Accessor for the per-session [BundleBuilder].
  *
- * Non-null only after [MatchSession.connectBridge]. Handlers that build
- * bundles read this via `bundles.bundleBuilder!!` in code paths that are
- * only reachable after bridge connection.
+ * Non-null for [MatchSession] (whose `BundleBuilder` is constructed from the
+ * bridge at session construction); null for read-only sessions that never
+ * build bundles ([FamiliarSession]).
  */
 interface BundleBuilderHolder {
     val bundleBuilder: BundleBuilder? get() = null
@@ -116,7 +116,4 @@ interface SessionOps :
 
     /** Game bridge — non-null for [MatchSession], null for [FamiliarSession]. */
     val gameBridge: GameBridge? get() = null
-
-    /** Wire the game bridge. Asserts counter identity for [MatchSession]. No-op for read-only sessions. */
-    fun connectBridge(bridge: GameBridge) {}
 }

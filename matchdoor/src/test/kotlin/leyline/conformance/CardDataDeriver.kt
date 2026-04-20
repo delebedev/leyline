@@ -3,7 +3,9 @@ package leyline.conformance
 import forge.card.CardType.CoreType
 import forge.card.CardType.Supertype
 import forge.game.card.Card
-import leyline.game.CardData
+import leyline.game.codes.ManaColorMapping
+import leyline.game.data.AbilityIdDeriver
+import leyline.game.data.CardData
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -85,7 +87,7 @@ object CardDataDeriver {
     }
 
     private fun deriveManaCost(cost: forge.card.mana.ManaCost?) =
-        leyline.game.ManaColorMapping.deriveManaCost(cost)
+        ManaColorMapping.deriveManaCost(cost)
 
     private fun resolveLinkedFaceGrpIds(card: Card): List<Int> {
         val states = card.states ?: return emptyList()
@@ -102,7 +104,7 @@ object CardDataDeriver {
         return linkedIds
     }
 
-    private fun deriveAbilityIds(card: Card) = leyline.game.AbilityIdDeriver.deriveAbilityIds(card, nextAbilityGrpId)
+    private fun deriveAbilityIds(card: Card) = AbilityIdDeriver.deriveAbilityIds(card, nextAbilityGrpId)
 
     // ---- Static mapping tables ----
 

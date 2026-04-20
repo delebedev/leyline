@@ -19,7 +19,7 @@ Gradle multi-project layout. All Kotlin.
 - **`account`** — HTTPS authentication backend (`AccountServer`, `TokenService`, `AccountStore`).
 - **`frontdoor`** — pre-game surface: lobby, deck, draft, matchmaking. `FrontDoorHandler` dispatches to services in `frontdoor/service/`; replies encoded by `frontdoor/wire/`.
 - **`matchdoor`** — gameplay. Four core sub-packages:
-  - `bridge/` — engine integration. Blocking-bridge classes and the `WebPlayerController` override surface.
+  - `bridge/` — engine integration. Blocking-bridge classes and the `PlayerController` override surface.
   - `game/` — state mapping, annotations, diffing, counters. `game/mapper/` holds per-slice mappers (objects, zones, players, actions).
   - `match/` — session state machine: `MatchSession` + per-concern handlers (combat, targeting, optional-actions, mulligan, auto-pass).
   - `protocol/` — 6-byte wire framing and handshake.

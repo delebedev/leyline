@@ -3,8 +3,8 @@ package leyline.conformance
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.GameBootstrap
-import leyline.bridge.SeatId
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -14,9 +14,9 @@ import kotlin.time.Duration.Companion.seconds
  * Before the fix, [leyline.match.AutoPassEngine.autoPassAndAdvance] at the
  * SEND_STATE human-turn + pass-only branch emitted a state-only diff and
  * `return`ed without auto-passing the engine's pending
- * [leyline.bridge.WebPlayerController.chooseSpellAbilityToPlay] action. The
+ * [leyline.bridge.forge.PlayerController.chooseSpellAbilityToPlay] action. The
  * client received a state-only diff (non-actionable) and never responded, so
- * [leyline.bridge.GameActionBridge.awaitAction] hung until [bridgeTimeoutMs].
+ * [leyline.bridge.handoff.GameActionBridge.awaitAction] hung until [bridgeTimeoutMs].
  *
  * Puzzle: human has Raging Goblin untapped on a turn-3-style board with no
  * cards in hand (guarantees pass-only priority after attackers go in). AI has

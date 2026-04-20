@@ -1,6 +1,6 @@
 package leyline.match
 
-import leyline.bridge.PlayerAction
+import leyline.bridge.handoff.PlayerAction
 
 /**
  * Session-layer interaction awaiting a specific client response.

@@ -5,11 +5,10 @@ import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import leyline.UnitTag
-import leyline.bridge.SeatId
-import leyline.game.BundleBuilder
-import leyline.game.GameBridge
-import leyline.game.InMemoryCardRepository
-import leyline.game.MessageCounter
+import leyline.bridge.types.SeatId
+import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.MessageCounter
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 class SessionOpsDefaultsTest :
@@ -89,10 +88,6 @@ class SessionOpsDefaultsTest :
 
         test("recorder default is null") {
             ops.recorder.shouldBeNull()
-        }
-
-        test("connectBridge default is no-op") {
-            shouldNotThrowAny { ops.connectBridge(GameBridge(cardRepository = InMemoryCardRepository())) }
         }
 
         // --- ActionReceiver-only smoke tests ------------------------------------

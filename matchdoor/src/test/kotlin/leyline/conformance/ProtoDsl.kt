@@ -10,7 +10,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Target as ProtoTarget
  * **Outbound fixtures** (server → client): [greMessage], [actionsMessage] — for
  * unit tests that hand-build GRE messages without an engine.
  *
- * Production outbound messages use [leyline.game.BundleBuilder].
+ * Production outbound messages use [leyline.game.bundle.BundleBuilder].
  *
  * ## Usage
  *

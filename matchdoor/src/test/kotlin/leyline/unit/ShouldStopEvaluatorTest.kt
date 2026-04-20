@@ -3,7 +3,7 @@ package leyline.unit
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.game.mapper.ShouldStopEvaluator
+import leyline.game.mapping.ShouldStopEvaluator
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 class ShouldStopEvaluatorTest :

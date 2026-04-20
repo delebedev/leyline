@@ -12,8 +12,10 @@ import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.detailInt
-import leyline.conformance.gsm
-import leyline.game.mapper.ZoneIds
+import leyline.game.annotations.AnnotationBuilder
+import leyline.game.codes.DetailKeys
+import leyline.game.mapping.StateMapper
+import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CardType

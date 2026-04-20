@@ -5,14 +5,14 @@ import com.sun.net.httpserver.HttpServer
 import forge.ai.simulation.SpellAbilityPicker
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import leyline.bridge.ForgeCardId
-import leyline.bridge.GameBootstrap
-import leyline.bridge.SeatId
-import leyline.game.GameBridge
-import leyline.game.PuzzleSource
-import leyline.game.StateMapper
-import leyline.game.mapper.ActionMapper
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.game.generator.PuzzleSource
+import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.SnapshotCapture
+import leyline.game.state.GameBridge
 import leyline.match.MatchSession
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -150,7 +150,7 @@ class DebugServer(
 
     /**
      * `/api/priority-log` — combined priority decision log from
-     * AutoPassEngine (session thread) and WebPlayerController (engine thread).
+     * AutoPassEngine (session thread) and PlayerController (engine thread).
      */
     private fun servePriorityLog(ex: HttpExchange) {
         val session = sessionProvider?.invoke()
@@ -169,9 +169,9 @@ class DebugServer(
             entries.add(Entry(e.ts, "session", e.phase, e.turn, e.decision.toString()))
         }
 
-        // WebPlayerController decisions (engine thread)
+        // PlayerController decisions (engine thread)
         val bridge = session.gameBridge
-        val controller = bridge?.humanController
+        val controller = bridge.humanController
         if (controller != null) {
             for (e in controller.decisionLog()) {
                 entries.add(Entry(e.ts, "engine", e.phase, e.turn, e.decision.toString()))

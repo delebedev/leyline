@@ -4,6 +4,10 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.coord.TargetingCoordinator
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 
 class TargetingCoordinatorJournalTest :
     FunSpec({

@@ -10,22 +10,26 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.GameBootstrap
-import leyline.bridge.PlayerAction
-import leyline.bridge.SeatId
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.config.GameConfig
 import leyline.config.MatchConfig
 import leyline.conformance.TestCardRegistry
 import leyline.conformance.detailString
-import leyline.game.mapper.ActionMapper
-import leyline.game.mapper.ZoneIds
+import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.MessageCounter
+import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.StateMapper
+import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages
 import java.util.Random
 
 /**
- * Integration tests for [GameBridge] — verifies the real Forge engine
+ * Integration tests for [leyline.game.state.GameBridge] — verifies the real Forge engine
  * deals hands, resolves grpIds, and handles mulligan keep/mull.
  *
  * Requires card DB init (~2-3s first run, cached after).
@@ -238,7 +242,10 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(game, MessageCounter(initialGsId = 10, initialMsgId = 0))
+            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                game,
+                MessageCounter(initialGsId = 10, initialMsgId = 0),
+            )
             val messages = result.messages
 
             // Bundle has exactly 5 GRE messages
@@ -289,7 +296,10 @@ class GameBridgeTest :
             b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
             awaitFreshPending(b, pending.actionId)
 
-            val result = BundleBuilder(b, "test-match", 1).postAction(game, MessageCounter(initialGsId = 10, initialMsgId = 0))
+            val result = BundleBuilder(b, "test-match", 1).postAction(
+                game,
+                MessageCounter(initialGsId = 10, initialMsgId = 0),
+            )
             val gs = result.messages.first().gameStateMessage
             val actions = result.messages.last().actionsAvailableReq
 
@@ -363,7 +373,10 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(game, MessageCounter(initialGsId = 10, initialMsgId = 0))
+            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                game,
+                MessageCounter(initialGsId = 10, initialMsgId = 0),
+            )
 
             result.messages.size shouldBe 5
 
@@ -467,7 +480,10 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(game, MessageCounter(initialGsId = 10, initialMsgId = 0))
+            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                game,
+                MessageCounter(initialGsId = 10, initialMsgId = 0),
+            )
 
             var prevGsId = 0
             for (msg in result.messages) {
@@ -573,7 +589,10 @@ class GameBridgeTest :
             // Seed snapshot — subsequent buildDiff should produce Diff
             b.seedDiffBaseline(game)
 
-            val result = BundleBuilder(b, "test-match", 1).postAction(game, MessageCounter(initialGsId = 10, initialMsgId = 0))
+            val result = BundleBuilder(b, "test-match", 1).postAction(
+                game,
+                MessageCounter(initialGsId = 10, initialMsgId = 0),
+            )
             val gs = result.messages.first().gameStateMessage
 
             gs.type shouldBe Messages.GameStateType.Diff

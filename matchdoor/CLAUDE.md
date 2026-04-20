@@ -3,23 +3,62 @@
 Game engine adapter — translates between Forge engine and the client protocol. Most new code lands here.
 
 - **Proto:** `src/main/proto/messages.proto` — client protobuf schema
-- **Forge coupling is structural:** `WebPlayerController` extends `PlayerControllerHuman` (30+ overrides). `GameBootstrap` constructs Forge `Match`, `Game`, `Deck`. Can't abstract away — it's the adapter layer's job.
+- **Forge coupling is structural:** `PlayerController` extends `PlayerControllerHuman` (30+ overrides). `GameBootstrap` constructs Forge `Match`, `Game`, `Deck`. Can't abstract away — it's the adapter layer's job.
 - **Proto pervasive:** 62 import sites. Every file touching game state depends on proto. No anti-corruption layer — proto IS the output format.
 
 ## Internal Packages
 
 ```
-bridge/     Forge adapter — WebPlayerController, cost decisions, bootstrap,
-            mulligan, deck loading. Extends Forge classes directly.
+bridge/             Forge adapter — the thread/process frontier with Forge.
+  forge/            Forge inheritance seams — the only place matchdoor extends
+                    Forge classes (PlayerController, HeadlessGuiBase,
+                    ClientGuiGame, CostDecision).
+  handoff/          CompletableFuture-based bridges. Engine thread blocks here
+                    until the session thread completes the future
+                    (GameActionBridge, InteractivePromptBridge, MulliganBridge,
+                    OptionalActionGate, PromptJournal, PromptSideEffect).
+  coord/            Engine-thread orchestration split off from PlayerController
+                    (PriorityLoopCoordinator, GameLoopController, GameLoopPoller,
+                    CostPaymentCoordinator, TargetingCoordinator, SpellExecutor).
+  bootstrap/        Match + deck setup (GameBootstrap, DeckLoader, DeckConverter,
+                    FormatService).
+  types/            Pure-data shared types (Ids, PriorityDecision, PrioritySignal,
+                    PhaseStopProfile, MulliganPhase, ClientAutoPassState, BridgeDto).
+  (root)            Cross-cutting utilities — CardLookup, ResourceResolver,
+                    BridgeTimeoutDiagnostic, PlayableActionQuery.
 
-game/       State mapping, annotations, proto builders, card data.
-            Pure translation: Forge state → client protobuf.
-  mapper/   Per-domain mappers (actions, objects, players, zones, stops).
+game/               Engine state → client protobuf.
+  snapshot/         Captured engine state (GsmSnapshot, SnapshotCapture, per-area
+                    snapshots).
+  state/            Session-lifetime mutable state + contracts (GameBridge,
+                    BridgeContracts, BridgeMutations, EffectTracker,
+                    PersistentAnnotationStore, InstanceIdRegistry, AbilityRegistry,
+                    LimboTracker, RevealProxyTracker, TokenIdentityRegistry,
+                    DiffSnapshotter).
+  event/            Engine → typed GameEvent (GameEvent, GameEventCollector).
+  mapper/           Snapshot → proto pipeline (StateMapper +
+                    Action/Object/Player/Zone mappers + helpers).
+  annotations/      Annotation pipeline stages 1–5 (AnnotationBuilder,
+                    AnnotationConstants, ZoneTransferDetector,
+                    TransferAnnotations, CombatAnnotations, MechanicAnnotations,
+                    TransferCategory(Resolver), AnnotationOrderEnforcer,
+                    AnnotationLossReason, AbilityWordScanner).
+  bundle/           GRE bundle assembly (BundleBuilder, BundleCursor, GsmBuilder,
+                    RequestBuilder, InvariantChecker, MessageCounter).
+  data/             Card repository + parsing (CardData, CardDataParsing,
+                    CardProtoBuilder, CardRepository, ExposedCardRepository,
+                    AbilityIdDeriver).
+  codes/            Arena protocol code tables + static mappings (CounterTypes,
+                    DetailKeys, KeywordGrpIds, KeywordQualifications,
+                    ManaColorMapping, QualificationType, SlotLayout).
+  generator/        Pre-match generators (DraftPackGenerator, SealedPoolGenerator,
+                    PuzzleSource).
+  (root)            GamePlayback.
 
-match/      Match orchestration — MatchHandler, MatchSession, FamiliarSession,
-            combat, targeting, mulligan, puzzle handlers. Entry point for
-            client messages. Two session types: MatchSession (human, full
-            game logic) and FamiliarSession (read-only mirror, no-op actions).
+match/              Match orchestration — MatchHandler, MatchSession, FamiliarSession,
+                    combat, targeting, mulligan, puzzle handlers. Entry point for
+                    client messages. Two session types: MatchSession (human, full
+                    game logic) and FamiliarSession (read-only mirror, no-op actions).
 ```
 
 ArchUnit enforces: bridge → game → match (no reverse deps within the module).
@@ -57,7 +96,7 @@ Mana cost reaches the client through two paths depending on the action type. `Ma
 
 **Decision rule:** Use `computeEffectiveCost(sa, player)` for all cast actions — it chains `CostAdjustment.adjust(Cost)` (commander tax + raises) and `CostAdjustment.adjust(ManaCostBeingPaid)` (static reductions). Falls back to `CardData.manaCost` only in naive mode (no SpellAbility available). Activated abilities still use raw `SA.payCosts` (no reduction path needed yet).
 
-**Payment:** `WebCostDecision` visitor pattern — extends Forge's `CostDecisionMakerBase`, routes interactive cost decisions (sacrifice, tap creatures for convoke, etc.) through `InteractivePromptBridge`.
+**Payment:** `CostDecision` visitor pattern — extends Forge's `CostDecisionMakerBase`, routes interactive cost decisions (sacrifice, tap creatures for convoke, etc.) through `InteractivePromptBridge`.
 
 ## Cookbook
 
@@ -89,20 +128,20 @@ Mana cost reaches the client through two paths depending on the action type. `Ma
 
 1. Read the timeout log — `BridgeTimeoutDiagnostic` auto-captures phase, stack, priority holder, and engine thread trace on every timeout
 2. If engine thread is in a bridge's `CompletableFuture.get()`: `MatchSession` handler isn't wiring through, or isn't translating the proto correctly
-3. If engine thread is elsewhere (e.g. desktop `Input` class): unimplemented `WebPlayerController` override — needs bridge integration
+3. If engine thread is elsewhere (e.g. desktop `Input` class): unimplemented `PlayerController` override — needs bridge integration
 4. Check phase in diagnostic: combat phases need combat-specific handlers (`onDeclareAttackers` etc.), not just `onPerformAction`
 
 ### Debugging a proto shape failure
 
 Check nearby tests and mapper/annotation code for annotation ordering, category codes, instanceId lifecycle, gsId chain, detail key types, diff vs full, and triage flow.
 
-## WebPlayerController
+## PlayerController
 
-The full pattern (single-inheritance constraint, coordinator / helper structure, state-ownership rules, anti-patterns, and the decision tree for adding a new override) lives in the `WebPlayerController` class KDoc. Read the class, not a standalone doc.
+The full pattern (single-inheritance constraint, coordinator / helper structure, state-ownership rules, anti-patterns, and the decision tree for adding a new override) lives in the `PlayerController` class KDoc. Read the class, not a standalone doc.
 
 Shape invariants to know:
 
-- **42 overrides, pinned by `WebPlayerControllerStructureTest`.** Adding or removing one requires updating the test and the table below in the same commit.
+- **42 overrides, pinned by `PlayerControllerStructureTest`.** Adding or removing one requires updating the test and the table below in the same commit.
 - **Cross-class state stays on the class.** `pendingOptionalAction`, `pendingDamageAssignment`, `damageAssignCache`, `autoPassState`, `recentDecisions` have external readers (`GameBridge`, `CombatHandler`, `OptionalActionHandler`, `DebugServer`, `MatchFlowHarness`).
 - **Prompt side-effects flow through `PromptJournal`.** `InteractivePromptBridge.journal` carries typed `PromptSideEffect` entries (`SearchedToHand`, `LegendVictim`, `RevealStarted`/`RevealEnded`, `OptionalCostStash`); producers record, consumers (`GameEventCollector`, `CostPaymentCoordinator`, `StateMapper`) drain. `promptJustResolved` lives on `PrioritySignal`. Reveal proxy IDs are encapsulated as `GameBridge.revealProxies: RevealProxyTracker`.
 - **The `pendingOptionalAction` future lifecycle belongs to `OptionalActionGate`.** The three override sites (`confirmTrigger`, `playSaFromPlayEffect`, `payCostToPreventEffect`) delegate to `gate.await(...)`.
@@ -168,7 +207,7 @@ All 42 overrides, by concern. "Bridge" column names the primary mechanism each u
 
 | Override | Description |
 |---|---|
-| `getCostDecisionMaker` | Returns `WebCostDecision` — visitor for interactive cost choices |
+| `getCostDecisionMaker` | Returns `CostDecision` — visitor for interactive cost choices |
 | `payManaCost` | Delegates to `PlaySpellAbility.payManaCost` |
 | `applyManaToCost` | AI mana payment via `ComputerUtilMana` |
 | `chooseCardsForCost` | Card selection for cost payment (exile, discard as cost) |

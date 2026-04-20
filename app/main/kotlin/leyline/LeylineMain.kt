@@ -3,9 +3,10 @@ package leyline
 import leyline.account.AccountServer
 import leyline.config.MatchConfig
 import leyline.debug.DebugServer
-import leyline.game.ExposedCardRepository
+import leyline.game.data.ExposedCardRepository
 import leyline.infra.LeylineServer
 import leyline.infra.ManagementServer
+import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 
 /**
@@ -90,7 +91,7 @@ private fun openCardRepo(): ExposedCardRepository {
     }
     require(File(cardDbPath).exists()) { "Card database not found at: $cardDbPath" }
     return ExposedCardRepository(
-        org.jetbrains.exposed.v1.jdbc.Database.connect(
+        Database.connect(
             "jdbc:sqlite:${File(cardDbPath).absolutePath}",
             "org.sqlite.JDBC",
         ),

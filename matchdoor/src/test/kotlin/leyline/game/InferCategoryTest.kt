@@ -3,11 +3,13 @@ package leyline.game
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.game.mapper.ZoneIds
+import leyline.game.annotations.TransferCategory
+import leyline.game.annotations.ZoneTransferDetector
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 
 /**
- * Unit tests for [ZoneTransferDetector.inferCategory] — the logic that maps
+ * Unit tests for [leyline.game.annotations.ZoneTransferDetector.inferCategory] — the logic that maps
  * (srcZone, destZone) pairs to annotation categories.
  *
  * Each category drives a different annotation sequence in buildFromSnapshot:
