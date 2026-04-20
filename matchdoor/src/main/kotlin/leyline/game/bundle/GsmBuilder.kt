@@ -104,7 +104,7 @@ object GsmBuilder {
         // cards appear in objectInstanceIds (for count) but render face-down.
         if (human != null) {
             ZoneMapper.addPlayerZonesFromSnapshot(
-                1,
+                SeatId(1),
                 snap,
                 bridge,
                 zones,
@@ -116,7 +116,7 @@ object GsmBuilder {
         }
         if (ai != null) {
             ZoneMapper.addPlayerZonesFromSnapshot(
-                2,
+                SeatId(2),
                 snap,
                 bridge,
                 zones,
@@ -425,7 +425,7 @@ object GsmBuilder {
         // Per-player zones (4 each = 8)
         if (human != null) {
             ZoneMapper.addInitialPlayerZonesFromSnapshot(
-                1,
+                SeatId(1),
                 snap,
                 bridge,
                 zones,
@@ -437,7 +437,7 @@ object GsmBuilder {
         }
         if (ai != null) {
             ZoneMapper.addInitialPlayerZonesFromSnapshot(
-                2,
+                SeatId(2),
                 snap,
                 bridge,
                 zones,

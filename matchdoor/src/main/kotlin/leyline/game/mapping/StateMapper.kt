@@ -242,7 +242,7 @@ object StateMapper {
         // Player 1 zones
         if (human != null) {
             ZoneMapper.addPlayerZonesFromSnapshot(
-                1,
+                SeatId(1),
                 snap,
                 bridge,
                 zones,
@@ -260,7 +260,7 @@ object StateMapper {
         // Player 2 zones
         if (ai != null) {
             ZoneMapper.addPlayerZonesFromSnapshot(
-                2,
+                SeatId(2),
                 snap,
                 bridge,
                 zones,
