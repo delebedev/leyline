@@ -106,12 +106,28 @@ tasks.named("compileKotlin") {
 
 // --- Code quality ---
 
+// Spotless: rule config lives in `.editorconfig`. `editorConfigOverride` must be called
+// with the repeated override map (even though `.editorconfig` carries the same setting)
+// — dropping or emptying it switches spotless into a different ktlint mode that activates
+// many opt-in rules and would reformat ~200 files. See .editorconfig comment block.
+val ktlintVersion = "1.5.0"
+val ktlintOverrides = mapOf("ktlint_standard_no-wildcard-imports" to "disabled")
+
 spotless {
     kotlin {
         target("app/**/*.kt")
-        ktlint("1.5.0").editorConfigOverride(
-            mapOf("ktlint_standard_no-wildcard-imports" to "disabled"),
-        )
+        ktlint(ktlintVersion).editorConfigOverride(ktlintOverrides)
+    }
+}
+
+subprojects {
+    plugins.withId("com.diffplug.spotless") {
+        extensions.configure<com.diffplug.gradle.spotless.SpotlessExtension> {
+            kotlin {
+                target("src/**/*.kt")
+                ktlint(ktlintVersion).editorConfigOverride(ktlintOverrides)
+            }
+        }
     }
 }
 
