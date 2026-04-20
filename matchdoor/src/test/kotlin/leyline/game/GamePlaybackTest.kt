@@ -1,8 +1,8 @@
 package leyline.game
 
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -52,6 +52,6 @@ class GamePlaybackTest :
 
             val allMsgIds = sessionMsgIds + engineMsgIds
             allMsgIds.toSet().size shouldBe allMsgIds.size
-            (allMsgIds.last() > allMsgIds.first()).shouldBeTrue()
+            allMsgIds.last() shouldBeGreaterThan allMsgIds.first()
         }
     })

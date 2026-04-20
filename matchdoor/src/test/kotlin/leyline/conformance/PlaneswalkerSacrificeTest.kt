@@ -5,6 +5,8 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 
@@ -69,8 +71,8 @@ class PlaneswalkerSacrificeTest :
             human
                 .getZone(ZoneType.Battlefield)
                 .cards
-                .any { it.name.contains("Liliana") }
-                .shouldBeTrue()
+                .filter { it.name.contains("Liliana") }
+                .shouldHaveSize(1)
 
             // Activate -2 (second ability, index 1)
             h.activateAbility("Liliana of the Veil", abilityIndex = 1).shouldBeTrue()
@@ -89,8 +91,7 @@ class PlaneswalkerSacrificeTest :
                 .getZone(ZoneType.Battlefield)
                 .cards
                 .filter { it.isCreature }
-                .isEmpty()
-                .shouldBeTrue()
+                .shouldBeEmpty()
 
             // Advance to combat, attack with Bears
             repeat(10) {

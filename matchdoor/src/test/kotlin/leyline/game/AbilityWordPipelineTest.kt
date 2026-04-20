@@ -213,8 +213,8 @@ class AbilityWordPipelineTest :
                 result.allAnnotations.filter {
                     AnnotationType.AbilityWordActive in it.typeList
                 }
-            awAnns shouldHaveSize 1
             assertSoftly {
+                awAnns shouldHaveSize 1
                 awAnns[0].affectorId shouldBe 1
                 awAnns[0].affectedIdsList shouldBe listOf(323, 328)
                 awAnns[0].detailString("AbilityWordName") shouldBe "Morbid"

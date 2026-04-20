@@ -26,8 +26,8 @@ class CommanderPuzzleTest :
             val snap = GsmSnapshot.capture(game, b, "test", 999)
             val gsm = StateMapper.buildFromSnapshot(snap, 999, "test", b, viewingSeatId = 1).gsm
 
-            gsm.gameInfo.hasDeckConstraintInfo().shouldBeTrue()
             assertSoftly {
+                gsm.gameInfo.hasDeckConstraintInfo().shouldBeTrue()
                 gsm.gameInfo.variant shouldBe GameVariant.Brawl
                 gsm.gameInfo.deckConstraintInfo.minCommanderSize shouldBe 1
             }

@@ -64,10 +64,9 @@ class LandManaTest :
                     AnnotationType.UserActionTaken,
                 )
             val ids = gsm.annotationsList.map { it.id }
-            ids shouldBe ids.sorted()
-            ids.toSet().size shouldBe ids.size
-
             assertSoftly {
+                ids shouldBe ids.sorted()
+                ids.toSet().size shouldBe ids.size
                 val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
                 oic.affectedIdsList.shouldContain(origId)
                 oic.detailInt("orig_id") shouldBe origId
@@ -169,9 +168,8 @@ class LandManaTest :
 
             val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
             val playActions = actions.ofType(ActionType.Play_add3)
-            playActions.shouldHaveSize(2)
-
             assertSoftly {
+                playActions.shouldHaveSize(2)
                 for (a in playActions) {
                     a.shouldStop.shouldBeTrue()
                     a.instanceId shouldNotBe 0
@@ -202,9 +200,8 @@ class LandManaTest :
             capture(b, game, counter) { moveToBattlefield(land, game) }
 
             val manaActions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b).ofType(ActionType.ActivateMana)
-            manaActions.shouldHaveSize(2)
-
             assertSoftly {
+                manaActions.shouldHaveSize(2)
                 for (a in manaActions) {
                     a.instanceId shouldNotBe 0
                     a.grpId shouldNotBe 0

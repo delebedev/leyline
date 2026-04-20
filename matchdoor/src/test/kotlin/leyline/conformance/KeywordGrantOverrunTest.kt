@@ -45,9 +45,8 @@ class KeywordGrantOverrunTest :
                     .filter { it.hasGameStateMessage() }
                     .flatMap { it.gameStateMessage.persistentAnnotationsList }
                     .firstOrNull { AnnotationType.AddAbility_af5a in it.typeList }
-            addAbility.shouldNotBeNull()
-
             assertSoftly {
+                addAbility.shouldNotBeNull()
                 // grpId 14 = Trample
                 addAbility.detailUint("grpid") shouldBe 14
                 // Both Grizzly Bears affected

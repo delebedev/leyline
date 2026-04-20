@@ -2,13 +2,6 @@
 <SmellBaseline>
   <ManuallySuppressedIssues></ManuallySuppressedIssues>
   <CurrentIssues>
-    <ID>LargeClass:FrontDoorHandlerTest.kt$FrontDoorHandlerTest : FunSpec</ID>
-    <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"clone-1","Name":"Imported Deck (4)","DeckTileId":55,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":200,"quantity":2}],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Cloned"}"""</ID>
-    <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"Explorer Deck","DeckTileId":0,"Attributes":[{"name":"Format","value":"Explorer"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""</ID>
-    <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"Fav","DeckTileId":0,"Attributes":[{"name":"IsFavorite","value":"true"},{"name":"Format","value":"Standard"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""</ID>
-    <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"My Deck","DeckTileId":99,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":100,"quantity":4}],"Sideboard":[],"CommandZone":[],"Companions":[],"CardSkins":[]},"ActionType":"CreatedNew"}"""</ID>
-    <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"No Attrs","DeckTileId":0},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]}}"""</ID>
-    <ID>MaxLineLength:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$"""{"EventName":"QuickDraft_ECL_20260223","PickInfo":{"CardIds":["$card"],"PackNumber":$packNum,"PickNumber":$pickNum}}"""</ID>
     <ID>MissingAssertSoftly:FormatServiceTest.kt$FormatServiceTest$EventRegistry.mapArenaFormat("Timeless").shouldBeNull()</ID>
     <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$deck["MainDeck"].shouldNotBeNull()</ID>
     <ID>WeakAssertionOnly:DraftWireBuilderTest.kt$DraftWireBuilderTest$test("DraftPack contains string grpIds") { val json = DraftWireBuilder.buildDraftResponse(session) val outer = Json.parseToJsonElement(json).jsonObject val payloadStr = outer["Payload"]!!.jsonPrimitive.content payloadStr shouldContain "\"98353\"" payloadStr shouldContain "\"98519\"" }</ID>

@@ -40,7 +40,7 @@ class MatchFlowHarnessTest :
             h.connectAndKeep()
 
             val acc = h.accumulator
-            acc.objects.isNotEmpty().shouldBeTrue()
+            acc.objects.size shouldBeGreaterThan 0
             acc.actions.shouldNotBeNull()
 
             val missing = acc.actionInstanceIdsMissingFromObjects()

@@ -176,9 +176,8 @@ class TargetingInteractionTest :
                     .firstOrNull { it.type == ProtoZoneType.Stack }
             stackZone.shouldNotBeNull()
             val stackInstanceId = stackZone.objectInstanceIdsList.firstOrNull()
-            stackInstanceId.shouldNotBeNull()
-
             assertSoftly {
+                stackInstanceId.shouldNotBeNull()
                 // Both players legal
                 targetIds shouldContain HUMAN_SEAT
                 targetIds shouldContain OPPONENT_SEAT
@@ -311,9 +310,8 @@ class TargetingInteractionTest :
                     .filter { it.hasGameStateMessage() }
                     .flatMap { it.gameStateMessage.annotationsList }
                     .firstOrNull { AnnotationType.DamageDealt_af5a in it.typeList }
-            damageAnn.shouldNotBeNull()
-
             assertSoftly {
+                damageAnn.shouldNotBeNull()
                 // affectorId = dealing creature (not the spell iid)
                 damageAnn.affectorId shouldBe dealerIid
                 // Damage amount = dealer power (Grizzly Bears = 2)

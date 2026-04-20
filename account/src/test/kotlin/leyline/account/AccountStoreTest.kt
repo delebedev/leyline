@@ -83,9 +83,11 @@ class AccountStoreTest :
 
         test("isEmpty on fresh DB") {
             val store = freshStore()
-            store.isEmpty().shouldBeTrue()
+            @Suppress("BooleanAssertion") // store.isEmpty() is a domain method, not a collection
+            store.isEmpty() shouldBe true
             store.create("a@b.com", "pass", "P")
-            store.isEmpty().shouldBeFalse()
+            @Suppress("BooleanAssertion")
+            store.isEmpty() shouldBe false
         }
 
         test("seed inserts account with fixed IDs") {

@@ -146,10 +146,9 @@ class DealHandConformanceTest :
             val (msg, nextMsgId) = HandshakeMessages.initialBundle(1, ConformanceTestBase.TEST_MATCH_ID, 2, 1, deck, b)
             val messages = greMessages(msg)
 
-            messages.size shouldBe 3
-            nextMsgId shouldBe 5
-
             assertSoftly {
+                messages.size shouldBe 3
+                nextMsgId shouldBe 5
                 messages[0].type shouldBe GREMessageType.ConnectResp_695e
                 messages[1].type shouldBe GREMessageType.DieRollResultsResp_695e
                 messages[2].type shouldBe GREMessageType.GameStateMessage_695e
@@ -171,10 +170,9 @@ class DealHandConformanceTest :
             val (msg, nextMsgId) = HandshakeMessages.initialBundle(2, ConformanceTestBase.TEST_MATCH_ID, 3, 1, deck, b)
             val messages = greMessages(msg)
 
-            messages.size shouldBe 3
-            nextMsgId shouldBe 6
-
             assertSoftly {
+                messages.size shouldBe 3
+                nextMsgId shouldBe 6
                 messages[0].type shouldBe GREMessageType.DieRollResultsResp_695e
                 messages[1].type shouldBe GREMessageType.GameStateMessage_695e
                 messages[2].type shouldBe GREMessageType.ChooseStartingPlayerReq_695e
