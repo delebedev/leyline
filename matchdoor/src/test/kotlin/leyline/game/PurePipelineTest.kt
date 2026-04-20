@@ -92,10 +92,12 @@ class PurePipelineTest :
 
             result.transfers.size shouldBe 1
             val transfer = result.transfers[0]
-            transfer.category shouldBe TransferCategory.PlayLand
-            transfer.origId shouldBe 100
-            transfer.newId shouldBe 200
-            result.retiredIds shouldBe listOf(100)
+            assertSoftly {
+                transfer.category shouldBe TransferCategory.PlayLand
+                transfer.origId shouldBe 100
+                transfer.newId shouldBe 200
+                result.retiredIds shouldBe listOf(100)
+            }
         }
 
         // -----------------------------------------------------------------------
@@ -150,10 +152,12 @@ class PurePipelineTest :
 
             result.transfers.size shouldBe 1
             val transfer = result.transfers[0]
-            transfer.category shouldBe TransferCategory.Resolve
-            transfer.origId shouldBe 100
-            transfer.newId shouldBe 100
-            result.retiredIds.shouldBeEmpty()
+            assertSoftly {
+                transfer.category shouldBe TransferCategory.Resolve
+                transfer.origId shouldBe 100
+                transfer.newId shouldBe 100
+                result.retiredIds.shouldBeEmpty()
+            }
         }
 
         // -----------------------------------------------------------------------
@@ -523,10 +527,12 @@ class PurePipelineTest :
             result.transfers.shouldBeEmpty()
             result.stackAbilityAppearances shouldHaveSize 1
             val a = result.stackAbilityAppearances[0]
-            a.abilityInstanceId shouldBe abilityIid
-            a.sourceCardInstanceId shouldBe sourceCardIid
-            a.sourceZoneId shouldBe ZoneIds.BATTLEFIELD
-            a.grpId shouldBe cardGrpId
+            assertSoftly {
+                a.abilityInstanceId shouldBe abilityIid
+                a.sourceCardInstanceId shouldBe sourceCardIid
+                a.sourceZoneId shouldBe ZoneIds.BATTLEFIELD
+                a.grpId shouldBe cardGrpId
+            }
         }
 
         test("detectZoneTransfers finds stack ability disappearance") {
@@ -548,10 +554,12 @@ class PurePipelineTest :
 
             result.stackAbilityDisappearances shouldHaveSize 1
             val d = result.stackAbilityDisappearances[0]
-            d.abilityInstanceId shouldBe abilityIid
-            d.sourceCardInstanceId shouldBe sourceCardIid
-            d.grpId shouldBe cardGrpId
-            d.hasFizzled shouldBe false
+            assertSoftly {
+                d.abilityInstanceId shouldBe abilityIid
+                d.sourceCardInstanceId shouldBe sourceCardIid
+                d.grpId shouldBe cardGrpId
+                d.hasFizzled shouldBe false
+            }
         }
 
         test("stack ability fizzle sets hasFizzled") {
@@ -581,10 +589,12 @@ class PurePipelineTest :
                 sourceZoneId = ZoneIds.BATTLEFIELD,
             )
 
-            ann.typeList shouldBe listOf(AnnotationType.AbilityInstanceCreated)
-            ann.affectorId shouldBe sourceCardIid
-            ann.affectedIdsList shouldBe listOf(abilityIid)
-            ann.detailInt("source_zone") shouldBe ZoneIds.BATTLEFIELD
+            assertSoftly {
+                ann.typeList shouldBe listOf(AnnotationType.AbilityInstanceCreated)
+                ann.affectorId shouldBe sourceCardIid
+                ann.affectedIdsList shouldBe listOf(abilityIid)
+                ann.detailInt("source_zone") shouldBe ZoneIds.BATTLEFIELD
+            }
         }
 
         test("disappearance emits only AbilityInstanceDeleted") {
@@ -592,9 +602,11 @@ class PurePipelineTest :
             // the ability's instanceId is no longer a valid game object.
             val ann = AnnotationBuilder.abilityInstanceDeleted(abilityIid.iid, sourceCardIid.iid)
 
-            ann.typeList shouldBe listOf(AnnotationType.AbilityInstanceDeleted)
-            ann.affectorId shouldBe sourceCardIid
-            ann.affectedIdsList shouldBe listOf(abilityIid)
+            assertSoftly {
+                ann.typeList shouldBe listOf(AnnotationType.AbilityInstanceDeleted)
+                ann.affectorId shouldBe sourceCardIid
+                ann.affectedIdsList shouldBe listOf(abilityIid)
+            }
         }
 
         // -----------------------------------------------------------------------

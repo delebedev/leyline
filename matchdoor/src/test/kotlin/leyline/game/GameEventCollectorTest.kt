@@ -6,6 +6,7 @@ import forge.game.card.CounterEnumType
 import forge.game.event.*
 import forge.game.player.PlayerView
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -77,9 +78,11 @@ class GameEventCollectorTest :
 
             val events = collector.drainEvents().events
             val lp = events.filterIsInstance<GameEvent.LandPlayed>()
-            lp.size shouldBe 1
-            lp[0].cardId shouldBe ForgeCardId(land.id)
-            lp[0].seatId shouldBe SeatId(1)
+            assertSoftly {
+                lp.size shouldBe 1
+                lp[0].cardId shouldBe ForgeCardId(land.id)
+                lp[0].seatId shouldBe SeatId(1)
+            }
         }
 
         // -- SpellCast --
@@ -96,9 +99,11 @@ class GameEventCollectorTest :
 
             val events = collector.drainEvents().events
             val sc = events.filterIsInstance<GameEvent.SpellCast>()
-            sc.size shouldBe 1
-            sc[0].cardId shouldBe ForgeCardId(spell.id)
-            sc[0].seatId shouldBe SeatId(1)
+            assertSoftly {
+                sc.size shouldBe 1
+                sc[0].cardId shouldBe ForgeCardId(spell.id)
+                sc[0].seatId shouldBe SeatId(1)
+            }
         }
 
         // -- SpellResolved --
@@ -115,9 +120,11 @@ class GameEventCollectorTest :
 
             val events = collector.drainEvents().events
             val sr = events.filterIsInstance<GameEvent.SpellResolved>()
-            sr.size shouldBe 1
-            sr[0].cardId shouldBe ForgeCardId(spell.id)
-            sr[0].hasFizzled.shouldBeFalse()
+            assertSoftly {
+                sr.size shouldBe 1
+                sr[0].cardId shouldBe ForgeCardId(spell.id)
+                sr[0].hasFizzled.shouldBeFalse()
+            }
         }
 
         test("spell resolved fizzled") {
@@ -170,10 +177,12 @@ class GameEventCollectorTest :
 
             val events = collector.drainEvents().events
             val destroyed = events.filterIsInstance<GameEvent.CardDestroyed>()
-            destroyed.size shouldBe 1
-            destroyed[0].cardId shouldBe ForgeCardId(creature.id)
-            destroyed[0].seatId shouldBe SeatId(1)
-            destroyed[0].sourceCardId shouldBe ForgeCardId(bolt.id)
+            assertSoftly {
+                destroyed.size shouldBe 1
+                destroyed[0].cardId shouldBe ForgeCardId(creature.id)
+                destroyed[0].seatId shouldBe SeatId(1)
+                destroyed[0].sourceCardId shouldBe ForgeCardId(bolt.id)
+            }
         }
 
         test("BF to Hand emits CardBounced") {
@@ -254,9 +263,11 @@ class GameEventCollectorTest :
             game.fireEvent(GameEventCardChangeZone(card, gy, lib))
 
             val zc = collector.drainEvents().events.filterIsInstance<GameEvent.ZoneChanged>()
-            zc.size shouldBe 1
-            zc[0].from shouldBe Zone.Graveyard
-            zc[0].to shouldBe Zone.Library
+            assertSoftly {
+                zc.size shouldBe 1
+                zc[0].from shouldBe Zone.Graveyard
+                zc[0].to shouldBe Zone.Library
+            }
         }
 
         // -- CardTapped --
@@ -272,9 +283,11 @@ class GameEventCollectorTest :
             game.fireEvent(GameEventCardTapped(land, true))
 
             val tapped = collector.drainEvents().events.filterIsInstance<GameEvent.CardTapped>()
-            tapped.size shouldBe 1
-            tapped[0].cardId shouldBe ForgeCardId(land.id)
-            tapped[0].tapped.shouldBeTrue()
+            assertSoftly {
+                tapped.size shouldBe 1
+                tapped[0].cardId shouldBe ForgeCardId(land.id)
+                tapped[0].tapped.shouldBeTrue()
+            }
         }
 
         test("card untapped event") {
@@ -308,10 +321,12 @@ class GameEventCollectorTest :
             game.fireEvent(GameEventCardDamaged(CardView.get(target), CardView.get(source), 2, GameEventCardDamaged.DamageType.Normal))
 
             val dmg = collector.drainEvents().events.filterIsInstance<GameEvent.DamageDealtToCard>()
-            dmg.size shouldBe 1
-            dmg[0].sourceCardId shouldBe ForgeCardId(source.id)
-            dmg[0].targetCardId shouldBe ForgeCardId(target.id)
-            dmg[0].amount shouldBe 2
+            assertSoftly {
+                dmg.size shouldBe 1
+                dmg[0].sourceCardId shouldBe ForgeCardId(source.id)
+                dmg[0].targetCardId shouldBe ForgeCardId(target.id)
+                dmg[0].amount shouldBe 2
+            }
         }
 
         test("damage dealt to player event") {
@@ -325,11 +340,13 @@ class GameEventCollectorTest :
             game.fireEvent(GameEventPlayerDamaged(PlayerView.get(game.humanPlayer), CardView.get(creature), 3, true, false))
 
             val dmg = collector.drainEvents().events.filterIsInstance<GameEvent.DamageDealtToPlayer>()
-            dmg.size shouldBe 1
-            dmg[0].sourceCardId shouldBe ForgeCardId(creature.id)
-            dmg[0].targetSeatId shouldBe SeatId(1)
-            dmg[0].amount shouldBe 3
-            dmg[0].combat.shouldBeTrue()
+            assertSoftly {
+                dmg.size shouldBe 1
+                dmg[0].sourceCardId shouldBe ForgeCardId(creature.id)
+                dmg[0].targetSeatId shouldBe SeatId(1)
+                dmg[0].amount shouldBe 3
+                dmg[0].combat.shouldBeTrue()
+            }
         }
 
         // -- LifeChanged --
@@ -342,10 +359,12 @@ class GameEventCollectorTest :
             game.fireEvent(GameEventPlayerLivesChanged(game.humanPlayer, 20, 17))
 
             val lc = collector.drainEvents().events.filterIsInstance<GameEvent.LifeChanged>()
-            lc.size shouldBe 1
-            lc[0].seatId shouldBe SeatId(1)
-            lc[0].oldLife shouldBe 20
-            lc[0].newLife shouldBe 17
+            assertSoftly {
+                lc.size shouldBe 1
+                lc[0].seatId shouldBe SeatId(1)
+                lc[0].oldLife shouldBe 20
+                lc[0].newLife shouldBe 17
+            }
         }
 
         // -- CardSacrificed --
@@ -361,9 +380,11 @@ class GameEventCollectorTest :
             game.fireEvent(GameEventCardSacrificed(CardView.get(creature)))
 
             val sac = collector.drainEvents().events.filterIsInstance<GameEvent.CardSacrificed>()
-            sac.size shouldBe 1
-            sac[0].cardId shouldBe ForgeCardId(creature.id)
-            sac[0].seatId shouldBe SeatId(1)
+            assertSoftly {
+                sac.size shouldBe 1
+                sac[0].cardId shouldBe ForgeCardId(creature.id)
+                sac[0].seatId shouldBe SeatId(1)
+            }
         }
 
         // -- Attachment --
@@ -382,9 +403,11 @@ class GameEventCollectorTest :
             game.fireEvent(GameEventCardAttachment(aura, null, creature))
 
             val attached = collector.drainEvents().events.filterIsInstance<GameEvent.CardAttached>()
-            attached.size shouldBe 1
-            attached[0].cardId shouldBe ForgeCardId(aura.id)
-            attached[0].targetCardId shouldBe ForgeCardId(creature.id)
+            assertSoftly {
+                attached.size shouldBe 1
+                attached[0].cardId shouldBe ForgeCardId(aura.id)
+                attached[0].targetCardId shouldBe ForgeCardId(creature.id)
+            }
         }
 
         test("card detached event") {
@@ -417,11 +440,13 @@ class GameEventCollectorTest :
             game.fireEvent(GameEventCardCounters(creature, CounterEnumType.P1P1, 0, 2))
 
             val cc = collector.drainEvents().events.filterIsInstance<GameEvent.CountersChanged>()
-            cc.size shouldBe 1
-            cc[0].cardId shouldBe ForgeCardId(creature.id)
-            cc[0].counterType shouldBe "+1/+1"
-            cc[0].oldCount shouldBe 0
-            cc[0].newCount shouldBe 2
+            assertSoftly {
+                cc.size shouldBe 1
+                cc[0].cardId shouldBe ForgeCardId(creature.id)
+                cc[0].counterType shouldBe "+1/+1"
+                cc[0].oldCount shouldBe 0
+                cc[0].newCount shouldBe 2
+            }
         }
 
         // -- P/T changed --
@@ -444,9 +469,11 @@ class GameEventCollectorTest :
             game.fireEvent(GameEventCardStatsChanged(creature))
 
             val pt = collector.drainEvents().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
-            pt.size shouldBe 1
-            pt[0].cardId shouldBe ForgeCardId(creature.id)
-            pt[0].newPower shouldBe creature.getNetPower()
+            assertSoftly {
+                pt.size shouldBe 1
+                pt[0].cardId shouldBe ForgeCardId(creature.id)
+                pt[0].newPower shouldBe creature.getNetPower()
+            }
         }
 
         test("power toughness unchanged - no duplicate") {
@@ -489,9 +516,11 @@ class GameEventCollectorTest :
 
             val events = collector.drainEvents().events
             val transformed = events.filterIsInstance<GameEvent.CardTransformed>()
-            transformed.size shouldBe 1
-            transformed[0].cardId shouldBe ForgeCardId(card.id)
-            transformed[0].isBackSide shouldBe true
+            assertSoftly {
+                transformed.size shouldBe 1
+                transformed[0].cardId shouldBe ForgeCardId(card.id)
+                transformed[0].isBackSide shouldBe true
+            }
         }
 
         test("non-transform stats change does not emit CardTransformed") {
@@ -532,10 +561,12 @@ class GameEventCollectorTest :
             game.fireEvent(GameEventScry(PlayerView.get(game.humanPlayer), 1, 2))
 
             val scry = collector.drainEvents().events.filterIsInstance<GameEvent.Scry>()
-            scry.size shouldBe 1
-            scry[0].seatId shouldBe SeatId(1)
-            scry[0].topCount shouldBe 1
-            scry[0].bottomCount shouldBe 2
+            assertSoftly {
+                scry.size shouldBe 1
+                scry[0].seatId shouldBe SeatId(1)
+                scry[0].topCount shouldBe 1
+                scry[0].bottomCount shouldBe 2
+            }
         }
 
         // -- Surveil --
@@ -548,10 +579,12 @@ class GameEventCollectorTest :
             game.fireEvent(GameEventSurveil(PlayerView.get(game.humanPlayer), 1, 3))
 
             val sv = collector.drainEvents().events.filterIsInstance<GameEvent.Surveil>()
-            sv.size shouldBe 1
-            sv[0].seatId shouldBe SeatId(1)
-            sv[0].toLibrary shouldBe 1
-            sv[0].toGraveyard shouldBe 3
+            assertSoftly {
+                sv.size shouldBe 1
+                sv[0].seatId shouldBe SeatId(1)
+                sv[0].toLibrary shouldBe 1
+                sv[0].toGraveyard shouldBe 3
+            }
         }
 
         // -- CombatEnded --

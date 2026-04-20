@@ -1,5 +1,6 @@
 package leyline.frontdoor.wire
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -46,9 +47,11 @@ class DeckWireBuilderTest :
         test("V3 summary has Attributes as flat dict") {
             val obj = DeckWireBuilder.toV3Summary(deck)
             val attrs = obj["Attributes"]?.jsonObject
-            attrs shouldNotBe null
-            attrs!!["Format"]?.jsonPrimitive?.content shouldBe "Standard"
-            attrs["TileID"]?.jsonPrimitive?.content shouldBe "12345"
+            assertSoftly {
+                attrs shouldNotBe null
+                attrs!!["Format"]?.jsonPrimitive?.content shouldBe "Standard"
+                attrs["TileID"]?.jsonPrimitive?.content shouldBe "12345"
+            }
         }
 
         test("V2 has FormatLegalities, V3 does not (minimal model)") {
@@ -64,14 +67,16 @@ class DeckWireBuilderTest :
         test("V2 60-card deck is Standard legal and has constructed + limited formats") {
             val obj = DeckWireBuilder.toV2Summary(deck)
             val legalities = obj["FormatLegalities"]!!.jsonObject
-            legalities["Standard"]?.jsonPrimitive?.boolean shouldBe true
-            legalities["Historic"]?.jsonPrimitive?.boolean shouldBe true
-            legalities["Explorer"]?.jsonPrimitive?.boolean shouldBe true
-            legalities["Timeless"]?.jsonPrimitive?.boolean shouldBe true
-            legalities["TraditionalStandard"]?.jsonPrimitive?.boolean shouldBe true
-            legalities["DirectGame"]?.jsonPrimitive?.boolean shouldBe true
-            legalities["Brawl"]?.jsonPrimitive?.boolean shouldBe false
-            legalities["Draft"]?.jsonPrimitive?.boolean shouldBe true
+            assertSoftly {
+                legalities["Standard"]?.jsonPrimitive?.boolean shouldBe true
+                legalities["Historic"]?.jsonPrimitive?.boolean shouldBe true
+                legalities["Explorer"]?.jsonPrimitive?.boolean shouldBe true
+                legalities["Timeless"]?.jsonPrimitive?.boolean shouldBe true
+                legalities["TraditionalStandard"]?.jsonPrimitive?.boolean shouldBe true
+                legalities["DirectGame"]?.jsonPrimitive?.boolean shouldBe true
+                legalities["Brawl"]?.jsonPrimitive?.boolean shouldBe false
+                legalities["Draft"]?.jsonPrimitive?.boolean shouldBe true
+            }
         }
 
         test("V2 small deck is not constructed-legal but limited-legal") {
@@ -85,12 +90,14 @@ class DeckWireBuilderTest :
             val json =
                 """{"Summary":{"DeckId":"d1","Name":"My Deck","DeckTileId":99,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":100,"quantity":4}],"Sideboard":[],"CommandZone":[],"Companions":[],"CardSkins":[]},"ActionType":"CreatedNew"}"""
             val parsed = DeckWireBuilder.parseDeckUpdate(json, PlayerId("p1"))
-            parsed shouldNotBe null
-            parsed!!.name shouldBe "My Deck"
-            parsed.tileId shouldBe 99
-            parsed.mainDeck.size shouldBe 1
-            parsed.format shouldBe Format.Historic
-            parsed.isFavorite shouldBe false
+            assertSoftly {
+                parsed shouldNotBe null
+                parsed!!.name shouldBe "My Deck"
+                parsed.tileId shouldBe 99
+                parsed.mainDeck.size shouldBe 1
+                parsed.format shouldBe Format.Historic
+                parsed.isFavorite shouldBe false
+            }
         }
 
         test("parseDeckUpdate reads IsFavorite=true from Attributes") {
@@ -113,29 +120,37 @@ class DeckWireBuilderTest :
             val json =
                 """{"Summary":{"DeckId":"clone-1","Name":"Imported Deck (4)","DeckTileId":55,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":200,"quantity":2}],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Cloned"}"""
             val parsed = DeckWireBuilder.parseDeckUpdate(json, PlayerId("p1"))
-            parsed shouldNotBe null
-            parsed!!.id shouldBe DeckId("clone-1")
-            parsed.format shouldBe Format.Historic
+            assertSoftly {
+                parsed shouldNotBe null
+                parsed!!.id shouldBe DeckId("clone-1")
+                parsed.format shouldBe Format.Historic
+            }
         }
 
         test("parseDeckUpdate defaults to Standard when Attributes missing") {
             val json =
                 """{"Summary":{"DeckId":"d1","Name":"No Attrs","DeckTileId":0},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]}}"""
             val parsed = DeckWireBuilder.parseDeckUpdate(json, PlayerId("p1"))
-            parsed shouldNotBe null
-            parsed!!.format shouldBe Format.Standard
-            parsed.isFavorite shouldBe false
+            assertSoftly {
+                parsed shouldNotBe null
+                parsed!!.format shouldBe Format.Standard
+                parsed.isFavorite shouldBe false
+            }
         }
 
         test("toStartHookEntry has card lists only — no metadata (matches client shape)") {
             val entry = DeckWireBuilder.toStartHookEntry(deck)
-            entry["MainDeck"]?.jsonArray shouldNotBe null
-            entry["MainDeck"]!!.jsonArray.size shouldBe 2
-            entry["Sideboard"]?.jsonArray shouldNotBe null
-            entry["CardSkins"]?.jsonArray shouldNotBe null
+            assertSoftly {
+                entry["MainDeck"]?.jsonArray shouldNotBe null
+                entry["MainDeck"]!!.jsonArray.size shouldBe 2
+                entry["Sideboard"]?.jsonArray shouldNotBe null
+                entry["CardSkins"]?.jsonArray shouldNotBe null
+            }
             // Must NOT contain summary/metadata fields — client LoadGuidObjectDictionary chokes on them
-            entry["DeckId"] shouldBe null
-            entry["Name"] shouldBe null
-            entry["Attributes"] shouldBe null
+            assertSoftly {
+                entry["DeckId"] shouldBe null
+                entry["Name"] shouldBe null
+                entry["Attributes"] shouldBe null
+            }
         }
     })

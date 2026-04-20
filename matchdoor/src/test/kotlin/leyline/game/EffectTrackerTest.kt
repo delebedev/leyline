@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
@@ -15,9 +16,11 @@ class EffectTrackerTest :
 
         test("allocates synthetic IDs starting at 7002") {
             val tracker = EffectTracker()
-            tracker.nextEffectId() shouldBe 7002
-            tracker.nextEffectId() shouldBe 7003
-            tracker.nextEffectId() shouldBe 7004
+            assertSoftly {
+                tracker.nextEffectId() shouldBe 7002
+                tracker.nextEffectId() shouldBe 7003
+                tracker.nextEffectId() shouldBe 7004
+            }
         }
 
         test("reset clears ID counter back to 7002") {
@@ -34,11 +37,13 @@ class EffectTrackerTest :
                 100 to listOf(EffectTracker.BoostEntry(timestamp = 1L, staticId = 0L, power = 3, toughness = 3)),
             )
             val result = tracker.diffBoosts(boosts)
-            result.created.size shouldBe 1
-            result.created[0].cardInstanceId shouldBe 100
-            result.created[0].powerDelta shouldBe 3
-            result.created[0].toughnessDelta shouldBe 3
-            result.destroyed.shouldBeEmpty()
+            assertSoftly {
+                result.created.size shouldBe 1
+                result.created[0].cardInstanceId shouldBe 100
+                result.created[0].powerDelta shouldBe 3
+                result.created[0].toughnessDelta shouldBe 3
+                result.destroyed.shouldBeEmpty()
+            }
         }
 
         test("diffBoosts detects removed effect and returns it as destroyed") {
@@ -48,9 +53,11 @@ class EffectTrackerTest :
             )
             tracker.diffBoosts(boosts1)
             val result = tracker.diffBoosts(emptyMap())
-            result.created.shouldBeEmpty()
-            result.destroyed.size shouldBe 1
-            result.destroyed[0].cardInstanceId shouldBe 100
+            assertSoftly {
+                result.created.shouldBeEmpty()
+                result.destroyed.size shouldBe 1
+                result.destroyed[0].cardInstanceId shouldBe 100
+            }
         }
 
         test("diffBoosts stable effect across two diffs produces no events") {
@@ -126,10 +133,12 @@ class EffectTrackerTest :
             val tracker = EffectTracker()
             val input = mapOf(100 to listOf(EffectTracker.KeywordEntry(1L, 0L, "Trample")))
             val diff = tracker.diffKeywords(input)
-            diff.created.size shouldBe 1
-            diff.created[0].keyword shouldBe "Trample"
-            diff.created[0].cardInstanceId shouldBe 100
-            diff.destroyed.shouldBeEmpty()
+            assertSoftly {
+                diff.created.size shouldBe 1
+                diff.created[0].keyword shouldBe "Trample"
+                diff.created[0].cardInstanceId shouldBe 100
+                diff.destroyed.shouldBeEmpty()
+            }
         }
 
         test("diffKeywords returns empty when keyword persists") {

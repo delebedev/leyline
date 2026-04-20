@@ -3,6 +3,7 @@ package leyline.game
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import forge.util.MyRandom
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -261,9 +262,11 @@ class GameBridgeTest :
 
             // GRE 2: SendHiFi echo
             val gre2 = messages[1]
-            gre2.gameStateMessage.type shouldBe Messages.GameStateType.Diff
-            gre2.gameStateMessage.update shouldBe Messages.GameStateUpdate.SendHiFi
-            (gre2.gameStateMessage.gameStateId > gre1.gameStateMessage.gameStateId).shouldBeTrue()
+            assertSoftly {
+                gre2.gameStateMessage.type shouldBe Messages.GameStateType.Diff
+                gre2.gameStateMessage.update shouldBe Messages.GameStateUpdate.SendHiFi
+                (gre2.gameStateMessage.gameStateId > gre1.gameStateMessage.gameStateId).shouldBeTrue()
+            }
 
             // GRE 3: SendAndRecord with 1x PhaseOrStepModified
             val gre3 = messages[2]
@@ -651,9 +654,11 @@ class GameBridgeTest :
             val snapGb5 = GsmSnapshot.capture(game, b, "test-match", 1)
             val gs = StateMapper.buildFromSnapshot(snapGb5, 1, "test-match", b).gsm
 
-            (gs.zonesCount > 0).shouldBeTrue()
-            (gs.gameObjectsCount > 0).shouldBeTrue()
-            gs.hasTurnInfo().shouldBeTrue()
-            (gs.turnInfo.turnNumber >= 1).shouldBeTrue()
+            assertSoftly {
+                (gs.zonesCount > 0).shouldBeTrue()
+                (gs.gameObjectsCount > 0).shouldBeTrue()
+                gs.hasTurnInfo().shouldBeTrue()
+                (gs.turnInfo.turnNumber >= 1).shouldBeTrue()
+            }
         }
     })

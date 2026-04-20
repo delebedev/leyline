@@ -1,5 +1,6 @@
 package leyline.frontdoor.service
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -14,9 +15,11 @@ class FormatServiceTest :
         tags(FdTag)
 
         test("mapArenaFormat strips Traditional prefix") {
-            EventRegistry.mapArenaFormat("TraditionalStandard") shouldBe "Standard"
-            EventRegistry.mapArenaFormat("TraditionalExplorer") shouldBe "Pioneer"
-            EventRegistry.mapArenaFormat("TraditionalHistoric") shouldBe "Historic"
+            assertSoftly {
+                EventRegistry.mapArenaFormat("TraditionalStandard") shouldBe "Standard"
+                EventRegistry.mapArenaFormat("TraditionalExplorer") shouldBe "Pioneer"
+                EventRegistry.mapArenaFormat("TraditionalHistoric") shouldBe "Historic"
+            }
         }
 
         test("mapArenaFormat maps Explorer to Pioneer") {

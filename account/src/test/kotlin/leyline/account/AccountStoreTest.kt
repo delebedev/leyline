@@ -1,5 +1,6 @@
 package leyline.account
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -25,10 +26,12 @@ class AccountStoreTest :
         test("create account and find by email") {
             val store = freshStore()
             val account = store.create("test@example.com", "secret123", "TestPlayer")
-            account.email shouldBe "test@example.com"
-            account.displayName shouldContain "TestPlayer#"
-            account.accountId.length shouldBe 26
-            account.personaId.length shouldBe 26
+            assertSoftly {
+                account.email shouldBe "test@example.com"
+                account.displayName shouldContain "TestPlayer#"
+                account.accountId.length shouldBe 26
+                account.personaId.length shouldBe 26
+            }
 
             val found = store.findByEmail("test@example.com")
             found.shouldNotBeNull()
@@ -93,9 +96,11 @@ class AccountStoreTest :
             )
             seeded.shouldBeTrue()
             val account = store.findByEmail("dev@local")
-            account.shouldNotBeNull()
-            account.accountId shouldBe "fixed-account-id"
-            account.personaId shouldBe "fixed-persona-id"
+            assertSoftly {
+                account.shouldNotBeNull()
+                account.accountId shouldBe "fixed-account-id"
+                account.personaId shouldBe "fixed-persona-id"
+            }
         }
 
         test("seed skips if email already exists") {

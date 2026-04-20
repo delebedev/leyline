@@ -1,5 +1,6 @@
 package leyline.frontdoor.domain
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.frontdoor.FdTag
@@ -20,8 +21,10 @@ class DeckTest :
         }
 
         test("Format.fromString is case-insensitive") {
-            Format.fromString("standard") shouldBe Format.Standard
-            Format.fromString("HISTORIC") shouldBe Format.Historic
-            Format.fromString("unknown") shouldBe Format.Standard
+            assertSoftly {
+                Format.fromString("standard") shouldBe Format.Standard
+                Format.fromString("HISTORIC") shouldBe Format.Historic
+                Format.fromString("unknown") shouldBe Format.Standard
+            }
         }
     })

@@ -1,5 +1,6 @@
 package leyline.frontdoor.repo
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -42,11 +43,13 @@ class SqliteCourseRepositoryTest :
             )
             store.save(course)
             val found = store.findById(courseId)
-            found shouldNotBe null
-            found!!.eventName shouldBe "Sealed_FDN_20260307"
-            found.module shouldBe CourseModule.DeckSelect
-            found.cardPool shouldBe listOf(1, 2, 3)
-            found.cardPoolByCollation shouldHaveSize 1
+            assertSoftly {
+                found shouldNotBe null
+                found!!.eventName shouldBe "Sealed_FDN_20260307"
+                found.module shouldBe CourseModule.DeckSelect
+                found.cardPool shouldBe listOf(1, 2, 3)
+                found.cardPoolByCollation shouldHaveSize 1
+            }
         }
 
         test("findByPlayerAndEvent") {
@@ -90,11 +93,13 @@ class SqliteCourseRepositoryTest :
             )
             store.save(updated)
             val found = store.findById(courseId)!!
-            found.wins shouldBe 2
-            found.losses shouldBe 1
-            found.module shouldBe CourseModule.CreateMatch
-            found.deck shouldNotBe null
-            found.deckSummary shouldNotBe null
+            assertSoftly {
+                found.wins shouldBe 2
+                found.losses shouldBe 1
+                found.module shouldBe CourseModule.CreateMatch
+                found.deck shouldNotBe null
+                found.deckSummary shouldNotBe null
+            }
         }
 
         test("delete removes course") {

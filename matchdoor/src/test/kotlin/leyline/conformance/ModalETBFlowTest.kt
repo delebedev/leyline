@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import forge.game.card.CounterEnumType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -97,17 +98,21 @@ class ModalETBFlowTest :
             val option = req.getCastingTimeOptionReq(0)
             option.castingTimeOptionType shouldBe CastingTimeOptionType.Modal_a7b4
             // ETB trigger: grpId is the ability grpId, not the card grpId
-            option.grpId shouldBe parentAbilityGrpId
-            option.ctoId shouldBe 2
-            option.hasModalReq().shouldBeTrue()
+            assertSoftly {
+                option.grpId shouldBe parentAbilityGrpId
+                option.ctoId shouldBe 2
+                option.hasModalReq().shouldBeTrue()
+            }
 
             val modalReq = option.modalReq
-            modalReq.abilityGrpId shouldBe parentAbilityGrpId
-            modalReq.minSel shouldBe 1
-            modalReq.maxSel shouldBe 1
-            modalReq.modalOptionsCount shouldBe 2
-            modalReq.getModalOptions(0).grpId shouldBe counterModeGrpId
-            modalReq.getModalOptions(1).grpId shouldBe lifeModeGrpId
+            assertSoftly {
+                modalReq.abilityGrpId shouldBe parentAbilityGrpId
+                modalReq.minSel shouldBe 1
+                modalReq.maxSel shouldBe 1
+                modalReq.modalOptionsCount shouldBe 2
+                modalReq.getModalOptions(0).grpId shouldBe counterModeGrpId
+                modalReq.getModalOptions(1).grpId shouldBe lifeModeGrpId
+            }
         }
 
         test("modal choice resolves life gain") {
@@ -175,10 +180,12 @@ class ModalETBFlowTest :
 
             // Modal options should be correct
             val modalReq = option.modalReq
-            modalReq.abilityGrpId shouldBe princeAbilityGrpId
-            modalReq.minSel shouldBe 1
-            modalReq.maxSel shouldBe 1
-            modalReq.modalOptionsCount shouldBe 3
+            assertSoftly {
+                modalReq.abilityGrpId shouldBe princeAbilityGrpId
+                modalReq.minSel shouldBe 1
+                modalReq.maxSel shouldBe 1
+                modalReq.modalOptionsCount shouldBe 3
+            }
         }
 
         test("ETB modal GSM has ability on stack and pendingMessageCount") {

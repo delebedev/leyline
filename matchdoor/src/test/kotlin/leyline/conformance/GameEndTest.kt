@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
@@ -48,29 +49,37 @@ class GameEndTest :
 
             // First GSM should have GameInfo with stage=GameOver
             val firstGsm = msgs.first { it.hasGameStateMessage() }.gameStateMessage
-            firstGsm.hasGameInfo().shouldBeTrue()
-            firstGsm.gameInfo.stage shouldBe GameStage.GameOver
-            firstGsm.gameInfo.matchState shouldBe MatchState.GameComplete
+            assertSoftly {
+                firstGsm.hasGameInfo().shouldBeTrue()
+                firstGsm.gameInfo.stage shouldBe GameStage.GameOver
+                firstGsm.gameInfo.matchState shouldBe MatchState.GameComplete
+            }
 
             // IntermissionReq should have result with winning team + reason
             val req = intermission.intermissionReq
-            req.hasResult().shouldBeTrue()
-            req.result.result shouldBe ResultType.WinLoss
-            (req.result.winningTeamId > 0).shouldBeTrue()
-            req.result.reason shouldBe ResultReason.Concede
+            assertSoftly {
+                req.hasResult().shouldBeTrue()
+                req.result.result shouldBe ResultType.WinLoss
+                (req.result.winningTeamId > 0).shouldBeTrue()
+                req.result.reason shouldBe ResultReason.Concede
+            }
 
             // IntermissionReq should have options + intermissionPrompt
-            (req.optionsCount > 0).shouldBeTrue()
-            (req.optionsCount >= 2).shouldBeTrue()
-            req.hasIntermissionPrompt().shouldBeTrue()
-            req.intermissionPrompt.promptId shouldBe PromptIds.MATCH_RESULT_WIN_LOSS
-            (req.intermissionPrompt.parametersCount > 0).shouldBeTrue()
+            assertSoftly {
+                (req.optionsCount > 0).shouldBeTrue()
+                (req.optionsCount >= 2).shouldBeTrue()
+                req.hasIntermissionPrompt().shouldBeTrue()
+                req.intermissionPrompt.promptId shouldBe PromptIds.MATCH_RESULT_WIN_LOSS
+                (req.intermissionPrompt.parametersCount > 0).shouldBeTrue()
+            }
 
             // prevGameStateId chain: gs1.prev = last-known, gs2.prev = gs1, gs3.prev = gs2
             val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
-            (gsms.size >= 3).shouldBeTrue()
-            gsms[1].prevGameStateId shouldBe gsms[0].gameStateId
-            gsms[2].prevGameStateId shouldBe gsms[1].gameStateId
+            assertSoftly {
+                (gsms.size >= 3).shouldBeTrue()
+                gsms[1].prevGameStateId shouldBe gsms[0].gameStateId
+                gsms[2].prevGameStateId shouldBe gsms[1].gameStateId
+            }
 
             // MatchCompleted room state should be in allRawMessages
             val rawMsgs = h.allRawMessages
@@ -83,9 +92,11 @@ class GameEndTest :
 
             // Verify FinalMatchResult
             val finalResult = matchCompleted.matchGameRoomStateChangedEvent.gameRoomInfo.finalMatchResult
-            finalResult.matchCompletedReason shouldBe MatchCompletedReasonType.Success_a26d
-            (finalResult.resultListCount > 0).shouldBeTrue()
-            finalResult.getResultList(0).result shouldBe ResultType.WinLoss
+            assertSoftly {
+                finalResult.matchCompletedReason shouldBe MatchCompletedReasonType.Success_a26d
+                (finalResult.resultListCount > 0).shouldBeTrue()
+                finalResult.getResultList(0).result shouldBe ResultType.WinLoss
+            }
 
             h.registry.getMatch("test-match").shouldBeNull()
             h.registry.getPeer("test-match", 1).shouldBeNull()
@@ -146,10 +157,12 @@ class GameEndTest :
             val req = intermission.intermissionReq
             req.result.reason shouldBe ResultReason.Game_ae0a
 
-            (req.optionsCount >= 2).shouldBeTrue()
-            req.hasIntermissionPrompt().shouldBeTrue()
-            req.intermissionPrompt.promptId shouldBe PromptIds.MATCH_RESULT_WIN_LOSS
-            (req.intermissionPrompt.parametersCount > 0).shouldBeTrue()
+            assertSoftly {
+                (req.optionsCount >= 2).shouldBeTrue()
+                req.hasIntermissionPrompt().shouldBeTrue()
+                req.intermissionPrompt.promptId shouldBe PromptIds.MATCH_RESULT_WIN_LOSS
+                (req.intermissionPrompt.parametersCount > 0).shouldBeTrue()
+            }
 
             // Game-over GSMs: the 3 GSMs immediately before IntermissionReq
             val allMsgs = h.allMessages
