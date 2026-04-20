@@ -79,7 +79,7 @@ class MulliganHandler(
             log.info("Match Door GRE: ignoring MulliganResp for puzzle")
             return
         }
-        if (seatId == 2) return // Familiar — no action
+        if (seatId == bridge.seating.familiarSeat.value) return // Familiar — no action
 
         val decision = greMsg.mulliganResp.decision
         log.info("Match Door GRE: seat {} mulligan decision={}", seatId, decision)
@@ -103,9 +103,9 @@ class MulliganHandler(
 
     /** Handle GroupResp — London tuck. */
     fun onGroupResp(greMsg: ClientToGREMessage) {
-        if (seatId != 1) return
         val s = session ?: return
         val bridge = s.gameBridge
+        if (seatId != bridge.seating.humanSeat.value) return
 
         val groups = greMsg.groupResp.groupsList
         val tuckIds = if (groups.size >= 2) groups[1].idsList else groups.firstOrNull()?.idsList ?: emptyList()
