@@ -14,7 +14,15 @@ test-debug class:
 # pre-commit gate: unit + conformance + fmt check + coverage (all modules)
 [group('test')]
 test-gate: docs-lint
-    cd "{{project_dir}}" && ./gradlew ktlintCheck detekt \
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{project_dir}}"
+    # Warn if pre-push hooks aren't installed — silent skip means CI failures
+    # surprise you instead of being caught locally in ~15s.
+    if [ "$(git config --get core.hooksPath || echo)" != ".githooks" ]; then
+        echo "⚠  pre-push hooks not installed — run 'just hooks-install' to enable fmt-check/detekt/docs-lint pre-push" >&2
+    fi
+    ./gradlew ktlintCheck detekt \
         :matchdoor:testGate :matchdoor:jacocoTestReport \
         :frontdoor:test :frontdoor:jacocoTestReport \
         :account:test :account:jacocoTestReport
