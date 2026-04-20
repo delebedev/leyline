@@ -466,7 +466,7 @@ object StateMapper {
                                     ?.ownerSeatId
                                     ?.value
                             }
-                    if (ownerSeat == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
+                    ownerSeat?.let { ZoneIds.handOf(it) }
                 }
                 else -> null
             }
@@ -965,7 +965,7 @@ object StateMapper {
         if (activeReveal != null) {
             val ownerSeat = activeReveal.ownerSeatId.value
             val viewerSeat = if (ownerSeat == 1) 2 else 1
-            val handZoneId = if (ownerSeat == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
+            val handZoneId = ZoneIds.handOf(ownerSeat)
             val revealedZoneId = if (ownerSeat == 1) ZoneIds.REVEALED_P1 else ZoneIds.REVEALED_P2
 
             val revealedZoneIdx = zones.indexOfFirst { it.zoneId == revealedZoneId }
