@@ -11,7 +11,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
 
-/** Behavior tests for [SnapshotCapture]. */
 class SnapshotCaptureTest :
     FunSpec({
 

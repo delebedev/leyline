@@ -9,7 +9,9 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -426,16 +428,11 @@ class TargetingInteractionTest :
             submitTargets()
             passUntilResolved()
 
-            val bearsInHumanHand = human.getZone(ForgeZoneType.Hand).cards.filter { it.name == "Grizzly Bears" }
-            val merfolkInAiHand = ai.getZone(ForgeZoneType.Hand).cards.filter { it.name == "Coral Merfolk" }
-            val bearsOnHumanBf = human.getZone(ForgeZoneType.Battlefield).cards.filter { it.name == "Grizzly Bears" }
-            val merfolkOnAiBf = ai.getZone(ForgeZoneType.Battlefield).cards.filter { it.name == "Coral Merfolk" }
-
             assertSoftly {
-                bearsInHumanHand shouldHaveSize 1
-                merfolkInAiHand shouldHaveSize 1
-                bearsOnHumanBf shouldHaveSize 0
-                merfolkOnAiBf shouldHaveSize 0
+                "Grizzly Bears" should beInHandOf(human)
+                "Coral Merfolk" should beInHandOf(ai)
+                "Grizzly Bears" shouldNot beOnBattlefieldOf(human)
+                "Coral Merfolk" shouldNot beOnBattlefieldOf(ai)
             }
         }
 
