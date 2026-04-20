@@ -7,6 +7,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
+import leyline.bridge.types.SeatId
 import leyline.game.bundle.GsmBuilder
 import leyline.game.mapping.PromptIds
 import leyline.protocol.HandshakeMessages
@@ -142,7 +143,7 @@ class DealHandConformanceTest :
 
         test("initialBundle seat 1: ConnectResp + DieRoll + Full GSM (3 msgs)") {
             val (b, _, _) = base.startWithBoard { _, _, _ -> }
-            val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(1))
+            val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(SeatId(1)))
             val (msg, nextMsgId) = HandshakeMessages.initialBundle(1, ConformanceTestBase.TEST_MATCH_ID, 2, 1, deck, b)
             val messages = greMessages(msg)
 
@@ -166,7 +167,7 @@ class DealHandConformanceTest :
 
         test("initialBundle seat 2: DieRoll + Full GSM + ChooseStartingPlayerReq") {
             val (b, _, _) = base.startWithBoard { _, _, _ -> }
-            val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(2))
+            val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(SeatId(2)))
             val (msg, nextMsgId) = HandshakeMessages.initialBundle(2, ConformanceTestBase.TEST_MATCH_ID, 3, 1, deck, b)
             val messages = greMessages(msg)
 

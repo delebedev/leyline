@@ -87,7 +87,7 @@ open class ConformanceTestBase {
         val game =
             synchronized(RNG_LOCK) {
                 b.start(seed = seed, deckList = deckList, variant = variant)
-                b.submitKeep(1)
+                b.submitKeep(SeatId(1))
                 advanceToMain1(b)
                 b.getGame()!!
             }

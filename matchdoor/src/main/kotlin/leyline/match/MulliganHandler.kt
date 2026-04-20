@@ -3,6 +3,7 @@ package leyline.match
 import io.netty.channel.ChannelHandlerContext
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
 import leyline.game.state.GameBridge
 import leyline.protocol.HandshakeMessages
@@ -26,7 +27,7 @@ class MulliganHandler(
     private val sessionProvider: () -> MatchSession?,
     private val ctxProvider: () -> ChannelHandlerContext?,
     private val matchIdProvider: () -> String,
-    private val seatIdProvider: () -> Int,
+    private val seatIdProvider: () -> SeatId,
 ) {
     private val log = LoggerFactory.getLogger(MulliganHandler::class.java)
 
@@ -39,7 +40,7 @@ class MulliganHandler(
     private val session get() = sessionProvider()
     private val ctx get() = ctxProvider()
     private val matchId get() = matchIdProvider()
-    private val seatId get() = seatIdProvider()
+    private val seatId: SeatId get() = seatIdProvider()
 
     /** Handle ChooseStartingPlayerResp — triggers mulligan flow or skip-mulligan. */
     fun onChooseStartingPlayer(matchHandlerRef: MatchHandler) {
@@ -59,7 +60,7 @@ class MulliganHandler(
             seat1Handler?.mulliganHandler?.sendDealHandPublic()
             seat1Handler?.session?.onMulliganKeep()
         } else {
-            log.info("Match Door GRE: seat {} chose starting player", seatId)
+            log.info("Match Door GRE: seat {} chose starting player", seatId.value)
             sendDealHandAndMulligan(ctx!!)
             val seat1Handler = registry.getHandler(matchId, 1)
             if (seat1Handler != null) {
@@ -79,10 +80,10 @@ class MulliganHandler(
             log.info("Match Door GRE: ignoring MulliganResp for puzzle")
             return
         }
-        if (seatId == bridge.seating.familiarSeat.value) return // Familiar — no action
+        if (seatId == bridge.seating.familiarSeat) return // Familiar — no action
 
         val decision = greMsg.mulliganResp.decision
-        log.info("Match Door GRE: seat {} mulligan decision={}", seatId, decision)
+        log.info("Match Door GRE: seat {} mulligan decision={}", seatId.value, decision)
 
         when (decision) {
             MulliganOption.AcceptHand -> {
@@ -94,7 +95,7 @@ class MulliganHandler(
                 mulliganCount++
                 bridge.submitMull(seatId)
                 val deletedIds = bridge.ids.resetAll().map { it.value }
-                seat1Hand = bridge.getHandGrpIds(1)
+                seat1Hand = bridge.getHandGrpIds(SeatId(1))
                 sendDealHand(ctx!!, deletedIds)
                 sendMulliganReq(reportedMulliganCount = 0, numCards = seat1Hand.size)
             }
@@ -105,11 +106,11 @@ class MulliganHandler(
     fun onGroupResp(greMsg: ClientToGREMessage) {
         val s = session ?: return
         val bridge = s.gameBridge
-        if (seatId != bridge.seating.humanSeat.value) return
+        if (seatId != bridge.seating.humanSeat) return
 
         val groups = greMsg.groupResp.groupsList
         val tuckIds = if (groups.size >= 2) groups[1].idsList else groups.firstOrNull()?.idsList ?: emptyList()
-        log.info("Match Door GRE: seat {} GroupResp tuck {} cards", seatId, tuckIds.size)
+        log.info("Match Door GRE: seat {} GroupResp tuck {} cards", seatId.value, tuckIds.size)
         val handCards = bridge.getHandCards(seatId)
         val tuckCards =
             tuckIds.mapNotNull { iid ->
@@ -134,10 +135,10 @@ class MulliganHandler(
     ) {
         if (s == null || bridge == null) return
         val gsId = s.counter.nextGsId()
-        val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId)
+        val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId.value)
         s.counter.setMsgId(nextMsgId)
-        Tap.outboundTemplate("DealHand seat=$seatId deletedIds=0")
-        ProtoDump.dump(msg, "DealHand-seat$seatId")
+        Tap.outboundTemplate("DealHand seat=${seatId.value} deletedIds=0")
+        ProtoDump.dump(msg, "DealHand-seat${seatId.value}")
         ctx.writeAndFlush(msg)
     }
 
@@ -155,10 +156,10 @@ class MulliganHandler(
         val s = session ?: return
         val bridge = s.gameBridge
         val gsId = s.counter.nextGsId()
-        val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId, diffDeletedInstanceIds)
+        val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId.value, diffDeletedInstanceIds)
         s.counter.setMsgId(nextMsgId)
-        Tap.outboundTemplate("DealHand seat=$seatId deletedIds=${diffDeletedInstanceIds.size}")
-        ProtoDump.dump(msg, "DealHand-seat$seatId")
+        Tap.outboundTemplate("DealHand seat=${seatId.value} deletedIds=${diffDeletedInstanceIds.size}")
+        ProtoDump.dump(msg, "DealHand-seat${seatId.value}")
         ctx.writeAndFlush(msg)
     }
 
@@ -185,8 +186,8 @@ class MulliganHandler(
                 numCards = numCards,
             )
         s.counter.setMsgId(nextMsgId)
-        Tap.outboundTemplate("MulliganReq seat=$seatId mulliganCount=$reportedMulliganCount numCards=$numCards")
-        ProtoDump.dump(msg, "MulliganReq-seat$seatId")
+        Tap.outboundTemplate("MulliganReq seat=${seatId.value} mulliganCount=$reportedMulliganCount numCards=$numCards")
+        ProtoDump.dump(msg, "MulliganReq-seat${seatId.value}")
         c.writeAndFlush(msg)
     }
 
@@ -197,8 +198,8 @@ class MulliganHandler(
         val gsId = s.counter.nextGsId()
         val (msg, nextMsgId) = HandshakeMessages.dealHandMulliganSeat2(s.counter.currentMsgId(), gsId, bridge)
         s.counter.setMsgId(nextMsgId)
-        Tap.outboundTemplate("DealHand+MulliganReq seat=$seatId")
-        ProtoDump.dump(msg, "DealHand+MullReq-seat$seatId")
+        Tap.outboundTemplate("DealHand+MulliganReq seat=${seatId.value}")
+        ProtoDump.dump(msg, "DealHand+MullReq-seat${seatId.value}")
         ctx.writeAndFlush(msg)
     }
 
@@ -215,15 +216,15 @@ class MulliganHandler(
             HandshakeMessages.groupReqBundle(
                 s.counter.currentMsgId(),
                 gsId,
-                seatId,
+                seatId.value,
                 mulliganCount,
                 handInstanceIds,
                 tuckCount,
                 bridge,
             )
         s.counter.setMsgId(nextMsgId)
-        Tap.outboundTemplate("GroupReq seat=$seatId tuck=$tuckCount")
-        ProtoDump.dump(msg, "GroupReq-seat$seatId")
+        Tap.outboundTemplate("GroupReq seat=${seatId.value} tuck=$tuckCount")
+        ProtoDump.dump(msg, "GroupReq-seat${seatId.value}")
         ctx.writeAndFlush(msg)
     }
 }

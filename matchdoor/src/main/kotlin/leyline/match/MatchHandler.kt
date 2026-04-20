@@ -69,7 +69,7 @@ class MatchHandler(
             sessionProvider = { session as? MatchSession },
             ctxProvider = { nettyCtx },
             matchIdProvider = { matchId },
-            seatIdProvider = { seatId },
+            seatIdProvider = { SeatId(seatId) },
         )
 
     /** Puzzle mode delegate — detection, loading, initial bundle. */
@@ -249,8 +249,8 @@ class MatchHandler(
                     } else {
                         createAndRegisterMatchSession(ctx, bridge)
                     }
-                    mulliganHandler.seat1Hand = bridge.getHandGrpIds(1)
-                    mulliganHandler.seat2Hand = bridge.getHandGrpIds(2)
+                    mulliganHandler.seat1Hand = bridge.getHandGrpIds(SeatId(1))
+                    mulliganHandler.seat2Hand = bridge.getHandGrpIds(SeatId(2))
                     log.info(
                         "Match Door: seat {} connected, hands seat1={} seat2={}",
                         seatId,
@@ -347,7 +347,7 @@ class MatchHandler(
         val s = session ?: return
         val bridge = registry.getMatch(matchId)?.bridge ?: return
         val gsId = s.counter.nextGsId()
-        val deckGrpIds = bridge.getDeckGrpIds(seatId)
+        val deckGrpIds = bridge.getDeckGrpIds(SeatId(seatId))
         val deck = GsmBuilder.buildDeckMessage(deckGrpIds)
         val (msg, nextMsgId) =
             HandshakeMessages.initialBundle(
