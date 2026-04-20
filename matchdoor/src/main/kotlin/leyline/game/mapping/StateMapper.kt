@@ -7,6 +7,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.opponent
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.annotations.AppliedTransfer
@@ -241,7 +242,7 @@ object StateMapper {
         // Player 1 zones
         if (human != null) {
             ZoneMapper.addPlayerZonesFromSnapshot(
-                1,
+                SeatId(1),
                 snap,
                 bridge,
                 zones,
@@ -259,7 +260,7 @@ object StateMapper {
         // Player 2 zones
         if (ai != null) {
             ZoneMapper.addPlayerZonesFromSnapshot(
-                2,
+                SeatId(2),
                 snap,
                 bridge,
                 zones,
@@ -446,7 +447,7 @@ object StateMapper {
                 .filter { id -> prev.zones[id] != cur.zones[id] }
                 .toSet()
         val opponentHandZoneId = ZoneMapper.opponentHandZone(viewingSeatId)
-        val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(it).journal.activeReveal() != null }
+        val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(SeatId(it)).journal.activeReveal() != null }
         // Protocol-only zones not tracked in GsmSnapshot must always be included when non-empty:
         //   - Limbo (id=30): grows monotonically; always send when it has content.
         //   - REVEALED_P1/P2 (id=18/19): synthesized by applyRevealProxies during active reveal.
@@ -460,13 +461,13 @@ object StateMapper {
                             .allSeatIds()
                             .firstNotNullOfOrNull {
                                 bridge
-                                    .promptBridge(it)
+                                    .promptBridge(SeatId(it))
                                     .journal
                                     .activeReveal()
                                     ?.ownerSeatId
                                     ?.value
                             }
-                    if (ownerSeat == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
+                    ownerSeat?.let { ZoneIds.handOf(it) }
                 }
                 else -> null
             }
@@ -936,7 +937,7 @@ object StateMapper {
      */
     private fun detectActiveReveal(bridge: GameBridge): PromptSideEffect.RevealStarted? =
         bridge.allSeatIds().firstNotNullOfOrNull { seatId ->
-            val prompt = bridge.promptBridge(seatId)
+            val prompt = bridge.promptBridge(SeatId(seatId))
             val reveal = prompt.journal.activeReveal() ?: return@firstNotNullOfOrNull null
             if (!bridge.revealProxies.isEmpty && prompt.getPendingPrompt() == null) {
                 TargetingCoordinator.Companion.endReveal(prompt) // stale — engine skipped choice
@@ -964,9 +965,9 @@ object StateMapper {
     ) {
         if (activeReveal != null) {
             val ownerSeat = activeReveal.ownerSeatId.value
-            val viewerSeat = if (ownerSeat == 1) 2 else 1
-            val handZoneId = if (ownerSeat == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
-            val revealedZoneId = if (ownerSeat == 1) ZoneIds.REVEALED_P1 else ZoneIds.REVEALED_P2
+            val viewerSeat = SeatId(ownerSeat).opponent.value
+            val handZoneId = ZoneIds.handOf(ownerSeat)
+            val revealedZoneId = ZoneIds.revealedOf(ownerSeat)
 
             val revealedZoneIdx = zones.indexOfFirst { it.zoneId == revealedZoneId }
             val revealedZoneBuilder =

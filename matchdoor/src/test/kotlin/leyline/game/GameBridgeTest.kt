@@ -64,7 +64,7 @@ class GameBridgeTest :
             val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
             if (land != null) {
                 val pending = awaitFreshPending(b, lastId) ?: error("No pending action available")
-                b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
+                b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
                 lastId = pending.actionId
                 awaitFreshPending(b, lastId)
             }
@@ -73,7 +73,7 @@ class GameBridgeTest :
             val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
             if (creature != null) {
                 val pending = awaitFreshPending(b, lastId) ?: error("No pending action available")
-                b.actionBridge(1).submitAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(creature.id)))
+                b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(creature.id)))
                 awaitFreshPending(b, pending.actionId)
             }
         }
@@ -89,7 +89,7 @@ class GameBridgeTest :
             while (passes < maxPasses) {
                 val pending = awaitFreshPending(b, lastId, timeoutMs = 5_000) ?: break
                 if (pending.state.phase == target) return
-                b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PassPriority)
+                b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PassPriority)
                 lastId = pending.actionId
                 passes++
                 if (game.isGameOver) break
@@ -103,8 +103,8 @@ class GameBridgeTest :
             bridge = b
             b.start()
 
-            val seat1Hand = b.getHandGrpIds(1)
-            val seat2Hand = b.getHandGrpIds(2)
+            val seat1Hand = b.getHandGrpIds(SeatId(1))
+            val seat2Hand = b.getHandGrpIds(SeatId(2))
 
             seat1Hand.size shouldBe 7
             seat2Hand.shouldNotBeEmpty()
@@ -115,7 +115,7 @@ class GameBridgeTest :
             bridge = b
             b.start()
 
-            val hand = b.getHandGrpIds(1)
+            val hand = b.getHandGrpIds(SeatId(1))
             hand.size shouldBe 7
         }
 
@@ -124,7 +124,7 @@ class GameBridgeTest :
             bridge = b
             b.start()
 
-            val deck = b.getDeckGrpIds(1)
+            val deck = b.getDeckGrpIds(SeatId(1))
             deck.size shouldBe 60
         }
 
@@ -133,12 +133,12 @@ class GameBridgeTest :
             bridge = b
             b.start()
 
-            b.getHandGrpIds(1).size shouldBe 7
-            b.submitKeep(1)
+            b.getHandGrpIds(SeatId(1)).size shouldBe 7
+            b.submitKeep(SeatId(1))
             b.awaitPriority()
 
             // Engine should be at Main1 (or later) with a pending action
-            val pending = b.actionBridge(1).getPending()
+            val pending = b.actionBridge(SeatId(1)).getPending()
             pending.shouldNotBeNull()
 
             val game = b.getGame()!!
@@ -151,12 +151,12 @@ class GameBridgeTest :
             bridge = b
             b.start()
 
-            val handBefore = b.getHandGrpIds(1)
+            val handBefore = b.getHandGrpIds(SeatId(1))
             handBefore.size shouldBe 7
 
-            b.submitMull(1)
+            b.submitMull(SeatId(1))
 
-            val handAfter = b.getHandGrpIds(1)
+            val handAfter = b.getHandGrpIds(SeatId(1))
             // London: drew 7, auto-tucked 1 → 6 cards remain
             handAfter.size shouldBe 6
         }
@@ -166,11 +166,11 @@ class GameBridgeTest :
             bridge = b
             b.start()
 
-            b.submitMull(1)
-            b.getHandGrpIds(1).size shouldBe 6
+            b.submitMull(SeatId(1))
+            b.getHandGrpIds(SeatId(1)).size shouldBe 6
 
-            b.submitMull(1)
-            b.getHandGrpIds(1).size shouldBe 5
+            b.submitMull(SeatId(1))
+            b.getHandGrpIds(SeatId(1)).size shouldBe 5
         }
 
         test("mull then keep reaches priority") {
@@ -178,10 +178,10 @@ class GameBridgeTest :
             bridge = b
             b.start()
 
-            b.submitMull(1)
-            b.getHandGrpIds(1).size shouldBe 6
+            b.submitMull(SeatId(1))
+            b.getHandGrpIds(SeatId(1)).size shouldBe 6
 
-            b.submitKeep(1)
+            b.submitKeep(SeatId(1))
             b.awaitPriority()
 
             val game = b.getGame()!!
@@ -193,7 +193,7 @@ class GameBridgeTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 42L)
-            b.submitKeep(1)
+            b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
             val game = b.getGame()!!
@@ -219,7 +219,7 @@ class GameBridgeTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 42L)
-            b.submitKeep(1)
+            b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
             val game = b.getGame()!!
@@ -235,7 +235,7 @@ class GameBridgeTest :
                 awaitFreshPending(b, null)
                     ?: error("No pending action available")
 
-            b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
+            b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
             awaitFreshPending(b, pending.actionId)
 
             val handAfter = player.getZone(ZoneType.Hand).size()
@@ -249,7 +249,7 @@ class GameBridgeTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 42L)
-            b.submitKeep(1)
+            b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
             val game = b.getGame()!!
@@ -304,14 +304,14 @@ class GameBridgeTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 42L)
-            b.submitKeep(1)
+            b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
             val game = b.getGame()!!
             val player = b.getPlayer(SeatId(1))!!
             val landInHand = player.getZone(ZoneType.Hand).cards.first { it.isLand }
             val pending = awaitFreshPending(b, null)!!
-            b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
+            b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
             awaitFreshPending(b, pending.actionId)
 
             val result =
@@ -372,13 +372,13 @@ class GameBridgeTest :
             val b1 = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b1
             b1.start(seed = 42L)
-            val hand1 = b1.getHandGrpIds(1)
+            val hand1 = b1.getHandGrpIds(SeatId(1))
             b1.shutdown()
 
             val b2 = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b2
             b2.start(seed = 42L)
-            val hand2 = b2.getHandGrpIds(1)
+            val hand2 = b2.getHandGrpIds(SeatId(1))
 
             hand1 shouldBe hand2
         }
@@ -389,7 +389,7 @@ class GameBridgeTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 42L)
-            b.submitKeep(1)
+            b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
             val game = b.getGame()!!
@@ -441,7 +441,7 @@ class GameBridgeTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 42L)
-            b.submitKeep(1)
+            b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
             val game = b.getGame()!!
@@ -450,7 +450,7 @@ class GameBridgeTest :
             val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
             if (land != null) {
                 val pending = awaitFreshPending(b, null) ?: return@xtest
-                b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
+                b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
                 awaitFreshPending(b, pending.actionId)
             }
 
@@ -474,7 +474,7 @@ class GameBridgeTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 42L)
-            b.submitKeep(1)
+            b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
             val game = b.getGame()!!
@@ -500,7 +500,7 @@ class GameBridgeTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 42L)
-            b.submitKeep(1)
+            b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
             val game = b.getGame()!!
@@ -526,7 +526,7 @@ class GameBridgeTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 42L)
-            b.submitKeep(1)
+            b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
             val game = b.getGame()!!
@@ -544,7 +544,7 @@ class GameBridgeTest :
             val pending =
                 awaitFreshPending(b, null)
                     ?: error("No pending action available")
-            b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
+            b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
             awaitFreshPending(b, pending.actionId)
 
             // Build post-action state — should have ZoneTransfer annotation
@@ -569,7 +569,7 @@ class GameBridgeTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 100L)
-            b.submitKeep(1)
+            b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
             val game = b.getGame()!!
@@ -610,7 +610,7 @@ class GameBridgeTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 42L)
-            b.submitKeep(1)
+            b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
             val game = b.getGame()!!
@@ -635,7 +635,7 @@ class GameBridgeTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 42L)
-            b.submitKeep(1)
+            b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
             val game = b.getGame()!!
@@ -658,7 +658,7 @@ class GameBridgeTest :
             // No submitKeep — engine should auto-keep via MulliganBridge(autoKeep=true)
             b.awaitPriority()
 
-            val pending = b.actionBridge(1).getPending()
+            val pending = b.actionBridge(SeatId(1)).getPending()
             pending.shouldNotBeNull()
 
             val game = b.getGame()!!
@@ -666,7 +666,7 @@ class GameBridgeTest :
             (phase == PhaseType.MAIN1 || phase == PhaseType.UPKEEP || phase == PhaseType.DRAW).shouldBeTrue()
 
             // Hand should still have 7 cards (auto-kept, no mull)
-            val hand = b.getHandGrpIds(1)
+            val hand = b.getHandGrpIds(SeatId(1))
             hand.size shouldBe 7
         }
 

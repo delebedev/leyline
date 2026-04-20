@@ -2,6 +2,8 @@ package leyline.game.mapping
 
 import forge.game.player.Player
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.bridge.types.opponent
 import leyline.game.data.CardData
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.EffectTracker
@@ -35,7 +37,7 @@ object ZoneMapper {
      */
     @Suppress("detekt:LongParameterList")
     internal fun addPlayerZonesFromSnapshot(
-        seatId: Int,
+        seatId: SeatId,
         snap: GsmSnapshot,
         bridge: GameBridge,
         zones: MutableList<ZoneInfo>,
@@ -47,7 +49,7 @@ object ZoneMapper {
         revealForSeat: Int? = null,
         revealHand: Boolean = false,
     ) {
-        val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId || revealHand
+        val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId.value || revealHand
         val handVisibility = if (revealHand) Visibility.Public else Visibility.Private
         val cardVisibility = if (revealHand) Visibility.Public else Visibility.Private
         val handBuilder =
@@ -55,10 +57,10 @@ object ZoneMapper {
                 .newBuilder()
                 .setZoneId(handZoneId)
                 .setType(ZoneType.Hand)
-                .setOwnerSeatId(seatId)
+                .setOwnerSeatId(seatId.value)
                 .setVisibility(handVisibility)
-                .addViewers(seatId)
-        if (revealHand) handBuilder.addViewers(if (seatId == 1) 2 else 1)
+                .addViewers(seatId.value)
+        if (revealHand) handBuilder.addViewers(seatId.opponent.value)
         for (fid in snap.zones[handZoneId]?.contents ?: emptyList()) {
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             handBuilder.addObjectInstanceIds(instanceId)
@@ -69,20 +71,20 @@ object ZoneMapper {
         }
         zones.add(handBuilder.build())
 
-        val revealLib = revealForSeat == seatId
+        val revealLib = revealForSeat == seatId.value
         val libBuilder =
             ZoneInfo
                 .newBuilder()
                 .setZoneId(libZoneId)
                 .setType(ZoneType.Library)
-                .setOwnerSeatId(seatId)
+                .setOwnerSeatId(seatId.value)
                 .setVisibility(Visibility.Hidden)
         for (fid in snap.zones[libZoneId]?.contents ?: emptyList()) {
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             libBuilder.addObjectInstanceIds(instanceId)
             if (revealLib) {
                 buildPlayerCard(snap, fid, instanceId, libZoneId, seatId, bridge, Visibility.Private, "library")
-                    ?.let { gameObjects.add(it.toBuilder().addViewers(seatId).build()) }
+                    ?.let { gameObjects.add(it.toBuilder().addViewers(seatId.value).build()) }
             }
         }
         zones.add(libBuilder.build())
@@ -93,7 +95,7 @@ object ZoneMapper {
                     .newBuilder()
                     .setZoneId(gyZoneId)
                     .setType(ZoneType.Graveyard)
-                    .setOwnerSeatId(seatId)
+                    .setOwnerSeatId(seatId.value)
                     .setVisibility(Visibility.Public)
             for (fid in snap.zones[gyZoneId]?.contents ?: emptyList()) {
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
@@ -116,7 +118,7 @@ object ZoneMapper {
         fid: ForgeCardId,
         instanceId: Int,
         zoneId: Int,
-        seatId: Int,
+        seatId: SeatId,
         bridge: GameBridge,
         visibility: Visibility,
         zoneName: String,
@@ -126,7 +128,7 @@ object ZoneMapper {
                 log.warn("no snapshot for {} card {} — skipping game object", zoneName, fid)
                 return null
             }
-        return ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, seatId, bridge, visibility)
+        return ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, seatId.value, bridge, visibility)
     }
 
     // --- Snapshot-based shared zones ---
@@ -236,7 +238,7 @@ object ZoneMapper {
      * since no cards have been dealt yet). Reads card lists from [snap].
      */
     internal fun addInitialPlayerZonesFromSnapshot(
-        seatId: Int,
+        seatId: SeatId,
         snap: GsmSnapshot,
         bridge: GameBridge,
         zones: MutableList<ZoneInfo>,
@@ -251,9 +253,9 @@ object ZoneMapper {
                 .newBuilder()
                 .setZoneId(handZoneId)
                 .setType(ZoneType.Hand)
-                .setOwnerSeatId(seatId)
+                .setOwnerSeatId(seatId.value)
                 .setVisibility(Visibility.Private)
-                .addViewers(seatId)
+                .addViewers(seatId.value)
                 .build(),
         )
         // Library — all cards (hand + library combined = full deck, pre-deal)
@@ -262,7 +264,7 @@ object ZoneMapper {
                 .newBuilder()
                 .setZoneId(libZoneId)
                 .setType(ZoneType.Library)
-                .setOwnerSeatId(seatId)
+                .setOwnerSeatId(seatId.value)
                 .setVisibility(Visibility.Hidden)
         for (fid in snap.zones[libZoneId]?.contents ?: emptyList()) {
             libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(fid).value)
@@ -272,16 +274,16 @@ object ZoneMapper {
         }
         zones.add(libBuilder.build())
         // Graveyard — empty
-        zones.add(makeZone(gyZoneId, ZoneType.Graveyard, seatId, Visibility.Public))
+        zones.add(makeZone(gyZoneId, ZoneType.Graveyard, seatId.value, Visibility.Public))
         // Sideboard — empty, with viewer
         zones.add(
             ZoneInfo
                 .newBuilder()
                 .setZoneId(sbZoneId)
                 .setType(ZoneType.Sideboard)
-                .setOwnerSeatId(seatId)
+                .setOwnerSeatId(seatId.value)
                 .setVisibility(Visibility.Private)
-                .addViewers(seatId)
+                .addViewers(seatId.value)
                 .build(),
         )
     }

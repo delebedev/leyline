@@ -10,6 +10,7 @@ import leyline.bridge.handoff.Target
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ForgePlayerId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.opponent
 import leyline.game.bundle.RequestBuilder
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
@@ -145,7 +146,7 @@ open class CombatHandler(
         }
 
         // SubmitAttackersReq: finalize — use last known selection
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         val pending =
             seatBridge.action.getPending() ?: run {
                 log.warn("CombatHandler: SubmitAttackersReq but no pending action — recovering")
@@ -208,7 +209,7 @@ open class CombatHandler(
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         val pending =
             seatBridge.action.getPending() ?: run {
                 log.warn("CombatHandler: CancelAttackers but no pending action — recovering")
@@ -292,7 +293,7 @@ open class CombatHandler(
         }
 
         // SubmitBlockersReq: finalize
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         val pending =
             seatBridge.action.getPending() ?: run {
                 log.warn("CombatHandler: SubmitBlockersReq but no pending action — recovering")
@@ -379,7 +380,7 @@ open class CombatHandler(
                     val skipBlockers = sendDeclareBlockersReq(bridge)
                     if (skipBlockers) {
                         // Zero legal blockers — submit empty declaration and advance
-                        val seatBridge = bridge.seat(counters.seatId.value)
+                        val seatBridge = bridge.seat(counters.seatId)
                         val pending = seatBridge.action.getPending()
                         if (pending != null) {
                             seatBridge.action.submitAction(pending.actionId, PlayerAction.DeclareBlockers(emptyMap()))
@@ -567,7 +568,7 @@ open class CombatHandler(
         // Trample overflow → defender (player) slot
         if (prompt.hasTrample && prompt.defender != null) {
             val overflow = prompt.damageDealt - assigned
-            val defendingSeatId = if (counters.seatId.value == 1) 2 else 1
+            val defendingSeatId = counters.seatId.opponent.value
             assignments.add(
                 DamageAssignment
                     .newBuilder()
@@ -670,7 +671,7 @@ open class CombatHandler(
 
     private fun sendDeclareBlockersReq(bridge: GameBridge): Boolean {
         val game = bridge.getGame() ?: return false
-        val req = RequestBuilder.buildDeclareBlockersReq(game, counters.seatId.value, bridge)
+        val req = RequestBuilder.buildDeclareBlockersReq(game, counters.seatId, bridge)
 
         if (req.blockersCount == 0) {
             log.info("CombatHandler: zero legal blockers — auto-submitting empty declaration")

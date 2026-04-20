@@ -352,7 +352,7 @@ class BundleBuilder(
     }
 
     /** Build a [DeclareAttackersReq] listing legal attackers. */
-    fun buildDeclareAttackersReq(): DeclareAttackersReq = RequestBuilder.buildDeclareAttackersReq(seatId, bridge)
+    fun buildDeclareAttackersReq(): DeclareAttackersReq = RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
 
     /**
      * Phase transition bundle matching expected client-facing message pattern (5 messages):
@@ -528,7 +528,7 @@ class BundleBuilder(
 
         val req =
             RequestBuilder.buildDeclareAttackersReq(
-                seatId,
+                SeatId(seatId),
                 bridge,
                 committedAttackerIds = selectedAttackerIds.toSet(),
             )
@@ -574,7 +574,7 @@ class BundleBuilder(
                 it.gameStateMessage = gs
             }
 
-        val req = prebuiltReq ?: RequestBuilder.buildDeclareAttackersReq(seatId, bridge)
+        val req = prebuiltReq ?: RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
         val msg2 =
             makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, counter.nextMsgId()) {
                 it.declareAttackersReq = req
@@ -642,7 +642,7 @@ class BundleBuilder(
             }
 
         // Re-prompt with assigned blockers' attackerInstanceIds cleared
-        val req = RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge, blockerAssignments = blockAssignments)
+        val req = RequestBuilder.buildDeclareBlockersReq(game, SeatId(seatId), bridge, blockerAssignments = blockAssignments)
         val msg2 =
             makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, counter.nextMsgId()) {
                 it.declareBlockersReq = req
@@ -684,7 +684,7 @@ class BundleBuilder(
                 it.gameStateMessage = gs
             }
 
-        val req = RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge)
+        val req = RequestBuilder.buildDeclareBlockersReq(game, SeatId(seatId), bridge)
         val msg2 =
             makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, counter.nextMsgId()) {
                 it.declareBlockersReq = req
@@ -1412,7 +1412,7 @@ class BundleBuilder(
         context: GroupingContext,
         counter: MessageCounter,
     ): BundleResult {
-        val libZoneId = if (seatId == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
+        val libZoneId = ZoneIds.libraryOf(seatId)
         val revealedObjects =
             topCardSnaps.zip(cardInstanceIds).map { (cardSnap, iid) ->
                 ObjectMapper

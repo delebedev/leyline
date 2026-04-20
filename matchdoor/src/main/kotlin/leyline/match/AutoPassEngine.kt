@@ -136,7 +136,7 @@ class AutoPassEngine(
                         // pending pass-only action, fall through to advanceOrWait so it
                         // auto-passes via edictalPass + submitAction. Without this the
                         // engine hangs until bridgeTimeoutMs.
-                        if (bridge.seat(counters.seatId.value).action.getPending() == null) {
+                        if (bridge.seat(counters.seatId).action.getPending() == null) {
                             return
                         }
                     }
@@ -276,7 +276,7 @@ class AutoPassEngine(
         phase: PhaseType?,
         isAiTurn: Boolean,
     ): LoopSignal {
-        val pending = bridge.seat(counters.seatId.value).action.getPending()
+        val pending = bridge.seat(counters.seatId).action.getPending()
         log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, game.phaseHandler.turn, isAiTurn, pending != null)
 
         if (pending != null) {
@@ -298,7 +298,7 @@ class AutoPassEngine(
                 val edictal = bundles.bundleBuilder!!.edictalPass(counters.counter)
                 sink.sendBundledGRE(edictal.messages)
             }
-            bridge.seat(counters.seatId.value).action.submitAction(pending.actionId, PlayerAction.PassPriority)
+            bridge.seat(counters.seatId).action.submitAction(pending.actionId, PlayerAction.PassPriority)
             bridge.awaitPriority()
         } else if (isAiTurn) {
             tracer.traceEvent(MatchEventType.AI_TURN_WAIT, game, "waiting for AI")

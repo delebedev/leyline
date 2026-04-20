@@ -18,6 +18,7 @@ import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.Seating
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 
@@ -41,6 +42,7 @@ import org.slf4j.LoggerFactory
  */
 class TargetingCoordinator(
     private val bridge: InteractivePromptBridge,
+    private val seating: Seating,
 ) {
     private val log = LoggerFactory.getLogger(TargetingCoordinator::class.java)
 
@@ -253,7 +255,7 @@ class TargetingCoordinator(
     ) {
         if (cards.isEmpty()) return
         val cardIds = cards.mapNotNull { card -> (card as? Card)?.let { ForgeCardId(it.id) } }
-        val ownerSeat = if (owner.lobbyPlayer is LobbyPlayerAi) SeatId(2) else SeatId(1)
+        val ownerSeat = if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
         bridge.recordReveal(cardIds, ownerSeat)
         // Only record RevealStarted for hand reveals. Library reveals must not trigger proxy synthesis.
         if (zone == ZoneType.Hand) {

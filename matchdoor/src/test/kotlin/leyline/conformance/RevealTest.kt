@@ -53,7 +53,7 @@ class RevealTest :
 
             val gsm =
                 capture(b, game, counter) {
-                    b.promptBridge(1).recordReveal(listOf(ForgeCardId(handCard.id)), SeatId(1))
+                    b.promptBridge(SeatId(1)).recordReveal(listOf(ForgeCardId(handCard.id)), SeatId(1))
                 }
 
             gsm
@@ -76,7 +76,7 @@ class RevealTest :
 
             val gsm =
                 capture(b, game, counter) {
-                    b.promptBridge(1).recordReveal(handCards.map { ForgeCardId(it.id) }, SeatId(1))
+                    b.promptBridge(SeatId(1)).recordReveal(handCards.map { ForgeCardId(it.id) }, SeatId(1))
                 }
 
             gsm.annotations(AnnotationType.RevealedCardCreated) shouldHaveSize 3
@@ -164,7 +164,7 @@ class RevealTest :
             capture(b, game, counter) {}
 
             b
-                .promptBridge(1)
+                .promptBridge(SeatId(1))
                 .journal
                 .activeReveal()
                 .shouldBeNull()
@@ -184,7 +184,7 @@ class RevealTest :
             b.revealProxies.size shouldBe 1
 
             // Clear reveal (simulates choice completion)
-            TargetingCoordinator.endReveal(b.promptBridge(1))
+            TargetingCoordinator.endReveal(b.promptBridge(SeatId(1)))
 
             val gsm = capture(b, game, counter) {}
 
@@ -303,8 +303,8 @@ class RevealTest :
             cardIds: List<ForgeCardId>,
             ownerSeat: SeatId,
         ) {
-            TargetingCoordinator.startReveal(b.promptBridge(1), cardIds, ownerSeat)
-            b.promptBridge(1).recordReveal(cardIds, ownerSeat)
+            TargetingCoordinator.startReveal(b.promptBridge(SeatId(1)), cardIds, ownerSeat)
+            b.promptBridge(SeatId(1)).recordReveal(cardIds, ownerSeat)
         }
 
         /** Build a PendingPrompt for reveal-choose scenarios. */

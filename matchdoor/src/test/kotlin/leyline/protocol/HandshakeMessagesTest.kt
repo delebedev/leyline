@@ -7,6 +7,7 @@ import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.DeckMessage
@@ -36,7 +37,7 @@ class HandshakeMessagesTest :
         ): Map<Int, Int> {
             val bundle =
                 HandshakeMessages.initialBundle(
-                    seatId = 2,
+                    seatId = SeatId(2),
                     matchId = "test",
                     msgIdStart = 1,
                     gameStateId = 1,

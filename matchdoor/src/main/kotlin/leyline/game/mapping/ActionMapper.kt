@@ -93,7 +93,7 @@ object ActionMapper {
     ): ActionsAvailableReq {
         val builder = ActionsAvailableReq.newBuilder()
 
-        val handZoneId = if (seatId == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
+        val handZoneId = ZoneIds.handOf(seatId)
         val hand = snap.zones[handZoneId]?.contents.orEmpty()
         val battlefield = snap.zones[ZoneIds.BATTLEFIELD]?.contents.orEmpty()
 

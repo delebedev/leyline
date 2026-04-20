@@ -3,6 +3,7 @@ package leyline.conformance
 import forge.game.zone.ZoneType
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import leyline.bridge.types.SeatId
 
 /**
  * Brawl match init — verifies starting life, hand draw, and commander in command zone.
@@ -29,6 +30,6 @@ class BrawlMatchFlowTest :
             val commandCards = human.getZone(ZoneType.Command).cards.filter { it.name == "Isamaru, Hound of Konda" }
             commandCards.size shouldBe 1
 
-            b.getHandGrpIds(1).shouldNotBeEmpty()
+            b.getHandGrpIds(SeatId(1)).shouldNotBeEmpty()
         }
     })

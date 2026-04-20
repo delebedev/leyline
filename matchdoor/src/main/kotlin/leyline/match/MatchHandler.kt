@@ -69,7 +69,7 @@ class MatchHandler(
             sessionProvider = { session as? MatchSession },
             ctxProvider = { nettyCtx },
             matchIdProvider = { matchId },
-            seatIdProvider = { seatId },
+            seatIdProvider = { SeatId(seatId) },
         )
 
     /** Puzzle mode delegate — detection, loading, initial bundle. */
@@ -173,8 +173,8 @@ class MatchHandler(
                 coordinator = coordinator,
             ).also { it.playerId = clientId.removeSuffix("_Familiar") }
         session = s
-        registry.registerSession(matchId, seatId, s)
-        registry.registerHandler(matchId, seatId, this)
+        registry.registerSession(matchId, SeatId(seatId), s)
+        registry.registerHandler(matchId, SeatId(seatId), this)
         return s
     }
 
@@ -186,8 +186,8 @@ class MatchHandler(
         val sink = NettyMessageSink(ctx, dumpEnabled = false)
         val s = FamiliarSession(SeatId(seatId), matchId, sink, counter = counter)
         session = s
-        registry.registerSession(matchId, seatId, s)
-        registry.registerHandler(matchId, seatId, this)
+        registry.registerSession(matchId, SeatId(seatId), s)
+        registry.registerHandler(matchId, SeatId(seatId), this)
         return s
     }
 
@@ -249,8 +249,8 @@ class MatchHandler(
                     } else {
                         createAndRegisterMatchSession(ctx, bridge)
                     }
-                    mulliganHandler.seat1Hand = bridge.getHandGrpIds(1)
-                    mulliganHandler.seat2Hand = bridge.getHandGrpIds(2)
+                    mulliganHandler.seat1Hand = bridge.getHandGrpIds(SeatId(1))
+                    mulliganHandler.seat2Hand = bridge.getHandGrpIds(SeatId(2))
                     log.info(
                         "Match Door: seat {} connected, hands seat1={} seat2={}",
                         seatId,
@@ -271,7 +271,7 @@ class MatchHandler(
             // GroupResp routes to mulligan handler (London tuck) or session (surveil/scry).
             // During mulligan phase, route to mulligan handler; otherwise to session.
             ClientMessageType.GroupResp_097b -> {
-                if (s?.gameBridge?.let { it.seat(seatId).prompt.getPendingPrompt() } != null) {
+                if (s?.gameBridge?.let { it.seat(SeatId(seatId)).prompt.getPendingPrompt() } != null) {
                     s.onGroupResp(greMsg)
                 } else {
                     mulliganHandler.onGroupResp(greMsg)
@@ -347,11 +347,11 @@ class MatchHandler(
         val s = session ?: return
         val bridge = registry.getMatch(matchId)?.bridge ?: return
         val gsId = s.counter.nextGsId()
-        val deckGrpIds = bridge.getDeckGrpIds(seatId)
+        val deckGrpIds = bridge.getDeckGrpIds(SeatId(seatId))
         val deck = GsmBuilder.buildDeckMessage(deckGrpIds)
         val (msg, nextMsgId) =
             HandshakeMessages.initialBundle(
-                seatId,
+                SeatId(seatId),
                 matchId,
                 s.counter.currentMsgId(),
                 gsId,
@@ -370,7 +370,7 @@ class MatchHandler(
         registry.teardownMatch(
             matchId = matchId,
             reason = MatchTeardownReason.Disconnect,
-            seatId = seatId,
+            seatId = SeatId(seatId),
             recorder = session?.recorder,
             fallbackBridge = session?.gameBridge,
         )
@@ -385,7 +385,7 @@ class MatchHandler(
         registry.teardownMatch(
             matchId = matchId,
             reason = MatchTeardownReason.Exception,
-            seatId = seatId,
+            seatId = SeatId(seatId),
             recorder = session?.recorder,
             fallbackBridge = session?.gameBridge,
         )

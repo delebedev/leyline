@@ -87,7 +87,7 @@ open class ConformanceTestBase {
         val game =
             synchronized(RNG_LOCK) {
                 b.start(seed = seed, deckList = deckList, variant = variant)
-                b.submitKeep(1)
+                b.submitKeep(SeatId(1))
                 advanceToMain1(b)
                 b.getGame()!!
             }
@@ -251,7 +251,7 @@ open class ConformanceTestBase {
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
         val pending = awaitFreshPending(b, null) ?: return null
         val action = PlayerAction.PlayLand(ForgeCardId(land.id))
-        b.actionBridge(1).submitAction(pending.actionId, action)
+        b.actionBridge(SeatId(1)).submitAction(pending.actionId, action)
         awaitFreshPending(b, pending.actionId)
         return action
     }
@@ -261,14 +261,14 @@ open class ConformanceTestBase {
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
         val pending = awaitFreshPending(b, null) ?: return null
         val action = PlayerAction.CastSpell(ForgeCardId(creature.id))
-        b.actionBridge(1).submitAction(pending.actionId, action)
+        b.actionBridge(SeatId(1)).submitAction(pending.actionId, action)
         awaitFreshPending(b, pending.actionId)
         return action
     }
 
     fun passPriority(b: GameBridge) {
         val pending = awaitFreshPending(b, null) ?: return
-        b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PassPriority)
+        b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PassPriority)
         awaitFreshPending(b, pending.actionId)
     }
 

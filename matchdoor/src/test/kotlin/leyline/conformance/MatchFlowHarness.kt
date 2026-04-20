@@ -47,7 +47,7 @@ class MatchFlowHarness(
     private val variant: String? = null,
 ) {
     private val matchId = "test-match"
-    private val seatId = 1
+    private val seatId = SeatId(1)
 
     val registry = MatchRegistry()
     val sink = ListMessageSink()
@@ -92,7 +92,7 @@ class MatchFlowHarness(
 
         session =
             MatchSession(
-                seatId = SeatId(seatId),
+                seatId = seatId,
                 matchId = matchId,
                 sink = effectiveSink,
                 registry = registry,
@@ -109,7 +109,7 @@ class MatchFlowHarness(
         val game = bridge.getGame()
         if (game != null) {
             val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-            val fullResult = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId)
+            val fullResult = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId.value)
             bridge.applyMutations(fullResult.mutations)
             accumulator.seedFull(fullResult.gsm)
             validatingSink?.seedFull(fullResult.gsm)
@@ -175,7 +175,7 @@ class MatchFlowHarness(
 
         session =
             MatchSession(
-                seatId = SeatId(seatId),
+                seatId = seatId,
                 matchId = matchId,
                 sink = effectiveSink,
                 registry = registry,
@@ -187,7 +187,7 @@ class MatchFlowHarness(
         val game = bridge.getGame()
         if (game != null) {
             val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-            val fullResult = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId)
+            val fullResult = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId.value)
             bridge.applyMutations(fullResult.mutations)
             accumulator.seedFull(fullResult.gsm)
             validatingSink?.seedFull(fullResult.gsm)
@@ -199,7 +199,7 @@ class MatchFlowHarness(
 
     /** Play a land from hand. Returns true if successful. */
     fun playLand(): Boolean {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return false
+        val player = bridge.getPlayer(seatId) ?: return false
         val land =
             player
                 .getZone(ZoneType.Hand)
@@ -220,7 +220,7 @@ class MatchFlowHarness(
 
     /** Cast a creature from hand. Returns true if successful. */
     fun castCreature(): Boolean {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return false
+        val player = bridge.getPlayer(seatId) ?: return false
         val creature =
             player
                 .getZone(ZoneType.Hand)
@@ -350,7 +350,7 @@ class MatchFlowHarness(
 
     /** Human's creatures on the battlefield: (instanceId, cardName). */
     fun humanBattlefieldCreatures(): List<Pair<Int, String>> {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return emptyList()
+        val player = bridge.getPlayer(seatId) ?: return emptyList()
         return player
             .getZone(ZoneType.Battlefield)
             .cards
@@ -367,7 +367,7 @@ class MatchFlowHarness(
         session.onDeclareAttackers(declareAttackersResp(attackers = attackerInstanceIds))
         drainSink()
 
-        session.onDeclareAttackers(submitAttackersReq(seatId))
+        session.onDeclareAttackers(submitAttackersReq(seatId.value))
         drainSink()
     }
 
@@ -396,7 +396,7 @@ class MatchFlowHarness(
      * no payload**. The server must use the last known selection.
      */
     fun submitAttackers() {
-        session.onDeclareAttackers(submitAttackersReq(seatId))
+        session.onDeclareAttackers(submitAttackersReq(seatId.value))
         drainSink()
     }
 
@@ -422,13 +422,13 @@ class MatchFlowHarness(
         session.onDeclareBlockers(declareBlockersResp(assignments))
         drainSink()
 
-        session.onDeclareBlockers(submitBlockersReq(seatId))
+        session.onDeclareBlockers(submitBlockersReq(seatId.value))
         drainSink()
     }
 
     /** Declare no blockers (let all attackers through). Sends SubmitBlockersReq directly. */
     fun declareNoBlockers() {
-        session.onDeclareBlockers(submitBlockersReq(seatId))
+        session.onDeclareBlockers(submitBlockersReq(seatId.value))
         drainSink()
     }
 
@@ -458,7 +458,7 @@ class MatchFlowHarness(
      * Send SubmitBlockersReq (type-only, no payload) — the reference client's "Done" button.
      */
     fun submitBlockers() {
-        session.onDeclareBlockers(submitBlockersReq(seatId))
+        session.onDeclareBlockers(submitBlockersReq(seatId.value))
         drainSink()
     }
 
@@ -591,7 +591,7 @@ class MatchFlowHarness(
         cardName: String,
         zone: ZoneType = ZoneType.Hand,
     ): Boolean {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return false
+        val player = bridge.getPlayer(seatId) ?: return false
         val card =
             player
                 .getZone(zone)
@@ -683,7 +683,7 @@ class MatchFlowHarness(
         cardName: String,
         abilityIndex: Int = 0,
     ): Boolean {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return false
+        val player = bridge.getPlayer(seatId) ?: return false
         val card =
             player
                 .getZone(ZoneType.Battlefield)
@@ -697,7 +697,7 @@ class MatchFlowHarness(
         cardName: String,
         abilityIndex: Int = 0,
     ): Boolean {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return false
+        val player = bridge.getPlayer(seatId) ?: return false
         val card =
             player
                 .getZone(ZoneType.Hand)
@@ -782,7 +782,7 @@ class MatchFlowHarness(
     fun turn(): Int = game().phaseHandler.turn
 
     fun isAiTurn(): Boolean {
-        val human = bridge.getPlayer(SeatId(seatId)) ?: return false
+        val human = bridge.getPlayer(seatId) ?: return false
         return game().phaseHandler.playerTurn != human
     }
 

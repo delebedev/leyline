@@ -677,7 +677,7 @@ object ZoneTransferDetector {
             val origId = realloc.old.value
             val newId = realloc.new.value
             val ownerSeat = sacrificeEv.seatId
-            val destZone = if (ownerSeat.value == 1) ZoneIds.P1_GRAVEYARD else ZoneIds.P2_GRAVEYARD
+            val destZone = ZoneIds.graveyardOf(ownerSeat)
 
             // If still in gameObjects, strip it so the client sees it leave.
             val resolvedGrpId =

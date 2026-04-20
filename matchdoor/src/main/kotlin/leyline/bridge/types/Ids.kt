@@ -26,10 +26,18 @@ package leyline.bridge.types
     val value: Int,
 )
 
-/** Player seat (1 = human, 2 = AI). Constant within a match. */
+/**
+ * Player seat identity, match-global. Allocated at match open.
+ *
+ * Which seat is human-controlled vs AI/Familiar is match-scoped state —
+ * see [leyline.bridge.types.Seating] held on `GameBridge`. Do NOT assume seat 1 = human.
+ */
 @JvmInline value class SeatId(
     val value: Int,
 )
+
+/** Returns the other seat in a 2-player match. */
+val SeatId.opponent: SeatId get() = SeatId(if (value == 1) 2 else 1)
 
 /** Card definition identifier ("group id" in the client's vocabulary). One per printed card. */
 @JvmInline value class GrpId(

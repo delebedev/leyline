@@ -25,6 +25,8 @@ import leyline.bridge.types.MulliganPhase
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.Seating
+import leyline.bridge.types.opponent
 import leyline.config.MatchConfig
 import leyline.game.GamePlayback
 import leyline.game.annotations.AnnotationBuilder
@@ -131,19 +133,21 @@ class GameBridge(
     }
 
     /** Parameterized accessor — throws if seat not populated. */
-    fun actionBridge(seatId: Int): GameActionBridge = actionBridges[seatId] ?: error("No action bridge for seat $seatId")
+    fun actionBridge(seatId: SeatId): GameActionBridge = actionBridges[seatId.value] ?: error("No action bridge for seat ${seatId.value}")
 
     /** Parameterized accessor — throws if seat not populated. */
-    fun promptBridge(seatId: Int): InteractivePromptBridge = promptBridges[seatId] ?: error("No prompt bridge for seat $seatId")
+    fun promptBridge(seatId: SeatId): InteractivePromptBridge =
+        promptBridges[seatId.value] ?: error("No prompt bridge for seat ${seatId.value}")
 
     /** All populated seat IDs (for iterating prompt bridges). */
     fun allSeatIds(): Set<Int> = promptBridges.keys
 
     /** Parameterized accessor — throws if seat not populated. */
-    fun mulliganBridge(seatId: Int): MulliganBridge = mulliganBridges[seatId] ?: error("No mulligan bridge for seat $seatId")
+    fun mulliganBridge(seatId: SeatId): MulliganBridge =
+        mulliganBridges[seatId.value] ?: error("No mulligan bridge for seat ${seatId.value}")
 
     /** Seat-scoped facade — use in handlers instead of raw seat-1 aliases. */
-    override fun seat(seatId: Int): SeatBridges =
+    override fun seat(seatId: SeatId): SeatBridges =
         SeatBridges(
             action = actionBridge(seatId),
             prompt = promptBridge(seatId),
@@ -155,7 +159,7 @@ class GameBridge(
         if (viewingSeatId == 0) {
             promptBridges.toSortedMap().values.flatMap { it.drainReveals() }
         } else {
-            seat(viewingSeatId).drainReveals()
+            seat(SeatId(viewingSeatId)).drainReveals()
         }
 
     /**
@@ -165,11 +169,11 @@ class GameBridge(
      * timeout=0 means: action bridge returns PassPriority immediately,
      * prompt bridge returns defaultIndex immediately, mulligan auto-keeps.
      */
-    fun configureSyntheticSeat(seatId: Int) {
-        actionBridges[seatId] = GameActionBridge(timeoutMs = 0, prioritySignal = prioritySignal)
-        promptBridges[seatId] = InteractivePromptBridge(timeoutMs = 0, prioritySignal = prioritySignal)
-        mulliganBridges[seatId] = MulliganBridge(autoKeep = true, timeoutMs = 0)
-        log.info("GameBridge: seat {} configured as synthetic (auto-pass)", seatId)
+    fun configureSyntheticSeat(seatId: SeatId) {
+        actionBridges[seatId.value] = GameActionBridge(timeoutMs = 0, prioritySignal = prioritySignal)
+        promptBridges[seatId.value] = InteractivePromptBridge(timeoutMs = 0, prioritySignal = prioritySignal)
+        mulliganBridges[seatId.value] = MulliganBridge(autoKeep = true, timeoutMs = 0)
+        log.info("GameBridge: seat {} configured as synthetic (auto-pass)", seatId.value)
     }
 
     /** Human player's controller — set during [start]/[startFromPuzzle] for debug observability. */
@@ -478,9 +482,10 @@ class GameBridge(
                 game = g,
                 player = human,
                 lobbyPlayer = human.lobbyPlayer,
-                bridge = promptBridge(1),
-                actionBridge = actionBridge(1),
-                mulliganBridge = mulliganBridge(1),
+                bridge = promptBridge(SeatId(1)),
+                seating = seating,
+                actionBridge = actionBridge(SeatId(1)),
+                mulliganBridge = mulliganBridge(SeatId(1)),
                 phaseStopProfile = phaseStopProfile,
             )
         humanController = controller
@@ -525,8 +530,8 @@ class GameBridge(
     }
 
     /** Get the current hand for a seat as client grpIds. */
-    fun getHandGrpIds(seatId: Int): List<Int> {
-        val player = getPlayer(SeatId(seatId)) ?: return emptyList()
+    fun getHandGrpIds(seatId: SeatId): List<Int> {
+        val player = getPlayer(seatId) ?: return emptyList()
         return player.getZone(ZoneType.Hand).cards.map { card ->
             DevCheck.requireOrNull(cardRepository.findGrpIdByName(card.name)) { "hand grpId miss: '${card.name}'" }
                 ?: FALLBACK_GRPID
@@ -534,8 +539,8 @@ class GameBridge(
     }
 
     /** Full deck as client grpIds (for initial bundle deck message). */
-    fun getDeckGrpIds(seatId: Int): List<Int> {
-        val player = getPlayer(SeatId(seatId)) ?: return emptyList()
+    fun getDeckGrpIds(seatId: SeatId): List<Int> {
+        val player = getPlayer(seatId) ?: return emptyList()
         // Combine library + hand + any other zones to reconstruct full deck
         val allCards = mutableListOf<String>()
         for (zone in listOf(ZoneType.Library, ZoneType.Hand)) {
@@ -571,9 +576,21 @@ class GameBridge(
         abilityRegistries.remove(forgeCardId)
     }
 
+    /**
+     * Seat role mapping for this match — human vs Familiar.
+     * Populated by [populateSeatMap] at game-start.
+     */
+    lateinit var seating: Seating
+        private set
+
     /** Populate seat map by registration order (seat 1 = first, seat 2 = second). */
     private fun populateSeatMap(g: Game) {
         g.players.forEachIndexed { index, player -> players[index + 1] = player }
+        val humanIdx = g.players.indexOfFirst { it.lobbyPlayer !is LobbyPlayerAi }
+        if (humanIdx < 0) error("GameBridge.populateSeatMap: no human player in game (all LobbyPlayerAi)")
+        val humanSeat = SeatId(humanIdx + 1)
+        seating = Seating(humanSeat = humanSeat, familiarSeat = humanSeat.opponent)
+        log.info("GameBridge: seating resolved human={} familiar={}", seating.humanSeat.value, seating.familiarSeat.value)
     }
 
     /**
@@ -654,14 +671,14 @@ class GameBridge(
         }
     }
 
-    /** Submit keep decision for seat. */
-    // TODO: remove seatId == 1 guard — seat 2 needs mulligan support for paired flow
-    fun submitKeep(seatId: Int) {
-        log.info("GameBridge: seat {} keeps hand", seatId)
-        if (seatId == 1) mulliganBridge(1).submitKeep()
+    /** Submit keep decision for seat. Only the human seat's decision is wired today. */
+    // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
+    fun submitKeep(seatId: SeatId) {
+        log.info("GameBridge: seat {} keeps hand", seatId.value)
+        if (seatId == seating.humanSeat) mulliganBridge(seatId).submitKeep()
     }
 
-    // TODO: remove seatId == 1 guard — seat 2 needs mulligan support for paired flow
+    // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
 
     /**
      * Submit mulligan decision for seat.
@@ -672,19 +689,19 @@ class GameBridge(
      * We auto-tuck first N cards (same as forge-web) to unblock the engine,
      * then wait for the next [MulliganPhase.WaitingKeep].
      */
-    fun submitMull(seatId: Int) {
-        log.info("GameBridge: seat {} mulligans", seatId)
-        if (seatId == 1) {
+    fun submitMull(seatId: SeatId) {
+        log.info("GameBridge: seat {} mulligans", seatId.value)
+        if (seatId == seating.humanSeat) {
             // Capture current prompt sequence BEFORE submitting —
             // avoids race where we see the stale WaitingKeep from the current round.
-            val seqBefore = mulliganBridge(1).promptSequence
-            mulliganBridge(1).submitMull()
+            val seqBefore = mulliganBridge(seatId).promptSequence
+            mulliganBridge(seatId).submitMull()
             // London: engine draws 7 then calls tuckCardsViaMulligan() → WaitingTuck.
             // Wait for a NEW prompt (higher sequence) that's either WaitingTuck or WaitingKeep.
             val deadline = System.currentTimeMillis() + matchConfig.server.mulliganWaitMs
             while (System.currentTimeMillis() < deadline) {
-                val phase = mulliganBridge(1).pendingPhase
-                val seqNow = mulliganBridge(1).promptSequence
+                val phase = mulliganBridge(seatId).pendingPhase
+                val seqNow = mulliganBridge(seatId).promptSequence
                 if (seqNow > seqBefore && phase != null) {
                     when (phase) {
                         MulliganPhase.WaitingKeep -> {
@@ -692,10 +709,10 @@ class GameBridge(
                             return
                         }
                         MulliganPhase.WaitingTuck -> {
-                            val n = mulliganBridge(1).pendingCardsToTuck
-                            val hand = getHandCards(1)
+                            val n = mulliganBridge(seatId).pendingCardsToTuck
+                            val hand = getHandCards(seatId)
                             log.info("GameBridge: auto-tucking {} cards (London mulligan)", n)
-                            mulliganBridge(1).submitTuck(hand.take(n))
+                            mulliganBridge(seatId).submitTuck(hand.take(n))
                             // After tuck, engine continues → next WaitingKeep
                             awaitMulliganReady()
                             log.info("GameBridge: engine re-dealt hand after mulligan+tuck")
@@ -717,7 +734,7 @@ class GameBridge(
     fun awaitTuckReady() {
         val deadline = System.currentTimeMillis() + matchConfig.server.mulliganWaitMs
         while (System.currentTimeMillis() < deadline) {
-            if (mulliganBridge(1).pendingPhase == MulliganPhase.WaitingTuck) return
+            if (mulliganBridge(SeatId(1)).pendingPhase == MulliganPhase.WaitingTuck) return
             Thread.sleep(POLL_INTERVAL_MS)
         }
         log.warn("GameBridge: timed out waiting for engine to reach tuck phase")
@@ -726,23 +743,23 @@ class GameBridge(
     // TODO: parameterize by seatId for paired-flow mulligan support
 
     /** How many cards the player must put on bottom (London mulligan). */
-    fun getTuckCount(): Int = mulliganBridge(1).pendingCardsToTuck
+    fun getTuckCount(): Int = mulliganBridge(SeatId(1)).pendingCardsToTuck
 
     /** Get the current hand as Card objects for a seat. */
-    fun getHandCards(seatId: Int): List<Card> {
-        val player = getPlayer(SeatId(seatId)) ?: return emptyList()
+    fun getHandCards(seatId: SeatId): List<Card> {
+        val player = getPlayer(seatId) ?: return emptyList()
         return player.getZone(ZoneType.Hand).cards.toList()
     }
 
-    // TODO: remove seatId == 1 guard — seat 2 needs tuck support for paired flow
+    // TODO: wire mulliganBridge for familiarSeat to support paired tuck flow
 
     /** Submit tuck decision — cards to put on bottom of library. */
     fun submitTuck(
-        seatId: Int,
+        seatId: SeatId,
         cards: List<Card>,
     ) {
-        log.info("GameBridge: seat {} tucking {} cards", seatId, cards.size)
-        if (seatId == 1) mulliganBridge(1).submitTuck(cards)
+        log.info("GameBridge: seat {} tucking {} cards", seatId.value, cards.size)
+        if (seatId == seating.humanSeat) mulliganBridge(seatId).submitTuck(cards)
     }
 
     /** True when this bridge is running a puzzle game. */
@@ -800,9 +817,10 @@ class GameBridge(
                 game = g,
                 player = human,
                 lobbyPlayer = human.lobbyPlayer,
-                bridge = promptBridge(1),
-                actionBridge = actionBridge(1),
-                mulliganBridge = mulliganBridge(1),
+                bridge = promptBridge(SeatId(1)),
+                seating = seating,
+                actionBridge = actionBridge(SeatId(1)),
+                mulliganBridge = mulliganBridge(SeatId(1)),
                 phaseStopProfile = phaseStopProfile,
             )
         humanController = controller
@@ -939,6 +957,7 @@ class GameBridge(
                 player = player,
                 lobbyPlayer = player.lobbyPlayer,
                 bridge = tempPrompt,
+                seating = seating,
                 actionBridge = tempAction,
                 mulliganBridge = tempMulligan,
             )
@@ -1133,7 +1152,7 @@ class GameBridge(
     private fun awaitMulliganReady() {
         val deadline = System.currentTimeMillis() + matchConfig.server.mulliganWaitMs
         while (System.currentTimeMillis() < deadline) {
-            if (mulliganBridge(1).pendingPhase == MulliganPhase.WaitingKeep) return
+            if (mulliganBridge(SeatId(1)).pendingPhase == MulliganPhase.WaitingKeep) return
             Thread.sleep(POLL_INTERVAL_MS)
         }
         log.warn("GameBridge: timed out waiting for engine to reach mulligan")

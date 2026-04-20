@@ -7,6 +7,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
+import leyline.bridge.types.SeatId
 
 /**
  * Integration test for Immersturm Predator — sacrifice-as-cost activated ability.
@@ -69,7 +70,7 @@ class ImmersturmPredatorTest :
             // Sacrifice cost prompt should appear — verify structural properties
             val sacPrompt =
                 h.bridge
-                    .seat(1)
+                    .seat(SeatId(1))
                     .prompt
                     .getPendingPrompt()
             sacPrompt shouldNotBe null
@@ -78,7 +79,7 @@ class ImmersturmPredatorTest :
             // --- Step 2: Respond to sacrifice cost by submitting directly to prompt bridge ---
             // The prompt has candidateRefs with forge card IDs. Index 0 = Grizzly Bears.
             h.bridge
-                .seat(1)
+                .seat(SeatId(1))
                 .prompt
                 .submitResponse(sacPrompt.promptId, listOf(0))
             h.bridge.awaitPriority()
@@ -105,13 +106,13 @@ class ImmersturmPredatorTest :
             // --- Step 3: Tap trigger fires → targeting prompt for GY exile ---
             val tapPrompt =
                 h.bridge
-                    .seat(1)
+                    .seat(SeatId(1))
                     .prompt
                     .getPendingPrompt()
             if (tapPrompt != null && tapPrompt.request.candidateRefs.isNotEmpty()) {
                 // Pick first GY card to exile
                 h.bridge
-                    .seat(1)
+                    .seat(SeatId(1))
                     .prompt
                     .submitResponse(tapPrompt.promptId, listOf(0))
                 h.bridge.awaitPriority()

@@ -4,6 +4,7 @@ import forge.game.Game
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.opponent
 import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
@@ -179,15 +180,15 @@ class MatchSession(
     override fun onPuzzleStart() =
         synchronized(sessionLock) {
             // FamiliarSession inherits a no-op onPuzzleStart from SessionOps, so this
-            // path only fires for MatchSession. Warn if somehow called for a non-seat-1
-            // MatchSession — it would consume seat 1's pending priority via the shared
-            // ActionBridge, advancing the engine past Main1.
-            if (seatId.value != 1) {
-                log.warn("MatchSession: onPuzzleStart called for seat {} — expected seat 1 only", seatId.value)
+            // path only fires for MatchSession. Warn if somehow called for a non-human
+            // MatchSession — it would consume the human seat's pending priority via the
+            // shared ActionBridge, advancing the engine past Main1.
+            val ctx = resolveContext() ?: return
+            val humanSeat = gameBridge.seating.humanSeat
+            if (seatId != humanSeat) {
+                log.warn("MatchSession: onPuzzleStart called for seat {} — expected humanSeat {}", seatId.value, humanSeat.value)
                 return
             }
-
-            val ctx = resolveContext() ?: return
 
             log.info("MatchSession: puzzle start, seeding snapshot and entering game loop")
 
@@ -337,7 +338,7 @@ class MatchSession(
 
             val (msg, nextMsgId) =
                 HandshakeMessages.settingsResp(
-                    seatId.value,
+                    seatId,
                     counter.currentMsgId(),
                     counter.currentGsId(),
                     clientSettings,
@@ -360,7 +361,7 @@ class MatchSession(
         val bridge = gameBridge
         val profile = bridge.phaseStopProfile ?: return
         val humanPlayer = bridge.getPlayer(seatId) ?: return
-        val aiSeatId = SeatId(if (seatId.value == 1) 2 else 1)
+        val aiSeatId = seatId.opponent
         val aiPlayer = bridge.getPlayer(aiSeatId) ?: return
 
         // Honor clear-all flags even when no explicit stops present
@@ -567,7 +568,7 @@ class MatchSession(
         registry.teardownMatch(
             matchId = matchId,
             reason = if (reason == ResultReason.Concede) MatchTeardownReason.Concede else MatchTeardownReason.GameOver,
-            seatId = seatId.value,
+            seatId = seatId,
             recorder = recorder,
             fallbackBridge = bridge,
         )
@@ -602,8 +603,8 @@ class MatchSession(
 
     /** Send a copy of GRE messages to the Familiar (seat 2) via registry. */
     private fun mirrorToFamiliar(messages: List<GREToClientMessage>) {
-        if (seatId.value != 1) return
-        val peer = registry.getPeer(matchId, seatId.value) ?: return
+        if (seatId != gameBridge.seating.humanSeat) return
+        val peer = registry.getPeer(matchId, seatId) ?: return
         // Only mirror to FamiliarSession — paired peers build their own state
         // via per-seat GamePlayback.
         if (peer !is FamiliarSession) return

@@ -521,12 +521,12 @@ class GameEventCollector(
 
     private fun seatOf(player: Player?): SeatId? {
         if (player == null) return null
-        return if (player.lobbyPlayer is LobbyPlayerAi) SeatId(2) else SeatId(1)
+        return if (player.lobbyPlayer is LobbyPlayerAi) bridge.seating.familiarSeat else bridge.seating.humanSeat
     }
 
     private fun seatOf(player: PlayerView?): SeatId? {
         if (player == null) return null
-        return if (player.isAI) SeatId(2) else SeatId(1)
+        return if (player.isAI) bridge.seating.familiarSeat else bridge.seating.humanSeat
     }
 
     /**
@@ -536,7 +536,7 @@ class GameEventCollector(
     private fun isSearchedToHand(forgeCardId: Int): Boolean {
         val id = ForgeCardId(forgeCardId)
         for (seat in bridge.allSeatIds()) {
-            if (bridge.promptBridge(seat).journal.consumeSearched(id)) return true
+            if (bridge.promptBridge(SeatId(seat)).journal.consumeSearched(id)) return true
         }
         return false
     }
@@ -551,7 +551,7 @@ class GameEventCollector(
     private fun isLegendRuleVictim(forgeCardId: Int): Boolean {
         val id = ForgeCardId(forgeCardId)
         for (seat in bridge.allSeatIds()) {
-            if (bridge.promptBridge(seat).journal.consumeLegendVictim(id)) return true
+            if (bridge.promptBridge(SeatId(seat)).journal.consumeLegendVictim(id)) return true
         }
         return false
     }

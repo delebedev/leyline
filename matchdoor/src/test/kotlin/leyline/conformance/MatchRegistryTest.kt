@@ -81,10 +81,10 @@ class MatchRegistryTest :
                     gameBridge = stubBridge(),
                     paceDelayMs = 0,
                 )
-            registry.registerSession("m1", 1, s1)
-            registry.getPeer("m1", 1).shouldBeNull()
-            registry.registerSession("m1", 2, s2)
-            registry.getPeer("m1", 1) shouldBeSameInstanceAs s2
+            registry.registerSession("m1", SeatId(1), s1)
+            registry.getPeer("m1", SeatId(1)).shouldBeNull()
+            registry.registerSession("m1", SeatId(2), s2)
+            registry.getPeer("m1", SeatId(1)) shouldBeSameInstanceAs s2
         }
 
         test("evictStale removes old match entries and closes them") {
@@ -157,7 +157,7 @@ class MatchRegistryTest :
         test("actionBridge throws for unknown seat") {
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             shouldThrow<IllegalStateException> {
-                bridge.actionBridge(99)
+                bridge.actionBridge(SeatId(99))
             }
         }
 
@@ -174,10 +174,10 @@ class MatchRegistryTest :
                     paceDelayMs = 0,
                 )
             val familiar = FamiliarSession(seatId = SeatId(2), matchId = "m1", sink = sink)
-            registry.registerSession("m1", 1, human)
-            registry.registerSession("m1", 2, familiar)
-            registry.getPeer("m1", 1) shouldBeSameInstanceAs familiar
-            registry.getPeer("m1", 2) shouldBeSameInstanceAs human
+            registry.registerSession("m1", SeatId(1), human)
+            registry.registerSession("m1", SeatId(2), familiar)
+            registry.getPeer("m1", SeatId(1)) shouldBeSameInstanceAs familiar
+            registry.getPeer("m1", SeatId(2)) shouldBeSameInstanceAs human
         }
 
         test("activeSession returns MatchSession, not FamiliarSession") {
@@ -193,8 +193,8 @@ class MatchRegistryTest :
                     paceDelayMs = 0,
                 )
             val familiar = FamiliarSession(seatId = SeatId(2), matchId = "m1", sink = sink)
-            registry.registerSession("m1", 1, human)
-            registry.registerSession("m1", 2, familiar)
+            registry.registerSession("m1", SeatId(1), human)
+            registry.registerSession("m1", SeatId(2), familiar)
             registry.activeSession() shouldBeSameInstanceAs human
         }
 
@@ -224,15 +224,15 @@ class MatchRegistryTest :
                 )
             val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
 
-            registry.registerSession("m1", 1, session)
-            registry.registerHandler("m1", 1, handler)
+            registry.registerSession("m1", SeatId(1), session)
+            registry.registerHandler("m1", SeatId(1), handler)
 
             registry.teardownMatch("m1", MatchTeardownReason.Disconnect)
 
             match.state shouldBe MatchState.FINISHED
             registry.getMatch("m1").shouldBeNull()
-            registry.getPeer("m1", 2).shouldBeNull()
-            registry.getHandler("m1", 1).shouldBeNull()
+            registry.getPeer("m1", SeatId(2)).shouldBeNull()
+            registry.getHandler("m1", SeatId(1)).shouldBeNull()
         }
 
         test("channelInactive tears down state and next session can recreate match") {
@@ -252,15 +252,15 @@ class MatchRegistryTest :
 
             val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
             handler.session = session
-            registry.registerSession(matchId, 1, session)
-            registry.registerHandler(matchId, 1, handler)
+            registry.registerSession(matchId, SeatId(1), session)
+            registry.registerHandler(matchId, SeatId(1), handler)
 
             EmbeddedChannel(handler).close()
 
             match.state shouldBe MatchState.FINISHED
             handler.session.shouldBeNull()
             registry.getMatch(matchId).shouldBeNull()
-            registry.getHandler(matchId, 1).shouldBeNull()
+            registry.getHandler(matchId, SeatId(1)).shouldBeNull()
             registry.activeSession().shouldBeNull()
 
             val recreated = registry.getOrCreateMatch(matchId) { Match(matchId, GameBridge(cardRepository = InMemoryCardRepository())) }
@@ -273,7 +273,7 @@ class MatchRegistryTest :
                     gameBridge = stubBridge(),
                     paceDelayMs = 0,
                 )
-            registry.registerSession(matchId, 1, replacement)
+            registry.registerSession(matchId, SeatId(1), replacement)
 
             assertSoftly {
                 recreated.state shouldBe MatchState.WAITING

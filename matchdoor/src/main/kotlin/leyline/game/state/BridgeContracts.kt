@@ -84,7 +84,7 @@ interface AutoPassView : PlayerLookup {
     val playbacks: Map<SeatId, GamePlayback>
 
     /** Seat-scoped bridge facade (action + prompt + mulligan bridges). */
-    fun seat(seatId: Int): GameBridge.SeatBridges
+    fun seat(seatId: SeatId): GameBridge.SeatBridges
 
     /** Block until the engine reaches a priority stop. */
     fun awaitPriority()

@@ -52,7 +52,7 @@ class TargetingHandler(
         greMsg: ClientToGREMessage,
         bridge: GameBridge,
     ) {
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         val resp = greMsg.selectTargetsResp
         val pendingPrompt =
             seatBridge.prompt.getPendingPrompt() ?: run {
@@ -139,7 +139,7 @@ class TargetingHandler(
             ),
         )
 
-        bridge.seat(counters.seatId.value).prompt.submitResponse(pending.promptId, pending.selectedIndices)
+        bridge.seat(counters.seatId).prompt.submitResponse(pending.promptId, pending.selectedIndices)
         bridge.awaitPriority()
         autoPass(bridge)
     }
@@ -153,7 +153,7 @@ class TargetingHandler(
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         val resp = greMsg.selectNResp
         val pendingPrompt =
             seatBridge.prompt.getPendingPrompt() ?: run {
@@ -190,7 +190,7 @@ class TargetingHandler(
         bridge: GameBridge,
         clientAutoResolve: Boolean = false,
     ): Boolean {
-        val pendingPrompt = bridge.seat(counters.seatId.value).prompt.getPendingPrompt()
+        val pendingPrompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
         if (pendingPrompt != null) {
             when (val classified = PromptClassifier.classify(pendingPrompt)) {
                 is ClassifiedPrompt.ModalChoice -> {
@@ -269,7 +269,7 @@ class TargetingHandler(
         bridge: GameBridge,
         game: Game,
     ): PromptResult {
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return PromptResult.NONE
         val classified = PromptClassifier.classify(pendingPrompt)
 
@@ -343,7 +343,7 @@ class TargetingHandler(
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt =
             seatBridge.prompt.getPendingPrompt() ?: run {
                 log.warn("TargetingHandler: GroupResp but no pending prompt")
@@ -409,7 +409,7 @@ class TargetingHandler(
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt()
         if (pendingPrompt == null) {
             log.warn("TargetingHandler: CancelActionReq but no pending prompt")
@@ -444,7 +444,7 @@ class TargetingHandler(
             }
         pendingInteraction = null
 
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         val prompt = seatBridge.prompt.getPendingPrompt()
         if (prompt != null && prompt.promptId == pending.promptId) {
             val responseIndex =
@@ -627,7 +627,7 @@ class TargetingHandler(
 
                 log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={} → indices={}", chosenGrpIds, selectedIndices)
 
-                bridge.seat(counters.seatId.value).prompt.submitResponse(pending.promptId, selectedIndices)
+                bridge.seat(counters.seatId).prompt.submitResponse(pending.promptId, selectedIndices)
                 pendingInteraction = null
                 bridge.awaitPriority()
                 autoPass(bridge)
@@ -739,7 +739,7 @@ class TargetingHandler(
         log.info("TargetingHandler: optional cost response ctoId={} accepted={} indices={}", chosenCtoId, accepted, acceptedIndices)
 
         // Stash decision for PlayerController.chooseOptionalCosts to read
-        val seatBridge = bridge.seat(counters.seatId.value)
+        val seatBridge = bridge.seat(counters.seatId)
         TargetingHandler.stashOptionalCostIndices(seatBridge.prompt, acceptedIndices)
 
         // Now submit the Cast action to the engine
@@ -767,7 +767,7 @@ class TargetingHandler(
         val req = pendingPrompt.request
         val player = bridge.getPlayer(counters.seatId)
         val library = player?.getZone(forge.game.zone.ZoneType.Library)
-        val libZoneId = if (counters.seatId.value == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
+        val libZoneId = ZoneIds.libraryOf(counters.seatId)
 
         // All library card instanceIds
         val allLibIds =
@@ -866,7 +866,7 @@ class TargetingHandler(
                 game != null,
                 req.candidateRefs.size,
             )
-            bridge.seat(counters.seatId.value).prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
+            bridge.seat(counters.seatId).prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
             bridge.awaitPriority()
             return
         }
@@ -885,7 +885,7 @@ class TargetingHandler(
         bridge: GameBridge,
         prompt: InteractivePromptBridge.PendingPrompt,
     ) {
-        bridge.seat(counters.seatId.value).prompt.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
+        bridge.seat(counters.seatId).prompt.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
         bridge.awaitPriority()
     }
 

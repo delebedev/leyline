@@ -10,6 +10,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.opponent
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
@@ -324,14 +325,14 @@ object RequestBuilder {
      *   Initial request passes empty set (no pre-selection).
      */
     fun buildDeclareAttackersReq(
-        seatId: Int,
+        seatId: SeatId,
         bridge: GameBridge,
         committedAttackerIds: Set<Int> = emptySet(),
     ): DeclareAttackersReq {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return DeclareAttackersReq.getDefaultInstance()
+        val player = bridge.getPlayer(seatId) ?: return DeclareAttackersReq.getDefaultInstance()
         val builder = DeclareAttackersReq.newBuilder()
 
-        val opponentSeatId = if (seatId == 1) 2 else 1
+        val opponentSeatId = seatId.opponent.value
         val defaultRecipient =
             DamageRecipient
                 .newBuilder()
@@ -378,11 +379,11 @@ object RequestBuilder {
      */
     fun buildDeclareBlockersReq(
         game: Game,
-        seatId: Int,
+        seatId: SeatId,
         bridge: GameBridge,
         blockerAssignments: Map<Int, Int> = emptyMap(),
     ): DeclareBlockersReq {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return DeclareBlockersReq.getDefaultInstance()
+        val player = bridge.getPlayer(seatId) ?: return DeclareBlockersReq.getDefaultInstance()
         val combat = game.phaseHandler.combat ?: return DeclareBlockersReq.getDefaultInstance()
         val builder = DeclareBlockersReq.newBuilder()
 

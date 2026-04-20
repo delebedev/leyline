@@ -1,5 +1,6 @@
 package leyline.protocol
 
+import leyline.bridge.types.SeatId
 import leyline.game.bundle.GsmBuilder
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
@@ -138,7 +139,7 @@ object HandshakeMessages {
      * @param dieRollWinner which seat wins the die roll (1 or 2, default 2)
      */
     fun initialBundle(
-        seatId: Int,
+        seatId: SeatId,
         matchId: String,
         msgIdStart: Int,
         gameStateId: Int,
@@ -149,7 +150,12 @@ object HandshakeMessages {
         var msgId = msgIdStart
         val messages = mutableListOf<GREToClientMessage>()
 
-        if (seatId == 1) {
+        // Wire sequencing (Arena protocol contract): the first-connecting seat (1)
+        // receives ConnectResp; the second (2) receives ChooseStartingPlayerReq.
+        // These literals are NOT role checks — they reflect the match-handshake
+        // sequence that Arena dictates, independent of which seat is human-controlled.
+        // Role-scoped decisions use `Seating` (see `GameBridge.seating`).
+        if (seatId == SeatId(1)) {
             // ConnectResp with deck + default settings
             messages.add(buildConnectResp(msgId++, seatId, deckMessage))
         }
@@ -158,27 +164,27 @@ object HandshakeMessages {
         messages.add(buildDieRollResults(msgId++, dieRollWinner))
 
         // Full initial GameState
-        val pendingCount = if (seatId == 2) 1 else 0 // ChooseStartingPlayerReq follows
+        val pendingCount = if (seatId == SeatId(2)) 1 else 0 // ChooseStartingPlayerReq follows
         val initSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, 0)
         val gsm = GsmBuilder.buildInitialGameState(matchId, gameStateId, bridge, initSnap, pendingCount)
         messages.add(
             GREToClientMessage
                 .newBuilder()
                 .setType(GREMessageType.GameStateMessage_695e)
-                .addSystemSeatIds(seatId)
+                .addSystemSeatIds(seatId.value)
                 .setMsgId(msgId++)
                 .setGameStateId(gameStateId)
                 .setGameStateMessage(gsm)
                 .build(),
         )
 
-        if (seatId == 2) {
+        if (seatId == SeatId(2)) {
             // ChooseStartingPlayerReq
             messages.add(
                 GREToClientMessage
                     .newBuilder()
                     .setType(GREMessageType.ChooseStartingPlayerReq_695e)
-                    .addSystemSeatIds(seatId)
+                    .addSystemSeatIds(seatId.value)
                     .setMsgId(msgId++)
                     .setGameStateId(gameStateId)
                     .setChooseStartingPlayerReq(
@@ -201,16 +207,16 @@ object HandshakeMessages {
         msgId: Int,
         gameStateId: Int,
         bridge: GameBridge,
-        seatId: Int,
+        seatId: SeatId,
         diffDeletedInstanceIds: List<Int> = emptyList(),
     ): Pair<MatchServiceToClientMessage, Int> {
         val dealSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
-        val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, seatId, dealSnap, diffDeletedInstanceIds)
+        val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, seatId.value, dealSnap, diffDeletedInstanceIds)
         val gre =
             GREToClientMessage
                 .newBuilder()
                 .setType(GREMessageType.GameStateMessage_695e)
-                .addSystemSeatIds(seatId)
+                .addSystemSeatIds(seatId.value)
                 .setMsgId(msgId)
                 .setGameStateId(gameStateId)
                 .setGameStateMessage(gsm)
@@ -325,7 +331,7 @@ object HandshakeMessages {
     fun groupReqBundle(
         msgIdStart: Int,
         gameStateId: Int,
-        seatId: Int,
+        seatId: SeatId,
         mulliganCount: Int,
         handInstanceIds: List<Int>,
         cardsToTuck: Int,
@@ -336,7 +342,7 @@ object HandshakeMessages {
         // 1) Thin GSM Diff: player with mulliganCount + hand actions
         val game = bridge.getGame()!!
         val mulliganRespSnap = GsmSnapshot.capture(game, bridge, "", 0)
-        val actions = ActionMapper.buildFromSnapshot(seatId, mulliganRespSnap, bridge)
+        val actions = ActionMapper.buildFromSnapshot(seatId.value, mulliganRespSnap, bridge)
         val gsm =
             GameStateMessage
                 .newBuilder()
@@ -355,7 +361,7 @@ object HandshakeMessages {
             gsm.addActions(
                 ActionInfo
                     .newBuilder()
-                    .setSeatId(seatId)
+                    .setSeatId(seatId.value)
                     .setAction(ActionMapper.stripActionForGsm(action)),
             )
         }
@@ -363,7 +369,7 @@ object HandshakeMessages {
             GREToClientMessage
                 .newBuilder()
                 .setType(GREMessageType.GameStateMessage_695e)
-                .addSystemSeatIds(seatId)
+                .addSystemSeatIds(seatId.value)
                 .setMsgId(msgId++)
                 .setGameStateId(gameStateId)
                 .setGameStateMessage(gsm)
@@ -375,8 +381,8 @@ object HandshakeMessages {
             GREToClientMessage
                 .newBuilder()
                 .setType(GREMessageType.PromptReq)
-                .addSystemSeatIds(seatId)
-                .addSystemSeatIds(if (dieRollWinner == seatId) seatId else 3 - seatId)
+                .addSystemSeatIds(seatId.value)
+                .addSystemSeatIds(if (dieRollWinner == seatId.value) seatId.value else 3 - seatId.value)
                 .setMsgId(msgId++)
                 .setGameStateId(gameStateId)
                 .setPrompt(
@@ -398,7 +404,7 @@ object HandshakeMessages {
                 ).build()
 
         // 3) GroupReq
-        val greGroup = GsmBuilder.buildGroupReq(msgId++, gameStateId, seatId, handInstanceIds, cardsToTuck)
+        val greGroup = GsmBuilder.buildGroupReq(msgId++, gameStateId, seatId.value, handInstanceIds, cardsToTuck)
 
         return wrapGre(greGsm, grePrompt, greGroup) to msgId
     }
@@ -410,7 +416,7 @@ object HandshakeMessages {
      * pendingMessageCount=1 because ActionsAvailableReq follows immediately.
      */
     fun puzzleInitialBundle(
-        seatId: Int,
+        seatId: SeatId,
         matchId: String,
         msgIdStart: Int,
         gameStateId: Int,
@@ -419,7 +425,8 @@ object HandshakeMessages {
         var msgId = msgIdStart
         val messages = mutableListOf<GREToClientMessage>()
 
-        if (seatId == 1) {
+        // Role gate: only the human seat gets a ConnectResp handshake.
+        if (seatId == bridge.seating.humanSeat) {
             // ConnectResp with empty deck (puzzle doesn't use deck message)
             val emptyDeck = GsmBuilder.buildDeckMessage(emptyList())
             messages.add(buildConnectResp(msgId++, seatId, emptyDeck))
@@ -433,8 +440,8 @@ object HandshakeMessages {
                 gameStateId = gameStateId,
                 matchId = matchId,
                 bridge = bridge,
-                viewingSeatId = seatId,
-                events = bridge.drainBundleEvents(seatId),
+                viewingSeatId = seatId.value,
+                events = bridge.drainBundleEvents(seatId.value),
             )
         bridge.applyMutations(fullResult.mutations)
         val gsm =
@@ -447,7 +454,7 @@ object HandshakeMessages {
             GREToClientMessage
                 .newBuilder()
                 .setType(GREMessageType.GameStateMessage_695e)
-                .addSystemSeatIds(seatId)
+                .addSystemSeatIds(seatId.value)
                 .setMsgId(msgId++)
                 .setGameStateId(gameStateId)
                 .setGameStateMessage(gsm)
@@ -464,17 +471,17 @@ object HandshakeMessages {
     fun puzzleActionsReq(
         msgId: Int,
         gameStateId: Int,
-        seatId: Int,
+        seatId: SeatId,
         bridge: GameBridge,
     ): Pair<MatchServiceToClientMessage, Int> {
         val game = bridge.getGame()!!
         val snap = GsmSnapshot.capture(game, bridge, "", 0)
-        val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
+        val actions = ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)
         val gre =
             GREToClientMessage
                 .newBuilder()
                 .setType(GREMessageType.ActionsAvailableReq_695e)
-                .addSystemSeatIds(seatId)
+                .addSystemSeatIds(seatId.value)
                 .setMsgId(msgId)
                 .setGameStateId(gameStateId)
                 .setActionsAvailableReq(actions)
@@ -484,7 +491,7 @@ object HandshakeMessages {
 
     /** SetSettingsResp — echo client settings back. */
     fun settingsResp(
-        seatId: Int,
+        seatId: SeatId,
         msgId: Int,
         gameStateId: Int,
         clientSettings: SettingsMessage?,
@@ -495,7 +502,7 @@ object HandshakeMessages {
             GREToClientMessage
                 .newBuilder()
                 .setType(GREMessageType.SetSettingsResp_695e)
-                .addSystemSeatIds(seatId)
+                .addSystemSeatIds(seatId.value)
                 .setMsgId(msgId)
                 .setGameStateId(gameStateId)
                 .setSetSettingsResp(resp)
@@ -539,13 +546,13 @@ object HandshakeMessages {
     /** ConnectResp — success + deck + default settings + version info. */
     private fun buildConnectResp(
         msgId: Int,
-        seatId: Int,
+        seatId: SeatId,
         deckMessage: DeckMessage,
     ): GREToClientMessage =
         GREToClientMessage
             .newBuilder()
             .setType(GREMessageType.ConnectResp_695e)
-            .addSystemSeatIds(seatId)
+            .addSystemSeatIds(seatId.value)
             .setMsgId(msgId)
             .setConnectResp(
                 ConnectResp
