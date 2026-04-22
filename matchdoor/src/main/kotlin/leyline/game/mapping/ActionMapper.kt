@@ -237,13 +237,11 @@ object ActionMapper {
                     }
                 }
                 builder.addInactiveActions(inactiveBuilder)
-                val cdForAlt = bridge.cardRepository.findByGrpId(grpId)
                 addHandAltCostCastActions(
                     card = forgeCard,
                     player = player,
                     instanceId = instanceId,
                     grpId = grpId,
-                    cardData = cdForAlt,
                     cardRepository = bridge.cardRepository,
                     builder = builder,
                 )
@@ -283,13 +281,11 @@ object ActionMapper {
             }
             builder.addActions(actionBuilder)
 
-            val cdForAlt2 = bridge.cardRepository.findByGrpId(grpId)
             addHandAltCostCastActions(
                 card = forgeCard,
                 player = player,
                 instanceId = instanceId,
                 grpId = grpId,
-                cardData = cdForAlt2,
                 cardRepository = bridge.cardRepository,
                 builder = builder,
             )
@@ -636,13 +632,11 @@ object ActionMapper {
                 // Base SA unaffordable, but alt-cost (Warp/Sneak) may still be
                 // payable — emit those offers independently before moving on.
                 if (checkLegality) {
-                    val cdAlt = cardDataLookup(grpId)
                     addHandAltCostCastActions(
                         card = card,
                         player = player,
                         instanceId = instanceId,
                         grpId = grpId,
-                        cardData = cdAlt,
                         cardRepository = cardRepository,
                         builder = builder,
                     )
@@ -682,13 +676,11 @@ object ActionMapper {
             builder.addActions(actionBuilder)
 
             if (checkLegality) {
-                val cdAlt2 = cardDataLookup(grpId)
                 addHandAltCostCastActions(
                     card = card,
                     player = player,
                     instanceId = instanceId,
                     grpId = grpId,
-                    cardData = cdAlt2,
                     cardRepository = cardRepository,
                     builder = builder,
                 )
@@ -945,11 +937,9 @@ object ActionMapper {
         player: Player,
         instanceId: Int,
         grpId: Int,
-        cardData: CardData?,
         cardRepository: CardRepository?,
         builder: ActionsAvailableReq.Builder,
     ) {
-        if (cardData == null) return
         val castable = getAllCastableAbilities(card, player)
         for (sa in castable) {
             val altCost = sa.alternativeCost
