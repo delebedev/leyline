@@ -190,6 +190,3 @@ val KEYWORD_BASE_IDS: Map<String, Int> =
         "SNEAK" to 394,
         "FLASHBACK" to 35,
     )
-
-/** @deprecated superset lives in [KEYWORD_BASE_IDS]. Kept for call-site compat. */
-val ALT_COST_KEYWORD_BASE_IDS: Map<String, Int> = KEYWORD_BASE_IDS

@@ -1012,10 +1012,9 @@ object ActionMapper {
             val altCost = sa.alternativeCost
             if (altCost != null) {
                 val altCostName = altCost.name.uppercase()
-                // TODO(leyline-9n6): Flashback resolves via KEYWORD_BASE_IDS; Escape/Mayhem
-                //   etc. need BaseIds populated in KEYWORD_BASE_IDS. Until then they
-                //   return null here (matches prior prod behavior — ExposedCardRepository
-                //   never populated the now-removed keyword-name map).
+                // TODO(leyline-9n6): Warp/Sneak/Flashback resolve via KEYWORD_BASE_IDS;
+                //   Escape/Mayhem/Commander etc. need BaseIds populated once verified
+                //   against recordings. Until then those keywords return null here.
                 val abilityGrpId =
                     cardRepository?.findKeywordAbilityGrpId(grpId, altCostName) ?: 0
                 if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)

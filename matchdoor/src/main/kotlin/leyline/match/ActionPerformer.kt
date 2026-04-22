@@ -6,6 +6,7 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.InstanceId
+import leyline.game.data.KEYWORD_BASE_IDS
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -296,13 +297,20 @@ class ActionPerformer(
         // (OptionalAction for Madness, zone-cast for Flashback, …).
         val targetAltCost =
             when (info.baseId) {
-                leyline.game.data.KEYWORD_BASE_IDS["WARP"] -> AlternativeCost.Warp
-                leyline.game.data.KEYWORD_BASE_IDS["SNEAK"] -> AlternativeCost.Sneak
+                WARP_BASE_ID -> AlternativeCost.Warp
+                SNEAK_BASE_ID -> AlternativeCost.Sneak
                 else -> return null
             }
 
         val candidates = getAllCastableAbilities(card, player)
         val idx = candidates.indexOfFirst { it.alternativeCost == targetAltCost }
         return if (idx >= 0) idx else null
+    }
+
+    private companion object {
+        // getValue() throws at class-load if the map entry is missing — loud-fail
+        // beats silent null-return that would fall back to the base SA.
+        val WARP_BASE_ID: Int = KEYWORD_BASE_IDS.getValue("WARP")
+        val SNEAK_BASE_ID: Int = KEYWORD_BASE_IDS.getValue("SNEAK")
     }
 }
