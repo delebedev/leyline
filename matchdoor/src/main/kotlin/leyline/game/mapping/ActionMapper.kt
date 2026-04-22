@@ -8,6 +8,7 @@ import forge.game.card.CardPredicates
 import forge.game.cost.CostAdjustment
 import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
+import forge.game.spellability.AlternativeCost
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
 import leyline.bridge.chooseCastAbility
@@ -16,6 +17,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.codes.ManaColorMapping
 import leyline.game.data.CardData
+import leyline.game.data.CardRepository
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityRegistry
 import leyline.game.state.GameBridge
@@ -68,6 +70,7 @@ object ActionMapper {
             },
             cardDataLookup = { grpId -> bridge.cardRepository.findByGrpId(grpId) },
             abilityRegistryLookup = { card, cardData -> bridge.abilityRegistryFor(card, cardData) },
+            cardRepository = bridge.cardRepository,
         )
     }
 
@@ -234,6 +237,16 @@ object ActionMapper {
                     }
                 }
                 builder.addInactiveActions(inactiveBuilder)
+                val cdForAlt = bridge.cardRepository.findByGrpId(grpId)
+                addHandAltCostCastActions(
+                    card = forgeCard,
+                    player = player,
+                    instanceId = instanceId,
+                    grpId = grpId,
+                    cardData = cdForAlt,
+                    cardRepository = bridge.cardRepository,
+                    builder = builder,
+                )
                 continue
             }
 
@@ -269,6 +282,17 @@ object ActionMapper {
                 }
             }
             builder.addActions(actionBuilder)
+
+            val cdForAlt2 = bridge.cardRepository.findByGrpId(grpId)
+            addHandAltCostCastActions(
+                card = forgeCard,
+                player = player,
+                instanceId = instanceId,
+                grpId = grpId,
+                cardData = cdForAlt2,
+                cardRepository = bridge.cardRepository,
+                builder = builder,
+            )
 
             if (cardSnap.isAdventureCard) {
                 val advAction = buildAdventureAction(forgeCard, player, instanceId, grpId, checkLegality = true)
@@ -418,13 +442,10 @@ object ActionMapper {
                 val cardData = bridge.cardRepository.findByGrpId(grpId)
                 val altCost = sa.alternativeCost
                 if (altCost != null) {
+                    // TODO(leyline-9n6): extend KEYWORD_BASE_IDS for Escape/Mayhem/etc.
                     val altCostName = altCost.name.uppercase()
                     val abilityGrpId =
-                        cardData
-                            ?.keywordAbilityGrpIds
-                            ?.entries
-                            ?.firstOrNull { it.key.startsWith(altCostName) }
-                            ?.value ?: 0
+                        bridge.cardRepository.findKeywordAbilityGrpId(grpId, altCostName) ?: 0
                     if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
                 }
 
@@ -466,6 +487,7 @@ object ActionMapper {
         grpIdResolver: (Card) -> Int,
         cardDataLookup: (Int) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry? = { _, _ -> null },
+        cardRepository: CardRepository? = null,
     ): ActionsAvailableReq {
         val builder = ActionsAvailableReq.newBuilder()
 
@@ -611,6 +633,20 @@ object ActionMapper {
                     }
                 }
                 builder.addInactiveActions(inactiveBuilder)
+                // Base SA unaffordable, but alt-cost (Warp/Sneak) may still be
+                // payable — emit those offers independently before moving on.
+                if (checkLegality) {
+                    val cdAlt = cardDataLookup(grpId)
+                    addHandAltCostCastActions(
+                        card = card,
+                        player = player,
+                        instanceId = instanceId,
+                        grpId = grpId,
+                        cardData = cdAlt,
+                        cardRepository = cardRepository,
+                        builder = builder,
+                    )
+                }
                 continue
             }
 
@@ -644,6 +680,19 @@ object ActionMapper {
                 }
             }
             builder.addActions(actionBuilder)
+
+            if (checkLegality) {
+                val cdAlt2 = cardDataLookup(grpId)
+                addHandAltCostCastActions(
+                    card = card,
+                    player = player,
+                    instanceId = instanceId,
+                    grpId = grpId,
+                    cardData = cdAlt2,
+                    cardRepository = cardRepository,
+                    builder = builder,
+                )
+            }
 
             // CastAdventure for adventure-capable cards
             if (card.isAdventureCard) {
@@ -709,7 +758,7 @@ object ActionMapper {
 
         // Zone casts: Graveyard, Exile, Command (flashback, escape, etc.)
         if (checkLegality) {
-            addZoneCastActions(player, builder, idResolver, grpIdResolver, cardDataLookup)
+            addZoneCastActions(player, builder, idResolver, grpIdResolver, cardDataLookup, cardRepository)
         }
         // Pass + FloatMana always available
         builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
@@ -875,12 +924,80 @@ object ActionMapper {
         return builder.build()
     }
 
+    /**
+     * Hand-zone alt-cost casts (Warp, Sneak) — emit one [Action] per eligible alt-cost SA.
+     *
+     * Wire shape per captured Arena recordings:
+     *  - `instanceId` = hand card iid, `grpId` = card grpId, `facetId` = iid
+     *  - `abilityGrpId` = 0 (intentionally — the alt-cost row is carried on
+     *    `alternativeGrpId`, not here)
+     *  - `alternativeGrpId` = per-card warp/sneak ability grpId (keyword→grpId lookup)
+     *  - `manaCost` entries echo `alternativeGrpId` on each slot (so the client
+     *    associates the cost display with the alt-cost row)
+     *
+     * Scoped to Warp/Sneak intentionally — other alt-costs (Madness, Flashback,
+     * Impending, …) are surfaced via their existing rails (OptionalAction for
+     * Madness, zone-cast for Flashback). Widening this path without corpus
+     * evidence risks double-offer regressions.
+     */
+    private fun addHandAltCostCastActions(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        grpId: Int,
+        cardData: CardData?,
+        cardRepository: CardRepository?,
+        builder: ActionsAvailableReq.Builder,
+    ) {
+        if (cardData == null) return
+        val castable = getAllCastableAbilities(card, player)
+        for (sa in castable) {
+            val altCost = sa.alternativeCost
+            if (altCost != AlternativeCost.Warp && altCost != AlternativeCost.Sneak) continue
+            val canPay =
+                try {
+                    ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+                } catch (_: Exception) {
+                    false
+                }
+            if (!canPay) continue
+
+            val effectiveCost = computeEffectiveCost(sa, player)
+            // Resolve the per-card warp/sneak row by (BaseId match + mana-cost match)
+            // via the Arena DB Abilities table. Works in prod and in tests when
+            // AbilityInfo is registered on InMemoryCardRepository.
+            val payCostPairs: List<Pair<ManaColor, Int>> =
+                effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
+            val altCostKey = altCost.name.uppercase()
+            val alternativeGrpId =
+                cardRepository?.findAlternativeCostAbilityGrpId(grpId, altCostKey, payCostPairs)
+                    ?: 0
+            if (alternativeGrpId <= 0) continue
+
+            val actionBuilder =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.Cast)
+                    .setInstanceId(instanceId)
+                    .setGrpId(grpId)
+                    .setFacetId(instanceId)
+                    .setAlternativeGrpId(alternativeGrpId)
+                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+
+            if (effectiveCost != null && !effectiveCost.isNoCost) {
+                addManaCostFromForge(effectiveCost, actionBuilder, alternativeGrpId)
+            }
+            builder.addActions(actionBuilder)
+        }
+    }
+
     private fun addZoneCastActions(
         player: Player,
         builder: ActionsAvailableReq.Builder,
         idResolver: (Int) -> Int,
         grpIdResolver: (Card) -> Int,
         cardDataLookup: (Int) -> CardData?,
+        cardRepository: CardRepository?,
     ) {
         val game = player.game ?: return
         val zones = listOf(ForgeZoneType.Graveyard, ForgeZoneType.Exile, ForgeZoneType.Command)
@@ -905,12 +1022,12 @@ object ActionMapper {
             val altCost = sa.alternativeCost
             if (altCost != null) {
                 val altCostName = altCost.name.uppercase()
+                // TODO(leyline-9n6): Flashback resolves via KEYWORD_BASE_IDS; Escape/Mayhem
+                //   etc. need BaseIds populated in KEYWORD_BASE_IDS. Until then they
+                //   return null here (matches prior prod behavior — ExposedCardRepository
+                //   never populated the now-removed keyword-name map).
                 val abilityGrpId =
-                    cardData
-                        ?.keywordAbilityGrpIds
-                        ?.entries
-                        ?.firstOrNull { it.key.startsWith(altCostName) }
-                        ?.value ?: 0
+                    cardRepository?.findKeywordAbilityGrpId(grpId, altCostName) ?: 0
                 if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
             }
 

@@ -665,6 +665,16 @@ class TargetingHandler(
 
         // Map each optional cost to (CastingTimeOptionType, abilityGrpId)
         val cardData = bridge.cardRepository.findByGrpId(action.grpId)
+        // Keywords occupy the first N slots of CardData.abilityIds; optional costs
+        // index past them. SlotLayout (from AbilityRegistry) is the source of
+        // truth for keyword count — it's derived the same way whether the card
+        // came from the Arena DB (prod) or the test-side AbilityIdDeriver.
+        val keywordCount =
+            if (cardData != null) {
+                bridge.abilityRegistryFor(card, cardData)?.slotLayout?.keywordCount ?: 0
+            } else {
+                0
+            }
         val costEntries =
             optionalCosts.mapIndexed { i, cost ->
                 val ctoType =
@@ -679,9 +689,8 @@ class TargetingHandler(
                 val abilityGrpId =
                     cardData
                         ?.abilityIds
-                        ?.getOrNull(
-                            (cardData.keywordAbilityGrpIds.size) + i,
-                        )?.first ?: 0
+                        ?.getOrNull(keywordCount + i)
+                        ?.first ?: 0
                 Pair(ctoType, abilityGrpId)
             }
 
