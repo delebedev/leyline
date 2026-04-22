@@ -559,8 +559,15 @@ object StateMapper {
                 .addAllZones(changedZones.sortedBy { it.zoneId })
                 .addAllGameObjects(changedObjects)
                 .addAllAnnotations(current.annotationsList)
-                .addAllPersistentAnnotations(current.persistentAnnotationsList)
-                .addAllDiffDeletedPersistentAnnotationIds(bridge.annotations.drainDeletions())
+                // Emit only newly-added persistent annotations: the client accumulates
+                // across diffs and removes via diffDeletedPersistentAnnotationIds. IDs
+                // already present before this bundle's computeBatch are carried on the
+                // client; re-sending them is redundant wire traffic that diverges from
+                // the protocol spec. Baseline is cur's captured state (taken before
+                // computeBatch ran), not prev's — prev predates the last apply.
+                .addAllPersistentAnnotations(
+                    current.persistentAnnotationsList.filter { it.id !in cur.persistentAnnotationState.activeAnnotations.keys },
+                ).addAllDiffDeletedPersistentAnnotationIds(bridge.annotations.drainDeletions())
                 .addAllTimers(PlayerMapper.buildTimers())
                 .setUpdate(updateType)
                 .setPrevGameStateId(prev.gameStateId)

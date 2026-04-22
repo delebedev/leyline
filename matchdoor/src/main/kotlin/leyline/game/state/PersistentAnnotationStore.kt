@@ -16,8 +16,12 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  *
  * Persistent annotations represent ongoing game state visible to the client:
  * attachments, counters, layered effects, controller changes, exile-under-card,
- * and entered-zone-this-turn markers. Each appears in every GSM's
- * `persistentAnnotations` field until explicitly removed.
+ * and entered-zone-this-turn markers. The server-side store accumulates them
+ * across GSMs until explicitly removed; the wire shape is differential —
+ * [leyline.game.mapping.StateMapper.buildDiff] emits only newly-added IDs on
+ * each Diff GSM, and [leyline.game.mapping.StateMapper.buildFromSnapshot]
+ * carries the full list on Full GSMs. Removals flow through
+ * `diffDeletedPersistentAnnotationIds` (see [drainDeletions]).
  *
  * **Create:** New persistent annotations originate from four sources, processed
  * in [computeBatch] in this order:

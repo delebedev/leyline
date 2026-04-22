@@ -48,10 +48,11 @@ class AbilityWordPuzzleTest :
                     .first { it.name == "Dreadwing Scavenger" }
             val iid = b.getOrAllocInstanceId(ForgeCardId(scavenger.id)).value
 
-            val gsm = base.stateOnlyDiff(game, b, counter)
-
+            // Seeded baseline state: the pAnn is carried in the initial Full GSM,
+            // not re-emitted on subsequent Diffs (protocol spec). Assert on the
+            // store directly — this is a computation test, not wire shape.
             val awAnns =
-                gsm.persistentAnnotationsList.filter {
+                b.annotations.getAll().filter {
                     AnnotationType.AbilityWordActive in it.typeList
                 }
             assertSoftly {
@@ -72,23 +73,23 @@ class AbilityWordPuzzleTest :
                     base.addCard("Island", human, ZoneType.Hand)
                 }
 
-            // Initial diff — value=5
-            val gsm1 = base.stateOnlyDiff(game, b, counter)
+            // Initial value from the store (baseline) — value=5.
             val aw1 =
-                gsm1.persistentAnnotationsList.first {
+                b.annotations.getAll().first {
                     AnnotationType.AbilityWordActive in it.typeList
                 }
             aw1.detailInt("value") shouldBe 5
 
-            // Move card from hand to GY (simulate discard)
+            // Move card from hand to GY (simulate discard) and drive the pipeline
+            // to recompute pAnns against the new GY count.
             val human = game.humanPlayer
             val island = human.getZone(ZoneType.Hand).cards.first { it.name == "Island" }
             game.action.moveToGraveyard(island, null)
+            base.captureAfterAction(b, game, counter) {}
 
-            // Capture next diff — value should be 6
-            val gsm2 = base.captureAfterAction(b, game, counter) {}
+            // Post-action store — value should be 6.
             val aw2 =
-                gsm2.persistentAnnotationsList.first {
+                b.annotations.getAll().first {
                     AnnotationType.AbilityWordActive in it.typeList
                 }
             aw2.detailInt("value") shouldBe 6
