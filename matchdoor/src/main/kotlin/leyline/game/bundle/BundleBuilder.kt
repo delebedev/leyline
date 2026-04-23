@@ -1,12 +1,15 @@
 package leyline.game.bundle
 
 import forge.game.Game
+import forge.game.phase.PhaseType
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
+import leyline.game.event.GameEvent
+import leyline.game.event.Zone
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PlayerMapper
@@ -73,8 +76,15 @@ class BundleBuilder(
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
         val frame = GsmFrame.from(snap)
-        val updateType = StateMapper.resolveUpdateType(snap, seatId)
+        // Drain events before resolving updateType so the turn/trigger-draw override
+        // (leyline-pey) can inspect the same event stream used downstream by buildDiff.
         val events = bridge.drainBundleEvents(seatId)
+        val updateType =
+            if (isTurnOrTriggerDraw(events, snap, snap.phase.activePlayer)) {
+                GameStateUpdate.SendHiFi
+            } else {
+                StateMapper.resolveUpdateType(snap, seatId)
+            }
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
         val previousSnap = cursor.lastSent
@@ -1526,5 +1536,58 @@ class BundleBuilder(
          */
         fun shouldAutoPass(actions: ActionsAvailableReq): Boolean =
             actions.actionsList.all { !ShouldStopEvaluator.shouldStop(it.actionType) }
+
+        /**
+         * True when the drained [events] describe a turn-boundary or trigger-driven
+         * draw — one that should be emitted as [GameStateUpdate.SendHiFi] rather
+         * than the default [GameStateUpdate.SendAndRecord].
+         *
+         * The wire contract (bead leyline-pey) marks spell-driven draws in Main1
+         * (Divination, Opt, etc.) as `SendAndRecord`, but turn-boundary auto-draws
+         * and upkeep-triggered draws as `SendHiFi`. This helper detects the
+         * latter by requiring all of:
+         *
+         * 1. A Library→Hand [GameEvent.ZoneChanged] whose card owner is the
+         *    active seat.
+         * 2. No [GameEvent.SpellCast] for that seat in the same bundle
+         *    (filters out cast-Divination-draw chains).
+         * 3. No [GameEvent.SpellResolved] for that seat in the same bundle
+         *    (filters out resolve-Divination-draw chains).
+         * 4. The snapshot phase is UPKEEP, DRAW, or MAIN1 — the window leyline
+         *    bundles the auto-draw into (MAIN1 covers the common case where the
+         *    DRAW step's card move lands in the first MAIN1 priority grant's
+         *    GSM).
+         * 5. A non-null snapshot phase — fall back to the default updateType
+         *    when phase is unknown.
+         */
+        internal fun isTurnOrTriggerDraw(
+            events: List<GameEvent>,
+            snap: GsmSnapshot,
+            activeSeat: SeatId,
+        ): Boolean {
+            val phase = snap.phase.phase ?: return false
+            if (phase != PhaseType.UPKEEP && phase != PhaseType.DRAW && phase != PhaseType.MAIN1) return false
+
+            val hasActiveSeatDraw =
+                events.any { ev ->
+                    ev is GameEvent.ZoneChanged &&
+                        ev.from == Zone.Library &&
+                        ev.to == Zone.Hand &&
+                        snap.objects[ev.cardId]?.owner == activeSeat
+                }
+            if (!hasActiveSeatDraw) return false
+
+            val hasActiveSeatSpellCast =
+                events.any { ev -> ev is GameEvent.SpellCast && ev.seatId == activeSeat }
+            if (hasActiveSeatSpellCast) return false
+
+            val hasActiveSeatSpellResolved =
+                events.any { ev ->
+                    ev is GameEvent.SpellResolved && snap.objects[ev.cardId]?.owner == activeSeat
+                }
+            if (hasActiveSeatSpellResolved) return false
+
+            return true
+        }
     }
 }
