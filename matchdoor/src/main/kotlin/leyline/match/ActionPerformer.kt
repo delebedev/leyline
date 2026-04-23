@@ -208,6 +208,16 @@ class ActionPerformer(
         // Wait for engine to reach next priority stop
         bridge.awaitPriority()
 
+        // leyline-jxa: LAND_PLAY must emit a standalone Diff GSM (no paired
+        // ActionsAvailableReq) so its wire shape is update=SendAndRecord
+        // without a trailing action prompt, matching the dominant spec shape.
+        // The subsequent priority grant in autoPassEngine naturally produces
+        // the next GSM+AAR bundle when the player still has priority.
+        if (action.actionType == ActionType.Play_add3) {
+            val bb = bundles.bundleBuilder!!
+            sink.sendBundle(bb.stateOnlyDiff(game, counters.counter))
+        }
+
         // After a cast or activate, check for targeting prompt or intermediate stack state.
         // Pass clientAutoResolve when the client opts in to auto-resolving stack effects (#92).
         if (isCastOrActivate && targetingHandler.handlePostCastPrompt(bridge, autoPassState.shouldAutoPass())) return
