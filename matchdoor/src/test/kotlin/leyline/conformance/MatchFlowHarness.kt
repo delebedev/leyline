@@ -590,6 +590,7 @@ class MatchFlowHarness(
     fun castSpellByName(
         cardName: String,
         zone: ZoneType = ZoneType.Hand,
+        alternativeGrpId: Int = 0,
     ): Boolean {
         val player = bridge.getPlayer(seatId) ?: return false
         val card =
@@ -603,6 +604,7 @@ class MatchFlowHarness(
                 actionType = ActionType.Cast
                 instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
                 grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+                if (alternativeGrpId != 0) this.alternativeGrpId = alternativeGrpId
             }
 
         session.onPerformAction(msg)
@@ -714,7 +716,12 @@ class MatchFlowHarness(
         val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
         val cardData = bridge.cardRepository.findByGrpId(grpId)
-        val keywordCount = cardData?.keywordAbilityGrpIds?.size ?: 0
+        val keywordCount =
+            if (cardData != null) {
+                bridge.abilityRegistryFor(card, cardData)?.slotLayout?.keywordCount ?: 0
+            } else {
+                0
+            }
         // Arena layout: [keywords, triggers, activated]. Skip trigger slots.
         val triggerCount = card.triggers?.count { it.isIntrinsic } ?: 0
         val abilityGrpId = cardData?.abilityIds?.getOrNull(keywordCount + triggerCount + abilityIndex)?.first ?: 0

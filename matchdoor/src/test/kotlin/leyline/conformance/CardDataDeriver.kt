@@ -65,7 +65,6 @@ object CardDataDeriver {
         // Abilities — assign synthetic sequential IDs per ability on the card
         val derived = deriveAbilityIds(card)
         val abilityIds = derived.abilityIds
-        val keywordAbilityGrpIds = derived.keywordAbilityGrpIds
 
         val linkedFaces = resolveLinkedFaceGrpIds(card)
 
@@ -80,10 +79,12 @@ object CardDataDeriver {
             supertypes = supertypes,
             abilityIds = abilityIds,
             manaCost = manaCost,
-            keywordAbilityGrpIds = keywordAbilityGrpIds,
             chapterAbilityGrpIds = derived.chapterAbilityGrpIds,
             linkedFaceGrpIds = linkedFaces,
-        )
+        ).also {
+            // Stash the keyword-name → grpId map on the repo for test-side lookup.
+            TestCardRegistry.repo.registerKeywordAbilityGrpIds(grpId, derived.keywordAbilityGrpIds)
+        }
     }
 
     private fun deriveManaCost(cost: forge.card.mana.ManaCost?) = ManaColorMapping.deriveManaCost(cost)

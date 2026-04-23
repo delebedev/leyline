@@ -87,11 +87,9 @@ class MadnessTest :
 
                 // Capture Fiery Temper's grpId before it moves.
                 val fieryTemperGrpId = h.bridge.cardRepository.findGrpIdByName("Fiery Temper")!!
-                val cardData = h.bridge.cardRepository.findByGrpId(fieryTemperGrpId)!!
                 val madnessAbilityGrpId =
-                    cardData.keywordAbilityGrpIds.entries
-                        .firstOrNull { it.key.uppercase().startsWith("MADNESS") }
-                        ?.value
+                    (h.bridge.cardRepository as leyline.game.InMemoryCardRepository)
+                        .findTestKeywordAbilityGrpId(fieryTemperGrpId, "MADNESS")
                 madnessAbilityGrpId shouldNotBe null
                 madnessAbilityGrpId!! shouldBeGreaterThan 0
 

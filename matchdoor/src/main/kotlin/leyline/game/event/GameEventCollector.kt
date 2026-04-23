@@ -173,13 +173,12 @@ class GameEventCollector(
         val altCostAbilityGrpId =
             if (saAltCost != null) {
                 val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
-                val cardData = if (grpId != 0) bridge.cardRepository.findByGrpId(grpId) else null
                 val altCostName = saAltCost.name.uppercase()
-                cardData
-                    ?.keywordAbilityGrpIds
-                    ?.entries
-                    ?.firstOrNull { it.key.uppercase().startsWith(altCostName) }
-                    ?.value ?: 0
+                if (grpId != 0) {
+                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, altCostName) ?: 0
+                } else {
+                    0
+                }
             } else {
                 0
             }
@@ -578,14 +577,14 @@ class GameEventCollector(
 
     /** True if the card has a discard-replacement keyword (Madness, Mayhem) — these
      *  redirect Hand→GY discards to Hand→Exile but client still tags them as Discard.
-     *  Consults CardRepository's normalized keyword map rather than Forge's raw
-     *  Keyword.toString() — the upstream normalization in AbilityIdDeriver uppercases
-     *  keyword names, so a stable string prefix check works regardless of Forge's
-     *  internal Keyword representation. */
+     *  Reads directly from the live Forge [Card] via [CardView.id] so we don't
+     *  depend on card-DB keyword tables (the Arena DB does not expose a
+     *  keyword-name map, and corpus-sourced BaseIds for Madness/Mayhem are not
+     *  yet populated — see TODO in KEYWORD_BASE_IDS). */
     private fun hasDiscardReplacementKeyword(cardView: CardView): Boolean {
-        val grpId = bridge.cardRepository.findGrpIdByName(cardView.name) ?: return false
-        val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return false
-        return cardData.keywordAbilityGrpIds.keys.any { kw ->
+        val forgeCard = bridge.findCard(ForgeCardId(cardView.id)) ?: return false
+        val keywords = forgeCard.rules?.mainPart?.keywords ?: return false
+        return keywords.any { kw ->
             val u = kw.uppercase()
             u.startsWith("MADNESS") || u.startsWith("MAYHEM")
         }

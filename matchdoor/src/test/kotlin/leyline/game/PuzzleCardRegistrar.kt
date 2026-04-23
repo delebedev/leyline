@@ -170,7 +170,6 @@ class PuzzleCardRegistrar(
         val manaCost = deriveManaCost(rules.manaCost)
         val derived = deriveAbilityIds(card)
         val abilityIds = derived.abilityIds
-        val keywordAbilityGrpIds = derived.keywordAbilityGrpIds
 
         val linkedFaces = resolveLinkedFaceGrpIds(card)
 
@@ -185,10 +184,11 @@ class PuzzleCardRegistrar(
             supertypes = supertypes,
             abilityIds = abilityIds,
             manaCost = manaCost,
-            keywordAbilityGrpIds = keywordAbilityGrpIds,
             chapterAbilityGrpIds = derived.chapterAbilityGrpIds,
             linkedFaceGrpIds = linkedFaces,
-        )
+        ).also {
+            repo.registerKeywordAbilityGrpIds(grpId, derived.keywordAbilityGrpIds)
+        }
     }
 
     /**

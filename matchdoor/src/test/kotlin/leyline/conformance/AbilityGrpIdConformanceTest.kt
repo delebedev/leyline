@@ -59,7 +59,7 @@ class AbilityGrpIdConformanceTest :
                 grpIds.distinct() shouldHaveSize grpIds.size
 
                 // The abilityGrpIds should match CardData.abilityIds slots in order
-                val keywordCount = cardData.keywordAbilityGrpIds.size
+                val keywordCount = TestCardRegistry.repo.testKeywordAbilityGrpIds(cardData.grpId).size
                 val expectedSlots =
                     cardData.abilityIds
                         .drop(keywordCount) // skip keyword ability slots

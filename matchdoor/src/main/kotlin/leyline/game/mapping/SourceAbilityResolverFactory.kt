@@ -13,8 +13,8 @@ import leyline.game.state.GameBridge
  *   to look up the specific ability. Falls back to keyword parent tracing for
  *   non-intrinsic temporaries.
  * - **staticId == 0**: resolved spell/trigger pump (e.g. Prowess) — falls back to
- *   [leyline.game.data.CardData.keywordAbilityGrpIds] heuristic since Forge doesn't tag these with
- *   a source ability ID.
+ *   the card's keyword-ability grpId (via [leyline.game.data.CardRepository.findKeywordAbilityGrpId])
+ *   since Forge doesn't tag these with a source ability ID.
  *
  * Lives outside the `NoGameInMappers` denied set; legitimately reads
  * [forge.game.Game] via [bridge] (depends on live Forge card state for
@@ -33,9 +33,13 @@ object SourceAbilityResolverFactory {
             val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return@resolver null
 
             // Resolved pump effects (Prowess, Giant Growth): staticId = 0
+            // TODO(leyline-9n6): PROWESS BaseId unknown — once populated in
+            //   KEYWORD_BASE_IDS, this lookup becomes prod-functional. Today
+            //   it returns null in prod (same as pre-migration behavior since
+            //   ExposedCardRepository never populated the old keyword map).
             if (staticId == 0L) {
                 for (keyword in PT_BOOST_KEYWORDS) {
-                    cardData.keywordAbilityGrpIds[keyword]?.let { return@resolver it }
+                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, keyword)?.let { return@resolver it }
                 }
                 return@resolver null
             }

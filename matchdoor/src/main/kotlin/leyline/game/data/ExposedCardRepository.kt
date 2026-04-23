@@ -59,6 +59,8 @@ class ExposedCardRepository(
 
     private object Abilities : Table("Abilities") {
         val id = integer("Id")
+        val baseId = integer("BaseId").default(0)
+        val oldSchoolManaText = text("OldSchoolManaText").nullable()
         val modalChildIds = text("ModalChildIds").nullable()
         override val primaryKey = PrimaryKey(id)
     }
@@ -74,6 +76,7 @@ class ExposedCardRepository(
     private val grpIdToName = ConcurrentHashMap<Int, String>()
     private val nameToGrpId = ConcurrentHashMap<String, Int>()
     private val modalCache = ConcurrentHashMap<Int, ModalAbilityInfo?>()
+    private val abilityInfoCache = ConcurrentHashMap<Int, java.util.Optional<AbilityInfo>>()
 
     // --- CardRepository ---
 
@@ -147,6 +150,32 @@ class ExposedCardRepository(
     ) {
         modalCache[cardGrpId] = info
     }
+
+    override fun findAbilityInfo(abilityGrpId: Int): AbilityInfo? {
+        abilityInfoCache[abilityGrpId]?.let { return it.orElse(null) }
+        val info = queryAbilityInfo(abilityGrpId)
+        abilityInfoCache[abilityGrpId] = java.util.Optional.ofNullable(info)
+        return info
+    }
+
+    private fun queryAbilityInfo(abilityGrpId: Int): AbilityInfo? =
+        try {
+            transaction(database) {
+                Abilities
+                    .selectAll()
+                    .where { Abilities.id eq abilityGrpId }
+                    .firstOrNull()
+                    ?.let { row ->
+                        AbilityInfo(
+                            baseId = row[Abilities.baseId],
+                            manaCost = parseManaCost(row[Abilities.oldSchoolManaText]),
+                        )
+                    }
+            }
+        } catch (e: Exception) {
+            log.warn("Failed to query Abilities row for id={}: {}", abilityGrpId, e.message)
+            null
+        }
 
     private fun queryModalOptions(abilityGrpIds: List<Int>): ModalAbilityInfo? =
         try {

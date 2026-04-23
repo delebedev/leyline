@@ -1,10 +1,12 @@
 package leyline.match
 
+import forge.game.spellability.AlternativeCost
 import leyline.bridge.findCard
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.InstanceId
+import leyline.game.data.KEYWORD_BASE_IDS
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -123,7 +125,11 @@ class ActionPerformer(
                     val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
                     val submitted =
                         if (cardId != null) {
-                            seatBridge.action.submitAction(pending.actionId, PlayerAction.CastSpell(cardId))
+                            val abilityIndex = resolveAltCostAbilityIndex(action, cardId, bridge)
+                            seatBridge.action.submitAction(
+                                pending.actionId,
+                                PlayerAction.CastSpell(cardId, abilityIndex),
+                            )
                         } else {
                             seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                         }
@@ -261,5 +267,50 @@ class ActionPerformer(
 
         val index = registry.slotLayout.forgeIndexFor(abilityGrpId)
         return if (index != null && index >= 0) index else 0
+    }
+
+    /**
+     * Resolve the SA index in [getAllCastableAbilities] for an inbound Cast
+     * carrying `alternativeGrpId` (Warp/Sneak hand-cast path). The client echoes
+     * the per-card keyword ability grpId; we map it back to the matching
+     * alt-cost [SpellAbility] via the Abilities-table `BaseId` chain — works
+     * identically in prod ([leyline.game.data.ExposedCardRepository]) and tests
+     * ([leyline.game.InMemoryCardRepository.registerAbilityInfo]).
+     *
+     * Returns `null` when no alt-cost was requested (normal cast) or when the
+     * row can't be resolved — callers then fall through to the base SA.
+     */
+    private fun resolveAltCostAbilityIndex(
+        action: Action,
+        cardId: leyline.bridge.types.ForgeCardId,
+        bridge: GameBridge,
+    ): Int? {
+        val alternativeGrpId = action.alternativeGrpId
+        if (alternativeGrpId == 0) return null
+        val game = bridge.getGame() ?: return null
+        val card = findCard(game, cardId) ?: return null
+        val player = bridge.getPlayer(counters.seatId) ?: return null
+
+        val info = bridge.cardRepository.findAbilityInfo(alternativeGrpId) ?: return null
+
+        // Scope: strictly Warp + Sneak. Other alt-costs route via their own rails
+        // (OptionalAction for Madness, zone-cast for Flashback, …).
+        val targetAltCost =
+            when (info.baseId) {
+                WARP_BASE_ID -> AlternativeCost.Warp
+                SNEAK_BASE_ID -> AlternativeCost.Sneak
+                else -> return null
+            }
+
+        val candidates = getAllCastableAbilities(card, player)
+        val idx = candidates.indexOfFirst { it.alternativeCost == targetAltCost }
+        return if (idx >= 0) idx else null
+    }
+
+    private companion object {
+        // getValue() throws at class-load if the map entry is missing — loud-fail
+        // beats silent null-return that would fall back to the base SA.
+        val WARP_BASE_ID: Int = KEYWORD_BASE_IDS.getValue("WARP")
+        val SNEAK_BASE_ID: Int = KEYWORD_BASE_IDS.getValue("SNEAK")
     }
 }
