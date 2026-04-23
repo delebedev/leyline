@@ -743,23 +743,25 @@ object ActionMapper {
                 log.debug("ActionMapper: skipping {} variant — no legal targets", card.name)
                 continue
             }
-            val canPay = try {
-                ComputerUtilMana.canPayManaCost(sa, player, 0, false)
-            } catch (_: Exception) {
-                false
-            }
-            val action = buildCastAction(
-                sa = sa,
-                instanceId = instanceId,
-                grpId = grpId,
-                player = player,
-                checkLegality = checkLegality,
-                idResolver = idResolver,
-                grpIdResolver = grpIdResolver,
-                cardData = cardData,
-                cardDataLookup = cardDataLookup,
-                abilityRegistryLookup = abilityRegistryLookup,
-            )
+            val canPay =
+                try {
+                    ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+                } catch (_: Exception) {
+                    false
+                }
+            val action =
+                buildCastAction(
+                    sa = sa,
+                    instanceId = instanceId,
+                    grpId = grpId,
+                    player = player,
+                    checkLegality = checkLegality,
+                    idResolver = idResolver,
+                    grpIdResolver = grpIdResolver,
+                    cardData = cardData,
+                    cardDataLookup = cardDataLookup,
+                    abilityRegistryLookup = abilityRegistryLookup,
+                )
             if (canPay) actions.add(action) else inactive.add(action)
         }
         return actions to inactive
@@ -778,22 +780,28 @@ object ActionMapper {
         cardDataLookup: (Int) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ): Action {
-        val usesAlternateAdditionalCost = sa.hostCard?.keywords?.any {
-            it.original.startsWith("AlternateAdditionalCost")
-        } == true &&
-            (sa.description?.contains("Additional cost:") == true)
-        val actionBuilder = Action.newBuilder()
-            .setActionType(ActionType.Cast)
-            .setInstanceId(instanceId)
-            .setGrpId(grpId)
-            .setFacetId(instanceId)
-            .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+        val usesAlternateAdditionalCost =
+            sa.hostCard?.keywords?.any {
+                it.original.startsWith("AlternateAdditionalCost")
+            } == true &&
+                (sa.description?.contains("Additional cost:") == true)
+        val actionBuilder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.Cast)
+                .setInstanceId(instanceId)
+                .setGrpId(grpId)
+                .setFacetId(instanceId)
+                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
 
         val altCost = sa.alternativeCost
         if (altCost != null) {
-            val abilityGrpId = cardData?.keywordAbilityGrpIds?.entries
-                ?.firstOrNull { it.key.startsWith(altCost.name.uppercase()) }
-                ?.value ?: 0
+            val abilityGrpId =
+                cardData
+                    ?.keywordAbilityGrpIds
+                    ?.entries
+                    ?.firstOrNull { it.key.startsWith(altCost.name.uppercase()) }
+                    ?.value ?: 0
             if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
         }
 
@@ -816,8 +824,13 @@ object ActionMapper {
         return actionBuilder.build()
     }
 
-    private fun buildFallbackCastAction(instanceId: Int, grpId: Int, cardData: CardData?): Action =
-        Action.newBuilder()
+    private fun buildFallbackCastAction(
+        instanceId: Int,
+        grpId: Int,
+        cardData: CardData?,
+    ): Action =
+        Action
+            .newBuilder()
             .setActionType(ActionType.Cast)
             .setInstanceId(instanceId)
             .setGrpId(grpId)
@@ -829,8 +842,7 @@ object ActionMapper {
                         addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
                     }
                 }
-            }
-            .build()
+            }.build()
 
 >>>>>>> da03533 (test(casting): align Eaten Alive payment flow checks)
     /** Build an ActivateMana action for an untapped permanent with mana abilities. */

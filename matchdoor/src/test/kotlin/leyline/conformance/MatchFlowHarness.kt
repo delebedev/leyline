@@ -611,7 +611,6 @@ class MatchFlowHarness(
         drainSink()
         return true
     }
-
     /** Alias for `castSpellByName(cardName, ZoneType.Graveyard)`. */
     fun castFromGraveyard(cardName: String): Boolean = castSpellByName(cardName, zone = ZoneType.Graveyard)
 
@@ -765,7 +764,6 @@ class MatchFlowHarness(
         session.onCastingTimeOptions(optionalCostResp(ctoId))
         drainSink()
     }
-
     // --- Message inspection ---
 
     /** Snapshot current message count for later comparison with [messagesSince]. */

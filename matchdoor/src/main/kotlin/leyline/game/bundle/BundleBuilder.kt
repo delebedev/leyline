@@ -1343,6 +1343,7 @@ class BundleBuilder(
         grpId: Int,
         optionCount: Int,
     ): Pair<CastingTimeOptionsReq, List<Int>> {
+<<<<<<< HEAD
         val ctoId = optionCount
         val selectNReq = SelectNReq.newBuilder()
             .setMinSel(1)
@@ -1356,20 +1357,53 @@ class BundleBuilder(
                 repeat(optionCount) { index -> addIds(index + 1) }
             }
             .build()
+=======
+        val ctoId = 2
+        val selectPrompt =
+            Prompt
+                .newBuilder()
+                .setPromptId(if (optionPromptIds.isNotEmpty()) PromptIds.CHOOSE_OR_COST else PromptIds.SELECT_N)
+                .apply {
+                    optionPromptIds.forEach { promptId ->
+                        addParameters(
+                            PromptParameter
+                                .newBuilder()
+                                .setParameterName("Cost")
+                                .setType(ParameterType.PromptId)
+                                .setPromptId(promptId),
+                        )
+                    }
+                }.build()
+        val selectNReq =
+            SelectNReq
+                .newBuilder()
+                .setMinSel(1)
+                .setMaxSel(1)
+                .setListType(SelectionListType.Dynamic)
+                .setIdType(IdType.PromptParameterIndex)
+                .setValidationType(SelectionValidationType.NonRepeatable)
+                .setSourceId(instanceId)
+                .setPrompt(selectPrompt)
+                .apply {
+                    repeat(optionCount) { index -> addIds(index + 1) }
+                }.build()
+>>>>>>> 9223b25 (fix(casting): wire Eaten Alive sacrifice cost selection)
 
-        val req = CastingTimeOptionsReq.newBuilder()
-            .addCastingTimeOptionReq(
-                CastingTimeOptionReq.newBuilder()
-                    .setCtoId(ctoId)
-                    .setCastingTimeOptionType(CastingTimeOptionType.ChooseOrCost)
-                    .setAffectedId(instanceId)
-                    .setAffectorId(instanceId)
-                    .setGrpId(grpId)
-                    .setPlayerIdToPrompt(seatId)
-                    .setIsRequired(true)
-                    .setSelectNReq(selectNReq),
-            )
-            .build()
+        val req =
+            CastingTimeOptionsReq
+                .newBuilder()
+                .addCastingTimeOptionReq(
+                    CastingTimeOptionReq
+                        .newBuilder()
+                        .setCtoId(ctoId)
+                        .setCastingTimeOptionType(CastingTimeOptionType.ChooseOrCost)
+                        .setAffectedId(instanceId)
+                        .setAffectorId(instanceId)
+                        .setGrpId(grpId)
+                        .setPlayerIdToPrompt(seatId)
+                        .setIsRequired(true)
+                        .setSelectNReq(selectNReq),
+                ).build()
         return req to (1..optionCount).toList()
     }
 

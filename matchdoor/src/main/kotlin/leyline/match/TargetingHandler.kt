@@ -660,10 +660,20 @@ class TargetingHandler(
         val game = bridge.getGame() ?: return false
         val card = game.findById(cardId.value) ?: return false
 
+<<<<<<< HEAD
         // Find the castable SpellAbility to check for optional costs
         val sa = card.spellAbilities?.firstOrNull { it.isSpell && !it.isLandAbility } ?: return false
         sa.setActivatingPlayer(bridge.getPlayer(counters.seatId) ?: return false)
 
+=======
+        val player = bridge.getPlayer(counters.seatId) ?: return false
+        val castable = leyline.bridge.getAllCastableAbilities(card, player)
+        val sa =
+            castAbilityIndex?.let { castable.getOrNull(it) }
+                ?: castable.firstOrNull()
+                ?: return false
+        sa.setActivatingPlayer(player)
+>>>>>>> 9223b25 (fix(casting): wire Eaten Alive sacrifice cost selection)
         val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
         if (optionalCosts.isEmpty()) return false
 
@@ -740,6 +750,7 @@ class TargetingHandler(
         val castable = leyline.bridge.getAllCastableAbilities(card, player)
         if (castable.size <= 1) return false
 
+<<<<<<< HEAD
         val (ctoReq, ctoIds) = ops.bundleBuilder!!.buildChooseOrCostCastingTimeOptionsReq(
             instanceId = action.instanceId,
             grpId = action.grpId,
@@ -750,6 +761,31 @@ class TargetingHandler(
             cardId = cardId,
             abilityIndicesByCtoId = ctoIds.mapIndexed { index, ctoId -> ctoId to index }.toMap(),
         )
+=======
+        val optionPromptIds: List<Int> =
+            when (action.grpId) {
+                93885 ->
+                    listOf(
+                        PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE,
+                        PromptIds.CHOOSE_OR_COST_PAY_MANA,
+                    )
+                else -> emptyList()
+            }
+
+        val (ctoReq, ctoIds) =
+            bundles.bundleBuilder!!.buildChooseOrCostCastingTimeOptionsReq(
+                instanceId = action.instanceId,
+                grpId = action.grpId,
+                optionCount = castable.size,
+                optionPromptIds = optionPromptIds,
+            )
+        pendingInteraction =
+            PendingClientInteraction.AlternateCostChoice(
+                pendingActionId = pendingActionId,
+                cardId = cardId,
+                abilityIndicesByCtoId = ctoIds.mapIndexed { index, ctoId -> ctoId to index }.toMap(),
+            )
+>>>>>>> 9223b25 (fix(casting): wire Eaten Alive sacrifice cost selection)
 
         val result = ops.bundleBuilder!!.castingTimeOptionsBundle(game, ops.counter, ctoReq)
         Tap.outboundTemplate("CastingTimeOptionsReq (alternate additional cost) seat=${ops.seatId} card=${card.name}")
@@ -807,9 +843,22 @@ class TargetingHandler(
         pending: PendingClientInteraction.AlternateCostChoice,
         autoPass: (GameBridge) -> Unit,
     ) {
+<<<<<<< HEAD
         val chosenCtoId = greMsg.castingTimeOptionsResp.castingTimeOptionResp?.ctoId ?: 0
         val abilityIndex = pending.abilityIndicesByCtoId[chosenCtoId] ?: 0
         val seatBridge = bridge.seat(ops.seatId.value)
+=======
+        val optionResp = greMsg.castingTimeOptionsResp.castingTimeOptionResp
+        val selectedIndex = optionResp?.selectNResp?.idsList?.firstOrNull()
+        val chosenCtoId = optionResp?.ctoId ?: 0
+        val abilityIndex =
+            if (selectedIndex != null) {
+                pending.abilityIndicesByCtoId[selectedIndex] ?: 0
+            } else {
+                pending.abilityIndicesByCtoId[chosenCtoId] ?: 0
+            }
+        val seatBridge = bridge.seat(counters.seatId.value)
+>>>>>>> 9223b25 (fix(casting): wire Eaten Alive sacrifice cost selection)
         val pendingAction = seatBridge.action.getPending()
         if (pendingAction != null) {
             seatBridge.action.submitAction(

@@ -270,6 +270,7 @@ class ActionPerformer(
         return if (index != null && index >= 0) index else 0
     }
 
+<<<<<<< HEAD
     /**
      * Resolve the SA index in [getAllCastableAbilities] for an inbound Cast
      * carrying `alternativeGrpId` (Warp/Sneak hand-cast path). The client echoes
@@ -288,9 +289,17 @@ class ActionPerformer(
     ): Int? {
         val alternativeGrpId = action.alternativeGrpId
         if (alternativeGrpId == 0) return null
+=======
+    private fun resolveCastAbilityIndex(
+        action: Action,
+        bridge: GameBridge,
+    ): Int? {
+        val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return null
+>>>>>>> 9223b25 (fix(casting): wire Eaten Alive sacrifice cost selection)
         val game = bridge.getGame() ?: return null
         val card = findCard(game, cardId) ?: return null
         val player = bridge.getPlayer(counters.seatId) ?: return null
+<<<<<<< HEAD
 
         val info = bridge.cardRepository.findAbilityInfo(alternativeGrpId) ?: return null
 
@@ -314,4 +323,36 @@ class ActionPerformer(
         val WARP_BASE_ID: Int = KEYWORD_BASE_IDS.getValue("WARP")
         val SNEAK_BASE_ID: Int = KEYWORD_BASE_IDS.getValue("SNEAK")
     }
+=======
+        val card = findCard(game, forgeCardId) ?: return null
+        val grpId = bridge.resolveGrpId(card, action.instanceId)
+        val (candidates, _) =
+            leyline.game.mapping.ActionMapper.buildHandCastActionsForCard(
+                card = card,
+                player = player,
+                instanceId = action.instanceId,
+                grpId = grpId,
+                checkLegality = true,
+                idResolver = { forgeId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeId)).value },
+                grpIdResolver = { candidate ->
+                    val iid = bridge.getOrAllocInstanceId(ForgeCardId(candidate.id)).value
+                    bridge.resolveGrpId(candidate, iid)
+                },
+                cardDataLookup = { candidateGrpId -> bridge.cardRepository.findByGrpId(candidateGrpId) },
+                abilityRegistryLookup = { candidate, cardData -> bridge.abilityRegistryFor(candidate, cardData) },
+            )
+        return candidates.indexOfFirst { equivalentCastAction(it, action) }.takeIf { it >= 0 }
+    }
+
+    private fun equivalentCastAction(
+        expected: Action,
+        actual: Action,
+    ): Boolean =
+        expected.actionType == actual.actionType &&
+            expected.instanceId == actual.instanceId &&
+            expected.grpId == actual.grpId &&
+            expected.abilityGrpId == actual.abilityGrpId &&
+            expected.manaCostList == actual.manaCostList &&
+            expected.autoTapSolution == actual.autoTapSolution
+>>>>>>> 9223b25 (fix(casting): wire Eaten Alive sacrifice cost selection)
 }

@@ -206,7 +206,6 @@ abstract class InteractionTest(
         cardName: String,
         zone: ZoneType = ZoneType.Hand,
     ) = harness.castSpellByName(cardName, zone)
-
     fun resolveSpell(cardName: String) = harness.resolveSpell(cardName)
 
     // --- Cast-until-prompt flows ---
@@ -232,7 +231,6 @@ abstract class InteractionTest(
     fun respondToSelectN(selectedInstanceIds: List<Int>) = harness.respondToSelectN(selectedInstanceIds)
 
     fun respondToOptionalCost(ctoId: Int) = harness.respondToOptionalCost(ctoId)
-
     // --- Message inspection ---
 
     val allMessages: List<GREToClientMessage> get() = harness.allMessages

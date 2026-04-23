@@ -319,7 +319,6 @@ fun optionalCostResp(ctoId: Int): ClientToGREMessage =
             ),
         )
     }
-
 // ---------------------------------------------------------------------------
 // OptionalActionResp — shock land ETB "pay life or enter tapped"
 // ---------------------------------------------------------------------------

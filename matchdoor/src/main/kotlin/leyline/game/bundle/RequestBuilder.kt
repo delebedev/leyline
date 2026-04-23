@@ -253,6 +253,12 @@ object RequestBuilder {
         bridge: GameBridge,
     ): SelectNReq {
         val semantic = prompt.request.semantic
+<<<<<<< HEAD
+=======
+        val isSacrificePrompt =
+            prompt.request.promptType == "choose_cards" &&
+                prompt.request.message.contains("sacrifice", ignoreCase = true)
+>>>>>>> 9223b25 (fix(casting): wire Eaten Alive sacrifice cost selection)
         val (context, listType, optionContext) =
             when (semantic) {
                 PromptSemantic.SelectNDiscard ->
