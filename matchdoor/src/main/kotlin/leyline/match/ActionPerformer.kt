@@ -39,6 +39,7 @@ class ActionPerformer(
      *
      * Caller resolves [ctx]; this method does not re-resolve.
      */
+    @Suppress("ReturnCount", "LongMethod", "CyclomaticComplexMethod")
     fun perform(
         ctx: SessionContext,
         greMsg: ClientToGREMessage,

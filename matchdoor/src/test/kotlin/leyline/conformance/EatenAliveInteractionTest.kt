@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -51,9 +52,11 @@ class EatenAliveInteractionTest :
             submitAction(sacrificeAction)
 
             val ctoReq = messagesSince(snap).firstOrNull { it.hasCastingTimeOptionsReq() }?.castingTimeOptionsReq
-            ctoReq shouldNotBe null
-            ctoReq!!.castingTimeOptionReqList shouldHaveSize 1
-            ctoReq.castingTimeOptionReqList.first().castingTimeOptionType shouldBe CastingTimeOptionType.ChooseOrCost
+            assertSoftly {
+                ctoReq shouldNotBe null
+                ctoReq!!.castingTimeOptionReqList shouldHaveSize 1
+                ctoReq.castingTimeOptionReqList.first().castingTimeOptionType shouldBe CastingTimeOptionType.ChooseOrCost
+            }
 
             val targetSnap = messageSnapshot()
             respondToOptionalCost(1)

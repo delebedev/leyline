@@ -247,6 +247,7 @@ object RequestBuilder {
      * - `choose_cards` (discard): context=Discard, listType=Static
      * - `reveal_choose`: context=Resolution, listType=Dynamic, +unfilteredIds +sourceId
      */
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     fun buildSelectNReq(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,

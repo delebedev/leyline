@@ -199,7 +199,7 @@ class MatchHandler(
         processGREMessage(ctx, greMsg)
     }
 
-    @Suppress("LongMethod", "CyclomaticComplexMethod")
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "ElseCaseInsteadOfExhaustiveWhen")
     private fun processGREMessage(
         ctx: ChannelHandlerContext,
         greMsg: ClientToGREMessage,

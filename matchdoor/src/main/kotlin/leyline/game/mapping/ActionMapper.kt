@@ -586,94 +586,22 @@ object ActionMapper {
 
         // Non-land spells (Cast before Activate_add3 — client uses emission order for text assignment)
         for (card in CardLists.filter(handCards, CardPredicates.NON_LANDS)) {
-            var sa: SpellAbility? = null
-            var canPay = true
-            if (checkLegality) {
-                sa = chooseCastAbility(card, player) ?: continue
-                // Skip spells whose sub-abilities require targets with none available
-                // (e.g. Counterspell with empty stack)
-                if (hasUnmetTargeting(sa)) {
-                    log.trace("ActionMapper: skipping {} — no legal targets", card.name)
-                    continue
-                }
-                canPay =
-                    try {
-                        ComputerUtilMana.canPayManaCost(sa, player, 0, false)
-                    } catch (_: Exception) {
-                        false
-                    }
-            }
             val instanceId = idResolver(card.id)
             val grpId = grpIdResolver(card)
-
-            if (!canPay) {
-                // Unaffordable: inactive action with manaCost for display (no shouldStop/autoTap)
-                val inactiveBuilder =
-                    Action
-                        .newBuilder()
-                        .setActionType(ActionType.Cast)
-                        .setInstanceId(instanceId)
-                        .setGrpId(grpId)
-                        .setFacetId(instanceId)
-                val effectiveCost = sa?.let { computeEffectiveCost(it, player) }
-                if (effectiveCost != null && !effectiveCost.isNoCost) {
-                    addManaCostFromForge(effectiveCost, inactiveBuilder)
-                } else {
-                    val cardData = cardDataLookup(grpId)
-                    if (cardData != null) {
-                        for ((color, count) in cardData.manaCost) {
-                            inactiveBuilder.addManaCost(
-                                ManaRequirement.newBuilder().addColor(color).setCount(count),
-                            )
-                        }
-                    }
-                }
-                builder.addInactiveActions(inactiveBuilder)
-                // Base SA unaffordable, but alt-cost (Warp/Sneak) may still be
-                // payable — emit those offers independently before moving on.
-                if (checkLegality) {
-                    addHandAltCostCastActions(
-                        card = card,
-                        player = player,
-                        instanceId = instanceId,
-                        grpId = grpId,
-                        cardRepository = cardRepository,
-                        builder = builder,
-                    )
-                }
-                continue
-            }
-
-            val actionBuilder =
-                Action
-                    .newBuilder()
-                    .setActionType(ActionType.Cast)
-                    .setInstanceId(instanceId)
-                    .setGrpId(grpId)
-                    .setFacetId(instanceId)
-                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
-
-            // Cost: use Forge's effective cost (includes reductions/tax) when available,
-            // fall back to static card DB cost for naive mode
-            val effectiveCost = sa?.let { computeEffectiveCost(it, player) }
-            if (effectiveCost != null && !effectiveCost.isNoCost) {
-                addManaCostFromForge(effectiveCost, actionBuilder)
-                if (checkLegality) {
-                    val costPairs = forgeManaCostToPairs(effectiveCost)
-                    val autoTap = buildAutoTapSolution(costPairs, player, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup)
-                    if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
-                }
-            } else {
-                val cardData = cardDataLookup(grpId)
-                if (cardData != null) {
-                    for ((color, count) in cardData.manaCost) {
-                        actionBuilder.addManaCost(
-                            ManaRequirement.newBuilder().addColor(color).setCount(count),
-                        )
-                    }
-                }
-            }
-            builder.addActions(actionBuilder)
+            val (actions, inactive) =
+                buildHandCastActionsForCard(
+                    card = card,
+                    player = player,
+                    instanceId = instanceId,
+                    grpId = grpId,
+                    checkLegality = checkLegality,
+                    idResolver = idResolver,
+                    grpIdResolver = grpIdResolver,
+                    cardDataLookup = cardDataLookup,
+                    abilityRegistryLookup = abilityRegistryLookup,
+                )
+            actions.forEach(builder::addActions)
+            inactive.forEach(builder::addInactiveActions)
 
             if (checkLegality) {
                 addHandAltCostCastActions(
@@ -787,6 +715,124 @@ object ActionMapper {
         return builder.build()
     }
 
+<<<<<<< HEAD
+=======
+    internal fun buildHandCastActionsForCard(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        grpId: Int,
+        checkLegality: Boolean,
+        idResolver: (Int) -> Int,
+        grpIdResolver: (Card) -> Int,
+        cardDataLookup: (Int) -> CardData?,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry? = { _, _ -> null },
+    ): Pair<List<Action>, List<Action>> {
+        val cardData = cardDataLookup(grpId)
+        if (!checkLegality) {
+            return listOf(buildFallbackCastAction(instanceId, grpId, cardData)) to emptyList()
+        }
+
+        val actions = mutableListOf<Action>()
+        val inactive = mutableListOf<Action>()
+        val castable = getAllCastableAbilities(card, player)
+        if (castable.isEmpty()) return emptyList<Action>() to emptyList()
+
+        for (sa in castable) {
+            if (hasUnmetTargeting(sa)) {
+                log.debug("ActionMapper: skipping {} variant — no legal targets", card.name)
+                continue
+            }
+            val canPay = try {
+                ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+            } catch (_: Exception) {
+                false
+            }
+            val action = buildCastAction(
+                sa = sa,
+                instanceId = instanceId,
+                grpId = grpId,
+                player = player,
+                checkLegality = checkLegality,
+                idResolver = idResolver,
+                grpIdResolver = grpIdResolver,
+                cardData = cardData,
+                cardDataLookup = cardDataLookup,
+                abilityRegistryLookup = abilityRegistryLookup,
+            )
+            if (canPay) actions.add(action) else inactive.add(action)
+        }
+        return actions to inactive
+    }
+
+    @Suppress("LongParameterList")
+    private fun buildCastAction(
+        sa: SpellAbility,
+        instanceId: Int,
+        grpId: Int,
+        player: Player,
+        checkLegality: Boolean,
+        idResolver: (Int) -> Int,
+        grpIdResolver: (Card) -> Int,
+        cardData: CardData?,
+        cardDataLookup: (Int) -> CardData?,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+    ): Action {
+        val usesAlternateAdditionalCost = sa.hostCard?.keywords?.any {
+            it.original.startsWith("AlternateAdditionalCost")
+        } == true &&
+            (sa.description?.contains("Additional cost:") == true)
+        val actionBuilder = Action.newBuilder()
+            .setActionType(ActionType.Cast)
+            .setInstanceId(instanceId)
+            .setGrpId(grpId)
+            .setFacetId(instanceId)
+            .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+
+        val altCost = sa.alternativeCost
+        if (altCost != null) {
+            val abilityGrpId = cardData?.keywordAbilityGrpIds?.entries
+                ?.firstOrNull { it.key.startsWith(altCost.name.uppercase()) }
+                ?.value ?: 0
+            if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+        }
+
+        val effectiveCost = computeEffectiveCost(sa, player)
+        val displayCost = if (usesAlternateAdditionalCost) null else effectiveCost
+        if (displayCost != null && !displayCost.isNoCost) {
+            addManaCostFromForge(displayCost, actionBuilder)
+        } else if (cardData != null) {
+            for ((color, count) in cardData.manaCost) {
+                actionBuilder.addManaCost(
+                    ManaRequirement.newBuilder().addColor(color).setCount(count),
+                )
+            }
+        }
+        if (effectiveCost != null && !effectiveCost.isNoCost && checkLegality) {
+            val costPairs = forgeManaCostToPairs(effectiveCost)
+            val autoTap = buildAutoTapSolution(costPairs, player, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup)
+            if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
+        }
+        return actionBuilder.build()
+    }
+
+    private fun buildFallbackCastAction(instanceId: Int, grpId: Int, cardData: CardData?): Action =
+        Action.newBuilder()
+            .setActionType(ActionType.Cast)
+            .setInstanceId(instanceId)
+            .setGrpId(grpId)
+            .setFacetId(instanceId)
+            .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+            .apply {
+                if (cardData != null) {
+                    for ((color, count) in cardData.manaCost) {
+                        addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
+                    }
+                }
+            }
+            .build()
+
+>>>>>>> da03533 (test(casting): align Eaten Alive payment flow checks)
     /** Build an ActivateMana action for an untapped permanent with mana abilities. */
     private fun buildActivateManaAction(
         card: Card,
