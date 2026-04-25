@@ -773,6 +773,7 @@ class TargetingHandler(
         pendingActionId: String,
         bridge: GameBridge,
     ): Boolean {
+        if (action.grpId != 93885) return false
         val cardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return false
         val game = bridge.getGame() ?: return false
         val card = game.findById(cardId.value) ?: return false
