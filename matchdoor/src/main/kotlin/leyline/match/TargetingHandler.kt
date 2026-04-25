@@ -610,6 +610,12 @@ class TargetingHandler(
         autoPass: (GameBridge) -> Unit,
     ) {
         when (val pending = pendingInteraction) {
+            is PendingClientInteraction.AlternateCostChoice -> {
+                pendingInteraction = null
+                onAlternateCostChoiceResponse(greMsg, bridge, pending, autoPass)
+                return
+            }
+
             is PendingClientInteraction.OptionalCost -> {
                 pendingInteraction = null
                 onOptionalCostResponse(greMsg, bridge, pending, autoPass)
@@ -720,6 +726,37 @@ class TargetingHandler(
         return true
     }
 
+    fun checkAlternateAdditionalCostChoice(
+        action: Action,
+        pendingActionId: String,
+        bridge: GameBridge,
+    ): Boolean {
+        val cardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return false
+        val game = bridge.getGame() ?: return false
+        val card = game.findById(cardId.value) ?: return false
+        if (card.keywords.none { it.original.startsWith("AlternateAdditionalCost") }) return false
+
+        val player = bridge.getPlayer(ops.seatId) ?: return false
+        val castable = leyline.bridge.getAllCastableAbilities(card, player)
+        if (castable.size <= 1) return false
+
+        val (ctoReq, ctoIds) = ops.bundleBuilder!!.buildChooseOrCostCastingTimeOptionsReq(
+            instanceId = action.instanceId,
+            grpId = action.grpId,
+            optionCount = castable.size,
+        )
+        pendingInteraction = PendingClientInteraction.AlternateCostChoice(
+            pendingActionId = pendingActionId,
+            cardId = cardId,
+            abilityIndicesByCtoId = ctoIds.mapIndexed { index, ctoId -> ctoId to index }.toMap(),
+        )
+
+        val result = ops.bundleBuilder!!.castingTimeOptionsBundle(game, ops.counter, ctoReq)
+        Tap.outboundTemplate("CastingTimeOptionsReq (alternate additional cost) seat=${ops.seatId} card=${card.name}")
+        ops.sendBundledGRE(result.messages)
+        return true
+    }
+
     /**
      * Handle CastingTimeOptionsResp for optional costs (kicker, buyback, etc.).
      * Stores chosen cost indices, then submits the Cast action to the engine.
@@ -761,6 +798,29 @@ class TargetingHandler(
         } else {
             log.warn("TargetingHandler: optional cost response but no pending engine action")
             DevCheck.fail { "optional cost response but no pending engine action" }
+        }
+    }
+
+    private fun onAlternateCostChoiceResponse(
+        greMsg: ClientToGREMessage,
+        bridge: GameBridge,
+        pending: PendingClientInteraction.AlternateCostChoice,
+        autoPass: (GameBridge) -> Unit,
+    ) {
+        val chosenCtoId = greMsg.castingTimeOptionsResp.castingTimeOptionResp?.ctoId ?: 0
+        val abilityIndex = pending.abilityIndicesByCtoId[chosenCtoId] ?: 0
+        val seatBridge = bridge.seat(ops.seatId.value)
+        val pendingAction = seatBridge.action.getPending()
+        if (pendingAction != null) {
+            seatBridge.action.submitAction(
+                pendingAction.actionId,
+                leyline.bridge.PlayerAction.CastSpell(pending.cardId, abilityIndex),
+            )
+            bridge.awaitPriority()
+            autoPass(bridge)
+        } else {
+            log.warn("TargetingHandler: alternate cost choice response but no pending engine action")
+            DevCheck.fail { "alternate cost choice response but no pending engine action" }
         }
     }
 

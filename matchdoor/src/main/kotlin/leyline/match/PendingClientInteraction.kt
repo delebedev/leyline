@@ -32,6 +32,12 @@ sealed interface PendingClientInteraction {
         val costCtoIds: List<Int>,
     ) : PendingClientInteraction
 
+    data class AlternateCostChoice(
+        val pendingActionId: String,
+        val cardId: leyline.bridge.ForgeCardId,
+        val abilityIndicesByCtoId: Map<Int, Int>,
+    ) : PendingClientInteraction
+
     data class Search(
         val promptId: String,
     ) : PendingClientInteraction

@@ -1338,6 +1338,41 @@ class BundleBuilder(
         return Pair(ctoReqBuilder.build(), costCtoIds)
     }
 
+    fun buildChooseOrCostCastingTimeOptionsReq(
+        instanceId: Int,
+        grpId: Int,
+        optionCount: Int,
+    ): Pair<CastingTimeOptionsReq, List<Int>> {
+        val ctoId = optionCount
+        val selectNReq = SelectNReq.newBuilder()
+            .setMinSel(1)
+            .setMaxSel(1)
+            .setListType(SelectionListType.Dynamic)
+            .setIdType(IdType.PromptParameterIndex)
+            .setValidationType(SelectionValidationType.NonRepeatable)
+            .setSourceId(instanceId)
+            .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
+            .apply {
+                repeat(optionCount) { index -> addIds(index + 1) }
+            }
+            .build()
+
+        val req = CastingTimeOptionsReq.newBuilder()
+            .addCastingTimeOptionReq(
+                CastingTimeOptionReq.newBuilder()
+                    .setCtoId(ctoId)
+                    .setCastingTimeOptionType(CastingTimeOptionType.ChooseOrCost)
+                    .setAffectedId(instanceId)
+                    .setAffectorId(instanceId)
+                    .setGrpId(grpId)
+                    .setPlayerIdToPrompt(seatId)
+                    .setIsRequired(true)
+                    .setSelectNReq(selectNReq),
+            )
+            .build()
+        return req to (1..optionCount).toList()
+    }
+
     /**
      * Build a bare echo diff GSM (empty Diff with just gsId chain + update type).
      * Used for select-targets echo-back before re-prompt and for remote-action
