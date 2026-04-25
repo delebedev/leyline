@@ -715,8 +715,6 @@ object ActionMapper {
         return builder.build()
     }
 
-<<<<<<< HEAD
-=======
     internal fun buildHandCastActionsForCard(
         card: Card,
         player: Player,
@@ -739,6 +737,7 @@ object ActionMapper {
         if (castable.isEmpty()) return emptyList<Action>() to emptyList()
 
         for (sa in castable) {
+            if (sa.isAdventure) continue
             if (hasUnmetTargeting(sa)) {
                 log.debug("ActionMapper: skipping {} variant — no legal targets", card.name)
                 continue
@@ -794,17 +793,6 @@ object ActionMapper {
                 .setFacetId(instanceId)
                 .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
 
-        val altCost = sa.alternativeCost
-        if (altCost != null) {
-            val abilityGrpId =
-                cardData
-                    ?.keywordAbilityGrpIds
-                    ?.entries
-                    ?.firstOrNull { it.key.startsWith(altCost.name.uppercase()) }
-                    ?.value ?: 0
-            if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-        }
-
         val effectiveCost = computeEffectiveCost(sa, player)
         val displayCost = if (usesAlternateAdditionalCost) null else effectiveCost
         if (displayCost != null && !displayCost.isNoCost) {
@@ -844,7 +832,6 @@ object ActionMapper {
                 }
             }.build()
 
->>>>>>> da03533 (test(casting): align Eaten Alive payment flow checks)
     /** Build an ActivateMana action for an untapped permanent with mana abilities. */
     private fun buildActivateManaAction(
         card: Card,

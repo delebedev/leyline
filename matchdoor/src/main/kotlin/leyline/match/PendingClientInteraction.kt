@@ -1,6 +1,7 @@
 package leyline.match
 
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.ForgeCardId
 
 /**
  * Session-layer interaction awaiting a specific client response.
@@ -34,7 +35,7 @@ sealed interface PendingClientInteraction {
 
     data class AlternateCostChoice(
         val pendingActionId: String,
-        val cardId: leyline.bridge.ForgeCardId,
+        val cardId: ForgeCardId,
         val abilityIndicesByCtoId: Map<Int, Int>,
     ) : PendingClientInteraction
 

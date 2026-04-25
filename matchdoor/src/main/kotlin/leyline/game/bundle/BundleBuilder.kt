@@ -957,6 +957,7 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         req: PayCostsReq,
+        prompt: Prompt? = null,
     ): BundleResult {
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
@@ -985,7 +986,7 @@ class BundleBuilder(
         val msg2 =
             makeGRE(GREMessageType.PayCostsReq_695e, nextGs, counter.nextMsgId()) {
                 it.payCostsReq = req
-                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
+                it.setPrompt(prompt ?: Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
             }
 
         cursor.lastSent = snap
@@ -1342,22 +1343,8 @@ class BundleBuilder(
         instanceId: Int,
         grpId: Int,
         optionCount: Int,
+        optionPromptIds: List<Int> = emptyList(),
     ): Pair<CastingTimeOptionsReq, List<Int>> {
-<<<<<<< HEAD
-        val ctoId = optionCount
-        val selectNReq = SelectNReq.newBuilder()
-            .setMinSel(1)
-            .setMaxSel(1)
-            .setListType(SelectionListType.Dynamic)
-            .setIdType(IdType.PromptParameterIndex)
-            .setValidationType(SelectionValidationType.NonRepeatable)
-            .setSourceId(instanceId)
-            .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
-            .apply {
-                repeat(optionCount) { index -> addIds(index + 1) }
-            }
-            .build()
-=======
         val ctoId = 2
         val selectPrompt =
             Prompt
@@ -1387,7 +1374,6 @@ class BundleBuilder(
                 .apply {
                     repeat(optionCount) { index -> addIds(index + 1) }
                 }.build()
->>>>>>> 9223b25 (fix(casting): wire Eaten Alive sacrifice cost selection)
 
         val req =
             CastingTimeOptionsReq

@@ -206,6 +206,7 @@ abstract class InteractionTest(
         cardName: String,
         zone: ZoneType = ZoneType.Hand,
     ) = harness.castSpellByName(cardName, zone)
+
     fun resolveSpell(cardName: String) = harness.resolveSpell(cardName)
 
     // --- Cast-until-prompt flows ---

@@ -29,6 +29,7 @@ sealed interface ClassifiedPrompt {
         enum class Reason {
             LegendRule,
             Discard,
+            Sacrifice,
             RevealChoose,
         }
     }
@@ -69,6 +70,11 @@ object PromptClassifier {
                 ClassifiedPrompt.SelectN(
                     pendingPrompt,
                     ClassifiedPrompt.SelectN.Reason.Discard,
+                )
+            req.promptType == "choose_cards" && req.message.contains("sacrifice", ignoreCase = true) ->
+                ClassifiedPrompt.SelectN(
+                    pendingPrompt,
+                    ClassifiedPrompt.SelectN.Reason.Sacrifice,
                 )
             req.semantic == PromptSemantic.RevealChoose ->
                 ClassifiedPrompt.SelectN(

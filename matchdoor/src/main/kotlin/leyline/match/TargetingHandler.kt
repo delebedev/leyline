@@ -2,6 +2,7 @@ package leyline.match
 
 import forge.game.Game
 import leyline.DevCheck
+import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.handoff.PromptSideEffect
@@ -11,6 +12,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.RequestBuilder
 import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
@@ -154,7 +156,6 @@ class TargetingHandler(
         autoPass: (GameBridge) -> Unit,
     ) {
         val seatBridge = bridge.seat(counters.seatId)
-        val resp = greMsg.selectNResp
         val pendingPrompt =
             seatBridge.prompt.getPendingPrompt() ?: run {
                 log.warn("TargetingHandler: SelectNResp but no pending prompt")
@@ -162,13 +163,7 @@ class TargetingHandler(
                 return
             }
 
-        val selectedIndices =
-            resp.idsList
-                .mapNotNull { instanceId ->
-                    val cardId = bridge.getForgeCardId(InstanceId(instanceId))
-                    if (cardId == null) return@mapNotNull null
-                    pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
-                }.filter { it >= 0 }
+        val selectedIndices = mapSelectedInstanceIdsToPromptIndices(greMsg.selectNResp.idsList, bridge, pendingPrompt)
 
         log.info("TargetingHandler: SelectNResp indices={}", selectedIndices)
 
@@ -176,6 +171,41 @@ class TargetingHandler(
         bridge.awaitPriority()
         autoPass(bridge)
     }
+
+    fun onEffectCost(
+        greMsg: ClientToGREMessage,
+        bridge: GameBridge,
+        autoPass: (GameBridge) -> Unit,
+    ) {
+        val seatBridge = bridge.seat(counters.seatId)
+        val pendingPrompt =
+            seatBridge.prompt.getPendingPrompt() ?: run {
+                log.warn("TargetingHandler: EffectCostResp but no pending prompt")
+                DevCheck.fail { "EffectCostResp but no pending prompt" }
+                return
+            }
+
+        val ids = greMsg.effectCostResp.costSelection.idsList
+        val selectedIndices = mapSelectedInstanceIdsToPromptIndices(ids, bridge, pendingPrompt)
+
+        log.info("TargetingHandler: EffectCostResp indices={}", selectedIndices)
+
+        seatBridge.prompt.submitResponse(pendingPrompt.promptId, selectedIndices)
+        bridge.awaitPriority()
+        autoPass(bridge)
+    }
+
+    private fun mapSelectedInstanceIdsToPromptIndices(
+        selectedInstanceIds: List<Int>,
+        bridge: GameBridge,
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+    ): List<Int> =
+        selectedInstanceIds
+            .mapNotNull { instanceId ->
+                val cardId = bridge.getForgeCardId(InstanceId(instanceId))
+                if (cardId == null) return@mapNotNull null
+                pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
+            }.filter { it >= 0 }
 
     /**
      * After a cast, check for a pending targeting prompt or intermediate stack state.
@@ -218,7 +248,11 @@ class TargetingHandler(
                         game,
                         "post-cast selectN reason=${classified.reason} candidates=${pendingPrompt.request.candidateRefs.size}",
                     )
-                    sendSelectNReq(bridge, classified.pendingPrompt, classified.reason)
+                    if (classified.reason == ClassifiedPrompt.SelectN.Reason.Sacrifice) {
+                        sendSacrificePayCostsReq(bridge, classified.pendingPrompt)
+                    } else {
+                        sendSelectNReq(bridge, classified.pendingPrompt, classified.reason)
+                    }
                     return true
                 }
 
@@ -289,9 +323,13 @@ class TargetingHandler(
                 tracer.traceEvent(
                     MatchEventType.TARGET_PROMPT,
                     game,
-                    "legend_rule candidates=${pendingPrompt.request.candidateRefs.size}",
+                    "select_n(${classified.reason}) candidates=${pendingPrompt.request.candidateRefs.size}",
                 )
-                sendSelectNReq(bridge, classified.pendingPrompt, classified.reason)
+                if (classified.reason == ClassifiedPrompt.SelectN.Reason.Sacrifice) {
+                    sendSacrificePayCostsReq(bridge, classified.pendingPrompt)
+                } else {
+                    sendSelectNReq(bridge, classified.pendingPrompt, classified.reason)
+                }
                 PromptResult.SENT_TO_CLIENT
             }
 
@@ -655,17 +693,12 @@ class TargetingHandler(
         action: Action,
         pendingActionId: String,
         bridge: GameBridge,
+        castAbilityIndex: Int?,
     ): Boolean {
         val cardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return false
         val game = bridge.getGame() ?: return false
         val card = game.findById(cardId.value) ?: return false
 
-<<<<<<< HEAD
-        // Find the castable SpellAbility to check for optional costs
-        val sa = card.spellAbilities?.firstOrNull { it.isSpell && !it.isLandAbility } ?: return false
-        sa.setActivatingPlayer(bridge.getPlayer(counters.seatId) ?: return false)
-
-=======
         val player = bridge.getPlayer(counters.seatId) ?: return false
         val castable = leyline.bridge.getAllCastableAbilities(card, player)
         val sa =
@@ -673,7 +706,6 @@ class TargetingHandler(
                 ?: castable.firstOrNull()
                 ?: return false
         sa.setActivatingPlayer(player)
->>>>>>> 9223b25 (fix(casting): wire Eaten Alive sacrifice cost selection)
         val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
         if (optionalCosts.isEmpty()) return false
 
@@ -720,7 +752,7 @@ class TargetingHandler(
         pendingInteraction =
             PendingClientInteraction.OptionalCost(
                 pendingActionId = pendingActionId,
-                action = PlayerAction.CastSpell(cardId),
+                action = PlayerAction.CastSpell(cardId, castAbilityIndex),
                 costCtoIds = costCtoIds,
             )
 
@@ -746,22 +778,10 @@ class TargetingHandler(
         val card = game.findById(cardId.value) ?: return false
         if (card.keywords.none { it.original.startsWith("AlternateAdditionalCost") }) return false
 
-        val player = bridge.getPlayer(ops.seatId) ?: return false
+        val player = bridge.getPlayer(counters.seatId) ?: return false
         val castable = leyline.bridge.getAllCastableAbilities(card, player)
         if (castable.size <= 1) return false
 
-<<<<<<< HEAD
-        val (ctoReq, ctoIds) = ops.bundleBuilder!!.buildChooseOrCostCastingTimeOptionsReq(
-            instanceId = action.instanceId,
-            grpId = action.grpId,
-            optionCount = castable.size,
-        )
-        pendingInteraction = PendingClientInteraction.AlternateCostChoice(
-            pendingActionId = pendingActionId,
-            cardId = cardId,
-            abilityIndicesByCtoId = ctoIds.mapIndexed { index, ctoId -> ctoId to index }.toMap(),
-        )
-=======
         val optionPromptIds: List<Int> =
             when (action.grpId) {
                 93885 ->
@@ -785,11 +805,10 @@ class TargetingHandler(
                 cardId = cardId,
                 abilityIndicesByCtoId = ctoIds.mapIndexed { index, ctoId -> ctoId to index }.toMap(),
             )
->>>>>>> 9223b25 (fix(casting): wire Eaten Alive sacrifice cost selection)
 
-        val result = ops.bundleBuilder!!.castingTimeOptionsBundle(game, ops.counter, ctoReq)
-        Tap.outboundTemplate("CastingTimeOptionsReq (alternate additional cost) seat=${ops.seatId} card=${card.name}")
-        ops.sendBundledGRE(result.messages)
+        val result = bundles.bundleBuilder!!.castingTimeOptionsBundle(game, counters.counter, ctoReq)
+        Tap.outboundTemplate("CastingTimeOptionsReq (alternate additional cost) seat=${counters.seatId} card=${card.name}")
+        sink.sendBundledGRE(result.messages)
         return true
     }
 
@@ -843,11 +862,6 @@ class TargetingHandler(
         pending: PendingClientInteraction.AlternateCostChoice,
         autoPass: (GameBridge) -> Unit,
     ) {
-<<<<<<< HEAD
-        val chosenCtoId = greMsg.castingTimeOptionsResp.castingTimeOptionResp?.ctoId ?: 0
-        val abilityIndex = pending.abilityIndicesByCtoId[chosenCtoId] ?: 0
-        val seatBridge = bridge.seat(ops.seatId.value)
-=======
         val optionResp = greMsg.castingTimeOptionsResp.castingTimeOptionResp
         val selectedIndex = optionResp?.selectNResp?.idsList?.firstOrNull()
         val chosenCtoId = optionResp?.ctoId ?: 0
@@ -857,13 +871,12 @@ class TargetingHandler(
             } else {
                 pending.abilityIndicesByCtoId[chosenCtoId] ?: 0
             }
-        val seatBridge = bridge.seat(counters.seatId.value)
->>>>>>> 9223b25 (fix(casting): wire Eaten Alive sacrifice cost selection)
+        val seatBridge = bridge.seat(counters.seatId)
         val pendingAction = seatBridge.action.getPending()
         if (pendingAction != null) {
             seatBridge.action.submitAction(
                 pendingAction.actionId,
-                leyline.bridge.PlayerAction.CastSpell(pending.cardId, abilityIndex),
+                PlayerAction.CastSpell(pending.cardId, abilityIndex),
             )
             bridge.awaitPriority()
             autoPass(bridge)
@@ -957,6 +970,17 @@ class TargetingHandler(
                 isRevealChoose = reason == ClassifiedPrompt.SelectN.Reason.RevealChoose,
             )
         Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
+        sink.sendBundledGRE(result.messages)
+    }
+
+    private fun sendSacrificePayCostsReq(
+        bridge: GameBridge,
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+    ) {
+        val game = bridge.getGame() ?: return
+        val (req, prompt) = RequestBuilder.buildSacrificePayCostsReq(pendingPrompt, bridge)
+        val result = bundles.bundleBuilder!!.payCostsBundle(game, counters.counter, req, prompt)
+        Tap.outboundTemplate("PayCostsReq(sacrifice) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 
