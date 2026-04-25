@@ -31,8 +31,16 @@ class TargetingHandler(
     private val tracer: SessionTracer,
     private val bundles: BundleBuilderHolder,
 ) {
-    private companion object {
+    companion object {
         private const val EATEN_ALIVE_GRP_ID = 93885
+
+        /** Stash optional cost indices after client response — writes to journal only. */
+        fun stashOptionalCostIndices(
+            prompt: InteractivePromptBridge,
+            indices: List<Int>,
+        ) {
+            prompt.journal.record(PromptSideEffect.OptionalCostStash(indices))
+        }
     }
 
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
@@ -846,7 +854,7 @@ class TargetingHandler(
 
         // Stash decision for PlayerController.chooseOptionalCosts to read
         val seatBridge = bridge.seat(counters.seatId)
-        TargetingHandler.stashOptionalCostIndices(seatBridge.prompt, acceptedIndices)
+        stashOptionalCostIndices(seatBridge.prompt, acceptedIndices)
 
         // Now submit the Cast action to the engine
         val actionBridge = seatBridge.action
@@ -1034,15 +1042,5 @@ class TargetingHandler(
     ) {
         bridge.seat(counters.seatId).prompt.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
         bridge.awaitPriority()
-    }
-
-    companion object {
-        /** Stash optional cost indices after client response — writes to journal only. */
-        fun stashOptionalCostIndices(
-            prompt: InteractivePromptBridge,
-            indices: List<Int>,
-        ) {
-            prompt.journal.record(PromptSideEffect.OptionalCostStash(indices))
-        }
     }
 }
