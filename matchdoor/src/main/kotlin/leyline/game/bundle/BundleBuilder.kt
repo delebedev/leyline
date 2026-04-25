@@ -957,6 +957,7 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         req: PayCostsReq,
+        prompt: Prompt? = null,
     ): BundleResult {
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
@@ -985,7 +986,7 @@ class BundleBuilder(
         val msg2 =
             makeGRE(GREMessageType.PayCostsReq_695e, nextGs, counter.nextMsgId()) {
                 it.payCostsReq = req
-                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
+                it.setPrompt(prompt ?: Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
             }
 
         cursor.lastSent = snap
@@ -1336,6 +1337,60 @@ class BundleBuilder(
                 .setIsRequired(true),
         )
         return Pair(ctoReqBuilder.build(), costCtoIds)
+    }
+
+    fun buildChooseOrCostCastingTimeOptionsReq(
+        instanceId: Int,
+        grpId: Int,
+        optionCount: Int,
+        optionPromptIds: List<Int> = emptyList(),
+    ): Pair<CastingTimeOptionsReq, List<Int>> {
+        val ctoId = 2
+        val selectPrompt =
+            Prompt
+                .newBuilder()
+                .setPromptId(if (optionPromptIds.isNotEmpty()) PromptIds.CHOOSE_OR_COST else PromptIds.SELECT_N)
+                .apply {
+                    optionPromptIds.forEach { promptId ->
+                        addParameters(
+                            PromptParameter
+                                .newBuilder()
+                                .setParameterName("Cost")
+                                .setType(ParameterType.PromptId)
+                                .setPromptId(promptId),
+                        )
+                    }
+                }.build()
+        val selectNReq =
+            SelectNReq
+                .newBuilder()
+                .setMinSel(1)
+                .setMaxSel(1)
+                .setListType(SelectionListType.Dynamic)
+                .setIdType(IdType.PromptParameterIndex)
+                .setValidationType(SelectionValidationType.NonRepeatable)
+                .setSourceId(instanceId)
+                .setPrompt(selectPrompt)
+                .apply {
+                    repeat(optionCount) { index -> addIds(index + 1) }
+                }.build()
+
+        val req =
+            CastingTimeOptionsReq
+                .newBuilder()
+                .addCastingTimeOptionReq(
+                    CastingTimeOptionReq
+                        .newBuilder()
+                        .setCtoId(ctoId)
+                        .setCastingTimeOptionType(CastingTimeOptionType.ChooseOrCost)
+                        .setAffectedId(instanceId)
+                        .setAffectorId(instanceId)
+                        .setGrpId(grpId)
+                        .setPlayerIdToPrompt(seatId)
+                        .setIsRequired(true)
+                        .setSelectNReq(selectNReq),
+                ).build()
+        return req to (1..optionCount).toList()
     }
 
     /**

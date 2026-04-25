@@ -320,6 +320,18 @@ fun optionalCostResp(ctoId: Int): ClientToGREMessage =
         )
     }
 
+fun effectCostResp(selectedInstanceIds: List<Int>): ClientToGREMessage =
+    clientMessage(ClientMessageType.EffectCostResp_097b) {
+        setEffectCostResp(
+            EffectCostResp
+                .newBuilder()
+                .setCostSelection(
+                    SelectNResp.newBuilder().apply {
+                        selectedInstanceIds.forEach { addIds(it) }
+                    },
+                ),
+        )
+    }
 // ---------------------------------------------------------------------------
 // OptionalActionResp — shock land ETB "pay life or enter tapped"
 // ---------------------------------------------------------------------------

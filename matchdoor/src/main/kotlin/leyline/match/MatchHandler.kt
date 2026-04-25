@@ -199,7 +199,7 @@ class MatchHandler(
         processGREMessage(ctx, greMsg)
     }
 
-    @Suppress("LongMethod", "CyclomaticComplexMethod")
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "ElseCaseInsteadOfExhaustiveWhen")
     private fun processGREMessage(
         ctx: ChannelHandlerContext,
         greMsg: ClientToGREMessage,
@@ -304,6 +304,8 @@ class MatchHandler(
 
             // SubmitTargetsReq: client's "Done" button for targeting (like SubmitAttackersReq for combat).
             ClientMessageType.SubmitTargetsReq -> s?.onSubmitTargets(greMsg)
+
+            ClientMessageType.EffectCostResp_097b -> s?.onEffectCost(greMsg)
 
             ClientMessageType.CancelActionReq_097b -> s?.onCancelAction(greMsg)
 

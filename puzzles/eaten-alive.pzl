@@ -1,0 +1,18 @@
+[metadata]
+Name:Eaten Alive Alternate Cost
+Goal:Win
+Turns:3
+Difficulty:Easy
+Description:Cast Eaten Alive using either the sacrifice mode or the mana mode, then exile Centaur Courser.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Eaten Alive
+humanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp;Walking Corpse;Shambling Ghast
+humanlibrary=Swamp;Swamp;Swamp
+aibattlefield=Centaur Courser
+ailibrary=Forest;Forest;Forest

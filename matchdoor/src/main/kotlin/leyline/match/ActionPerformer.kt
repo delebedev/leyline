@@ -5,6 +5,7 @@ import leyline.bridge.findCard
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ClientAutoPassState
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.data.KEYWORD_BASE_IDS
 import leyline.game.state.GameBridge
@@ -39,6 +40,7 @@ class ActionPerformer(
      *
      * Caller resolves [ctx]; this method does not re-resolve.
      */
+    @Suppress("ReturnCount", "LongMethod", "CyclomaticComplexMethod")
     fun perform(
         ctx: SessionContext,
         greMsg: ClientToGREMessage,
@@ -115,21 +117,29 @@ class ActionPerformer(
                 Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             ActionType.Cast -> {
+                val castAbilityIndex = resolveCastAbilityIndex(action, bridge)
+                if (targetingHandler.checkAlternateAdditionalCostChoice(action, pending.actionId, bridge)) {
+                    Tap.outboundTemplate("Cast deferred — alternate additional cost prompt sent")
+                    return
+                }
                 // Check for optional costs (kicker, buyback, etc.) before submitting.
                 // If found, sends CastingTimeOptionsReq to client and returns without
                 // submitting to engine. onCastingTimeOptions resumes the cast.
-                if (targetingHandler.checkOptionalCosts(action, pending.actionId, bridge)) {
+                if (targetingHandler.checkOptionalCosts(action, pending.actionId, bridge, castAbilityIndex)) {
                     Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
                     // Don't submit to engine yet — wait for CastingTimeOptionsResp
+                    return
                 } else {
                     val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
                     val submitted =
                         if (cardId != null) {
-                            val abilityIndex = resolveAltCostAbilityIndex(action, cardId, bridge)
-                            seatBridge.action.submitAction(
-                                pending.actionId,
-                                PlayerAction.CastSpell(cardId, abilityIndex),
-                            )
+                            val abilityIndex =
+                                if (action.alternativeGrpId != 0) {
+                                    resolveAltCostAbilityIndex(action, cardId, bridge)
+                                } else {
+                                    castAbilityIndex
+                                }
+                            seatBridge.action.submitAction(pending.actionId, PlayerAction.CastSpell(cardId, abilityIndex))
                         } else {
                             seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                         }
@@ -269,48 +279,67 @@ class ActionPerformer(
         return if (index != null && index >= 0) index else 0
     }
 
-    /**
-     * Resolve the SA index in [getAllCastableAbilities] for an inbound Cast
-     * carrying `alternativeGrpId` (Warp/Sneak hand-cast path). The client echoes
-     * the per-card keyword ability grpId; we map it back to the matching
-     * alt-cost [SpellAbility] via the Abilities-table `BaseId` chain — works
-     * identically in prod ([leyline.game.data.ExposedCardRepository]) and tests
-     * ([leyline.game.InMemoryCardRepository.registerAbilityInfo]).
-     *
-     * Returns `null` when no alt-cost was requested (normal cast) or when the
-     * row can't be resolved — callers then fall through to the base SA.
-     */
+    private fun resolveCastAbilityIndex(
+        action: Action,
+        bridge: GameBridge,
+    ): Int? {
+        val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return null
+        val game = bridge.getGame() ?: return null
+        val player = bridge.getPlayer(counters.seatId) ?: return null
+        val card = findCard(game, forgeCardId) ?: return null
+        val grpId = bridge.resolveGrpId(card, action.instanceId)
+        val (candidates, _) =
+            leyline.game.mapping.ActionMapper.buildHandCastActionsForCard(
+                card = card,
+                player = player,
+                instanceId = action.instanceId,
+                grpId = grpId,
+                checkLegality = true,
+                idResolver = { forgeId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeId)).value },
+                grpIdResolver = { candidate ->
+                    val iid = bridge.getOrAllocInstanceId(ForgeCardId(candidate.id)).value
+                    bridge.resolveGrpId(candidate, iid)
+                },
+                cardDataLookup = { candidateGrpId -> bridge.cardRepository.findByGrpId(candidateGrpId) },
+                abilityRegistryLookup = { candidate, cardData -> bridge.abilityRegistryFor(candidate, cardData) },
+            )
+        return candidates.indexOfFirst { equivalentCastAction(it, action) }.takeIf { it >= 0 }
+    }
+
+    private fun equivalentCastAction(
+        expected: Action,
+        actual: Action,
+    ): Boolean =
+        expected.actionType == actual.actionType &&
+            expected.instanceId == actual.instanceId &&
+            expected.grpId == actual.grpId &&
+            expected.abilityGrpId == actual.abilityGrpId &&
+            expected.manaCostList == actual.manaCostList &&
+            expected.autoTapSolution == actual.autoTapSolution
+
     private fun resolveAltCostAbilityIndex(
         action: Action,
-        cardId: leyline.bridge.types.ForgeCardId,
+        cardId: ForgeCardId,
         bridge: GameBridge,
     ): Int? {
         val alternativeGrpId = action.alternativeGrpId
         if (alternativeGrpId == 0) return null
+
         val game = bridge.getGame() ?: return null
-        val card = findCard(game, cardId) ?: return null
         val player = bridge.getPlayer(counters.seatId) ?: return null
-
+        val card = findCard(game, cardId) ?: return null
         val info = bridge.cardRepository.findAbilityInfo(alternativeGrpId) ?: return null
-
-        // Scope: strictly Warp + Sneak. Other alt-costs route via their own rails
-        // (OptionalAction for Madness, zone-cast for Flashback, …).
         val targetAltCost =
             when (info.baseId) {
-                WARP_BASE_ID -> AlternativeCost.Warp
-                SNEAK_BASE_ID -> AlternativeCost.Sneak
+                KEYWORD_BASE_IDS.getValue("WARP") -> AlternativeCost.Warp
+                KEYWORD_BASE_IDS.getValue("SNEAK") -> AlternativeCost.Sneak
                 else -> return null
             }
 
-        val candidates = getAllCastableAbilities(card, player)
-        val idx = candidates.indexOfFirst { it.alternativeCost == targetAltCost }
-        return if (idx >= 0) idx else null
-    }
-
-    private companion object {
-        // getValue() throws at class-load if the map entry is missing — loud-fail
-        // beats silent null-return that would fall back to the base SA.
-        val WARP_BASE_ID: Int = KEYWORD_BASE_IDS.getValue("WARP")
-        val SNEAK_BASE_ID: Int = KEYWORD_BASE_IDS.getValue("SNEAK")
+        return getAllCastableAbilities(card, player)
+            .withIndex()
+            .firstOrNull { (_, sa) ->
+                sa.alternativeCost == targetAltCost
+            }?.index
     }
 }

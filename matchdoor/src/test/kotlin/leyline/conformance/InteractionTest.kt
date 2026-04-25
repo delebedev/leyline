@@ -231,8 +231,9 @@ abstract class InteractionTest(
 
     fun respondToSelectN(selectedInstanceIds: List<Int>) = harness.respondToSelectN(selectedInstanceIds)
 
-    fun respondToOptionalCost(ctoId: Int) = harness.respondToOptionalCost(ctoId)
+    fun respondToEffectCost(selectedInstanceIds: List<Int>) = harness.respondToEffectCost(selectedInstanceIds)
 
+    fun respondToOptionalCost(ctoId: Int) = harness.respondToOptionalCost(ctoId)
     // --- Message inspection ---
 
     val allMessages: List<GREToClientMessage> get() = harness.allMessages

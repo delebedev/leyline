@@ -36,6 +36,9 @@ object PromptIds {
     const val SHOCK_LAND_ETB = 2233
 
     const val SELECT_N = 1243
+    const val CHOOSE_OR_COST = 1103
+    const val CHOOSE_OR_COST_PAY_SACRIFICE = 1029
+    const val CHOOSE_OR_COST_PAY_MANA = 4160
 
     /** sourceId on SelectNReq for legend rule. */
     const val SELECT_N_LEGEND_RULE_SOURCE = 15168

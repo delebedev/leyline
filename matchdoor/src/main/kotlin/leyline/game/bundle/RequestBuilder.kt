@@ -247,11 +247,15 @@ object RequestBuilder {
      * - `choose_cards` (discard): context=Discard, listType=Static
      * - `reveal_choose`: context=Resolution, listType=Dynamic, +unfilteredIds +sourceId
      */
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     fun buildSelectNReq(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
     ): SelectNReq {
         val semantic = prompt.request.semantic
+        val isSacrificePrompt =
+            prompt.request.promptType == "choose_cards" &&
+                prompt.request.message.contains("sacrifice", ignoreCase = true)
         val (context, listType, optionContext) =
             when (semantic) {
                 PromptSemantic.SelectNDiscard ->
@@ -270,11 +274,11 @@ object RequestBuilder {
         val builder =
             SelectNReq
                 .newBuilder()
-                .setContext(context)
-                .setListType(listType)
+                .setContext(if (isSacrificePrompt) SelectionContext.Discard_a163 else context)
+                .setListType(if (isSacrificePrompt) SelectionListType.Static else listType)
                 .setIdType(IdType.InstanceId_ab2c)
                 .setValidationType(SelectionValidationType.NonRepeatable)
-                .setOptionContext(optionContext)
+                .setOptionContext(if (isSacrificePrompt) OptionContext.Payment else optionContext)
 
         // For reveal-choose with empty ids (no valid target), omit minSel/maxSel (defaults to 0).
         val hasValidChoices = prompt.request.candidateRefs.isNotEmpty()
@@ -310,10 +314,64 @@ object RequestBuilder {
                 builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
             }
             else -> {
-                builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
+                builder.setPrompt(
+                    Prompt.newBuilder().setPromptId(
+                        if (isSacrificePrompt) PromptIds.PAY_COSTS else PromptIds.SELECT_N,
+                    ),
+                )
             }
         }
         return builder.build()
+    }
+
+    fun buildSacrificePayCostsReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Pair<PayCostsReq, Prompt> {
+        val sourceInstanceId =
+            prompt.request.sourceEntityId?.let {
+                bridge.getOrAllocInstanceId(ForgeCardId(it)).value
+            } ?: 0
+
+        val selection =
+            SelectNReq
+                .newBuilder()
+                .setMinSel(prompt.request.min)
+                .setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
+                .setContext(SelectionContext.NonManaPayment)
+                .setOptionContext(OptionContext.Payment)
+                .setListType(SelectionListType.Dynamic)
+                .setIdType(IdType.InstanceId_ab2c)
+                .setValidationType(SelectionValidationType.NonRepeatable)
+
+        for (ref in prompt.request.candidateRefs) {
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
+            selection.addIds(instanceId)
+            selection.addWeights(1)
+        }
+
+        val req =
+            PayCostsReq
+                .newBuilder()
+                .setEffectCostReq(
+                    EffectCostReq
+                        .newBuilder()
+                        .setEffectCostType(EffectCostType.Select_a59c)
+                        .setCostSelection(selection),
+                ).build()
+
+        val promptProto =
+            Prompt
+                .newBuilder()
+                .setPromptId(PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE)
+                .addParameters(
+                    PromptParameter
+                        .newBuilder()
+                        .setParameterName("CardId")
+                        .setType(ParameterType.Number)
+                        .setNumberValue(sourceInstanceId),
+                ).build()
+        return req to promptProto
     }
 
     /**
