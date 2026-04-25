@@ -1,11 +1,13 @@
 package leyline.match
 
+import forge.game.spellability.AlternativeCost
 import leyline.bridge.findCard
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
+import leyline.game.data.KEYWORD_BASE_IDS
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -131,7 +133,13 @@ class ActionPerformer(
                     val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
                     val submitted =
                         if (cardId != null) {
-                            seatBridge.action.submitAction(pending.actionId, PlayerAction.CastSpell(cardId, castAbilityIndex))
+                            val abilityIndex =
+                                if (action.alternativeGrpId != 0) {
+                                    resolveAltCostAbilityIndex(action, cardId, bridge)
+                                } else {
+                                    castAbilityIndex
+                                }
+                            seatBridge.action.submitAction(pending.actionId, PlayerAction.CastSpell(cardId, abilityIndex))
                         } else {
                             seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                         }
@@ -308,4 +316,30 @@ class ActionPerformer(
             expected.abilityGrpId == actual.abilityGrpId &&
             expected.manaCostList == actual.manaCostList &&
             expected.autoTapSolution == actual.autoTapSolution
+
+    private fun resolveAltCostAbilityIndex(
+        action: Action,
+        cardId: ForgeCardId,
+        bridge: GameBridge,
+    ): Int? {
+        val alternativeGrpId = action.alternativeGrpId
+        if (alternativeGrpId == 0) return null
+
+        val game = bridge.getGame() ?: return null
+        val player = bridge.getPlayer(counters.seatId) ?: return null
+        val card = findCard(game, cardId) ?: return null
+        val info = bridge.cardRepository.findAbilityInfo(alternativeGrpId) ?: return null
+        val targetAltCost =
+            when (info.baseId) {
+                KEYWORD_BASE_IDS.getValue("WARP") -> AlternativeCost.Warp
+                KEYWORD_BASE_IDS.getValue("SNEAK") -> AlternativeCost.Sneak
+                else -> return null
+            }
+
+        return getAllCastableAbilities(card, player)
+            .withIndex()
+            .firstOrNull { (_, sa) ->
+                sa.alternativeCost == targetAltCost
+            }?.index
+    }
 }
