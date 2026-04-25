@@ -1,5 +1,6 @@
 package leyline.game.data
 
+import leyline.game.codes.SlotKind
 import org.jetbrains.exposed.v1.core.CustomFunction
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -62,6 +63,11 @@ class ExposedCardRepository(
         val baseId = integer("BaseId").default(0)
         val oldSchoolManaText = text("OldSchoolManaText").nullable()
         val modalChildIds = text("ModalChildIds").nullable()
+
+        // Arena ability category. Observed: 1 = Activated (player-initiated),
+        // 2 = Trigger/Static/Passive. Anything we don't recognize is treated
+        // as non-activated by the consumer.
+        val category = integer("Category").default(0)
         override val primaryKey = PrimaryKey(id)
     }
 
@@ -202,6 +208,8 @@ class ExposedCardRepository(
         try {
             transaction(database) {
                 Cards.selectAll().where { Cards.grpId eq grpId }.firstOrNull()?.let { row ->
+                    val abilityIds = parseAbilityIds(row[Cards.abilityIds])
+                    val abilityKinds = lookupAbilityKinds(abilityIds.map { it.first })
                     CardData(
                         grpId = row[Cards.grpId],
                         titleId = row[Cards.titleId],
@@ -211,7 +219,8 @@ class ExposedCardRepository(
                         types = parseIntList(row[Cards.types]),
                         subtypes = parseIntList(row[Cards.subtypes]),
                         supertypes = parseIntList(row[Cards.supertypes]),
-                        abilityIds = parseAbilityIds(row[Cards.abilityIds]),
+                        abilityIds = abilityIds,
+                        abilityKinds = abilityKinds,
                         manaCost = parseManaCost(row[Cards.oldSchoolManaText]),
                         tokenGrpIds = parseTokenGrpIds(row[Cards.abilityIdToLinkedTokenGrpId]),
                         linkedFaceGrpIds = parseIntList(row[Cards.linkedFaceGrpIds]),
@@ -222,6 +231,30 @@ class ExposedCardRepository(
             log.warn("Failed to query card DB for grpId={}: {}", grpId, e.message)
             null
         }
+
+    /**
+     * Resolve Arena ability ids to per-slot [SlotKind] using `Abilities.Category`.
+     * Category=1 → Activated; everything else → Intrinsic (covers triggers,
+     * statics, passives we don't surface as activate-able). Missing rows fall
+     * back to Activated to preserve the legacy behavior for cards predating
+     * this change.
+     */
+    private fun lookupAbilityKinds(ids: List<Int>): List<SlotKind> {
+        if (ids.isEmpty()) return emptyList()
+        val distinctIds = ids.distinct()
+        val categories = mutableMapOf<Int, Int>()
+        for (id in distinctIds) {
+            val row = Abilities.selectAll().where { Abilities.id eq id }.firstOrNull() ?: continue
+            categories[id] = row[Abilities.category]
+        }
+        return ids.map { id ->
+            when (categories[id]) {
+                1 -> SlotKind.Activated
+                null -> SlotKind.Activated // unknown ability — assume activated for compat
+                else -> SlotKind.Intrinsic
+            }
+        }
+    }
 
     private fun queryNameByGrpId(grpId: Int): String? =
         try {

@@ -9,6 +9,8 @@ import leyline.ConformanceTag
 import leyline.conformance.CardDataDeriver
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.TestCardInjector
+import leyline.game.codes.SlotKind
+import leyline.game.data.CardData
 import leyline.game.state.AbilityRegistry
 
 class AbilityRegistryTest :
@@ -59,5 +61,75 @@ class AbilityRegistryTest :
                 // The mapped grpIds should match the slots from cardData.abilityIds
                 val expectedSlots = cardData.abilityIds.map { it.first }
                 mappedGrpIds shouldBe expectedSlots
+            }
+
+        // Regression for leyline-xht: when CardData carries Arena-style
+        // abilityKinds with a non-activated slot (trigger/static) interleaved
+        // before the activated abilities, the registry must skip those slots
+        // when assigning Forge activated SAs to abilityGrpIds.
+        test("trigger slot interleaved before activated abilities does not shift mapping")
+            .config(tags = setOf(ConformanceTag)) {
+                val cardName = "Kaito, Cunning Infiltrator"
+                val (b, _, _) = base.startWithBoard { _, _, _ -> }
+
+                val injected =
+                    TestCardInjector.inject(
+                        b,
+                        1,
+                        cardName,
+                        ZoneType.Battlefield,
+                    )
+                val card = injected.card
+
+                val activated =
+                    card.spellAbilities
+                        .filter { it.isActivatedAbility && !it.isManaAbility() && it.isIntrinsic }
+                activated.shouldHaveSize(3) // [+1], [-2], [-9]
+
+                // Simulate Arena's actual slot layout: trigger first, then activated.
+                // The grpIds match Arena DB for Kaito (grpId 93757):
+                //   slot 0 = 175794 (trigger)
+                //   slot 1 = 175795 ([+1])
+                //   slot 2 = 175796 ([-2])
+                //   slot 3 = 175798 ([-9])
+                val arenaShapedCardData =
+                    CardData(
+                        grpId = 93757,
+                        titleId = 0,
+                        power = "",
+                        toughness = "3",
+                        colors = emptyList(),
+                        types = emptyList(),
+                        subtypes = emptyList(),
+                        supertypes = emptyList(),
+                        abilityIds =
+                            listOf(
+                                175794 to 0,
+                                175795 to 0,
+                                175796 to 0,
+                                175798 to 0,
+                            ),
+                        abilityKinds =
+                            listOf(
+                                SlotKind.Intrinsic,
+                                SlotKind.Activated,
+                                SlotKind.Activated,
+                                SlotKind.Activated,
+                            ),
+                        manaCost = emptyList(),
+                    )
+
+                val registry = AbilityRegistry.build(card, arenaShapedCardData)
+
+                // Each Forge activated SA should map to an Arena Activated slot,
+                // skipping the trigger at slot 0. Order in card.spellAbilities is
+                // [+1], [-2], [-9] per the Forge card definition.
+                val mapped =
+                    activated.map { sa ->
+                        val grp = registry.forSpellAbility(sa.id)
+                        grp.shouldNotBeNull()
+                        grp
+                    }
+                mapped shouldBe listOf(175795, 175796, 175798)
             }
     })

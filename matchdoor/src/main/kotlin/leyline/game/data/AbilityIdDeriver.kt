@@ -41,6 +41,11 @@ object AbilityIdDeriver {
          * slot contract required by ActionMapper stays intact.
          */
         val chapterAbilityGrpIds: List<Int> = emptyList(),
+        /**
+         * Per-slot kind aligned 1:1 with [abilityIds]. Mirrors `slotLayout.slots`
+         * but exposed as a flat list for [CardData.abilityKinds] consumers.
+         */
+        val abilityKinds: List<SlotKind> = emptyList(),
     )
 
     /**
@@ -70,6 +75,7 @@ object AbilityIdDeriver {
                             activatedCount = 0,
                             slots = listOf(SlotEntry(abilityId, 0, SlotKind.Mana)),
                         ),
+                    abilityKinds = listOf(SlotKind.Mana),
                 )
             }
         }
@@ -125,6 +131,7 @@ object AbilityIdDeriver {
                     slots = slotEntries,
                 ),
             chapterAbilityGrpIds = chapterGrpIds,
+            abilityKinds = slotEntries.map { it.kind },
         )
     }
 

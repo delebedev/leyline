@@ -78,6 +78,7 @@ object CardDataDeriver {
             subtypes = subtypes,
             supertypes = supertypes,
             abilityIds = abilityIds,
+            abilityKinds = derived.abilityKinds,
             manaCost = manaCost,
             chapterAbilityGrpIds = derived.chapterAbilityGrpIds,
             linkedFaceGrpIds = linkedFaces,

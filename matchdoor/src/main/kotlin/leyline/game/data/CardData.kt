@@ -1,5 +1,6 @@
 package leyline.game.data
 
+import leyline.game.codes.SlotKind
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
@@ -17,6 +18,16 @@ data class CardData(
     val subtypes: List<Int>, // proto SubType values
     val supertypes: List<Int>, // proto SuperType values
     val abilityIds: List<Pair<Int, Int>>, // abilityGrpId:textId pairs
+    /**
+     * Per-slot kind aligned 1:1 with [abilityIds]. Sourced from Arena
+     * `Abilities.Category` (1=Activated → [SlotKind.Activated]; everything
+     * else → [SlotKind.Intrinsic] for triggers/statics) for production
+     * data, and from explicit construction by [AbilityIdDeriver] for
+     * puzzle/test paths. Empty list means "kinds unknown" — consumers
+     * should fall back to the legacy "all-after-keywords-are-activated"
+     * positional assumption.
+     */
+    val abilityKinds: List<SlotKind> = emptyList(),
     val manaCost: List<Pair<ManaColor, Int>>, // (color, count) from OldSchoolManaText
     val tokenGrpIds: Map<Int, Int> = emptyMap(), // abilityGrpId → tokenGrpId
     /**

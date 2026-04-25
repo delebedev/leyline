@@ -54,19 +54,35 @@ class AbilityRegistry private constructor(
             val triggerMap = mutableMapOf<Int, Int>()
 
             val keywordCount = mapKeywords(card, abilityIds, saMap, staticMap, triggerMap)
-            mapActivatedAbilities(card, abilityIds, keywordCount, saMap)
+            // Indices in abilityIds that are eligible for activated SAs.
+            // For Arena-sourced cards: slots whose `Abilities.Category=1`.
+            // For data without per-slot kinds (legacy / puzzle deriver): fall back
+            // to "all slots after keywords are activated" — matches old behavior.
+            val activatedSlotIndices =
+                if (cardData.abilityKinds.size == abilityIds.size) {
+                    abilityIds.indices.filter {
+                        it >= keywordCount && cardData.abilityKinds[it] == SlotKind.Activated
+                    }
+                } else {
+                    (keywordCount until abilityIds.size).toList()
+                }
+            mapActivatedAbilities(card, abilityIds, activatedSlotIndices, saMap)
             mapManaAbilities(card, fallbackGrpId, saMap)
             mapUnclaimedIntrinsics(card, fallbackGrpId, staticMap, triggerMap)
 
             // Derive SlotLayout from the same data — single source of truth.
-            // activatedCount may include the padded minimum slot (maxOf(1, kw+act))
-            // for cards with no keywords or activated abilities. SlotKind is approximate:
-            // mana-only cards get Activated here; AbilityIdDeriver uses Mana for those.
-            // forgeIndexFor() ignores kind — only slot position matters.
-            val activatedCount = abilityIds.size - keywordCount
+            // Use cardData.abilityKinds when available so triggers/statics interleaved
+            // among Arena's slots (e.g. Kaito at slot 0) get classified correctly.
+            val activatedCount = activatedSlotIndices.size.coerceAtLeast(0)
             val slots =
                 abilityIds.mapIndexed { i, (grpId, textId) ->
-                    val kind = if (i < keywordCount) SlotKind.Keyword else SlotKind.Activated
+                    val kind =
+                        when {
+                            i < keywordCount -> SlotKind.Keyword
+                            cardData.abilityKinds.size == abilityIds.size ->
+                                cardData.abilityKinds[i]
+                            else -> SlotKind.Activated
+                        }
                     SlotEntry(grpId, textId, kind)
                 }
             val layout = SlotLayout(keywordCount, activatedCount, slots)
@@ -107,18 +123,30 @@ class AbilityRegistry private constructor(
             return keywordStrings.size
         }
 
-        /** Phase 2: Non-mana activated abilities in slots after keywords. */
+        /**
+         * Phase 2: Map non-mana activated SAs to abilityGrpIds by walking
+         * [activatedSlotIndices] in order. Each indexed slot is presumed
+         * to be an activated ability per upstream classification (Arena's
+         * `Abilities.Category=1` for production data; positional fallback
+         * for puzzle/test paths). Skipping non-activated slots prevents
+         * the off-by-one bug where Arena's interleaved trigger/static
+         * slots would shift activated SAs onto the wrong grpIds.
+         */
         private fun mapActivatedAbilities(
             card: Card,
             abilityIds: List<Pair<Int, Int>>,
-            keywordCount: Int,
+            activatedSlotIndices: List<Int>,
             saMap: MutableMap<Int, Int>,
         ) {
             var idx = 0
             for (sa in card.spellAbilities ?: emptyList()) {
                 if (!sa.isActivatedAbility || sa.isManaAbility()) continue
                 if (!sa.isIntrinsic) continue
-                val slotIdx = keywordCount + idx
+                if (idx >= activatedSlotIndices.size) {
+                    idx++
+                    continue
+                }
+                val slotIdx = activatedSlotIndices[idx]
                 if (slotIdx < abilityIds.size) saMap[sa.id] = abilityIds[slotIdx].first
                 idx++
             }
