@@ -92,6 +92,8 @@ interface ActionReceiver {
 
     fun onSelectN(greMsg: ClientToGREMessage) {}
 
+    fun onEffectCost(greMsg: ClientToGREMessage) {}
+
     fun onGroupResp(greMsg: ClientToGREMessage) {}
 
     fun onCancelAction(greMsg: ClientToGREMessage) {}

@@ -113,7 +113,7 @@ class EatenAliveInteractionTest :
             messagesSince(sacrificePromptSnap).any { it.hasPayCostsReq() } shouldBe true
 
             val sacId = zoneInstanceId(human, ForgeZoneType.Battlefield, "Walking Corpse")
-            respondToSelectN(listOf(sacId))
+            respondToEffectCost(listOf(sacId))
 
             passUntilResolved(maxPasses = 8)
 

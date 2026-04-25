@@ -264,6 +264,12 @@ class MatchSession(
             targetingHandler.onSelectN(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
         }
 
+    override fun onEffectCost(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            val ctx = resolveContext() ?: return
+            targetingHandler.onEffectCost(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+        }
+
     /** Handle GroupResp for surveil/scry — delegates to [TargetingHandler]. */
     override fun onGroupResp(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {

@@ -231,6 +231,8 @@ abstract class InteractionTest(
 
     fun respondToSelectN(selectedInstanceIds: List<Int>) = harness.respondToSelectN(selectedInstanceIds)
 
+    fun respondToEffectCost(selectedInstanceIds: List<Int>) = harness.respondToEffectCost(selectedInstanceIds)
+
     fun respondToOptionalCost(ctoId: Int) = harness.respondToOptionalCost(ctoId)
     // --- Message inspection ---
 

@@ -750,6 +750,11 @@ class MatchFlowHarness(
         drainSink()
     }
 
+    fun respondToEffectCost(selectedInstanceIds: List<Int>) {
+        session.onEffectCost(effectCostResp(selectedInstanceIds))
+        drainSink()
+    }
+
     // --- Modal helpers ---
 
     /** Respond to a CastingTimeOptionsReq (modal choice) with selected grpIds. */
