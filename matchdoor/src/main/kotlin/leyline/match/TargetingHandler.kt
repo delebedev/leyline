@@ -31,6 +31,10 @@ class TargetingHandler(
     private val tracer: SessionTracer,
     private val bundles: BundleBuilderHolder,
 ) {
+    private companion object {
+        private const val EATEN_ALIVE_GRP_ID = 93885
+    }
+
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
 
     @Volatile
@@ -773,7 +777,7 @@ class TargetingHandler(
         pendingActionId: String,
         bridge: GameBridge,
     ): Boolean {
-        if (action.grpId != 93885) return false
+        if (action.grpId != EATEN_ALIVE_GRP_ID) return false
         val cardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return false
         val game = bridge.getGame() ?: return false
         val card = game.findById(cardId.value) ?: return false
@@ -785,7 +789,7 @@ class TargetingHandler(
 
         val optionPromptIds: List<Int> =
             when (action.grpId) {
-                93885 ->
+                EATEN_ALIVE_GRP_ID ->
                     listOf(
                         PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE,
                         PromptIds.CHOOSE_OR_COST_PAY_MANA,
