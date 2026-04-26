@@ -122,12 +122,19 @@ class TargetingCoordinator(
         min: Int,
         max: Int,
         title: String?,
+        // Required (no default) — drops out of the SA chain into the wire as
+        // sourceEntityId, which becomes SelectNReq.sourceId + the outer
+        // prompt's first CardId Number parameter. Without this the panel
+        // header degrades to a stub. New callers must thread the SpellAbility
+        // through; pass null only if there genuinely is no source spell.
+        sa: SpellAbility?,
     ): List<T> {
         if (optionList.isEmpty()) return emptyList()
         val effectiveMax = max.coerceAtMost(optionList.size)
         val effectiveMin = min.coerceAtLeast(0).coerceAtMost(effectiveMax)
         if (optionList.size <= effectiveMin) return optionList.toList()
         val labels = optionList.map { it.entityLabel() }
+        val candidateRefs = buildCandidateRefs(optionList)
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -136,7 +143,15 @@ class TargetingCoordinator(
                 min = effectiveMin,
                 max = effectiveMax,
                 defaultIndex = 0,
-                candidateRefs = buildCandidateRefs(optionList),
+                semantic = PromptSemantic.SelectNResolution,
+                candidateRefs = candidateRefs,
+                // Mirror candidateRefs into unfilteredRefs for look-and-pick: every
+                // revealed card is selectable, so unfiltered = candidate. The split
+                // matters for RevealChoose (Duress, filtered ⊂ revealed) but not
+                // here. RevealChoose has its own path through
+                // `chooseCardsViaBridgeForReveal` where the two sets diverge.
+                unfilteredRefs = candidateRefs,
+                sourceEntityId = sa?.hostCard?.id,
             )
         val indices = bridge.requestChoice(request)
         return indices.filter { it in optionList.indices }.map { optionList.get(it) }

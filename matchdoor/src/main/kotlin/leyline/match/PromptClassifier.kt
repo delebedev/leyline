@@ -31,6 +31,7 @@ sealed interface ClassifiedPrompt {
             Discard,
             Sacrifice,
             RevealChoose,
+            Resolution,
         }
     }
 
@@ -80,6 +81,11 @@ object PromptClassifier {
                 ClassifiedPrompt.SelectN(
                     pendingPrompt,
                     ClassifiedPrompt.SelectN.Reason.RevealChoose,
+                )
+            req.semantic == PromptSemantic.SelectNResolution ->
+                ClassifiedPrompt.SelectN(
+                    pendingPrompt,
+                    ClassifiedPrompt.SelectN.Reason.Resolution,
                 )
             // Ordering: explicit semantics above must precede candidateRefs fallback,
             // since reveal-choose prompts also have candidateRefs populated.

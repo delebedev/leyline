@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.phase.PhaseType
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
@@ -20,6 +21,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -59,6 +61,8 @@ class BundleBuilder(
      */
     val cursor: BundleCursor = bridge.bundleCursor,
 ) {
+    private val log = LoggerFactory.getLogger(BundleBuilder::class.java)
+
     data class BundleResult(
         val messages: List<GREToClientMessage>,
     )
@@ -771,6 +775,7 @@ class BundleBuilder(
         req: SelectNReq,
         isLegendRule: Boolean = false,
         isRevealChoose: Boolean = false,
+        isResolution: Boolean = false,
     ): BundleResult {
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
@@ -790,7 +795,12 @@ class BundleBuilder(
             )
         bridge.applyMutations(selectNResult.mutations)
         bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, selectNResult.gsm)
-        val gs = selectNResult.gsm
+        val gs =
+            if (isResolution) {
+                attachLookAndPickGameObjects(selectNResult.gsm, req, snap)
+            } else {
+                selectNResult.gsm
+            }
         val msg1 =
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                 it.gameStateMessage = gs
@@ -820,6 +830,38 @@ class BundleBuilder(
                         it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
                         it.allowCancel = AllowCancel.No_a526
                     }
+                    isResolution -> {
+                        // Look-and-pick (Stock Up / Dig).
+                        //   outer prompt: card-specific promptId + 2 CardId Number
+                        //     params (source iid, selection count).
+                        //   inner SelectNReq.prompt: built in RequestBuilder with
+                        //     a PromptId Parameter, no top-level promptId.
+                        //   allowCancel: No (engine drives the pick).
+                        // promptId is Stock-Up-specific today — see PromptIds.SELECT_N_STOCK_UP
+                        // KDoc for the dispatcher TODO once we add a second Dig card.
+                        // Second CardId param is `maxSel` (= player-facing count). For
+                        // Stock Up min == max == 2; for "up to N" Brainstorm-shape effects
+                        // this may need to become a dedicated `count` field.
+                        it.setPrompt(
+                            Prompt
+                                .newBuilder()
+                                .setPromptId(PromptIds.SELECT_N_STOCK_UP)
+                                .addParameters(
+                                    PromptParameter
+                                        .newBuilder()
+                                        .setParameterName("CardId")
+                                        .setType(ParameterType.Number)
+                                        .setNumberValue(req.sourceId),
+                                ).addParameters(
+                                    PromptParameter
+                                        .newBuilder()
+                                        .setParameterName("CardId")
+                                        .setType(ParameterType.Number)
+                                        .setNumberValue(req.maxSel),
+                                ).build(),
+                        )
+                        it.allowCancel = AllowCancel.No_a526
+                    }
                     else -> {
                         it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
                     }
@@ -828,6 +870,69 @@ class BundleBuilder(
 
         cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
+    }
+
+    /**
+     * Look-and-pick GSM augmentation. Adds full [GameObjectInfo] entries for the
+     * SelectN candidate iids with `visibility = Private, viewers = [seatId]`,
+     * keeping them in the chooser's library zone.
+     *
+     * Required because the client renders the SelectN panel from
+     * [GameObjectInfo] entries, not from the [SelectNReq.ids] list alone. With
+     * the candidates' iids in the library but no per-iid object data sent, the
+     * panel comes through blank. Adding the entries with the chooser as the sole
+     * `viewer` reveals the cards to the picking player without leaking them to
+     * the opponent.
+     *
+     * Routes through [ObjectMapper.buildFromSnapshot] so the canonical card →
+     * GameObjectInfo pipeline stays the single source of truth (P/T,
+     * extrinsic keywords, attachment state, etc.). The only override on top
+     * is `addViewers(seatId)`.
+     */
+    private fun attachLookAndPickGameObjects(
+        gsm: GameStateMessage,
+        req: SelectNReq,
+        snap: GsmSnapshot,
+    ): GameStateMessage {
+        if (req.idsList.isEmpty()) return gsm
+        val gsBuilder = gsm.toBuilder()
+        val libraryZoneId = ZoneIds.libraryOf(seatId)
+        val existingByIid = gsBuilder.gameObjectsList.withIndex().associate { (idx, obj) -> obj.instanceId to idx }
+        for (iid in req.idsList) {
+            val forgeCardId =
+                bridge.getForgeCardId(InstanceId(iid)) ?: run {
+                    log.warn("attachLookAndPickGameObjects: no ForgeCardId for iid={}", iid)
+                    continue
+                }
+            val cardSnap =
+                snap.objects[forgeCardId] ?: run {
+                    log.warn(
+                        "attachLookAndPickGameObjects: no CardSnapshot for forgeCardId={} iid={}",
+                        forgeCardId.value,
+                        iid,
+                    )
+                    continue
+                }
+            val obj =
+                ObjectMapper
+                    .buildFromSnapshot(
+                        cardSnap = cardSnap,
+                        instanceId = iid,
+                        zoneId = libraryZoneId,
+                        ownerSeatId = seatId,
+                        bridge = bridge,
+                        visibility = Visibility.Private,
+                    ).toBuilder()
+                    .addViewers(seatId)
+                    .build()
+            val existingIdx = existingByIid[iid]
+            if (existingIdx != null) {
+                gsBuilder.setGameObjects(existingIdx, obj)
+            } else {
+                gsBuilder.addGameObjects(obj)
+            }
+        }
+        return gsBuilder.build()
     }
 
     /**

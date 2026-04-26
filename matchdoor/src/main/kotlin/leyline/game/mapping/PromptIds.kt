@@ -36,6 +36,23 @@ object PromptIds {
     const val SHOCK_LAND_ETB = 2233
 
     const val SELECT_N = 1243
+
+    /**
+     * Stock Up's outer-prompt loc key — "Put two of them into your hand."
+     *
+     * This value is Stock-Up-specific; other Dig-shape effects (Sleight of Hand,
+     * Impulse, etc.) almost certainly need different loc keys. A card-specific
+     * dispatcher keyed on `(sa.api == Dig, sa.hostCard.grpId, ChangeNum)` is
+     * the right long-term home — today this constant is the only value we
+     * have a confirmed-rendering integration for.
+     */
+    const val SELECT_N_STOCK_UP = 2490
+
+    /** Inner SelectNReq.prompt PromptId Parameter value for look-and-pick prompts.
+     *  The literal `2` is opaque (no dictionary entry) but is the value the
+     *  client expects on this slot for resolution-time pick prompts. */
+    const val SELECT_N_INNER_PARAMETER = 2
+
     const val CHOOSE_OR_COST = 1103
     const val CHOOSE_OR_COST_PAY_SACRIFICE = 1029
     const val CHOOSE_OR_COST_PAY_MANA = 4160

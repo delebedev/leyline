@@ -320,6 +320,14 @@ enum class PromptSemantic {
 
     /** "Choose from revealed hand" — Duress, Revealing Eye, Thoughtseize, etc. */
     RevealChoose,
+
+    /**
+     * "Pick K from a known visible list at resolution time" — Stock Up / Dig
+     * effects, post-target resolution picks. Routes to `SelectNReq`
+     * (Resolution context, Dynamic list) instead of falling through to
+     * `SelectTargetsReq`.
+     */
+    SelectNResolution,
 }
 
 data class PromptRequest(
