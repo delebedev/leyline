@@ -9,6 +9,7 @@ import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
+import kotlin.time.Duration.Companion.seconds
 import io.kotest.matchers.shouldBe
 import leyline.game.annotations.AnnotationConstants
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -794,5 +795,49 @@ class CombatInteractionTest :
 
             // Game should still be running (not stuck)
             isGameOver().shouldBeFalse()
+        }
+
+        // ─── AI combat auto-pass (regression #120) ────────────────────────────
+
+        test("AI combat auto-passes when human has castable instant").config(timeout = 30.seconds) {
+            // Puzzle: AI's turn at COMBAT_DECLARE_ATTACKERS. AI has a Raging Goblin
+            // marked |Attacking|Tapped. Human has Burst Lightning + untapped Mountain.
+            //
+            // Flow: onPuzzleStart → autoPassAndAdvance → checkCombatPhase at
+            // DECLARE_ATTACKERS (AI turn, attackers present) → SEND_STATE downgraded
+            // → engine advances to DECLARE_BLOCKERS → zero legal blockers detected
+            // → empty declaration auto-submitted → combat advances through
+            // COMBAT_DAMAGE and COMBAT_END where the fix must downgrade SEND_STATE
+            // on AI turns — otherwise the client gets stuck (no Pass button →
+            // 120s timeout).
+            //
+            // If the bug were present, bridge timeouts would stall combat — damage
+            // would never apply and the 30s test timeout would fire. Life at exactly 19
+            // proves combat resolved: Raging Goblin (1/1) attacked unblocked.
+            startPuzzleRaw(
+                """
+                [metadata]
+                Name:AI Combat AutoPass
+                Goal:Win
+                Turns:3
+                Difficulty:Easy
+                Description:AI attacks while human has instant in hand
+
+                [state]
+                ActivePlayer=AI
+                ActivePhase=COMBAT_DECLARE_ATTACKERS
+                HumanLife=20
+                AILife=20
+
+                humanhand=Burst Lightning
+                humanbattlefield=Mountain
+                humanlibrary=Mountain;Mountain;Mountain
+                aibattlefield=Raging Goblin|Attacking|Tapped;Mountain
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+                validating = false,
+            )
+
+            human.life shouldBe 19
         }
     })
