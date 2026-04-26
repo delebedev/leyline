@@ -32,6 +32,7 @@ import leyline.game.GamePlayback
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.BundleCursor
 import leyline.game.bundle.MessageCounter
+import leyline.game.codes.CounterTypes
 import leyline.game.data.CardData
 import leyline.game.data.CardProtoBuilder
 import leyline.game.data.CardRepository
@@ -807,6 +808,12 @@ class GameBridge(
         // No CardAttached events fire for cards that start attached — seed from engine state.
         seedAttachmentAnnotations(g)
 
+        // Forge's puzzle loader applies counters via addCounterInternal(fireEvents=false),
+        // so no CountersChanged event reaches MechanicAnnotations. Without Counter_803b,
+        // MTGA renders permanents at 0 counters (planeswalkers lose their loyalty UI and
+        // suppress the activation modal). Seed from engine state.
+        seedCounterAnnotations(g)
+
         // Wire PlayerController for seat 1 (human) — same as constructed
         // but no mulligan bridge needed (autoKeep=true, unused).
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
@@ -1025,6 +1032,39 @@ class GameBridge(
                     target.name,
                     targetIid.value,
                 )
+            }
+        }
+    }
+
+    /**
+     * Seed persistent [AnnotationType.Counter_803b] annotations for permanents that
+     * start with counters (loyalty on planeswalkers, +1/+1 on creatures, etc.). Forge's
+     * puzzle loader bypasses the event chain when applying counters, so no
+     * [GameEvent.CountersChanged] fires.
+     */
+    private fun seedCounterAnnotations(game: Game) {
+        for (player in game.players) {
+            for (card in player.getZone(ZoneType.Battlefield).cards) {
+                val counters = card.counters
+                if (counters.isEmpty()) continue
+                val instanceId = ids.getOrAlloc(ForgeCardId(card.id))
+                for ((counterType, count) in counters) {
+                    if (count <= 0) continue
+                    val ann =
+                        AnnotationBuilder
+                            .counter(instanceId, CounterTypes.counterTypeId(counterType.name), count)
+                            .toBuilder()
+                            .setId(annotations.nextPersistentAnnotationId())
+                            .build()
+                    annotations.add(ann)
+                    log.debug(
+                        "seedCounter: {} (iid={}) {} = {}",
+                        card.name,
+                        instanceId.value,
+                        counterType.name,
+                        count,
+                    )
+                }
             }
         }
     }
