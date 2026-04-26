@@ -9,7 +9,6 @@ import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
-import kotlin.time.Duration.Companion.seconds
 import io.kotest.matchers.shouldBe
 import leyline.game.annotations.AnnotationConstants
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -19,6 +18,7 @@ import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.Step
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Combat test deck: haste creatures (Raging Goblin) + Mountains.
