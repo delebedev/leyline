@@ -3,7 +3,7 @@ Name:Kaito Activate Abilities
 Goal:Win
 Turns:5
 Difficulty:Easy
-Description:Activate Kaito to verify ability index/labels in MTGA UI.
+Description:Cast Kaito and activate his abilities to verify ability index/labels in MTGA UI. Cast-from-hand path ensures loyalty counters are properly annotated (puzzle-seeded counters via Counters:LOYALTY don't emit Counter_803b persistent annotations — Forge addCounterInternal fires no events on puzzle load).
 
 [state]
 ActivePlayer=Human
@@ -11,7 +11,7 @@ ActivePhase=Main1
 HumanLife=20
 AILife=20
 
-humanhand=Mountain
-humanbattlefield=Kaito, Cunning Infiltrator|Counters:LOYALTY=1;Island;Island;Island
-humanlibrary=Island;Island;Island
+humanhand=Kaito, Cunning Infiltrator
+humanbattlefield=Grizzly Bears;Island;Island;Swamp
+humanlibrary=Island;Swamp;Mountain
 ailibrary=Mountain;Mountain;Mountain
