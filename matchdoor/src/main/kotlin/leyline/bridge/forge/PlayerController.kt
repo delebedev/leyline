@@ -478,7 +478,7 @@ class PlayerController(
      * "Do you want to cast this spell that was given to you?" — fires from
      * Forge's PlayEffect for Madness, Discover, Cascade-into-cast, and similar
      * optional-cast paths. The default inherited behavior (PlayerControllerHuman)
-     * routes through PlaySpellAbility which bypasses the Arena client entirely;
+     * routes through PlaySpellAbility which bypasses the client entirely;
      * we need to surface the choice as an OptionalActionMessage so the player can
      * Accept or Decline through the normal client UI. On Accept, delegate to
      * `super.playSaFromPlayEffect(tgtSA)` which drives the real cast flow via
@@ -792,9 +792,10 @@ class PlayerController(
         // Use the upstream PlaySpellAbility path so cost decisions, optional
         // costs, rollback, splice, and mana conversion all stay centralized.
         //
-        // Targets may be pre-set by chooseSpellAbilityToPlay() when the client
-        // supplies them upfront (web UI path). When targets are NOT pre-set we
-        // pass mayChooseTargets=true so the engine invokes setupTargets(),
+        // Targets may be pre-set on the outer SA when the client's Cast
+        // PerformAction carries target ids — SpellExecutor.applyTargets()
+        // populates them before this seam runs. When targets are NOT pre-set
+        // we pass mayChooseTargets=true so the engine invokes setupTargets(),
         // which walks the SA chain (including post-makeChoices wrapper subs)
         // and routes per-link targeting through selectTargetsInteractively() →
         // InteractivePromptBridge → SelectTargetsReq/Resp.
@@ -825,8 +826,8 @@ class PlayerController(
         // the chain post-makeChoices and only invokes chooseTargetsFor on
         // links where usesTargeting() is true, so passing mayChooseTargets=true
         // is a no-op for genuinely non-targeting chains. The only thing the
-        // gate must protect is a pre-set outer-target supplied by the client
-        // upfront (web UI path) — sa.targets.isEmpty() handles that.
+        // gate must protect is a pre-set outer-target supplied via the Cast
+        // PerformAction — sa.targets.isEmpty() handles that.
         val needsTargeting = sa.targets.isEmpty()
         val req = PlaySpellAbility(this, sa)
         return req.playAbility(needsTargeting, false, false)
