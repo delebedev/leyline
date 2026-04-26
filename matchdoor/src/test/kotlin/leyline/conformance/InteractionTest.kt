@@ -94,17 +94,19 @@ abstract class InteractionTest(
         turns: Int = 1,
         seed: Long = 42L,
         validating: Boolean = false,
-    ): MatchFlowHarness = startPuzzleRaw(buildPuzzleText(state, name, goal, turns), seed, validating)
+        aiScript: List<ScriptedAction>? = null,
+    ): MatchFlowHarness = startPuzzleRaw(buildPuzzleText(state, name, goal, turns), seed, validating, aiScript)
 
     /** Start a puzzle from full `.pzl` text (metadata + state). Escape hatch. */
     fun startPuzzleRaw(
         puzzleText: String,
         seed: Long = 42L,
         validating: Boolean = false,
+        aiScript: List<ScriptedAction>? = null,
     ): MatchFlowHarness {
         val h = MatchFlowHarness(seed = seed, validating = validating)
         _harness = h
-        h.connectAndKeepPuzzleText(puzzleText)
+        h.connectAndKeepPuzzleText(puzzleText, aiScript)
         cachePlayerRefs()
         return h
     }
@@ -130,10 +132,12 @@ abstract class InteractionTest(
         seed: Long = 42L,
         deckList: String? = null,
         validating: Boolean = true,
+        aiScript: List<ScriptedAction>? = null,
     ): MatchFlowHarness {
         val h = MatchFlowHarness(seed = seed, deckList = deckList, validating = validating)
         _harness = h
         h.connectAndKeep()
+        if (aiScript != null) h.installScriptedAi(aiScript)
         cachePlayerRefs()
         return h
     }
@@ -189,6 +193,12 @@ abstract class InteractionTest(
 
     fun installScriptedAi(script: List<ScriptedAction>) = harness.installScriptedAi(script)
 
+    fun playLand(): Boolean = harness.playLand()
+
+    fun isAiTurn(): Boolean = harness.isAiTurn()
+
+    fun triggerAutoPass() = harness.triggerAutoPass()
+
     /**
      * Pass priority until the stack is empty. Use after cast + target to resolve.
      * Always passes at least once (the stack may already be empty before the
@@ -201,6 +211,35 @@ abstract class InteractionTest(
             if (game().stackZone.size() == 0) return
         }
     }
+
+    fun passThroughCombat(startTurn: Int? = null) =
+        if (startTurn != null) harness.passThroughCombat(startTurn) else harness.passThroughCombat()
+
+    // --- Combat: declare attackers ---
+
+    fun declareAttackers(attackerInstanceIds: List<Int>) = harness.declareAttackers(attackerInstanceIds)
+
+    fun declareNoAttackers() = harness.declareNoAttackers()
+
+    fun declareAllAttackers() = harness.declareAllAttackers()
+
+    fun submitAttackers() = harness.submitAttackers()
+
+    fun toggleAttackers(attackerInstanceIds: List<Int>): List<GREToClientMessage> = harness.toggleAttackers(attackerInstanceIds)
+
+    // --- Combat: declare blockers ---
+
+    fun declareBlockers(assignments: Map<Int, Int>) = harness.declareBlockers(assignments)
+
+    fun declareNoBlockers() = harness.declareNoBlockers()
+
+    fun toggleBlockers(assignments: Map<Int, Int>): List<GREToClientMessage> = harness.toggleBlockers(assignments)
+
+    fun deselectBlocker(blockerInstanceId: Int): List<GREToClientMessage> = harness.deselectBlocker(blockerInstanceId)
+
+    // --- Combat: assign damage ---
+
+    fun assignDamage(assigners: List<Pair<Int, List<Pair<Int, Int>>>>) = harness.assignDamage(assigners)
 
     fun castSpellByName(
         cardName: String,
