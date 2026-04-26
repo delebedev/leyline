@@ -7,6 +7,7 @@
     <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$assertSoftly { ann.typeList shouldContain AnnotationType.AbilityWordActive ann.affectorId shouldBe 1 ann.affectedIdsList shouldBe listOf(303) ann.detailString("AbilityWordName") shouldBe "Descended" }</ID>
     <ID>MissingAssertSoftly:AnnotationOrderingTest.kt$AnnotationOrderingTest$ids.shouldNotBeEmpty()</ID>
     <ID>MissingAssertSoftly:AttackerTapStateTest.kt$AttackerTapStateTest$h.playLand().shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:AttackerTapStateTest.kt$AttackerTapStateTest$h.playLand("Mountain").shouldBeTrue()</ID>
     <ID>MissingAssertSoftly:AutoPassEngineTest.kt$AutoPassEngineTest$decision.shouldBeInstanceOf&lt;PriorityDecision.Grant&gt;()</ID>
     <ID>MissingAssertSoftly:AutoPassEngineTest.kt$AutoPassEngineTest$decision.shouldBeInstanceOf&lt;PriorityDecision.Skip&gt;()</ID>
     <ID>MissingAssertSoftly:BundleBuilderTest.kt$BundleBuilderTest$gsm.gameObjectsCount shouldBeGreaterThan 0</ID>
@@ -22,6 +23,7 @@
     <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$attackerObj.shouldNotBeNull()</ID>
     <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$damageGsm.shouldNotBeNull()</ID>
     <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$playLand().shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$playLand("Mountain").shouldBeTrue()</ID>
     <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$postAttack.shouldNotBeEmpty()</ID>
     <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$postCombat.shouldNotBeEmpty()</ID>
     <ID>MissingAssertSoftly:CombatZoneAnnotationPipelineTest.kt$CombatZoneAnnotationPipelineTest$assertSoftly { annotations.size shouldBe 7 annotations[0].typeList.first() shouldBe AnnotationType.AbilityInstanceCreated annotations[1].typeList.first() shouldBe AnnotationType.TappedUntappedPermanent annotations[2].typeList.first() shouldBe AnnotationType.ObjectIdChanged annotations[3].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a annotations[4].typeList.first() shouldBe AnnotationType.UserActionTaken annotations[5].typeList.first() shouldBe AnnotationType.ManaPaid annotations[6].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted }</ID>

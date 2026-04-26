@@ -75,7 +75,7 @@ class MatchFlowHarness(
         private set
 
     /** Start game, keep hand, advance to first real-action phase via MatchSession. */
-    fun connectAndKeep() {
+    fun connectAndKeep(aiScript: List<ScriptedAction>? = null) {
         GameBootstrap.initializeCardDatabase(quiet = true)
         TestCardRegistry.ensureRegistered()
         if (deckList != null) TestCardRegistry.ensureDeckRegistered(deckList)
@@ -119,6 +119,8 @@ class MatchFlowHarness(
 
         session.onMulliganKeep()
         drainSink()
+
+        if (aiScript != null) installScriptedAi(aiScript)
     }
 
     /** Start puzzle game from classpath resource, advance to first action phase. */
@@ -197,14 +199,28 @@ class MatchFlowHarness(
         drainSink()
     }
 
-    /** Play a land from hand. Returns true if successful. */
-    fun playLand(): Boolean {
+    /**
+     * Play a land from hand. Returns true if successful.
+     *
+     * @param name optional preferred land name. When set, plays that named
+     *             land if present in hand; otherwise falls back to any land.
+     *             Specifying intent here matters: tests that follow up with
+     *             a coloured spell cast (e.g. Raging Goblin needs {R}) must
+     *             play a same-coloured basic. Without intent, this picks the
+     *             first land in hand, which is shuffle-dependent — and shuffle
+     *             order shifts with upstream forge edition data because
+     *             PaperCard.hashCode is printing-specific. A wrong-coloured
+     *             land then makes the follow-up spell uncastable, autoPass
+     *             advances through phases unblocked, and the turn counter
+     *             skips past T1 before the test asserts.
+     */
+    fun playLand(name: String? = null): Boolean {
         val player = bridge.getPlayer(seatId) ?: return false
+        val handCards = player.getZone(ZoneType.Hand).cards
         val land =
-            player
-                .getZone(ZoneType.Hand)
-                .cards
-                .firstOrNull { it.isLand } ?: return false
+            (if (name != null) handCards.firstOrNull { it.isLand && it.name.equals(name, ignoreCase = true) } else null)
+                ?: handCards.firstOrNull { it.isLand }
+                ?: return false
 
         val msg =
             performAction {

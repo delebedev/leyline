@@ -43,7 +43,7 @@ class BlockerDeclarationInteractionTest :
             )
 
             // Human turn 1: play Mountain, cast Raging Goblin (haste → potential blocker)
-            playLand().shouldBeTrue()
+            playLand("Mountain").shouldBeTrue()
             castSpellByName("Raging Goblin").shouldBeTrue()
             passPriority() // resolve
 

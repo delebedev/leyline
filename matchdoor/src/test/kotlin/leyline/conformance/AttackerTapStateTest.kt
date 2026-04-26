@@ -44,7 +44,7 @@ class AttackerTapStateTest :
             )
 
             // Turn 1: play Mountain, cast Raging Goblin (haste)
-            h.playLand().shouldBeTrue()
+            h.playLand("Mountain").shouldBeTrue()
             h.resolveSpell("Raging Goblin").shouldBeTrue()
 
             h.turn() shouldBe 1
@@ -95,7 +95,7 @@ class AttackerTapStateTest :
             )
 
             // Turn 1: play Mountain, cast Raging Goblin (haste)
-            h.playLand().shouldBeTrue()
+            h.playLand("Mountain").shouldBeTrue()
             h.resolveSpell("Raging Goblin").shouldBeTrue()
 
             val creatures = h.humanBattlefieldCreatures()

@@ -136,8 +136,7 @@ abstract class InteractionTest(
     ): MatchFlowHarness {
         val h = MatchFlowHarness(seed = seed, deckList = deckList, validating = validating)
         _harness = h
-        h.connectAndKeep()
-        if (aiScript != null) h.installScriptedAi(aiScript)
+        h.connectAndKeep(aiScript)
         cachePlayerRefs()
         return h
     }
@@ -193,7 +192,7 @@ abstract class InteractionTest(
 
     fun installScriptedAi(script: List<ScriptedAction>) = harness.installScriptedAi(script)
 
-    fun playLand(): Boolean = harness.playLand()
+    fun playLand(name: String? = null): Boolean = harness.playLand(name)
 
     fun isAiTurn(): Boolean = harness.isAiTurn()
 

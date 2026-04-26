@@ -55,9 +55,8 @@ class CombatInteractionTest :
                         ScriptedAction.PassPriority,
                     ),
             )
-
             // Turn 1: play Mountain, cast Raging Goblin (R)
-            playLand().shouldBeTrue()
+            playLand("Mountain").shouldBeTrue()
             resolveSpell("Raging Goblin").shouldBeTrue()
 
             // Still turn 1 — Raging Goblin has haste, can attack this turn
@@ -88,7 +87,7 @@ class CombatInteractionTest :
             )
 
             // Turn 1: play Mountain, cast Raging Goblin #1
-            playLand().shouldBeTrue()
+            playLand("Mountain").shouldBeTrue()
             castSpellByName("Raging Goblin").shouldBeTrue()
             passPriority() // resolve
 
@@ -99,7 +98,7 @@ class CombatInteractionTest :
             if (isAiTurn() && !isGameOver()) passPriority()
 
             // Play second land + cast second creature
-            playLand()
+            playLand("Mountain")
             val cast2 = castSpellByName("Raging Goblin")
             if (cast2) passPriority() // resolve
 
@@ -125,7 +124,7 @@ class CombatInteractionTest :
             )
 
             // Human turn 1: play Mountain, cast Raging Goblin
-            playLand().shouldBeTrue()
+            playLand("Mountain").shouldBeTrue()
             castSpellByName("Raging Goblin").shouldBeTrue()
             passPriority() // resolve
 
@@ -204,7 +203,7 @@ class CombatInteractionTest :
             passPriority()
 
             // Now on human's turn 2 (or still turn 1 if AI turn was fast)
-            playLand()
+            playLand("Mountain")
 
             // Need a creature to attack — only the human's haste Raging Goblin
             val creatures = humanBattlefieldCreatures()
@@ -234,7 +233,7 @@ class CombatInteractionTest :
             val attackerIid = setupWithAiBlocker()
 
             passPriority()
-            playLand()
+            playLand("Mountain")
             val snap = messageSnapshot()
             passUntil { messagesSince(snap).any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
 
@@ -362,7 +361,7 @@ class CombatInteractionTest :
             )
 
             // Human turn 1: play Mountain, cast Raging Goblin
-            playLand().shouldBeTrue()
+            playLand("Mountain").shouldBeTrue()
             castSpellByName("Raging Goblin").shouldBeTrue()
             passPriority() // resolve
 
