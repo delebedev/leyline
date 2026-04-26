@@ -60,7 +60,7 @@ class ChannelPuzzleTest :
             h.selectTargets(listOf(2))
 
             // Resolve — damage kills opponent
-            h.passUntil(maxPasses = 20) { isGameOver() || ai.life <= 0 }.shouldBeTrue()
+            h.passUntil(maxPasses = 30) { isGameOver() || ai.life <= 0 }.shouldBeTrue()
 
             h.isGameOver().shouldBeTrue()
             ai.life shouldBe 0

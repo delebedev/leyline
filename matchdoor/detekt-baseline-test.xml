@@ -13,7 +13,7 @@
     <ID>MissingAssertSoftly:CardInjectionTest.kt$CardInjectionTest$b.cardRepository.findGrpIdByName("Plains").shouldNotBeNull()</ID>
     <ID>MissingAssertSoftly:CardInjectionTest.kt$CardInjectionTest$first.grpId shouldBe second.grpId</ID>
     <ID>MissingAssertSoftly:CardInjectionTest.kt$CardInjectionTest$obj.grpId shouldBe injected.grpId</ID>
-    <ID>MissingAssertSoftly:ChannelPuzzleTest.kt$ChannelPuzzleTest$h.passUntil(maxPasses = 20) { isGameOver() || ai.life &lt;= 0 }.shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:ChannelPuzzleTest.kt$ChannelPuzzleTest$h.passUntil(maxPasses = 30) { isGameOver() || ai.life &lt;= 0 }.shouldBeTrue()</ID>
     <ID>MissingAssertSoftly:ClientSettingsMergeTest.kt$ClientSettingsMergeTest$merged.stopsCount shouldBe 2</ID>
     <ID>MissingAssertSoftly:ClientSettingsTest.kt$ClientSettingsTest$profile.isEnabled(humanId, PhaseType.DRAW).shouldBeTrue()</ID>
     <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$allMsgs.size shouldBeGreaterThanOrEqualTo 3</ID>
