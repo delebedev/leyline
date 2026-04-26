@@ -39,7 +39,11 @@ const val COMBAT_DECK = """
  * Deck: Raging Goblin (haste) + Mountain — enables turn-1 combat without
  * multi-turn advancement (which is unreliable due to autoPassAndAdvance
  * overshooting turns). AI gets the same deck.
+ *
+ * Blocker-side flows live in [BlockerDeclarationInteractionTest] — split
+ * for the LargeClass threshold; the two suites share [COMBAT_DECK].
  */
+@Suppress("LargeClass")
 class CombatInteractionTest :
     InteractionTest({
 
