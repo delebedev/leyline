@@ -1,5 +1,6 @@
 package leyline.game
 
+import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
@@ -20,7 +21,12 @@ import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.RequestBuilder
+import leyline.game.event.GameEvent
+import leyline.game.event.Zone
 import leyline.game.mapping.PromptIds
+import leyline.game.snapshot.CardSnapshot
+import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.PhaseSnapshot
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -395,5 +401,135 @@ class BundleBuilderTest :
                 result.messages[1].type shouldBe GREMessageType.PayCostsReq_695e
                 result.messages[1].prompt.promptId shouldBe PromptIds.PAY_COSTS
             }
+        }
+
+        // --- isTurnOrTriggerDraw unit tests (leyline-pey) ---
+        //
+        // postAction overrides the default `SendAndRecord` to `SendHiFi` when the
+        // drained event stream describes a turn-boundary or trigger-driven draw
+        // for the active seat. These cases pin the helper contract directly so
+        // regressions surface without needing a full game state.
+
+        fun drawSnap(
+            drawnCard: ForgeCardId,
+            activeSeat: SeatId,
+            phase: PhaseType? = PhaseType.MAIN1,
+        ): GsmSnapshot =
+            GsmSnapshot.forTest(
+                objects =
+                    mapOf(
+                        drawnCard to
+                            CardSnapshot(
+                                forgeCardId = drawnCard,
+                                name = "Grizzly Bears",
+                                grpId = 1,
+                                owner = activeSeat,
+                                controller = activeSeat,
+                            ),
+                    ),
+                phase =
+                    PhaseSnapshot(
+                        turn = 2,
+                        activePlayer = activeSeat,
+                        priorityPlayer = activeSeat,
+                        phase = phase,
+                    ),
+            )
+
+        test("isTurnOrTriggerDraw: Case A — turn-boundary draw returns true") {
+            val card = ForgeCardId(42)
+            val seat = SeatId(1)
+            val events = listOf(GameEvent.ZoneChanged(card, Zone.Library, Zone.Hand))
+
+            BundleBuilder.isTurnOrTriggerDraw(events, drawSnap(card, seat), seat) shouldBe true
+        }
+
+        test("isTurnOrTriggerDraw: Case B — spell-driven draw returns false") {
+            val card = ForgeCardId(42)
+            val seat = SeatId(1)
+            val events =
+                listOf(
+                    GameEvent.SpellCast(ForgeCardId(99), seat),
+                    GameEvent.ZoneChanged(card, Zone.Library, Zone.Hand),
+                    GameEvent.SpellResolved(ForgeCardId(99), hasFizzled = false),
+                )
+
+            BundleBuilder.isTurnOrTriggerDraw(events, drawSnap(card, seat), seat) shouldBe false
+        }
+
+        test("isTurnOrTriggerDraw: Case C — no draw event returns false") {
+            val seat = SeatId(1)
+            BundleBuilder.isTurnOrTriggerDraw(emptyList(), drawSnap(ForgeCardId(0), seat), seat) shouldBe false
+        }
+
+        test("isTurnOrTriggerDraw: UPKEEP phase (trigger-driven draw) returns true") {
+            val card = ForgeCardId(42)
+            val seat = SeatId(1)
+            val events = listOf(GameEvent.ZoneChanged(card, Zone.Library, Zone.Hand))
+
+            BundleBuilder.isTurnOrTriggerDraw(events, drawSnap(card, seat, PhaseType.UPKEEP), seat) shouldBe true
+        }
+
+        test("isTurnOrTriggerDraw: phase=null falls back to default (false)") {
+            val card = ForgeCardId(42)
+            val seat = SeatId(1)
+            val events = listOf(GameEvent.ZoneChanged(card, Zone.Library, Zone.Hand))
+
+            BundleBuilder.isTurnOrTriggerDraw(events, drawSnap(card, seat, phase = null), seat) shouldBe false
+        }
+
+        test("isTurnOrTriggerDraw: draw by non-active seat returns false") {
+            val card = ForgeCardId(42)
+            val activeSeat = SeatId(1)
+            val opponent = SeatId(2)
+            // Card owned by opponent, not active seat
+            val snap =
+                GsmSnapshot.forTest(
+                    objects =
+                        mapOf(
+                            card to
+                                CardSnapshot(
+                                    forgeCardId = card,
+                                    name = "Grizzly Bears",
+                                    grpId = 1,
+                                    owner = opponent,
+                                    controller = opponent,
+                                ),
+                        ),
+                    phase =
+                        PhaseSnapshot(
+                            turn = 2,
+                            activePlayer = activeSeat,
+                            priorityPlayer = activeSeat,
+                            phase = PhaseType.MAIN1,
+                        ),
+                )
+            val events = listOf(GameEvent.ZoneChanged(card, Zone.Library, Zone.Hand))
+
+            BundleBuilder.isTurnOrTriggerDraw(events, snap, activeSeat) shouldBe false
+        }
+
+        test("isTurnOrTriggerDraw: COMBAT phase (out of window) returns false") {
+            val card = ForgeCardId(42)
+            val seat = SeatId(1)
+            val events = listOf(GameEvent.ZoneChanged(card, Zone.Library, Zone.Hand))
+
+            BundleBuilder.isTurnOrTriggerDraw(events, drawSnap(card, seat, PhaseType.COMBAT_BEGIN), seat) shouldBe false
+        }
+
+        test("postAction emits SendAndRecord when there are no draw events (baseline preserved)") {
+            val (b, game, counter) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Plains", human, ZoneType.Battlefield)
+                }
+
+            val result = base.bundleBuilder(b).postAction(game, counter)
+            val gsm = result.messages.first { it.hasGameStateMessage() }.gameStateMessage
+
+            // startWithBoard parks us at MAIN1 with activePlayer=humanPlayer=seat 1.
+            // No Library→Hand events, so the override must not fire and the default
+            // SendAndRecord (acting == viewing) stands. Guards against the override
+            // swallowing non-draw postAction bundles.
+            gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
         }
     })
