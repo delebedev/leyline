@@ -11,33 +11,20 @@ import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 
 /**
- * Session-tier blocker declaration tests — DeclareBlockersReq flow,
- * iterative toggle semantics, multi-blocker assignment.
- *
- * Split out from CombatInteractionTest at the LargeClass threshold —
- * blocker declaration is a distinct flow with its own setup ergonomics
- * (AI scripted to attack so the human can prompt-respond as defender).
- *
- * Uses [COMBAT_DECK] (declared in CombatInteractionTest.kt).
- *
- * Uses non-validating harness: combat zone transfers can produce transient
+ * Non-validating harness: combat zone transfers can produce transient
  * instanceId gaps (known StateMapper issue tracked separately).
  */
 class BlockerDeclarationInteractionTest :
     InteractionTest({
 
         /**
-         * Setup: human casts Raging Goblin turn 1 (potential blocker).
-         * AI scripted to cast Raging Goblin and attack with it on its turn.
-         * Advances to the point where DeclareBlockersReq should be sent.
+         * Returns (humanBlockerIid, aiAttackerIid) at COMBAT_DECLARE_BLOCKERS,
+         * ready for the human to respond to DeclareBlockersReq.
          *
-         * Returns pair of (humanBlockerInstanceId, aiAttackerInstanceId).
-         *
-         * Key insight: after declareNoAttackers() on human's combat, the
-         * autoPassAndAdvance inside the submit handler processes the AI turn.
-         * DO NOT call passPriority() to "advance" — it submits Pass to the
-         * COMBAT_DECLARE_BLOCKERS pending, which means "no blockers" and
-         * skips the entire DeclareBlockersReq flow.
+         * DO NOT call passPriority() after declareNoAttackers() to "advance" —
+         * it submits Pass to the COMBAT_DECLARE_BLOCKERS pending (= no blockers)
+         * and skips the entire DeclareBlockersReq flow. Use harness.advanceToPhase
+         * + triggerAutoPass instead, as below.
          */
         fun setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
             startGame(

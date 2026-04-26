@@ -21,10 +21,6 @@ import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.Step
 import kotlin.time.Duration.Companion.seconds
 
-/**
- * Combat test deck: haste creatures (Raging Goblin) + Mountains.
- * Also includes green splash for Giant Growth/Elves (reused by targeting tests).
- */
 const val COMBAT_DECK = """
 20 Raging Goblin
 4 Llanowar Elves
@@ -34,20 +30,11 @@ const val COMBAT_DECK = """
 """
 
 /**
- * Session-tier combat tests — MatchSession behavior across declare-attackers,
- * declare-blockers, assign-damage, and AI combat phases.
- *
- * Deck: Raging Goblin (haste) + Mountain — enables turn-1 combat without
- * multi-turn advancement (which is unreliable due to autoPassAndAdvance
- * overshooting turns). AI gets the same deck.
- *
- * Blocker-side flows live in [BlockerDeclarationInteractionTest] — split
- * for the LargeClass threshold; the two suites share [COMBAT_DECK].
+ * Raging Goblin (haste) + Mountain enables turn-1 combat without multi-turn
+ * advancement — autoPassAndAdvance overshoots turns when stretched further.
  */
-// LargeClass suppression: 16 attacker-side tests share three setup helpers
-// (setupSingleAttacker / setupMultipleAttackers / setupWithAiBlocker). Splitting
-// further would either fragment the helpers or force them into a parent class —
-// neither pays off for a stable test suite that's read top-to-bottom by region.
+// LargeClass: attacker-side tests share three setup helpers; splitting
+// further fragments them.
 @Suppress("LargeClass")
 class CombatInteractionTest :
     InteractionTest({
