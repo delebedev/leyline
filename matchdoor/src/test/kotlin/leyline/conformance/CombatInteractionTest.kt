@@ -3,6 +3,7 @@ package leyline.conformance
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
@@ -43,6 +44,10 @@ const val COMBAT_DECK = """
  * Blocker-side flows live in [BlockerDeclarationInteractionTest] — split
  * for the LargeClass threshold; the two suites share [COMBAT_DECK].
  */
+// LargeClass suppression: 16 attacker-side tests share three setup helpers
+// (setupSingleAttacker / setupMultipleAttackers / setupWithAiBlocker). Splitting
+// further would either fragment the helpers or force them into a parent class —
+// neither pays off for a stable test suite that's read top-to-bottom by region.
 @Suppress("LargeClass")
 class CombatInteractionTest :
     InteractionTest({
@@ -66,14 +71,14 @@ class CombatInteractionTest :
 
             // Turn 1: play Mountain, cast Raging Goblin (R)
             playLand().shouldBeTrue()
-            harness.resolveSpell("Raging Goblin").shouldBeTrue()
+            resolveSpell("Raging Goblin").shouldBeTrue()
 
             // Still turn 1 — Raging Goblin has haste, can attack this turn
             turn() shouldBe 1
             isAiTurn().shouldBeFalse()
 
             val creatures = humanBattlefieldCreatures()
-            creatures.shouldNotBeEmpty()
+            creatures shouldHaveSize 1
             return creatures.first().first
         }
 
@@ -138,7 +143,7 @@ class CombatInteractionTest :
             passPriority() // resolve
 
             val creatures = humanBattlefieldCreatures()
-            creatures.shouldNotBeEmpty()
+            creatures shouldHaveSize 1
             return creatures.first().first
         }
 
@@ -214,25 +219,16 @@ class CombatInteractionTest :
             // Now on human's turn 2 (or still turn 1 if AI turn was fast)
             playLand()
 
-            // Need a creature to attack
+            // Need a creature to attack — only the human's haste Raging Goblin
             val creatures = humanBattlefieldCreatures()
-            creatures.shouldNotBeEmpty()
+            creatures shouldHaveSize 1
             val iid = creatures.first().first
 
             // Keep passing until we see DeclareAttackersReq
             val snap = messageSnapshot()
-            var sawAttackReq = false
-            @Suppress("UnusedPrivateProperty")
-            for (i in 0 until 15) {
-                if (isGameOver()) break
-                val recent = messagesSince(snap)
-                if (recent.any { it.hasDeclareAttackersReq() }) {
-                    sawAttackReq = true
-                    break
-                }
-                passPriority()
-            }
-            sawAttackReq.shouldBeTrue()
+            passUntil(maxPasses = 15) {
+                messagesSince(snap).any { it.hasDeclareAttackersReq() }
+            }.shouldBeTrue()
 
             // Declare our attack
             val snap2 = messageSnapshot()
@@ -387,7 +383,7 @@ class CombatInteractionTest :
             passPriority()
 
             val creatures = humanBattlefieldCreatures()
-            creatures.shouldNotBeEmpty()
+            creatures shouldHaveSize 1
             val iid = creatures.first().first
             val startTurn = turn()
 
@@ -592,7 +588,7 @@ class CombatInteractionTest :
         }
 
         test("attack all then submit deals damage") {
-            val attackerIid = setupSingleAttacker()
+            setupSingleAttacker()
 
             val lifeBefore = ai.life
             val startTurn = turn()
@@ -613,9 +609,6 @@ class CombatInteractionTest :
 
             // Verify AI took damage
             ai.life shouldBeLessThan lifeBefore
-
-            // Reference attackerIid for parity with the toggle/single-attacker variants
-            attackerIid shouldBeGreaterThan 0
         }
 
         test("declare no attackers skips combat") {
@@ -660,7 +653,7 @@ class CombatInteractionTest :
             )
 
             val creatures = humanBattlefieldCreatures()
-            creatures.shouldNotBeEmpty()
+            creatures shouldHaveSize 1 // Charging Monstrosaur — the trample attacker
             val dreadmawIid = creatures.first().first
 
             // Pass to combat → DeclareAttackersReq
@@ -742,7 +735,7 @@ class CombatInteractionTest :
             )
 
             val creatures = humanBattlefieldCreatures()
-            creatures.shouldNotBeEmpty()
+            creatures shouldHaveSize 3 // 3× Raging Goblin from the puzzle state
             val attackerIid = creatures.first().first
 
             passUntil(maxPasses = 5) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()

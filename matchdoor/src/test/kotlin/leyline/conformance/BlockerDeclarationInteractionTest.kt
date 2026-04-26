@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
@@ -71,7 +72,7 @@ class BlockerDeclarationInteractionTest :
             // directly — CombatHandler detects the combat phase and sends
             // DeclareBlockersReq before any action is submitted.
             if (allMessages.none { it.hasDeclareBlockersReq() }) {
-                leyline.game.advanceToPhase(harness.bridge, "COMBAT_DECLARE_BLOCKERS")
+                harness.advanceToPhase("COMBAT_DECLARE_BLOCKERS")
                 triggerAutoPass()
                 harness.drainSink()
             }
@@ -132,14 +133,15 @@ class BlockerDeclarationInteractionTest :
 
             passThroughCombat()
 
-            // Human life should NOT decrease (blocked damage)
-            human.life shouldBe lifeBefore
+            assertSoftly {
+                // Human life should NOT decrease (blocked damage)
+                human.life shouldBe lifeBefore
 
-            // Both 1/1s should have traded — human's creature should be in graveyard
-            val humanGy = human.getZone(ZoneType.Graveyard).cards
-            humanGy.any { it.name == "Raging Goblin" }.shouldBeTrue()
+                // Both 1/1s should have traded — human's creature should be in graveyard
+                human.getZone(ZoneType.Graveyard).cards.filter { it.name == "Raging Goblin" } shouldHaveSize 1
 
-            isGameOver().shouldBeFalse()
+                isGameOver().shouldBeFalse()
+            }
         }
 
         test("human declines blocking takes damage") {
@@ -152,13 +154,15 @@ class BlockerDeclarationInteractionTest :
 
             passThroughCombat()
 
-            // Human should have taken exactly 1 damage (Raging Goblin is 1/1)
-            human.life shouldBe lifeBefore - 1
+            assertSoftly {
+                // Human should have taken exactly 1 damage (Raging Goblin is 1/1)
+                human.life shouldBe lifeBefore - 1
 
-            // Human's creature should still be alive
-            humanBattlefieldCreatures().shouldNotBeEmpty()
+                // Human's creature should still be alive
+                humanBattlefieldCreatures() shouldHaveSize 1
 
-            isGameOver().shouldBeFalse()
+                isGameOver().shouldBeFalse()
+            }
         }
 
         test("trade produces creature deaths") {
@@ -169,14 +173,13 @@ class BlockerDeclarationInteractionTest :
 
             passThroughCombat()
 
-            // Both creatures should be dead
-            val humanGy = human.getZone(ZoneType.Graveyard).cards
-            val aiGy = ai.getZone(ZoneType.Graveyard).cards
+            assertSoftly {
+                // Both 1/1s should have traded — exactly one Raging Goblin in each graveyard
+                human.getZone(ZoneType.Graveyard).cards.filter { it.name == "Raging Goblin" } shouldHaveSize 1
+                ai.getZone(ZoneType.Graveyard).cards.filter { it.name == "Raging Goblin" } shouldHaveSize 1
 
-            humanGy.any { it.name == "Raging Goblin" }.shouldBeTrue()
-            aiGy.any { it.name == "Raging Goblin" }.shouldBeTrue()
-
-            isGameOver().shouldBeFalse()
+                isGameOver().shouldBeFalse()
+            }
         }
 
         // ─── Iterative multi-blocker toggle ──────────────────────────────────

@@ -212,8 +212,10 @@ abstract class InteractionTest(
         }
     }
 
-    fun passThroughCombat(startTurn: Int? = null) =
-        if (startTurn != null) harness.passThroughCombat(startTurn) else harness.passThroughCombat()
+    fun passThroughCombat(
+        startTurn: Int = harness.turn(),
+        maxPasses: Int = 15,
+    ) = harness.passThroughCombat(startTurn, maxPasses)
 
     // --- Combat: declare attackers ---
 
@@ -232,6 +234,8 @@ abstract class InteractionTest(
     fun declareBlockers(assignments: Map<Int, Int>) = harness.declareBlockers(assignments)
 
     fun declareNoBlockers() = harness.declareNoBlockers()
+
+    fun submitBlockers() = harness.submitBlockers()
 
     fun toggleBlockers(assignments: Map<Int, Int>): List<GREToClientMessage> = harness.toggleBlockers(assignments)
 
