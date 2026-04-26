@@ -667,6 +667,39 @@ class AnnotationBuilderTest :
             }
         }
 
+        // --- Card-scoped Designation overloads (Prepared, Saddled, Plotted, Day/Night) ---
+
+        test("gainDesignationOnCardFields") {
+            val ann = AnnotationBuilder.gainDesignationOnCard(instanceId = 313.iid, designationType = 24)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.GainDesignation
+                ann.affectorId shouldBe 313
+                ann.affectedIdsList shouldContain 313
+                ann.detailInt("DesignationType") shouldBe 24
+            }
+        }
+
+        test("preparedDesignationFields") {
+            val ann = AnnotationBuilder.preparedDesignation(instanceId = 313.iid, preparedCopyInstanceId = 318.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.Designation
+                ann.affectorId shouldBe 313
+                ann.affectedIdsList shouldContain 313
+                ann.detailInt("DesignationType") shouldBe 24
+                ann.detailInt("PreparedCopyZcid") shouldBe 318
+            }
+        }
+
+        test("loseDesignationFields") {
+            val ann = AnnotationBuilder.loseDesignation(instanceId = 313.iid, designationType = 24)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.LoseDesignation
+                ann.affectorId shouldBe 313
+                ann.affectedIdsList shouldContain 313
+                ann.detailInt("DesignationType") shouldBe 24
+            }
+        }
+
         // --- LayeredEffect (Tier 1 stub) ---
 
         test("layeredEffectFields") {

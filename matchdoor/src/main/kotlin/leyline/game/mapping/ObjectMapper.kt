@@ -178,6 +178,15 @@ object ObjectMapper {
             setObjectSourceGrpId(this.grpId)
         }
 
+        // Prepared-spell exile copy — appears as a token on the exile zone, parented
+        // to the prepared source creature so the client can render the linkage.
+        val preparedSource = cardSnap.preparedSourceForgeCardId
+        if (preparedSource != null) {
+            setIsCopy(true)
+            setObjectSourceGrpId(this.grpId)
+            setParentId(bridge.getOrAllocInstanceId(preparedSource).value)
+        }
+
         // Attachment (Auras, Equipment) — resolve attached-to instance ID via bridge
         val attachedTo = cardSnap.attachedTo
         if (attachedTo != null) {

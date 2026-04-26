@@ -81,6 +81,26 @@ data class CardSnapshot(
      * TemporaryPermanent pAnn so the client renders EOT-sacrifice tokens.
      */
     val endOfTurnLeavePlay: Boolean = false,
+    /**
+     * True when this card is prepared (Forge's `Card.isPrepared()` — the card has
+     * an active prepared-spell exile copy). Drives the `Prepared` card-state
+     * Designation persistent annotation (DesignationType=24).
+     */
+    val isPrepared: Boolean = false,
+    /**
+     * ForgeCardId of the prepare-spell exile copy associated with this card,
+     * resolved from the prepared-effect's first remembered card. Non-null only
+     * when [isPrepared] is true. Used to populate `PreparedCopyZcid` on the
+     * persistent Designation annotation.
+     */
+    val preparedCopyForgeCardId: ForgeCardId? = null,
+    /**
+     * ForgeCardId of the source card whose prepared-effect created this card
+     * as a prepared-spell exile copy. Non-null only on the copy itself.
+     * Used to populate `parentId` on the wire-side card object so the client
+     * can link the exile copy back to its prepared source creature.
+     */
+    val preparedSourceForgeCardId: ForgeCardId? = null,
 )
 
 /**

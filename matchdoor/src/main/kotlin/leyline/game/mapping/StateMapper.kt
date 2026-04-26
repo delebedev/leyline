@@ -332,6 +332,16 @@ object StateMapper {
                     affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
                 )
             }
+        val preparedDesignationPersistentFromSnap =
+            snap.objects.values
+                .mapNotNull { card ->
+                    val copyId = card.preparedCopyForgeCardId
+                    if (!card.isPrepared || copyId == null) return@mapNotNull null
+                    AnnotationBuilder.preparedDesignation(
+                        instanceId = bridge.getOrAllocInstanceId(card.forgeCardId),
+                        preparedCopyInstanceId = bridge.getOrAllocInstanceId(copyId),
+                    )
+                }
 
         // Stages 4-5 + persistent computation
         val remaining =
@@ -350,6 +360,7 @@ object StateMapper {
                 qualificationPersistentFromSnap = qualificationPersistentFromSnap,
                 temporaryPermanentPersistentFromSnap = temporaryPermanentPersistentFromSnap,
                 abilityWordPersistentFromSnap = abilityWordPersistentFromSnap,
+                preparedDesignationPersistentFromSnap = preparedDesignationPersistentFromSnap,
             )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
@@ -710,6 +721,7 @@ object StateMapper {
         qualificationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         temporaryPermanentPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         abilityWordPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        preparedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds =
             events
@@ -781,6 +793,7 @@ object StateMapper {
                 crewTypeChangePersistent = crewTypeChangePersistent,
                 temporaryPermanentPersistent = temporaryPermanentPersistent,
                 targetSpecPersistent = targetSpecPersistent,
+                preparedDesignationPersistent = preparedDesignationPersistentFromSnap,
             )
         val batch =
             PersistentAnnotationStore.Companion.computeBatch(

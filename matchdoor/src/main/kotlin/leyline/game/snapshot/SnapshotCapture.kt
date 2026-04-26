@@ -279,6 +279,22 @@ object SnapshotCapture {
         // Attachment
         val attachedTo = card.attachedTo?.let { ForgeCardId(it.id) }
 
+        // Prepared (Forge `Card.isPrepared` — has an active prepared-spell exile copy).
+        // Source-side: the prepared creature exposes `getPrepared()` → command-zone effect.
+        // The effect's first remembered card is the exile copy (the prepare spell).
+        val isPrepared = card.isPrepared
+        val preparedCopyForgeCardId: ForgeCardId? =
+            if (isPrepared) {
+                val firstRemembered = card.prepared?.firstRemembered
+                (firstRemembered as? Card)?.let { ForgeCardId(it.id) }
+            } else {
+                null
+            }
+        // Copy-side: walk command-zone effects to find the one remembering this card.
+        // The effect's effect source is the original prepared creature.
+        val preparedSourceForgeCardId: ForgeCardId? =
+            findPreparedSource(card, game = card.game)
+
         // DFC fields — mirror resolveOthersideGrpId logic
         val othersideGrpId = ObjectMapper.resolveOthersideGrpId(card, bridge.cardRepository)
         val currentStateNameIsBackside =
@@ -339,7 +355,34 @@ object SnapshotCapture {
             othersideGrpId = othersideGrpId,
             currentStateNameIsBackside = currentStateNameIsBackside,
             combatRole = combatRole,
+            isPrepared = isPrepared,
+            preparedCopyForgeCardId = preparedCopyForgeCardId,
+            preparedSourceForgeCardId = preparedSourceForgeCardId,
         )
+    }
+
+    /**
+     * Walk command-zone effects to find the one whose first remembered card is [card].
+     * Returns the ForgeCardId of the prepared-effect's source (the original prepared creature)
+     * when [card] is a prepared-spell exile copy; null otherwise.
+     */
+    private fun findPreparedSource(
+        card: Card,
+        game: Game,
+    ): ForgeCardId? {
+        if (card.gamePieceType != GamePieceType.TOKEN) return null
+        if (card.currentState?.stateName != forge.card.CardStateName.PreparedSpell) return null
+        for (player in game.players) {
+            val command = player.getZone(ForgeZoneType.Command) ?: continue
+            for (eff in command) {
+                val remembered = eff.firstRemembered
+                if (remembered === card) {
+                    val effectSource = eff.effectSource ?: continue
+                    return ForgeCardId(effectSource.id)
+                }
+            }
+        }
+        return null
     }
 
     private fun resolveCombatRole(

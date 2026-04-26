@@ -14,4 +14,8 @@ object AnnotationConstants {
     /** Shared Battlefield zone ID, used as `affectorId` on zone-scoped persistent
      *  annotations whose affector is the zone rather than any specific permanent. */
     val BATTLEFIELD_ZONE_AFFECTOR: InstanceId = InstanceId(28)
+
+    /** `DesignationType` enum value for the `Prepared` card-state designation.
+     *  Carried on `GainDesignation` / persistent `Designation` / `LoseDesignation`. */
+    const val DESIGNATION_TYPE_PREPARED: Int = 24
 }
