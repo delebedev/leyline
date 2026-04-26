@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -69,5 +70,30 @@ class SlotLayoutTest :
                 )
             layout.forgeIndexFor(100) shouldBe -2
             layout.forgeIndexFor(101) shouldBe -1
+        }
+
+        test("forgeIndexFor counts only Activated slots, skipping Intrinsic") {
+            // Kaito-shaped layout: trigger at slot 0, activated at slots 1..3.
+            // Forge-order activated SAs are [+1, -2, -9] (no trigger in the
+            // non-mana activated list), so each Activated grpId must map to
+            // its position among the Activated slots, not its raw slot index.
+            val layout =
+                SlotLayout(
+                    keywordCount = 0,
+                    activatedCount = 3,
+                    slots =
+                        listOf(
+                            SlotEntry(abilityGrpId = 175794, textId = 0, kind = SlotKind.Intrinsic),
+                            SlotEntry(abilityGrpId = 175795, textId = 0, kind = SlotKind.Activated),
+                            SlotEntry(abilityGrpId = 175796, textId = 0, kind = SlotKind.Activated),
+                            SlotEntry(abilityGrpId = 175798, textId = 0, kind = SlotKind.Activated),
+                        ),
+                )
+            assertSoftly(layout) {
+                forgeIndexFor(175794).shouldBeNull() // trigger — not activatable
+                forgeIndexFor(175795) shouldBe 0
+                forgeIndexFor(175796) shouldBe 1
+                forgeIndexFor(175798) shouldBe 2
+            }
         }
     })

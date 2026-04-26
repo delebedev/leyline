@@ -1,0 +1,17 @@
+[metadata]
+Name:Kaito Activate Abilities
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Activate Kaito to verify ability index/labels in MTGA UI.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Mountain
+humanbattlefield=Kaito, Cunning Infiltrator|Counters:LOYALTY=9;Grizzly Bears;Island;Island;Island
+humanlibrary=Island;Island;Island
+ailibrary=Mountain;Mountain;Mountain
