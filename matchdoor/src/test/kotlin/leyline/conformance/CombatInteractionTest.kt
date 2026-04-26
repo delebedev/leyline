@@ -752,4 +752,47 @@ class CombatInteractionTest :
 
             isGameOver().shouldBeFalse()
         }
+
+        // ─── Zero-blocker auto-advance ────────────────────────────────────────
+
+        test("zero blockers auto-advances without DeclareBlockersReq") {
+            // Human has only lands, AI has haste attackers — server should
+            // auto-advance through declare-blockers instead of prompting.
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Plains;Plains
+                humanlibrary=Plains;Plains;Plains;Plains;Plains
+                aibattlefield=Mountain;Mountain;Raging Goblin;Raging Goblin
+                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+                """,
+                name = "Zero Blockers AI Attack",
+                turns = 10,
+                validating = false,
+                aiScript =
+                    listOf(
+                        ScriptedAction.Attack(listOf("Raging Goblin")),
+                        ScriptedAction.PassPriority,
+                    ),
+            )
+
+            val snap = messageSnapshot()
+
+            // Pass through human turn into AI combat
+            passPriority()
+
+            // Pass through combat — should auto-advance without blockers prompt
+            passThroughCombat()
+
+            // No DeclareBlockersReq should have been sent
+            val msgs = messagesSince(snap)
+            msgs.any { it.hasDeclareBlockersReq() }.shouldBeFalse()
+
+            // Game should still be running (not stuck)
+            isGameOver().shouldBeFalse()
+        }
     })
