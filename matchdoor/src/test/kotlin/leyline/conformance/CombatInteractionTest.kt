@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThan
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.game.annotations.AnnotationConstants
@@ -630,6 +631,125 @@ class CombatInteractionTest :
             postCombat.shouldNotBeEmpty()
 
             assertAccumulatorConsistent("after declining combat")
+            isGameOver().shouldBeFalse()
+        }
+
+        // ─── Assign damage (multi-blocker / trample) ──────────────────────────
+
+        test("trample damage assignment sends AssignDamageReq and completes combat") {
+            val puzzleText = javaClass.getResource("/puzzles/trample-damage-assign.pzl")!!.readText()
+            startPuzzleRaw(
+                puzzleText,
+                validating = false,
+                aiScript =
+                    listOf(
+                        ScriptedAction.DeclareNoAttackers,
+                        ScriptedAction.Block(
+                            mapOf(
+                                "Grizzly Bears" to "Charging Monstrosaur",
+                                "Runeclaw Bear" to "Charging Monstrosaur",
+                            ),
+                        ),
+                        ScriptedAction.PassPriority,
+                    ),
+            )
+
+            val creatures = humanBattlefieldCreatures()
+            creatures.shouldNotBeEmpty()
+            val dreadmawIid = creatures.first().first
+
+            // Pass to combat → DeclareAttackersReq
+            passUntil(maxPasses = 5) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
+
+            // Attack. After submit, engine processes AI blockers → COMBAT_DAMAGE →
+            // WPC.assignCombatDamage blocks on dedicated future →
+            // auto-pass detects via checkPendingDamageAssignment → sends AssignDamageReq
+            declareAttackers(listOf(dreadmawIid))
+            submitAttackers()
+
+            // AssignDamageReq should be in messages (sent before session lock released)
+            val assignReq = allMessages.lastOrNull { it.hasAssignDamageReq() }
+            assignReq.shouldNotBeNull()
+
+            val req = assignReq.assignDamageReq
+            req.damageAssignersCount shouldBeGreaterThan 0
+
+            val assigner = req.damageAssignersList.first()
+            assigner.totalDamage shouldBe 5 // Charging Monstrosaur 5/5
+
+            // Blocker slots: minDamage=lethal(2), assignedDamage=lethal(2)
+            // Defender slot: no minDamage, maxDamage=overflow(1), assignedDamage=overflow(1)
+            val blockerSlots = assigner.assignmentsList.filter { it.minDamage > 0 }
+            val defenderSlot = assigner.assignmentsList.find { it.minDamage == 0 && it.maxDamage > 0 }
+
+            blockerSlots.size shouldBe 2
+            blockerSlots.forEach {
+                it.minDamage shouldBe 2
+                it.assignedDamage shouldBe 2
+            }
+
+            assertSoftly {
+                defenderSlot.shouldNotBeNull()
+                defenderSlot.instanceId shouldBe OPPONENT_SEAT
+                defenderSlot.maxDamage shouldBe 1 // 5 - 2 - 2 = 1 overflow
+                defenderSlot.assignedDamage shouldBe 1
+            }
+
+            // Send back the pre-filled assignments (lethal to blockers + overflow to defender)
+            val responseAssignments =
+                assigner.assignmentsList.map {
+                    it.instanceId to it.assignedDamage
+                }
+
+            val snap = messageSnapshot()
+            assignDamage(listOf(assigner.instanceId to responseAssignments))
+
+            val postAssign = messagesSince(snap)
+            val confirmation = postAssign.firstOrNull { it.hasAssignDamageConfirmation() }
+            confirmation.shouldNotBeNull()
+
+            // 1 trample overflow to AI at 1 life → game should end
+            if (!isGameOver()) passThroughCombat()
+        }
+
+        test("single blocker does not trigger AssignDamageReq") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain;Raging Goblin;Raging Goblin;Raging Goblin
+                humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+                aibattlefield=Forest;Grizzly Bears
+                ailibrary=Forest;Forest;Forest;Forest;Forest
+                """,
+                name = "Single Blocker No Prompt",
+                turns = 10,
+                validating = false,
+                aiScript =
+                    listOf(
+                        ScriptedAction.DeclareNoAttackers,
+                        ScriptedAction.Block(mapOf("Grizzly Bears" to "Raging Goblin")),
+                        ScriptedAction.PassPriority,
+                    ),
+            )
+
+            val creatures = humanBattlefieldCreatures()
+            creatures.shouldNotBeEmpty()
+            val attackerIid = creatures.first().first
+
+            passUntil(maxPasses = 5) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
+
+            declareAttackers(listOf(attackerIid))
+            submitAttackers()
+
+            passThroughCombat()
+
+            val assignReq = allMessages.firstOrNull { it.hasAssignDamageReq() }
+            assignReq.shouldBeNull()
+
             isGameOver().shouldBeFalse()
         }
     })
