@@ -1,10 +1,8 @@
 package leyline.conformance
 
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
 import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -22,37 +20,27 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
  *   - Annotations matching the action type
  */
 class AiTurnConformanceTest :
-    FunSpec({
-
-        tags(ConformanceTag)
-
-        val base = ConformanceTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    SubsystemTest({
 
         test("AI turn produces per-action diffs via EventBus playback") {
-            val (b, game, counter) = base.startGameAtMain1()
+            val (b, game, _) = startGameAtMain1()
 
             val playback = checkNotNull(b.playback) { "GamePlayback should be registered" }
 
             // Play a land to have mana, then snapshot
-            base.playLand(b) ?: error("playLand failed at seed 42")
+            playLand(b) ?: error("playLand failed at seed 42")
             b.seedDiffBaseline(game)
 
             // Pass through the rest of the human's turn until AI gets priority
             val maxPasses = 30
             @Suppress("UnusedPrivateProperty")
             for (i in 0 until maxPasses) {
-                base.passPriority(b)
+                passPriority(b)
                 if (playback.hasPendingMessages()) break
             }
 
             val batches = playback.drainQueue()
-
-            if (batches.isEmpty()) {
-                println("SKIP: no AI playback batches drained")
-                return@test
-            }
+            batches.shouldNotBeEmpty()
 
             // All messages should be GameStateMessage (no ActionsAvailableReq)
             val allMessages = batches.flatten()
@@ -71,18 +59,18 @@ class AiTurnConformanceTest :
         }
 
         test("AI action diffs contain ZoneTransfer annotations (local AI visibility)") {
-            val (b, game, counter) = base.startGameAtMain1()
+            val (b, game, _) = startGameAtMain1()
 
             val playback = checkNotNull(b.playback) { "GamePlayback should be registered" }
 
-            base.playLand(b) ?: error("playLand failed at seed 42")
+            playLand(b) ?: error("playLand failed at seed 42")
             b.seedDiffBaseline(game)
 
             val allBatches = mutableListOf<List<GREToClientMessage>>()
             val maxPasses = 100
             @Suppress("UnusedPrivateProperty")
             for (i in 0 until maxPasses) {
-                base.passPriority(b)
+                passPriority(b)
                 if (playback.hasPendingMessages()) {
                     val drained = playback.drainQueue()
                     allBatches.addAll(drained)
@@ -98,14 +86,10 @@ class AiTurnConformanceTest :
                 }
             }
 
-            val batches = allBatches
-            if (batches.isEmpty()) {
-                println("SKIP: no AI playback batches drained")
-                return@test
-            }
+            allBatches.shouldNotBeEmpty()
 
             val allGsms =
-                batches
+                allBatches
                     .flatten()
                     .filter { it.hasGameStateMessage() }
                     .map { it.gameStateMessage }
