@@ -981,6 +981,7 @@ class TargetingHandler(
                 req,
                 isLegendRule = reason == ClassifiedPrompt.SelectN.Reason.LegendRule,
                 isRevealChoose = reason == ClassifiedPrompt.SelectN.Reason.RevealChoose,
+                isResolution = reason == ClassifiedPrompt.SelectN.Reason.Resolution,
             )
         Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)

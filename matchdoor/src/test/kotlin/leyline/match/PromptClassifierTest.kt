@@ -96,6 +96,18 @@ class PromptClassifierTest :
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.Discard
         }
 
+        test("resolution-time multi-pick classifies as select-n with Resolution reason") {
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "Choose cards",
+                    semantic = PromptSemantic.SelectNResolution,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.Resolution
+        }
+
         test("candidate refs without a stronger semantic classifies as targeting") {
             classify(
                 promptType = "choose_cards",

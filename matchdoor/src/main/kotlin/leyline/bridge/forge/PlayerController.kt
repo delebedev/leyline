@@ -421,7 +421,7 @@ class PlayerController(
         params: MutableMap<String, Any>?,
     ): List<T> {
         if (delayedReveal != null) reveal(delayedReveal)
-        return targetingCoordinator.chooseEntities(optionList, min, max, title)
+        return targetingCoordinator.chooseEntities(optionList, min, max, title, sa)
     }
 
     // -- Targeting ---------------------------------------------------------

@@ -1,0 +1,18 @@
+[metadata]
+Name:Stock Up
+Goal:Win
+Turns:4
+Difficulty:Tutorial
+Description:Cast Stock Up — look at top 5 of library, choose 2 to put into hand. Pre-fix this looped 10 SelectTargetsReq with no resolution; post-fix emits one SelectNReq.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Stock Up
+humanbattlefield=Island;Island;Island
+humanlibrary=Lightning Bolt;Counterspell;Negate;Brainstorm;Ponder;Forest;Forest;Forest
+aibattlefield=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains

@@ -279,6 +279,9 @@ object RequestBuilder {
                 .setIdType(IdType.InstanceId_ab2c)
                 .setValidationType(SelectionValidationType.NonRepeatable)
                 .setOptionContext(if (isSacrificePrompt) OptionContext.Payment else optionContext)
+                // Always per spec — INT32 extremes (no weight filtering on resolution picks).
+                .setMinWeight(Int.MIN_VALUE)
+                .setMaxWeight(Int.MAX_VALUE)
 
         // For reveal-choose with empty ids (no valid target), omit minSel/maxSel (defaults to 0).
         val hasValidChoices = prompt.request.candidateRefs.isNotEmpty()
@@ -313,7 +316,34 @@ object RequestBuilder {
                 }
                 builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
             }
+            PromptSemantic.SelectNResolution -> {
+                // Look-and-pick (Stock Up / Dig). Inner prompt carries a PromptId
+                // Parameter, NOT a top-level promptId. Outer GRE-message prompt
+                // (set in BundleBuilder.selectNBundle) carries the real promptId
+                // + 2 CardId Number params (source iid, selection count).
+                val sourceEntityId = prompt.request.sourceEntityId
+                if (sourceEntityId != null) {
+                    val sourceInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
+                    builder.setSourceId(sourceInstanceId)
+                }
+                builder.setPrompt(
+                    Prompt
+                        .newBuilder()
+                        .addParameters(
+                            PromptParameter
+                                .newBuilder()
+                                .setParameterName("Parameter")
+                                .setType(ParameterType.PromptId)
+                                .setPromptId(PromptIds.SELECT_N_INNER_PARAMETER),
+                        ),
+                )
+            }
             else -> {
+                val sourceEntityId = prompt.request.sourceEntityId
+                if (sourceEntityId != null) {
+                    val sourceInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
+                    builder.setSourceId(sourceInstanceId)
+                }
                 builder.setPrompt(
                     Prompt.newBuilder().setPromptId(
                         if (isSacrificePrompt) PromptIds.PAY_COSTS else PromptIds.SELECT_N,
