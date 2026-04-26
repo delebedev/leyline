@@ -310,6 +310,13 @@ object SnapshotCapture {
         val grpId =
             if (card.gamePieceType == GamePieceType.EFFECT) {
                 0
+            } else if (preparedSourceForgeCardId != null) {
+                // Prepared-spell exile copies are TOKEN-piece-typed but represent a normal
+                // spell card — resolve their grpId by name like a regular card, bypassing
+                // the token-spawning-ability path which only fits engine-spawned tokens.
+                bridge.cardRepository.findGrpIdByName(card.name)
+                    ?: bridge.cardRepository.findGrpIdByNameAnyFace(card.name)
+                    ?: 0
             } else {
                 ObjectMapper.resolveGrpId(card, bridge.cardRepository, instanceId = instanceId, bridge.tokenRegistry)
             }
