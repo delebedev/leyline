@@ -1,7 +1,6 @@
 package leyline.conformance
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -10,18 +9,14 @@ import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationConstants
-import wotc.mtgo.gre.external.messaging.Messages.*
-
-/**
- * Tier 2 end-to-end combat tests driven through real [MatchSession] code.
- *
- * Deck: Raging Goblin (haste) + Mountain — enables turn-1 combat without
- * multi-turn advancement (which is unreliable due to autoPassAndAdvance
- * overshooting turns). AI gets the same deck.
- */
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.AttackState
+import wotc.mtgo.gre.external.messaging.Messages.BlockState
+import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
+import wotc.mtgo.gre.external.messaging.Messages.Phase
+import wotc.mtgo.gre.external.messaging.Messages.Step
 
 /**
  * Combat test deck: haste creatures (Raging Goblin) + Mountains.
@@ -35,133 +30,123 @@ const val COMBAT_DECK = """
 16 Forest
 """
 
-class CombatFlowTest :
-    FunSpec({
+/**
+ * Session-tier combat tests — MatchSession behavior across declare-attackers,
+ * declare-blockers, assign-damage, and AI combat phases.
+ *
+ * Deck: Raging Goblin (haste) + Mountain — enables turn-1 combat without
+ * multi-turn advancement (which is unreliable due to autoPassAndAdvance
+ * overshooting turns). AI gets the same deck.
+ */
+class CombatInteractionTest :
+    InteractionTest({
 
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
-
-        // --- Setup helpers ---
+        // ─── Setup helpers ────────────────────────────────────────────────────
 
         fun setupSingleAttacker(): Int {
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
-            harness = h
-            h.connectAndKeep()
-
-            h.installScriptedAi(
-                listOf(
-                    ScriptedAction.PlayLand("Mountain"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.PassPriority,
-                    ScriptedAction.PlayLand("Mountain"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.PassPriority,
-                ),
+            startGame(
+                deckList = COMBAT_DECK,
+                validating = false,
+                aiScript =
+                    listOf(
+                        ScriptedAction.PlayLand("Mountain"),
+                        ScriptedAction.DeclareNoAttackers,
+                        ScriptedAction.PassPriority,
+                        ScriptedAction.PlayLand("Mountain"),
+                        ScriptedAction.DeclareNoAttackers,
+                        ScriptedAction.PassPriority,
+                    ),
             )
 
             // Turn 1: play Mountain, cast Raging Goblin (R)
-            h.playLand().shouldBeTrue()
-            h.resolveSpell("Raging Goblin").shouldBeTrue()
+            playLand().shouldBeTrue()
+            harness.resolveSpell("Raging Goblin").shouldBeTrue()
 
             // Still turn 1 — Raging Goblin has haste, can attack this turn
-            h.turn() shouldBe 1
-            h.isAiTurn().shouldBeFalse()
+            turn() shouldBe 1
+            isAiTurn().shouldBeFalse()
 
-            val creatures = h.humanBattlefieldCreatures()
+            val creatures = humanBattlefieldCreatures()
             creatures.shouldNotBeEmpty()
             return creatures.first().first
         }
 
         fun setupMultipleAttackers(): List<Int> {
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
-            harness = h
-            h.connectAndKeep()
-
-            h.installScriptedAi(
-                listOf(
-                    ScriptedAction.PlayLand("Mountain"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.PassPriority,
-                    ScriptedAction.PlayLand("Mountain"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.PassPriority,
-                    ScriptedAction.PlayLand("Mountain"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.PassPriority,
-                ),
+            startGame(
+                deckList = COMBAT_DECK,
+                validating = false,
+                aiScript =
+                    listOf(
+                        ScriptedAction.PlayLand("Mountain"),
+                        ScriptedAction.DeclareNoAttackers,
+                        ScriptedAction.PassPriority,
+                        ScriptedAction.PlayLand("Mountain"),
+                        ScriptedAction.DeclareNoAttackers,
+                        ScriptedAction.PassPriority,
+                        ScriptedAction.PlayLand("Mountain"),
+                        ScriptedAction.DeclareNoAttackers,
+                        ScriptedAction.PassPriority,
+                    ),
             )
 
             // Turn 1: play Mountain, cast Raging Goblin #1
-            h.playLand().shouldBeTrue()
-            val cast1 = h.castSpellByName("Raging Goblin")
-            cast1.shouldBeTrue()
-            h.passPriority() // resolve
+            playLand().shouldBeTrue()
+            castSpellByName("Raging Goblin").shouldBeTrue()
+            passPriority() // resolve
 
             // Advance past turn 1 — may overshoot to turn 2 or 3
-            h.passPriority()
+            passPriority()
 
             // If we landed on AI's turn, pass again to get back to human
-            if (h.isAiTurn() && !h.isGameOver()) {
-                h.passPriority()
-            }
+            if (isAiTurn() && !isGameOver()) passPriority()
 
             // Play second land + cast second creature
-            h.playLand()
-            val cast2 = h.castSpellByName("Raging Goblin")
-            if (cast2) h.passPriority() // resolve
+            playLand()
+            val cast2 = castSpellByName("Raging Goblin")
+            if (cast2) passPriority() // resolve
 
-            val creatures = h.humanBattlefieldCreatures()
+            val creatures = humanBattlefieldCreatures()
             creatures.size shouldBeGreaterThanOrEqualTo 2
             return creatures.map { it.first }
         }
 
         fun setupWithAiBlocker(): Int {
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
-            harness = h
-            h.connectAndKeep()
-
-            // AI: play Mountain, cast Raging Goblin (has blocker), skip attacking, pass
-            h.installScriptedAi(
-                listOf(
-                    ScriptedAction.PlayLand("Mountain"),
-                    ScriptedAction.CastSpell("Raging Goblin"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.PassPriority,
-                    ScriptedAction.PlayLand("Mountain"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.PassPriority,
-                ),
+            startGame(
+                deckList = COMBAT_DECK,
+                validating = false,
+                aiScript =
+                    listOf(
+                        ScriptedAction.PlayLand("Mountain"),
+                        ScriptedAction.CastSpell("Raging Goblin"),
+                        ScriptedAction.DeclareNoAttackers,
+                        ScriptedAction.PassPriority,
+                        ScriptedAction.PlayLand("Mountain"),
+                        ScriptedAction.DeclareNoAttackers,
+                        ScriptedAction.PassPriority,
+                    ),
             )
 
             // Human turn 1: play Mountain, cast Raging Goblin
-            h.playLand().shouldBeTrue()
-            val cast = h.castSpellByName("Raging Goblin")
-            cast.shouldBeTrue()
-            h.passPriority() // resolve
+            playLand().shouldBeTrue()
+            castSpellByName("Raging Goblin").shouldBeTrue()
+            passPriority() // resolve
 
-            val creatures = h.humanBattlefieldCreatures()
+            val creatures = humanBattlefieldCreatures()
             creatures.shouldNotBeEmpty()
             return creatures.first().first
         }
 
-        // --- Tests ---
+        // ─── Declare attackers ────────────────────────────────────────────────
 
         test("human declares single attacker") {
             val attackerIid = setupSingleAttacker()
-            val h = harness!!
 
             // Pass from Main1 to advance to combat — auto-pass should emit DeclareAttackersReq
-            val snap = h.messageSnapshot()
-            h.passPriority()
+            val snap = messageSnapshot()
+            passPriority()
 
             // Find DeclareAttackersReq in messages
-            val msgs = h.messagesSince(snap)
+            val msgs = messagesSince(snap)
             val daReq = msgs.firstOrNull { it.hasDeclareAttackersReq() }
             daReq.shouldNotBeNull()
 
@@ -173,27 +158,26 @@ class CombatFlowTest :
             (attackerIid in eligibleIds).shouldBeTrue()
 
             // Declare the attack
-            val snap2 = h.messageSnapshot()
-            h.declareAttackers(listOf(attackerIid))
+            val snap2 = messageSnapshot()
+            declareAttackers(listOf(attackerIid))
 
             // Should get confirmation messages
-            val postAttack = h.messagesSince(snap2)
+            val postAttack = messagesSince(snap2)
             postAttack.shouldNotBeEmpty()
 
             // Validate accumulated state
-            h.accumulator.assertConsistent("after single attacker declared")
-            h.isGameOver().shouldBeFalse()
+            assertAccumulatorConsistent("after single attacker declared")
+            isGameOver().shouldBeFalse()
         }
 
         test("human declares multiple attackers") {
             val attackerIids = setupMultipleAttackers()
-            val h = harness!!
 
             // Advance to combat
-            val snap = h.messageSnapshot()
-            h.passPriority()
+            val snap = messageSnapshot()
+            passPriority()
 
-            val msgs = h.messagesSince(snap)
+            val msgs = messagesSince(snap)
             val daReq = msgs.firstOrNull { it.hasDeclareAttackersReq() }
             daReq.shouldNotBeNull()
 
@@ -206,73 +190,71 @@ class CombatFlowTest :
 
             // Declare 2 attackers
             val twoAttackers = ourEligible.take(2)
-            val snap2 = h.messageSnapshot()
-            h.declareAttackers(twoAttackers)
+            val snap2 = messageSnapshot()
+            declareAttackers(twoAttackers)
 
-            val postAttack = h.messagesSince(snap2)
+            val postAttack = messagesSince(snap2)
             postAttack.shouldNotBeEmpty()
 
-            h.accumulator.assertConsistent("after multiple attackers declared")
+            assertAccumulatorConsistent("after multiple attackers declared")
         }
 
         test("AI declares blockers") {
             val attackerIid = setupWithAiBlocker()
-            val h = harness!!
 
             // End human turn → AI turn (AI casts Raging Goblin via script) → back to human
-            h.passPriority()
+            passPriority()
 
             // Now on human's turn 2 (or still turn 1 if AI turn was fast)
-            h.playLand()
+            playLand()
 
             // Need a creature to attack
-            val creatures = h.humanBattlefieldCreatures()
+            val creatures = humanBattlefieldCreatures()
             creatures.shouldNotBeEmpty()
             val iid = creatures.first().first
 
             // Keep passing until we see DeclareAttackersReq
-            val snap = h.messageSnapshot()
+            val snap = messageSnapshot()
             var sawAttackReq = false
             @Suppress("UnusedPrivateProperty")
             for (i in 0 until 15) {
-                if (h.isGameOver()) break
-                val recent = h.messagesSince(snap)
+                if (isGameOver()) break
+                val recent = messagesSince(snap)
                 if (recent.any { it.hasDeclareAttackersReq() }) {
                     sawAttackReq = true
                     break
                 }
-                h.passPriority()
+                passPriority()
             }
             sawAttackReq.shouldBeTrue()
 
             // Declare our attack
-            val snap2 = h.messageSnapshot()
-            h.declareAttackers(listOf(iid))
+            val snap2 = messageSnapshot()
+            declareAttackers(listOf(iid))
 
             // After declaring attackers, auto-pass should advance through AI blocking
-            val postAttack = h.messagesSince(snap2)
+            val postAttack = messagesSince(snap2)
             postAttack.shouldNotBeEmpty()
 
             // Game state should remain valid through combat
-            h.accumulator.assertConsistent("after combat with AI blocker")
-            h.isGameOver().shouldBeFalse()
+            assertAccumulatorConsistent("after combat with AI blocker")
+            isGameOver().shouldBeFalse()
         }
 
         test("combat damage frame carries persistent DamagedThisTurn badge") {
             val attackerIid = setupWithAiBlocker()
-            val h = harness!!
 
-            h.passPriority()
-            h.playLand()
-            val snap = h.messageSnapshot()
-            h.passUntil { messagesSince(snap).any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
+            passPriority()
+            playLand()
+            val snap = messageSnapshot()
+            passUntil { messagesSince(snap).any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
 
-            val attackTurn = h.turn()
-            h.declareAttackers(listOf(attackerIid))
-            h.passThroughCombat(attackTurn)
+            val attackTurn = turn()
+            declareAttackers(listOf(attackerIid))
+            passThroughCombat(attackTurn)
 
             val damageGsm =
-                h.allMessages
+                allMessages
                     .filter { it.hasGameStateMessage() }
                     .map { it.gameStateMessage }
                     .firstOrNull {
@@ -293,45 +275,41 @@ class CombatFlowTest :
 
         test("combat damage resolves correctly") {
             val attackerIid = setupSingleAttacker()
-            val h = harness!!
 
             // Record AI life before combat
-            val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
-            val lifeBefore = aiPlayer.life
-            val startTurn = h.turn()
+            val lifeBefore = ai.life
+            val startTurn = turn()
 
             // Advance from Main1 to combat
-            h.passPriority()
+            passPriority()
 
             // Declare attack with haste creature (Raging Goblin, 1/1)
-            h.declareAttackers(listOf(attackerIid))
+            declareAttackers(listOf(attackerIid))
 
-            h.passThroughCombat(startTurn)
+            passThroughCombat(startTurn)
 
             // Verify AI took damage (1/1 unblocked = 1 damage)
-            val lifeAfter = aiPlayer.life
-            lifeAfter shouldBeLessThan lifeBefore
+            ai.life shouldBeLessThan lifeBefore
 
-            h.accumulator.assertConsistent("after combat damage")
+            assertAccumulatorConsistent("after combat damage")
         }
 
         test("combat damage GSM has correct phase and annotation shape") {
             val attackerIid = setupSingleAttacker()
-            val h = harness!!
 
             // Advance to combat
-            h.passPriority()
+            passPriority()
 
-            h.declareAttackers(listOf(attackerIid))
+            declareAttackers(listOf(attackerIid))
 
             // Pass through combat — damage happens during these passes
-            val startTurn = h.turn()
-            h.passThroughCombat(startTurn)
+            val startTurn = turn()
+            passThroughCombat(startTurn)
 
             // Also capture messages from post-combat (turn advance triggers GSM build)
             // Search ALL messages, not just since snapshot — damage GSM may precede turn advance
             val allGsms =
-                h.allMessages
+                allMessages
                     .filter { it.hasGameStateMessage() }
                     .map { it.gameStateMessage }
             val damageGsm =
@@ -356,7 +334,7 @@ class CombatFlowTest :
                     ann.typeList.any { it == AnnotationType.DamageDealt_af5a }
                 }
             dmgAnn.affectorId shouldBe attackerIid
-            dmgAnn.affectedIdsList shouldBe listOf(2) // AI seat
+            dmgAnn.affectedIdsList shouldBe listOf(OPPONENT_SEAT)
 
             // ModifiedLife has affectorId set (not 0)
             val lifeAnn =
@@ -373,57 +351,52 @@ class CombatFlowTest :
                 }.shouldBeTrue()
 
             // Human-turn combat animation checkpoint must not reopen priority.
-            h.allMessages.none { it.hasActionsAvailableReq() && it.gameStateId == damageGsm.gameStateId }.shouldBeTrue()
+            allMessages.none { it.hasActionsAvailableReq() && it.gameStateId == damageGsm.gameStateId }.shouldBeTrue()
         }
 
         test("combat death produces zone transfer") {
-            // Use non-validating harness: combat zone transfers produce transient instanceId gaps
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
-            harness = h
-            h.connectAndKeep()
-
-            // AI: play Mountain, cast Raging Goblin (blocker), skip attacking, pass
-            h.installScriptedAi(
-                listOf(
-                    ScriptedAction.PlayLand("Mountain"),
-                    ScriptedAction.CastSpell("Raging Goblin"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.DeclareNoBlockers, // let human's attack through (unblocked)
-                    ScriptedAction.PassPriority,
-                    ScriptedAction.PlayLand("Mountain"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.PassPriority,
-                ),
+            // AI: play Mountain, cast Raging Goblin (blocker), skip attacking, decline blocking
+            startGame(
+                deckList = COMBAT_DECK,
+                validating = false,
+                aiScript =
+                    listOf(
+                        ScriptedAction.PlayLand("Mountain"),
+                        ScriptedAction.CastSpell("Raging Goblin"),
+                        ScriptedAction.DeclareNoAttackers,
+                        ScriptedAction.DeclareNoBlockers, // let human's attack through (unblocked)
+                        ScriptedAction.PassPriority,
+                        ScriptedAction.PlayLand("Mountain"),
+                        ScriptedAction.DeclareNoAttackers,
+                        ScriptedAction.PassPriority,
+                    ),
             )
 
             // Human turn 1: play Mountain, cast Raging Goblin
-            h.playLand().shouldBeTrue()
-            val cast = h.castSpellByName("Raging Goblin")
-            cast.shouldBeTrue()
-            h.passPriority() // resolve
+            playLand().shouldBeTrue()
+            castSpellByName("Raging Goblin").shouldBeTrue()
+            passPriority() // resolve
 
             // End human turn → AI turn (casts Raging Goblin) → back to human
-            h.passPriority()
+            passPriority()
 
-            val creatures = h.humanBattlefieldCreatures()
+            val creatures = humanBattlefieldCreatures()
             creatures.shouldNotBeEmpty()
             val iid = creatures.first().first
-            val startTurn = h.turn()
+            val startTurn = turn()
 
             // Advance to combat
-            h.passPriority()
+            passPriority()
 
             // Declare attack
-            val snap = h.messageSnapshot()
-            val daReq = h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
-            if (daReq != null) {
-                h.declareAttackers(listOf(iid))
-            }
+            val snap = messageSnapshot()
+            val daReq = allMessages.lastOrNull { it.hasDeclareAttackersReq() }
+            if (daReq != null) declareAttackers(listOf(iid))
 
-            h.passThroughCombat(startTurn)
+            passThroughCombat(startTurn)
 
             // Check message stream for annotations
-            val combatMsgs = h.messagesSince(snap)
+            val combatMsgs = messagesSince(snap)
             val allAnnotations =
                 combatMsgs
                     .filter { it.hasGameStateMessage() }
@@ -434,44 +407,43 @@ class CombatFlowTest :
             val hasDamage = allAnnotations.any { AnnotationType.DamageDealt_af5a in it.typeList }
             (hasZoneTransfer || hasDamage || combatMsgs.isNotEmpty()).shouldBeTrue()
 
-            h.isGameOver().shouldBeFalse()
+            isGameOver().shouldBeFalse()
         }
 
         test("full combat turn cycle") {
             val attackerIid = setupSingleAttacker()
-            val h = harness!!
-            val startTurn = h.turn()
+            val startTurn = turn()
 
-            val snap = h.messageSnapshot()
+            val snap = messageSnapshot()
 
             // Pass to combat
-            h.passPriority()
+            passPriority()
 
             // Declare attack
-            h.declareAttackers(listOf(attackerIid))
+            declareAttackers(listOf(attackerIid))
 
-            h.passThroughCombat(startTurn)
+            passThroughCombat(startTurn)
 
             // Validate full message chain
-            val allMsgs = h.messagesSince(snap)
+            val allMsgs = messagesSince(snap)
             allMsgs.size shouldBeGreaterThanOrEqualTo 3
 
             // gsId chain must be valid across all combat phases
-            assertGsIdChain(h.allMessages, context = "full combat turn cycle")
-            h.accumulator.assertConsistent("after full combat cycle")
+            assertGsIdChain(allMessages, context = "full combat turn cycle")
+            assertAccumulatorConsistent("after full combat cycle")
         }
+
+        // ─── Iterative attacker toggle (echo back) ────────────────────────────
 
         test("echo back contains creature object without combat state") {
             val attackerIid = setupSingleAttacker()
-            val h = harness!!
 
             // Advance to combat — DeclareAttackersReq emitted
-            h.passPriority()
-            val daReq = h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
-            daReq.shouldNotBeNull()
+            passPriority()
+            allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
             // Send iterative toggle (DeclareAttackersResp only, no Submit)
-            val echoMsgs = h.toggleAttackers(listOf(attackerIid))
+            val echoMsgs = toggleAttackers(listOf(attackerIid))
 
             // Echo should contain a GSM with the toggled creature
             val echoGsm = echoMsgs.firstOrNull { it.hasGameStateMessage() }
@@ -484,7 +456,7 @@ class CombatFlowTest :
             val attackerObj = objects.firstOrNull { it.instanceId == attackerIid }
             attackerObj.shouldNotBeNull()
 
-            // Conformance: client echo carries NO combat state (confirmed across 4 reference sessions)
+            // Conformance: client echo carries NO combat state.
             attackerObj.attackState shouldBe AttackState.None_a3a9
             attackerObj.blockState shouldBe BlockState.None_aa2d
 
@@ -515,13 +487,12 @@ class CombatFlowTest :
 
         test("echo back deselect clears selectedDamageRecipient") {
             val attackerIid = setupSingleAttacker()
-            val h = harness!!
 
-            h.passPriority() // advance to combat
-            h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
+            passPriority() // advance to combat
+            allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
             // Toggle ON (XOR: not committed → committed)
-            val onMsgs = h.toggleAttackers(listOf(attackerIid))
+            val onMsgs = toggleAttackers(listOf(attackerIid))
             val onReq = onMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
             onReq.attackersList
                 .first()
@@ -529,8 +500,7 @@ class CombatFlowTest :
                 .shouldBeTrue()
 
             // Toggle OFF (XOR same ID: committed → deselected)
-            // Conformance: reference session 2026-03-14_17-28-50, idx 160 (toggle committed attacker)
-            val offMsgs = h.toggleAttackers(listOf(attackerIid))
+            val offMsgs = toggleAttackers(listOf(attackerIid))
             val offReq = offMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
             offReq.attackersList
                 .first()
@@ -540,16 +510,15 @@ class CombatFlowTest :
 
         test("echo back deselect restores state") {
             val attackerIid = setupSingleAttacker()
-            val h = harness!!
 
-            h.passPriority() // advance to combat
-            h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
+            passPriority() // advance to combat
+            allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
             // Toggle ON
-            h.toggleAttackers(listOf(attackerIid))
+            toggleAttackers(listOf(attackerIid))
 
             // Toggle OFF (XOR same ID → deselects)
-            val echoMsgs = h.toggleAttackers(listOf(attackerIid))
+            val echoMsgs = toggleAttackers(listOf(attackerIid))
 
             val echoGsm = echoMsgs.firstOrNull { it.hasGameStateMessage() }
             echoGsm.shouldNotBeNull()
@@ -564,112 +533,103 @@ class CombatFlowTest :
 
         test("multi toggle before submit") {
             val attackerIids = setupMultipleAttackers()
-            val h = harness!!
             attackerIids.size shouldBeGreaterThanOrEqualTo 2
             val (iidA, iidB) = attackerIids
 
-            val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
-            val lifeBefore = aiPlayer.life
-            val startTurn = h.turn()
+            val lifeBefore = ai.life
+            val startTurn = turn()
 
-            h.passPriority() // advance to combat
-            h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
+            passPriority() // advance to combat
+            allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
-            // XOR toggle semantics (conformance: reference session 2026-03-14_17-28-50)
+            // XOR toggle semantics
             // Toggle A on: {} XOR {A} → {A}
-            h.toggleAttackers(listOf(iidA))
+            toggleAttackers(listOf(iidA))
             // Toggle B on: {A} XOR {B} → {A, B}
-            h.toggleAttackers(listOf(iidB))
+            toggleAttackers(listOf(iidB))
             // Toggle A off: {A, B} XOR {A} → {B}
-            h.toggleAttackers(listOf(iidA))
+            toggleAttackers(listOf(iidA))
 
             // Submit with B only
-            h.submitAttackers()
+            submitAttackers()
 
-            h.passThroughCombat(startTurn)
+            passThroughCombat(startTurn)
 
             // B is 1/1 Raging Goblin → 1 damage (not 2)
-            val lifeAfter = aiPlayer.life
-            lifeAfter shouldBe lifeBefore - 1
+            ai.life shouldBe lifeBefore - 1
         }
 
         test("toggle then submit deals damage") {
             val attackerIid = setupSingleAttacker()
-            val h = harness!!
 
-            val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
-            val lifeBefore = aiPlayer.life
-            val startTurn = h.turn()
+            val lifeBefore = ai.life
+            val startTurn = turn()
 
             // Advance from Main1 to combat
-            h.passPriority()
+            passPriority()
 
             // Verify DeclareAttackersReq was sent with our creature
-            val daReq = checkNotNull(h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }) { "Should receive DeclareAttackersReq" }
+            val daReq = checkNotNull(allMessages.lastOrNull { it.hasDeclareAttackersReq() }) { "Should receive DeclareAttackersReq" }
             val eligible = daReq.declareAttackersReq.attackersList.map { it.attackerInstanceId }
             (attackerIid in eligible).shouldBeTrue()
 
             // Toggle creature ON (iterative DeclareAttackersResp)
-            h.toggleAttackers(listOf(attackerIid))
+            toggleAttackers(listOf(attackerIid))
 
             // Send SubmitAttackersReq (type-only, no payload) — reference client "Done" button
-            h.submitAttackers()
+            submitAttackers()
 
-            h.passThroughCombat(startTurn)
+            passThroughCombat(startTurn)
 
             // Verify AI took damage — Raging Goblin 1/1 unblocked = 1 damage
-            val lifeAfter = aiPlayer.life
-            lifeAfter shouldBeLessThan lifeBefore
+            ai.life shouldBeLessThan lifeBefore
         }
 
         test("attack all then submit deals damage") {
             val attackerIid = setupSingleAttacker()
-            val h = harness!!
 
-            val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
-            val lifeBefore = aiPlayer.life
-            val startTurn = h.turn()
+            val lifeBefore = ai.life
+            val startTurn = turn()
 
             // Advance from Main1 to combat
-            h.passPriority()
+            passPriority()
 
             // Verify DeclareAttackersReq was sent
-            val daReq = h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
-            daReq.shouldNotBeNull()
+            allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
             // Send "Attack All" (DeclareAttackersResp with auto_declare=true)
-            h.declareAllAttackers()
+            declareAllAttackers()
 
             // Send "Done" (SubmitAttackersReq, empty)
-            h.submitAttackers()
+            submitAttackers()
 
-            h.passThroughCombat(startTurn)
+            passThroughCombat(startTurn)
 
             // Verify AI took damage
-            val lifeAfter = aiPlayer.life
-            lifeAfter shouldBeLessThan lifeBefore
+            ai.life shouldBeLessThan lifeBefore
+
+            // Reference attackerIid for parity with the toggle/single-attacker variants
+            attackerIid shouldBeGreaterThan 0
         }
 
         test("declare no attackers skips combat") {
             setupSingleAttacker()
-            val h = harness!!
 
             // Advance to combat
-            h.passPriority()
+            passPriority()
 
             // Verify we got DeclareAttackersReq
-            val daReq = h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
-            daReq.shouldNotBeNull()
+            allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
             // Declare no attackers
-            val snap = h.messageSnapshot()
-            h.declareNoAttackers()
+            val snap = messageSnapshot()
+            declareNoAttackers()
 
             // Should advance past combat
-            val postCombat = h.messagesSince(snap)
+            val postCombat = messagesSince(snap)
             postCombat.shouldNotBeEmpty()
 
-            h.accumulator.assertConsistent("after declining combat")
-            h.isGameOver().shouldBeFalse()
+            assertAccumulatorConsistent("after declining combat")
+            isGameOver().shouldBeFalse()
         }
     })
