@@ -2,6 +2,7 @@
 <SmellBaseline>
   <ManuallySuppressedIssues></ManuallySuppressedIssues>
   <CurrentIssues>
+    <ID>MissingAssertSoftly:ActivatedAbilityInteractionTest.kt$ActivatedAbilityInteractionTest$phase() shouldBe "MAIN1"</ID>
     <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.ModifiedLife</ID>
     <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$assertSoftly { ann.typeList shouldContain AnnotationType.AbilityWordActive ann.affectorId shouldBe 1 ann.affectedIdsList shouldBe listOf(303) ann.detailString("AbilityWordName") shouldBe "Descended" }</ID>
     <ID>MissingAssertSoftly:AnnotationOrderingTest.kt$AnnotationOrderingTest$ids.shouldNotBeEmpty()</ID>
@@ -13,7 +14,8 @@
     <ID>MissingAssertSoftly:CardInjectionTest.kt$CardInjectionTest$b.cardRepository.findGrpIdByName("Plains").shouldNotBeNull()</ID>
     <ID>MissingAssertSoftly:CardInjectionTest.kt$CardInjectionTest$first.grpId shouldBe second.grpId</ID>
     <ID>MissingAssertSoftly:CardInjectionTest.kt$CardInjectionTest$obj.grpId shouldBe injected.grpId</ID>
-    <ID>MissingAssertSoftly:ChannelPuzzleTest.kt$ChannelPuzzleTest$h.passUntil(maxPasses = 30) { isGameOver() || ai.life &lt;= 0 }.shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:ChannelPuzzleTest.kt$ChannelPuzzleTest$h.passUntil(maxPasses = 20) { ai.life &lt; 2 }.shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:ChannelPuzzleTest.kt$ChannelPuzzleTest$h.phase() shouldBe "MAIN1"</ID>
     <ID>MissingAssertSoftly:ClientSettingsMergeTest.kt$ClientSettingsMergeTest$merged.stopsCount shouldBe 2</ID>
     <ID>MissingAssertSoftly:ClientSettingsTest.kt$ClientSettingsTest$profile.isEnabled(humanId, PhaseType.DRAW).shouldBeTrue()</ID>
     <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$allMsgs.size shouldBeGreaterThanOrEqualTo 3</ID>

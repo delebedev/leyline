@@ -29,11 +29,13 @@ class ActivatedAbilityInteractionTest :
 
             phase() shouldBe "MAIN1"
 
-            // Activate tap ability → target opponent (seatId 2) → resolve
+            // Activate tap ability → wait for SelectTargetsReq before responding
+            // (drainSink returns before the engine emits the prompt under load).
             activateAbility("Goblin Fireslinger").shouldBeTrue()
+            passUntil(maxPasses = 5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
             selectTargets(listOf(OPPONENT_SEAT))
-            passUntil(maxPasses = 15) { ai.life < 5 }.shouldBeTrue()
 
+            passUntil(maxPasses = 10) { ai.life < 5 }.shouldBeTrue()
             ai.life shouldBe 4
         }
     })
