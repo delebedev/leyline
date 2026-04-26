@@ -26,9 +26,9 @@ import forge.game.zone.ZoneType as ForgeZoneType
 class BushwhackFightTest :
     InteractionTest({
 
-        // Synthetic grpIds for Bushwhack's modal options. Production reads these
-        // from Arena DB; tests register them inline because the script's
-        // `Choices$ FetchBasic,Fight` SVars don't carry Arena-DB grpIds.
+        // Synthetic grpIds for Bushwhack's modal options. The in-memory repo
+        // has no modal entries unless we register them, and the script's
+        // `Choices$ FetchBasic,Fight` SVars don't carry grpIds on their own.
         val parentAbilityGrpId = 99100
         val fetchBasicGrpId = 99101
         val fightGrpId = 99102
