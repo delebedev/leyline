@@ -96,6 +96,20 @@ val testIntegration by tasks.registering(Test::class) {
     // Layering Kotest parallelism on top flakes (damage/ETB/flashback).
 }
 
+// Cache-disabled integration variant. The default `testIntegration` task is
+// cacheable (`org.gradle.caching=true`) — when forge jar inputs match a prior
+// run, gradle returns the cached PASS result without re-executing tests.
+// Fine for iteration but masks regressions when the forge submodule pointer
+// changes. `just slice-verify` calls this task; use it whenever the forge
+// submodule advances.
+val testIntegrationStrict by tasks.registering(Test::class) {
+    configureTestDefaults()
+    systemProperty("kotest.tags", "IntegrationTag")
+    maxParallelForks = 4
+    outputs.cacheIf { false }
+    outputs.upToDateWhen { false }
+}
+
 // One-shot profiler task. Usage:
 //   ./gradlew :matchdoor:profileTest --tests "leyline.conformance.DeclareBlockersDedupeTest"
 // JFR dump: /tmp/matchdoor-profile.jfr — inspect with `jfr summary` or `jfr print`.
