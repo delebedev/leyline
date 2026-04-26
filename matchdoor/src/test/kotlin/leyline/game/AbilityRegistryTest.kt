@@ -2,7 +2,9 @@ package leyline.game
 
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
@@ -121,9 +123,10 @@ class AbilityRegistryTest :
 
                 val registry = AbilityRegistry.build(card, arenaShapedCardData)
 
-                // Each Forge activated SA should map to an Arena Activated slot,
-                // skipping the trigger at slot 0. Order in card.spellAbilities is
-                // [+1], [-2], [-9] per the Forge card definition.
+                // Forward direction (forSpellAbility): each Forge activated SA
+                // should map to an Arena Activated slot, skipping the trigger at
+                // slot 0. Order in card.spellAbilities is [+1], [-2], [-9] per
+                // the Forge card definition.
                 val mapped =
                     activated.map { sa ->
                         val grp = registry.forSpellAbility(sa.id)
@@ -131,5 +134,18 @@ class AbilityRegistryTest :
                         grp
                     }
                 mapped shouldBe listOf(175795, 175796, 175798)
+
+                // Reverse direction (slotLayout.forgeIndexFor): the dispatch
+                // path used by ActionPerformer.resolveAbilityIndex. Indices are
+                // into the Forge-order non-mana activated list (which excludes
+                // triggers/statics), so the trigger at slot 0 must return null
+                // and each Activated slot must produce its position among the
+                // Activated slots — not its raw slot index.
+                assertSoftly(registry.slotLayout) {
+                    forgeIndexFor(175794).shouldBeNull() // trigger — not activatable
+                    forgeIndexFor(175795) shouldBe 0 // [+1]
+                    forgeIndexFor(175796) shouldBe 1 // [-2]
+                    forgeIndexFor(175798) shouldBe 2 // [-9]
+                }
             }
     })

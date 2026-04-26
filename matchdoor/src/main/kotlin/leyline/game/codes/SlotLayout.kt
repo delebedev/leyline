@@ -8,8 +8,13 @@ package leyline.game.codes
  * Eliminates the dual-derivation bug class where keyword count was computed
  * independently in two places.
  *
- * Slot ordering: keywords occupy slots `[0, keywordCount)`,
- * activated abilities occupy `[keywordCount, keywordCount + activatedCount)`.
+ * Slot ordering matches the source `Cards.AbilityIds` array verbatim. Slots
+ * may interleave kinds (e.g. an intrinsic trigger at slot 0 followed by
+ * activated abilities). Use [forgeIndexFor] for grpId → Forge-index lookup;
+ * do not derive Forge index from slot position arithmetic.
+ *
+ * Counts ([keywordCount], [activatedCount]) are totals, not ranges — they
+ * don't imply contiguous occupancy.
  */
 data class SlotLayout(
     val keywordCount: Int,
@@ -19,15 +24,28 @@ data class SlotLayout(
     /**
      * Map an Arena abilityGrpId to its Forge ability index.
      *
-     * Returns the slot index minus keyword count:
-     * - Activated abilities return `>= 0` (the Forge ability index)
-     * - Keywords return negative values (not activated abilities)
+     * Returns the index into the Forge-order non-mana activated abilities
+     * (i.e., what `getNonManaActivatedAbilities` returns) — counting only
+     * [SlotKind.Activated] slots, not raw slot position. This matches the
+     * dispatch contract: `SpellExecutor.activateAbility(cardId, index, ...)`
+     * indexes into the Forge-order activated list, which excludes triggers
+     * and statics.
+     *
+     * - [SlotKind.Activated] slots return `>= 0` (the Forge ability index)
+     * - [SlotKind.Keyword] slots return negative values (signals "this is a keyword")
+     * - [SlotKind.Mana] slots return `0` (mana is resolved separately, never reaches index dispatch)
+     * - [SlotKind.Intrinsic] slots return `null` (triggers/statics are not activatable)
      * - Unknown abilityGrpIds return `null`
      */
     fun forgeIndexFor(abilityGrpId: Int): Int? {
         val slot = slots.indexOfFirst { it.abilityGrpId == abilityGrpId }
         if (slot < 0) return null
-        return slot - keywordCount
+        return when (slots[slot].kind) {
+            SlotKind.Keyword -> slot - keywordCount
+            SlotKind.Activated -> slots.take(slot).count { it.kind == SlotKind.Activated }
+            SlotKind.Mana -> 0
+            SlotKind.Intrinsic -> null
+        }
     }
 
     companion object {

@@ -234,10 +234,11 @@ class ExposedCardRepository(
 
     /**
      * Resolve Arena ability ids to per-slot [SlotKind] using `Abilities.Category`.
-     * Category=1 → Activated; everything else → Intrinsic (covers triggers,
-     * statics, passives we don't surface as activate-able). Missing rows fall
-     * back to Activated to preserve the legacy behavior for cards predating
-     * this change.
+     * Category=1 → Activated; everything else (2 = trigger, 3+ = static/passive)
+     * → Intrinsic. Both a missing row and Category=0 (schema default, never
+     * populated) collapse to Activated — both mean "unknown classification";
+     * we preserve the pre-enrichment legacy of treating unknown abilities as
+     * activate-able.
      */
     private fun lookupAbilityKinds(ids: List<Int>): List<SlotKind> {
         if (ids.isEmpty()) return emptyList()
@@ -250,7 +251,7 @@ class ExposedCardRepository(
         return ids.map { id ->
             when (categories[id]) {
                 1 -> SlotKind.Activated
-                null -> SlotKind.Activated // unknown ability — assume activated for compat
+                null, 0 -> SlotKind.Activated // unknown / schema-default — assume activated for compat
                 else -> SlotKind.Intrinsic
             }
         }
