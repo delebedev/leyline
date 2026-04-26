@@ -513,6 +513,29 @@
       "currentRelease": 1
     },
     {
+      "code": "SOS",
+      "collations": [
+        {
+          "code": "SOS",
+          "id": 100060
+        },
+        {
+          "code": "SOS_DRAFT",
+          "id": 200060,
+          "rarity": "Draft"
+        },
+        {
+          "code": "SOS_MYTHIC",
+          "id": 500060,
+          "rarity": "Mythic"
+        }
+      ],
+      "digitalOnly": 2,
+      "releaseTs": 1744070400,
+      "active": 1,
+      "currentRelease": 1
+    },
+    {
       "code": "HBG",
       "collations": [
         {
@@ -1201,6 +1224,7 @@
     {
       "groupName": "AllFilters",
       "setCodes": [
+        "SOS",
         "TMT",
         "ECL",
         "Y26_ECL",

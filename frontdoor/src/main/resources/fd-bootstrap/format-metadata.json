@@ -247,7 +247,8 @@
       "TMT",
       "Y26_ECL",
       "Y26",
-      "ECC"
+      "ECC",
+      "SOS"
     ]
   },
   "formats": [
