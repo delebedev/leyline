@@ -55,12 +55,6 @@ class ClientGuiGame(
     override fun confirm(
         c: CardView?,
         question: String,
-        options: List<String>,
-    ): Boolean = confirm(c, question, true, options)
-
-    override fun confirm(
-        c: CardView?,
-        question: String,
         defaultIsYes: Boolean,
         options: List<String>?,
     ): Boolean {
@@ -82,18 +76,6 @@ class ClientGuiGame(
         message: String,
         title: String,
     ): Boolean = confirm(null, "$title: $message")
-
-    override fun showConfirmDialog(
-        message: String,
-        title: String,
-        defaultYes: Boolean,
-    ): Boolean =
-        confirm(
-            null,
-            "$title: $message",
-            defaultYes,
-            null,
-        )
 
     override fun showConfirmDialog(
         message: String,
@@ -212,17 +194,6 @@ class ClientGuiGame(
         val indices = bridge.requestChoice(request)
         return indices.filter { it in choices.indices }.map { choices[it] }
     }
-
-    override fun getInteger(
-        message: String,
-        min: Int,
-    ): Int? = getInteger(message, min, Int.MAX_VALUE, 9)
-
-    override fun getInteger(
-        message: String,
-        min: Int,
-        max: Int,
-    ): Int? = getInteger(message, min, max, 9)
 
     override fun getInteger(
         message: String,
@@ -508,49 +479,6 @@ class ClientGuiGame(
     override fun showInputDialog(
         message: String,
         title: String,
-        isNumeric: Boolean,
-    ): String =
-        showInputDialog(
-            message,
-            title,
-            null,
-            null,
-            null,
-            isNumeric,
-        )
-
-    override fun showInputDialog(
-        message: String,
-        title: String,
-        icon: FSkinProp,
-    ): String =
-        showInputDialog(
-            message,
-            title,
-            icon,
-            null,
-            null,
-            false,
-        )
-
-    override fun showInputDialog(
-        message: String,
-        title: String,
-        icon: FSkinProp?,
-        initialInput: String?,
-    ): String =
-        showInputDialog(
-            message,
-            title,
-            icon,
-            initialInput,
-            null,
-            false,
-        )
-
-    override fun showInputDialog(
-        message: String,
-        title: String,
         icon: FSkinProp?,
         initialInput: String?,
         inputOptions: List<String>?,
@@ -759,16 +687,13 @@ class ClientGuiGame(
     ) {}
 
     override fun setHighlighted(
-        pv: PlayerView,
+        pv: GameEntityView,
         b: Boolean,
     ) {}
 
-    override fun setUsedToPay(
-        card: CardView,
-        value: Boolean,
-    ) {}
-
     override fun setSelectables(cards: Iterable<CardView>) {}
+
+    override fun applyDelta(packet: forge.gamemodes.net.DeltaPacket) {}
 
     override fun clearSelectables() {}
 
@@ -810,24 +735,9 @@ class ClientGuiGame(
 
     override fun updateAutoPassPrompt() {}
 
-    override fun shouldAutoYield(key: String): Boolean = false
-
-    override fun setShouldAutoYield(
-        key: String,
-        autoYield: Boolean,
-    ) {}
-
-    override fun shouldAlwaysAcceptTrigger(trigger: Int): Boolean = false
-
-    override fun shouldAlwaysDeclineTrigger(trigger: Int): Boolean = false
-
-    override fun setShouldAlwaysAcceptTrigger(trigger: Int) {}
-
-    override fun setShouldAlwaysDeclineTrigger(trigger: Int) {}
-
-    override fun setShouldAlwaysAskTrigger(trigger: Int) {}
-
-    override fun clearAutoYields() {}
+    // Auto-yield + trigger-accept/decline live on IGameController, not IGuiGame.
+    // ClientGuiGame implements IGuiGame only; those preferences are client-side
+    // toggles and don't apply to the headless server path.
 
     override fun setCurrentPlayer(player: PlayerView) {}
 

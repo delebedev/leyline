@@ -96,7 +96,7 @@ abstract class SubsystemTest(
         val player = humanPlayer(b)
         val land = player.getZone(ZoneType.Hand).cards.first { it.isLand }
         return capture(b, game, counter) {
-            player.playLand(land, true, null)
+            player.playLand(land, null)
         }
     }
 
