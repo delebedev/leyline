@@ -335,25 +335,39 @@ object StateMapper {
             eotTokens.map { token ->
                 val tokenIid = bridge.getOrAllocInstanceId(token.forgeCardId)
                 val sourceForgeId = tokenSources[token]
-                val holderIid = holderInstanceIdFor(sourceForgeId, token.controller.value, bridge)
                 val cleanupGrpId =
                     sourceForgeId?.let { mobilizeCleanupGrpIdForSource(it, bridge) }
+                // Holder iid is the per-trigger affector for Mobilize (canonical
+                // shape). For generic EOT-sacrifice copies (Electroduplicate etc.)
+                // legacy callers pass affectorId = tokenIid; preserve that until
+                // the wider holder-pattern survey of non-Mobilize delayed triggers
+                // is done.
+                val affectorIid =
+                    if (cleanupGrpId != null && sourceForgeId != null) {
+                        holderInstanceIdFor(sourceForgeId, token.controller.value, bridge)
+                    } else {
+                        tokenIid
+                    }
                 AnnotationBuilder.temporaryPermanent(
                     tokenInstanceId = tokenIid,
                     abilityGrpId = cleanupGrpId?.let { GrpId(it) } ?: AnnotationConstants.EOT_SACRIFICE_GRP_ID,
-                    affectorId = holderIid,
+                    affectorId = affectorIid,
                 )
             }
+        // DelayedTriggerAffectees is only emitted when we can resolve a real
+        // delayed-trigger keyword on the source (currently Mobilize). Generic
+        // EOT-sacrifice copies skip this annotation — legacy behavior, until
+        // the wider survey of non-Mobilize delayed-trigger sources lands.
         val delayedTriggerAffecteesFromSnap =
             eotTokens
                 .groupBy { tokenSources[it] to it.controller.value }
                 .filterValues { it.isNotEmpty() }
-                .map { (key, tokens) ->
+                .mapNotNull { (key, tokens) ->
                     val (sourceForgeId, seat) = key
-                    val tokenIds = tokens.map { bridge.getOrAllocInstanceId(it.forgeCardId) }
                     val cleanupGrpId =
                         sourceForgeId?.let { mobilizeCleanupGrpIdForSource(it, bridge) }
-                            ?: AnnotationConstants.EOT_SACRIFICE_GRP_ID.value
+                            ?: return@mapNotNull null
+                    val tokenIds = tokens.map { bridge.getOrAllocInstanceId(it.forgeCardId) }
                     val holderIid = holderInstanceIdFor(sourceForgeId, seat, bridge)
                     AnnotationBuilder.delayedTriggerAffectees(
                         triggerHolderId = holderIid,
@@ -932,14 +946,20 @@ object StateMapper {
                 ),
             )
         }
-        // Event-driven trigger lifecycle: triggered abilities can fire and resolve
-        // entirely between two snapshots when no priority window is offered, so the
-        // snapshot diff misses them. Reconstruct the lifecycle from cast/resolved
-        // events instead. Only emit when the source isn't already covered above.
+        val snapshotDisappearanceIids = transferResult.stackAbilityDisappearances.map { it.abilityInstanceId }.toSet()
+        // Event-driven trigger lifecycle. With auto-pass on the local turn the
+        // trigger can fire and resolve between two snapshots so the snap-diff
+        // misses both halves; with the per-trigger GSM split (GamePlayback)
+        // each half lands in its own GSM, so cast and resolve events arrive in
+        // separate drains. We emit the cast-side annotations from cast events
+        // and the resolve-side from resolve events independently — guarding
+        // against double-emission when the snap-diff also caught the
+        // appearance/disappearance.
         if (bridge != null) {
             emitTriggerLifecycleAnnotations(
                 events = events,
                 snapshotSourceIids = snapshotSourceIids,
+                snapshotDisappearanceIids = snapshotDisappearanceIids,
                 annotations = annotations,
                 transferPersistent = transferPersistent,
                 bridge = bridge,
@@ -973,38 +993,30 @@ object StateMapper {
     private fun emitTriggerLifecycleAnnotations(
         events: List<GameEvent>,
         snapshotSourceIids: Set<Int>,
+        snapshotDisappearanceIids: Set<Int>,
         annotations: MutableList<AnnotationInfo>,
         transferPersistent: MutableList<AnnotationInfo>,
         bridge: GameBridge,
     ) {
-        val triggerCasts = events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }
-        if (triggerCasts.isEmpty()) return
-        val triggerResolves =
-            events
-                .filterIsInstance<GameEvent.SpellResolved>()
-                .filter { it.isTrigger }
-                .associateBy { it.cardId }
-        for (cast in triggerCasts) {
+        // Cast half: AbilityInstanceCreated (when snap-diff missed it) + persistent TriggeringObject.
+        for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }) {
             val sourceCardIid = bridge.getOrAllocInstanceId(cast.cardId).value
-            // If the snapshot already saw an Ability gameObject for this source card,
-            // the snapshot path emitted the Created annotation — don't double-emit.
-            if (sourceCardIid in snapshotSourceIids) continue
-
             val abilityIid =
                 bridge
                     .getOrAllocInstanceId(
                         ForgeCardId(cast.cardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET),
                     ).value
             val sourceZone = currentSourceZoneId(cast.cardId, bridge)
-            val abilityGrpId = abilityGrpIdForSource(cast.cardId, bridge)
 
-            annotations.add(
-                AnnotationBuilder.abilityInstanceCreated(
-                    InstanceId(abilityIid),
-                    InstanceId(sourceCardIid),
-                    sourceZone,
-                ),
-            )
+            if (sourceCardIid !in snapshotSourceIids) {
+                annotations.add(
+                    AnnotationBuilder.abilityInstanceCreated(
+                        InstanceId(abilityIid),
+                        InstanceId(sourceCardIid),
+                        sourceZone,
+                    ),
+                )
+            }
             transferPersistent.add(
                 AnnotationBuilder.triggeringObject(
                     abilityInstanceId = InstanceId(abilityIid),
@@ -1012,11 +1024,23 @@ object StateMapper {
                     sourceZone = sourceZone,
                 ),
             )
+        }
 
-            val resolved = triggerResolves[cast.cardId]
-            if (resolved != null) {
-                annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
-                annotations.add(AnnotationBuilder.resolutionComplete(InstanceId(abilityIid), GrpId(abilityGrpId)))
+        // Resolve half: ResolutionStart/Complete (always — snap-diff doesn't emit
+        // these for stack-only abilities) + AbilityInstanceDeleted (when snap-diff
+        // missed it).
+        for (resolved in events.filterIsInstance<GameEvent.SpellResolved>().filter { it.isTrigger }) {
+            val sourceCardIid = bridge.getOrAllocInstanceId(resolved.cardId).value
+            val abilityIid =
+                bridge
+                    .getOrAllocInstanceId(
+                        ForgeCardId(resolved.cardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET),
+                    ).value
+            val abilityGrpId = abilityGrpIdForSource(resolved.cardId, bridge)
+
+            annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
+            annotations.add(AnnotationBuilder.resolutionComplete(InstanceId(abilityIid), GrpId(abilityGrpId)))
+            if (abilityIid !in snapshotDisappearanceIids) {
                 annotations.add(
                     AnnotationBuilder.abilityInstanceDeleted(
                         InstanceId(abilityIid),

@@ -48,17 +48,42 @@ class MobilizeKeywordTest :
             // Register the source card and the Warrior token Forge spawns at trigger
             // resolution time. ObjectMapper.resolveTokenGrpId reaches the token via
             // the source's `tokenGrpIds` map (keyed by Forge's spawn-ability index).
+            // Inject Arena-aligned ability ids on each Mobilize source so the
+            // (keyword, cleanup) pair lookup in StateMapper resolves to real
+            // grpIds (188696/188698 + 189930/189931) — without this, the
+            // synthetic ids CardDataDeriver mints don't intersect
+            // MOBILIZE_CLEANUP_BY_KEYWORD and the test silently emits the
+            // generic-EOT shape rather than the canonical Mobilize one.
             GameBootstrap.initializeCardDatabase(quiet = true)
             TestCardRegistry.ensureRegistered()
             val repo = TestCardRegistry.repo
             val warriorGrpId = 300_010
             repo.register(warriorGrpId, "Warrior Token")
-            for (cardName in listOf("Reigning Victor", "Mardu Thunderkite", "Dalkovan Packbeasts")) {
+            // (cardName, mobilizeKeywordRow, mobilizeCleanupRow). Mobilize 2 cards
+            // (Voice of Victory, Bone-Cairn Butcher, Dalkovan Outrider) are not
+            // covered until the spec pins their pair ids.
+            val mobilizeCards =
+                listOf(
+                    Triple("Reigning Victor", 188698, 189931),
+                    Triple("Mardu Thunderkite", 188698, 189931),
+                    Triple("Dalkovan Packbeasts", 188696, 189930),
+                )
+            for ((cardName, keywordRow, cleanupRow) in mobilizeCards) {
                 val grpId = TestCardRegistry.ensureCardRegistered(cardName)
                 val data = repo.findByGrpId(grpId)!!
                 repo.registerData(
-                    data.copy(tokenGrpIds = mapOf(0 to warriorGrpId)),
+                    data.copy(
+                        tokenGrpIds = mapOf(0 to warriorGrpId),
+                        abilityIds = listOf(keywordRow to (1_000_000 + keywordRow), cleanupRow to (1_000_000 + cleanupRow)),
+                    ),
                     cardName,
+                )
+                // Seed AbilityInfo so findKeywordAbilityGrpId(grpId, "MOBILIZE")
+                // walks abilityIds, calls findAbilityInfo(keywordRow), and
+                // matches baseId == 363.
+                repo.registerAbilityInfo(
+                    keywordRow,
+                    leyline.game.data.AbilityInfo(baseId = 363, manaCost = emptyList()),
                 )
             }
         }
