@@ -11,8 +11,44 @@ import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.ZoneIds
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+
+/**
+ * Walk every emitted GSM and return the active Prepared `Designation` pAnns
+ * (DesignationType=24), deduped by id. Tests use this instead of inspecting a
+ * single GSM because persistent annotations are differential — a pAnn added in
+ * an earlier diff GSM doesn't republish in later ones.
+ */
+private fun preparedDesignations(messages: List<GREToClientMessage>): List<AnnotationInfo> =
+    messages
+        .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+        .flatMap { it.persistentAnnotationsList }
+        .filter { ann ->
+            ann.typeList.contains(AnnotationType.Designation) &&
+                ann.detailsList.any {
+                    it.key == DetailKeys.DESIGNATION_TYPE &&
+                        it.valueInt32Count > 0 &&
+                        it.getValueInt32(0) == AnnotationConstants.DESIGNATION_TYPE_PREPARED
+                }
+        }.distinctBy { it.id }
+
+/**
+ * First emitted [GameObjectInfo] for [iid] across all GSMs — diff GSMs only
+ * carry the object in the GSM that introduced it; subsequent diffs reference
+ * by iid only. The introduction GSM is the canonical source for static fields
+ * (type, isCopy, parentId, abilities).
+ */
+private fun firstGameObjectFor(
+    messages: List<GREToClientMessage>,
+    iid: Int,
+): GameObjectInfo =
+    messages
+        .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+        .firstNotNullOf { gsm -> gsm.gameObjectsList.firstOrNull { it.instanceId == iid } }
 
 /**
  * End-to-end coverage for the Prepared card-state designation (bd leyline-jtsv).
@@ -43,25 +79,14 @@ class HonorboundPagePrepareTest :
             castSpellByName("Honorbound Page")
             passUntilResolved()
 
-            val gsm =
-                allMessages
-                    .last { it.hasGameStateMessage() }
-                    .gameStateMessage
-
             val sourceIid = instanceIdOf("Honorbound Page", human, ZoneType.Battlefield)
             val copyIid = instanceIdOf("Forum's Favor", human, ZoneType.Exile)
 
-            // Persistent Designation annotation: type 24, anchored on the live
-            // battlefield creature, with PreparedCopyZcid → exile copy iid.
+            // Persistent annotations are differential — pAnns added in earlier
+            // GSMs aren't republished in later diffs. Walk every emitted GSM,
+            // dedupe by id, take the matching Prepared Designation.
             val designation =
-                gsm.persistentAnnotationsList.first { ann ->
-                    ann.typeList.contains(AnnotationType.Designation) &&
-                        ann.detailsList.any {
-                            it.key == DetailKeys.DESIGNATION_TYPE &&
-                                it.valueInt32Count > 0 &&
-                                it.getValueInt32(0) == AnnotationConstants.DESIGNATION_TYPE_PREPARED
-                        }
-                }
+                preparedDesignations(allMessages).single()
             assertSoftly {
                 designation.affectorId shouldBe sourceIid
                 designation.affectedIdsList shouldContain sourceIid
@@ -74,7 +99,7 @@ class HonorboundPagePrepareTest :
             // Exile copy GameObjectInfo: rendered as Card (not Token), parented back
             // to the source creature, isCopy=true, grpId resolved by name to the
             // prepare-spell face — bypasses the engine-spawned-token grpId path.
-            val copyObj = gsm.gameObjectsList.first { it.instanceId == copyIid }
+            val copyObj = firstGameObjectFor(allMessages, copyIid)
             assertSoftly {
                 copyObj.type shouldBe GameObjectType.Card
                 copyObj.isCopy shouldBe true
@@ -181,6 +206,11 @@ class HonorboundPagePrepareTest :
             passUntilResolved()
 
             val sourceIid = instanceIdOf("Honorbound Page", human, ZoneType.Battlefield)
+
+            // Pre-cast: persistent Designation pAnn exists for the source. Save
+            // its id so we can assert it's listed in diffDeletedPersistentAnnotationIds
+            // after the cast clears the prepared state.
+            val designationIdBeforeCast = preparedDesignations(allMessages).single().id
             val cutoffMessageCount = allMessages.size
 
             // Cast the prepared copy and select a target — Forge's SpellCast trigger
@@ -196,10 +226,12 @@ class HonorboundPagePrepareTest :
                     .value
             selectTargets(listOf(oppIid))
 
-            val postCastMessages = allMessages.drop(cutoffMessageCount)
-            val loseDesignation =
-                postCastMessages
+            val postCastGsms =
+                allMessages
+                    .drop(cutoffMessageCount)
                     .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+            val loseDesignation =
+                postCastGsms
                     .flatMap { it.annotationsList }
                     .firstOrNull { ann ->
                         ann.typeList.contains(AnnotationType.LoseDesignation) &&
@@ -211,6 +243,12 @@ class HonorboundPagePrepareTest :
                             }
                     }
             loseDesignation shouldNotBe null
+
+            // The persistent Designation pAnn must also be torn down — its id should
+            // appear in `diffDeletedPersistentAnnotationIds` on a post-cast GSM.
+            val deletedIds =
+                postCastGsms.flatMap { it.diffDeletedPersistentAnnotationIdsList }.toSet()
+            deletedIds shouldContain designationIdBeforeCast
         }
 
         test("Two prepared creatures: each Designation anchored on its own source iid") {

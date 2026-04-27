@@ -193,6 +193,17 @@ object ObjectMapper {
             setObjectSourceGrpId(this.grpId)
         }
 
+        // Attachment (Auras, Equipment) — resolve attached-to instance ID via bridge.
+        // Set FIRST so the prepared-copy branch below has final say if both apply
+        // (theoretical: a continuous effect attaching the exile copy to something).
+        // The protocol semantic for "prepared exile copy that's also attached" is
+        // unspecified; preferring the prepared parentId keeps the cast-from-exile
+        // linkage intact for the client.
+        val attachedTo = cardSnap.attachedTo
+        if (attachedTo != null) {
+            setParentId(bridge.getOrAllocInstanceId(attachedTo).value)
+        }
+
         // Prepared-spell exile copy — projects as a Card parented to the prepared
         // source creature. GameObject form: isCopy=true, parentId=<creature iid>,
         // no objectSourceGrpId (that field is for engine-spawned tokens). The
@@ -201,12 +212,6 @@ object ObjectMapper {
         (cardSnap.preparedRole as? PreparedRole.Copy)?.let { copy ->
             setIsCopy(true)
             copy.sourceForgeCardId?.let { setParentId(bridge.getOrAllocInstanceId(it).value) }
-        }
-
-        // Attachment (Auras, Equipment) — resolve attached-to instance ID via bridge
-        val attachedTo = cardSnap.attachedTo
-        if (attachedTo != null) {
-            setParentId(bridge.getOrAllocInstanceId(attachedTo).value)
         }
 
         // Combat state

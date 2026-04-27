@@ -20,6 +20,7 @@ import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
 import leyline.game.annotations.ZoneTransferDetector
 import leyline.game.bundle.GsmFrame
+import leyline.game.codes.DetailKeys
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PreparedRole
@@ -349,10 +350,12 @@ object StateMapper {
                 }
 
         // Transient gain/lose Designation annotations — diff prev vs cur on the
-        // `Source on battlefield with isPrepared` set. Adds to the GSM that carries
-        // the Stack→Battlefield Resolve ZoneTransfer (gain) or the cast acceptance
-        // (lose).
-        annotations.addAll(diffPreparedDesignations(prev, snap, bridge))
+        // `Source on battlefield with isPrepared` set. Gains insert before the
+        // Stack→Battlefield Resolve ZoneTransfer for the same source iid to match
+        // the protocol's bracket order (annotation 848 before 849 in the spec).
+        // Loses append at the end (cast acceptance has no co-located ZT for the
+        // source — the ZT is on the copy moving Exile→Stack).
+        insertPreparedTransients(annotations, prev, snap, bridge)
 
         // Stages 4-5 + persistent computation
         val remaining =
@@ -716,44 +719,74 @@ object StateMapper {
     )
 
     /**
-     * Diff two snapshots on the prepared-source set (cards with `PreparedRole.Source`).
-     * Cards entering the set produce a transient `GainDesignation` (type 24);
-     * cards leaving produce a transient `LoseDesignation`. The protocol places
-     * gains in the same GSM as the Stack→Battlefield Resolve ZoneTransfer and
-     * loses in the same GSM as the cast acceptance — both happen naturally
-     * because that's when the underlying `Card.isPrepared` flag transitions.
+     * Diff two snapshots on the prepared-source set (cards with `PreparedRole.Source`)
+     * and insert the resulting gain/lose transients into [annotations] at the right
+     * positions for the protocol's bracket order:
+     *
+     * - Each `GainDesignation` lands immediately before the Stack→Battlefield Resolve
+     *   `ZoneTransfer` for the same source iid in the same list.
+     * - Each `LoseDesignation` appends to the end — the cast acceptance GSM doesn't
+     *   carry a co-located ZT for the source (the ZT is on the copy moving Exile→Stack),
+     *   so there's no nearby anchor.
+     *
+     * Skipped on full-snapshot rebuild (`prev == null` outside the first-bundle
+     *  case): without a prior baseline the diff would mistakenly emit gain transients
+     *  for already-prepared sources whose persistent Designation pAnn is already
+     *  active client-side. The persistent pAnn from the snapshot pass alone re-syncs
+     *  client state on rebuild.
      */
-    private fun diffPreparedDesignations(
+    private fun insertPreparedTransients(
+        annotations: MutableList<AnnotationInfo>,
         prev: GsmSnapshot?,
         cur: GsmSnapshot,
         bridge: GameBridge,
-    ): List<AnnotationInfo> {
+    ) {
+        if (prev == null) return
         val curSources = sourceForgeIds(cur)
-        val prevSources = if (prev != null) sourceForgeIds(prev) else emptySet()
+        val prevSources = sourceForgeIds(prev)
 
-        val gained = curSources - prevSources
-        val lost = prevSources - curSources
-
-        val result = mutableListOf<AnnotationInfo>()
-        for (fid in gained) {
+        for (fid in curSources - prevSources) {
             val iid = bridge.getOrAllocInstanceId(fid)
-            result.add(
+            val gain =
                 AnnotationBuilder.gainDesignationOnCard(
                     instanceId = iid,
                     designationType = AnnotationConstants.DESIGNATION_TYPE_PREPARED,
-                ),
-            )
+                )
+            insertGainBeforeResolveZt(annotations, gain, iid.value)
         }
-        for (fid in lost) {
+        for (fid in prevSources - curSources) {
             val iid = bridge.getOrAllocInstanceId(fid)
-            result.add(
+            annotations.add(
                 AnnotationBuilder.loseDesignation(
                     instanceId = iid,
                     designationType = AnnotationConstants.DESIGNATION_TYPE_PREPARED,
                 ),
             )
         }
-        return result
+    }
+
+    /**
+     * Insert [gain] right before the Stack→Battlefield Resolve `ZoneTransfer` whose
+     * `affectedIds` includes [sourceIid]. Falls back to appending if no matching ZT
+     * is in [annotations] — the GSM still carries the persistent Designation pAnn,
+     * so the gain transient at end-of-list is a degraded but non-broken shape.
+     */
+    private fun insertGainBeforeResolveZt(
+        annotations: MutableList<AnnotationInfo>,
+        gain: AnnotationInfo,
+        sourceIid: Int,
+    ) {
+        val ztIndex =
+            annotations.indexOfFirst { ann ->
+                ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
+                    ann.affectedIdsList.contains(sourceIid) &&
+                    ann.detailsList.any {
+                        it.key == DetailKeys.CATEGORY &&
+                            it.valueStringCount > 0 &&
+                            it.getValueString(0) == "Resolve"
+                    }
+            }
+        if (ztIndex >= 0) annotations.add(ztIndex, gain) else annotations.add(gain)
     }
 
     private fun sourceForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =

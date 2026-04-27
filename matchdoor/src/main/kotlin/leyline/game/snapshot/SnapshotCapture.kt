@@ -29,6 +29,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *   Later tasks populate each section as the corresponding mapper migrates.
  */
 object SnapshotCapture {
+    private val log = org.slf4j.LoggerFactory.getLogger(SnapshotCapture::class.java)
+
     fun run(
         game: Game,
         bridge: GameBridge,
@@ -234,24 +236,22 @@ object SnapshotCapture {
     ): Map<ForgeCardId, CardSnapshot> {
         val combat = game.phaseHandler?.combat
         val human = bridge.getPlayer(SeatId(1))
-        // Pre-pass: walk the live battlefield once, build the prepared Source ↔ Copy
-        // linkage as a map keyed by copy `ForgeCardId`. Concentrates the linkage at
-        // one canonical site so per-card snapshotting stays identity-stable across
-        // Forge's `Card.id` reallocation on cast.
-        val preparedLinkages: Map<ForgeCardId, ForgeCardId> =
-            game
-                .getCardsIn(ForgeZoneType.Battlefield)
-                .filter { it.isPrepared }
-                .mapNotNull { source ->
-                    val copy = source.prepared?.firstRemembered as? Card ?: return@mapNotNull null
-                    ForgeCardId(copy.id) to ForgeCardId(source.id)
-                }.toMap()
+        // Pre-pass: walk the live battlefield once, build the prepared linkage in
+        // both directions:
+        //   sourceToCopy: source ForgeCardId → copy ForgeCardId
+        //   copyToSource: copy ForgeCardId  → source ForgeCardId
+        // Concentrates the source/copy lookup at one site so per-card snapshotting
+        // doesn't re-read `Card.prepared.firstRemembered` and risk diverging from
+        // this map. Stays identity-stable across Forge's `Card.id` reallocation on
+        // cast (the source's `firstRemembered` always points at Forge's current
+        // copy Card object, which matches whatever the Copy snapshot will see).
+        val linkage = PreparedLinkage.from(game)
         val seen = linkedMapOf<ForgeCardId, CardSnapshot>()
         for (zone in zones.values) {
             for (fid in zone.contents) {
                 if (fid in seen) continue
                 val card = bridge.findCard(fid) ?: continue
-                seen[fid] = captureCard(card, combat, bridge, human, preparedLinkages)
+                seen[fid] = captureCard(card, combat, bridge, human, linkage)
             }
         }
         return seen
@@ -269,7 +269,7 @@ object SnapshotCapture {
         combat: forge.game.combat.Combat?,
         bridge: GameBridge,
         human: Player?,
-        preparedLinkages: Map<ForgeCardId, ForgeCardId>,
+        preparedLinkage: PreparedLinkage,
     ): CardSnapshot {
         val onBf = card.isInZone(ForgeZoneType.Battlefield)
         val type = card.type
@@ -293,17 +293,32 @@ object SnapshotCapture {
         val attachedTo = card.attachedTo?.let { ForgeCardId(it.id) }
 
         // Prepared role — Source on battlefield, Copy on the alt face, or None.
-        // Linkage map (built once per snapshot pass) avoids per-card battlefield
-        // walks and stays correct across Forge `Card.id` reallocation on cast.
+        // Both directions read from the same linkage map (built once per snapshot
+        // pass over the battlefield); per-card path doesn't re-read Forge state.
         val ownForgeId = ForgeCardId(card.id)
         val preparedRole: PreparedRole =
             when {
                 onBf && card.isPrepared -> {
-                    val copy = card.prepared?.firstRemembered as? Card
-                    if (copy != null) PreparedRole.Source(ForgeCardId(copy.id)) else PreparedRole.None
+                    val copy = preparedLinkage.copyOf(ownForgeId)
+                    if (copy == null) {
+                        // `setPrepared(eff)` is the last step of the AlterAttribute
+                        // Prepared path in Forge, after `eff.addRemembered(prepared)`.
+                        // An observable snapshot with `isPrepared==true` should always
+                        // have `firstRemembered != null`. If we hit the null branch the
+                        // engine was observed mid-effect — log and degrade to None so
+                        // we don't anchor a Designation pAnn on a Source we can't link.
+                        log.warn(
+                            "isPrepared=true with firstRemembered=null for forgeId={} ({}); skipping Source role",
+                            card.id,
+                            card.name,
+                        )
+                        PreparedRole.None
+                    } else {
+                        PreparedRole.Source(copy)
+                    }
                 }
                 PreparedSpell.isCopy(card) ->
-                    PreparedRole.Copy(preparedLinkages[ownForgeId])
+                    PreparedRole.Copy(preparedLinkage.sourceOf(ownForgeId))
                 else -> PreparedRole.None
             }
 
