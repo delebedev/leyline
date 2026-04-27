@@ -1309,18 +1309,23 @@ object StateMapper {
      *  Looked up from the source's `Cards.HiddenAbilityIds` field — the
      *  card-DB pairs every Mobilize-N (keyword on `AbilityIds`) with its
      *  "Sacrifice them at the beginning of the next end step." entry on
-     *  `HiddenAbilityIds`. Null when the source isn't a Mobilize card or has
-     *  no hidden ability; callers fall back to the universal EOT-sacrifice
-     *  grpId. Generic over Mobilize-N — works for any future Mobilize value
-     *  without table updates. */
+     *  `HiddenAbilityIds`. Filters on Category == 2 (triggered) so cards
+     *  that pair the cleanup with a static hidden ability (e.g. Zurgo,
+     *  Thunder's Decree's "can't be sacrificed") still pick the cleanup
+     *  row deterministically regardless of ordering. Null when the source
+     *  isn't a Mobilize card or has no hidden triggered ability; callers
+     *  fall back to the universal EOT-sacrifice grpId. Generic over
+     *  Mobilize-N — works for any future Mobilize value without table
+     *  updates. */
     private fun mobilizeCleanupGrpIdForSource(sourceForgeId: ForgeCardId, bridge: GameBridge): Int? {
         val sourceCard = bridge.findCard(sourceForgeId) ?: return null
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
-        // Confirm the source actually carries Mobilize before claiming the
-        // first hidden ability is the Mobilize cleanup row — guards against
-        // unrelated hidden abilities on cards that don't use the keyword.
+        // Confirm the source actually carries Mobilize before claiming a
+        // hidden triggered ability is the Mobilize cleanup row — guards
+        // against unrelated hidden abilities on cards that don't use the
+        // keyword.
         bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, "MOBILIZE") ?: return null
-        return bridge.cardRepository.findHiddenAbilityGrpId(sourceGrpId)
+        return bridge.cardRepository.findHiddenTriggeredAbilityGrpId(sourceGrpId)
     }
 
     /** The Mobilize keyword ability grpId on a Mobilize source (188696, 188698…),

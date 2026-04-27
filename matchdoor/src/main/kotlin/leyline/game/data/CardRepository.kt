@@ -125,32 +125,23 @@ interface CardRepository {
     ): Boolean = keywordPrefixes.any { findKeywordAbilityGrpId(cardGrpId, it) != null }
 
     /**
-     * Hidden delayed-trigger ability grpId on [cardGrpId], if any. Sources from
-     * [CardData.hiddenAbilityIds] — the client card-DB pairs each Mobilize
-     * source's keyword (in `Cards.AbilityIds`) with its cleanup ability
-     * ("Sacrifice them at the beginning of the next end step.") here. Same
-     * pairing pattern serves exile-and-return mechanics.
+     * Hidden ability grpId of the first **triggered** ability
+     * ([Abilities.Category] == 2) on [cardGrpId]. Robust against cards with
+     * multiple hidden entries where the cleanup row isn't first — e.g.
+     * Zurgo, Thunder's Decree pairs its Mobilize cleanup (Category=2,
+     * id=189933) with a static "can't be sacrificed" (Category=3, id=188976);
+     * filtering on category picks the cleanup deterministically regardless
+     * of ordering.
      *
-     * Returns the first hidden ability id by default; `predicate` can narrow
-     * to a specific ability when a card has multiple hidden entries.
-     *
-     * **Heuristic caveat:** for all observed Mobilize sources today (Mobilize
-     * 1/2/3, including Zurgo, Thunder's Decree which has two hidden entries
-     * for delayed cleanup + a "can't be sacrificed" static), the cleanup row
-     * is the first entry. The default first-match behaviour relies on that
-     * ordering. Pass an explicit predicate when calling for a non-Mobilize
-     * mechanic where the ordering isn't established, or once Mobilize ships a
-     * card whose first hidden entry is not the cleanup row. Filtering on
-     * `findAbilityInfo(id).category == 2` (triggered) would be the durable
-     * fix; deferred until [AbilityInfo] carries `category`.
+     * Returns null if no candidate has [AbilityInfo.category] == 2 — every
+     * production source carries Category, and tests must register matching
+     * [AbilityInfo] for any hidden cleanup id they exercise.
      */
-    fun findHiddenAbilityGrpId(
-        cardGrpId: Int,
-        predicate: (abilityGrpId: Int) -> Boolean = { true },
-    ): Int? {
+    fun findHiddenTriggeredAbilityGrpId(cardGrpId: Int): Int? {
         val data = findByGrpId(cardGrpId) ?: return null
         for ((abilityGrpId, _) in data.hiddenAbilityIds) {
-            if (predicate(abilityGrpId)) return abilityGrpId
+            val info = findAbilityInfo(abilityGrpId) ?: continue
+            if (info.category == 2) return abilityGrpId
         }
         return null
     }
@@ -189,11 +180,18 @@ data class ModalAbilityInfo(
 
 /**
  * Single row from the client's Abilities table. Minimal fields needed to
- * disambiguate keyword alt-cost rows (Warp, Sneak, …) within a card.
+ * disambiguate keyword alt-cost rows (Warp, Sneak, …) within a card and to
+ * filter hidden delayed-trigger abilities by kind.
+ *
+ * @param category from the client card-DB `Abilities.Category` column.
+ *   Observed values: 1 = Activated, 2 = Triggered, 3 = Static/Replacement,
+ *   4 = SpellEffect, 8 = AlternativeCost. Defaults to 0 (unknown) for
+ *   synthetic test data and rows the production repo couldn't load.
  */
 data class AbilityInfo(
     val baseId: Int,
     val manaCost: List<Pair<ManaColor, Int>>,
+    val category: Int = 0,
 )
 
 /**

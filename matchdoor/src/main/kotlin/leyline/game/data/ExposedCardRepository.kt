@@ -176,6 +176,7 @@ class ExposedCardRepository(
                         AbilityInfo(
                             baseId = row[Abilities.baseId],
                             manaCost = parseManaCost(row[Abilities.oldSchoolManaText]),
+                            category = row[Abilities.category],
                         )
                     }
             }

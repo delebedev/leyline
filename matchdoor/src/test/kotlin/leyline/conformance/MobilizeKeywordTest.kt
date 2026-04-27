@@ -63,7 +63,8 @@ class MobilizeKeywordTest :
             repo.register(warriorGrpId, "Warrior Token")
             // (cardName, mobilizeKeywordRow, mobilizeCleanupRow). Cleanup row
             // lands in `hiddenAbilityIds` to mirror the client card-DB shape
-            // — production looks it up via CardRepository.findHiddenAbilityGrpId.
+            // — production looks it up via
+            // CardRepository.findHiddenTriggeredAbilityGrpId (Category == 2).
             // Mobilize 2 cards (Voice of Victory, Bone-Cairn Butcher, Dalkovan
             // Outrider) are 188727 → 189933; not exercised here.
             val mobilizeCards =
@@ -89,6 +90,13 @@ class MobilizeKeywordTest :
                 repo.registerAbilityInfo(
                     keywordRow,
                     leyline.game.data.AbilityInfo(baseId = 363, manaCost = emptyList()),
+                )
+                // Seed AbilityInfo for the cleanup row so
+                // findHiddenTriggeredAbilityGrpId picks it via Category == 2
+                // (triggered). Mirrors the production card-DB row.
+                repo.registerAbilityInfo(
+                    cleanupRow,
+                    leyline.game.data.AbilityInfo(baseId = 0, manaCost = emptyList(), category = 2),
                 )
             }
         }
