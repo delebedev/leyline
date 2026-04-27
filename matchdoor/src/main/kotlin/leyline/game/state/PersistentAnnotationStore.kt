@@ -224,6 +224,16 @@ class PersistentAnnotationStore {
                     },
                 )
 
+            // 3i. Prepared Designation — full-replacement upsert keyed by source-card iid.
+            // Filters by `DesignationType=24` so it doesn't clobber seat-scoped Designations.
+            nextId =
+                upsertPreparedDesignations(
+                    active,
+                    deletions,
+                    nextId,
+                    mechanicResult.preparedDesignationPersistent,
+                )
+
             // 3h. DamagedThisTurn — grow-in-place within a turn, clear at Upkeep
             nextId =
                 updateDamagedThisTurn(
@@ -486,6 +496,59 @@ class PersistentAnnotationStore {
                 newAnnotations,
                 { it.affectedIdsList.firstOrNull() ?: 0 },
             )
+
+        /**
+         * Full-replacement upsert for `Prepared` `Designation` pAnns. Keyed by the affected
+         * card iid; filters by `DesignationType` detail so it only touches Prepared rows
+         * and leaves seat-scoped Designation pAnns (Monarch, Initiative, City's Blessing) alone.
+         * Detects detail changes so a swap of `PreparedCopyZcid` (re-prepare with new copy)
+         * triggers a replace.
+         */
+        private fun upsertPreparedDesignations(
+            active: MutableMap<Int, AnnotationInfo>,
+            deletions: MutableList<Int>,
+            startId: Int,
+            newAnnotations: List<AnnotationInfo>,
+        ): Int {
+            var nextId = startId
+            val newByKey = newAnnotations.associateBy { it.affectedIdsList.firstOrNull() ?: 0 }
+            val staleIds =
+                active.entries
+                    .filter { (_, ann) ->
+                        ann.typeList.any { it == AnnotationType.Designation } &&
+                            isPreparedDesignation(ann) &&
+                            (ann.affectedIdsList.firstOrNull() ?: 0) !in newByKey.keys
+                    }.map { it.key }
+            for (id in staleIds) {
+                active.remove(id)
+                deletions.add(id)
+            }
+            for ((key, ann) in newByKey) {
+                val existingEntry =
+                    active.entries.firstOrNull { (_, e) ->
+                        e.typeList.any { it == AnnotationType.Designation } &&
+                            isPreparedDesignation(e) &&
+                            (e.affectedIdsList.firstOrNull() ?: 0) == key
+                    }
+                if (existingEntry == null) {
+                    val numbered = ann.toBuilder().setId(nextId++).build()
+                    active[numbered.id] = numbered
+                } else if (existingEntry.value.detailsList != ann.detailsList) {
+                    active.remove(existingEntry.key)
+                    deletions.add(existingEntry.key)
+                    val numbered = ann.toBuilder().setId(nextId++).build()
+                    active[numbered.id] = numbered
+                }
+            }
+            return nextId
+        }
+
+        private fun isPreparedDesignation(ann: AnnotationInfo): Boolean =
+            ann.detailsList.any {
+                it.key == DetailKeys.DESIGNATION_TYPE &&
+                    it.valueInt32Count > 0 &&
+                    it.getValueInt32(0) == leyline.game.annotations.AnnotationConstants.DESIGNATION_TYPE_PREPARED
+            }
 
         private fun findByAura(
             active: Map<Int, AnnotationInfo>,

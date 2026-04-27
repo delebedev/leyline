@@ -1,0 +1,18 @@
+[metadata]
+Name:Two Prepared Creatures
+Goal:Win
+Turns:3
+Difficulty:Easy
+Description:Two different prepared creatures simultaneously — each owns its own exile copy with its own parentId.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=8
+
+humanhand=Honorbound Page;Elite Interceptor
+humanbattlefield=Plains;Plains;Plains;Plains;Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains
+aibattlefield=Grizzly Bears
+ailibrary=Forest;Forest;Forest;Forest

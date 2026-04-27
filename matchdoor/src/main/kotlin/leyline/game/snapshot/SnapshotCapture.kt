@@ -29,6 +29,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *   Later tasks populate each section as the corresponding mapper migrates.
  */
 object SnapshotCapture {
+    private val log = org.slf4j.LoggerFactory.getLogger(SnapshotCapture::class.java)
+
     fun run(
         game: Game,
         bridge: GameBridge,
@@ -234,12 +236,22 @@ object SnapshotCapture {
     ): Map<ForgeCardId, CardSnapshot> {
         val combat = game.phaseHandler?.combat
         val human = bridge.getPlayer(SeatId(1))
+        // Pre-pass: walk the live battlefield once, build the prepared linkage in
+        // both directions:
+        //   sourceToCopy: source ForgeCardId → copy ForgeCardId
+        //   copyToSource: copy ForgeCardId  → source ForgeCardId
+        // Concentrates the source/copy lookup at one site so per-card snapshotting
+        // doesn't re-read `Card.prepared.firstRemembered` and risk diverging from
+        // this map. Stays identity-stable across Forge's `Card.id` reallocation on
+        // cast (the source's `firstRemembered` always points at Forge's current
+        // copy Card object, which matches whatever the Copy snapshot will see).
+        val linkage = PreparedLinkage.from(game)
         val seen = linkedMapOf<ForgeCardId, CardSnapshot>()
         for (zone in zones.values) {
             for (fid in zone.contents) {
                 if (fid in seen) continue
                 val card = bridge.findCard(fid) ?: continue
-                seen[fid] = captureCard(card, combat, bridge, human)
+                seen[fid] = captureCard(card, combat, bridge, human, linkage)
             }
         }
         return seen
@@ -257,6 +269,7 @@ object SnapshotCapture {
         combat: forge.game.combat.Combat?,
         bridge: GameBridge,
         human: Player?,
+        preparedLinkage: PreparedLinkage,
     ): CardSnapshot {
         val onBf = card.isInZone(ForgeZoneType.Battlefield)
         val type = card.type
@@ -279,6 +292,9 @@ object SnapshotCapture {
         // Attachment
         val attachedTo = card.attachedTo?.let { ForgeCardId(it.id) }
 
+        val ownForgeId = ForgeCardId(card.id)
+        val preparedRole = resolvePreparedRole(card, onBf, ownForgeId, preparedLinkage)
+
         // DFC fields — mirror resolveOthersideGrpId logic
         val othersideGrpId = ObjectMapper.resolveOthersideGrpId(card, bridge.cardRepository)
         val currentStateNameIsBackside =
@@ -288,12 +304,17 @@ object SnapshotCapture {
         // Pass the live instanceId so that copy/token registry entries are populated.
         // EFFECT cards (Puzzle Goal, Monarch, The Ring, Radiation, City's Blessing,
         // DetachedCardEffect, keywordEffect) are engine-bookkeeping surrogates without
-        // a client-DB grpId by design — skip strict resolution; wire layer drops them
-        // via (gamePieceType==EFFECT && grpId==0).
-        val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+        // a client-DB grpId by design — skip strict resolution; the projection layer
+        // drops them via (gamePieceType==EFFECT && grpId==0).
+        val instanceId = bridge.getOrAllocInstanceId(ownForgeId).value
         val grpId =
             if (card.gamePieceType == GamePieceType.EFFECT) {
                 0
+            } else if (preparedRole is PreparedRole.Copy) {
+                // Prepared-spell copies are TOKEN-piece-typed but represent a normal
+                // spell card — resolve their grpId by name, bypassing the
+                // token-spawning-ability path which only fits engine-spawned tokens.
+                PreparedSpell.resolveCopyGrpId(card, bridge.cardRepository) ?: 0
             } else {
                 ObjectMapper.resolveGrpId(card, bridge.cardRepository, instanceId = instanceId, bridge.tokenRegistry)
             }
@@ -339,8 +360,45 @@ object SnapshotCapture {
             othersideGrpId = othersideGrpId,
             currentStateNameIsBackside = currentStateNameIsBackside,
             combatRole = combatRole,
+            preparedRole = preparedRole,
         )
     }
+
+    /**
+     * Resolve the [PreparedRole] for [card]. Both Source and Copy directions read
+     * from the same [linkage] map, so a card never disagrees with itself across the
+     * Source/Copy boundary.
+     */
+    private fun resolvePreparedRole(
+        card: Card,
+        onBattlefield: Boolean,
+        ownForgeId: ForgeCardId,
+        linkage: PreparedLinkage,
+    ): PreparedRole =
+        when {
+            onBattlefield && card.isPrepared -> {
+                val copy = linkage.copyOf(ownForgeId)
+                if (copy == null) {
+                    // `setPrepared(eff)` is the last step of the AlterAttribute Prepared
+                    // path in Forge, after `eff.addRemembered(prepared)`. An observable
+                    // snapshot with `isPrepared==true` should always have
+                    // `firstRemembered != null`. If we hit the null branch the engine
+                    // was observed mid-effect — log and degrade to None so we don't
+                    // anchor a Designation pAnn on a Source we can't link.
+                    log.warn(
+                        "isPrepared=true with firstRemembered=null for forgeId={} ({}); skipping Source role",
+                        card.id,
+                        card.name,
+                    )
+                    PreparedRole.None
+                } else {
+                    PreparedRole.Source(copy)
+                }
+            }
+            PreparedSpell.isCopy(card) ->
+                PreparedRole.Copy(linkage.sourceOf(ownForgeId))
+            else -> PreparedRole.None
+        }
 
     private fun resolveCombatRole(
         card: Card,
