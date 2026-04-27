@@ -1166,17 +1166,22 @@ object StateMapper {
         return ForgeCardId(sourceCard.id)
     }
 
-    /** Cleanup ability grpId paired with the source card's Mobilize keyword
-     *  (189930 for Mobilize 3, 189931 for Mobilize 1). Null when the source
-     *  isn't a Mobilize card or the (keyword, cleanup) pair isn't yet in
-     *  [leyline.game.data.MOBILIZE_CLEANUP_BY_KEYWORD]; callers fall back to
-     *  the universal EOT-sacrifice grpId. */
+    /** Cleanup ability grpId paired with the source card's Mobilize keyword.
+     *  Looked up from the source's `Cards.HiddenAbilityIds` field — the
+     *  card-DB pairs every Mobilize-N (keyword on `AbilityIds`) with its
+     *  "Sacrifice them at the beginning of the next end step." entry on
+     *  `HiddenAbilityIds`. Null when the source isn't a Mobilize card or has
+     *  no hidden ability; callers fall back to the universal EOT-sacrifice
+     *  grpId. Generic over Mobilize-N — works for any future Mobilize value
+     *  without table updates. */
     private fun mobilizeCleanupGrpIdForSource(sourceForgeId: ForgeCardId, bridge: GameBridge): Int? {
         val sourceCard = bridge.findCard(sourceForgeId) ?: return null
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
-        val mobilizeKeywordGrpId =
-            bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, "MOBILIZE") ?: return null
-        return leyline.game.data.MOBILIZE_CLEANUP_BY_KEYWORD[mobilizeKeywordGrpId]
+        // Confirm the source actually carries Mobilize before claiming the
+        // first hidden ability is the Mobilize cleanup row — guards against
+        // unrelated hidden abilities on cards that don't use the keyword.
+        bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, "MOBILIZE") ?: return null
+        return bridge.cardRepository.findHiddenAbilityGrpId(sourceGrpId)
     }
 
     /** The Mobilize keyword ability grpId on a Mobilize source (188696, 188698…),

@@ -3,7 +3,7 @@ Name:Mobilize attack
 Goal:Attack with Mobilize sources
 Turns:5
 Difficulty:Easy
-Description:Reigning Victor (Mobilize 1) and Dalkovan Packbeasts (Mobilize 3, vigilance) on the battlefield. Attack to fire both Mobilize triggers — one Warrior token from Reigning Victor, three from Packbeasts, all sacrificed at next end step.
+Description:Reigning Victor (Mobilize 1), Voice of Victory (Mobilize 2), and Dalkovan Packbeasts (Mobilize 3, vigilance) on the battlefield. Attack to fire all three Mobilize triggers — 1 + 2 + 3 = 6 Warrior tokens, all sacrificed at next end step. Verifies the dynamic Cards.HiddenAbilityIds lookup picks up Mobilize 2's cleanup row (189933) on Voice of Victory.
 
 [state]
 ActivePlayer=Human
@@ -11,6 +11,6 @@ ActivePhase=Main1
 HumanLife=20
 AILife=20
 
-humanbattlefield=Reigning Victor;Dalkovan Packbeasts
+humanbattlefield=Reigning Victor;Voice of Victory;Dalkovan Packbeasts
 humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains
 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

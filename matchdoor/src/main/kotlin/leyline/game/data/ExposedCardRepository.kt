@@ -40,6 +40,7 @@ class ExposedCardRepository(
         val subtypes = text("Subtypes").default("")
         val supertypes = text("Supertypes").default("")
         val abilityIds = text("AbilityIds").default("")
+        val hiddenAbilityIds = text("HiddenAbilityIds").default("")
         val oldSchoolManaText = text("OldSchoolManaText").default("")
         val abilityIdToLinkedTokenGrpId = text("AbilityIdToLinkedTokenGrpId").default("")
         val isToken = integer("IsToken").default(0)
@@ -223,6 +224,7 @@ class ExposedCardRepository(
                         abilityKinds = abilityKinds,
                         manaCost = parseManaCost(row[Cards.oldSchoolManaText]),
                         tokenGrpIds = parseTokenGrpIds(row[Cards.abilityIdToLinkedTokenGrpId]),
+                        hiddenAbilityIds = parseAbilityIds(row[Cards.hiddenAbilityIds]),
                         linkedFaceGrpIds = parseIntList(row[Cards.linkedFaceGrpIds]),
                     )
                 }

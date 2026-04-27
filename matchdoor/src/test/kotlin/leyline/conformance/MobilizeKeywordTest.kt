@@ -61,9 +61,11 @@ class MobilizeKeywordTest :
             val repo = TestCardRegistry.repo
             val warriorGrpId = 300_010
             repo.register(warriorGrpId, "Warrior Token")
-            // (cardName, mobilizeKeywordRow, mobilizeCleanupRow). Mobilize 2 cards
-            // (Voice of Victory, Bone-Cairn Butcher, Dalkovan Outrider) are not
-            // covered until the spec pins their pair ids.
+            // (cardName, mobilizeKeywordRow, mobilizeCleanupRow). Cleanup row
+            // lands in `hiddenAbilityIds` to mirror the client card-DB shape
+            // — production looks it up via CardRepository.findHiddenAbilityGrpId.
+            // Mobilize 2 cards (Voice of Victory, Bone-Cairn Butcher, Dalkovan
+            // Outrider) are 188727 → 189933; not exercised here.
             val mobilizeCards =
                 listOf(
                     Triple("Reigning Victor", 188698, 189931),
@@ -76,7 +78,8 @@ class MobilizeKeywordTest :
                 repo.registerData(
                     data.copy(
                         tokenGrpIds = mapOf(0 to warriorGrpId),
-                        abilityIds = listOf(keywordRow to (1_000_000 + keywordRow), cleanupRow to (1_000_000 + cleanupRow)),
+                        abilityIds = listOf(keywordRow to (1_000_000 + keywordRow)),
+                        hiddenAbilityIds = listOf(cleanupRow to (1_000_000 + cleanupRow)),
                     ),
                     cardName,
                 )

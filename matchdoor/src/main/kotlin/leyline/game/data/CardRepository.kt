@@ -125,6 +125,27 @@ interface CardRepository {
     ): Boolean = keywordPrefixes.any { findKeywordAbilityGrpId(cardGrpId, it) != null }
 
     /**
+     * Hidden delayed-trigger ability grpId on [cardGrpId], if any. Sources from
+     * [CardData.hiddenAbilityIds] — the client card-DB pairs each Mobilize
+     * source's keyword (in `Cards.AbilityIds`) with its cleanup ability
+     * ("Sacrifice them at the beginning of the next end step.") here. Same
+     * pairing pattern serves exile-and-return mechanics.
+     *
+     * Returns the first hidden ability id by default; `predicate` can narrow
+     * to a specific ability when a card has multiple hidden entries.
+     */
+    fun findHiddenAbilityGrpId(
+        cardGrpId: Int,
+        predicate: (abilityGrpId: Int) -> Boolean = { true },
+    ): Int? {
+        val data = findByGrpId(cardGrpId) ?: return null
+        for ((abilityGrpId, _) in data.hiddenAbilityIds) {
+            if (predicate(abilityGrpId)) return abilityGrpId
+        }
+        return null
+    }
+
+    /**
      * Token grpId produced by [sourceGrpId].
      * Single token -> returns directly. Multiple -> matches by [tokenName].
      */
@@ -192,22 +213,3 @@ val KEYWORD_BASE_IDS: Map<String, Int> =
         "MOBILIZE" to 363,
     )
 
-/**
- * Mobilize keyword ability grpId → paired cleanup-trigger ability grpId on the
- * same source card. Each Mobilize-N has a pair (keyword row, "Sacrifice them at
- * the beginning of the next end step" row) that ride the source card's
- * [CardData.abilityIds]; the cleanup row drives `DelayedTriggerAffectees` and
- * `TemporaryPermanent.AbilityGrpId`.
- *
- * TODO(mobilize): derive from card-DB at runtime by text-matching the cleanup
- * ability on each Mobilize source rather than maintaining this table. For now
- * the table is small enough to ship — Mobilize-N is a Tarkir-set keyword with a
- * fixed catalogue. Mobilize 2 is observable (Voice of Victory, Bone-Cairn
- * Butcher, Dalkovan Outrider) but its (keyword, cleanup) ids are not yet pulled
- * into this table — extend when confirmed.
- */
-val MOBILIZE_CLEANUP_BY_KEYWORD: Map<Int, Int> =
-    mapOf(
-        188698 to 189931, // Mobilize 1
-        188696 to 189930, // Mobilize 3
-    )
