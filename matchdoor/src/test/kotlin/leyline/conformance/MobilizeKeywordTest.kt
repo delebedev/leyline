@@ -148,8 +148,9 @@ class MobilizeKeywordTest :
             h.passUntil(maxPasses = 30) {
                 h.allMessages.any { it.hasDeclareAttackersReq() }
             }
-            val req = h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
-                ?: error("never reached DeclareAttackers")
+            val req =
+                h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
+                    ?: error("never reached DeclareAttackers")
             req.declareAttackersReq.attackersList
                 .map { it.attackerInstanceId }
                 .contains(sourceIid) shouldBe true
@@ -250,7 +251,8 @@ class MobilizeKeywordTest :
 
             val post = h.messagesSince(snap)
             val tokenCreatedCount =
-                post.filter { it.hasGameStateMessage() }
+                post
+                    .filter { it.hasGameStateMessage() }
                     .flatMap { it.gameStateMessage.annotationsList }
                     .count { it.typeList.contains(AnnotationType.TokenCreated) }
             tokenCreatedCount shouldBeGreaterThanOrEqual 3
@@ -263,7 +265,8 @@ class MobilizeKeywordTest :
 
             val creatures = h.humanBattlefieldCreatures()
             val attackerIids =
-                creatures.filter { it.second == "Reigning Victor" || it.second == "Mardu Thunderkite" }
+                creatures
+                    .filter { it.second == "Reigning Victor" || it.second == "Mardu Thunderkite" }
                     .map { it.first }
             attackerIids shouldHaveSize 2
 
@@ -275,7 +278,8 @@ class MobilizeKeywordTest :
             val post = h.messagesSince(snap)
             // Both triggers should surface — count distinct AbilityInstanceCreated affectedIds.
             val abilityCreated =
-                post.filter { it.hasGameStateMessage() }
+                post
+                    .filter { it.hasGameStateMessage() }
                     .flatMap { it.gameStateMessage.annotationsList }
                     .filter { it.typeList.contains(AnnotationType.AbilityInstanceCreated) }
             // affectedIds is the stack ability instanceId.
@@ -284,7 +288,8 @@ class MobilizeKeywordTest :
 
             // At least two TriggeringObject pAnns (one per source).
             val triggeringObjects =
-                post.filter { it.hasGameStateMessage() }
+                post
+                    .filter { it.hasGameStateMessage() }
                     .flatMap { it.gameStateMessage.persistentAnnotationsList }
                     .filter { it.typeList.contains(AnnotationType.TriggeringObject) }
             triggeringObjects.size shouldBeGreaterThanOrEqual 2
@@ -294,7 +299,8 @@ class MobilizeKeywordTest :
             // holder iid (e.g. if the holder forge id ever reverts to a
             // per-controller key).
             val holders =
-                post.filter { it.hasGameStateMessage() }
+                post
+                    .filter { it.hasGameStateMessage() }
                     .flatMap { it.gameStateMessage.gameObjectsList }
                     .filter { it.type == GameObjectType.TriggerHolder }
             val distinctHolderIids = holders.map { it.instanceId }.toSet()

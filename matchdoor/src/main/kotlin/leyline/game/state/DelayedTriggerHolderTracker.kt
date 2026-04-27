@@ -102,6 +102,7 @@ class DelayedTriggerHolderTracker {
  *   return). Lands in `uniqueAbilities[0].grpId` and drives the indicator's
  *   tooltip text.
  */
+
 /**
  * Wire-shape state for a single TriggerHolder gameObject.
  *

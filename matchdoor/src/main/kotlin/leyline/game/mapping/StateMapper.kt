@@ -1259,7 +1259,10 @@ object StateMapper {
 
     /** Best-effort source-zone lookup for an event-derived trigger. Falls back
      *  to Battlefield (28) — the dominant case for combat / state-change triggers. */
-    private fun currentSourceZoneId(cardId: ForgeCardId, bridge: GameBridge): Int {
+    private fun currentSourceZoneId(
+        cardId: ForgeCardId,
+        bridge: GameBridge,
+    ): Int {
         val card = bridge.findCard(cardId) ?: return ZoneIds.BATTLEFIELD
         val ownerSeat = ownerSeatOf(card, bridge)
         return when (card.zone?.zoneType) {
@@ -1280,7 +1283,10 @@ object StateMapper {
      *  `ResolutionStart`/`Complete` carry the keyword row id rather than the
      *  source card's grpId. Falls back to the source card's grpId for triggers
      *  whose keyword isn't in [KEYWORD_BASE_IDS] yet. */
-    private fun abilityGrpIdForSource(cardId: ForgeCardId, bridge: GameBridge): Int {
+    private fun abilityGrpIdForSource(
+        cardId: ForgeCardId,
+        bridge: GameBridge,
+    ): Int {
         val card = bridge.findCard(cardId) ?: return 0
         val cardGrpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
         for (keyword in keywordTriggerNames) {
@@ -1299,7 +1305,10 @@ object StateMapper {
      *  the token has no `tokenSpawningAbility` (puzzle-injected tokens, copy
      *  tokens, etc.). Used by EOT-cleanup pAnn emission to derive both the
      *  cleanup ability grpId and the trigger-holder iid. */
-    private fun tokenSourceForgeId(tokenForgeId: ForgeCardId, bridge: GameBridge): ForgeCardId? {
+    private fun tokenSourceForgeId(
+        tokenForgeId: ForgeCardId,
+        bridge: GameBridge,
+    ): ForgeCardId? {
         val tokenCard = bridge.findCard(tokenForgeId) ?: return null
         val sourceCard = tokenCard.tokenSpawningAbility?.hostCard ?: return null
         return ForgeCardId(sourceCard.id)
@@ -1317,7 +1326,10 @@ object StateMapper {
      *  fall back to the universal EOT-sacrifice grpId. Generic over
      *  Mobilize-N — works for any future Mobilize value without table
      *  updates. */
-    private fun mobilizeCleanupGrpIdForSource(sourceForgeId: ForgeCardId, bridge: GameBridge): Int? {
+    private fun mobilizeCleanupGrpIdForSource(
+        sourceForgeId: ForgeCardId,
+        bridge: GameBridge,
+    ): Int? {
         val sourceCard = bridge.findCard(sourceForgeId) ?: return null
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
         // Confirm the source actually carries Mobilize before claiming a
@@ -1332,7 +1344,10 @@ object StateMapper {
      *  used as `objectSourceGrpId` on the TriggerHolder gameObject so the client
      *  renders the right ability icon and tooltip text in the timed-effect
      *  side panel. Null when the source doesn't carry Mobilize. */
-    private fun mobilizeKeywordGrpIdForSource(sourceForgeId: ForgeCardId, bridge: GameBridge): Int? {
+    private fun mobilizeKeywordGrpIdForSource(
+        sourceForgeId: ForgeCardId,
+        bridge: GameBridge,
+    ): Int? {
         val sourceCard = bridge.findCard(sourceForgeId) ?: return null
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
         return bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, "MOBILIZE")
@@ -1353,7 +1368,10 @@ object StateMapper {
     }
 
     /** Best-effort owner seat lookup for an event-derived source card. */
-    private fun ownerSeatOf(card: forge.game.card.Card, bridge: GameBridge): Int {
+    private fun ownerSeatOf(
+        card: forge.game.card.Card,
+        bridge: GameBridge,
+    ): Int {
         val owner = card.owner ?: return 1
         return if (owner.lobbyPlayer is forge.ai.LobbyPlayerAi) {
             bridge.seating.familiarSeat.value
