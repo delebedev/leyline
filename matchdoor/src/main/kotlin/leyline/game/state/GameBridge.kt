@@ -376,10 +376,13 @@ class GameBridge(
         /** Fallback grpId for cards not in client DB (renders face-down). */
         const val FALLBACK_GRPID = 0
 
-        /** Base instanceId for synthetic per-seat delayed-trigger holder objects.
-         *  Picked above the typical card iid range to avoid collisions while still
-         *  being a small, stable integer the client can render. */
-        const val DELAYED_TRIGGER_HOLDER_BASE = 90_000_000
+        /** Forge-id offset for synthetic delayed-trigger holder objects. The
+         *  holder's forge id is `<source card forge id> + offset`, which gets
+         *  fed through [getOrAllocInstanceId] to yield a stable instance id that
+         *  both `DelayedTriggerAffectees.affectorId` and the per-token
+         *  `TemporaryPermanent.affectorId` reference. Picked above any plausible
+         *  real or stack-ability forge id range so it doesn't collide. */
+        const val DELAYED_TRIGGER_HOLDER_FORGE_OFFSET = 90_000_000
 
         /** Default deck when no decklist is provided (tests, puzzles without decks). */
         private const val FALLBACK_DECK = """

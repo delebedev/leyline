@@ -1008,16 +1008,23 @@ object AnnotationBuilder {
     /**
      * Copy token with EOT sacrifice. Persistent annotation. client type 80.
      * Drives "sacrifice at end of turn" visual indicator on the client.
-     * [abilityGrpId] = 192424 (universal EOT-sacrifice marker per protocol).
+     * [abilityGrpId] = 192424 (universal EOT-sacrifice marker) for generic copy
+     * tokens; per-card cleanup row (e.g. 189931 for Mobilize 1) when known.
+     * [affectorId] is the trigger-holder gameObject that owns the cleanup
+     * delayed trigger — defaults to the token itself for legacy callers; for
+     * Mobilize and other delayed-cleanup mechanics it must match the
+     * `DelayedTriggerAffectees.affectorId` so the client links cleanup ability
+     * to its tokens.
      */
     fun temporaryPermanent(
         tokenInstanceId: InstanceId,
         abilityGrpId: GrpId = AnnotationConstants.EOT_SACRIFICE_GRP_ID,
+        affectorId: InstanceId = tokenInstanceId,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.TemporaryPermanent)
-            .setAffectorId(tokenInstanceId.value)
+            .setAffectorId(affectorId.value)
             .addAffectedIds(tokenInstanceId.value)
             .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId.value))
             .build()

@@ -21,6 +21,7 @@ import leyline.game.annotations.TransferResult
 import leyline.game.annotations.ZoneTransferDetector
 import leyline.game.bundle.GsmFrame
 import leyline.game.event.GameEvent
+import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.BridgeMutations
 import leyline.game.state.EffectTracker
@@ -318,38 +319,44 @@ object StateMapper {
                 .filter { it.isOnAdventure }
                 .map { AnnotationBuilder.qualification(instanceId = bridge.getOrAllocInstanceId(it.forgeCardId)) }
         val eotTokens = snap.objects.values.filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
+        // Group EOT-sacrifice tokens by their source card so each delayed-trigger
+        // registration gets its own TriggerHolder iid. The canonical shape mints
+        // a transient gameObject in Limbo (grpId=5) per `registerDelayedTrigger`
+        // call — keying the holder forge id on
+        // `<source card forge id> + DELAYED_TRIGGER_HOLDER_FORGE_OFFSET` produces
+        // a stable iid that both DelayedTriggerAffectees and per-token
+        // TemporaryPermanent reference, mirroring the shared-holder shape
+        // (Mobilize 3: one holder, three tokens; two Mobilize sources: two holders).
+        // Tokens whose source can't be resolved (non-Mobilize EOT copy tokens, etc.)
+        // fall back to a per-controller holder.
+        val tokenSources: Map<CardSnapshot, ForgeCardId?> =
+            eotTokens.associateWith { tokenSourceForgeId(it.forgeCardId, bridge) }
         val temporaryPermanentPersistentFromSnap =
             eotTokens.map { token ->
                 val tokenIid = bridge.getOrAllocInstanceId(token.forgeCardId)
-                val cleanupGrpId = mobilizeCleanupGrpIdForToken(token.forgeCardId, bridge)
-                if (cleanupGrpId != null) {
-                    AnnotationBuilder.temporaryPermanent(tokenIid, GrpId(cleanupGrpId))
-                } else {
-                    AnnotationBuilder.temporaryPermanent(tokenIid)
-                }
+                val sourceForgeId = tokenSources[token]
+                val holderIid = holderInstanceIdFor(sourceForgeId, token.controller.value, bridge)
+                val cleanupGrpId =
+                    sourceForgeId?.let { mobilizeCleanupGrpIdForSource(it, bridge) }
+                AnnotationBuilder.temporaryPermanent(
+                    tokenInstanceId = tokenIid,
+                    abilityGrpId = cleanupGrpId?.let { GrpId(it) } ?: AnnotationConstants.EOT_SACRIFICE_GRP_ID,
+                    affectorId = holderIid,
+                )
             }
-        // DelayedTriggerAffectees groups all EOT-sacrifice tokens that share the same
-        // delayed trigger. Group by controller for a minimum-viable approximation
-        // (single Mobilize source per controller). Multi-source-per-controller cases
-        // collapse into a single annotation — refine later by tracking the
-        // delayed-trigger origin per token.
         val delayedTriggerAffecteesFromSnap =
             eotTokens
-                .groupBy { it.controller.value }
+                .groupBy { tokenSources[it] to it.controller.value }
                 .filterValues { it.isNotEmpty() }
-                .map { (seat, tokens) ->
+                .map { (key, tokens) ->
+                    val (sourceForgeId, seat) = key
                     val tokenIds = tokens.map { bridge.getOrAllocInstanceId(it.forgeCardId) }
-                    // Use the first token's source-derived cleanup grpId for the group.
-                    // When the holder-mint refactor lands this becomes per-trigger.
                     val cleanupGrpId =
-                        tokens
-                            .firstNotNullOfOrNull { mobilizeCleanupGrpIdForToken(it.forgeCardId, bridge) }
+                        sourceForgeId?.let { mobilizeCleanupGrpIdForSource(it, bridge) }
                             ?: AnnotationConstants.EOT_SACRIFICE_GRP_ID.value
-                    // Synthesise a stable trigger-holder id per controller. Real wire
-                    // shape uses a transient gameObject in Limbo with grpId=5.
-                    val holderId = InstanceId(GameBridge.DELAYED_TRIGGER_HOLDER_BASE + seat)
+                    val holderIid = holderInstanceIdFor(sourceForgeId, seat, bridge)
                     AnnotationBuilder.delayedTriggerAffectees(
-                        triggerHolderId = holderId,
+                        triggerHolderId = holderIid,
                         tokenInstanceIds = tokenIds,
                         abilityGrpId = GrpId(cleanupGrpId),
                     )
@@ -1058,18 +1065,48 @@ object StateMapper {
      *  combat/ETB/state-trigger keywords ship and need precise grpId fidelity. */
     private val KEYWORD_TRIGGER_NAMES = listOf("MOBILIZE")
 
-    /** For an EOT-sacrifice token whose source has the Mobilize keyword, return
-     *  the per-N cleanup ability grpId (189930/189931 etc.). Returns null when
-     *  the token's source doesn't carry Mobilize or the keyword pairing isn't
-     *  yet in the [leyline.game.data.MOBILIZE_CLEANUP_BY_KEYWORD] table —
-     *  callers fall back to the universal EOT-sacrifice grpId. */
-    private fun mobilizeCleanupGrpIdForToken(tokenForgeId: ForgeCardId, bridge: GameBridge): Int? {
+    /** Forge id of the source card that spawned [tokenForgeId], or null when
+     *  the token has no `tokenSpawningAbility` (puzzle-injected tokens, copy
+     *  tokens, etc.). Used by EOT-cleanup pAnn emission to derive both the
+     *  cleanup ability grpId and the trigger-holder iid. */
+    private fun tokenSourceForgeId(tokenForgeId: ForgeCardId, bridge: GameBridge): ForgeCardId? {
         val tokenCard = bridge.findCard(tokenForgeId) ?: return null
         val sourceCard = tokenCard.tokenSpawningAbility?.hostCard ?: return null
+        return ForgeCardId(sourceCard.id)
+    }
+
+    /** Cleanup ability grpId paired with the source card's Mobilize keyword
+     *  (189930 for Mobilize 3, 189931 for Mobilize 1). Null when the source
+     *  isn't a Mobilize card or the (keyword, cleanup) pair isn't yet in
+     *  [leyline.game.data.MOBILIZE_CLEANUP_BY_KEYWORD]; callers fall back to
+     *  the universal EOT-sacrifice grpId. */
+    private fun mobilizeCleanupGrpIdForSource(sourceForgeId: ForgeCardId, bridge: GameBridge): Int? {
+        val sourceCard = bridge.findCard(sourceForgeId) ?: return null
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
         val mobilizeKeywordGrpId =
             bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, "MOBILIZE") ?: return null
         return leyline.game.data.MOBILIZE_CLEANUP_BY_KEYWORD[mobilizeKeywordGrpId]
+    }
+
+    /** Stable per-trigger-registration holder iid. When [sourceForgeId] is
+     *  known we key the holder forge id on it (so all tokens spawned by the
+     *  same source-card resolution share one holder iid, matching the
+     *  canonical Mobilize 3 → one-holder-three-tokens shape). When unknown
+     *  (rare — non-Mobilize EOT tokens) we fall back to a per-controller
+     *  holder so the legacy generic EOT-copy path still emits a coherent
+     *  shared affector. */
+    private fun holderInstanceIdFor(
+        sourceForgeId: ForgeCardId?,
+        controllerSeat: Int,
+        bridge: GameBridge,
+    ): InstanceId {
+        if (sourceForgeId != null) {
+            val holderForge = ForgeCardId(sourceForgeId.value + GameBridge.DELAYED_TRIGGER_HOLDER_FORGE_OFFSET)
+            return bridge.getOrAllocInstanceId(holderForge)
+        }
+        // Synthetic per-controller fallback. Out-of-range of any real forge id.
+        val syntheticForge = ForgeCardId(GameBridge.DELAYED_TRIGGER_HOLDER_FORGE_OFFSET + controllerSeat)
+        return bridge.getOrAllocInstanceId(syntheticForge)
     }
 
     /** Best-effort owner seat lookup for an event-derived source card. */
