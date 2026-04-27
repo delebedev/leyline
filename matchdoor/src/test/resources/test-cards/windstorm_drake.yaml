@@ -1,0 +1,11 @@
+name: "Windstorm Drake"
+grpId: 93174
+titleId: 279633
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 121999
+    textId: 279635
+    category: 3
+expansionCode: "J25"

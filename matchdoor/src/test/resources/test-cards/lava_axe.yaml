@@ -1,0 +1,8 @@
+name: "Lava Axe"
+grpId: 67980
+titleId: 2262
+abilities:
+  - id: 1118
+    textId: 234575
+    category: 4
+expansionCode: "M19"

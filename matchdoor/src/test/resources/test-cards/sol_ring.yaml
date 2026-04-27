@@ -1,0 +1,8 @@
+name: "Sol Ring"
+grpId: 98688
+titleId: 744
+abilities:
+  - id: 1471
+    textId: 233654
+    category: 1
+expansionCode: "TLE"

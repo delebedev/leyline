@@ -1,0 +1,8 @@
+name: "Sylvan Ranger"
+grpId: 72497
+titleId: 18614
+abilities:
+  - id: 92911
+    textId: 936328
+    category: 2
+expansionCode: "JMP"

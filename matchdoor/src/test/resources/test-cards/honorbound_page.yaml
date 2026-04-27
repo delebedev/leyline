@@ -1,0 +1,13 @@
+name: "Honorbound Page"
+grpId: 102478
+titleId: 1110888
+abilities:
+  - id: 6
+    textId: 158
+    category: 3
+  - id: 204300
+    textId: 1110865
+    category: 3
+expansionCode: "SOS"
+linkedFaces:
+  - 104058

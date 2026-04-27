@@ -1,0 +1,10 @@
+name: "Novice Inspector"
+grpId: 88949
+titleId: 748362
+abilities:
+  - id: 86969
+    textId: 932574
+    category: 2
+expansionCode: "MKM"
+tokens:
+  "86969": 89236

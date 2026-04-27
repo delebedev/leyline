@@ -1,17 +1,6 @@
 name: "Resolute Reinforcements"
 grpId: 93858
 titleId: 614643
-power: "1"
-toughness: "1"
-colors:
-  - 1
-types:
-  - 2
-subtypes:
-  - 39
-  - 64
-supertypes: []
-manaCost: "o1oW"
 abilities:
   - id: 7
     textId: 43

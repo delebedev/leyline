@@ -1,0 +1,8 @@
+name: "Raging Goblin"
+grpId: 75522
+titleId: 4675
+abilities:
+  - id: 9
+    textId: 101
+    category: 3
+expansionCode: "ANB"

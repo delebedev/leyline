@@ -1,0 +1,8 @@
+name: "Shock"
+grpId: 98039
+titleId: 2221
+abilities:
+  - id: 86613
+    textId: 234577
+    category: 4
+expansionCode: "OMB"

@@ -1,16 +1,6 @@
 name: "History of Benalia"
 grpId: 67146
 titleId: 227027
-power: ""
-toughness: ""
-colors:
-  - 1
-types:
-  - 3
-subtypes:
-  - 347
-supertypes: []
-manaCost: "o1oWoW"
 abilities:
   - id: 119071
     textId: 228834

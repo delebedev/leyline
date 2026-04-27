@@ -1,0 +1,21 @@
+name: "Healer's Hawk"
+grpId: 93855
+titleId: 272601
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 12
+    textId: 38
+    category: 3
+expansionCode: "FDN"
+power: "1"
+toughness: "1"
+colors:
+  - 1
+types:
+  - 2
+subtypes:
+  - 12
+supertypes: []
+manaCost: "oW"

@@ -1,0 +1,14 @@
+name: "Liliana of the Veil"
+grpId: 82149
+titleId: 39269
+abilities:
+  - id: 18643
+    textId: 39270
+    category: 1
+  - id: 99469
+    textId: 109448
+    category: 1
+  - id: 99470
+    textId: 323771
+    category: 1
+expansionCode: "DMU"

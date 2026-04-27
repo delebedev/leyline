@@ -1,0 +1,12 @@
+name: "Cackling Prowler"
+grpId: 93814
+titleId: 823459
+abilities:
+  - id: 141939
+    textId: 488336
+    category: 2
+    baseId: 211
+  - id: 175866
+    textId: 823461
+    category: 2
+expansionCode: "FDN"

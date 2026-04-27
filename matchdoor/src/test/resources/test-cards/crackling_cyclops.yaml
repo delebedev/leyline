@@ -1,0 +1,8 @@
+name: "Crackling Cyclops"
+grpId: 93796
+titleId: 823399
+abilities:
+  - id: 175844
+    textId: 823401
+    category: 2
+expansionCode: "FDN"

@@ -1,0 +1,15 @@
+name: "Treetop Snarespinner"
+grpId: 93827
+titleId: 823497
+abilities:
+  - id: 13
+    textId: 143
+    category: 3
+  - id: 1
+    textId: 100
+    category: 3
+  - id: 175881
+    textId: 823499
+    category: 1
+    mana: "o2oG"
+expansionCode: "FDN"

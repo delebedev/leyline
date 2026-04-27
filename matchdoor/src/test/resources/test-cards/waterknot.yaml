@@ -1,0 +1,15 @@
+name: "Waterknot"
+grpId: 75481
+titleId: 181700
+abilities:
+  - id: 1027
+    textId: 605
+    category: 3
+    baseId: 4
+  - id: 175741
+    textId: 823115
+    category: 2
+  - id: 88178
+    textId: 77108
+    category: 3
+expansionCode: "ANB"

@@ -1,0 +1,8 @@
+name: "Duress"
+grpId: 94034
+titleId: 5924
+abilities:
+  - id: 21775
+    textId: 233683
+    category: 4
+expansionCode: "FDN"

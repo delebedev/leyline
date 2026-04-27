@@ -1,0 +1,13 @@
+name: "Think Twice"
+grpId: 93878
+titleId: 34797
+abilities:
+  - id: 25848
+    textId: 730
+    category: 4
+  - id: 12930
+    textId: 34799
+    category: 8
+    baseId: 35
+    mana: "o2oU"
+expansionCode: "FDN"

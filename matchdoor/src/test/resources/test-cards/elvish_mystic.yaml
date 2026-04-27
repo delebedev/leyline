@@ -1,0 +1,8 @@
+name: "Elvish Mystic"
+grpId: 54163
+titleId: 42983
+abilities:
+  - id: 1005
+    textId: 227393
+    category: 1
+expansionCode: "M14"

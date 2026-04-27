@@ -1,0 +1,8 @@
+name: "Homunculus Horde"
+grpId: 93754
+titleId: 823271
+abilities:
+  - id: 175791
+    textId: 823273
+    category: 2
+expansionCode: "FDN"

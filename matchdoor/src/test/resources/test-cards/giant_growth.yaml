@@ -1,0 +1,8 @@
+name: "Giant Growth"
+grpId: 102804
+titleId: 4416
+abilities:
+  - id: 24733
+    textId: 1263
+    category: 4
+expansionCode: "SOA"

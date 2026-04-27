@@ -1,0 +1,15 @@
+name: "Angelic Destiny"
+grpId: 93993
+titleId: 19143
+abilities:
+  - id: 1027
+    textId: 605
+    category: 3
+    baseId: 4
+  - id: 1171
+    textId: 19144
+    category: 3
+  - id: 93048
+    textId: 960966
+    category: 2
+expansionCode: "FDN"

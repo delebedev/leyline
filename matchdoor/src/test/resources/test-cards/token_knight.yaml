@@ -1,6 +1,12 @@
 name: "Knight"
 grpId: 67665
 titleId: 555
+abilities:
+  - id: 15
+    textId: 137
+    category: 3
+isToken: true
+isPrimaryCard: false
 power: "2"
 toughness: "2"
 colors: []
@@ -10,9 +16,3 @@ subtypes:
   - 45
 supertypes: []
 manaCost: ""
-abilities:
-  - id: 15
-    textId: 137
-    category: 3
-isToken: true
-isPrimaryCard: false

@@ -1,0 +1,13 @@
+name: "Short Sword"
+grpId: 72018
+titleId: 227572
+abilities:
+  - id: 1314
+    textId: 1401
+    category: 3
+  - id: 1268
+    textId: 926
+    category: 1
+    baseId: 5
+    mana: "o1"
+expansionCode: "M21"

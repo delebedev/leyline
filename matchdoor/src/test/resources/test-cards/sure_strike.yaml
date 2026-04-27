@@ -1,0 +1,8 @@
+name: "Sure Strike"
+grpId: 93922
+titleId: 48571
+abilities:
+  - id: 1019
+    textId: 1290
+    category: 4
+expansionCode: "FDN"

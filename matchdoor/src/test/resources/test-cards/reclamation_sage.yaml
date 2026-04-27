@@ -1,0 +1,8 @@
+name: "Reclamation Sage"
+grpId: 93944
+titleId: 45438
+abilities:
+  - id: 101429
+    textId: 893897
+    category: 2
+expansionCode: "FDN"

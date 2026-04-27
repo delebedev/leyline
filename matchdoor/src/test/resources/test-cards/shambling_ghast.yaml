@@ -1,0 +1,13 @@
+name: "Shambling Ghast"
+grpId: 92914
+titleId: 498704
+abilities:
+  - id: 143737
+    textId: 951330
+    category: 2
+    modalChildren:
+      - 143736
+      - 138314
+expansionCode: "J25"
+tokens:
+  "138314": 95426

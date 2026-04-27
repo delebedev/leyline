@@ -1,0 +1,8 @@
+name: "Banishing Light"
+grpId: 96580
+titleId: 1769
+abilities:
+  - id: 176387
+    textId: 898526
+    category: 2
+expansionCode: "EOE"

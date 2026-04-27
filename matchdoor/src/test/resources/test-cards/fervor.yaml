@@ -1,0 +1,8 @@
+name: "Fervor"
+grpId: 98644
+titleId: 5983
+abilities:
+  - id: 1567
+    textId: 4076
+    category: 3
+expansionCode: "TLE"

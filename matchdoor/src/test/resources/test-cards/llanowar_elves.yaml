@@ -1,0 +1,8 @@
+name: "Llanowar Elves"
+grpId: 93940
+titleId: 2688
+abilities:
+  - id: 1005
+    textId: 227393
+    category: 1
+expansionCode: "FDN"

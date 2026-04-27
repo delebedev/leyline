@@ -1,0 +1,13 @@
+name: "Quick-Draw Katana"
+grpId: 93843
+titleId: 823549
+abilities:
+  - id: 175904
+    textId: 823551
+    category: 3
+  - id: 1319
+    textId: 922
+    category: 1
+    baseId: 5
+    mana: "o2"
+expansionCode: "FDN"

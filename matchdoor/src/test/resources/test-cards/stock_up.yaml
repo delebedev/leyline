@@ -1,0 +1,8 @@
+name: "Stock Up"
+grpId: 102776
+titleId: 878939
+abilities:
+  - id: 176437
+    textId: 878941
+    category: 4
+expansionCode: "SOA"

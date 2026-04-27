@@ -1,0 +1,12 @@
+name: "Charming Prince"
+grpId: 93996
+titleId: 413618
+abilities:
+  - id: 136341
+    textId: 897414
+    category: 2
+    modalChildren:
+      - 136338
+      - 26167
+      - 136340
+expansionCode: "FDN"

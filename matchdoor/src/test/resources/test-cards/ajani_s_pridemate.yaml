@@ -1,0 +1,19 @@
+name: "Ajani's Pridemate"
+grpId: 93848
+titleId: 18841
+abilities:
+  - id: 92970
+    textId: 823185
+    category: 2
+expansionCode: "FDN"
+power: "2"
+toughness: "2"
+colors:
+  - 1
+types:
+  - 2
+subtypes:
+  - 14
+  - 64
+supertypes: []
+manaCost: "o1oW"

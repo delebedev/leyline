@@ -1,0 +1,8 @@
+name: "Negate"
+grpId: 100504
+titleId: 2259
+abilities:
+  - id: 1142
+    textId: 2261
+    category: 4
+expansionCode: "TMT"

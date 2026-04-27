@@ -1,0 +1,31 @@
+name: "Echo of Death's Wail"
+grpId: 79553
+titleId: 557756
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 9
+    textId: 101
+    category: 3
+  - id: 147928
+    textId: 956835
+    category: 2
+  - id: 147929
+    textId: 956836
+    category: 2
+expansionCode: "NEO"
+linkedFaces:
+  - 79552
+isPrimaryCard: false
+power: "3"
+toughness: "3"
+colors:
+  - 3
+types:
+  - 3
+  - 2
+subtypes:
+  - 68
+supertypes: []
+manaCost: ""

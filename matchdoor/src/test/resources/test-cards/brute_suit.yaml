@@ -1,0 +1,12 @@
+name: "Brute Suit"
+grpId: 79681
+titleId: 558224
+abilities:
+  - id: 15
+    textId: 137
+    category: 3
+  - id: 76556
+    textId: 51574
+    category: 1
+    baseId: 156
+expansionCode: "NEO"

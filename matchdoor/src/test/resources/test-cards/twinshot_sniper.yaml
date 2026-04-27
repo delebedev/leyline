@@ -1,0 +1,15 @@
+name: "Twinshot Sniper"
+grpId: 79600
+titleId: 557921
+abilities:
+  - id: 13
+    textId: 143
+    category: 3
+  - id: 1553
+    textId: 956987
+    category: 2
+  - id: 147987
+    textId: 956988
+    category: 1
+    mana: "o1oR"
+expansionCode: "NEO"

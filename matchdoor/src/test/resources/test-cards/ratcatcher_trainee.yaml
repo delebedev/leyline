@@ -1,0 +1,10 @@
+name: "Ratcatcher Trainee"
+grpId: 86845
+titleId: 731632
+abilities:
+  - id: 121419
+    textId: 823208
+    category: 3
+expansionCode: "WOE"
+linkedFaces:
+  - 86846

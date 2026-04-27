@@ -1,0 +1,8 @@
+name: "Unsummon"
+grpId: 94027
+titleId: 398
+abilities:
+  - id: 22505
+    textId: 61004
+    category: 4
+expansionCode: "FDN"

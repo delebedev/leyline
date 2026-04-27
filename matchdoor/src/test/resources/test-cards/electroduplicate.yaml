@@ -1,0 +1,13 @@
+name: "Electroduplicate"
+grpId: 93798
+titleId: 823405
+abilities:
+  - id: 175846
+    textId: 823407
+    category: 4
+  - id: 175847
+    textId: 823408
+    category: 8
+    baseId: 35
+    mana: "o2oRoR"
+expansionCode: "FDN"

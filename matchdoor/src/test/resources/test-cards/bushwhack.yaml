@@ -1,0 +1,11 @@
+name: "Bushwhack"
+grpId: 93928
+titleId: 618537
+abilities:
+  - id: 153364
+    textId: 618539
+    category: 4
+    modalChildren:
+      - 27767
+      - 99356
+expansionCode: "FDN"

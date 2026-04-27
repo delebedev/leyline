@@ -1,0 +1,8 @@
+name: "Quick Study"
+grpId: 102524
+titleId: 731368
+abilities:
+  - id: 23607
+    textId: 1652
+    category: 4
+expansionCode: "SOS"

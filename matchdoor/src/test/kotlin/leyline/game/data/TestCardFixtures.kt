@@ -3,6 +3,7 @@ package leyline.game.data
 import leyline.game.InMemoryCardRepository
 import leyline.game.codes.SlotKind
 import org.yaml.snakeyaml.Yaml
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -11,51 +12,174 @@ import kotlin.io.path.isRegularFile
 
 /**
  * Per-card YAML fixture loader. Reads each YAML file under the test resources
- * directory `test-cards` and exposes a [CardRepository] populated with the
- * fixture data — no Arena SQLite required.
+ * directory `test-cards` and exposes them as either Arena-identity-only ([Slim])
+ * for cards Forge owns rules data for, or self-contained ([Full]) for tokens
+ * and Alchemy/digital-only cards Forge has no entry for.
  *
- * Schema mirrors the narrow subset of fields that [ExposedCardRepository]
- * reads (grpId, titleId, mana, types, ability ids plus Category and
- * ModalChildIds, linked faces, produced tokens). Self-contained for tests —
- * every grpId referenced in tokens or linkedFaces must have its own YAML in
- * the same directory.
+ * Schema mirrors the narrow column subset that [ExposedCardRepository] reads.
+ * Field IDs (colors, types, subtypes, supertypes, ability category) are
+ * Arena's enum integers as stored in `Cards.*` columns.
+ *
+ * Fixtures form a closed graph: every grpId referenced in `tokens` or
+ * `linkedFaces` must have its own YAML in the same directory.
  */
 object TestCardFixtures {
     private const val DEFAULT_RESOURCE_DIR = "test-cards"
 
     /**
-     * Load every YAML fixture in the test resources `test-cards/` directory
-     * into a fresh [InMemoryCardRepository]. Most tests want this.
+     * Arena identity for a card — the integers Forge cardsfolder doesn't carry.
+     * Stamped onto a Forge-derived [CardData] by [ArenaIdentityOverlay] for
+     * slim fixtures.
      */
-    fun repository(): InMemoryCardRepository {
-        val repo = InMemoryCardRepository()
-        for (entry in loadAllEntries()) entry.applyTo(repo)
-        return repo
+    data class Identity(
+        val name: String,
+        val grpId: Int,
+        val titleId: Int,
+        val expansionCode: String,
+        val abilities: List<Ability>,
+        val tokens: Map<Int, Int>,
+        val linkedFaces: List<Int>,
+        val isToken: Boolean,
+        val isPrimaryCard: Boolean,
+    ) {
+        data class Ability(
+            val id: Int,
+            val textId: Int,
+            val category: Int,
+            val baseId: Int,
+            val activationMana: List<Pair<ManaColor, Int>>,
+            val modalChildren: List<Int>,
+        )
     }
 
     /**
-     * Register a single named card (and its closure: linked faces and produced
-     * tokens) into [repo]. Errors if the named card isn't in the fixture set.
+     * A loaded fixture — either Slim (rules data lives in Forge) or Full
+     * (self-contained, used for tokens / Alchemy where Forge has no entry).
      */
-    fun register(repo: InMemoryCardRepository, cardName: String) {
-        val all = loadAllEntries().associateBy { it.grpId }
-        val byName = all.values.associateBy { it.name }
-        val root = byName[cardName]
-            ?: error("No fixture found for card '$cardName' under $DEFAULT_RESOURCE_DIR/")
-        val toApply = mutableSetOf<Int>()
-        val stack = ArrayDeque<Int>()
-        stack.add(root.grpId)
-        while (stack.isNotEmpty()) {
-            val id = stack.removeLast()
-            if (!toApply.add(id)) continue
-            val entry = all[id] ?: continue
-            stack.addAll(entry.linkedFaces)
-            stack.addAll(entry.tokens.values)
+    sealed interface Fixture {
+        val identity: Identity
+
+        data class Slim(override val identity: Identity) : Fixture
+
+        data class Full(
+            override val identity: Identity,
+            val rules: Rules,
+        ) : Fixture {
+            data class Rules(
+                val power: String,
+                val toughness: String,
+                val colors: List<Int>,
+                val types: List<Int>,
+                val subtypes: List<Int>,
+                val supertypes: List<Int>,
+                val manaCost: List<Pair<ManaColor, Int>>,
+            )
         }
-        for (id in toApply) all[id]?.applyTo(repo)
     }
 
-    private fun loadAllEntries(): List<Entry> {
+    private val byName: Map<String, Fixture> by lazy { loadAllFixtures().associateBy { it.identity.name } }
+    private val byGrpId: Map<Int, Fixture> by lazy { loadAllFixtures().associateBy { it.identity.grpId } }
+
+    /** Lookup fixture by display name. */
+    fun findFixture(name: String): Fixture? = byName[name]
+
+    /** Lookup fixture by grpId. Used to walk the fixture graph (linkedFaces / tokens). */
+    fun findFixtureByGrpId(grpId: Int): Fixture? = byGrpId[grpId]
+
+    /** Convenience: returns full closure (the named card + its linked faces and produced tokens). */
+    fun findClosure(name: String): List<Fixture> {
+        val root = findFixture(name) ?: return emptyList()
+        val seen = mutableSetOf<Int>()
+        val ordered = mutableListOf<Fixture>()
+        val stack = ArrayDeque<Int>()
+        stack.add(root.identity.grpId)
+        while (stack.isNotEmpty()) {
+            val id = stack.removeLast()
+            if (!seen.add(id)) continue
+            val f = byGrpId[id] ?: continue
+            ordered += f
+            stack.addAll(f.identity.linkedFaces)
+            stack.addAll(f.identity.tokens.values)
+        }
+        return ordered
+    }
+
+    /**
+     * Register a card and its closure into [repo] using **only** Full fixtures.
+     * Slim fixtures need Forge-derived rules data — use the FixtureCardLoader
+     * (in conformance package) which threads Forge through.
+     *
+     * Errors loudly if the named card is missing or any closure entry is Slim.
+     */
+    fun registerFull(repo: InMemoryCardRepository, cardName: String) {
+        val closure = findClosure(cardName)
+        check(closure.isNotEmpty()) {
+            "No fixture found for card '$cardName' under $DEFAULT_RESOURCE_DIR/. " +
+                "Generate via `card-fixtures emit \"$cardName\"`."
+        }
+        for (f in closure) {
+            check(f is Fixture.Full) {
+                "Closure for '$cardName' contains slim fixture '${f.identity.name}' — " +
+                    "use FixtureCardLoader (Forge-aware) to register slim cards."
+            }
+            applyFull(repo, f)
+        }
+    }
+
+    /**
+     * Register every Full fixture (tokens, Alchemy, etc.). Slim fixtures are
+     * skipped — they need Forge-derived rules data.
+     */
+    fun registerAllFull(repo: InMemoryCardRepository) {
+        for (f in byName.values) {
+            if (f is Fixture.Full) applyFull(repo, f)
+        }
+    }
+
+    private fun applyFull(repo: InMemoryCardRepository, fixture: Fixture.Full) {
+        val id = fixture.identity
+        val abilityIds = id.abilities.map { it.id to it.textId }
+        val abilityKinds = id.abilities.map { ab ->
+            if (ab.category == 1) SlotKind.Activated else SlotKind.Intrinsic
+        }
+        val data = CardData(
+            grpId = id.grpId,
+            titleId = id.titleId,
+            power = fixture.rules.power,
+            toughness = fixture.rules.toughness,
+            colors = fixture.rules.colors,
+            types = fixture.rules.types,
+            subtypes = fixture.rules.subtypes,
+            supertypes = fixture.rules.supertypes,
+            abilityIds = abilityIds,
+            abilityKinds = abilityKinds,
+            manaCost = fixture.rules.manaCost,
+            tokenGrpIds = id.tokens,
+            linkedFaceGrpIds = id.linkedFaces,
+        )
+        repo.registerData(data, id.name)
+        registerAbilityMetadata(repo, id)
+    }
+
+    /**
+     * Register the [AbilityInfo] and [ModalAbilityInfo] entries from the
+     * fixture's ability list. Used both by [applyFull] and by the slim path
+     * (after Forge-derived CardData has been constructed and registered).
+     */
+    fun registerAbilityMetadata(repo: InMemoryCardRepository, identity: Identity) {
+        for (ab in identity.abilities) {
+            if (ab.baseId != 0 || ab.activationMana.isNotEmpty()) {
+                repo.registerAbilityInfo(ab.id, AbilityInfo(ab.baseId, ab.activationMana))
+            }
+            if (ab.modalChildren.isNotEmpty()) {
+                repo.registerModalOptions(identity.grpId, ModalAbilityInfo(ab.id, ab.modalChildren))
+            }
+        }
+    }
+
+    // --- Loading ---
+
+    private fun loadAllFixtures(): List<Fixture> {
         val dir = resolveResourceDir()
         return Files.list(dir).use { stream ->
             stream
@@ -73,23 +197,18 @@ object TestCardFixtures {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun parseFile(path: Path): Entry {
+    private fun parseFile(path: Path): Fixture {
         val raw = Files.newBufferedReader(path).use { Yaml().load<Map<String, Any?>>(it) }
             ?: error("Empty fixture: $path")
-        return Entry(
+
+        val identity = Identity(
             name = raw["name"] as String,
             grpId = (raw["grpId"] as Number).toInt(),
             titleId = (raw["titleId"] as Number).toInt(),
-            power = raw["power"] as String? ?: "",
-            toughness = raw["toughness"] as String? ?: "",
-            colors = (raw["colors"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
-            types = (raw["types"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
-            subtypes = (raw["subtypes"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
-            supertypes = (raw["supertypes"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
-            manaCost = parseManaCost(raw["manaCost"] as String? ?: ""),
+            expansionCode = raw["expansionCode"] as String? ?: "",
             abilities = (raw["abilities"] as List<*>? ?: emptyList<Any>()).map { entry ->
                 val m = entry as Map<String, Any?>
-                AbilityEntry(
+                Identity.Ability(
                     id = (m["id"] as Number).toInt(),
                     textId = (m["textId"] as Number).toInt(),
                     category = (m["category"] as Number).toInt(),
@@ -101,7 +220,6 @@ object TestCardFixtures {
             },
             tokens = (raw["tokens"] as Map<*, *>? ?: emptyMap<Any, Any>())
                 .entries.associate { (k, v) ->
-                    // YAML int keys round-trip as String when parsed as Map<String, Any>; coerce.
                     val key = when (k) {
                         is Number -> k.toInt()
                         is String -> k.toInt()
@@ -111,62 +229,28 @@ object TestCardFixtures {
                 },
             linkedFaces = (raw["linkedFaces"] as List<*>? ?: emptyList<Any>())
                 .map { (it as Number).toInt() },
+            isToken = raw["isToken"] as Boolean? ?: false,
+            isPrimaryCard = raw["isPrimaryCard"] as Boolean? ?: true,
         )
-    }
 
-    private data class Entry(
-        val name: String,
-        val grpId: Int,
-        val titleId: Int,
-        val power: String,
-        val toughness: String,
-        val colors: List<Int>,
-        val types: List<Int>,
-        val subtypes: List<Int>,
-        val supertypes: List<Int>,
-        val manaCost: List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>>,
-        val abilities: List<AbilityEntry>,
-        val tokens: Map<Int, Int>,
-        val linkedFaces: List<Int>,
-    ) {
-        fun applyTo(repo: InMemoryCardRepository) {
-            val abilityIds = abilities.map { it.id to it.textId }
-            val abilityKinds = abilities.map { ab ->
-                if (ab.category == 1) SlotKind.Activated else SlotKind.Intrinsic
-            }
-            val data = CardData(
-                grpId = grpId,
-                titleId = titleId,
-                power = power,
-                toughness = toughness,
-                colors = colors,
-                types = types,
-                subtypes = subtypes,
-                supertypes = supertypes,
-                abilityIds = abilityIds,
-                abilityKinds = abilityKinds,
-                manaCost = manaCost,
-                tokenGrpIds = tokens,
-                linkedFaceGrpIds = linkedFaces,
+        // Full shape includes Forge-derivable rules fields. Slim omits them.
+        val hasRulesFields = listOf("power", "toughness", "colors", "types", "subtypes", "supertypes", "manaCost")
+            .any { raw.containsKey(it) }
+        return if (hasRulesFields) {
+            Fixture.Full(
+                identity = identity,
+                rules = Fixture.Full.Rules(
+                    power = raw["power"] as String? ?: "",
+                    toughness = raw["toughness"] as String? ?: "",
+                    colors = (raw["colors"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
+                    types = (raw["types"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
+                    subtypes = (raw["subtypes"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
+                    supertypes = (raw["supertypes"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
+                    manaCost = parseManaCost(raw["manaCost"] as String? ?: ""),
+                ),
             )
-            repo.registerData(data, name)
-            for (ab in abilities) {
-                if (ab.baseId != 0 || ab.activationMana.isNotEmpty()) {
-                    repo.registerAbilityInfo(ab.id, AbilityInfo(ab.baseId, ab.activationMana))
-                }
-                if (ab.modalChildren.isNotEmpty()) {
-                    repo.registerModalOptions(grpId, ModalAbilityInfo(ab.id, ab.modalChildren))
-                }
-            }
+        } else {
+            Fixture.Slim(identity)
         }
     }
-
-    private data class AbilityEntry(
-        val id: Int,
-        val textId: Int,
-        val category: Int,
-        val baseId: Int,
-        val activationMana: List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>>,
-        val modalChildren: List<Int>,
-    )
 }

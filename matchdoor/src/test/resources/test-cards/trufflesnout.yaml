@@ -1,0 +1,11 @@
+name: "Trufflesnout"
+grpId: 71994
+titleId: 434060
+abilities:
+  - id: 137979
+    textId: 943696
+    category: 2
+    modalChildren:
+      - 60590
+      - 121504
+expansionCode: "M21"

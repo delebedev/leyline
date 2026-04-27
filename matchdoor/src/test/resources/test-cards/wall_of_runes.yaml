@@ -1,0 +1,11 @@
+name: "Wall of Runes"
+grpId: 75478
+titleId: 336414
+abilities:
+  - id: 2
+    textId: 109
+    category: 3
+  - id: 176406
+    textId: 932211
+    category: 2
+expansionCode: "ANB"

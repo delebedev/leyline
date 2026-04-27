@@ -1,0 +1,11 @@
+name: "Charging Monstrosaur"
+grpId: 66241
+titleId: 173806
+abilities:
+  - id: 14
+    textId: 28
+    category: 3
+  - id: 9
+    textId: 101
+    category: 3
+expansionCode: "XLN"

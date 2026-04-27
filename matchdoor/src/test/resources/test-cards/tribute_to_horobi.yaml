@@ -1,0 +1,22 @@
+name: "Tribute to Horobi"
+grpId: 79552
+titleId: 557753
+abilities:
+  - id: 147926
+    textId: 557754
+    category: 2
+    baseId: 166
+  - id: 147927
+    textId: 557755
+    category: 2
+    baseId: 166
+  - id: 147760
+    textId: 557304
+    category: 2
+    baseId: 166
+expansionCode: "NEO"
+tokens:
+  "147926": 79747
+  "147927": 79747
+linkedFaces:
+  - 79553

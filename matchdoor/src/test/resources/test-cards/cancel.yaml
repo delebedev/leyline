@@ -1,0 +1,8 @@
+name: "Cancel"
+grpId: 93654
+titleId: 2278
+abilities:
+  - id: 25846
+    textId: 762
+    category: 4
+expansionCode: "FDN"

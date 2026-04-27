@@ -1,0 +1,8 @@
+name: "Mardu Outrider"
+grpId: 75493
+titleId: 478092
+abilities:
+  - id: 87929
+    textId: 232893
+    category: 5
+expansionCode: "ANB"

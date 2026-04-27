@@ -1,0 +1,13 @@
+name: "Burst Lightning"
+grpId: 102793
+titleId: 24940
+abilities:
+  - id: 2852
+    textId: 15064
+    category: 3
+    baseId: 34
+    mana: "o4"
+  - id: 94999
+    textId: 425937
+    category: 4
+expansionCode: "SOA"

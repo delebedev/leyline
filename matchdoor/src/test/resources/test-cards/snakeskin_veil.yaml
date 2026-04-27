@@ -1,0 +1,8 @@
+name: "Snakeskin Veil"
+grpId: 95682
+titleId: 477650
+abilities:
+  - id: 140071
+    textId: 477652
+    category: 4
+expansionCode: "TDM"
