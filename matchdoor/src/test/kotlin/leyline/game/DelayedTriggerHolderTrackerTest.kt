@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -53,10 +54,12 @@ class DelayedTriggerHolderTrackerTest :
             batch.removed shouldContainExactly listOf(119)
 
             t.apply(batch)
-            t.activeSize shouldBe 0
-            t.drainDeletions() shouldContainExactly listOf(119)
-            // Drained — second call returns nothing.
-            t.drainDeletions().shouldBeEmpty()
+            assertSoftly("post-removal state") {
+                t.activeSize shouldBe 0
+                t.drainDeletions() shouldContainExactly listOf(119)
+                // Drained — second call returns nothing.
+                t.drainDeletions().shouldBeEmpty()
+            }
         }
 
         test("swap one holder for another — same call returns added + removed") {
@@ -114,10 +117,12 @@ class DelayedTriggerHolderTrackerTest :
 
             val first = t.computeBatch(listOf(rec(123)))
             val second = t.computeBatch(listOf(rec(123)))
-            first.added.map { it.iid } shouldContainExactly second.added.map { it.iid }
-            first.removed shouldContainExactly second.removed
-            // State unchanged — 119 still active.
-            t.activeSize shouldBe 1
-            t.drainDeletions().shouldBeEmpty()
+            assertSoftly("computeBatch idempotency") {
+                first.added.map { it.iid } shouldContainExactly second.added.map { it.iid }
+                first.removed shouldContainExactly second.removed
+                // State unchanged — 119 still active.
+                t.activeSize shouldBe 1
+                t.drainDeletions().shouldBeEmpty()
+            }
         }
     })

@@ -6,7 +6,6 @@
     <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.ModifiedLife</ID>
     <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$assertSoftly { ann.typeList shouldContain AnnotationType.AbilityWordActive ann.affectorId shouldBe 1 ann.affectedIdsList shouldBe listOf(303) ann.detailString("AbilityWordName") shouldBe "Descended" }</ID>
     <ID>MissingAssertSoftly:AnnotationOrderingTest.kt$AnnotationOrderingTest$ids.shouldNotBeEmpty()</ID>
-    <ID>MissingAssertSoftly:AttackerTapStateTest.kt$AttackerTapStateTest$h.playLand().shouldBeTrue()</ID>
     <ID>MissingAssertSoftly:AttackerTapStateTest.kt$AttackerTapStateTest$h.playLand("Mountain").shouldBeTrue()</ID>
     <ID>MissingAssertSoftly:AutoPassEngineTest.kt$AutoPassEngineTest$decision.shouldBeInstanceOf&lt;PriorityDecision.Grant&gt;()</ID>
     <ID>MissingAssertSoftly:AutoPassEngineTest.kt$AutoPassEngineTest$decision.shouldBeInstanceOf&lt;PriorityDecision.Skip&gt;()</ID>
@@ -22,7 +21,6 @@
     <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$allMsgs.size shouldBeGreaterThanOrEqualTo 3</ID>
     <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$attackerObj.shouldNotBeNull()</ID>
     <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$damageGsm.shouldNotBeNull()</ID>
-    <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$playLand().shouldBeTrue()</ID>
     <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$playLand("Mountain").shouldBeTrue()</ID>
     <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$postAttack.shouldNotBeEmpty()</ID>
     <ID>MissingAssertSoftly:CombatInteractionTest.kt$CombatInteractionTest$postCombat.shouldNotBeEmpty()</ID>

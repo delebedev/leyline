@@ -126,7 +126,7 @@ object StateMapper {
      * objectInstanceIds (for card count) but no GameObjectInfo (renders face-down).
      * Use 0 to include all objects (internal snapshots for diffing).
      */
-    @Suppress("LongMethod", "LongParameterList")
+    @Suppress("LongMethod", "LongParameterList", "CyclomaticComplexMethod")
     fun buildFromSnapshot(
         snap: GsmSnapshot,
         gameStateId: Int,
@@ -1258,7 +1258,11 @@ object StateMapper {
     }
 
     /** Best-effort source-zone lookup for an event-derived trigger. Falls back
-     *  to Battlefield (28) — the dominant case for combat / state-change triggers. */
+     *  to Battlefield (28) — the dominant case for combat / state-change triggers.
+     *  ZoneType has many rarely-used values (Sideboard, Ante, Subgame…) that
+     *  don't host triggering objects we'd surface to the wire; mapping each
+     *  is noise. The else-branch keeps the fallback explicit. */
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun currentSourceZoneId(
         cardId: ForgeCardId,
         bridge: GameBridge,

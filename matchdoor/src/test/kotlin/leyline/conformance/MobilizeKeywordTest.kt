@@ -151,9 +151,7 @@ class MobilizeKeywordTest :
             val req =
                 h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
                     ?: error("never reached DeclareAttackers")
-            req.declareAttackersReq.attackersList
-                .map { it.attackerInstanceId }
-                .contains(sourceIid) shouldBe true
+            req.declareAttackersReq.attackersList.map { it.attackerInstanceId } shouldContain sourceIid
 
             val snap = h.messageSnapshot()
             h.declareAttackers(listOf(sourceIid))
@@ -170,22 +168,19 @@ class MobilizeKeywordTest :
             annotations.shouldNotBeEmpty()
             val types = post.allAnnotationTypes()
 
-            assertSoftly("trigger-half wire shape") {
-                types.contains(AnnotationType.AbilityInstanceCreated) shouldBe true
-                types.contains(AnnotationType.TriggeringObject) shouldBe true
-            }
-
-            assertSoftly("resolution wire shape") {
-                types.contains(AnnotationType.ResolutionStart) shouldBe true
-                types.contains(AnnotationType.ResolutionComplete) shouldBe true
-                types.contains(AnnotationType.AbilityInstanceDeleted) shouldBe true
-                types.contains(AnnotationType.TokenCreated) shouldBe true
-            }
-
-            assertSoftly("per-token persistent annotations") {
-                types.contains(AnnotationType.EnteredZoneThisTurn) shouldBe true
-                types.contains(AnnotationType.TemporaryPermanent) shouldBe true
-                types.contains(AnnotationType.DelayedTriggerAffectees) shouldBe true
+            assertSoftly("Mobilize 1 wire shape") {
+                // Trigger half
+                types shouldContain AnnotationType.AbilityInstanceCreated
+                types shouldContain AnnotationType.TriggeringObject
+                // Resolution half
+                types shouldContain AnnotationType.ResolutionStart
+                types shouldContain AnnotationType.ResolutionComplete
+                types shouldContain AnnotationType.AbilityInstanceDeleted
+                types shouldContain AnnotationType.TokenCreated
+                // Per-token persistent annotations
+                types shouldContain AnnotationType.EnteredZoneThisTurn
+                types shouldContain AnnotationType.TemporaryPermanent
+                types shouldContain AnnotationType.DelayedTriggerAffectees
             }
 
             // Snapshot fidelity: the Mobilize ability ideally appears as a stack
@@ -336,12 +331,12 @@ class MobilizeKeywordTest :
                     ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
                         ann.detailsList.any { d -> d.key == "category" && "Sacrifice" in d.valueStringList }
                 }
-            sacrifice.shouldNotBeEmpty()
+            sacrifice.size shouldBeGreaterThanOrEqual 1
 
             val types = post.allAnnotationTypes()
             assertSoftly("cleanup half") {
-                types.contains(AnnotationType.TokenDeleted) shouldBe true
-                types.contains(AnnotationType.AbilityInstanceDeleted) shouldBe true
+                types shouldContain AnnotationType.TokenDeleted
+                types shouldContain AnnotationType.AbilityInstanceDeleted
             }
         }
 
