@@ -69,17 +69,48 @@ object AnnotationOrderEnforcer {
     fun enforce(annotations: List<AnnotationInfo>): List<AnnotationInfo> {
         val rule1Edges = buildRule1Edges(annotations)
         val rule2Edges = buildRule2Edges(annotations)
+        val rule3Edges = buildTokenCreatedEdges(annotations)
 
-        if (rule1Edges.isEmpty() && rule2Edges.isEmpty()) return annotations
+        if (rule1Edges.isEmpty() && rule2Edges.isEmpty() && rule3Edges.isEmpty()) return annotations
 
-        // Check for violations before doing any work
-        val allEdges = rule1Edges + rule2Edges
+        val allEdges = rule1Edges + rule2Edges + rule3Edges
         val hasViolation = allEdges.any { (from, to) -> from > to }
 
         if (!hasViolation) return annotations
 
         logViolations(annotations, allEdges)
         return topologicalSort(annotations, allEdges)
+    }
+
+    /**
+     * Rule 3: TokenCreated must precede any annotation referencing the new token's
+     * instanceId as affector or affected. The token's iid only enters the client
+     * identity map when TokenCreated is processed; downstream annotations
+     * (DamageDealt from a Mobilize warrior, TappedUntappedPermanent, etc.) need
+     * that mapping in place or the client renders the damage before the token
+     * appears on the battlefield.
+     */
+    private fun buildTokenCreatedEdges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
+        val tokenIidToTcIndex = mutableMapOf<Int, Int>()
+        for ((i, ann) in annotations.withIndex()) {
+            if (AnnotationType.TokenCreated in ann.typeList) {
+                for (iid in ann.affectedIdsList) {
+                    if (iid != 0) tokenIidToTcIndex.putIfAbsent(iid, i)
+                }
+            }
+        }
+        if (tokenIidToTcIndex.isEmpty()) return emptyList()
+
+        val edges = mutableListOf<Pair<Int, Int>>()
+        for ((i, ann) in annotations.withIndex()) {
+            if (AnnotationType.TokenCreated in ann.typeList) continue
+            for (refId in referencedIds(ann)) {
+                val tcIndex = tokenIidToTcIndex[refId] ?: continue
+                if (tcIndex == i) continue
+                edges.add(tcIndex to i)
+            }
+        }
+        return edges
     }
 
     /**

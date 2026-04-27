@@ -50,4 +50,5 @@ object DetailKeys {
     const val ALTERNATIVE_GRP_ID = "alternativeGrpId"
     const val ALTERNATE_COST_GRP_ID = "alternateCostGrpId"
     const val CAST_ABILITY_GRP_ID = "castAbilityGrpId"
+    const val REMOVES_FROM_ZONE = "removesFromZone"
 }

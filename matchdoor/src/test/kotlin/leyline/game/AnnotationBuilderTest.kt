@@ -865,10 +865,16 @@ class AnnotationBuilderTest :
         // --- TriggeringObject (Tier 2) ---
 
         test("triggeringObjectFields") {
-            val ann = AnnotationBuilder.triggeringObject(instanceId = 294.iid, sourceZone = 27)
+            val ann =
+                AnnotationBuilder.triggeringObject(
+                    abilityInstanceId = 294.iid,
+                    sourceCardInstanceId = 195.iid,
+                    sourceZone = 27,
+                )
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.TriggeringObject
-                ann.affectedIdsList shouldContain 294
+                ann.affectorId shouldBe 294
+                ann.affectedIdsList shouldContain 195
                 ann.detailInt("source_zone") shouldBe 27
             }
         }

@@ -161,7 +161,7 @@ class AnnotationShapeConformanceTest :
         }
 
         test("TriggeringObject shape: {source_zone}") {
-            detailKeys(AnnotationBuilder.triggeringObject(1.iid, 27)) shouldBe setOf("source_zone")
+            detailKeys(AnnotationBuilder.triggeringObject(1.iid, 2.iid, 27)) shouldBe setOf("source_zone")
         }
 
         test("TargetSpec shape: {abilityGrpId, index, promptId, promptParameters}") {
@@ -309,7 +309,7 @@ class AnnotationShapeConformanceTest :
                 "DamagedThisTurn" to detailKeys(AnnotationBuilder.damagedThisTurn(listOf(1.iid))),
                 "InstanceRevealedToOpponent" to detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1.iid)),
                 "ColorProduction" to detailKeys(AnnotationBuilder.colorProduction(1.iid, listOf(1))),
-                "TriggeringObject" to detailKeys(AnnotationBuilder.triggeringObject(1.iid, 27)),
+                "TriggeringObject" to detailKeys(AnnotationBuilder.triggeringObject(1.iid, 2.iid, 27)),
                 "TargetSpec" to detailKeys(AnnotationBuilder.targetSpec(1.iid, 1.iid, 1.grp, 1, 1, 1)),
                 "PowerToughnessModCreated" to detailKeys(AnnotationBuilder.powerToughnessModCreated(1.iid, 1, 1)),
                 "DisplayCardUnderCard" to detailKeys(AnnotationBuilder.displayCardUnderCard(affectorId = 0.iid, instanceId = 1.iid)),

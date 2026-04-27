@@ -99,6 +99,19 @@ class GameEventCollector(
     private val lastStateName = ConcurrentHashMap<ForgeCardId, CardStateName>()
 
     /**
+     * SpellAbility ids of triggered abilities currently on the stack. Populated when
+     * the trigger is cast (visit GameEventSpellAbilityCast with si.isTrigger == true),
+     * consumed when the same id resolves. The resolved event carries only a
+     * SpellAbilityView, which doesn't expose isTrigger — this map is the bridge.
+     */
+    private val pendingTriggers = ConcurrentHashMap<Int, ForgeCardId>()
+
+    /** Non-consuming check: is this SpellAbility a triggered ability currently on the stack?
+     *  Used by [leyline.game.GamePlayback] to decide whether to insert a per-step diff
+     *  for trigger resolutions on the local player's turn. */
+    fun isTriggerResolving(saId: Int): Boolean = pendingTriggers.containsKey(saId)
+
+    /**
      * Drain all queued events since last drain. Returns events in engine firing order.
      *
      * **Call exactly once per GSM build** — second call returns empty (events are gone).
@@ -182,6 +195,12 @@ class GameEventCollector(
             } else {
                 0
             }
+        // Trigger detection: StackItemView carries isTrigger; SpellAbilityView does not.
+        val isTrigger = ev.si()?.isTrigger ?: false
+        val abilityForgeId = if (isTrigger) ev.sa()?.id ?: 0 else 0
+        if (isTrigger && abilityForgeId != 0) {
+            pendingTriggers[abilityForgeId] = ForgeCardId(card.id)
+        }
         queue.add(
             GameEvent.SpellCast(
                 cardId = ForgeCardId(card.id),
@@ -189,15 +208,19 @@ class GameEventCollector(
                 manaPayments = payments,
                 isAdventure = isAdventure,
                 altCostAbilityGrpId = altCostAbilityGrpId,
+                isTrigger = isTrigger,
+                abilityForgeId = abilityForgeId,
             ),
         )
         log.debug(
-            "event: SpellCast card={} seat={} manaPayments={} adventure={} altCost={}",
+            "event: SpellCast card={} seat={} manaPayments={} adventure={} altCost={} trigger={} abilityForgeId={}",
             card.name,
             seat,
             payments.size,
             isAdventure,
             altCostAbilityGrpId,
+            isTrigger,
+            abilityForgeId,
         )
     }
 
@@ -210,8 +233,23 @@ class GameEventCollector(
 
     override fun visit(ev: GameEventSpellResolved) {
         val card = ev.spell().hostCard ?: return
-        queue.add(GameEvent.SpellResolved(ForgeCardId(card.id), ev.hasFizzled()))
-        log.debug("event: SpellResolved card={} fizzled={}", card.name, ev.hasFizzled())
+        val saId = ev.spell().id
+        val isTrigger = pendingTriggers.remove(saId) != null
+        queue.add(
+            GameEvent.SpellResolved(
+                cardId = ForgeCardId(card.id),
+                hasFizzled = ev.hasFizzled(),
+                isTrigger = isTrigger,
+                abilityForgeId = if (isTrigger) saId else 0,
+            ),
+        )
+        log.debug(
+            "event: SpellResolved card={} fizzled={} trigger={} abilityForgeId={}",
+            card.name,
+            ev.hasFizzled(),
+            isTrigger,
+            if (isTrigger) saId else 0,
+        )
     }
 
     @Suppress("CyclomaticComplexMethod") // zone-change routing inherently branchy

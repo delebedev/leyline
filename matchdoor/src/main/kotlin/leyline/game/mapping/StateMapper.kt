@@ -9,6 +9,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.annotations.AnnotationBuilder
+import leyline.game.annotations.AnnotationConstants
 import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.annotations.AppliedTransfer
 import leyline.game.annotations.CombatAnnotationResult
@@ -316,10 +317,29 @@ object StateMapper {
             snap.objects.values
                 .filter { it.isOnAdventure }
                 .map { AnnotationBuilder.qualification(instanceId = bridge.getOrAllocInstanceId(it.forgeCardId)) }
+        val eotTokens = snap.objects.values.filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
         val temporaryPermanentPersistentFromSnap =
-            snap.objects.values
-                .filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
-                .map { AnnotationBuilder.temporaryPermanent(bridge.getOrAllocInstanceId(it.forgeCardId)) }
+            eotTokens.map { AnnotationBuilder.temporaryPermanent(bridge.getOrAllocInstanceId(it.forgeCardId)) }
+        // DelayedTriggerAffectees groups all EOT-sacrifice tokens that share the same
+        // delayed trigger. Group by controller for a minimum-viable approximation
+        // (single Mobilize source per controller). Multi-source-per-controller cases
+        // collapse into a single annotation — refine later by tracking the
+        // delayed-trigger origin per token.
+        val delayedTriggerAffecteesFromSnap =
+            eotTokens
+                .groupBy { it.controller.value }
+                .filterValues { it.isNotEmpty() }
+                .map { (seat, tokens) ->
+                    val tokenIds = tokens.map { bridge.getOrAllocInstanceId(it.forgeCardId) }
+                    // Synthesise a stable trigger-holder id per controller. Real wire
+                    // shape uses a transient gameObject in Limbo with grpId=5.
+                    val holderId = InstanceId(GameBridge.DELAYED_TRIGGER_HOLDER_BASE + seat)
+                    AnnotationBuilder.delayedTriggerAffectees(
+                        triggerHolderId = holderId,
+                        tokenInstanceIds = tokenIds,
+                        abilityGrpId = AnnotationConstants.EOT_SACRIFICE_GRP_ID,
+                    )
+                }
         val abilityWordPersistentFromSnap =
             snap.abilityWordEntries.map { entry ->
                 AnnotationBuilder.abilityWordActive(
@@ -349,6 +369,7 @@ object StateMapper {
                 combatResult,
                 qualificationPersistentFromSnap = qualificationPersistentFromSnap,
                 temporaryPermanentPersistentFromSnap = temporaryPermanentPersistentFromSnap,
+                delayedTriggerAffecteesPersistentFromSnap = delayedTriggerAffecteesFromSnap,
                 abilityWordPersistentFromSnap = abilityWordPersistentFromSnap,
             )
 
@@ -709,6 +730,7 @@ object StateMapper {
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
         qualificationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         temporaryPermanentPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        delayedTriggerAffecteesPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         abilityWordPersistentFromSnap: List<AnnotationInfo> = emptyList(),
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds =
@@ -731,7 +753,30 @@ object StateMapper {
                 effectIdAllocator = { bridge.effects.nextEffectId() },
                 activeStealForgeCardIds = bridge.annotations.activeStealForgeCardIds(),
             )
-        annotations.addAll(mechanicResult.transient)
+        // Token entries belong before combat damage: a Mobilize trigger that
+        // resolves between attacker declaration and combat damage produces tokens
+        // that themselves attack and deal damage. The client identity map needs
+        // them in place before processing the DamageDealt entries that reference
+        // their iids — otherwise the tokens visually pop in after first damage
+        // animates. Other mechanic annotations (counters, scry, surveil, …) keep
+        // their post-combat slot since they typically come from damage-triggered
+        // effects.
+        val (tokenCreatedAnns, otherMechanic) =
+            mechanicResult.transient.partition { ann ->
+                AnnotationType.TokenCreated in ann.typeList
+            }
+        if (tokenCreatedAnns.isNotEmpty()) {
+            val firstDamageIdx =
+                annotations.indexOfFirst { ann ->
+                    AnnotationType.DamageDealt_af5a in ann.typeList
+                }
+            if (firstDamageIdx >= 0) {
+                annotations.addAll(firstDamageIdx, tokenCreatedAnns)
+            } else {
+                annotations.addAll(tokenCreatedAnns)
+            }
+        }
+        annotations.addAll(otherMechanic)
 
         // AbilityWordActive: consumed from pre-computed snap entries
         val abilityWordPersistent = abilityWordPersistentFromSnap
@@ -766,6 +811,11 @@ object StateMapper {
         // TemporaryPermanent pAnn for any token with EOT-sacrifice (copy or otherwise)
         val temporaryPermanentPersistent = temporaryPermanentPersistentFromSnap
 
+        // DelayedTriggerAffectees groups EOT-sacrifice tokens that share a
+        // delayed trigger (Mobilize, EOT-sacrifice copies). One annotation per
+        // group, persistent until the trigger resolves.
+        val delayedTriggerAffecteesPersistent = delayedTriggerAffecteesPersistentFromSnap
+
         // TargetSpec pAnn for each targeted spell/ability on the stack
         val targetSpecPersistent = buildTargetSpecAnnotations(bridge)
 
@@ -780,6 +830,7 @@ object StateMapper {
                 crewedThisTurnPersistent = crewedThisTurnPersistent,
                 crewTypeChangePersistent = crewTypeChangePersistent,
                 temporaryPermanentPersistent = temporaryPermanentPersistent,
+                delayedTriggerAffecteesPersistent = delayedTriggerAffecteesPersistent,
                 targetSpecPersistent = targetSpecPersistent,
             )
         val batch =
@@ -826,6 +877,7 @@ object StateMapper {
         transferResult: TransferResult,
         actingSeat: Int,
         combatResult: CombatAnnotationResult,
+        bridge: GameBridge? = null,
     ): Pair<MutableList<AnnotationInfo>, MutableList<AnnotationInfo>> {
         val annotations = mutableListOf<AnnotationInfo>()
         val transferPersistent = mutableListOf<AnnotationInfo>()
@@ -848,6 +900,8 @@ object StateMapper {
         }
 
         for (transfer in immediateTransfers) emitTransfer(transfer)
+        // Snapshot-derived appearances (cast spells visible on the stack at snapshot time).
+        val snapshotSourceIids = transferResult.stackAbilityAppearances.map { it.sourceCardInstanceId }.toSet()
         for (a in transferResult.stackAbilityAppearances) {
             annotations.add(
                 AnnotationBuilder.abilityInstanceCreated(
@@ -855,6 +909,19 @@ object StateMapper {
                     InstanceId(a.sourceCardInstanceId),
                     a.sourceZoneId,
                 ),
+            )
+        }
+        // Event-driven trigger lifecycle: triggered abilities can fire and resolve
+        // entirely between two snapshots when no priority window is offered, so the
+        // snapshot diff misses them. Reconstruct the lifecycle from cast/resolved
+        // events instead. Only emit when the source isn't already covered above.
+        if (bridge != null) {
+            emitTriggerLifecycleAnnotations(
+                events = events,
+                snapshotSourceIids = snapshotSourceIids,
+                annotations = annotations,
+                transferPersistent = transferPersistent,
+                bridge = bridge,
             )
         }
         for (d in transferResult.stackAbilityDisappearances) {
@@ -871,6 +938,108 @@ object StateMapper {
         annotations.addAll(combatResult.annotations)
         for (transfer in deferredTransfers) emitTransfer(transfer)
         return annotations to transferPersistent
+    }
+
+    /**
+     * Emit AbilityInstanceCreated / TriggeringObject / ResolutionStart-Complete /
+     * AbilityInstanceDeleted for triggered abilities that surfaced via the event
+     * stream but were missed by snapshot-diff (auto-resolved between snapshots).
+     *
+     * The stack ability instanceId is synthesized as `sourceCardForgeId + OFFSET`,
+     * matching ZoneMapper.addStackAbilitiesFromSnapshot so a later snapshot that
+     * does see the trigger reuses the same id.
+     */
+    private fun emitTriggerLifecycleAnnotations(
+        events: List<GameEvent>,
+        snapshotSourceIids: Set<Int>,
+        annotations: MutableList<AnnotationInfo>,
+        transferPersistent: MutableList<AnnotationInfo>,
+        bridge: GameBridge,
+    ) {
+        val triggerCasts = events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }
+        if (triggerCasts.isEmpty()) return
+        val triggerResolves =
+            events
+                .filterIsInstance<GameEvent.SpellResolved>()
+                .filter { it.isTrigger }
+                .associateBy { it.cardId }
+        for (cast in triggerCasts) {
+            val sourceCardIid = bridge.getOrAllocInstanceId(cast.cardId).value
+            // If the snapshot already saw an Ability gameObject for this source card,
+            // the snapshot path emitted the Created annotation — don't double-emit.
+            if (sourceCardIid in snapshotSourceIids) continue
+
+            val abilityIid =
+                bridge
+                    .getOrAllocInstanceId(
+                        ForgeCardId(cast.cardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET),
+                    ).value
+            val sourceZone = currentSourceZoneId(cast.cardId, bridge)
+            val abilityGrpId = abilityGrpIdForSource(cast.cardId, bridge)
+
+            annotations.add(
+                AnnotationBuilder.abilityInstanceCreated(
+                    InstanceId(abilityIid),
+                    InstanceId(sourceCardIid),
+                    sourceZone,
+                ),
+            )
+            transferPersistent.add(
+                AnnotationBuilder.triggeringObject(
+                    abilityInstanceId = InstanceId(abilityIid),
+                    sourceCardInstanceId = InstanceId(sourceCardIid),
+                    sourceZone = sourceZone,
+                ),
+            )
+
+            val resolved = triggerResolves[cast.cardId]
+            if (resolved != null) {
+                annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
+                annotations.add(AnnotationBuilder.resolutionComplete(InstanceId(abilityIid), GrpId(abilityGrpId)))
+                annotations.add(
+                    AnnotationBuilder.abilityInstanceDeleted(
+                        InstanceId(abilityIid),
+                        InstanceId(sourceCardIid),
+                    ),
+                )
+            }
+        }
+    }
+
+    /** Best-effort source-zone lookup for an event-derived trigger. Falls back
+     *  to Battlefield (28) — the dominant case for combat / state-change triggers. */
+    private fun currentSourceZoneId(cardId: ForgeCardId, bridge: GameBridge): Int {
+        val card = bridge.findCard(cardId) ?: return ZoneIds.BATTLEFIELD
+        val ownerSeat = ownerSeatOf(card, bridge)
+        return when (card.zone?.zoneType) {
+            ForgeZoneType.Battlefield -> ZoneIds.BATTLEFIELD
+            ForgeZoneType.Stack -> ZoneIds.STACK
+            ForgeZoneType.Graveyard -> ZoneIds.graveyardOf(ownerSeat)
+            ForgeZoneType.Exile -> ZoneIds.EXILE
+            ForgeZoneType.Hand -> ZoneIds.handOf(ownerSeat)
+            ForgeZoneType.Library -> ZoneIds.libraryOf(ownerSeat)
+            ForgeZoneType.Command -> ZoneIds.COMMAND
+            else -> ZoneIds.BATTLEFIELD
+        }
+    }
+
+    /** Look up the wire-side ability grpId for a triggered source. Falls back to
+     *  the source card's grpId — better than 0 for client-side rendering. The
+     *  full mapping (per-keyword ability grpIds like 188698 for Mobilize 1) is
+     *  card-DB driven and can layer on top of this fallback later. */
+    private fun abilityGrpIdForSource(cardId: ForgeCardId, bridge: GameBridge): Int {
+        val card = bridge.findCard(cardId)
+        return card?.let { bridge.cardRepository.findGrpIdByName(it.name) } ?: 0
+    }
+
+    /** Best-effort owner seat lookup for an event-derived source card. */
+    private fun ownerSeatOf(card: forge.game.card.Card, bridge: GameBridge): Int {
+        val owner = card.owner ?: return 1
+        return if (owner.lobbyPlayer is forge.ai.LobbyPlayerAi) {
+            bridge.seating.familiarSeat.value
+        } else {
+            bridge.seating.humanSeat.value
+        }
     }
 
     /**
@@ -1034,6 +1203,7 @@ object StateMapper {
                 transferResult = transferResult,
                 actingSeat = actingSeat,
                 combatResult = combatResult,
+                bridge = bridge,
             )
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }

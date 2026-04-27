@@ -206,6 +206,17 @@ class PersistentAnnotationStore {
                     { it.affectorId },
                 )
 
+            // 3f-bis. DelayedTriggerAffectees — full-replacement upsert (keyed by trigger holder)
+            nextId =
+                upsertByType(
+                    active,
+                    deletions,
+                    nextId,
+                    AnnotationType.DelayedTriggerAffectees,
+                    mechanicResult.delayedTriggerAffecteesPersistent,
+                    { it.affectorId },
+                )
+
             // 3g. TargetSpec — full-replacement upsert (keyed by target instanceId + index)
             nextId =
                 upsertByType(

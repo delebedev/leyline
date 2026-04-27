@@ -1,0 +1,16 @@
+[metadata]
+Name:Mobilize attack
+Goal:Attack with Mobilize sources
+Turns:5
+Difficulty:Easy
+Description:Reigning Victor (Mobilize 1) and Dalkovan Packbeasts (Mobilize 3, vigilance) on the battlefield. Attack to fire both Mobilize triggers — one Warrior token from Reigning Victor, three from Packbeasts, all sacrificed at next end step.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Reigning Victor;Dalkovan Packbeasts
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

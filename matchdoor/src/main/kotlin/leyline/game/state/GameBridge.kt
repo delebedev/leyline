@@ -376,6 +376,11 @@ class GameBridge(
         /** Fallback grpId for cards not in client DB (renders face-down). */
         const val FALLBACK_GRPID = 0
 
+        /** Base instanceId for synthetic per-seat delayed-trigger holder objects.
+         *  Picked above the typical card iid range to avoid collisions while still
+         *  being a small, stable integer the client can render. */
+        const val DELAYED_TRIGGER_HOLDER_BASE = 90_000_000
+
         /** Default deck when no decklist is provided (tests, puzzles without decks). */
         private const val FALLBACK_DECK = """
 20 Llanowar Elves
