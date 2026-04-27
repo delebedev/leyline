@@ -89,6 +89,14 @@ data class CardSnapshot(
      * the by-name grpId fallback that bypasses the engine-spawned-token path.
      */
     val preparedRole: PreparedRole = PreparedRole.None,
+    /**
+     * Role this card plays in the Plot mechanic. [PlottedRole.None] for the vast
+     * majority of cards. [PlottedRole.Plotted] for a card sitting in exile face-up
+     * with the plotted state, awaiting a sorcery-speed cast on a later turn.
+     * Drives the `Plotted` Designation pAnn (DesignationType=18). Plot has no
+     * Source/Copy split — the card itself is in exile, not a copy.
+     */
+    val plottedRole: PlottedRole = PlottedRole.None,
 )
 
 /**
@@ -154,6 +162,25 @@ sealed interface PreparedRole {
     data class Copy(
         val sourceForgeCardId: ForgeCardId?,
     ) : PreparedRole
+}
+
+/**
+ * Role of a card in the Plot mechanic — None or Plotted.
+ *
+ * Single-state (`None | Plotted`) because Plot has no copy: the plotted card
+ * itself sits in exile and is later cast from there. Compare [PreparedRole]
+ * which is two-state (`Source | Copy`) because Prepared spawns an exile copy
+ * paired with a battlefield source.
+ *
+ * The role is populated only when [Plotted.isPlotted] returns true (`isPlotted &&
+ * isInZone(Exile)`), so consumers don't need to re-check the zone or the flag.
+ */
+sealed interface PlottedRole {
+    /** Card is not plotted. */
+    data object None : PlottedRole
+
+    /** Card sits in exile with the plotted state, castable at sorcery speed on a later turn. */
+    data object Plotted : PlottedRole
 }
 
 /**

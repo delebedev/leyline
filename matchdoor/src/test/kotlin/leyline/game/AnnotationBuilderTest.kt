@@ -700,6 +700,18 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("plottedDesignationFields") {
+            val ann = AnnotationBuilder.plottedDesignation(instanceId = 411.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.Designation
+                ann.affectorId shouldBe 411
+                ann.affectedIdsList shouldContain 411
+                ann.detailInt("DesignationType") shouldBe 18
+                // No PreparedCopyZcid analog — plotted card itself is in exile, no copy
+                ann.detailsList.none { it.key == "PreparedCopyZcid" } shouldBe true
+            }
+        }
+
         // --- LayeredEffect (Tier 1 stub) ---
 
         test("layeredEffectFields") {

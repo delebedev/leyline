@@ -361,6 +361,7 @@ object SnapshotCapture {
             currentStateNameIsBackside = currentStateNameIsBackside,
             combatRole = combatRole,
             preparedRole = preparedRole,
+            plottedRole = if (Plotted.isPlotted(card)) PlottedRole.Plotted else PlottedRole.None,
         )
     }
 
