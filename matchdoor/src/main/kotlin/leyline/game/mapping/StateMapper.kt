@@ -319,7 +319,15 @@ object StateMapper {
                 .map { AnnotationBuilder.qualification(instanceId = bridge.getOrAllocInstanceId(it.forgeCardId)) }
         val eotTokens = snap.objects.values.filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
         val temporaryPermanentPersistentFromSnap =
-            eotTokens.map { AnnotationBuilder.temporaryPermanent(bridge.getOrAllocInstanceId(it.forgeCardId)) }
+            eotTokens.map { token ->
+                val tokenIid = bridge.getOrAllocInstanceId(token.forgeCardId)
+                val cleanupGrpId = mobilizeCleanupGrpIdForToken(token.forgeCardId, bridge)
+                if (cleanupGrpId != null) {
+                    AnnotationBuilder.temporaryPermanent(tokenIid, GrpId(cleanupGrpId))
+                } else {
+                    AnnotationBuilder.temporaryPermanent(tokenIid)
+                }
+            }
         // DelayedTriggerAffectees groups all EOT-sacrifice tokens that share the same
         // delayed trigger. Group by controller for a minimum-viable approximation
         // (single Mobilize source per controller). Multi-source-per-controller cases
@@ -331,13 +339,19 @@ object StateMapper {
                 .filterValues { it.isNotEmpty() }
                 .map { (seat, tokens) ->
                     val tokenIds = tokens.map { bridge.getOrAllocInstanceId(it.forgeCardId) }
+                    // Use the first token's source-derived cleanup grpId for the group.
+                    // When the holder-mint refactor lands this becomes per-trigger.
+                    val cleanupGrpId =
+                        tokens
+                            .firstNotNullOfOrNull { mobilizeCleanupGrpIdForToken(it.forgeCardId, bridge) }
+                            ?: AnnotationConstants.EOT_SACRIFICE_GRP_ID.value
                     // Synthesise a stable trigger-holder id per controller. Real wire
                     // shape uses a transient gameObject in Limbo with grpId=5.
                     val holderId = InstanceId(GameBridge.DELAYED_TRIGGER_HOLDER_BASE + seat)
                     AnnotationBuilder.delayedTriggerAffectees(
                         triggerHolderId = holderId,
                         tokenInstanceIds = tokenIds,
-                        abilityGrpId = AnnotationConstants.EOT_SACRIFICE_GRP_ID,
+                        abilityGrpId = GrpId(cleanupGrpId),
                     )
                 }
         val abilityWordPersistentFromSnap =
@@ -1023,13 +1037,39 @@ object StateMapper {
         }
     }
 
-    /** Look up the wire-side ability grpId for a triggered source. Falls back to
-     *  the source card's grpId — better than 0 for client-side rendering. The
-     *  full mapping (per-keyword ability grpIds like 188698 for Mobilize 1) is
-     *  card-DB driven and can layer on top of this fallback later. */
+    /** Look up the wire-side ability grpId for a triggered source. For known
+     *  keyword triggers (Mobilize, …) this resolves to the per-card keyword
+     *  ability grpId — e.g. 188698 for a Mobilize 1 source — so
+     *  `ResolutionStart`/`Complete` carry the keyword row id rather than the
+     *  source card's grpId. Falls back to the source card's grpId for triggers
+     *  whose keyword isn't in [KEYWORD_BASE_IDS] yet. */
     private fun abilityGrpIdForSource(cardId: ForgeCardId, bridge: GameBridge): Int {
-        val card = bridge.findCard(cardId)
-        return card?.let { bridge.cardRepository.findGrpIdByName(it.name) } ?: 0
+        val card = bridge.findCard(cardId) ?: return 0
+        val cardGrpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
+        for (keyword in KEYWORD_TRIGGER_NAMES) {
+            val abilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, keyword)
+            if (abilityGrpId != null) return abilityGrpId
+        }
+        return cardGrpId
+    }
+
+    /** Keywords whose triggers we want to surface on the wire as
+     *  `ResolutionStart`/`Complete grpid = <keyword ability id>`. Extend as new
+     *  combat/ETB/state-trigger keywords ship and need precise grpId fidelity. */
+    private val KEYWORD_TRIGGER_NAMES = listOf("MOBILIZE")
+
+    /** For an EOT-sacrifice token whose source has the Mobilize keyword, return
+     *  the per-N cleanup ability grpId (189930/189931 etc.). Returns null when
+     *  the token's source doesn't carry Mobilize or the keyword pairing isn't
+     *  yet in the [leyline.game.data.MOBILIZE_CLEANUP_BY_KEYWORD] table —
+     *  callers fall back to the universal EOT-sacrifice grpId. */
+    private fun mobilizeCleanupGrpIdForToken(tokenForgeId: ForgeCardId, bridge: GameBridge): Int? {
+        val tokenCard = bridge.findCard(tokenForgeId) ?: return null
+        val sourceCard = tokenCard.tokenSpawningAbility?.hostCard ?: return null
+        val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
+        val mobilizeKeywordGrpId =
+            bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, "MOBILIZE") ?: return null
+        return leyline.game.data.MOBILIZE_CLEANUP_BY_KEYWORD[mobilizeKeywordGrpId]
     }
 
     /** Best-effort owner seat lookup for an event-derived source card. */
