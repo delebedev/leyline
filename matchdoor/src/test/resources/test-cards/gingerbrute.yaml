@@ -1,0 +1,16 @@
+name: "Gingerbrute"
+grpId: 93309
+titleId: 414351
+abilities:
+  - id: 9
+    textId: 101
+    category: 3
+  - id: 136277
+    textId: 941119
+    category: 1
+    mana: "o1"
+  - id: 197
+    textId: 566451
+    category: 1
+    mana: "o2"
+expansionCode: "J25"

@@ -1,0 +1,8 @@
+name: "Mind Rot"
+grpId: 75679
+titleId: 947
+abilities:
+  - id: 23608
+    textId: 949
+    category: 4
+expansionCode: "KLR"

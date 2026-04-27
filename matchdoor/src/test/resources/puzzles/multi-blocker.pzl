@@ -3,7 +3,7 @@ Name:Multi Blocker Accumulation
 Goal:Survive
 Turns:5
 Difficulty:Test
-Description:AI attacks with one Hill Giant; human has two Grizzly Bears ready to block. Tests that iterative DeclareBlockersResp messages accumulate server-side rather than overwrite.
+Description:AI attacks with one Centaur Courser; human has two Grizzly Bears ready to block. Tests that iterative DeclareBlockersResp messages accumulate server-side rather than overwrite.
 
 [state]
 ActivePlayer=AI
@@ -13,5 +13,5 @@ AILife=20
 
 humanbattlefield=Forest;Forest;Grizzly Bears;Grizzly Bears
 humanlibrary=Forest;Forest;Forest;Forest;Forest
-aibattlefield=Mountain;Mountain;Mountain;Hill Giant
+aibattlefield=Mountain;Mountain;Mountain;Centaur Courser
 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

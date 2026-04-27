@@ -1,0 +1,8 @@
+name: "Swords to Plowshares"
+grpId: 97617
+titleId: 2904
+abilities:
+  - id: 3686
+    textId: 2905
+    category: 4
+expansionCode: "FIC"

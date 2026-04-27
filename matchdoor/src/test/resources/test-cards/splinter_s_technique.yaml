@@ -1,0 +1,22 @@
+name: "Splinter's Technique"
+grpId: 100537
+titleId: 1104576
+abilities:
+  - id: 203118
+    textId: 1104532
+    category: 8
+    baseId: 394
+    mana: "o1oB"
+  - id: 1084
+    textId: 487521
+    category: 4
+expansionCode: "TMT"
+power: ""
+toughness: ""
+colors:
+  - 3
+types:
+  - 10
+subtypes: []
+supertypes: []
+manaCost: "o3oB"

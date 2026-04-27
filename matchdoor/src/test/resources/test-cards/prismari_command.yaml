@@ -1,0 +1,15 @@
+name: "Prismari Command"
+grpId: 76622
+titleId: 488945
+abilities:
+  - id: 142141
+    textId: 488950
+    category: 4
+    modalChildren:
+      - 86613
+      - 142139
+      - 142140
+      - 22564
+expansionCode: "STX"
+tokens:
+  "142140": 76763

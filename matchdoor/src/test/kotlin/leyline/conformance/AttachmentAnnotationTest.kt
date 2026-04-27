@@ -32,7 +32,7 @@ class AttachmentAnnotationTest :
             val (b, game, counter) =
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    base.addCard("Holy Strength", human, ZoneType.Hand)
+                    base.addCard("Pacifism", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
@@ -74,7 +74,7 @@ class AttachmentAnnotationTest :
             val (b, game, counter) =
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    base.addCard("Holy Strength", human, ZoneType.Hand)
+                    base.addCard("Pacifism", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }

@@ -77,7 +77,17 @@ object TestCardFixtures {
         }
     }
 
-    private val byName: Map<String, Fixture> by lazy { loadAllFixtures().associateBy { it.identity.name } }
+    private val byName: Map<String, Fixture> by lazy {
+        val all = loadAllFixtures()
+        val map = mutableMapOf<String, Fixture>()
+        for (f in all) {
+            map[f.identity.name] = f
+            // Forge names tokens "Soldier Token"; Arena DB stores them as "Soldier".
+            // Index both forms so callers passing either resolve.
+            if (f.identity.isToken) map["${f.identity.name} Token"] = f
+        }
+        map
+    }
     private val byGrpId: Map<Int, Fixture> by lazy { loadAllFixtures().associateBy { it.identity.grpId } }
 
     /** Lookup fixture by display name. */
@@ -136,7 +146,14 @@ object TestCardFixtures {
         }
     }
 
-    private fun applyFull(repo: InMemoryCardRepository, fixture: Fixture.Full) {
+    /**
+     * Register a single Full fixture into [repo] without walking its closure.
+     * Used by the joining layer (FixtureCardLoader) which dispatches Full
+     * fixtures here while handling Slim fixtures via Forge.
+     */
+    fun applyFull(repo: InMemoryCardRepository, fixture: Fixture.Full) = doApplyFull(repo, fixture)
+
+    private fun doApplyFull(repo: InMemoryCardRepository, fixture: Fixture.Full) {
         val id = fixture.identity
         val abilityIds = id.abilities.map { it.id to it.textId }
         val abilityKinds = id.abilities.map { ab ->
@@ -162,11 +179,14 @@ object TestCardFixtures {
     }
 
     /**
-     * Register the [AbilityInfo] and [ModalAbilityInfo] entries from the
-     * fixture's ability list. Used both by [applyFull] and by the slim path
-     * (after Forge-derived CardData has been constructed and registered).
+     * Register the [AbilityInfo], [ModalAbilityInfo], and per-card keyword
+     * map entries from the fixture's ability list. Used by both [applyFull]
+     * and the slim path (after Forge-derived CardData has been constructed
+     * and registered).
      */
     fun registerAbilityMetadata(repo: InMemoryCardRepository, identity: Identity) {
+        val baseIdToKeyword = KEYWORD_BASE_IDS.entries.associate { (k, v) -> v to k }
+        val keywordMap = mutableMapOf<String, Int>()
         for (ab in identity.abilities) {
             if (ab.baseId != 0 || ab.activationMana.isNotEmpty()) {
                 repo.registerAbilityInfo(ab.id, AbilityInfo(ab.baseId, ab.activationMana))
@@ -174,6 +194,14 @@ object TestCardFixtures {
             if (ab.modalChildren.isNotEmpty()) {
                 repo.registerModalOptions(identity.grpId, ModalAbilityInfo(ab.id, ab.modalChildren))
             }
+            // Also populate the test-only keyword map (used by
+            // InMemoryCardRepository.findTestKeywordAbilityGrpId) for parity
+            // with the AbilityIdDeriver-driven path. Keys are uppercase keyword
+            // names (WARP, SNEAK, FLASHBACK, ...).
+            baseIdToKeyword[ab.baseId]?.let { kw -> keywordMap[kw] = ab.id }
+        }
+        if (keywordMap.isNotEmpty()) {
+            repo.registerKeywordAbilityGrpIds(identity.grpId, keywordMap)
         }
     }
 

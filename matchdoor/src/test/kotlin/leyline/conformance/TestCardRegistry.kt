@@ -1,17 +1,15 @@
 package leyline.conformance
 
-import forge.game.card.Card
-import forge.model.FModel
 import leyline.game.InMemoryCardRepository
 import org.slf4j.LoggerFactory
 
 /**
- * Registers test deck cards in the shared [InMemoryCardRepository] using [CardDataDeriver].
+ * Registers test deck cards in the shared [InMemoryCardRepository].
  *
- * All card metadata is derived from Forge's in-memory CardRules at test startup.
- * No SQLite needed.
- *
- * Synthetic grpIds start at 200000 (allocated by [CardDataDeriver]).
+ * Routes through [FixtureCardLoader]: Arena identity (grpId, ability ids,
+ * tokens, linked faces) comes from per-card YAML fixtures under
+ * `matchdoor/src/test/resources/test-cards/`; rules data (P/T, types, mana,
+ * etc.) is derived from Forge's `CardRules` at test startup. No SQLite needed.
  */
 object TestCardRegistry {
     private val log = LoggerFactory.getLogger(TestCardRegistry::class.java)
@@ -31,37 +29,18 @@ object TestCardRegistry {
         )
 
     /**
-     * Auto-register a card by name. If already in repo, returns existing grpId.
-     * Otherwise derives CardData from Forge's in-memory CardRules and registers it.
-     * Returns the grpId (synthetic, 0 on failure).
+     * Register a card by name. Idempotent. Routes through [FixtureCardLoader],
+     * which sources Arena identity from YAML fixtures under
+     * `matchdoor/src/test/resources/test-cards/` and rules data (P/T, types,
+     * mana, etc.) from Forge's `CardRules`. Errors loudly when no fixture
+     * exists for a card Forge knows about; returns 0 silently for
+     * engine-internal names that aren't in Forge either.
      */
     // Serialize card registration: Forge's StaticData.attemptToLoadCard mutates
-    // static state, and CardDataDeriver assigns synthetic grpIds from a shared
-    // counter. Concurrent Kotest specs would race on both.
+    // static state. Concurrent Kotest specs would race on it.
     @Synchronized
-    fun ensureCardRegistered(cardName: String): Int {
-        repo.findGrpIdByName(cardName)?.let { return it }
-
-        val db =
-            FModel.getMagicDb()?.commonCards ?: run {
-                log.warn("Card DB not initialized, cannot auto-register '{}'", cardName)
-                return 0
-            }
-        val paperCard =
-            db.getCard(cardName) ?: run {
-                forge.StaticData.instance().attemptToLoadCard(cardName)
-                db.getCard(cardName)
-            } ?: run {
-                log.warn("Card '{}' not found in Forge DB", cardName)
-                return 0
-            }
-
-        val tempCard = Card.fromPaperCard(paperCard, null)
-        val cardData = CardDataDeriver.fromForgeCard(tempCard)
-        repo.registerData(cardData, cardName)
-        log.debug("Auto-registered '{}' with grpId={}", cardName, cardData.grpId)
-        return cardData.grpId
-    }
+    fun ensureCardRegistered(cardName: String): Int =
+        FixtureCardLoader.ensureCardRegistered(repo, cardName)
 
     /**
      * Bulk-register all card names from a deck list string.

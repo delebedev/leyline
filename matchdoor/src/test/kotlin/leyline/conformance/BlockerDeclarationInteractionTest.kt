@@ -89,7 +89,7 @@ class BlockerDeclarationInteractionTest :
                 validating = false,
                 aiScript =
                     listOf(
-                        ScriptedAction.Attack(listOf("Hill Giant")),
+                        ScriptedAction.Attack(listOf("Centaur Courser")),
                         ScriptedAction.PassPriority,
                     ),
             )

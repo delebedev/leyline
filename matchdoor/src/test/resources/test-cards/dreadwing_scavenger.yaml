@@ -1,0 +1,14 @@
+name: "Dreadwing Scavenger"
+grpId: 93831
+titleId: 823508
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 189406
+    textId: 823510
+    category: 2
+  - id: 175886
+    textId: 823511
+    category: 3
+expansionCode: "FDN"

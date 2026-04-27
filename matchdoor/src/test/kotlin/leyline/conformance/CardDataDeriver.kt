@@ -4,8 +4,10 @@ import forge.card.CardType.CoreType
 import forge.card.CardType.Supertype
 import forge.game.card.Card
 import leyline.game.codes.ManaColorMapping
+import leyline.game.codes.SlotKind
 import leyline.game.data.AbilityIdDeriver
 import leyline.game.data.CardData
+import leyline.game.data.TestCardFixtures
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -86,6 +88,65 @@ object CardDataDeriver {
             // Stash the keyword-name → grpId map on the repo for test-side lookup.
             TestCardRegistry.repo.registerKeywordAbilityGrpIds(grpId, derived.keywordAbilityGrpIds)
         }
+    }
+
+    /**
+     * Derive [CardData] from a Forge [Card] and stamp Arena identity from a
+     * fixture's [TestCardFixtures.Identity] in place of the synthetic ids
+     * [fromForgeCard] would assign. Used by the Slim fixture path: Forge
+     * owns rules data (P/T, types, mana, etc.); the fixture supplies the
+     * Arena grpId, ability ids, token map, and linked faces.
+     *
+     * `chapterAbilityGrpIds` is intentionally empty — Arena's `AbilityIds`
+     * column orders chapter abilities at leading positions, and
+     * `ZoneMapper.chapterGrpIdFromCardData` falls back to that positional
+     * ordering when the explicit chapter list is empty (matching the prod
+     * `ExposedCardRepository` shape).
+     */
+    fun fromForgeCardWithIdentity(
+        card: Card,
+        identity: TestCardFixtures.Identity,
+    ): CardData {
+        val type = card.type
+        val rules = card.rules
+
+        val types = type.coreTypes.mapNotNull { CORE_TYPE_MAP[it] }
+        val supertypes = type.supertypes.mapNotNull { SUPERTYPE_MAP[it] }
+        val subtypes = type.subtypes.mapNotNull { SUBTYPE_MAP[it.lowercase()] }
+
+        val colorSet = card.rules.color
+        val colors = mutableListOf<Int>()
+        if (colorSet.hasWhite()) colors.add(1)
+        if (colorSet.hasBlue()) colors.add(2)
+        if (colorSet.hasBlack()) colors.add(3)
+        if (colorSet.hasRed()) colors.add(4)
+        if (colorSet.hasGreen()) colors.add(5)
+
+        val power = if (type.isCreature) (rules.intPower.let { if (it == Integer.MAX_VALUE) "0" else it.toString() }) else ""
+        val toughness = if (type.isCreature) (rules.intToughness.let { if (it == Integer.MAX_VALUE) "0" else it.toString() }) else ""
+
+        val manaCost = deriveManaCost(rules.manaCost)
+
+        val abilityIds = identity.abilities.map { it.id to it.textId }
+        val abilityKinds = identity.abilities.map { ab ->
+            if (ab.category == 1) SlotKind.Activated else SlotKind.Intrinsic
+        }
+
+        return CardData(
+            grpId = identity.grpId,
+            titleId = identity.titleId,
+            power = power,
+            toughness = toughness,
+            colors = colors,
+            types = types,
+            subtypes = subtypes,
+            supertypes = supertypes,
+            abilityIds = abilityIds,
+            abilityKinds = abilityKinds,
+            manaCost = manaCost,
+            tokenGrpIds = identity.tokens,
+            linkedFaceGrpIds = identity.linkedFaces,
+        )
     }
 
     private fun deriveManaCost(cost: forge.card.mana.ManaCost?) = ManaColorMapping.deriveManaCost(cost)

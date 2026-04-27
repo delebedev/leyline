@@ -1,0 +1,24 @@
+name: "Smuggler's Copter"
+grpId: 96291
+titleId: 51637
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 103479
+    textId: 1073515
+    category: 2
+  - id: 76556
+    textId: 51574
+    category: 1
+    baseId: 156
+expansionCode: "FCA"
+power: "3"
+toughness: "3"
+colors: []
+types:
+  - 1
+subtypes:
+  - 331
+supertypes: []
+manaCost: "o2"

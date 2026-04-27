@@ -1,310 +1,40 @@
 package leyline.game
 
-import forge.card.CardStateName
-import forge.card.CardType.CoreType
-import forge.card.CardType.Supertype
 import forge.game.card.Card
-import forge.model.FModel
-import leyline.game.codes.ManaColorMapping
-import leyline.game.data.AbilityIdDeriver
-import leyline.game.data.CardData
+import leyline.conformance.FixtureCardLoader
 import leyline.game.data.CardRepository
 import org.slf4j.LoggerFactory
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Registers puzzle cards in an [InMemoryCardRepository] at runtime.
  *
- * Derives [leyline.game.data.CardData] from Forge's in-memory [forge.card.CardRules] —
- * no client SQLite needed. Synthetic grpIds start at 300000 (above test range
- * at 200000 and production grpIds which reach ~100000+).
+ * Routes through [FixtureCardLoader]: Arena identity comes from YAML fixtures
+ * under `matchdoor/src/test/resources/test-cards/`; rules data (P/T, types,
+ * mana, etc.) is derived from Forge's `CardRules`. The fixture's
+ * `linkedFaces` and `tokens` lists drive closure resolution — alternate
+ * faces and produced tokens are auto-registered without walking Forge
+ * states explicitly.
  *
- * Production counterpart of the test-only `CardDataDeriver` / `TestCardRegistry`.
+ * The [clientRepo] parameter is retained for source-compat with existing
+ * call sites and ignored; fixtures are now the single source of truth for
+ * grpIds.
  */
 class PuzzleCardRegistrar(
     private val repo: InMemoryCardRepository,
-    /** Optional client DB repo — checked first for real grpIds (art/text). */
+    @Suppress("UNUSED_PARAMETER", "UnusedPrivateProperty")
     private val clientRepo: CardRepository? = null,
 ) {
+    @Suppress("UnusedPrivateProperty")
     private val log = LoggerFactory.getLogger(PuzzleCardRegistrar::class.java)
 
-    private val nextGrpId = AtomicInteger(300000)
-    private val nextTitleId = AtomicInteger(30000)
-    private val nextAbilityGrpId = AtomicInteger(30000)
-
-    /** name -> grpId cache: same card name always gets same grpId within a JVM. */
-    private val nameToGrpId = mutableMapOf<String, Int>()
-
     /**
-     * Ensure a card is registered in the repository. Idempotent.
-     * If already known, returns existing grpId.
-     * Checks [clientRepo] first for a real grpId (with art), then falls back to synthetic.
+     * Ensure a card (and its closure: linked faces, produced tokens) is
+     * registered in the repository. Idempotent. Errors loudly when the
+     * card has no fixture and Forge knows the name (likely a real card
+     * missing a fixture); returns 0 silently for engine-internal names.
      */
-    fun ensureCardRegistered(card: Card): Int {
-        val existing = repo.findGrpIdByName(card.name)
-        if (existing != null) {
-            // Primary face already registered — alt faces may not be if an
-            // earlier path (e.g. CardDataDeriver) registered only the primary.
-            registerAlternateFaces(card)
-            return existing
-        }
+    fun ensureCardRegistered(card: Card): Int = FixtureCardLoader.ensureCardRegistered(repo, card.name)
 
-        // Try client DB for real grpId (has art/text assets)
-        val clientGrpId = clientRepo?.findGrpIdByName(card.name)
-        if (clientGrpId != null) {
-            val clientData = clientRepo.findByGrpId(clientGrpId)
-            if (clientData != null) {
-                repo.registerData(clientData, card.name)
-                // Transfer modal ability info from client DB (Abilities table)
-                transferModalOptions(clientGrpId)
-                log.debug("Registered puzzle card '{}' grpId={} (client DB)", card.name, clientGrpId)
-                // Register alternate faces (adventure, DFC back, split halves, etc.)
-                // so grpId resolution can find them.
-                registerAlternateFaces(card)
-                return clientGrpId
-            }
-        }
-
-        val data = fromForgeCard(card)
-        repo.registerData(data, card.name)
-        log.debug("Registered puzzle card '{}' grpId={} (synthetic)", card.name, data.grpId)
-        registerAlternateFaces(card)
-        return data.grpId
-    }
-
-    /**
-     * Register all alternate faces (adventure, DFC back, MDFC, split halves, flip, meld).
-     * Iterates [Card.getStates] and registers any face not already known,
-     * using [clientRepo] for real grpIds when available.
-     */
-    private fun registerAlternateFaces(card: Card) {
-        for (stateName in card.states) {
-            if (stateName in SKIP_STATES) continue
-            val state = card.getState(stateName) ?: continue
-            val faceName = state.name ?: continue
-            if (faceName == card.name) continue // same as primary — skip
-            if (repo.findGrpIdByName(faceName) != null) continue // already registered
-
-            val clientGrpId = clientRepo?.findGrpIdByNameAnyFace(faceName)
-            if (clientGrpId != null) {
-                val clientData = clientRepo.findByGrpId(clientGrpId)
-                if (clientData != null) {
-                    repo.registerData(clientData, faceName)
-                    log.debug("Registered alternate face '{}' ({}) grpId={}", faceName, stateName, clientGrpId)
-                    continue
-                }
-            }
-            // No client DB match — register synthetic so downstream lookups don't NPE.
-            // NOTE: Uses primary face's type/P/T/colors since fromForgeCard reads card.type/rules.
-            // Acceptable because this path only fires without a clientRepo (tests); production
-            // puzzles always have clientRepo with real per-face stats from the Arena DB.
-            val syntheticData = fromForgeCard(card, faceName)
-            repo.registerData(syntheticData, faceName)
-            log.debug("Registered alternate face '{}' ({}) grpId={} (synthetic)", faceName, stateName, syntheticData.grpId)
-        }
-    }
-
-    /**
-     * Ensure a card is registered by name. Creates a temporary Card object
-     * from the paper card database if needed.
-     */
-    fun ensureCardRegisteredByName(cardName: String): Int {
-        repo.findGrpIdByName(cardName)?.let { return it }
-
-        // Try client DB first
-        val clientGrpId = clientRepo?.findGrpIdByName(cardName)
-        if (clientGrpId != null) {
-            val clientData = clientRepo.findByGrpId(clientGrpId)
-            if (clientData != null) {
-                repo.registerData(clientData, cardName)
-                transferModalOptions(clientGrpId)
-                log.debug("Registered puzzle card '{}' grpId={} (client DB)", cardName, clientGrpId)
-                return clientGrpId
-            }
-        }
-
-        val db = FModel.getMagicDb()?.commonCards ?: return 0
-        val paperCard =
-            db.getCard(cardName)
-                ?: run {
-                    forge.StaticData.instance().attemptToLoadCard(cardName)
-                    db.getCard(cardName)
-                }
-                ?: run {
-                    // Synthetic engine cards (Puzzle Goal, DetachedCardEffect) aren't in any
-                    // card DB — grpId=0 fallback is correct for them.
-                    log.debug("Card '{}' not found in Forge DB (synthetic?)", cardName)
-                    return 0
-                }
-        val tempCard = Card.fromPaperCard(paperCard, null)
-        return ensureCardRegistered(tempCard)
-    }
-
-    /** Derive [leyline.game.data.CardData] from a live Forge [Card], optionally overriding the name (for alternate faces). */
-    private fun fromForgeCard(
-        card: Card,
-        overrideName: String? = null,
-    ): CardData {
-        val name = overrideName ?: card.name
-        val grpId = nameToGrpId.getOrPut(name) { nextGrpId.getAndIncrement() }
-        val titleId = nextTitleId.getAndIncrement()
-
-        val type = card.type
-        val rules = card.rules
-
-        val types = type.coreTypes.mapNotNull { CORE_TYPE_MAP[it] }
-        val supertypes = type.supertypes.mapNotNull { SUPERTYPE_MAP[it] }
-        val subtypes = type.subtypes.mapNotNull { SUBTYPE_MAP[it.lowercase()] }
-
-        val colorSet = rules.color
-        val colors = mutableListOf<Int>()
-        if (colorSet.hasWhite()) colors.add(1)
-        if (colorSet.hasBlue()) colors.add(2)
-        if (colorSet.hasBlack()) colors.add(3)
-        if (colorSet.hasRed()) colors.add(4)
-        if (colorSet.hasGreen()) colors.add(5)
-
-        val power = if (type.isCreature) rules.intPower.let { if (it == Integer.MAX_VALUE) "0" else it.toString() } else ""
-        val toughness = if (type.isCreature) rules.intToughness.let { if (it == Integer.MAX_VALUE) "0" else it.toString() } else ""
-
-        val manaCost = deriveManaCost(rules.manaCost)
-        val derived = deriveAbilityIds(card)
-        val abilityIds = derived.abilityIds
-
-        val linkedFaces = resolveLinkedFaceGrpIds(card)
-
-        return CardData(
-            grpId = grpId,
-            titleId = titleId,
-            power = power,
-            toughness = toughness,
-            colors = colors,
-            types = types,
-            subtypes = subtypes,
-            supertypes = supertypes,
-            abilityIds = abilityIds,
-            abilityKinds = derived.abilityKinds,
-            manaCost = manaCost,
-            chapterAbilityGrpIds = derived.chapterAbilityGrpIds,
-            linkedFaceGrpIds = linkedFaces,
-        ).also {
-            repo.registerKeywordAbilityGrpIds(grpId, derived.keywordAbilityGrpIds)
-        }
-    }
-
-    /**
-     * Resolve linked face grpIds for multi-face cards.
-     * Checks alternate states (Backside, Flipped, Modal, Adventure, Meld).
-     * Uses client DB if available, otherwise allocates synthetic grpIds.
-     */
-    private fun resolveLinkedFaceGrpIds(card: Card): List<Int> {
-        val states = card.states ?: return emptyList()
-        if (states.size <= 1) return emptyList()
-
-        val linkedIds = mutableListOf<Int>()
-        for (stateName in states) {
-            if (stateName in SKIP_STATES) continue
-            val altState = card.getState(stateName) ?: continue
-            val altName = altState.name ?: continue
-            if (altName == card.name) continue
-
-            val altGrpId =
-                clientRepo?.findGrpIdByName(altName)
-                    ?: repo.findGrpIdByName(altName)
-                    ?: nameToGrpId.getOrPut(altName) { nextGrpId.getAndIncrement() }
-            linkedIds.add(altGrpId)
-        }
-        return linkedIds
-    }
-
-    /** Copy modal ability info from client DB into the in-memory repo. */
-    private fun transferModalOptions(grpId: Int) {
-        val info = clientRepo?.lookupModalOptions(grpId) ?: return
-        repo.registerModalOptions(grpId, info)
-    }
-
-    private fun deriveManaCost(cost: forge.card.mana.ManaCost?) = ManaColorMapping.deriveManaCost(cost)
-
-    private fun deriveAbilityIds(card: Card) = AbilityIdDeriver.deriveAbilityIds(card, nextAbilityGrpId)
-
-    companion object {
-        /** States that don't represent registrable alternate card faces. */
-        private val SKIP_STATES =
-            setOf(
-                CardStateName.Original, // primary face — already registered
-                CardStateName.FaceDown, // morphed state, not a real face
-            )
-
-        private val CORE_TYPE_MAP =
-            mapOf(
-                CoreType.Artifact to 1,
-                CoreType.Creature to 2,
-                CoreType.Enchantment to 3,
-                CoreType.Instant to 4,
-                CoreType.Land to 5,
-                CoreType.Phenomenon to 6,
-                CoreType.Plane to 7,
-                CoreType.Planeswalker to 8,
-                CoreType.Scheme to 9,
-                CoreType.Sorcery to 10,
-                CoreType.Kindred to 11,
-                CoreType.Vanguard to 12,
-                CoreType.Dungeon to 13,
-                CoreType.Battle to 14,
-            )
-
-        private val SUPERTYPE_MAP =
-            mapOf(
-                Supertype.Basic to 1,
-                Supertype.Legendary to 2,
-                Supertype.Ongoing to 3,
-                Supertype.Snow to 4,
-                Supertype.World to 5,
-            )
-
-        private val SUBTYPE_MAP =
-            mapOf(
-                "forest" to 29,
-                "island" to 43,
-                "mountain" to 49,
-                "plains" to 54,
-                "swamp" to 69,
-                "angel" to 1,
-                "beast" to 10,
-                "bird" to 12,
-                "cat" to 14,
-                "cleric" to 16,
-                "construct" to 17,
-                "demon" to 19,
-                "dragon" to 21,
-                "druid" to 23,
-                "elemental" to 25,
-                "elf" to 27,
-                "equipment" to 28,
-                "giant" to 32,
-                "goblin" to 34,
-                "golem" to 35,
-                "human" to 39,
-                "insect" to 42,
-                "knight" to 45,
-                "merfolk" to 46,
-                "ogre" to 50,
-                "phoenix" to 53,
-                "rogue" to 56,
-                "shaman" to 61,
-                "skeleton" to 63,
-                "soldier" to 64,
-                "spirit" to 68,
-                "vampire" to 74,
-                "wall" to 76,
-                "warrior" to 77,
-                "wizard" to 78,
-                "wolf" to 79,
-                "zombie" to 81,
-                "aura" to 6,
-                "vehicle" to 331,
-                "saga" to 347,
-                "treasure" to 343,
-            )
-    }
+    /** Same as [ensureCardRegistered] but takes a name directly. */
+    fun ensureCardRegisteredByName(cardName: String): Int = FixtureCardLoader.ensureCardRegistered(repo, cardName)
 }
