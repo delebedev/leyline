@@ -104,7 +104,9 @@ sealed interface PreparedRole {
      * Card is a battlefield permanent with an active prepared-spell exile copy.
      * @property copyForgeCardId Forge id of the spell-face copy in exile.
      */
-    data class Source(val copyForgeCardId: ForgeCardId) : PreparedRole
+    data class Source(
+        val copyForgeCardId: ForgeCardId,
+    ) : PreparedRole
 
     /**
      * Card is a prepared-spell exile copy spawned by a battlefield Source.
@@ -114,7 +116,9 @@ sealed interface PreparedRole {
      *   or the Source has already been unprepared. The copy still projects as a
      *   `GameObjectType_Card` either way; only `parentId` is omitted when null.
      */
-    data class Copy(val sourceForgeCardId: ForgeCardId?) : PreparedRole
+    data class Copy(
+        val sourceForgeCardId: ForgeCardId?,
+    ) : PreparedRole
 }
 
 /**

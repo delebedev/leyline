@@ -6,8 +6,6 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.InstanceId
-import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.ZoneIds
@@ -339,9 +337,17 @@ class HonorboundPagePrepareTest :
             val honorboundGrpId =
                 repo.findGrpIdByName("Honorbound Page") ?: error("Honorbound Page not in repo")
             val forumAbilityIds =
-                repo.findByGrpId(forumGrpId)!!.abilityIds.map { it.first }.toSet()
+                repo
+                    .findByGrpId(forumGrpId)!!
+                    .abilityIds
+                    .map { it.first }
+                    .toSet()
             val honorboundAbilityIds =
-                repo.findByGrpId(honorboundGrpId)!!.abilityIds.map { it.first }.toSet()
+                repo
+                    .findByGrpId(honorboundGrpId)!!
+                    .abilityIds
+                    .map { it.first }
+                    .toSet()
 
             val copyAbilityIds = copyObj.uniqueAbilitiesList.map { it.grpId }.toSet()
             assertSoftly {
