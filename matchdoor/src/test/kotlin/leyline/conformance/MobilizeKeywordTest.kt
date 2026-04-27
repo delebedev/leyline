@@ -2,6 +2,7 @@ package leyline.conformance
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
@@ -10,6 +11,7 @@ import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 /**
  * Mobilize keyword conformance.
@@ -310,5 +312,125 @@ class MobilizeKeywordTest :
                 types.contains(AnnotationType.TokenDeleted) shouldBe true
                 types.contains(AnnotationType.AbilityInstanceDeleted) shouldBe true
             }
+        }
+
+        // ------- TriggerHolder gameObject shape + lifecycle -------
+
+        test("Mobilize 1 emits a TriggerHolder gameObject in Limbo with canonical fields") {
+            val h = MatchFlowHarness(seed = 42L, validating = false)
+            harness = h
+            h.connectAndKeepPuzzleText(mobilize1Puzzle)
+
+            val sources = h.humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
+            val sourceIid = sources.first().first
+
+            h.passUntil(maxPasses = 30) { h.allMessages.any { it.hasDeclareAttackersReq() } }
+            val snap = h.messageSnapshot()
+            h.declareAttackers(listOf(sourceIid))
+            // Walk just past the resolution GSM so the holder has been emitted.
+            h.passUntil(maxPasses = 8) {
+                h.allMessages
+                    .drop(snap)
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .any { it.type == GameObjectType.TriggerHolder }
+            }
+
+            val post = h.messagesSince(snap)
+            val holders =
+                post
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .filter { it.type == GameObjectType.TriggerHolder }
+
+            holders.shouldNotBeEmpty()
+            val holder = holders.first()
+            assertSoftly("holder gameObject canonical shape") {
+                holder.grpId shouldBe 5
+                holder.zoneId shouldBe 30 // Limbo
+                holder.overlayGrpId shouldBe 5
+                // Mobilize 1 keyword row drives the side-panel icon's source.
+                holder.objectSourceGrpId shouldBe 188698
+                // Source card iid linked via parentId.
+                holder.parentId shouldBe sourceIid
+                // Cleanup ability grpId carried in uniqueAbilities[0].grpId →
+                // drives the side-panel tooltip text.
+                holder.uniqueAbilitiesList.shouldNotBeEmpty()
+                holder.uniqueAbilitiesList.first().grpId shouldBe 189931
+            }
+
+            // Limbo zone in this GSM must contain the holder iid so the
+            // client knows the holder lives there.
+            val limboContainsHolder =
+                post
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.zonesList }
+                    .any { it.zoneId == 30 && holder.instanceId in it.objectInstanceIdsList }
+            limboContainsHolder shouldBe true
+
+            // The tracker shares the holder iid as affector for both
+            // DelayedTriggerAffectees and per-token TemporaryPermanent — so
+            // the client links cleanup ability → tokens via this iid.
+            val pAnns =
+                post
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
+            val dta =
+                pAnns.first { it.typeList.contains(AnnotationType.DelayedTriggerAffectees) }
+            val tempPerm =
+                pAnns.first { it.typeList.contains(AnnotationType.TemporaryPermanent) }
+            assertSoftly("annotations reference the holder") {
+                dta.affectorId shouldBe holder.instanceId
+                tempPerm.affectorId shouldBe holder.instanceId
+            }
+        }
+
+        test("Mobilize holder is emitted once, not re-emitted, then deleted via diffDeletedInstanceIds") {
+            val h = MatchFlowHarness(seed = 42L, validating = false)
+            harness = h
+            h.connectAndKeepPuzzleText(mobilize1Puzzle)
+
+            val sources = h.humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
+            val sourceIid = sources.first().first
+
+            h.passUntil(maxPasses = 30) { h.allMessages.any { it.hasDeclareAttackersReq() } }
+            val snap = h.messageSnapshot()
+            h.declareAttackers(listOf(sourceIid))
+            h.passUntil(maxPasses = 30) { h.turn() > 1 || h.isGameOver() }
+
+            val post = h.messagesSince(snap)
+            val gsms = post.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+
+            // Walk every GSM. Find which carry the holder gameObject and which
+            // carry its iid in diffDeletedInstanceIds.
+            val holderEmissions =
+                gsms.mapIndexedNotNull { idx, gsm ->
+                    val h0 =
+                        gsm.gameObjectsList.firstOrNull { it.type == GameObjectType.TriggerHolder }
+                    if (h0 != null) idx to h0.instanceId else null
+                }
+            holderEmissions.shouldNotBeEmpty()
+            val holderIid = holderEmissions.first().second
+
+            val deletionGsmIndices =
+                gsms.mapIndexedNotNull { idx, gsm ->
+                    if (holderIid in gsm.diffDeletedInstanceIdsList) idx else null
+                }
+
+            assertSoftly("holder lifecycle") {
+                // Emitted in exactly one GSM (the resolution diff). Re-emitting
+                // every GSM while the holder is live is wire noise the
+                // canonical wire doesn't produce.
+                holderEmissions.map { it.first } shouldHaveSize 1
+                // Deleted exactly once when cleanup retires it.
+                deletionGsmIndices shouldHaveSize 1
+                // Deletion lands strictly after emission.
+                deletionGsmIndices.first() shouldBeGreaterThanOrEqual holderEmissions.first().first
+                // Same iid throughout — no re-allocation.
+                holderEmissions.first().second shouldBe holderIid
+            }
+
+            // Sanity: the deleted iid is the one that was emitted.
+            gsms[deletionGsmIndices.first()].diffDeletedInstanceIdsList shouldContain holderIid
         }
     })

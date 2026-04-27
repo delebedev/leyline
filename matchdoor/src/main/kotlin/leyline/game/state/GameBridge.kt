@@ -277,6 +277,15 @@ class GameBridge(
     val annotations = PersistentAnnotationStore()
 
     /**
+     * Cross-GSM lifecycle for transient `TriggerHolder` gameObjects (Mobilize
+     * EOT-sacrifice today; exile-and-return mechanics later). See
+     * [DelayedTriggerHolderTracker] for the diff-and-emit contract — the
+     * tracker is fed each GSM by [leyline.game.mapping.StateMapper] and
+     * drained for `diffDeletedInstanceIds` in the diff path.
+     */
+    val delayedTriggerHolders = DelayedTriggerHolderTracker()
+
+    /**
      * Active crew type-change effects: forgeCardId → effectId.
      * Allocated when a vehicle is crewed (type changes to creature),
      * removed when the crew effect expires (end of turn, vehicle reverts).
