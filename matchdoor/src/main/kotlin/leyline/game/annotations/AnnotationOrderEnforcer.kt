@@ -84,9 +84,19 @@ object AnnotationOrderEnforcer {
 
     /**
      * Rule 3: TokenCreated must precede any annotation referencing the new token's
-     * instanceId as affector or affected. The token's iid only enters the client
-     * identity map when TokenCreated is processed; downstream annotations
-     * (DamageDealt from a Mobilize warrior, TappedUntappedPermanent, etc.) need
+     * instanceId as affector or affected.
+     *
+     * Defense-in-depth — when [leyline.game.GamePlayback.shouldSplitOnLocalTurn]
+     * doesn't kick in (opponent's turn, or a non-Mobilize keyword that
+     * bundles into one GSM), this rule keeps token references after their
+     * TokenCreated within a single GSM. When GSM-split fires, the trigger
+     * lifecycle and combat damage land in separate GSMs and this rule is a
+     * no-op. The primary mechanism for ordering tokens-before-damage is the
+     * GSM-split; this enforcer is a safety net.
+     *
+     * The token's iid only enters the client identity map when TokenCreated is
+     * processed; downstream annotations (DamageDealt from a Mobilize warrior,
+     * TappedUntappedPermanent, etc.) need
      * that mapping in place or the client renders the damage before the token
      * appears on the battlefield.
      */

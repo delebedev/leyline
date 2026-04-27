@@ -42,7 +42,15 @@ class DelayedTriggerHolderTracker {
     }
 
     /** Commit the batch — `removed` queue up for [drainDeletions], `added`
-     *  enter the live set. */
+     *  enter the live set.
+     *
+     *  Currently called inside the COMPUTE phase by
+     *  [leyline.game.mapping.StateMapper.buildFromSnapshot], in contrast to
+     *  [leyline.game.state.PersistentAnnotationStore.applyBatchResult] which
+     *  is APPLY-phase only. The mutation is gated on a single GSM build —
+     *  speculative buildDiff calls without GSM emission would still mutate.
+     *  Acceptable today because no caller does that; lift through
+     *  [BridgeMutations] if a speculative-build path emerges. */
     fun apply(batch: HolderBatch) {
         for (iid in batch.removed) active.remove(iid)
         for (h in batch.added) active[h.iid] = h
@@ -61,6 +69,19 @@ class DelayedTriggerHolderTracker {
 
     /** Live set size — diagnostic / test hook. */
     val activeSize: Int get() = active.size
+
+    /** Iids of all currently-alive holders. Used by [leyline.game.mapping.StateMapper]
+     *  to keep them listed in the Limbo zone every GSM (the gameObject is cached
+     *  client-side after first emission, but the zone listing is rebuilt each
+     *  GSM and dropping the iid would orphan the cached object). */
+    fun activeIids(): Set<Int> = active.keys.toSet()
+
+    /** Wipe all tracked state. Called from [leyline.game.state.GameBridge.resetForPuzzle]
+     *  so a hot-swapped puzzle doesn't inherit holders from the previous match. */
+    fun resetAll() {
+        active.clear()
+        pendingDeletions.clear()
+    }
 }
 
 /**
@@ -80,6 +101,19 @@ class DelayedTriggerHolderTracker {
  *   (e.g. 189930/189931 for Mobilize cleanup, 136220 for Charming Prince
  *   return). Lands in `uniqueAbilities[0].grpId` and drives the indicator's
  *   tooltip text.
+ */
+/**
+ * Wire-shape state for a single TriggerHolder gameObject.
+ *
+ * **Cross-class invariant:** [iid] must equal:
+ *   - the `instanceId` field on the holder's [wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo],
+ *   - the `affectorId` of every per-token `TemporaryPermanent` and
+ *     `DelayedTriggerAffectees` annotation referencing this trigger,
+ *   - the entry in the Limbo zone's `objectInstanceIds` listing.
+ *
+ * Divergence breaks the client-side gameObject↔pAnn linkage and the
+ * side-panel timed-effect indicator stops rendering. Tests verify the
+ * invariant in `MobilizeKeywordTest`'s holder shape + lifecycle cases.
  */
 data class HolderRecord(
     val iid: Int,

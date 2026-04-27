@@ -133,6 +133,16 @@ interface CardRepository {
      *
      * Returns the first hidden ability id by default; `predicate` can narrow
      * to a specific ability when a card has multiple hidden entries.
+     *
+     * **Heuristic caveat:** for all observed Mobilize sources today (Mobilize
+     * 1/2/3, including Zurgo, Thunder's Decree which has two hidden entries
+     * for delayed cleanup + a "can't be sacrificed" static), the cleanup row
+     * is the first entry. The default first-match behaviour relies on that
+     * ordering. Pass an explicit predicate when calling for a non-Mobilize
+     * mechanic where the ordering isn't established, or once Mobilize ships a
+     * card whose first hidden entry is not the cleanup row. Filtering on
+     * `findAbilityInfo(id).category == 2` (triggered) would be the durable
+     * fix; deferred until [AbilityInfo] carries `category`.
      */
     fun findHiddenAbilityGrpId(
         cardGrpId: Int,

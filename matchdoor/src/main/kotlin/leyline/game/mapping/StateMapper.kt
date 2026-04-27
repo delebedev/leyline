@@ -228,7 +228,11 @@ object StateMapper {
         zones.add(ZoneMapper.makeZone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 0, Visibility.Public))
         zones.add(ZoneMapper.makeZone(ZoneIds.EXILE, ZoneType.Exile, 0, Visibility.Public))
         // Limbo zone: include all previously accumulated retired instanceIds.
-        // New retirements are appended in the annotation loop below.
+        // TriggerHolder iids are spliced in after the holder-tracker diff runs
+        // below — see the splice that wraps `transferResultWithHolders`. They
+        // must reflect post-diff state (holder added → in zone, holder removed
+        // → out of zone) so the deletion GSM's Limbo listing doesn't disagree
+        // with `diffDeletedInstanceIds`.
         val limboZone =
             ZoneInfo
                 .newBuilder()
@@ -347,7 +351,7 @@ object StateMapper {
                 // is done.
                 val affectorIid =
                     if (cleanupGrpId != null && sourceForgeId != null) {
-                        holderInstanceIdFor(sourceForgeId, token.controller.value, bridge)
+                        holderInstanceIdFor(sourceForgeId, bridge)
                     } else {
                         tokenIid
                     }
@@ -377,13 +381,13 @@ object StateMapper {
                 .groupBy { tokenSources[it] to it.controller.value }
                 .filterValues { it.isNotEmpty() }
                 .mapNotNull { (key, tokens) ->
-                    val (sourceForgeId, seat) = key
+                    val (rawSourceForgeId, seat) = key
+                    val sourceForgeId = rawSourceForgeId ?: return@mapNotNull null
                     val cleanupGrpId =
-                        sourceForgeId?.let { mobilizeCleanupGrpIdForSource(it, bridge) }
-                            ?: return@mapNotNull null
+                        mobilizeCleanupGrpIdForSource(sourceForgeId, bridge) ?: return@mapNotNull null
                     val tokenIds = tokens.map { bridge.getOrAllocInstanceId(it.forgeCardId) }
-                    val holderIid = holderInstanceIdFor(sourceForgeId, seat, bridge)
-                    val keywordGrpId = mobilizeKeywordGrpIdForSource(sourceForgeId!!, bridge) ?: 0
+                    val holderIid = holderInstanceIdFor(sourceForgeId, bridge)
+                    val keywordGrpId = mobilizeKeywordGrpIdForSource(sourceForgeId, bridge) ?: 0
                     val sourceIid = bridge.getOrAllocInstanceId(sourceForgeId).value
                     currentHolders.add(
                         HolderRecord(
@@ -400,29 +404,40 @@ object StateMapper {
                         abilityGrpId = GrpId(cleanupGrpId),
                     )
                 }
-        // Diff against the bridge-side tracker. We only emit the gameObject for
-        // holders newly entering this GSM — the client keeps cached holders
-        // across GSMs by instanceId. Removed holders flow through
+        // Diff against the bridge-side tracker. The client keeps cached holders
+        // across GSMs by instanceId, so we only emit a gameObject for newly-added
+        // holders; removed holders flow through
         // [bridge.delayedTriggerHolders.drainDeletions] into
-        // diffDeletedInstanceIds in [buildDiff].
+        // diffDeletedInstanceIds in [buildDiff]. The Limbo zone listing,
+        // however, must reflect the **post-diff** active set every GSM —
+        // otherwise the deletion GSM ships the iid both in Limbo and in
+        // diffDeletedInstanceIds, and a between-emit-and-delete GSM that
+        // rebuilt Limbo without the holder would orphan the cached object.
+        // assembleGsm reads zones/objects from `transferResult.patchedZones`/
+        // `patchedObjects` (see assembleGsm wiring below), not the local lists,
+        // so we splice both the gameObject and the Limbo membership into a
+        // copy of TransferResult here.
         val holderBatch = bridge.delayedTriggerHolders.computeBatch(currentHolders)
+        val postDiffActiveIids =
+            (bridge.delayedTriggerHolders.activeIids() + holderBatch.added.map { it.iid }) - holderBatch.removed.toSet()
         val transferResultWithHolders =
-            if (holderBatch.added.isEmpty()) {
+            if (holderBatch.added.isEmpty() && holderBatch.removed.isEmpty() && postDiffActiveIids.isEmpty()) {
                 transferResult
             } else {
                 val patchedZones = transferResult.patchedZones.toMutableList()
                 val patchedObjects = transferResult.patchedObjects.toMutableList()
                 val existingLimbo = patchedZones.find { it.zoneId == ZoneIds.LIMBO }
                 val limboBuilder =
-                    existingLimbo?.toBuilder()
-                        ?: ZoneInfo
-                            .newBuilder()
-                            .setZoneId(ZoneIds.LIMBO)
-                            .setType(ZoneType.Limbo)
+                    (existingLimbo?.toBuilder() ?: ZoneInfo.newBuilder().setZoneId(ZoneIds.LIMBO).setType(ZoneType.Limbo))
                 if (existingLimbo != null) patchedZones.removeIf { it.zoneId == ZoneIds.LIMBO }
-                val existing = limboBuilder.objectInstanceIdsList.toSet()
+                val baseIids = limboBuilder.objectInstanceIdsList.toMutableSet()
+                // Drop deleted holders from the listing (deletion GSM).
+                baseIids.removeAll(holderBatch.removed.toSet())
+                // Add post-diff active holders.
+                baseIids.addAll(postDiffActiveIids)
+                limboBuilder.clearObjectInstanceIds()
+                for (iid in baseIids) limboBuilder.addObjectInstanceIds(iid)
                 for (holder in holderBatch.added) {
-                    if (holder.iid !in existing) limboBuilder.addObjectInstanceIds(holder.iid)
                     patchedObjects.add(
                         ObjectMapper.buildTriggerHolderObject(
                             instanceId = holder.iid,
@@ -1268,7 +1283,7 @@ object StateMapper {
     private fun abilityGrpIdForSource(cardId: ForgeCardId, bridge: GameBridge): Int {
         val card = bridge.findCard(cardId) ?: return 0
         val cardGrpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
-        for (keyword in KEYWORD_TRIGGER_NAMES) {
+        for (keyword in keywordTriggerNames) {
             val abilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, keyword)
             if (abilityGrpId != null) return abilityGrpId
         }
@@ -1278,7 +1293,7 @@ object StateMapper {
     /** Keywords whose triggers we want to surface on the wire as
      *  `ResolutionStart`/`Complete grpid = <keyword ability id>`. Extend as new
      *  combat/ETB/state-trigger keywords ship and need precise grpId fidelity. */
-    private val KEYWORD_TRIGGER_NAMES = listOf("MOBILIZE")
+    private val keywordTriggerNames = listOf("MOBILIZE")
 
     /** Forge id of the source card that spawned [tokenForgeId], or null when
      *  the token has no `tokenSpawningAbility` (puzzle-injected tokens, copy
@@ -1318,25 +1333,18 @@ object StateMapper {
         return bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, "MOBILIZE")
     }
 
-    /** Stable per-trigger-registration holder iid. When [sourceForgeId] is
-     *  known we key the holder forge id on it (so all tokens spawned by the
-     *  same source-card resolution share one holder iid, matching the
-     *  canonical Mobilize 3 → one-holder-three-tokens shape). When unknown
-     *  (rare — non-Mobilize EOT tokens) we fall back to a per-controller
-     *  holder so the legacy generic EOT-copy path still emits a coherent
-     *  shared affector. */
+    /** Stable per-trigger-registration holder iid keyed on the source card's
+     *  forge id, so all tokens spawned by the same source-card resolution
+     *  share one holder (matching the canonical Mobilize 3 →
+     *  one-holder-three-tokens shape). Caller resolves [sourceForgeId] via
+     *  [tokenSourceForgeId] before invoking — currently every TriggerHolder
+     *  emit path requires a known source. */
     private fun holderInstanceIdFor(
-        sourceForgeId: ForgeCardId?,
-        controllerSeat: Int,
+        sourceForgeId: ForgeCardId,
         bridge: GameBridge,
     ): InstanceId {
-        if (sourceForgeId != null) {
-            val holderForge = ForgeCardId(sourceForgeId.value + GameBridge.DELAYED_TRIGGER_HOLDER_FORGE_OFFSET)
-            return bridge.getOrAllocInstanceId(holderForge)
-        }
-        // Synthetic per-controller fallback. Out-of-range of any real forge id.
-        val syntheticForge = ForgeCardId(GameBridge.DELAYED_TRIGGER_HOLDER_FORGE_OFFSET + controllerSeat)
-        return bridge.getOrAllocInstanceId(syntheticForge)
+        val holderForge = ForgeCardId(sourceForgeId.value + GameBridge.DELAYED_TRIGGER_HOLDER_FORGE_OFFSET)
+        return bridge.getOrAllocInstanceId(holderForge)
     }
 
     /** Best-effort owner seat lookup for an event-derived source card. */

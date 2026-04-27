@@ -280,6 +280,20 @@ class MobilizeKeywordTest :
                     .flatMap { it.gameStateMessage.persistentAnnotationsList }
                     .filter { it.typeList.contains(AnnotationType.TriggeringObject) }
             triggeringObjects.size shouldBeGreaterThanOrEqual 2
+
+            // Distinct TriggerHolder gameObjects — one per source-card resolution.
+            // Catches a regression where two sources collapse onto a single
+            // holder iid (e.g. if the holder forge id ever reverts to a
+            // per-controller key).
+            val holders =
+                post.filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .filter { it.type == GameObjectType.TriggerHolder }
+            val distinctHolderIids = holders.map { it.instanceId }.toSet()
+            distinctHolderIids.size shouldBeGreaterThanOrEqual 2
+            // Each holder points at a distinct source via parentId.
+            val distinctParents = holders.map { it.parentId }.toSet()
+            distinctParents.size shouldBeGreaterThanOrEqual 2
         }
 
         test("Mobilize 1 cleanup at next end step sacrifices the token") {

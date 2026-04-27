@@ -103,6 +103,13 @@ class GameEventCollector(
      * the trigger is cast (visit GameEventSpellAbilityCast with si.isTrigger == true),
      * consumed when the same id resolves. The resolved event carries only a
      * SpellAbilityView, which doesn't expose isTrigger — this map is the bridge.
+     *
+     * **Subscriber independence:** [leyline.game.GamePlayback] keeps its own
+     * `pendingLocalTriggers` map for the same saIds. The Guava EventBus
+     * delivers subscribers in registration order — by the time
+     * `GamePlayback.visit(GameEventSpellResolved)` runs, this collector has
+     * already consumed its entry. Both maps populate at cast and drain at
+     * resolve, independently — neither can rely on the other's state.
      */
     private val pendingTriggers = ConcurrentHashMap<Int, ForgeCardId>()
 

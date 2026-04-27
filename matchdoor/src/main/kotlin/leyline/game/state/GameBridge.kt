@@ -895,6 +895,7 @@ class GameBridge(
         diff.resetAll()
         effects.resetAll()
         annotations.resetAll()
+        delayedTriggerHolders.resetAll()
         activeCrewEffects.clear()
         abilityRegistries.clear()
         tokenRegistry.clear()

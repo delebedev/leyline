@@ -108,9 +108,14 @@ class GamePlayback(
 
     /** Decide whether to split this trigger's lifecycle into its own diff on
      *  the local turn. Today: only Mobilize keyword triggers (so the warrior
-     *  tokens enter a beat before combat damage). Extend to other keyword
-     *  mechanics that share the cast→resolve→token-create→damage burst once
-     *  their integration tests are updated to expect multi-GSM shape. */
+     *  tokens enter a beat before combat damage).
+     *
+     *  Widening to other keyword triggers (other combat triggers, ETB
+     *  mechanics with delayed-trigger tokens, etc.) inserts an extra Diff
+     *  GSM per trigger fire. Any [MatchFlowHarness]-based integration test
+     *  asserting a single-GSM-per-action wire shape will need to update its
+     *  assertions before the keyword can be added to the predicate. Audit
+     *  before extending the list. */
     private fun shouldSplitOnLocalTurn(hostCardForgeId: Int?): Boolean {
         if (hostCardForgeId == null) return false
         val card = bridge.findCard(leyline.bridge.types.ForgeCardId(hostCardForgeId)) ?: return false
