@@ -45,6 +45,8 @@ data class MechanicAnnotationResult(
     val delayedTriggerAffecteesPersistent: List<AnnotationInfo> = emptyList(),
     /** TargetSpec pAnns for spells/abilities on stack with targets — full replacement set. */
     val targetSpecPersistent: List<AnnotationInfo> = emptyList(),
+    /** Prepared `Designation` pAnns for cards with `Card.isPrepared` — full replacement set. */
+    val preparedDesignationPersistent: List<AnnotationInfo> = emptyList(),
 ) {
     /** Tracks an active controller-change effect for persistent annotation lifecycle. */
     data class ControllerChangedEffect(

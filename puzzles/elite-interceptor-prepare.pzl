@@ -1,0 +1,18 @@
+[metadata]
+Name:Elite Interceptor Prepare
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast Elite Interceptor to enter prepared with a Rejoinder copy in exile. Cast Rejoinder targeting either creature, choose tap/untap, draw a card. Bonus playables: Lightning Bolt (removal), Pacifism (lock-down), Healing Salve (buff/lifegain).
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=6
+
+humanhand=Elite Interceptor;Lightning Bolt;Pacifism;Burst Lightning
+humanbattlefield=Plains;Plains;Plains;Plains;Plains;Mountain;Mountain
+humanlibrary=Plains;Mountain;Plains;Plains
+aibattlefield=Grizzly Bears;Runeclaw Bear
+ailibrary=Forest;Forest;Forest;Forest

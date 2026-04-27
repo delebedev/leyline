@@ -738,6 +738,51 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
             .build()
 
+    /** GainDesignation transient on a card (Prepared, Saddled, Plotted, Door states).
+     *  Card-scoped variant — affector and affected both = the affected card's instance id.
+     *  See [gainDesignation] for the seat-scoped variant (Monarch, Initiative, City's Blessing). */
+    fun gainDesignationOnCard(
+        instanceId: InstanceId,
+        designationType: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.GainDesignation)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
+            .build()
+
+    /** Persistent `Designation` for the `Prepared` card-state designation.
+     *  Carries the int32 `PreparedCopyZcid` detail pointing at the prepare-spell exile copy.
+     *  affector / affectedIds both = the prepared creature's instance id. */
+    fun preparedDesignation(
+        instanceId: InstanceId,
+        preparedCopyInstanceId: InstanceId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.PREPARED_COPY_ZCID, preparedCopyInstanceId.value))
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_PREPARED))
+            .build()
+
+    /** LoseDesignation transient on a card. Fires when a card-state designation
+     *  ends (e.g. prepared spell cast → source creature unprepared). */
+    fun loseDesignation(
+        instanceId: InstanceId,
+        designationType: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.LoseDesignation)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
+            .build()
+
     /** Layered effect creation event (buff/debuff started). client type 18 (LayeredEffectCreated).
      *  Transient — fires once when the effect begins. No detail keys on this annotation;
      *  all metadata lives on the companion LayeredEffect persistent annotation.

@@ -1,0 +1,18 @@
+[metadata]
+Name:Honorbound Page Prepare
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast Honorbound Page; on resolution it enters prepared with a copy of Forum's Favor in exile that can target the opposing creature.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=4
+
+humanhand=Honorbound Page
+humanbattlefield=Plains;Plains;Plains;Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains
+aibattlefield=Grizzly Bears
+ailibrary=Forest;Forest;Forest;Forest
