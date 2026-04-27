@@ -292,35 +292,8 @@ object SnapshotCapture {
         // Attachment
         val attachedTo = card.attachedTo?.let { ForgeCardId(it.id) }
 
-        // Prepared role — Source on battlefield, Copy on the alt face, or None.
-        // Both directions read from the same linkage map (built once per snapshot
-        // pass over the battlefield); per-card path doesn't re-read Forge state.
         val ownForgeId = ForgeCardId(card.id)
-        val preparedRole: PreparedRole =
-            when {
-                onBf && card.isPrepared -> {
-                    val copy = preparedLinkage.copyOf(ownForgeId)
-                    if (copy == null) {
-                        // `setPrepared(eff)` is the last step of the AlterAttribute
-                        // Prepared path in Forge, after `eff.addRemembered(prepared)`.
-                        // An observable snapshot with `isPrepared==true` should always
-                        // have `firstRemembered != null`. If we hit the null branch the
-                        // engine was observed mid-effect — log and degrade to None so
-                        // we don't anchor a Designation pAnn on a Source we can't link.
-                        log.warn(
-                            "isPrepared=true with firstRemembered=null for forgeId={} ({}); skipping Source role",
-                            card.id,
-                            card.name,
-                        )
-                        PreparedRole.None
-                    } else {
-                        PreparedRole.Source(copy)
-                    }
-                }
-                PreparedSpell.isCopy(card) ->
-                    PreparedRole.Copy(preparedLinkage.sourceOf(ownForgeId))
-                else -> PreparedRole.None
-            }
+        val preparedRole = resolvePreparedRole(card, onBf, ownForgeId, preparedLinkage)
 
         // DFC fields — mirror resolveOthersideGrpId logic
         val othersideGrpId = ObjectMapper.resolveOthersideGrpId(card, bridge.cardRepository)
@@ -390,6 +363,42 @@ object SnapshotCapture {
             preparedRole = preparedRole,
         )
     }
+
+    /**
+     * Resolve the [PreparedRole] for [card]. Both Source and Copy directions read
+     * from the same [linkage] map, so a card never disagrees with itself across the
+     * Source/Copy boundary.
+     */
+    private fun resolvePreparedRole(
+        card: Card,
+        onBattlefield: Boolean,
+        ownForgeId: ForgeCardId,
+        linkage: PreparedLinkage,
+    ): PreparedRole =
+        when {
+            onBattlefield && card.isPrepared -> {
+                val copy = linkage.copyOf(ownForgeId)
+                if (copy == null) {
+                    // `setPrepared(eff)` is the last step of the AlterAttribute Prepared
+                    // path in Forge, after `eff.addRemembered(prepared)`. An observable
+                    // snapshot with `isPrepared==true` should always have
+                    // `firstRemembered != null`. If we hit the null branch the engine
+                    // was observed mid-effect — log and degrade to None so we don't
+                    // anchor a Designation pAnn on a Source we can't link.
+                    log.warn(
+                        "isPrepared=true with firstRemembered=null for forgeId={} ({}); skipping Source role",
+                        card.id,
+                        card.name,
+                    )
+                    PreparedRole.None
+                } else {
+                    PreparedRole.Source(copy)
+                }
+            }
+            PreparedSpell.isCopy(card) ->
+                PreparedRole.Copy(linkage.sourceOf(ownForgeId))
+            else -> PreparedRole.None
+        }
 
     private fun resolveCombatRole(
         card: Card,

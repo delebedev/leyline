@@ -354,8 +354,12 @@ object StateMapper {
         // Stack→Battlefield Resolve ZoneTransfer for the same source iid to match
         // the protocol's bracket order (annotation 848 before 849 in the spec).
         // Loses append at the end (cast acceptance has no co-located ZT for the
-        // source — the ZT is on the copy moving Exile→Stack).
-        insertPreparedTransients(annotations, prev, snap, bridge)
+        // source — the ZT is on the copy moving Exile→Stack). Skipped on full
+        // snapshot rebuild (prev == null) — the persistent Designation pAnn alone
+        // re-syncs client state on rebuild.
+        if (prev != null) {
+            insertPreparedTransients(annotations, prev, snap, bridge)
+        }
 
         // Stages 4-5 + persistent computation
         val remaining =
@@ -729,19 +733,16 @@ object StateMapper {
      *   carry a co-located ZT for the source (the ZT is on the copy moving Exile→Stack),
      *   so there's no nearby anchor.
      *
-     * Skipped on full-snapshot rebuild (`prev == null` outside the first-bundle
-     *  case): without a prior baseline the diff would mistakenly emit gain transients
-     *  for already-prepared sources whose persistent Designation pAnn is already
-     *  active client-side. The persistent pAnn from the snapshot pass alone re-syncs
-     *  client state on rebuild.
+     * Caller must skip this on full-snapshot rebuild: without a prior baseline the
+     * diff would mistakenly emit gain transients for already-prepared sources whose
+     * persistent Designation pAnn is already active client-side.
      */
     private fun insertPreparedTransients(
         annotations: MutableList<AnnotationInfo>,
-        prev: GsmSnapshot?,
+        prev: GsmSnapshot,
         cur: GsmSnapshot,
         bridge: GameBridge,
     ) {
-        if (prev == null) return
         val curSources = sourceForgeIds(cur)
         val prevSources = sourceForgeIds(prev)
 
