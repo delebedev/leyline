@@ -82,36 +82,40 @@ data class CardSnapshot(
      */
     val endOfTurnLeavePlay: Boolean = false,
     /**
-     * True when this card is prepared (Forge's `Card.isPrepared()` — the card has
-     * an active prepared-spell exile copy). Drives the `Prepared` card-state
-     * Designation persistent annotation (DesignationType=24).
+     * Role this card plays in the Prepared mechanic. [PreparedRole.None] for the
+     * vast majority of cards. [PreparedRole.Source] for a battlefield creature
+     * with an active prepared-spell exile copy. [PreparedRole.Copy] for the copy
+     * itself. Drives the `Prepared` Designation pAnn, exile-copy projection, and
+     * the by-name grpId fallback that bypasses the engine-spawned-token path.
      */
-    val isPrepared: Boolean = false,
-    /**
-     * ForgeCardId of the prepare-spell exile copy associated with this card,
-     * resolved from the prepared-effect's first remembered card. Non-null only
-     * when [isPrepared] is true. Used to populate `PreparedCopyZcid` on the
-     * persistent Designation annotation.
-     */
-    val preparedCopyForgeCardId: ForgeCardId? = null,
-    /**
-     * ForgeCardId of the source card whose prepared-effect created this card
-     * as a prepared-spell exile copy. Non-null only on the copy itself, and
-     * only while a live battlefield permanent owns the copy. Used to populate
-     * `parentId` on the projected `GameObjectInfo` so the client can link the
-     * exile copy back to its prepared source creature.
-     */
-    val preparedSourceForgeCardId: ForgeCardId? = null,
-    /**
-     * True when this card is a prepared-spell copy — Forge's `GamePieceType.TOKEN`
-     * with an active `PreparedSpell` face state. Drives projection as a normal
-     * `GameObjectType_Card` (not Token) and the by-name grpId resolution path.
-     * Distinct from [preparedSourceForgeCardId], which is null mid-cast after
-     * the unprepare trigger has fired or when the copy is on the stack with a
-     * freshly reallocated Forge id.
-     */
-    val isPreparedCopy: Boolean = false,
+    val preparedRole: PreparedRole = PreparedRole.None,
 )
+
+/**
+ * Role of a card in the Prepared mechanic. Source ↔ Copy is the only structural
+ * pair leyline cares about; both ends carry the partner's [ForgeCardId] when it
+ * exists, so consumers don't need to walk Forge state to recover the linkage.
+ */
+sealed interface PreparedRole {
+    /** Card is not involved in the Prepared mechanic. */
+    data object None : PreparedRole
+
+    /**
+     * Card is a battlefield permanent with an active prepared-spell exile copy.
+     * @property copyForgeCardId Forge id of the spell-face copy in exile.
+     */
+    data class Source(val copyForgeCardId: ForgeCardId) : PreparedRole
+
+    /**
+     * Card is a prepared-spell exile copy spawned by a battlefield Source.
+     * @property sourceForgeCardId Forge id of the live battlefield Source. Null
+     *   when the copy is mid-cast (Forge has reallocated its `Card.id` and the
+     *   Source's `prepared.firstRemembered` no longer points at this Card object)
+     *   or the Source has already been unprepared. The copy still projects as a
+     *   `GameObjectType_Card` either way; only `parentId` is omitted when null.
+     */
+    data class Copy(val sourceForgeCardId: ForgeCardId?) : PreparedRole
+}
 
 /**
  * Per-card combat role, populated from Forge [forge.game.combat.Combat].

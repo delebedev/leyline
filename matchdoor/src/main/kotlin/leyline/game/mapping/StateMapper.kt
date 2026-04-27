@@ -22,6 +22,7 @@ import leyline.game.annotations.ZoneTransferDetector
 import leyline.game.bundle.GsmFrame
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.PreparedRole
 import leyline.game.state.BridgeMutations
 import leyline.game.state.EffectTracker
 import leyline.game.state.GameBridge
@@ -336,15 +337,14 @@ object StateMapper {
         val preparedDesignationPersistentFromSnap =
             snap.objects.values
                 .mapNotNull { card ->
-                    // Forge keeps stale isPrepared on retired stack/limbo card states even
-                    // after the battlefield permanent inherits it. Anchor on the battlefield
-                    // permanent only — the Designation pAnn belongs to the live creature.
-                    if (!card.isOnBattlefield) return@mapNotNull null
-                    val copyId = card.preparedCopyForgeCardId
-                    if (!card.isPrepared || copyId == null) return@mapNotNull null
+                    // PreparedRole.Source is set only on battlefield permanents with a
+                    // live linked copy — exactly the set of cards that should carry the
+                    // persistent Designation pAnn. The role-based shape avoids the stale
+                    // isPrepared flags Forge keeps on retired stack/limbo card states.
+                    val source = card.preparedRole as? PreparedRole.Source ?: return@mapNotNull null
                     AnnotationBuilder.preparedDesignation(
                         instanceId = bridge.getOrAllocInstanceId(card.forgeCardId),
-                        preparedCopyInstanceId = bridge.getOrAllocInstanceId(copyId),
+                        preparedCopyInstanceId = bridge.getOrAllocInstanceId(source.copyForgeCardId),
                     )
                 }
 
@@ -716,7 +716,7 @@ object StateMapper {
     )
 
     /**
-     * Diff two snapshots on the prepared-source set (`isOnBattlefield && isPrepared`).
+     * Diff two snapshots on the prepared-source set (cards with `PreparedRole.Source`).
      * Cards entering the set produce a transient `GainDesignation` (type 24);
      * cards leaving produce a transient `LoseDesignation`. The protocol places
      * gains in the same GSM as the Stack→Battlefield Resolve ZoneTransfer and
@@ -728,18 +728,8 @@ object StateMapper {
         cur: GsmSnapshot,
         bridge: GameBridge,
     ): List<AnnotationInfo> {
-        val curSources =
-            cur.objects.values
-                .filter { it.isOnBattlefield && it.isPrepared }
-                .map { it.forgeCardId }
-                .toSet()
-        val prevSources =
-            prev
-                ?.objects
-                ?.values
-                ?.filter { it.isOnBattlefield && it.isPrepared }
-                ?.map { it.forgeCardId }
-                ?.toSet() ?: emptySet()
+        val curSources = sourceForgeIds(cur)
+        val prevSources = if (prev != null) sourceForgeIds(prev) else emptySet()
 
         val gained = curSources - prevSources
         val lost = prevSources - curSources
@@ -765,6 +755,12 @@ object StateMapper {
         }
         return result
     }
+
+    private fun sourceForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
+        snap.objects.values
+            .filter { it.preparedRole is PreparedRole.Source }
+            .map { it.forgeCardId }
+            .toSet()
 
     /** Stages 4-5: mechanic + effect annotations, persistent computation, numbering. */
     @Suppress("LongParameterList", "LongMethod")

@@ -234,12 +234,24 @@ object SnapshotCapture {
     ): Map<ForgeCardId, CardSnapshot> {
         val combat = game.phaseHandler?.combat
         val human = bridge.getPlayer(SeatId(1))
+        // Pre-pass: walk the live battlefield once, build the prepared Source ↔ Copy
+        // linkage as a map keyed by copy `ForgeCardId`. Concentrates the linkage at
+        // one canonical site so per-card snapshotting stays identity-stable across
+        // Forge's `Card.id` reallocation on cast.
+        val preparedLinkages: Map<ForgeCardId, ForgeCardId> =
+            game
+                .getCardsIn(ForgeZoneType.Battlefield)
+                .filter { it.isPrepared }
+                .mapNotNull { source ->
+                    val copy = source.prepared?.firstRemembered as? Card ?: return@mapNotNull null
+                    ForgeCardId(copy.id) to ForgeCardId(source.id)
+                }.toMap()
         val seen = linkedMapOf<ForgeCardId, CardSnapshot>()
         for (zone in zones.values) {
             for (fid in zone.contents) {
                 if (fid in seen) continue
                 val card = bridge.findCard(fid) ?: continue
-                seen[fid] = captureCard(card, combat, bridge, human)
+                seen[fid] = captureCard(card, combat, bridge, human, preparedLinkages)
             }
         }
         return seen
@@ -257,6 +269,7 @@ object SnapshotCapture {
         combat: forge.game.combat.Combat?,
         bridge: GameBridge,
         human: Player?,
+        preparedLinkages: Map<ForgeCardId, ForgeCardId>,
     ): CardSnapshot {
         val onBf = card.isInZone(ForgeZoneType.Battlefield)
         val type = card.type
@@ -279,30 +292,20 @@ object SnapshotCapture {
         // Attachment
         val attachedTo = card.attachedTo?.let { ForgeCardId(it.id) }
 
-        // Prepared (Forge `Card.isPrepared` — has an active prepared-spell exile copy).
-        // Source-side: the prepared creature exposes `getPrepared()` → command-zone effect.
-        // The effect's first remembered card is the exile copy (the prepare spell).
-        val isPrepared = card.isPrepared
-        val preparedCopyForgeCardId: ForgeCardId? =
-            if (isPrepared) {
-                val firstRemembered = card.prepared?.firstRemembered
-                (firstRemembered as? Card)?.let { ForgeCardId(it.id) }
-            } else {
-                null
+        // Prepared role — Source on battlefield, Copy on the alt face, or None.
+        // Linkage map (built once per snapshot pass) avoids per-card battlefield
+        // walks and stays correct across Forge `Card.id` reallocation on cast.
+        val ownForgeId = ForgeCardId(card.id)
+        val preparedRole: PreparedRole =
+            when {
+                onBf && card.isPrepared -> {
+                    val copy = card.prepared?.firstRemembered as? Card
+                    if (copy != null) PreparedRole.Source(ForgeCardId(copy.id)) else PreparedRole.None
+                }
+                PreparedSpell.isCopy(card) ->
+                    PreparedRole.Copy(preparedLinkages[ownForgeId])
+                else -> PreparedRole.None
             }
-        // Copy-side: identify prepared-spell copies by their face state. Forge sets
-        // currentState=PreparedSpell on the exile token, and that state survives the
-        // exile→stack transition even though the Forge `Card` instance gets a new id.
-        val isPreparedCopy =
-            card.gamePieceType == GamePieceType.TOKEN &&
-                card.hasState(forge.card.CardStateName.PreparedSpell) &&
-                card.currentState?.stateName == forge.card.CardStateName.PreparedSpell
-        // Resolve the live battlefield source by name match — survives the Forge id
-        // reallocation that happens when the copy is cast onto the stack. Null when
-        // no live prepared creature has this copy as its remembered card (e.g. mid-cast
-        // after the unprepare trigger has fired).
-        val preparedSourceForgeCardId: ForgeCardId? =
-            if (isPreparedCopy) findPreparedSourceByName(card, game = card.game) else null
 
         // DFC fields — mirror resolveOthersideGrpId logic
         val othersideGrpId = ObjectMapper.resolveOthersideGrpId(card, bridge.cardRepository)
@@ -313,19 +316,17 @@ object SnapshotCapture {
         // Pass the live instanceId so that copy/token registry entries are populated.
         // EFFECT cards (Puzzle Goal, Monarch, The Ring, Radiation, City's Blessing,
         // DetachedCardEffect, keywordEffect) are engine-bookkeeping surrogates without
-        // a client-DB grpId by design — skip strict resolution; wire layer drops them
-        // via (gamePieceType==EFFECT && grpId==0).
-        val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+        // a client-DB grpId by design — skip strict resolution; the projection layer
+        // drops them via (gamePieceType==EFFECT && grpId==0).
+        val instanceId = bridge.getOrAllocInstanceId(ownForgeId).value
         val grpId =
             if (card.gamePieceType == GamePieceType.EFFECT) {
                 0
-            } else if (isPreparedCopy) {
+            } else if (preparedRole is PreparedRole.Copy) {
                 // Prepared-spell copies are TOKEN-piece-typed but represent a normal
                 // spell card — resolve their grpId by name, bypassing the
                 // token-spawning-ability path which only fits engine-spawned tokens.
-                bridge.cardRepository.findGrpIdByName(card.name)
-                    ?: bridge.cardRepository.findGrpIdByNameAnyFace(card.name)
-                    ?: 0
+                PreparedSpell.resolveCopyGrpId(card, bridge.cardRepository) ?: 0
             } else {
                 ObjectMapper.resolveGrpId(card, bridge.cardRepository, instanceId = instanceId, bridge.tokenRegistry)
             }
@@ -371,31 +372,8 @@ object SnapshotCapture {
             othersideGrpId = othersideGrpId,
             currentStateNameIsBackside = currentStateNameIsBackside,
             combatRole = combatRole,
-            isPrepared = isPrepared,
-            preparedCopyForgeCardId = preparedCopyForgeCardId,
-            preparedSourceForgeCardId = preparedSourceForgeCardId,
-            isPreparedCopy = isPreparedCopy,
+            preparedRole = preparedRole,
         )
-    }
-
-    /**
-     * Walk the live battlefield for the prepared creature whose remembered prepared-spell
-     * copy has the same name as [card]. Match-by-name (not identity) survives the Forge
-     * `Card` id reallocation that happens when the copy is cast onto the stack.
-     * Returns null when no live prepared creature owns a copy of this name.
-     */
-    private fun findPreparedSourceByName(
-        card: Card,
-        game: Game,
-    ): ForgeCardId? {
-        for (perm in game.getCardsIn(ForgeZoneType.Battlefield)) {
-            val eff = perm.prepared ?: continue
-            val remembered = eff.firstRemembered as? Card ?: continue
-            if (remembered.name == card.name) {
-                return ForgeCardId(perm.id)
-            }
-        }
-        return null
     }
 
     private fun resolveCombatRole(

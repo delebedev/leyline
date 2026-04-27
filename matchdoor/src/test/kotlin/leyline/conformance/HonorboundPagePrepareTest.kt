@@ -213,6 +213,71 @@ class HonorboundPagePrepareTest :
             loseDesignation shouldNotBe null
         }
 
+        test("Two prepared creatures: each Designation anchored on its own source iid") {
+            startPuzzleFile("puzzles/two-prepared.pzl", validating = true)
+
+            castSpellByName("Honorbound Page")
+            passUntilResolved()
+            castSpellByName("Elite Interceptor")
+            passUntilResolved()
+
+            val honorbound = instanceIdOf("Honorbound Page", human, ZoneType.Battlefield)
+            val interceptor = instanceIdOf("Elite Interceptor", human, ZoneType.Battlefield)
+            val forumsFavor = instanceIdOf("Forum's Favor", human, ZoneType.Exile)
+            val rejoinder = instanceIdOf("Rejoinder", human, ZoneType.Exile)
+
+            // Persistent annotations are differential — pAnns added in earlier
+            // GSMs aren't republished in later diffs. Walk every emitted GSM and
+            // collect Prepared Designation pAnns by id; the most recent entry per
+            // (affector, copy) pair is the source of truth.
+            val allDesignations =
+                allMessages
+                    .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+                    .flatMap { it.persistentAnnotationsList }
+                    .filter { ann ->
+                        ann.typeList.contains(AnnotationType.Designation) &&
+                            ann.detailsList.any {
+                                it.key == DetailKeys.DESIGNATION_TYPE &&
+                                    it.valueInt32Count > 0 &&
+                                    it.getValueInt32(0) == AnnotationConstants.DESIGNATION_TYPE_PREPARED
+                            }
+                    }.distinctBy { it.id }
+
+            assertSoftly {
+                allDesignations.size shouldBe 2
+                val byAffector = allDesignations.associateBy { it.affectorId }
+                byAffector
+                    .getValue(honorbound)
+                    .detailsList
+                    .first { it.key == DetailKeys.PREPARED_COPY_ZCID }
+                    .getValueInt32(0) shouldBe forumsFavor
+                byAffector
+                    .getValue(interceptor)
+                    .detailsList
+                    .first { it.key == DetailKeys.PREPARED_COPY_ZCID }
+                    .getValueInt32(0) shouldBe rejoinder
+            }
+
+            // Each copy parented to its own source — read from the GSM that
+            // introduced it (the resolve diff).
+            val forumGsm =
+                allMessages
+                    .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+                    .first { gsm -> gsm.gameObjectsList.any { it.instanceId == forumsFavor } }
+            val rejoinderGsm =
+                allMessages
+                    .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+                    .first { gsm -> gsm.gameObjectsList.any { it.instanceId == rejoinder } }
+            val forumObj = forumGsm.gameObjectsList.first { it.instanceId == forumsFavor }
+            val rejoinderObj = rejoinderGsm.gameObjectsList.first { it.instanceId == rejoinder }
+            assertSoftly {
+                forumObj.parentId shouldBe honorbound
+                rejoinderObj.parentId shouldBe interceptor
+                forumObj.type shouldBe GameObjectType.Card
+                rejoinderObj.type shouldBe GameObjectType.Card
+            }
+        }
+
         test("Exile copy uniqueAbilities reflect the spell face, not the source creature") {
             startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
 

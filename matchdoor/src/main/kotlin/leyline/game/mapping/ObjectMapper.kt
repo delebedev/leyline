@@ -7,6 +7,7 @@ import leyline.game.data.CardProtoBuilder
 import leyline.game.data.CardRepository
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.CombatRole
+import leyline.game.snapshot.PreparedRole
 import leyline.game.state.EffectTracker
 import leyline.game.state.GameBridge
 import leyline.game.state.TokenIdentityRegistry
@@ -63,7 +64,7 @@ object ObjectMapper {
         bridge: GameBridge,
     ): GameObjectInfo {
         val objType =
-            if (cardSnap.isToken && !cardSnap.isPreparedCopy) {
+            if (cardSnap.isToken && cardSnap.preparedRole !is PreparedRole.Copy) {
                 GameObjectType.Token
             } else {
                 // Prepared-spell copies are Forge TOKEN-piece-typed but represent a
@@ -130,7 +131,7 @@ object ObjectMapper {
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ): GameObjectInfo {
         val objType =
-            if (cardSnap.isToken && !cardSnap.isPreparedCopy) {
+            if (cardSnap.isToken && cardSnap.preparedRole !is PreparedRole.Copy) {
                 GameObjectType.Token
             } else {
                 // Prepared-spell copies are Forge TOKEN-piece-typed but represent a
@@ -194,11 +195,12 @@ object ObjectMapper {
 
         // Prepared-spell exile copy — projects as a Card parented to the prepared
         // source creature. GameObject form: isCopy=true, parentId=<creature iid>,
-        // no objectSourceGrpId (that field is for engine-spawned tokens).
-        val preparedSource = cardSnap.preparedSourceForgeCardId
-        if (preparedSource != null) {
+        // no objectSourceGrpId (that field is for engine-spawned tokens). The
+        // sourceForgeCardId can be null mid-cast; isCopy still applies, parentId
+        // is omitted in that case.
+        (cardSnap.preparedRole as? PreparedRole.Copy)?.let { copy ->
             setIsCopy(true)
-            setParentId(bridge.getOrAllocInstanceId(preparedSource).value)
+            copy.sourceForgeCardId?.let { setParentId(bridge.getOrAllocInstanceId(it).value) }
         }
 
         // Attachment (Auras, Equipment) — resolve attached-to instance ID via bridge
@@ -305,16 +307,9 @@ object ObjectMapper {
             // typed, but it represents a normal castable spell. Resolve by name on
             // the current face, which survives the Forge `Card.id` reallocation
             // that happens when the copy moves Exile → Stack on cast.
-            if (card.hasState(forge.card.CardStateName.PreparedSpell) &&
-                card.currentState?.stateName == forge.card.CardStateName.PreparedSpell
-            ) {
-                val preparedGrpId =
-                    cards.findGrpIdByName(card.name)
-                        ?: cards.findGrpIdByNameAnyFace(card.name)
-                if (preparedGrpId != null) {
-                    if (instanceId != 0) tokenRegistry.register(instanceId, preparedGrpId)
-                    return preparedGrpId
-                }
+            leyline.game.snapshot.PreparedSpell.resolveCopyGrpId(card, cards)?.let { preparedGrpId ->
+                if (instanceId != 0) tokenRegistry.register(instanceId, preparedGrpId)
+                return preparedGrpId
             }
 
             // 3. Copy token — use source permanent's grpId
