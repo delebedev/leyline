@@ -216,6 +216,14 @@ class HonorboundPagePrepareTest :
             // moveToStack, which only happens after target selection completes. So
             // the unprepare path runs only once we provide a target.
             castSpellByName("Forum's Favor", zone = ZoneType.Exile)
+
+            // Guard against InteractionTest defaults silently auto-resolving the
+            // cast without a target selection step — if no SelectTargetsReq is
+            // emitted between cast submission and target picking, the test would
+            // pass vacuously without exercising the SpellCast trigger that fires
+            // LoseDesignation. Assert the prompt actually surfaced.
+            allMessages.drop(cutoffMessageCount).any { it.hasSelectTargetsReq() } shouldBe true
+
             val opponentBear =
                 ai.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
             val oppIid =

@@ -312,6 +312,13 @@ object ObjectMapper {
             // typed, but it represents a normal castable spell. Resolve by name on
             // the current face, which survives the Forge `Card.id` reallocation
             // that happens when the copy moves Exile → Stack on cast.
+            //
+            // Same `findGrpIdByName(...) ?: findGrpIdByNameAnyFace(...)` chain as the
+            // non-token branch below; centralized in `PreparedSpell.resolveCopyGrpId`
+            // because this branch must run BEFORE the token-spawning-ability path
+            // (a prepared copy is `isToken==true` but doesn't have a
+            // `tokenSpawningAbility.hostCard`, so the standard token resolution would
+            // fall through to `DevCheck.fail`).
             leyline.game.snapshot.PreparedSpell.resolveCopyGrpId(card, cards)?.let { preparedGrpId ->
                 if (instanceId != 0) tokenRegistry.register(instanceId, preparedGrpId)
                 return preparedGrpId
