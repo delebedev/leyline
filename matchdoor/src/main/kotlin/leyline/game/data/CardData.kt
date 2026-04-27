@@ -19,6 +19,16 @@ data class CardData(
     val supertypes: List<Int>, // proto SuperType values
     val abilityIds: List<Pair<Int, Int>>, // abilityGrpId:textId pairs
     /**
+     * Engine-only ability ids not displayed on the card face. Mirrors the
+     * client card-DB `Cards.HiddenAbilityIds` field (same `id:textLocId`
+     * shape as [abilityIds]). Used for delayed-trigger pairings — every
+     * Mobilize source has its cleanup ability ("Sacrifice them at the
+     * beginning of the next end step.") here, paired with the keyword on
+     * [abilityIds]. Empty for cards that don't carry a hidden
+     * delayed-trigger ability.
+     */
+    val hiddenAbilityIds: List<Pair<Int, Int>> = emptyList(),
+    /**
      * Per-slot kind aligned 1:1 with [abilityIds]. Sourced from Arena
      * `Abilities.Category` (1=Activated → [SlotKind.Activated]; everything
      * else → [SlotKind.Intrinsic] for triggers/statics) for production

@@ -847,15 +847,22 @@ object AnnotationBuilder {
             .addDetails(int32ListDetail(DetailKeys.COLORS, colors))
             .build()
 
-    /** Which object triggered an ability + source zone. client type 32 (TriggeringObject). */
+    /** Persistent annotation linking a triggered ability on the stack back to the
+     *  source permanent that triggered it. Client draws the source-arrow UI from
+     *  the source to the ability on the stack. Removed when the ability resolves
+     *  or is otherwise removed from the stack.
+     *  Wire shape: affectorId = stack ability instance, affectedIds = [source card].
+     *  Client annotation type 32 (TriggeringObject). */
     fun triggeringObject(
-        instanceId: InstanceId,
+        abilityInstanceId: InstanceId,
+        sourceCardInstanceId: InstanceId,
         sourceZone: Int,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.TriggeringObject)
-            .addAffectedIds(instanceId.value)
+            .setAffectorId(abilityInstanceId.value)
+            .addAffectedIds(sourceCardInstanceId.value)
             .addDetails(int32Detail(DetailKeys.SOURCE_ZONE, sourceZone))
             .build()
 
@@ -1046,18 +1053,53 @@ object AnnotationBuilder {
     /**
      * Copy token with EOT sacrifice. Persistent annotation. client type 80.
      * Drives "sacrifice at end of turn" visual indicator on the client.
-     * [abilityGrpId] = 192424 (universal EOT-sacrifice marker per protocol).
+     * [abilityGrpId] = 192424 (universal EOT-sacrifice marker) for generic copy
+     * tokens; per-card cleanup row (e.g. 189931 for Mobilize 1) when known.
+     * [affectorId] is the trigger-holder gameObject that owns the cleanup
+     * delayed trigger — defaults to the token itself for legacy callers; for
+     * Mobilize and other delayed-cleanup mechanics it must match the
+     * `DelayedTriggerAffectees.affectorId` so the client links cleanup ability
+     * to its tokens.
      */
     fun temporaryPermanent(
         tokenInstanceId: InstanceId,
         abilityGrpId: GrpId = AnnotationConstants.EOT_SACRIFICE_GRP_ID,
+        affectorId: InstanceId = tokenInstanceId,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.TemporaryPermanent)
-            .setAffectorId(tokenInstanceId.value)
+            .setAffectorId(affectorId.value)
             .addAffectedIds(tokenInstanceId.value)
             .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId.value))
+            .build()
+
+    /**
+     * Group of tokens affected by a delayed triggered ability (e.g. Mobilize's
+     * end-of-turn sacrifice trigger). Persistent annotation. Client type 74.
+     *
+     * @param triggerHolderId the transient trigger-holder object (typically lives
+     *   in Limbo with grpId=5) that owns the delayed trigger.
+     * @param tokenInstanceIds the tokens scheduled to be affected when the delayed
+     *   trigger fires.
+     * @param abilityGrpId the cleanup-trigger ability's grpId (e.g. 189931 for
+     *   Mobilize 1's "Sacrifice them at the beginning of the next end step").
+     * @param removesFromZone 1 for triggers that remove the affected from the
+     *   battlefield (Mobilize sacrifice, exile-and-return Warps); 0 otherwise.
+     */
+    fun delayedTriggerAffectees(
+        triggerHolderId: InstanceId,
+        tokenInstanceIds: List<InstanceId>,
+        abilityGrpId: GrpId,
+        removesFromZone: Int = 1,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.DelayedTriggerAffectees)
+            .setAffectorId(triggerHolderId.value)
+            .also { b -> tokenInstanceIds.forEach { b.addAffectedIds(it.value) } }
+            .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId.value))
+            .addDetails(int32Detail(DetailKeys.REMOVES_FROM_ZONE, removesFromZone))
             .build()
 
     /** Card in hidden zone revealed to opponent. Persistent badge. client type 75. */

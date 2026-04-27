@@ -277,6 +277,15 @@ class GameBridge(
     val annotations = PersistentAnnotationStore()
 
     /**
+     * Cross-GSM lifecycle for transient `TriggerHolder` gameObjects (Mobilize
+     * EOT-sacrifice today; exile-and-return mechanics later). See
+     * [DelayedTriggerHolderTracker] for the diff-and-emit contract — the
+     * tracker is fed each GSM by [leyline.game.mapping.StateMapper] and
+     * drained for `diffDeletedInstanceIds` in the diff path.
+     */
+    val delayedTriggerHolders = DelayedTriggerHolderTracker()
+
+    /**
      * Active crew type-change effects: forgeCardId → effectId.
      * Allocated when a vehicle is crewed (type changes to creature),
      * removed when the crew effect expires (end of turn, vehicle reverts).
@@ -375,6 +384,14 @@ class GameBridge(
     companion object {
         /** Fallback grpId for cards not in client DB (renders face-down). */
         const val FALLBACK_GRPID = 0
+
+        /** Forge-id offset for synthetic delayed-trigger holder objects. The
+         *  holder's forge id is `<source card forge id> + offset`, which gets
+         *  fed through [getOrAllocInstanceId] to yield a stable instance id that
+         *  both `DelayedTriggerAffectees.affectorId` and the per-token
+         *  `TemporaryPermanent.affectorId` reference. Picked above any plausible
+         *  real or stack-ability forge id range so it doesn't collide. */
+        const val DELAYED_TRIGGER_HOLDER_FORGE_OFFSET = 90_000_000
 
         /** Default deck when no decklist is provided (tests, puzzles without decks). */
         private const val FALLBACK_DECK = """
@@ -878,6 +895,7 @@ class GameBridge(
         diff.resetAll()
         effects.resetAll()
         annotations.resetAll()
+        delayedTriggerHolders.resetAll()
         activeCrewEffects.clear()
         abilityRegistries.clear()
         tokenRegistry.clear()

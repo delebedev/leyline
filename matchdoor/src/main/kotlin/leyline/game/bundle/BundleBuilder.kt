@@ -1683,7 +1683,7 @@ class BundleBuilder(
             if (!hasActiveSeatDraw) return false
 
             val hasActiveSeatSpellCast =
-                events.any { ev -> ev is GameEvent.SpellCast && ev.seatId == activeSeat }
+                events.any { ev -> ev is GameEvent.SpellCast && ev.seatId == activeSeat && !ev.isTrigger }
             if (hasActiveSeatSpellCast) return false
 
             val hasActiveSeatSpellResolved =
