@@ -335,6 +335,10 @@ object StateMapper {
         val preparedDesignationPersistentFromSnap =
             snap.objects.values
                 .mapNotNull { card ->
+                    // Forge keeps stale isPrepared on retired stack/limbo card states even
+                    // after the battlefield permanent inherits it. Anchor on the battlefield
+                    // permanent only — the Designation pAnn belongs to the live creature.
+                    if (!card.isOnBattlefield) return@mapNotNull null
                     val copyId = card.preparedCopyForgeCardId
                     if (!card.isPrepared || copyId == null) return@mapNotNull null
                     AnnotationBuilder.preparedDesignation(

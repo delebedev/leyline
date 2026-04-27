@@ -96,11 +96,21 @@ data class CardSnapshot(
     val preparedCopyForgeCardId: ForgeCardId? = null,
     /**
      * ForgeCardId of the source card whose prepared-effect created this card
-     * as a prepared-spell exile copy. Non-null only on the copy itself.
-     * Used to populate `parentId` on the wire-side card object so the client
-     * can link the exile copy back to its prepared source creature.
+     * as a prepared-spell exile copy. Non-null only on the copy itself, and
+     * only while a live battlefield permanent owns the copy. Used to populate
+     * `parentId` on the projected `GameObjectInfo` so the client can link the
+     * exile copy back to its prepared source creature.
      */
     val preparedSourceForgeCardId: ForgeCardId? = null,
+    /**
+     * True when this card is a prepared-spell copy — Forge's `GamePieceType.TOKEN`
+     * with an active `PreparedSpell` face state. Drives projection as a normal
+     * `GameObjectType_Card` (not Token) and the by-name grpId resolution path.
+     * Distinct from [preparedSourceForgeCardId], which is null mid-cast after
+     * the unprepare trigger has fired or when the copy is on the stack with a
+     * freshly reallocated Forge id.
+     */
+    val isPreparedCopy: Boolean = false,
 )
 
 /**

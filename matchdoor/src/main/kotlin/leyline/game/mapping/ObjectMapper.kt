@@ -62,7 +62,14 @@ object ObjectMapper {
         ownerSeatId: Int,
         bridge: GameBridge,
     ): GameObjectInfo {
-        val objType = if (cardSnap.isToken) GameObjectType.Token else GameObjectType.Card
+        val objType =
+            if (cardSnap.isToken && !cardSnap.isPreparedCopy) {
+                GameObjectType.Token
+            } else {
+                // Prepared-spell copies are Forge TOKEN-piece-typed but represent a
+                // normal castable spell — projected as plain Cards.
+                GameObjectType.Card
+            }
         return bridge.cardProto
             .buildObjectInfo(cardSnap.grpId)
             .setInstanceId(instanceId)
@@ -122,7 +129,14 @@ object ObjectMapper {
         visibility: Visibility = Visibility.Private,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ): GameObjectInfo {
-        val objType = if (cardSnap.isToken) GameObjectType.Token else GameObjectType.Card
+        val objType =
+            if (cardSnap.isToken && !cardSnap.isPreparedCopy) {
+                GameObjectType.Token
+            } else {
+                // Prepared-spell copies are Forge TOKEN-piece-typed but represent a
+                // normal castable spell — projected as plain Cards.
+                GameObjectType.Card
+            }
         val extrinsicKws =
             keywordSnapshot[instanceId]
                 ?.mapNotNull { KeywordGrpIds.forKeyword(it.keyword) }
@@ -178,12 +192,12 @@ object ObjectMapper {
             setObjectSourceGrpId(this.grpId)
         }
 
-        // Prepared-spell exile copy — appears as a token on the exile zone, parented
-        // to the prepared source creature so the client can render the linkage.
+        // Prepared-spell exile copy — projects as a Card parented to the prepared
+        // source creature. GameObject form: isCopy=true, parentId=<creature iid>,
+        // no objectSourceGrpId (that field is for engine-spawned tokens).
         val preparedSource = cardSnap.preparedSourceForgeCardId
         if (preparedSource != null) {
             setIsCopy(true)
-            setObjectSourceGrpId(this.grpId)
             setParentId(bridge.getOrAllocInstanceId(preparedSource).value)
         }
 
@@ -287,7 +301,23 @@ object ObjectMapper {
             // 1. Registry cache — stable across diff ticks
             tokenRegistry.resolve(instanceId)?.let { return it }
 
-            // 2. Copy token — use source permanent's grpId
+            // 2. Prepared-spell copy — Forge marks the alt face copy as TOKEN-piece
+            // typed, but it represents a normal castable spell. Resolve by name on
+            // the current face, which survives the Forge `Card.id` reallocation
+            // that happens when the copy moves Exile → Stack on cast.
+            if (card.hasState(forge.card.CardStateName.PreparedSpell) &&
+                card.currentState?.stateName == forge.card.CardStateName.PreparedSpell
+            ) {
+                val preparedGrpId =
+                    cards.findGrpIdByName(card.name)
+                        ?: cards.findGrpIdByNameAnyFace(card.name)
+                if (preparedGrpId != null) {
+                    if (instanceId != 0) tokenRegistry.register(instanceId, preparedGrpId)
+                    return preparedGrpId
+                }
+            }
+
+            // 3. Copy token — use source permanent's grpId
             val copiedPermanent = card.copiedPermanent
             if (copiedPermanent != null) {
                 val sourceGrpId =

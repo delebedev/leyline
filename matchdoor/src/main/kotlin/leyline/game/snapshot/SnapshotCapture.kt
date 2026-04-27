@@ -290,10 +290,19 @@ object SnapshotCapture {
             } else {
                 null
             }
-        // Copy-side: walk command-zone effects to find the one remembering this card.
-        // The effect's effect source is the original prepared creature.
+        // Copy-side: identify prepared-spell copies by their face state. Forge sets
+        // currentState=PreparedSpell on the exile token, and that state survives the
+        // exile→stack transition even though the Forge `Card` instance gets a new id.
+        val isPreparedCopy =
+            card.gamePieceType == GamePieceType.TOKEN &&
+                card.hasState(forge.card.CardStateName.PreparedSpell) &&
+                card.currentState?.stateName == forge.card.CardStateName.PreparedSpell
+        // Resolve the live battlefield source by name match — survives the Forge id
+        // reallocation that happens when the copy is cast onto the stack. Null when
+        // no live prepared creature has this copy as its remembered card (e.g. mid-cast
+        // after the unprepare trigger has fired).
         val preparedSourceForgeCardId: ForgeCardId? =
-            findPreparedSource(card, game = card.game)
+            if (isPreparedCopy) findPreparedSourceByName(card, game = card.game) else null
 
         // DFC fields — mirror resolveOthersideGrpId logic
         val othersideGrpId = ObjectMapper.resolveOthersideGrpId(card, bridge.cardRepository)
@@ -310,10 +319,10 @@ object SnapshotCapture {
         val grpId =
             if (card.gamePieceType == GamePieceType.EFFECT) {
                 0
-            } else if (preparedSourceForgeCardId != null) {
-                // Prepared-spell exile copies are TOKEN-piece-typed but represent a normal
-                // spell card — resolve their grpId by name like a regular card, bypassing
-                // the token-spawning-ability path which only fits engine-spawned tokens.
+            } else if (isPreparedCopy) {
+                // Prepared-spell copies are TOKEN-piece-typed but represent a normal
+                // spell card — resolve their grpId by name, bypassing the
+                // token-spawning-ability path which only fits engine-spawned tokens.
                 bridge.cardRepository.findGrpIdByName(card.name)
                     ?: bridge.cardRepository.findGrpIdByNameAnyFace(card.name)
                     ?: 0
@@ -365,28 +374,25 @@ object SnapshotCapture {
             isPrepared = isPrepared,
             preparedCopyForgeCardId = preparedCopyForgeCardId,
             preparedSourceForgeCardId = preparedSourceForgeCardId,
+            isPreparedCopy = isPreparedCopy,
         )
     }
 
     /**
-     * Walk command-zone effects to find the one whose first remembered card is [card].
-     * Returns the ForgeCardId of the prepared-effect's source (the original prepared creature)
-     * when [card] is a prepared-spell exile copy; null otherwise.
+     * Walk the live battlefield for the prepared creature whose remembered prepared-spell
+     * copy has the same name as [card]. Match-by-name (not identity) survives the Forge
+     * `Card` id reallocation that happens when the copy is cast onto the stack.
+     * Returns null when no live prepared creature owns a copy of this name.
      */
-    private fun findPreparedSource(
+    private fun findPreparedSourceByName(
         card: Card,
         game: Game,
     ): ForgeCardId? {
-        if (card.gamePieceType != GamePieceType.TOKEN) return null
-        if (card.currentState?.stateName != forge.card.CardStateName.PreparedSpell) return null
-        for (player in game.players) {
-            val command = player.getZone(ForgeZoneType.Command) ?: continue
-            for (eff in command) {
-                val remembered = eff.firstRemembered
-                if (remembered === card) {
-                    val effectSource = eff.effectSource ?: continue
-                    return ForgeCardId(effectSource.id)
-                }
+        for (perm in game.getCardsIn(ForgeZoneType.Battlefield)) {
+            val eff = perm.prepared ?: continue
+            val remembered = eff.firstRemembered as? Card ?: continue
+            if (remembered.name == card.name) {
+                return ForgeCardId(perm.id)
             }
         }
         return null

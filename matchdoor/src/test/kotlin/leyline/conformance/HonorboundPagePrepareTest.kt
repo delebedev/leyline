@@ -1,0 +1,131 @@
+package leyline.conformance
+
+import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
+import leyline.game.annotations.AnnotationConstants
+import leyline.game.codes.DetailKeys
+import leyline.game.mapping.ZoneIds
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+
+/**
+ * End-to-end coverage for the Prepared card-state designation (bd leyline-jtsv).
+ *
+ * Honorbound Page enters prepared via an ETB replacement effect. Forge's
+ * AlterAttributeEffect spawns a copy of the alternate face (Forum's Favor)
+ * into Exile, parented to a command-zone effect that holds a MayPlay static.
+ *
+ * Contract validated here:
+ *
+ * - Persistent `Designation` annotation with type 24 (Prepared), anchored on
+ *   the live battlefield creature, carrying `PreparedCopyZcid` pointing at
+ *   the exile copy.
+ * - Exile copy projects as `GameObjectType_Card` (not Token) with
+ *   `isCopy=true`, `parentId` pointing back at the prepared creature, and
+ *   `grpId` resolved to the prepare-spell face's id via name lookup.
+ * - Cast-from-exile is offered as a normal `Cast` action and resolves through
+ *   `ObjectMapper.resolveGrpId` without tripping the strict-mode token-grpId
+ *   guard — Forge reallocates the copy's `Card.id` on the exile→stack
+ *   transition, so detection has to be state-based, not identity-based.
+ */
+class HonorboundPagePrepareTest :
+    InteractionTest({
+
+        test("Prepared state: persistent Designation + exile copy projection") {
+            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
+
+            castSpellByName("Honorbound Page")
+            passUntilResolved()
+
+            val gsm =
+                allMessages
+                    .last { it.hasGameStateMessage() }
+                    .gameStateMessage
+
+            val sourceIid = instanceIdOf("Honorbound Page", human, ZoneType.Battlefield)
+            val copyIid = instanceIdOf("Forum's Favor", human, ZoneType.Exile)
+
+            // Persistent Designation annotation: type 24, anchored on the live
+            // battlefield creature, with PreparedCopyZcid → exile copy iid.
+            val designation =
+                gsm.persistentAnnotationsList.first { ann ->
+                    ann.typeList.contains(AnnotationType.Designation) &&
+                        ann.detailsList.any {
+                            it.key == DetailKeys.DESIGNATION_TYPE &&
+                                it.valueInt32Count > 0 &&
+                                it.getValueInt32(0) == AnnotationConstants.DESIGNATION_TYPE_PREPARED
+                        }
+                }
+            assertSoftly {
+                designation.affectorId shouldBe sourceIid
+                designation.affectedIdsList shouldContain sourceIid
+                designation
+                    .detailsList
+                    .first { it.key == DetailKeys.PREPARED_COPY_ZCID }
+                    .getValueInt32(0) shouldBe copyIid
+            }
+
+            // Exile copy GameObjectInfo: rendered as Card (not Token), parented back
+            // to the source creature, isCopy=true, grpId resolved by name to the
+            // prepare-spell face — bypasses the engine-spawned-token grpId path.
+            val copyObj = gsm.gameObjectsList.first { it.instanceId == copyIid }
+            assertSoftly {
+                copyObj.type shouldBe GameObjectType.Card
+                copyObj.isCopy shouldBe true
+                copyObj.parentId shouldBe sourceIid
+                copyObj.grpId shouldNotBe 0
+                copyObj.zoneId shouldBe ZoneIds.EXILE
+                // Prepared copies do NOT carry objectSourceGrpId — that field is
+                // reserved for engine-spawned tokens (e.g. Krenko goblins).
+                copyObj.objectSourceGrpId shouldBe 0
+            }
+        }
+
+        test("ObjectMapper.resolveGrpId on prepared copy returns by-name grpId, not 0") {
+            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = false)
+
+            castSpellByName("Honorbound Page")
+            passUntilResolved()
+
+            // Direct exercise of ObjectMapper.resolveGrpId — the path
+            // ActionPerformer.resolveCastAbilityIndex takes when the player casts
+            // the prepared copy. Pre-fix this returned 0 (DevCheck.fail) because
+            // the token-spawning-ability path doesn't fit prepared copies.
+            val copy =
+                human
+                    .getZone(ZoneType.Exile)
+                    .cards
+                    .first { it.name == "Forum's Favor" }
+            val copyIid = harness.bridge.getOrAllocInstanceId(ForgeCardId(copy.id)).value
+            val grpId = harness.bridge.resolveGrpId(copy, copyIid)
+            grpId shouldNotBe 0
+            // Same value the cardRepository would resolve via name lookup.
+            grpId shouldBe harness.bridge.cardRepository.findGrpIdByName("Forum's Favor")
+        }
+
+        test("Cast-from-exile: action accepted + resolveGrpId by name (no strict-mode crash)") {
+            // Validating disabled: a downstream LayeredEffect emission for the +1/+0
+            // flying buff carries a stale affectorId post-resolve, which is a separate
+            // latent issue unrelated to the cast-from-exile rail this test exercises.
+            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = false)
+
+            castSpellByName("Honorbound Page")
+            passUntilResolved()
+
+            // Forge reallocates the exile copy's `Card.id` between the resolve that
+            // creates it and the cast that puts it on the stack. The previous
+            // implementation went through `resolveGrpId`'s token path on the stack
+            // form and crashed with `[strict] token grpId=0`. State-based detection
+            // routes both forms through name lookup instead.
+            val cast = castSpellByName("Forum's Favor", zone = ZoneType.Exile)
+            cast shouldBe true
+            // No exception thrown means resolveGrpId succeeded by name on the new
+            // stack-form Card.id — the previously crashing path is now exercised.
+        }
+    })
