@@ -92,9 +92,30 @@ data class CardSnapshot(
 )
 
 /**
- * Role of a card in the Prepared mechanic. Source ↔ Copy is the only structural
- * pair leyline cares about; both ends carry the partner's [ForgeCardId] when it
- * exists, so consumers don't need to walk Forge state to recover the linkage.
+ * Role of a card in the Prepared mechanic — None, Source, or Copy.
+ *
+ * ## Why a sealed Role hierarchy and not 4 nullable fields
+ *
+ * The first wiring iteration spread Prepared state across four optional
+ * fields on `CardSnapshot`: `isPrepared`, `preparedCopyForgeCardId`,
+ * `preparedSourceForgeCardId`, `isPreparedCopy`. Consumers had to mentally
+ * AND them to figure out what was true: `isPrepared && copyId != null && !isPreparedCopy`
+ * meant Source-with-live-copy. That pattern smelled — the four fields had
+ * structural relationships (a Source has a non-null copyId, a Copy has at
+ * most a sourceId, None has neither) that a sealed type can express directly.
+ *
+ * Replacing them with `PreparedRole = None | Source | Copy` collapses the
+ * conjunctions into a `when` over the type, makes invalid combinations
+ * unrepresentable, and keeps the partner's [ForgeCardId] inline so consumers
+ * never need to re-read Forge state to recover the linkage.
+ *
+ * ## Generalization
+ *
+ * Card-state designations follow this shape — Saddled, Plotted, Day/Night,
+ * Door states, and Commander all have a "card has state X" question with
+ * structural variants (e.g. Saddled-by-whom). When implementing the next
+ * one, prefer a sealed Role hierarchy over a bag of booleans on
+ * `CardSnapshot`.
  */
 sealed interface PreparedRole {
     /** Card is not involved in the Prepared mechanic. */
@@ -102,6 +123,14 @@ sealed interface PreparedRole {
 
     /**
      * Card is a battlefield permanent with an active prepared-spell exile copy.
+     *
+     * Set only on cards observed `isOnBattlefield && isPrepared`. Forge keeps
+     * `isPrepared==true` on retired stack/limbo card states even after the
+     * battlefield permanent inherits the flag — without the battlefield filter
+     * we'd anchor a Designation pAnn on a stale iid and the wire would
+     * reference a card that doesn't exist. The role's construction site in
+     * [SnapshotCapture] enforces the filter.
+     *
      * @property copyForgeCardId Forge id of the spell-face copy in exile.
      */
     data class Source(
@@ -110,6 +139,12 @@ sealed interface PreparedRole {
 
     /**
      * Card is a prepared-spell exile copy spawned by a battlefield Source.
+     *
+     * Detected by face state (`gamePieceType == TOKEN && currentState ==
+     * PreparedSpell`) — see `PreparedSpell.isCopy`. State-based detection
+     * survives the Forge `Card.id` reallocation that happens when the copy
+     * moves Exile → Stack on cast.
+     *
      * @property sourceForgeCardId Forge id of the live battlefield Source. Null
      *   when the copy is mid-cast (Forge has reallocated its `Card.id` and the
      *   Source's `prepared.firstRemembered` no longer points at this Card object)

@@ -725,17 +725,37 @@ object StateMapper {
     /**
      * Diff two snapshots on the prepared-source set (cards with `PreparedRole.Source`)
      * and insert the resulting gain/lose transients into [annotations] at the right
-     * positions for the protocol's bracket order:
+     * positions for the protocol's bracket order.
+     *
+     * ## Why state-tail diff and not events
+     *
+     * Forge fires no dedicated `GameEvent` when a card transitions to/from
+     * prepared. The `AlterAttribute` SA flips `Card.preparedEffect` directly
+     * — the only `GameEventCardPlotted`-style event in the family is for
+     * Plotted, not Prepared. Rather than patching Forge to add an event,
+     * leyline reads the flag from snapshots and diffs `prev` vs `cur` set
+     * membership. Same approach should work for Plotted, Saddled, etc.
+     *
+     * ## Why the gain insertion isn't an append
      *
      * - Each `GainDesignation` lands immediately before the Stack→Battlefield Resolve
-     *   `ZoneTransfer` for the same source iid in the same list.
-     * - Each `LoseDesignation` appends to the end — the cast acceptance GSM doesn't
-     *   carry a co-located ZT for the source (the ZT is on the copy moving Exile→Stack),
-     *   so there's no nearby anchor.
+     *   `ZoneTransfer` for the same source iid in the same list. The protocol
+     *   spec brackets these annotations as a unit — gain at position 848,
+     *   ZT-Resolve at 849 — and `AnnotationOrderEnforcer` doesn't have a rule
+     *   covering the pair, so we have to position correctly at construction
+     *   rather than relying on post-build sort.
+     * - Each `LoseDesignation` appends to the end — the cast acceptance GSM
+     *   doesn't carry a co-located ZT for the source (the ZT is on the copy
+     *   moving Exile → Stack), so there's no nearby anchor.
      *
-     * Caller must skip this on full-snapshot rebuild: without a prior baseline the
-     * diff would mistakenly emit gain transients for already-prepared sources whose
-     * persistent Designation pAnn is already active client-side.
+     * ## Why caller-side prev null guard
+     *
+     * Caller must skip this on full-snapshot rebuild: without a prior baseline
+     * the diff would mistakenly emit gain transients for already-prepared
+     * sources whose persistent Designation pAnn is already active client-side.
+     * The persistent pAnn from the snap-derivation pass alone re-syncs client
+     * state on full rebuild; transients are for *changes*, and a rebuild isn't
+     * a change.
      */
     private fun insertPreparedTransients(
         annotations: MutableList<AnnotationInfo>,
