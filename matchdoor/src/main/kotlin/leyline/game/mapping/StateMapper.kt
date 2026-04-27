@@ -9,6 +9,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.annotations.AnnotationBuilder
+import leyline.game.annotations.AnnotationConstants
 import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.annotations.AppliedTransfer
 import leyline.game.annotations.CombatAnnotationResult
@@ -346,6 +347,12 @@ object StateMapper {
                         preparedCopyInstanceId = bridge.getOrAllocInstanceId(copyId),
                     )
                 }
+
+        // Transient gain/lose Designation annotations — diff prev vs cur on the
+        // `Source on battlefield with isPrepared` set. Adds to the GSM that carries
+        // the Stack→Battlefield Resolve ZoneTransfer (gain) or the cast acceptance
+        // (lose).
+        annotations.addAll(diffPreparedDesignations(prev, snap, bridge))
 
         // Stages 4-5 + persistent computation
         val remaining =
@@ -707,6 +714,57 @@ object StateMapper {
         val batch: PersistentAnnotationStore.BatchResult,
         val nextAnnotationId: Int,
     )
+
+    /**
+     * Diff two snapshots on the prepared-source set (`isOnBattlefield && isPrepared`).
+     * Cards entering the set produce a transient `GainDesignation` (type 24);
+     * cards leaving produce a transient `LoseDesignation`. The protocol places
+     * gains in the same GSM as the Stack→Battlefield Resolve ZoneTransfer and
+     * loses in the same GSM as the cast acceptance — both happen naturally
+     * because that's when the underlying `Card.isPrepared` flag transitions.
+     */
+    private fun diffPreparedDesignations(
+        prev: GsmSnapshot?,
+        cur: GsmSnapshot,
+        bridge: GameBridge,
+    ): List<AnnotationInfo> {
+        val curSources =
+            cur.objects.values
+                .filter { it.isOnBattlefield && it.isPrepared }
+                .map { it.forgeCardId }
+                .toSet()
+        val prevSources =
+            prev
+                ?.objects
+                ?.values
+                ?.filter { it.isOnBattlefield && it.isPrepared }
+                ?.map { it.forgeCardId }
+                ?.toSet() ?: emptySet()
+
+        val gained = curSources - prevSources
+        val lost = prevSources - curSources
+
+        val result = mutableListOf<AnnotationInfo>()
+        for (fid in gained) {
+            val iid = bridge.getOrAllocInstanceId(fid)
+            result.add(
+                AnnotationBuilder.gainDesignationOnCard(
+                    instanceId = iid,
+                    designationType = AnnotationConstants.DESIGNATION_TYPE_PREPARED,
+                ),
+            )
+        }
+        for (fid in lost) {
+            val iid = bridge.getOrAllocInstanceId(fid)
+            result.add(
+                AnnotationBuilder.loseDesignation(
+                    instanceId = iid,
+                    designationType = AnnotationConstants.DESIGNATION_TYPE_PREPARED,
+                ),
+            )
+        }
+        return result
+    }
 
     /** Stages 4-5: mechanic + effect annotations, persistent computation, numbering. */
     @Suppress("LongParameterList", "LongMethod")

@@ -128,4 +128,123 @@ class HonorboundPagePrepareTest :
             // No exception thrown means resolveGrpId succeeded by name on the new
             // stack-form Card.id — the previously crashing path is now exercised.
         }
+
+        test("GainDesignation transient + Stack→Battlefield Resolve land in the same GSM") {
+            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
+
+            castSpellByName("Honorbound Page")
+            passUntilResolved()
+
+            val sourceIid = instanceIdOf("Honorbound Page", human, ZoneType.Battlefield)
+
+            // Find the GSM that carries the Stack→Battlefield Resolve ZoneTransfer
+            // for Honorbound Page. The protocol spec requires GainDesignation type=24
+            // anchored on the same creature in this same GSM.
+            val resolveGsm =
+                allMessages
+                    .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+                    .first { gsm ->
+                        gsm.annotationsList.any { ann ->
+                            ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
+                                ann.affectedIdsList.contains(sourceIid) &&
+                                ann.detailsList.any {
+                                    it.key == DetailKeys.CATEGORY &&
+                                        it.valueStringCount > 0 &&
+                                        it.getValueString(0) == "Resolve"
+                                } &&
+                                ann.detailsList.any {
+                                    it.key == DetailKeys.ZONE_DEST &&
+                                        it.valueInt32Count > 0 &&
+                                        it.getValueInt32(0) == ZoneIds.BATTLEFIELD
+                                }
+                        }
+                    }
+
+            val gainDesignation =
+                resolveGsm.annotationsList.firstOrNull { ann ->
+                    ann.typeList.contains(AnnotationType.GainDesignation) &&
+                        ann.affectorId == sourceIid &&
+                        ann.affectedIdsList.contains(sourceIid) &&
+                        ann.detailsList.any {
+                            it.key == DetailKeys.DESIGNATION_TYPE &&
+                                it.valueInt32Count > 0 &&
+                                it.getValueInt32(0) == AnnotationConstants.DESIGNATION_TYPE_PREPARED
+                        }
+                }
+            gainDesignation shouldNotBe null
+        }
+
+        test("LoseDesignation transient fires when the prepared copy is cast") {
+            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = false)
+
+            castSpellByName("Honorbound Page")
+            passUntilResolved()
+
+            val sourceIid = instanceIdOf("Honorbound Page", human, ZoneType.Battlefield)
+            val cutoffMessageCount = allMessages.size
+
+            // Cast the prepared copy and select a target — Forge's SpellCast trigger
+            // (Mode$ SpellCast | Static$ True | ValidSA$ Spell.IsRemembered) fires on
+            // moveToStack, which only happens after target selection completes. So
+            // the unprepare path runs only once we provide a target.
+            castSpellByName("Forum's Favor", zone = ZoneType.Exile)
+            val opponentBear =
+                ai.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            val oppIid =
+                harness.bridge
+                    .getOrAllocInstanceId(ForgeCardId(opponentBear.id))
+                    .value
+            selectTargets(listOf(oppIid))
+
+            val postCastMessages = allMessages.drop(cutoffMessageCount)
+            val loseDesignation =
+                postCastMessages
+                    .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+                    .flatMap { it.annotationsList }
+                    .firstOrNull { ann ->
+                        ann.typeList.contains(AnnotationType.LoseDesignation) &&
+                            ann.affectorId == sourceIid &&
+                            ann.detailsList.any {
+                                it.key == DetailKeys.DESIGNATION_TYPE &&
+                                    it.valueInt32Count > 0 &&
+                                    it.getValueInt32(0) == AnnotationConstants.DESIGNATION_TYPE_PREPARED
+                            }
+                    }
+            loseDesignation shouldNotBe null
+        }
+
+        test("Exile copy uniqueAbilities reflect the spell face, not the source creature") {
+            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
+
+            castSpellByName("Honorbound Page")
+            passUntilResolved()
+
+            val gsm =
+                allMessages
+                    .last { it.hasGameStateMessage() }
+                    .gameStateMessage
+
+            val copyIid = instanceIdOf("Forum's Favor", human, ZoneType.Exile)
+            val copyObj = gsm.gameObjectsList.first { it.instanceId == copyIid }
+
+            // Resolve expected ids from the bridge's CardRepository (synthetic in
+            // tests, client-DB-backed in prod). Either way, the copy must project
+            // Forum's Favor's grpId + abilities, NOT Honorbound Page's.
+            val repo = harness.bridge.cardRepository
+            val forumGrpId =
+                repo.findGrpIdByName("Forum's Favor") ?: error("Forum's Favor not in repo")
+            val honorboundGrpId =
+                repo.findGrpIdByName("Honorbound Page") ?: error("Honorbound Page not in repo")
+            val forumAbilityIds =
+                repo.findByGrpId(forumGrpId)!!.abilityIds.map { it.first }.toSet()
+            val honorboundAbilityIds =
+                repo.findByGrpId(honorboundGrpId)!!.abilityIds.map { it.first }.toSet()
+
+            val copyAbilityIds = copyObj.uniqueAbilitiesList.map { it.grpId }.toSet()
+            assertSoftly {
+                copyObj.grpId shouldBe forumGrpId
+                copyAbilityIds shouldBe forumAbilityIds
+                copyAbilityIds.intersect(honorboundAbilityIds) shouldBe emptySet()
+            }
+        }
     })
