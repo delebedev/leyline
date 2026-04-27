@@ -1,0 +1,22 @@
+name: "Cryptic Command"
+grpId: 96258
+titleId: 17889
+power: ""
+toughness: ""
+colors:
+  - 2
+types:
+  - 4
+subtypes: []
+supertypes: []
+manaCost: "o1oUoUoU"
+abilities:
+  - id: 92708
+    textId: 89398
+    category: 4
+    modalChildren:
+      - 25846
+      - 23609
+      - 25847
+      - 25848
+expansionCode: "FCA"

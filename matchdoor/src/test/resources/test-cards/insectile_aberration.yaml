@@ -1,0 +1,22 @@
+name: "Insectile Aberration"
+grpId: 78379
+titleId: 39038
+power: "3"
+toughness: "2"
+colors:
+  - 2
+types:
+  - 2
+subtypes:
+  - 39
+  - 42
+supertypes: []
+manaCost: ""
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+expansionCode: "MID"
+linkedFaces:
+  - 78378
+isPrimaryCard: false

@@ -1,0 +1,15 @@
+name: "Grizzly Bears"
+grpId: 79334
+titleId: 4872
+power: "2"
+toughness: "2"
+colors:
+  - 5
+types:
+  - 2
+subtypes:
+  - 9
+supertypes: []
+manaCost: "o1oG"
+abilities: []
+expansionCode: "J21"
