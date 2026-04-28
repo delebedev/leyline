@@ -1,0 +1,8 @@
+name: "Counterspell"
+grpId: 98021
+titleId: 760
+abilities:
+  - id: 25846
+    textId: 762
+    category: 4
+expansionCode: "OMB"

@@ -1,0 +1,13 @@
+name: "Spyglass Siren"
+grpId: 87220
+titleId: 737334
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 169531
+    textId: 966969
+    category: 2
+expansionCode: "LCI"
+tokens:
+  "169531": 87484

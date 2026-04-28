@@ -1383,15 +1383,15 @@ object StateMapper {
      *  ability grpId — e.g. 188698 for a Mobilize 1 source — so
      *  `ResolutionStart`/`Complete` carry the keyword row id rather than the
      *  source card's grpId. Falls back to the source card's grpId for triggers
-     *  whose keyword isn't in [KEYWORD_BASE_IDS] yet. */
+     *  whose keyword isn't in [leyline.game.data.KeywordAbilityIds] yet. */
     private fun abilityGrpIdForSource(
         cardId: ForgeCardId,
         bridge: GameBridge,
     ): Int {
         val card = bridge.findCard(cardId) ?: return 0
         val cardGrpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
-        for (keyword in keywordTriggerNames) {
-            val abilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, keyword)
+        for (keywordId in keywordTriggerIds) {
+            val abilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, keywordId)
             if (abilityGrpId != null) return abilityGrpId
         }
         return cardGrpId
@@ -1400,7 +1400,7 @@ object StateMapper {
     /** Keywords whose triggers we want to surface on the wire as
      *  `ResolutionStart`/`Complete grpid = <keyword ability id>`. Extend as new
      *  combat/ETB/state-trigger keywords ship and need precise grpId fidelity. */
-    private val keywordTriggerNames = listOf("MOBILIZE")
+    private val keywordTriggerIds = listOf(leyline.game.data.KeywordAbilityIds.MOBILIZE)
 
     /** Forge id of the source card that spawned [tokenForgeId], or null when
      *  the token has no `tokenSpawningAbility` (puzzle-injected tokens, copy
@@ -1437,7 +1437,7 @@ object StateMapper {
         // hidden triggered ability is the Mobilize cleanup row — guards
         // against unrelated hidden abilities on cards that don't use the
         // keyword.
-        bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, "MOBILIZE") ?: return null
+        bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, leyline.game.data.KeywordAbilityIds.MOBILIZE) ?: return null
         return bridge.cardRepository.findHiddenTriggeredAbilityGrpId(sourceGrpId)
     }
 
@@ -1451,7 +1451,7 @@ object StateMapper {
     ): Int? {
         val sourceCard = bridge.findCard(sourceForgeId) ?: return null
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
-        return bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, "MOBILIZE")
+        return bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, leyline.game.data.KeywordAbilityIds.MOBILIZE)
     }
 
     /** Stable per-trigger-registration holder iid keyed on the source card's

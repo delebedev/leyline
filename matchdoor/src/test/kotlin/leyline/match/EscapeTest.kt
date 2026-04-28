@@ -15,7 +15,7 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
-import leyline.game.InMemoryCardRepository
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -93,8 +93,7 @@ class EscapeTest :
 
             val glimpseGrpId = b.cardRepository.findGrpIdByName("Glimpse of Freedom")!!
             val escapeAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(glimpseGrpId, "ESCAPE")!!
+                b.cardRepository.findKeywordAbilityGrpId(glimpseGrpId, KeywordAbilityIds.ESCAPE)!!
             val glimpseIid =
                 b
                     .getOrAllocInstanceId(
@@ -145,8 +144,7 @@ class EscapeTest :
 
             val glimpseGrpId = b.cardRepository.findGrpIdByName("Glimpse of Freedom")!!
             val escapeAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(glimpseGrpId, "ESCAPE")!!
+                b.cardRepository.findKeywordAbilityGrpId(glimpseGrpId, KeywordAbilityIds.ESCAPE)!!
 
             // Glimpse from hand surfaces only the regular Cast SA, not Escape.
             val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Glimpse of Freedom" }
@@ -187,8 +185,7 @@ class EscapeTest :
 
             val glimpseGrpId = b.cardRepository.findGrpIdByName("Glimpse of Freedom")!!
             val escapeAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(glimpseGrpId, "ESCAPE")!!
+                b.cardRepository.findKeywordAbilityGrpId(glimpseGrpId, KeywordAbilityIds.ESCAPE)!!
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)

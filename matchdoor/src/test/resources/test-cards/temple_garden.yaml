@@ -1,0 +1,14 @@
+name: "Temple Garden"
+grpId: 98590
+titleId: 30142
+abilities:
+  - id: 90846
+    textId: 937946
+    category: 3
+  - id: 1005
+    textId: 227393
+    category: 1
+  - id: 1001
+    textId: 227607
+    category: 1
+expansionCode: "ECL"

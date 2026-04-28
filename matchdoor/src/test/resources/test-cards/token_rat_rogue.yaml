@@ -1,0 +1,16 @@
+name: "Rat Rogue"
+grpId: 79747
+titleId: 287252
+abilities: []
+isToken: true
+isPrimaryCard: false
+power: "1"
+toughness: "1"
+colors: []
+types:
+  - 2
+subtypes:
+  - 235
+  - 56
+supertypes: []
+manaCost: ""

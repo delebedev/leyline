@@ -1,0 +1,14 @@
+name: "Vampire Nighthawk"
+grpId: 93899
+titleId: 2747
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 1
+    textId: 100
+    category: 3
+  - id: 12
+    textId: 38
+    category: 3
+expansionCode: "FDN"

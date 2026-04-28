@@ -1,0 +1,8 @@
+name: "Ornithopter"
+grpId: 82836
+titleId: 2999
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+expansionCode: "BRR"

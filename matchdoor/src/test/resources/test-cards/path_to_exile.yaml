@@ -1,0 +1,8 @@
+name: "Path to Exile"
+grpId: 100663
+titleId: 10517
+abilities:
+  - id: 2514
+    textId: 628023
+    category: 4
+expansionCode: "PZA"

@@ -7,7 +7,7 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
-import leyline.game.data.KEYWORD_BASE_IDS
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -347,7 +347,7 @@ class ActionPerformer(
         // for Plot) plus the card's eligible alt-cost SAs.
         // 149 = universal "Cast without paying mana cost" grpId.
         if (alternativeGrpId == 149 &&
-            action.abilityGrpId == KEYWORD_BASE_IDS["PLOTTED"]
+            action.abilityGrpId == KeywordAbilityIds.PLOT
         ) {
             return getAllCastableAbilities(card, player)
                 .withIndex()
@@ -362,13 +362,13 @@ class ActionPerformer(
         // keyword-specific predicate. Warp / Sneak hand SAs use AlternativeCost.
         // Plot/Foretell SAs are appended into getAllCastableAbilities by
         // CardLookup, so the index is well-defined for the cast pathway.
-        if (info.baseId == KEYWORD_BASE_IDS["PLOTTED"]) {
+        if (info.baseId == KeywordAbilityIds.PLOT) {
             return getAllCastableAbilities(card, player)
                 .withIndex()
                 .firstOrNull { (_, sa) -> sa.isPlotting }
                 ?.index
         }
-        if (info.baseId == KEYWORD_BASE_IDS["FORETELL"]) {
+        if (info.baseId == KeywordAbilityIds.FORETELL) {
             // Foretell has two SA flavors:
             //   - hand activation:  sa.isForetelling == true (AbilityStatic, no AltCost)
             //   - cast from exile:  sa.alternativeCost == AlternativeCost.Foretold
@@ -384,10 +384,10 @@ class ActionPerformer(
 
         val targetAltCost =
             when (info.baseId) {
-                KEYWORD_BASE_IDS.getValue("WARP") -> AlternativeCost.Warp
-                KEYWORD_BASE_IDS.getValue("SNEAK") -> AlternativeCost.Sneak
-                KEYWORD_BASE_IDS.getValue("DISTURB") -> AlternativeCost.Disturb
-                KEYWORD_BASE_IDS.getValue("ESCAPE") -> AlternativeCost.Escape
+                KeywordAbilityIds.WARP -> AlternativeCost.Warp
+                KeywordAbilityIds.SNEAK -> AlternativeCost.Sneak
+                KeywordAbilityIds.DISTURB -> AlternativeCost.Disturb
+                KeywordAbilityIds.ESCAPE -> AlternativeCost.Escape
                 else -> return null
             }
 

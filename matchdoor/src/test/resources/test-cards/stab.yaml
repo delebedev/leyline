@@ -1,0 +1,8 @@
+name: "Stab"
+grpId: 93784
+titleId: 823362
+abilities:
+  - id: 27907
+    textId: 994
+    category: 4
+expansionCode: "FDN"

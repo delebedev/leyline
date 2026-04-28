@@ -1,0 +1,14 @@
+name: "Jungle Hollow"
+grpId: 95786
+titleId: 46171
+abilities:
+  - id: 180111
+    textId: 894988
+    category: 3
+  - id: 90050
+    textId: 897293
+    category: 2
+  - id: 4407
+    textId: 235860
+    category: 1
+expansionCode: "TDM"

@@ -12,6 +12,7 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
 import leyline.game.snapshot.SnapshotCapture
@@ -78,7 +79,7 @@ class SneakTest :
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
             val sneakAbilityGrpId =
                 (b.cardRepository as leyline.game.InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(grpId, "SNEAK")
+                    .findKeywordAbilityGrpId(grpId, KeywordAbilityIds.SNEAK)
             sneakAbilityGrpId shouldNotBe null
             sneakAbilityGrpId!! shouldBeGreaterThan 0
         }
@@ -97,7 +98,7 @@ class SneakTest :
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
             val sneakAbilityGrpId =
                 (b.cardRepository as leyline.game.InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(grpId, "SNEAK")!!
+                    .findKeywordAbilityGrpId(grpId, KeywordAbilityIds.SNEAK)!!
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
@@ -129,7 +130,7 @@ class SneakTest :
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
             val sneakAbilityGrpId =
                 (b.cardRepository as leyline.game.InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(grpId, "SNEAK")!!
+                    .findKeywordAbilityGrpId(grpId, KeywordAbilityIds.SNEAK)!!
 
             val actions =
                 ActionMapper.buildActionList(
@@ -161,7 +162,7 @@ class SneakTest :
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
             val sneakAbilityGrpId =
                 (b.cardRepository as leyline.game.InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(grpId, "SNEAK")!!
+                    .findKeywordAbilityGrpId(grpId, KeywordAbilityIds.SNEAK)!!
 
             val actions =
                 ActionMapper.buildActionList(
@@ -190,7 +191,7 @@ class SneakTest :
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
             val sneakAbilityGrpId =
                 (b.cardRepository as leyline.game.InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(grpId, "SNEAK")!!
+                    .findKeywordAbilityGrpId(grpId, KeywordAbilityIds.SNEAK)!!
 
             val actions =
                 ActionMapper.buildActionList(
@@ -219,7 +220,7 @@ class SneakTest :
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
             val sneakAbilityGrpId =
                 (b.cardRepository as leyline.game.InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(grpId, "SNEAK")!!
+                    .findKeywordAbilityGrpId(grpId, KeywordAbilityIds.SNEAK)!!
 
             val actions =
                 ActionMapper.buildActionList(

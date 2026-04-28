@@ -46,6 +46,7 @@ dependencies {
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
     testImplementation(libs.kotest.datatest)
+    testImplementation(libs.snakeyaml)
 }
 
 // --- Proto sync + generation ---

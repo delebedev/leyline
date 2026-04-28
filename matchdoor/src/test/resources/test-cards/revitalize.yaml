@@ -1,0 +1,11 @@
+name: "Revitalize"
+grpId: 93533
+titleId: 229429
+abilities:
+  - id: 30479
+    textId: 4823
+    category: 4
+  - id: 25848
+    textId: 730
+    category: 4
+expansionCode: "J25"

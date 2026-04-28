@@ -36,8 +36,9 @@ class AbilityRegistryTest :
                     )
                 val card = injected.card
 
-                // Derive CardData from the live card (has game context → full abilities)
-                val cardData = CardDataDeriver.fromForgeCard(card)
+                // Derive CardData from the live card (has game context → full abilities),
+                // stamped with client identity from the fixture.
+                val cardData = CardDataDeriver.fromForgeCard(card, cardName)
 
                 // Chandra has 4 loyalty abilities (all activated, non-mana)
                 val loyaltyAbilities =
@@ -45,7 +46,7 @@ class AbilityRegistryTest :
                         .filter { it.isActivatedAbility && !it.isManaAbility() }
                 loyaltyAbilities.shouldHaveSize(4)
 
-                // CardData should have ability slots for all 4
+                // Chandra's fixture has ability ids for all 4 loyalty abilities.
                 cardData.abilityIds.shouldHaveSize(4)
 
                 // Build registry

@@ -1,0 +1,8 @@
+name: "Disenchant"
+grpId: 94000
+titleId: 5930
+abilities:
+  - id: 120290
+    textId: 2669
+    category: 4
+expansionCode: "FDN"

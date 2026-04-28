@@ -1,0 +1,17 @@
+name: "Hero's Downfall"
+grpId: 93888
+titleId: 1488
+abilities:
+  - id: 19475
+    textId: 1490
+    category: 4
+expansionCode: "FDN"
+power: ""
+toughness: ""
+colors:
+  - 3
+types:
+  - 4
+subtypes: []
+supertypes: []
+manaCost: "o1oBoB"

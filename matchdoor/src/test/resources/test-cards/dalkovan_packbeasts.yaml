@@ -1,0 +1,14 @@
+name: "Dalkovan Packbeasts"
+grpId: 95522
+titleId: 926689
+abilities:
+  - id: 15
+    textId: 137
+    category: 3
+  - id: 188696
+    textId: 926691
+    category: 2
+    baseId: 363
+expansionCode: "TDM"
+tokens:
+  "188696": 95832

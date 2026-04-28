@@ -1,0 +1,11 @@
+name: "Monastery Swiftspear"
+grpId: 94381
+titleId: 45837
+abilities:
+  - id: 9
+    textId: 101
+    category: 3
+  - id: 137
+    textId: 71
+    category: 2
+expansionCode: "PIO"

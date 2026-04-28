@@ -3,7 +3,7 @@ package leyline.game.annotations
 import leyline.bridge.findCard
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
-import leyline.game.data.AbilityIdDeriver
+import leyline.game.data.BasicLandAbilities
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.mapping.ObjectMapper
@@ -158,7 +158,7 @@ object ZoneTransferDetector {
                     val card = bridge.getGame()?.let { findCard(it, fid) }
                     if (card != null) {
                         val subtypes = card.type.subtypes.map { it.lowercase() }
-                        AbilityIdDeriver.BASIC_LAND_ABILITIES
+                        BasicLandAbilities.BY_SUBTYPE
                             .firstOrNull { it.first in subtypes }
                             ?.second ?: 0
                     } else {

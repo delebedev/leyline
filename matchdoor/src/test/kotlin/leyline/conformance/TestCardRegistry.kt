@@ -1,21 +1,16 @@
 package leyline.conformance
 
-import forge.game.card.Card
-import forge.model.FModel
 import leyline.game.InMemoryCardRepository
-import org.slf4j.LoggerFactory
 
 /**
- * Registers test deck cards in the shared [InMemoryCardRepository] using [CardDataDeriver].
+ * Registers test deck cards in the shared [InMemoryCardRepository].
  *
- * All card metadata is derived from Forge's in-memory CardRules at test startup.
- * No SQLite needed.
- *
- * Synthetic grpIds start at 200000 (allocated by [CardDataDeriver]).
+ * Routes through [FixtureCardLoader]: client identity (grpId, ability ids,
+ * tokens, linked faces) comes from per-card YAML fixtures under
+ * `matchdoor/src/test/resources/test-cards/`; rules data (P/T, types, mana,
+ * etc.) is derived from Forge's `CardRules` at test startup. No SQLite needed.
  */
 object TestCardRegistry {
-    private val log = LoggerFactory.getLogger(TestCardRegistry::class.java)
-
     /** Shared repository for all tests. */
     val repo = InMemoryCardRepository()
 
@@ -31,37 +26,11 @@ object TestCardRegistry {
         )
 
     /**
-     * Auto-register a card by name. If already in repo, returns existing grpId.
-     * Otherwise derives CardData from Forge's in-memory CardRules and registers it.
-     * Returns the grpId (synthetic, 0 on failure).
+     * Register a card by name. Idempotent. Thin wrapper over
+     * [FixtureCardLoader.ensureCardRegistered] (which owns the
+     * Forge-static-data mutex).
      */
-    // Serialize card registration: Forge's StaticData.attemptToLoadCard mutates
-    // static state, and CardDataDeriver assigns synthetic grpIds from a shared
-    // counter. Concurrent Kotest specs would race on both.
-    @Synchronized
-    fun ensureCardRegistered(cardName: String): Int {
-        repo.findGrpIdByName(cardName)?.let { return it }
-
-        val db =
-            FModel.getMagicDb()?.commonCards ?: run {
-                log.warn("Card DB not initialized, cannot auto-register '{}'", cardName)
-                return 0
-            }
-        val paperCard =
-            db.getCard(cardName) ?: run {
-                forge.StaticData.instance().attemptToLoadCard(cardName)
-                db.getCard(cardName)
-            } ?: run {
-                log.warn("Card '{}' not found in Forge DB", cardName)
-                return 0
-            }
-
-        val tempCard = Card.fromPaperCard(paperCard, null)
-        val cardData = CardDataDeriver.fromForgeCard(tempCard)
-        repo.registerData(cardData, cardName)
-        log.debug("Auto-registered '{}' with grpId={}", cardName, cardData.grpId)
-        return cardData.grpId
-    }
+    fun ensureCardRegistered(cardName: String): Int = FixtureCardLoader.ensureCardRegistered(repo, cardName)
 
     /**
      * Bulk-register all card names from a deck list string.
@@ -91,13 +60,12 @@ object TestCardRegistry {
     }
 
     /**
-     * Register all puzzle cards after [GameBridge.startPuzzle].
-     *
-     * Walks all zones in the game and derives synthetic [CardData] for each card
-     * via [PuzzleCardRegistrar]. Production doesn't need this — card data is in SQLite.
+     * Register all puzzle cards after `GameBridge.startPuzzle`. Walks every
+     * zone of every player and routes each card name through
+     * [FixtureCardLoader]. Production doesn't need this — card data is in
+     * SQLite.
      */
     fun registerPuzzleCards(game: forge.game.Game) {
-        val registrar = leyline.game.PuzzleCardRegistrar(repo)
         val allZones =
             listOf(
                 forge.game.zone.ZoneType.Hand,
@@ -110,11 +78,7 @@ object TestCardRegistry {
         for (player in game.players) {
             for (zone in allZones) {
                 for (card in player.getZone(zone).cards) {
-                    if (card.rules != null) {
-                        registrar.ensureCardRegistered(card)
-                    } else {
-                        registrar.ensureCardRegisteredByName(card.name)
-                    }
+                    FixtureCardLoader.ensureCardRegistered(repo, card.name)
                 }
             }
         }

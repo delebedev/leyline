@@ -1,0 +1,8 @@
+name: "Courageous Goblin"
+grpId: 93795
+titleId: 823396
+abilities:
+  - id: 175843
+    textId: 823398
+    category: 2
+expansionCode: "FDN"

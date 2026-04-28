@@ -47,23 +47,9 @@ class TreasureTokenTest :
         beforeSpec {
             GameBootstrap.initializeCardDatabase(quiet = true)
             TestCardRegistry.ensureRegistered()
-
-            // Wire up token mapping: Innkeeper → Treasure Token
-            // InMemoryCardRepository uses synthetic grpIds, so we register
-            // the Treasure Token and add tokenGrpIds mapping to the Innkeeper.
-            val repo = TestCardRegistry.repo
             TestCardRegistry.ensureCardRegistered("Prosperous Innkeeper")
             TestCardRegistry.ensureCardRegistered("Lightning Bolt")
             TestCardRegistry.ensureCardRegistered("Centaur Courser")
-
-            val innkeeperGrpId = repo.findGrpIdByName("Prosperous Innkeeper")!!
-            val treasureGrpId = 300001
-            repo.register(treasureGrpId, "Treasure Token")
-            val innkeeperData = repo.findByGrpId(innkeeperGrpId)!!
-            repo.registerData(
-                innkeeperData.copy(tokenGrpIds = mapOf(0 to treasureGrpId)),
-                "Prosperous Innkeeper",
-            )
         }
 
         val puzzleText =

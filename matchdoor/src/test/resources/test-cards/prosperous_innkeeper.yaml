@@ -1,0 +1,13 @@
+name: "Prosperous Innkeeper"
+grpId: 81819
+titleId: 499052
+abilities:
+  - id: 116826
+    textId: 901327
+    category: 2
+  - id: 122104
+    textId: 811010
+    category: 2
+expansionCode: "HBG"
+tokens:
+  "116826": 81886

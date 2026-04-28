@@ -1,0 +1,20 @@
+name: "Kaito, Cunning Infiltrator"
+grpId: 93757
+titleId: 823280
+abilities:
+  - id: 175794
+    textId: 823281
+    category: 2
+  - id: 175795
+    textId: 823282
+    category: 1
+  - id: 175796
+    textId: 823283
+    category: 1
+  - id: 175798
+    textId: 823285
+    category: 1
+expansionCode: "FDN"
+tokens:
+  "175796": 94167
+  "175797": 94167

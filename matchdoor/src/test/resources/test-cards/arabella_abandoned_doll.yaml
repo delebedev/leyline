@@ -1,0 +1,8 @@
+name: "Arabella, Abandoned Doll"
+grpId: 92302
+titleId: 813005
+abilities:
+  - id: 174507
+    textId: 972536
+    category: 2
+expansionCode: "DSK"

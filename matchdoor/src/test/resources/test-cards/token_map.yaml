@@ -1,0 +1,19 @@
+name: "Map"
+grpId: 87484
+titleId: 2153
+abilities:
+  - id: 304
+    textId: 1005378
+    category: 1
+    mana: "o1"
+isToken: true
+isPrimaryCard: false
+power: ""
+toughness: ""
+colors: []
+types:
+  - 1
+subtypes:
+  - 421
+supertypes: []
+manaCost: ""

@@ -1,0 +1,17 @@
+name: "Chandra, Torch of Defiance"
+grpId: 75695
+titleId: 51224
+abilities:
+  - id: 103346
+    textId: 933312
+    category: 1
+  - id: 76660
+    textId: 232544
+    category: 1
+  - id: 101548
+    textId: 933314
+    category: 1
+  - id: 103349
+    textId: 232547
+    category: 1
+expansionCode: "KLR"

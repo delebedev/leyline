@@ -1,0 +1,28 @@
+name: "Sorcerer Class"
+grpId: 77338
+titleId: 499200
+abilities:
+  - id: 143924
+    textId: 951770
+    category: 2
+  - id: 143925
+    textId: 499203
+    category: 1
+    mana: "oUoR"
+  - id: 146521
+    textId: 544201
+    category: 3
+  - id: 143927
+    textId: 499205
+    category: 3
+  - id: 143928
+    textId: 499206
+    category: 1
+    mana: "o3oUoR"
+  - id: 146522
+    textId: 544202
+    category: 3
+  - id: 143929
+    textId: 499207
+    category: 2
+expansionCode: "AFR"

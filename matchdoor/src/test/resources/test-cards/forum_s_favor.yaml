@@ -1,0 +1,20 @@
+name: "Forum's Favor"
+grpId: 104058
+titleId: 1114994
+abilities:
+  - id: 203394
+    textId: 1114995
+    category: 4
+expansionCode: "SOS"
+linkedFaces:
+  - 102478
+isPrimaryCard: false
+power: ""
+toughness: ""
+colors:
+  - 1
+types:
+  - 10
+subtypes: []
+supertypes: []
+manaCost: "oW"

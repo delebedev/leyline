@@ -1,0 +1,11 @@
+name: "Destroy Evil"
+grpId: 97601
+titleId: 614603
+abilities:
+  - id: 152699
+    textId: 614605
+    category: 4
+    modalChildren:
+      - 22658
+      - 23606
+expansionCode: "FIC"

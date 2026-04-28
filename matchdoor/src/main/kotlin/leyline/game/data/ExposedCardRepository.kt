@@ -251,13 +251,7 @@ class ExposedCardRepository(
             val row = Abilities.selectAll().where { Abilities.id eq id }.firstOrNull() ?: continue
             categories[id] = row[Abilities.category]
         }
-        return ids.map { id ->
-            when (categories[id]) {
-                1 -> SlotKind.Activated
-                null, 0 -> SlotKind.Activated // unknown / schema-default — assume activated for compat
-                else -> SlotKind.Intrinsic
-            }
-        }
+        return ids.map { id -> SlotKind.fromCategory(categories[id]) }
     }
 
     private fun queryNameByGrpId(grpId: Int): String? =

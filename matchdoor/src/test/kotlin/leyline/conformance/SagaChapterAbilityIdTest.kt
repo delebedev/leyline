@@ -8,15 +8,17 @@ import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 
 /**
- * Verifies saga chapter triggers are enumerated into [CardData.chapterAbilityGrpIds]
- * with one distinct synthetic grpId per chapter number. This is what lets
- * [ZoneMapper.resolveChapterAbilityGrpId] emit the chapter-specific grpId on the
- * stack Ability gameObject instead of the saga's own grpId.
+ * Verifies the saga chapter resolution shape after the fixture migration.
  *
- * Production (ExposedCardRepository) relies on the card DB's SQLite `Cards.AbilityIds`
- * column having the chapter grpIds at the leading positions — the resolver's
- * fallback path handles that. This test exercises the AbilityIdDeriver path used
- * by tests and puzzles.
+ * Fixture-driven cards mirror the prod `ExposedCardRepository` layout:
+ * the client's `Cards.AbilityIds` column orders chapter abilities at leading
+ * positions (chapter I at index 0, II at 1, III at 2). `CardData.chapterAbilityGrpIds`
+ * is left empty; `ZoneMapper.chapterGrpIdFromCardData` falls back to the
+ * positional list.
+ *
+ * Direct positional-fallback coverage lives in `TestCardFixturesTest`. Here
+ * we assert the full inject → register → CardData round-trip for a real Saga
+ * (Tribute to Horobi).
  */
 class SagaChapterAbilityIdTest :
     FunSpec({
@@ -24,23 +26,23 @@ class SagaChapterAbilityIdTest :
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("tribute to horobi: 3 chapter grpIds, distinct, non-zero")
+        test("Tribute to Horobi: 3 distinct chapter ability ids in leading abilityIds positions")
             .config(tags = setOf(ConformanceTag)) {
                 val cardName = "Tribute to Horobi"
                 val (b, _, _) = base.startWithBoard { _, _, _ -> }
 
-                val injected = TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
-                // Re-derive from the live card (has player context) — mirrors the
-                // planeswalker pattern in AbilityGrpIdConformanceTest.
-                val cardData = CardDataDeriver.fromForgeCard(injected.card)
-                TestCardRegistry.repo.registerData(cardData, cardName)
+                TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
+                val grpId = b.cardRepository.findGrpIdByName(cardName)!!
+                val cardData = b.cardRepository.findByGrpId(grpId)!!
 
-                cardData.chapterAbilityGrpIds shouldHaveSize 3
-                cardData.chapterAbilityGrpIds.toSet() shouldHaveSize 3 // all distinct
-                cardData.chapterAbilityGrpIds.forEach { it shouldNotBe 0 }
-                // Chapter grpIds must differ from the saga's own grpId — that's the
-                // whole point of the L2 fix.
-                cardData.chapterAbilityGrpIds.forEach { it shouldNotBe cardData.grpId }
+                cardData.abilityIds shouldHaveSize 3
+                cardData.abilityIds.map { it.first }.toSet() shouldHaveSize 3 // all distinct
+                cardData.abilityIds.forEach { (id, _) ->
+                    id shouldNotBe 0
+                    id shouldNotBe cardData.grpId
+                }
+                // Chapter list is intentionally empty — positional fallback path.
+                cardData.chapterAbilityGrpIds shouldBe emptyList()
             }
 
         test("non-saga card has empty chapterAbilityGrpIds")
@@ -48,30 +50,10 @@ class SagaChapterAbilityIdTest :
                 val cardName = "Grizzly Bears"
                 val (b, _, _) = base.startWithBoard { _, _, _ -> }
 
-                val injected = TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
-                val cardData = CardDataDeriver.fromForgeCard(injected.card)
+                TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
+                val grpId = b.cardRepository.findGrpIdByName(cardName)!!
+                val cardData = b.cardRepository.findByGrpId(grpId)!!
 
                 cardData.chapterAbilityGrpIds shouldBe emptyList()
             }
-
-        // ------------------------------------------------------------------
-        // Full-integration trigger-to-stack coverage is intentionally DEFERRED.
-        //
-        // Ideally a third test would: addCard(saga) → addCounter(LORE) → assert
-        // the resulting GSM contains a stack Ability gameObject with grpId ==
-        // chapterAbilityGrpIds[0]. But `addCard` + zone.add bypasses Forge's
-        // card-ETB flow that registers the card's triggers into TriggerHandler,
-        // so the CounterAdded trigger is defined on the saga but never active
-        // in the game. `addCounterInternal(..., fireEvents=true)` followed by
-        // `triggerHandler.runWaitingTriggers()` still leaves stack.size==0.
-        //
-        // Real engine flow (`game.action.moveToPlay(card)` or a full puzzle
-        // bootstrap) wires triggers, but that's heavier than this test needs
-        // and re-creates the puzzle-tier dependency we're trying to avoid.
-        //
-        // This gap is covered end-to-end by the Phase 3 transform puzzle
-        // (saga-transform-tribute.pzl + SagaTransformPuzzleTest) in the full
-        // session-tier MatchFlowHarness where Forge's normal cast → ETB →
-        // chapter-trigger flow runs naturally.
-        // ------------------------------------------------------------------
     })

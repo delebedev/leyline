@@ -18,7 +18,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.codes.ManaColorMapping
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
-import leyline.game.data.KEYWORD_BASE_IDS
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityRegistry
 import leyline.game.state.GameBridge
@@ -510,19 +510,19 @@ object ActionMapper {
         when (altCost) {
             AlternativeCost.Plotted -> {
                 actionBuilder.setAlternativeGrpId(CAST_WITHOUT_PAYING_MANA_GRP_ID)
-                actionBuilder.setAbilityGrpId(KEYWORD_BASE_IDS.getValue("PLOTTED"))
+                actionBuilder.setAbilityGrpId(KeywordAbilityIds.PLOT)
                 // Plot has isNoCost==true; do not emit any mana cost — the printed
                 // cost would mislead the client into a regular cast UI.
             }
             AlternativeCost.Foretold -> {
                 val foretellAbilityGrpId =
-                    cardRepository.findKeywordAbilityGrpId(grpId, "FORETELL") ?: 0
+                    cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.FORETELL) ?: 0
                 if (foretellAbilityGrpId > 0) actionBuilder.setAlternativeGrpId(foretellAbilityGrpId)
                 emitAltCostManaCost(actionBuilder, sa, foretellAbilityGrpId)
             }
             AlternativeCost.Disturb -> {
                 val disturbAbilityGrpId =
-                    cardRepository.findKeywordAbilityGrpId(grpId, "DISTURB") ?: 0
+                    cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.DISTURB) ?: 0
                 if (disturbAbilityGrpId > 0) {
                     actionBuilder.setAlternativeGrpId(disturbAbilityGrpId)
                     actionBuilder.setAbilityGrpId(disturbAbilityGrpId)
@@ -531,7 +531,7 @@ object ActionMapper {
             }
             AlternativeCost.Escape -> {
                 val escapeAbilityGrpId =
-                    cardRepository.findKeywordAbilityGrpId(grpId, "ESCAPE") ?: 0
+                    cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.ESCAPE) ?: 0
                 if (escapeAbilityGrpId > 0) {
                     actionBuilder.setAlternativeGrpId(escapeAbilityGrpId)
                     actionBuilder.setAbilityGrpId(escapeAbilityGrpId)
@@ -548,9 +548,9 @@ object ActionMapper {
                 }
             }
             else -> {
-                // TODO(leyline-9n6): extend KEYWORD_BASE_IDS for Mayhem/etc.
+                val keywordId = KeywordAbilityIds.fromForgeAltCostName(altCost.name)
                 val abilityGrpId =
-                    cardRepository.findKeywordAbilityGrpId(grpId, altCost.name.uppercase()) ?: 0
+                    if (keywordId != null) cardRepository.findKeywordAbilityGrpId(grpId, keywordId) ?: 0 else 0
                 if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
                 emitAltCostManaCost(actionBuilder, sa, abilityGrpIdEcho = 0)
             }
@@ -1131,17 +1131,20 @@ object ActionMapper {
             // is at most one FORETELL row per card.
             val payCostPairs: List<Pair<ManaColor, Int>> =
                 effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
-            val altCostKey =
+            val keywordBaseId =
                 when {
-                    sa.isPlotting -> "PLOTTED"
-                    sa.isForetelling -> "FORETELL"
-                    else -> altCost!!.name.uppercase()
+                    sa.isPlotting -> KeywordAbilityIds.PLOT
+                    sa.isForetelling -> KeywordAbilityIds.FORETELL
+                    else -> KeywordAbilityIds.fromForgeAltCostName(altCost!!.name) ?: continue
                 }
             val alternativeGrpId =
                 if (sa.isForetelling) {
-                    cardRepository?.findKeywordAbilityGrpId(grpId, altCostKey) ?: 0
+                    // Foretell hand SA's mana cost is the foretell-action cost ({2}),
+                    // not the per-card cast cost. Cost-aware lookup would miss; fall
+                    // back to cost-agnostic — at most one FORETELL row per card.
+                    cardRepository?.findKeywordAbilityGrpId(grpId, keywordBaseId) ?: 0
                 } else {
-                    cardRepository?.findAlternativeCostAbilityGrpId(grpId, altCostKey, payCostPairs) ?: 0
+                    cardRepository?.findAlternativeCostAbilityGrpId(grpId, keywordBaseId, payCostPairs) ?: 0
                 }
             if (alternativeGrpId <= 0) continue
 
@@ -1204,12 +1207,14 @@ object ActionMapper {
             val cardData = cardDataLookup(grpId)
             val altCost = sa.alternativeCost
             if (altCost != null) {
-                val altCostName = altCost.name.uppercase()
-                // TODO(leyline-9n6): Warp/Sneak/Flashback resolve via KEYWORD_BASE_IDS;
-                //   Escape/Mayhem/Commander etc. need BaseIds populated once verified
-                //   against recordings. Until then those keywords return null here.
+                // TODO(leyline-9n6): extend KeywordAbilityIds for Escape/Mayhem/etc.
+                val keywordId = KeywordAbilityIds.fromForgeAltCostName(altCost.name)
                 val abilityGrpId =
-                    cardRepository?.findKeywordAbilityGrpId(grpId, altCostName) ?: 0
+                    if (keywordId != null) {
+                        cardRepository?.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
+                    } else {
+                        0
+                    }
                 if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
             }
 

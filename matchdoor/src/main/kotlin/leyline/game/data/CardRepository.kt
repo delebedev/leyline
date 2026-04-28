@@ -55,74 +55,65 @@ interface CardRepository {
     fun findAbilityInfo(abilityGrpId: Int): AbilityInfo? = null
 
     /**
-     * Resolve the per-card keyword alt-cost ability grpId for [cardGrpId].
-     *
-     * Matches a row in [CardData.abilityIds] whose `BaseId` is the keyword's
-     * (e.g. 371 = Warp, 394 = Sneak) AND whose `OldSchoolManaText` parses to
-     * the same `(ManaColor, Int)` multiset as [payCost].
-     *
-     * @param altCostKeyword `WARP` or `SNEAK` (uppercase AlternativeCost name).
-     * @param payCost the SA's effective mana cost as `(color, count)` pairs.
-     *   Compared as multisets so ordering doesn't matter.
+     * Cost-disambiguated alt-cost lookup: find the ability on [cardGrpId]
+     * whose `BaseId` matches [keywordBaseId] AND whose `OldSchoolManaText`
+     * parses to the same `(ManaColor, Int)` multiset as [payCost]. Used by
+     * Warp/Sneak/Flashback's per-printing cost resolution.
      */
     fun findAlternativeCostAbilityGrpId(
         cardGrpId: Int,
-        altCostKeyword: String,
+        keywordBaseId: Int,
         payCost: List<Pair<ManaColor, Int>>,
     ): Int? {
-        val baseId = KEYWORD_BASE_IDS[altCostKeyword.uppercase()] ?: return null
         val data = findByGrpId(cardGrpId) ?: return null
         val payKey = payCost.toMap()
-        var costUnknownMatch: Int? = null
         for ((abilityGrpId, _) in data.abilityIds) {
             val info = findAbilityInfo(abilityGrpId) ?: continue
-            if (info.baseId != baseId) continue
+            if (info.baseId != keywordBaseId) continue
             if (info.manaCost.toMap() == payKey) return abilityGrpId
-            // Test-path tolerance: InMemoryCardRepository auto-seeds AbilityInfo
-            // from the derived keyword map with an unknown (empty) manaCost. Fall
-            // back to the first baseId match in that case so cost-unaware tests
-            // still resolve. Prod ExposedCardRepository always sets manaCost.
-            if (info.manaCost.isEmpty() && costUnknownMatch == null) costUnknownMatch = abilityGrpId
-        }
-        return costUnknownMatch
-    }
-
-    /**
-     * Resolve the per-card ability grpId whose `BaseId` matches [keywordPrefix]
-     * (uppercase keyword name, matched via [KEYWORD_BASE_IDS]). Cost-agnostic —
-     * returns the first matching row. For cost-aware lookup use
-     * [findAlternativeCostAbilityGrpId].
-     *
-     * Replaces the removed `CardData.keywordAbilityGrpIds` map. Callers that
-     * previously used `startsWith(keyword)` over that map now go through the
-     * Abilities-table `BaseId` chain — works in prod + tests uniformly when
-     * `AbilityInfo` is registered.
-     *
-     * Returns null if the keyword isn't in [KEYWORD_BASE_IDS] or no matching row
-     * exists. Unknown keywords are silently ignored (same behavior as the old
-     * map lookup when the keyword wasn't populated).
-     */
-    fun findKeywordAbilityGrpId(
-        cardGrpId: Int,
-        keywordPrefix: String,
-    ): Int? {
-        val baseId = KEYWORD_BASE_IDS[keywordPrefix.uppercase()] ?: return null
-        val data = findByGrpId(cardGrpId) ?: return null
-        for ((abilityGrpId, _) in data.abilityIds) {
-            val info = findAbilityInfo(abilityGrpId) ?: continue
-            if (info.baseId == baseId) return abilityGrpId
         }
         return null
     }
 
     /**
-     * True iff [cardGrpId] carries any keyword ability in [keywordPrefixes]
-     * (uppercase keyword names). Helper for keyword-presence checks.
+     * Keyword presence lookup. [keywordAbilityId] is one of the well-known
+     * ability identifiers from [KeywordAbilityIds]. Returns the per-card
+     * ability grpId that represents the keyword, or null when the card
+     * doesn't carry it.
+     *
+     * Two shapes are checked, in order:
+     * 1. **Direct match**: the well-known id appears verbatim in
+     *    `card.abilityIds`. Used for cost-uniform keywords (Prowess, Haste,
+     *    etc.) where every card with the keyword references the same shared
+     *    ability id.
+     * 2. **BaseId chain**: an ability on the card has `BaseId =
+     *    keywordAbilityId`. Used for alt-cost keywords (Warp, Sneak,
+     *    Flashback, Madness) where each printing has its own ability row
+     *    with a per-printing mana cost, all chained to the keyword's
+     *    well-known base id.
      */
+    fun findKeywordAbilityGrpId(
+        cardGrpId: Int,
+        keywordAbilityId: Int,
+    ): Int? {
+        val data = findByGrpId(cardGrpId) ?: return null
+        // Direct match
+        for ((abilityGrpId, _) in data.abilityIds) {
+            if (abilityGrpId == keywordAbilityId) return abilityGrpId
+        }
+        // BaseId chain
+        for ((abilityGrpId, _) in data.abilityIds) {
+            val info = findAbilityInfo(abilityGrpId) ?: continue
+            if (info.baseId == keywordAbilityId) return abilityGrpId
+        }
+        return null
+    }
+
+    /** True iff [cardGrpId] carries any keyword ability in [keywordAbilityIds]. */
     fun hasAnyKeyword(
         cardGrpId: Int,
-        keywordPrefixes: Set<String>,
-    ): Boolean = keywordPrefixes.any { findKeywordAbilityGrpId(cardGrpId, it) != null }
+        keywordAbilityIds: Set<Int>,
+    ): Boolean = keywordAbilityIds.any { findKeywordAbilityGrpId(cardGrpId, it) != null }
 
     /**
      * Hidden ability grpId of the first **triggered** ability
@@ -159,7 +150,7 @@ interface CardRepository {
         if (tokens.isEmpty()) return null
         if (tokens.size == 1) return tokens.values.first()
         if (tokenName == null) return null
-        // Forge names tokens "Rat Token", Arena DB uses "Rat" — try both
+        // Forge names tokens "Rat Token", client DB uses "Rat" — try both
         val normalized = tokenName.removeSuffix(" Token")
         for ((_, tokenGrpId) in tokens) {
             val name = findNameByGrpId(tokenGrpId) ?: continue
@@ -195,37 +186,56 @@ data class AbilityInfo(
 )
 
 /**
- * Keyword name (uppercase) → Arena DB `Abilities.BaseId` for that keyword.
+ * Well-known keyword ability identifiers from the client's `Abilities` table.
  *
- * Covers keywords the mapper/resolver layers need to address by name. Observed
- * via corpus + card-lookup playbook:
- *  - Warp: BaseId=371 (alt-cost hand-cast rail)
- *  - Sneak: BaseId=394 (alt-cost hand-cast rail)
- *  - Flashback: BaseId=35 (graveyard-cast rail)
+ * Two shapes mix here, both consumed by [CardRepository.findKeywordAbilityGrpId]:
  *
- * Extend when adding another keyword we need to resolve by name (to a
- * per-card ability row). Keywords not in this map return null from
- * [CardRepository.findKeywordAbilityGrpId].
+ * - **Direct ability ids** (Prowess, Haste, …) — the integer is itself the
+ *   ability id and appears verbatim in `Cards.AbilityIds` for every card
+ *   carrying the keyword. Cost-uniform keywords land here.
+ * - **BaseId chain** (Warp, Sneak, Flashback, Madness) — per-printing
+ *   ability rows have varying mana costs but share a `BaseId` pointing at
+ *   the keyword's definition row. The integer here is that shared base.
  *
- * TODO(leyline-9n6): populate BaseIds for Escape, Madness, Mayhem,
- *   Commander (and any other alt-cost / zone-cast keyword the mapper
- *   dispatches on) once verified against recordings. Until then those
- *   keywords resolve to null here — matching prior production behavior
- *   where `ExposedCardRepository` left the (now-deleted) map empty.
+ * Extend when a mapper/resolver layer needs to address another keyword.
+ * Identify the integer by inspecting a sample card's fixture YAML or
+ * querying the client's `Abilities` / `Localizations_enUS` tables.
  */
-val KEYWORD_BASE_IDS: Map<String, Int> =
-    mapOf(
-        "WARP" to 371,
-        "SNEAK" to 394,
-        "FLASHBACK" to 35,
-        // "PLOT" matches the Forge keyword string ("Plot:3 G"); "PLOTTED" matches the
-        // designation name passed by ActionMapper. Both alias to BaseId=328 so the
-        // test-side AbilityInfo auto-seed (registerKeywordAbilityGrpIds) catches
-        // Forge's keyword string AND the production ActionMapper path resolves.
-        "PLOT" to 328,
-        "PLOTTED" to 328,
-        "FORETELL" to 208,
-        "DISTURB" to 215,
-        "ESCAPE" to 199,
-        "MOBILIZE" to 363,
-    )
+object KeywordAbilityIds {
+    // Direct ability ids — well-known shared row used verbatim per card.
+    const val HASTE = 9
+    const val PROWESS = 137
+
+    // BaseId roots — each printing has its own ability row chaining to this.
+    const val FLASHBACK = 35
+    const val MADNESS = 36
+    const val ESCAPE = 199
+    const val FORETELL = 208
+    const val DISTURB = 215
+    const val PLOT = 328
+    const val MOBILIZE = 363
+    const val WARP = 371
+    const val SNEAK = 394
+
+    /**
+     * Resolve a Forge `AlternativeCost.name` (uppercase enum name like
+     * `"WARP"`, `"FORETOLD"`, `"PLOTTED"`) to the keyword's ability id.
+     * Also accepts designation names (`"PLOTTED"`) and the keyword's bare
+     * form (`"PLOT"`) so cast-rail callers and designation-tag callers
+     * resolve to the same integer. Returns null when the keyword isn't
+     * mapped yet.
+     */
+    fun fromForgeAltCostName(name: String): Int? =
+        when (name.uppercase()) {
+            "WARP" -> WARP
+            "SNEAK" -> SNEAK
+            "FLASHBACK" -> FLASHBACK
+            "MADNESS" -> MADNESS
+            "PLOT", "PLOTTED" -> PLOT
+            "FORETELL", "FORETOLD" -> FORETELL
+            "DISTURB" -> DISTURB
+            "ESCAPE" -> ESCAPE
+            "MOBILIZE" -> MOBILIZE
+            else -> null
+        }
+}

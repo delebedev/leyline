@@ -120,7 +120,7 @@ class GamePlayback(
         if (hostCardForgeId == null) return false
         val card = bridge.findCard(leyline.bridge.types.ForgeCardId(hostCardForgeId)) ?: return false
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return false
-        return bridge.cardRepository.findKeywordAbilityGrpId(grpId, "MOBILIZE") != null
+        return bridge.cardRepository.findKeywordAbilityGrpId(grpId, leyline.game.data.KeywordAbilityIds.MOBILIZE) != null
     }
 
     override fun visit(ev: GameEventTurnBegan) {

@@ -1,0 +1,21 @@
+name: "Dwynen's Elite"
+grpId: 93931
+titleId: 47997
+abilities:
+  - id: 102318
+    textId: 902062
+    category: 2
+expansionCode: "FDN"
+tokens:
+  "102318": 94174
+power: "2"
+toughness: "2"
+colors:
+  - 5
+types:
+  - 2
+subtypes:
+  - 27
+  - 77
+supertypes: []
+manaCost: "o1oG"

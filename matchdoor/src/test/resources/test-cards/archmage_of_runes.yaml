@@ -1,0 +1,11 @@
+name: "Archmage of Runes"
+grpId: 93743
+titleId: 823241
+abilities:
+  - id: 19445
+    textId: 41357
+    category: 3
+  - id: 171655
+    textId: 755498
+    category: 2
+expansionCode: "FDN"

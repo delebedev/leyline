@@ -1,0 +1,8 @@
+name: "Brainstorm"
+grpId: 100666
+titleId: 10522
+abilities:
+  - id: 3683
+    textId: 10524
+    category: 4
+expansionCode: "PZA"

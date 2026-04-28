@@ -1,0 +1,11 @@
+name: "Eaten Alive"
+grpId: 93885
+titleId: 530055
+abilities:
+  - id: 133059
+    textId: 336515
+    category: 5
+  - id: 139942
+    textId: 477300
+    category: 4
+expansionCode: "FDN"

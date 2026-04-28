@@ -1,0 +1,13 @@
+name: "Gleaming Barrier"
+grpId: 93965
+titleId: 182013
+abilities:
+  - id: 2
+    textId: 109
+    category: 3
+  - id: 116851
+    textId: 892577
+    category: 2
+expansionCode: "FDN"
+tokens:
+  "116851": 94178

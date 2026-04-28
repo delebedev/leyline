@@ -1,0 +1,19 @@
+name: "Railway Brawler"
+grpId: 90521
+titleId: 756657
+abilities:
+  - id: 13
+    textId: 143
+    category: 3
+  - id: 14
+    textId: 28
+    category: 3
+  - id: 171924
+    textId: 869048
+    category: 2
+  - id: 171907
+    textId: 756608
+    category: 8
+    baseId: 328
+    mana: "o3oG"
+expansionCode: "OTJ"

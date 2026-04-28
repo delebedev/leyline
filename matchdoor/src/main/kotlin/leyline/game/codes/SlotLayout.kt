@@ -3,10 +3,11 @@ package leyline.game.codes
 /**
  * Single source of truth for the ability slot layout of a card.
  *
- * Produced by [leyline.game.data.AbilityIdDeriver] (for synthetic cards) and [leyline.game.state.AbilityRegistry.build]
- * (for all cards at runtime). Consumed by `MatchSession.resolveAbilityIndex`.
- * Eliminates the dual-derivation bug class where keyword count was computed
- * independently in two places.
+ * Produced by [leyline.game.state.AbilityRegistry.build] from a card's
+ * Forge spell abilities and its [leyline.game.data.CardData] slot list.
+ * Consumed by `MatchSession.resolveAbilityIndex`. Eliminates the
+ * dual-derivation bug class where keyword count was computed independently
+ * in two places.
  *
  * Slot ordering matches the source `Cards.AbilityIds` array verbatim. Slots
  * may interleave kinds (e.g. an intrinsic trigger at slot 0 followed by
@@ -22,7 +23,7 @@ data class SlotLayout(
     val slots: List<SlotEntry>,
 ) {
     /**
-     * Map an Arena abilityGrpId to its Forge ability index.
+     * Map a client abilityGrpId to its Forge ability index.
      *
      * Returns the index into the Forge-order non-mana activated abilities
      * (i.e., what `getNonManaActivatedAbilities` returns) — counting only
@@ -59,4 +60,31 @@ data class SlotEntry(
     val kind: SlotKind,
 )
 
-enum class SlotKind { Keyword, Activated, Mana, Intrinsic }
+enum class SlotKind {
+    Keyword,
+    Activated,
+    Mana,
+    Intrinsic,
+    ;
+
+    companion object {
+        /**
+         * Map an ability category integer (the client's `Abilities.Category`
+         * column) to a [SlotKind].
+         *
+         * Category=1 → [Activated]. Category=0 (schema default, never
+         * populated) and "row absent" → [Activated] (treat unknown as
+         * activate-able for compat — `ExposedCardRepository` does the same).
+         * Anything else (2 = trigger, 3+ = static/passive) → [Intrinsic].
+         *
+         * Single source of truth shared by [ExposedCardRepository] (prod)
+         * and the YAML fixture loader (test). Keeps prod and test on the
+         * same mapping rule.
+         */
+        fun fromCategory(category: Int?): SlotKind =
+            when (category) {
+                1, 0, null -> Activated
+                else -> Intrinsic
+            }
+    }
+}

@@ -1,0 +1,13 @@
+name: "Demon Bolt"
+grpId: 75172
+titleId: 477424
+abilities:
+  - id: 138513
+    textId: 477426
+    category: 4
+  - id: 139986
+    textId: 477423
+    category: 8
+    baseId: 208
+    mana: "oR"
+expansionCode: "KHM"

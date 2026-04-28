@@ -1,0 +1,13 @@
+name: "Fiery Temper"
+grpId: 86201
+titleId: 25451
+abilities:
+  - id: 70361
+    textId: 234843
+    category: 4
+  - id: 6306
+    textId: 25453
+    category: 2
+    baseId: 36
+    mana: "oR"
+expansionCode: "SIR"

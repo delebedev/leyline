@@ -19,13 +19,13 @@ import leyline.conformance.detailInt
 import leyline.conformance.humanPlayer
 import leyline.game.InMemoryCardRepository
 import leyline.game.data.AbilityInfo
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
 import leyline.game.snapshot.SnapshotCapture
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
  * Warp hand-cast-with-alternate-cost path.
@@ -82,8 +82,7 @@ class WarpTest :
 
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val warpAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(wurmGrpId, "WARP")
+                b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)
             warpAbilityGrpId shouldNotBe null
             warpAbilityGrpId!! shouldBeGreaterThan 0
 
@@ -130,19 +129,7 @@ class WarpTest :
             val human = game.humanPlayer
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val warpAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(wurmGrpId, "WARP")!!
-
-            // Seed Abilities-table data for the warp ability row (BaseId=371, cost={1}{G}).
-            // Mirrors the live Arena DB shape where the Warp row carries its own mana cost
-            // and a per-keyword BaseId.
-            (b.cardRepository as InMemoryCardRepository).registerAbilityInfo(
-                warpAbilityGrpId,
-                AbilityInfo(
-                    baseId = 371,
-                    manaCost = listOf(ManaColor.Green_afc9 to 1, ManaColor.Generic to 1),
-                ),
-            )
+                b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
             val actions =
                 ActionMapper.buildActionList(
@@ -186,24 +173,16 @@ class WarpTest :
             val human = game.humanPlayer
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val realWarpAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(wurmGrpId, "WARP")!!
+                b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
-            // Inject a second abilityId that *precedes* the warp row and *would* be picked
-            // by positional lookup (the old bug). Register AbilityInfo for both:
-            // - fakeEtbId: BaseId=0 (the ETB trigger shape) — should be skipped
-            // - realWarpAbilityGrpId: BaseId=371, cost {1}{G} — should be picked
+            // Inject a fake ETB ability id (BaseId=0) at a leading position via the
+            // cardDataLookup override below. It must be registered with AbilityInfo so
+            // findAlternativeCostAbilityGrpId considers it during the BaseId scan, and
+            // must be rejected in favor of the real Warp row (BaseId=371 + cost match).
             val fakeEtbId = 999001
             (b.cardRepository as InMemoryCardRepository).registerAbilityInfo(
                 fakeEtbId,
                 AbilityInfo(baseId = 0, manaCost = emptyList()),
-            )
-            (b.cardRepository as InMemoryCardRepository).registerAbilityInfo(
-                realWarpAbilityGrpId,
-                AbilityInfo(
-                    baseId = 371,
-                    manaCost = listOf(ManaColor.Green_afc9 to 1, ManaColor.Generic to 1),
-                ),
             )
 
             val actions =
@@ -266,8 +245,7 @@ class WarpTest :
 
             val riddlerGrpId = b.cardRepository.findGrpIdByName("Quantum Riddler")!!
             val warpAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(riddlerGrpId, "WARP")!!
+                b.cardRepository.findKeywordAbilityGrpId(riddlerGrpId, KeywordAbilityIds.WARP)!!
             val riddlerIid =
                 b
                     .getOrAllocInstanceId(
@@ -309,8 +287,7 @@ class WarpTest :
 
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val warpAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(wurmGrpId, "WARP")!!
+                b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
             val wurmIid =
                 b
                     .getOrAllocInstanceId(
@@ -354,23 +331,11 @@ class WarpTest :
             try {
                 h.connectAndKeepPuzzleText(WARP_PUZZLE)
                 val player = h.bridge.getPlayer(SeatId(1))!!
-                val repo = h.bridge.cardRepository as InMemoryCardRepository
+                val repo = h.bridge.cardRepository
 
-                val wurmGrpId = h.bridge.cardRepository.findGrpIdByName("Germinating Wurm")!!
+                val wurmGrpId = repo.findGrpIdByName("Germinating Wurm")!!
                 val warpAbilityGrpId =
-                    repo.findTestKeywordAbilityGrpId(wurmGrpId, "WARP")!!
-
-                // Explicitly re-register AbilityInfo with real manaCost — auto-seed
-                // from the deriver is empty-cost; ensure the prod-shaped cost is
-                // present so submission goes through the same chain the live
-                // ExposedCardRepository would expose.
-                repo.registerAbilityInfo(
-                    warpAbilityGrpId,
-                    leyline.game.data.AbilityInfo(
-                        baseId = 371,
-                        manaCost = listOf(ManaColor.Green_afc9 to 1, ManaColor.Generic to 1),
-                    ),
-                )
+                    repo.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
                 h.castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId).shouldBeTrue()
                 h
@@ -404,8 +369,7 @@ class WarpTest :
 
                 val wurmGrpId = h.bridge.cardRepository.findGrpIdByName("Germinating Wurm")!!
                 val warpAbilityGrpId =
-                    (h.bridge.cardRepository as InMemoryCardRepository)
-                        .findTestKeywordAbilityGrpId(wurmGrpId, "WARP")
+                    h.bridge.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)
                         ?: error("Expected WARP keyword ability grpId on Germinating Wurm")
                 warpAbilityGrpId shouldBeGreaterThan 0
 
@@ -534,8 +498,7 @@ class WarpTest :
 
                 val wurmGrpId = h.bridge.cardRepository.findGrpIdByName("Germinating Wurm")!!
                 val warpAbilityGrpId =
-                    (h.bridge.cardRepository as InMemoryCardRepository)
-                        .findTestKeywordAbilityGrpId(wurmGrpId, "WARP")!!
+                    h.bridge.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
                 h.castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId).shouldBeTrue()
                 h
@@ -575,8 +538,7 @@ class WarpTest :
 
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val warpAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(wurmGrpId, "WARP")!!
+                b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
             val actions =
                 ActionMapper.buildActionList(
@@ -605,8 +567,7 @@ class WarpTest :
 
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val warpAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(wurmGrpId, "WARP")!!
+                b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
             val actions =
                 ActionMapper.buildActionList(
@@ -635,8 +596,7 @@ class WarpTest :
 
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val warpAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(wurmGrpId, "WARP")!!
+                b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
             val actions =
                 ActionMapper.buildActionList(

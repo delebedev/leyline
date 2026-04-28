@@ -1,0 +1,8 @@
+name: "Murder"
+grpId: 93018
+titleId: 763
+abilities:
+  - id: 26818
+    textId: 764
+    category: 4
+expansionCode: "J25"

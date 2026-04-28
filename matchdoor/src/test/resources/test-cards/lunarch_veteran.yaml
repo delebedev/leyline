@@ -1,0 +1,15 @@
+name: "Lunarch Veteran"
+grpId: 78354
+titleId: 529776
+abilities:
+  - id: 122104
+    textId: 811010
+    category: 2
+  - id: 145173
+    textId: 529778
+    category: 3
+    baseId: 215
+    mana: "o1oW"
+expansionCode: "MID"
+linkedFaces:
+  - 78355

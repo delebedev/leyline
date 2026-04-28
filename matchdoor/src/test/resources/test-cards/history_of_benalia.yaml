@@ -1,0 +1,20 @@
+name: "History of Benalia"
+grpId: 67146
+titleId: 227027
+abilities:
+  - id: 119071
+    textId: 228834
+    category: 2
+    baseId: 166
+  - id: 26820
+    textId: 228835
+    category: 2
+    baseId: 166
+  - id: 118952
+    textId: 227029
+    category: 2
+    baseId: 166
+expansionCode: "DAR"
+tokens:
+  "26820": 67665
+  "119071": 67665

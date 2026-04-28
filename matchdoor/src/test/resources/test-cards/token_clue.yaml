@@ -1,0 +1,19 @@
+name: "Clue"
+grpId: 89236
+titleId: 3950
+abilities:
+  - id: 152
+    textId: 980803
+    category: 1
+    mana: "o2"
+isToken: true
+isPrimaryCard: false
+power: ""
+toughness: ""
+colors: []
+types:
+  - 1
+subtypes:
+  - 324
+supertypes: []
+manaCost: ""

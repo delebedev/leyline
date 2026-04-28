@@ -1,0 +1,14 @@
+name: "Rejoinder"
+grpId: 104056
+titleId: 1114993
+abilities:
+  - id: 15257
+    textId: 23040
+    category: 4
+  - id: 25848
+    textId: 730
+    category: 4
+expansionCode: "SOS"
+linkedFaces:
+  - 102471
+isPrimaryCard: false

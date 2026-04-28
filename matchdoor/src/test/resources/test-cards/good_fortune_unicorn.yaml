@@ -1,0 +1,8 @@
+name: "Good-Fortune Unicorn"
+grpId: 93953
+titleId: 430471
+abilities:
+  - id: 137605
+    textId: 847207
+    category: 2
+expansionCode: "FDN"

@@ -1,0 +1,16 @@
+name: "Kirin-Touched Orochi"
+grpId: 79650
+titleId: 558103
+abilities:
+  - id: 148054
+    textId: 957142
+    category: 2
+    modalChildren:
+      - 148052
+      - 148053
+expansionCode: "NEO"
+tokens:
+  "171331": 79744
+linkedFaces:
+  - 79649
+isPrimaryCard: false

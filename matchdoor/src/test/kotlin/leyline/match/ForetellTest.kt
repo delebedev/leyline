@@ -14,7 +14,7 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
-import leyline.game.InMemoryCardRepository
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
 import leyline.game.snapshot.SnapshotCapture
@@ -88,8 +88,7 @@ class ForetellTest :
 
             val boltGrpId = b.cardRepository.findGrpIdByName("Demon Bolt")!!
             val foretellAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(boltGrpId, "FORETELL")!!
+                b.cardRepository.findKeywordAbilityGrpId(boltGrpId, KeywordAbilityIds.FORETELL)!!
 
             val actions =
                 ActionMapper.buildActionList(
@@ -132,8 +131,7 @@ class ForetellTest :
 
             val boltGrpId = b.cardRepository.findGrpIdByName("Demon Bolt")!!
             val foretellAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(boltGrpId, "FORETELL")!!
+                b.cardRepository.findKeywordAbilityGrpId(boltGrpId, KeywordAbilityIds.FORETELL)!!
             val boltIid =
                 b
                     .getOrAllocInstanceId(
@@ -175,8 +173,7 @@ class ForetellTest :
 
             val boltGrpId = b.cardRepository.findGrpIdByName("Demon Bolt")!!
             val foretellAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(boltGrpId, "FORETELL")!!
+                b.cardRepository.findKeywordAbilityGrpId(boltGrpId, KeywordAbilityIds.FORETELL)!!
 
             val actions =
                 ActionMapper.buildActionList(
@@ -206,8 +203,7 @@ class ForetellTest :
 
             val boltGrpId = b.cardRepository.findGrpIdByName("Demon Bolt")!!
             val foretellAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(boltGrpId, "FORETELL")!!
+                b.cardRepository.findKeywordAbilityGrpId(boltGrpId, KeywordAbilityIds.FORETELL)!!
 
             val actions =
                 ActionMapper.buildActionList(

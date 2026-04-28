@@ -1,0 +1,10 @@
+name: "Elite Interceptor"
+grpId: 102471
+titleId: 1110863
+abilities:
+  - id: 204300
+    textId: 1110865
+    category: 3
+expansionCode: "SOS"
+linkedFaces:
+  - 104056

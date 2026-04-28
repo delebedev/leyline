@@ -8,13 +8,12 @@ import leyline.game.codes.SlotLayout
 import leyline.game.data.CardData
 
 /**
- * Maps Forge trait IDs (SpellAbility, Trigger, StaticAbility) to Arena abilityGrpId slots
- * for a single card.
+ * Maps Forge trait IDs (SpellAbility, Trigger, StaticAbility) to client
+ * abilityGrpId slots for a single card.
  *
- * Slot layout must match [leyline.game.data.AbilityIdDeriver]:
- * - Keywords occupy the first N slots
- * - Non-mana activated abilities follow
- * - Mana abilities and unslotted intrinsic traits fall back to slot 0
+ * Slot ordering follows [CardData.abilityIds] verbatim — the same shape
+ * the client's `Cards.AbilityIds` column produces. Mana abilities and
+ * unslotted intrinsic traits fall back to slot 0.
  */
 class AbilityRegistry private constructor(
     private val saMap: Map<Int, Int>,
@@ -36,10 +35,8 @@ class AbilityRegistry private constructor(
         val EMPTY = AbilityRegistry(emptyMap(), emptyMap(), emptyMap(), SlotLayout.Companion.EMPTY)
 
         /**
-         * Build a registry from a live Forge [card] and its derived [cardData].
-         *
-         * Uses [cardData.abilityIds] for slot values, so must be called *after*
-         * [leyline.game.data.AbilityIdDeriver.deriveAbilityIds].
+         * Build a registry from a live Forge [card] and its [cardData].
+         * Uses [cardData.abilityIds] verbatim as the slot layout.
          */
         fun build(
             card: Card,

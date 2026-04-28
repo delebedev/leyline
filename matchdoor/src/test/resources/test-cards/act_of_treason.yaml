@@ -1,0 +1,8 @@
+name: "Act of Treason"
+grpId: 75565
+titleId: 2323
+abilities:
+  - id: 1278
+    textId: 2325
+    category: 4
+expansionCode: "ANA"

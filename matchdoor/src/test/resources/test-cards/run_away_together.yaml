@@ -1,0 +1,8 @@
+name: "Run Away Together"
+grpId: 98385
+titleId: 413783
+abilities:
+  - id: 136218
+    textId: 413785
+    category: 4
+expansionCode: "ECL"

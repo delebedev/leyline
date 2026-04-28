@@ -1,0 +1,11 @@
+name: "Juggernaut"
+grpId: 93968
+titleId: 5082
+abilities:
+  - id: 76824
+    textId: 604189
+    category: 3
+  - id: 88231
+    textId: 893361
+    category: 3
+expansionCode: "FDN"

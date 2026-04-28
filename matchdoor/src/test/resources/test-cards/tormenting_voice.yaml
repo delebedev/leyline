@@ -1,0 +1,11 @@
+name: "Tormenting Voice"
+grpId: 86231
+titleId: 45850
+abilities:
+  - id: 87929
+    textId: 232893
+    category: 5
+  - id: 23607
+    textId: 1652
+    category: 4
+expansionCode: "SIR"

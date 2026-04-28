@@ -1,0 +1,8 @@
+name: "Lightning Bolt"
+grpId: 98647
+titleId: 1251
+abilities:
+  - id: 70361
+    textId: 241980
+    category: 4
+expansionCode: "TLE"

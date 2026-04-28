@@ -478,7 +478,7 @@ class GameEventCollectorTest :
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    base.addCard("Holy Strength", human, ZoneType.Battlefield)
+                    base.addCard("Pacifism", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
             collector.drainEvents()
@@ -503,7 +503,7 @@ class GameEventCollectorTest :
         test("card detached event") {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
-                    base.addCard("Holy Strength", human, ZoneType.Battlefield)
+                    base.addCard("Pacifism", human, ZoneType.Battlefield)
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!

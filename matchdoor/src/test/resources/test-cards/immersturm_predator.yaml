@@ -1,0 +1,14 @@
+name: "Immersturm Predator"
+grpId: 94088
+titleId: 477728
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 140120
+    textId: 904835
+    category: 2
+  - id: 140121
+    textId: 904836
+    category: 1
+expansionCode: "FDN"

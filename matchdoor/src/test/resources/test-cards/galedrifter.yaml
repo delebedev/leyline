@@ -1,0 +1,15 @@
+name: "Galedrifter"
+grpId: 78387
+titleId: 529881
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 145202
+    textId: 529883
+    category: 3
+    baseId: 215
+    mana: "o4oU"
+expansionCode: "MID"
+linkedFaces:
+  - 78388

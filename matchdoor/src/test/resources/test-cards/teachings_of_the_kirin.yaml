@@ -1,0 +1,21 @@
+name: "Teachings of the Kirin"
+grpId: 79649
+titleId: 558100
+abilities:
+  - id: 148050
+    textId: 558101
+    category: 2
+    baseId: 166
+  - id: 148051
+    textId: 558102
+    category: 2
+    baseId: 166
+  - id: 147760
+    textId: 557304
+    category: 2
+    baseId: 166
+expansionCode: "NEO"
+tokens:
+  "148050": 79744
+linkedFaces:
+  - 79650

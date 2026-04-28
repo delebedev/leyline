@@ -14,6 +14,7 @@ import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.codes.ManaColorMapping
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PlayerMapper
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
@@ -193,9 +194,9 @@ class GameEventCollector(
         val altCostAbilityGrpId =
             if (saAltCost != null) {
                 val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
-                val altCostName = saAltCost.name.uppercase()
-                if (grpId != 0) {
-                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, altCostName) ?: 0
+                val keywordId = KeywordAbilityIds.fromForgeAltCostName(saAltCost.name)
+                if (grpId != 0 && keywordId != null) {
+                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
                 } else {
                     0
                 }

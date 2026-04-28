@@ -1,0 +1,11 @@
+name: "Ponder"
+grpId: 98025
+titleId: 2333
+abilities:
+  - id: 1105
+    textId: 506830
+    category: 4
+  - id: 25848
+    textId: 730
+    category: 4
+expansionCode: "OMB"

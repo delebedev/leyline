@@ -1,0 +1,8 @@
+name: "Bite Down"
+grpId: 93925
+titleId: 615046
+abilities:
+  - id: 121962
+    textId: 280229
+    category: 4
+expansionCode: "FDN"

@@ -1,0 +1,16 @@
+name: "Kitesail Cleric"
+grpId: 73204
+titleId: 437001
+abilities:
+  - id: 2478
+    textId: 12699
+    category: 3
+    baseId: 34
+    mana: "o2oW"
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 138353
+    textId: 944816
+    category: 2
+expansionCode: "ZNR"

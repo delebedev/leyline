@@ -9,7 +9,6 @@ import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
-import leyline.game.data.CardData
 
 /**
  * Novice Inspector — investigate + Clue token + sac-for-draw.
@@ -31,35 +30,8 @@ class NoviceInspectorTest :
         beforeSpec {
             GameBootstrap.initializeCardDatabase(quiet = true)
             TestCardRegistry.ensureRegistered()
-
-            val repo = TestCardRegistry.repo
             TestCardRegistry.ensureCardRegistered("Novice Inspector")
             TestCardRegistry.ensureCardRegistered("Runeclaw Bear")
-
-            // Wire Clue token grpId mapping: Novice Inspector → Clue token
-            val clueTokenGrpId = 300002
-            val clueAbilityGrpId = 152 // "{2}, Sacrifice: Draw a card"
-            val inspectorGrpId = repo.findGrpIdByName("Novice Inspector")!!
-            repo.registerData(
-                CardData(
-                    grpId = clueTokenGrpId,
-                    titleId = 980803,
-                    power = "",
-                    toughness = "",
-                    colors = emptyList(),
-                    types = listOf(6), // Artifact
-                    subtypes = listOf(17), // Clue
-                    supertypes = emptyList(),
-                    abilityIds = listOf(clueAbilityGrpId to 980803),
-                    manaCost = emptyList(),
-                ),
-                "Clue",
-            )
-            val inspectorData = repo.findByGrpId(inspectorGrpId)!!
-            repo.registerData(
-                inspectorData.copy(tokenGrpIds = mapOf(0 to clueTokenGrpId)),
-                "Novice Inspector",
-            )
         }
 
         val puzzleText =

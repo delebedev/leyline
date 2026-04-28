@@ -1,0 +1,8 @@
+name: "Goblin Fireslinger"
+grpId: 92926
+titleId: 2594
+abilities:
+  - id: 1061
+    textId: 430242
+    category: 1
+expansionCode: "J25"

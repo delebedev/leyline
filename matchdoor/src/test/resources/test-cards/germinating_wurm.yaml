@@ -1,0 +1,13 @@
+name: "Germinating Wurm"
+grpId: 96761
+titleId: 1056045
+abilities:
+  - id: 88132
+    textId: 938433
+    category: 2
+  - id: 191039
+    textId: 1056021
+    category: 3
+    baseId: 371
+    mana: "o1oG"
+expansionCode: "EOE"

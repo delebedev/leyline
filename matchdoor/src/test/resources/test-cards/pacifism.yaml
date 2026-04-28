@@ -1,0 +1,12 @@
+name: "Pacifism"
+grpId: 93650
+titleId: 2227
+abilities:
+  - id: 1027
+    textId: 605
+    category: 3
+    baseId: 4
+  - id: 1083
+    textId: 62428
+    category: 3
+expansionCode: "FDN"

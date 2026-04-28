@@ -14,7 +14,7 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
-import leyline.game.InMemoryCardRepository
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
 import leyline.game.snapshot.SnapshotCapture
@@ -88,8 +88,7 @@ class DisturbTest :
 
             val galedrifterGrpId = b.cardRepository.findGrpIdByName("Galedrifter")!!
             val disturbAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(galedrifterGrpId, "DISTURB")!!
+                b.cardRepository.findKeywordAbilityGrpId(galedrifterGrpId, KeywordAbilityIds.DISTURB)!!
             val galedrifterIid =
                 b
                     .getOrAllocInstanceId(
@@ -133,8 +132,7 @@ class DisturbTest :
 
             val galedrifterGrpId = b.cardRepository.findGrpIdByName("Galedrifter")!!
             val disturbAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(galedrifterGrpId, "DISTURB")!!
+                b.cardRepository.findKeywordAbilityGrpId(galedrifterGrpId, KeywordAbilityIds.DISTURB)!!
 
             val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Galedrifter" }
             val handDisturbSa =

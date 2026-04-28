@@ -1,0 +1,19 @@
+name: "Quantum Riddler"
+grpId: 96646
+titleId: 1055684
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 86788
+    textId: 823203
+    category: 2
+  - id: 190918
+    textId: 1055685
+    category: 3
+  - id: 190919
+    textId: 1055686
+    category: 3
+    baseId: 371
+    mana: "o1oU"
+expansionCode: "EOE"

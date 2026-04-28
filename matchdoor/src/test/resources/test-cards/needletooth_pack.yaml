@@ -1,0 +1,8 @@
+name: "Needletooth Pack"
+grpId: 93821
+titleId: 823479
+abilities:
+  - id: 175874
+    textId: 823481
+    category: 2
+expansionCode: "FDN"

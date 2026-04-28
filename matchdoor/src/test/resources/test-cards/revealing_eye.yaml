@@ -1,0 +1,14 @@
+name: "Revealing Eye"
+grpId: 78896
+titleId: 545948
+abilities:
+  - id: 142
+    textId: 102
+    category: 3
+  - id: 146663
+    textId: 545951
+    category: 2
+expansionCode: "VOW"
+linkedFaces:
+  - 78895
+isPrimaryCard: false

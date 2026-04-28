@@ -1,0 +1,14 @@
+name: "Concealing Curtains"
+grpId: 78895
+titleId: 545944
+abilities:
+  - id: 2
+    textId: 109
+    category: 3
+  - id: 146662
+    textId: 955765
+    category: 1
+    mana: "o2oB"
+expansionCode: "VOW"
+linkedFaces:
+  - 78896

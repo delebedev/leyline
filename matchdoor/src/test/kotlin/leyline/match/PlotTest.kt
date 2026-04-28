@@ -14,7 +14,7 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
-import leyline.game.InMemoryCardRepository
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
 import leyline.game.snapshot.SnapshotCapture
@@ -83,8 +83,7 @@ class PlotTest :
 
             val brawlerGrpId = b.cardRepository.findGrpIdByName("Railway Brawler")!!
             val plottedAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(brawlerGrpId, "PLOT")!!
+                b.cardRepository.findKeywordAbilityGrpId(brawlerGrpId, KeywordAbilityIds.PLOT)!!
 
             val actions =
                 ActionMapper.buildActionList(
@@ -123,8 +122,7 @@ class PlotTest :
 
             val brawlerGrpId = b.cardRepository.findGrpIdByName("Railway Brawler")!!
             val plottedAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(brawlerGrpId, "PLOT")!!
+                b.cardRepository.findKeywordAbilityGrpId(brawlerGrpId, KeywordAbilityIds.PLOT)!!
             val brawlerIid =
                 b
                     .getOrAllocInstanceId(
@@ -167,8 +165,7 @@ class PlotTest :
 
             val brawlerGrpId = b.cardRepository.findGrpIdByName("Railway Brawler")!!
             val plottedAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(brawlerGrpId, "PLOT")!!
+                b.cardRepository.findKeywordAbilityGrpId(brawlerGrpId, KeywordAbilityIds.PLOT)!!
 
             val actions =
                 ActionMapper.buildActionList(
@@ -199,8 +196,7 @@ class PlotTest :
 
             val brawlerGrpId = b.cardRepository.findGrpIdByName("Railway Brawler")!!
             val plottedAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(brawlerGrpId, "PLOT")!!
+                b.cardRepository.findKeywordAbilityGrpId(brawlerGrpId, KeywordAbilityIds.PLOT)!!
 
             val actions =
                 ActionMapper.buildActionList(
