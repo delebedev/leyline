@@ -328,6 +328,14 @@ enum class PromptSemantic {
      * `SelectTargetsReq`.
      */
     SelectNResolution,
+
+    /**
+     * "Exile N cards from your graveyard" as an additional cost — Escape's
+     * `K:Escape:<mana>|Type:Card|N:<n>` cost-payment selection. Routes to
+     * `PayCostsReq` (NonManaPayment / Payment context) so the client renders
+     * the cost-payment picker, parallel to the existing sacrifice cost path.
+     */
+    SelectNCostExileFromGrave,
 }
 
 data class PromptRequest(

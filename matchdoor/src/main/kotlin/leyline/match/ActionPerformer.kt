@@ -327,6 +327,7 @@ class ActionPerformer(
             expected.manaCostList == actual.manaCostList &&
             expected.autoTapSolution == actual.autoTapSolution
 
+    @Suppress("ReturnCount")
     private fun resolveAltCostAbilityIndex(
         action: Action,
         cardId: ForgeCardId,
@@ -338,11 +339,55 @@ class ActionPerformer(
         val game = bridge.getGame() ?: return null
         val player = bridge.getPlayer(counters.seatId) ?: return null
         val card = findCard(game, cardId) ?: return null
+
+        // alternativeGrpId=149 is the universal "Cast without paying mana cost"
+        // grpId — used for plot cast-from-exile (and other no-mana rails). It
+        // isn't a per-card ability, so findAbilityInfo returns null. Disambiguate
+        // by the action's abilityGrpId (which carries the keyword BaseId — 328
+        // for Plot) plus the card's eligible alt-cost SAs.
+        // 149 = universal "Cast without paying mana cost" grpId.
+        if (alternativeGrpId == 149 &&
+            action.abilityGrpId == KEYWORD_BASE_IDS["PLOTTED"]
+        ) {
+            return getAllCastableAbilities(card, player)
+                .withIndex()
+                .firstOrNull { (_, sa) -> sa.alternativeCost == AlternativeCost.Plotted }
+                ?.index
+        }
+
         val info = bridge.cardRepository.findAbilityInfo(alternativeGrpId) ?: return null
+
+        // Plot and Foretell hand SAs are AbilityStatic with isPlotting /
+        // isForetelling==true, not an AlternativeCost — match them by the
+        // keyword-specific predicate. Warp / Sneak hand SAs use AlternativeCost.
+        // Plot/Foretell SAs are appended into getAllCastableAbilities by
+        // CardLookup, so the index is well-defined for the cast pathway.
+        if (info.baseId == KEYWORD_BASE_IDS["PLOTTED"]) {
+            return getAllCastableAbilities(card, player)
+                .withIndex()
+                .firstOrNull { (_, sa) -> sa.isPlotting }
+                ?.index
+        }
+        if (info.baseId == KEYWORD_BASE_IDS["FORETELL"]) {
+            // Foretell has two SA flavors:
+            //   - hand activation:  sa.isForetelling == true (AbilityStatic, no AltCost)
+            //   - cast from exile:  sa.alternativeCost == AlternativeCost.Foretold
+            // The action's alternativeGrpId points to the same per-card foretell row
+            // for both — disambiguate by which SA is currently surfaced (canPlay-
+            // filtered getAllCastableAbilities only returns one at a time per zone).
+            return getAllCastableAbilities(card, player)
+                .withIndex()
+                .firstOrNull { (_, sa) ->
+                    sa.isForetelling || sa.alternativeCost == AlternativeCost.Foretold
+                }?.index
+        }
+
         val targetAltCost =
             when (info.baseId) {
                 KEYWORD_BASE_IDS.getValue("WARP") -> AlternativeCost.Warp
                 KEYWORD_BASE_IDS.getValue("SNEAK") -> AlternativeCost.Sneak
+                KEYWORD_BASE_IDS.getValue("DISTURB") -> AlternativeCost.Disturb
+                KEYWORD_BASE_IDS.getValue("ESCAPE") -> AlternativeCost.Escape
                 else -> return null
             }
 

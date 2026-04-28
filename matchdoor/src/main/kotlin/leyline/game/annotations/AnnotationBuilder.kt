@@ -769,6 +769,19 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_PREPARED))
             .build()
 
+    /** Persistent `Designation` for the `Plotted` card-state designation (DesignationType=18).
+     *  Carries no extra detail keys — Plotted has no analog of `PreparedCopyZcid` because the
+     *  plotted card itself sits in exile (no copy). affector / affectedIds both = the plotted
+     *  card's instance id. */
+    fun plottedDesignation(instanceId: InstanceId): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_PLOTTED))
+            .build()
+
     /** LoseDesignation transient on a card. Fires when a card-state designation
      *  ends (e.g. prepared spell cast → source creature unprepared). */
     fun loseDesignation(
@@ -781,6 +794,26 @@ object AnnotationBuilder {
             .setAffectorId(instanceId.value)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
+            .build()
+
+    /** FaceDown transient annotation. Marks an exile object as face-down
+     *  (foretell, hideaway, suspend). Carries no detail keys. */
+    fun faceDown(instanceId: InstanceId): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.FaceDown)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .build()
+
+    /** SuppressedPowerAndToughness transient annotation. Pairs with FaceDown
+     *  for face-down exile objects that lose their P/T projection. */
+    fun suppressedPowerAndToughness(instanceId: InstanceId): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.SuppressedPowerAndToughness)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
             .build()
 
     /** Layered effect creation event (buff/debuff started). client type 18 (LayeredEffectCreated).

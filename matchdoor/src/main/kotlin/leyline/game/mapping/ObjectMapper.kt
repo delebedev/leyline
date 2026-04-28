@@ -310,7 +310,16 @@ object ObjectMapper {
         }
     }
 
-    /** Resolve the other face's grpId for DFC cards. Returns 0 for non-DFC. */
+    /** Resolve the other face's grpId for DFC cards. Returns 0 for non-DFC.
+     *
+     *  Scope: **transform DFCs + meld pairs only** — Forge's `Card.isDoubleFaced`
+     *  predicate is `isTransformable() || isMeldable()`. MDFC, Adventure, Split,
+     *  Flip, Saga, Battle, and Room cards do NOT enter this branch; their grpId
+     *  resolution goes through [resolveGrpId]'s primary/any-face fallback chain.
+     *
+     *  Back-face cards (Luminous Phantom, Waildrifter, etc.) have IsPrimaryCard=0
+     *  in the Arena DB, so [findGrpIdByName]'s primary-only filter misses them.
+     *  Fall back to [findGrpIdByNameAnyFace] which lifts that filter. */
     internal fun resolveOthersideGrpId(
         card: Card,
         cards: CardRepository,
@@ -323,7 +332,9 @@ object ObjectMapper {
                 forge.card.CardStateName.Backside
             }
         val otherState = card.getState(otherStateName) ?: return 0
-        return cards.findGrpIdByName(otherState.name) ?: 0
+        return cards.findGrpIdByName(otherState.name)
+            ?: cards.findGrpIdByNameAnyFace(otherState.name)
+            ?: 0
     }
 
     /** Forge CoreType → proto CardType mapping. Shared with [leyline.game.snapshot.SnapshotCapture]. */
@@ -393,6 +404,18 @@ object ObjectMapper {
             log.error("token grpId=0 for '{}' (forgeId={})", card.name, card.id)
             DevCheck.fail { "token grpId=0 for '${card.name}' (forgeId=${card.id})" }
             return GameBridge.FALLBACK_GRPID
+        }
+        // Foretold cards are face-down in exile — Forge's `card.name` is "" while
+        // face-down, which would crash the strict resolver. Look up via the
+        // Original state's name (the underlying card identity) instead.
+        if (leyline.game.snapshot.Foretell
+                .isForetold(card)
+        ) {
+            val originalName =
+                card.getOriginalState(forge.card.CardStateName.Original)?.name ?: card.name
+            return cards.findGrpIdByName(originalName)
+                ?: cards.findGrpIdByNameAnyFace(originalName)
+                ?: GameBridge.FALLBACK_GRPID
         }
         // Primary-face lookup, falling back to any-face for DFC back faces
         // (e.g. saga transforms to Echo of Death's Wail — the back face lives in

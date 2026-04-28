@@ -32,6 +32,7 @@ sealed interface ClassifiedPrompt {
             Sacrifice,
             RevealChoose,
             Resolution,
+            ExileFromGrave,
         }
     }
 
@@ -81,6 +82,11 @@ object PromptClassifier {
                 ClassifiedPrompt.SelectN(
                     pendingPrompt,
                     ClassifiedPrompt.SelectN.Reason.RevealChoose,
+                )
+            req.semantic == PromptSemantic.SelectNCostExileFromGrave ->
+                ClassifiedPrompt.SelectN(
+                    pendingPrompt,
+                    ClassifiedPrompt.SelectN.Reason.ExileFromGrave,
                 )
             req.semantic == PromptSemantic.SelectNResolution ->
                 ClassifiedPrompt.SelectN(

@@ -24,6 +24,7 @@ import leyline.game.codes.DetailKeys
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.PlottedRole
 import leyline.game.snapshot.PreparedRole
 import leyline.game.state.BridgeMutations
 import leyline.game.state.EffectTracker
@@ -479,6 +480,18 @@ object StateMapper {
                     )
                 }
 
+        // Plotted: persistent Designation (DesignationType=18) for every card with
+        // PlottedRole.Plotted. The snapshot pass filtered the role to `isPlotted &&
+        // isInZone(Exile)`, so no zone guard needed here.
+        val plottedDesignationPersistentFromSnap =
+            snap.objects.values
+                .mapNotNull { card ->
+                    if (card.plottedRole !is PlottedRole.Plotted) return@mapNotNull null
+                    AnnotationBuilder.plottedDesignation(
+                        instanceId = bridge.getOrAllocInstanceId(card.forgeCardId),
+                    )
+                }
+
         // Transient gain/lose Designation annotations — diff prev vs cur on the
         // `Source on battlefield with isPrepared` set. Gains insert before the
         // Stack→Battlefield Resolve ZoneTransfer for the same source iid to match
@@ -489,6 +502,8 @@ object StateMapper {
         // re-syncs client state on rebuild.
         if (prev != null) {
             insertPreparedTransients(annotations, prev, snap, bridge)
+            insertPlottedTransients(annotations, prev, snap, bridge)
+            insertForetellTransients(annotations, prev, snap, bridge)
         }
 
         // Stages 4-5 + persistent computation
@@ -510,6 +525,7 @@ object StateMapper {
                 delayedTriggerAffecteesPersistentFromSnap = delayedTriggerAffecteesFromSnap,
                 abilityWordPersistentFromSnap = abilityWordPersistentFromSnap,
                 preparedDesignationPersistentFromSnap = preparedDesignationPersistentFromSnap,
+                plottedDesignationPersistentFromSnap = plottedDesignationPersistentFromSnap,
             )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
@@ -953,6 +969,85 @@ object StateMapper {
             .map { it.forgeCardId }
             .toSet()
 
+    /**
+     * Diff prev vs cur on the plotted set; emit GainDesignation when a card
+     * becomes Plotted and LoseDesignation when it leaves the Plotted set
+     * (e.g. cast from exile, or removed from exile by an external effect).
+     *
+     * Gains append at the end of [annotations] — unlike Prepared, plotting
+     * doesn't co-locate with a Stack→Battlefield Resolve ZT (the plot
+     * activation moves the card Hand→Exile, no resolve), so there's no anchor
+     * to insert before. Loses also append.
+     *
+     * Skipped on full snapshot rebuild (caller's prev null guard) — the
+     * persistent Designation pAnn alone re-syncs client state on rebuild.
+     */
+    private fun insertPlottedTransients(
+        annotations: MutableList<AnnotationInfo>,
+        prev: GsmSnapshot,
+        cur: GsmSnapshot,
+        bridge: GameBridge,
+    ) {
+        val curPlotted = plottedForgeIds(cur)
+        val prevPlotted = plottedForgeIds(prev)
+
+        for (fid in curPlotted - prevPlotted) {
+            val iid = bridge.getOrAllocInstanceId(fid)
+            annotations.add(
+                AnnotationBuilder.gainDesignationOnCard(
+                    instanceId = iid,
+                    designationType = AnnotationConstants.DESIGNATION_TYPE_PLOTTED,
+                ),
+            )
+        }
+        for (fid in prevPlotted - curPlotted) {
+            val iid = bridge.getOrAllocInstanceId(fid)
+            annotations.add(
+                AnnotationBuilder.loseDesignation(
+                    instanceId = iid,
+                    designationType = AnnotationConstants.DESIGNATION_TYPE_PLOTTED,
+                ),
+            )
+        }
+    }
+
+    private fun plottedForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
+        snap.objects.values
+            .filter { it.plottedRole is PlottedRole.Plotted }
+            .map { it.forgeCardId }
+            .toSet()
+
+    /**
+     * Diff prev vs cur on the foretold set; emit FaceDown +
+     * SuppressedPowerAndToughness transient annotations when a card becomes
+     * foretold (hand → face-down exile), affixed to the live exile iid.
+     *
+     * Skipped on full-snapshot rebuild (caller's prev null guard) — these are
+     * face-state markers, not state-flag designations, and the client already
+     * understands face-down on a fresh state via the visibility flag.
+     */
+    private fun insertForetellTransients(
+        annotations: MutableList<AnnotationInfo>,
+        prev: GsmSnapshot,
+        cur: GsmSnapshot,
+        bridge: GameBridge,
+    ) {
+        val curForetold = foretoldForgeIds(cur)
+        val prevForetold = foretoldForgeIds(prev)
+
+        for (fid in curForetold - prevForetold) {
+            val iid = bridge.getOrAllocInstanceId(fid)
+            annotations.add(AnnotationBuilder.faceDown(iid))
+            annotations.add(AnnotationBuilder.suppressedPowerAndToughness(iid))
+        }
+    }
+
+    private fun foretoldForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
+        snap.objects.values
+            .filter { it.isForetold }
+            .map { it.forgeCardId }
+            .toSet()
+
     /** Stages 4-5: mechanic + effect annotations, persistent computation, numbering. */
     @Suppress("LongParameterList", "LongMethod")
     private fun computeRemainingAnnotations(
@@ -972,6 +1067,7 @@ object StateMapper {
         delayedTriggerAffecteesPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         abilityWordPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         preparedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        plottedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds =
             events
@@ -1073,6 +1169,7 @@ object StateMapper {
                 delayedTriggerAffecteesPersistent = delayedTriggerAffecteesPersistent,
                 targetSpecPersistent = targetSpecPersistent,
                 preparedDesignationPersistent = preparedDesignationPersistentFromSnap,
+                plottedDesignationPersistent = plottedDesignationPersistentFromSnap,
             )
         val batch =
             PersistentAnnotationStore.Companion.computeBatch(

@@ -2,6 +2,7 @@ package leyline.game
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -697,6 +698,38 @@ class AnnotationBuilderTest :
                 ann.affectorId shouldBe 313
                 ann.affectedIdsList shouldContain 313
                 ann.detailInt("DesignationType") shouldBe 24
+            }
+        }
+
+        test("plottedDesignationFields") {
+            val ann = AnnotationBuilder.plottedDesignation(instanceId = 411.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.Designation
+                ann.affectorId shouldBe 411
+                ann.affectedIdsList shouldContain 411
+                ann.detailInt("DesignationType") shouldBe 18
+                // No PreparedCopyZcid analog — plotted card itself is in exile, no copy
+                ann.detailsList.filter { it.key == "PreparedCopyZcid" }.shouldBeEmpty()
+            }
+        }
+
+        test("faceDownFields") {
+            val ann = AnnotationBuilder.faceDown(instanceId = 388.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.FaceDown
+                ann.affectorId shouldBe 388
+                ann.affectedIdsList shouldContain 388
+                ann.detailsList.shouldBeEmpty()
+            }
+        }
+
+        test("suppressedPowerAndToughnessFields") {
+            val ann = AnnotationBuilder.suppressedPowerAndToughness(instanceId = 388.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.SuppressedPowerAndToughness
+                ann.affectorId shouldBe 388
+                ann.affectedIdsList shouldContain 388
+                ann.detailsList.shouldBeEmpty()
             }
         }
 
