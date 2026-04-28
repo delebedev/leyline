@@ -1,0 +1,19 @@
+[metadata]
+Name:Escape Glimpse of Freedom
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast Glimpse of Freedom from your graveyard via Escape ({2}{U} + exile 5 other cards). Resolve to draw 1; Glimpse moves to graveyard.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=
+humanbattlefield=Island;Island;Island
+humangraveyard=Glimpse of Freedom;Plains;Plains;Plains;Plains;Plains
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=
+ailibrary=Forest;Forest;Forest;Forest
