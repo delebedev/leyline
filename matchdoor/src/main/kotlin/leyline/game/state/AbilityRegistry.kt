@@ -8,11 +8,11 @@ import leyline.game.codes.SlotLayout
 import leyline.game.data.CardData
 
 /**
- * Maps Forge trait IDs (SpellAbility, Trigger, StaticAbility) to Arena
+ * Maps Forge trait IDs (SpellAbility, Trigger, StaticAbility) to client
  * abilityGrpId slots for a single card.
  *
  * Slot ordering follows [CardData.abilityIds] verbatim — the same shape
- * Arena's `Cards.AbilityIds` column produces. Mana abilities and
+ * the client's `Cards.AbilityIds` column produces. Mana abilities and
  * unslotted intrinsic traits fall back to slot 0.
  */
 class AbilityRegistry private constructor(

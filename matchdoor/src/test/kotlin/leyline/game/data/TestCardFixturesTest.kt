@@ -10,7 +10,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 
 /**
- * Self-contained: no Arena SQLite required, no Forge classes loaded. Asserts
+ * Self-contained: no client SQLite required, no Forge classes loaded. Asserts
  * the per-card YAML fixtures parse into the right shape (slim ⇔ rules null,
  * full ⇔ rules non-null) and that the byName/byGrpId indices form a
  * coherent closure graph.

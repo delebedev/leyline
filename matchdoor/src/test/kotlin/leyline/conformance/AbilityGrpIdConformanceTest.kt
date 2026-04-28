@@ -33,7 +33,7 @@ class AbilityGrpIdConformanceTest :
                 // Re-derive CardData from the live card (has player → full spellAbilities).
                 // The initial registration from TestCardRegistry uses a temp card (null player)
                 // which may lack activated abilities. Re-registering updates the repo with
-                // the post-injection ability shape, stamped with the fixture's Arena identity.
+                // the post-injection ability shape, stamped with the fixture's client identity.
                 val cardData = CardDataDeriver.fromForgeCard(card, cardName)
                 TestCardRegistry.repo.registerData(cardData, cardName)
 
@@ -60,9 +60,9 @@ class AbilityGrpIdConformanceTest :
                 grpIds.distinct() shouldHaveSize grpIds.size
 
                 // Activate actions should reference ability ids that appear in
-                // cardData.abilityIds. With the fixture path, ability ids are
-                // Arena-real and slot ordering matches Arena's `Cards.AbilityIds`
-                // column directly (no synthetic keyword/activated bucketing).
+                // cardData.abilityIds. With the fixture path, slot ordering follows
+                // the client's `Cards.AbilityIds` column directly (no synthetic
+                // keyword/activated bucketing).
                 val cardAbilityIds = cardData.abilityIds.map { it.first }.toSet()
                 grpIds.forEach { cardAbilityIds shouldContain it }
             }

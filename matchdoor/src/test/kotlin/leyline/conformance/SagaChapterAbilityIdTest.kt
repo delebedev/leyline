@@ -11,7 +11,7 @@ import leyline.ConformanceTag
  * Verifies the saga chapter resolution shape after the fixture migration.
  *
  * Fixture-driven cards mirror the prod `ExposedCardRepository` layout:
- * Arena's `Cards.AbilityIds` column orders chapter abilities at leading
+ * the client's `Cards.AbilityIds` column orders chapter abilities at leading
  * positions (chapter I at index 0, II at 1, III at 2). `CardData.chapterAbilityGrpIds`
  * is left empty; `ZoneMapper.chapterGrpIdFromCardData` falls back to the
  * positional list.

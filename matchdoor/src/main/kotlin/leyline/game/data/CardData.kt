@@ -40,7 +40,7 @@ data class CardData(
     val tokenGrpIds: Map<Int, Int> = emptyMap(), // abilityGrpId → tokenGrpId
     /**
      * Per-chapter ability grpIds for Saga cards, indexed 0-based by chapter
-     * number. Empty list is the normal shape — Arena's `Cards.AbilityIds`
+     * number. Empty list is the normal shape — the client's `Cards.AbilityIds`
      * column stores chapter abilities at leading positions of [abilityIds],
      * and `ZoneMapper.chapterGrpIdFromCardData` resolves chapters via
      * positional fallback when this list is empty.
