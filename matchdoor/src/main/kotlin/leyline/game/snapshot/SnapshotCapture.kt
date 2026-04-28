@@ -315,6 +315,16 @@ object SnapshotCapture {
                 // spell card — resolve their grpId by name, bypassing the
                 // token-spawning-ability path which only fits engine-spawned tokens.
                 PreparedSpell.resolveCopyGrpId(card, bridge.cardRepository) ?: 0
+            } else if (Foretell.isForetold(card)) {
+                // Foretold cards are face-down in exile; Forge's `card.name` is "" while
+                // face-down. Look up the grpId via the Original state's name to bypass
+                // the strict resolveGrpId crash on empty names.
+                val originalName =
+                    card.getOriginalState(forge.card.CardStateName.Original)?.name
+                        ?: card.name
+                bridge.cardRepository.findGrpIdByName(originalName)
+                    ?: bridge.cardRepository.findGrpIdByNameAnyFace(originalName)
+                    ?: 0
             } else {
                 ObjectMapper.resolveGrpId(card, bridge.cardRepository, instanceId = instanceId, bridge.tokenRegistry)
             }

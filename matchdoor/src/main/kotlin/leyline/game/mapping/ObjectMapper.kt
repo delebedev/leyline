@@ -347,6 +347,16 @@ object ObjectMapper {
             DevCheck.fail { "token grpId=0 for '${card.name}' (forgeId=${card.id})" }
             return GameBridge.FALLBACK_GRPID
         }
+        // Foretold cards are face-down in exile — Forge's `card.name` is "" while
+        // face-down, which would crash the strict resolver. Look up via the
+        // Original state's name (the underlying card identity) instead.
+        if (leyline.game.snapshot.Foretell.isForetold(card)) {
+            val originalName =
+                card.getOriginalState(forge.card.CardStateName.Original)?.name ?: card.name
+            return cards.findGrpIdByName(originalName)
+                ?: cards.findGrpIdByNameAnyFace(originalName)
+                ?: GameBridge.FALLBACK_GRPID
+        }
         // Primary-face lookup, falling back to any-face for DFC back faces
         // (e.g. saga transforms to Echo of Death's Wail — the back face lives in
         // the Arena DB under a non-primary flag; findGrpIdByName misses it).
