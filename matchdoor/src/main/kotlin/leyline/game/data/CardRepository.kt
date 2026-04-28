@@ -190,4 +190,5 @@ val KEYWORD_BASE_IDS: Map<String, Int> =
         "SNEAK" to 394,
         "FLASHBACK" to 35,
         "PLOTTED" to 328,
+        "FORETELL" to 208,
     )
