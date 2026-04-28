@@ -189,6 +189,11 @@ val KEYWORD_BASE_IDS: Map<String, Int> =
         "WARP" to 371,
         "SNEAK" to 394,
         "FLASHBACK" to 35,
+        // "PLOT" matches the Forge keyword string ("Plot:3 G"); "PLOTTED" matches the
+        // Arena designation name. Both alias to BaseId=328 so the test-side AbilityInfo
+        // auto-seed (registerKeywordAbilityGrpIds) catches Forge's keyword string AND
+        // the production ActionMapper path (which passes "PLOTTED") still resolves.
+        "PLOT" to 328,
         "PLOTTED" to 328,
         "FORETELL" to 208,
     )
