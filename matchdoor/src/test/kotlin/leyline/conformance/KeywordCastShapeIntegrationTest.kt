@@ -7,9 +7,6 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
 import leyline.game.InMemoryCardRepository
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /**
  * End-to-end integration coverage for the keyword-cast-shape mechanics that
@@ -88,19 +85,3 @@ class KeywordCastShapeIntegrationTest :
             glimpseInGy shouldNotBe null
         }
     })
-
-// ──────────────────────────────────────────────────────────────────────────
-// Helpers — fold across all GSMs since persistent annotations are
-// differential and only emit in the GSM that introduced them.
-// ──────────────────────────────────────────────────────────────────────────
-
-private fun List<GREToClientMessage>.gsms() = mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
-
-private fun List<GREToClientMessage>.persistentAnnotations(type: AnnotationType): List<AnnotationInfo> =
-    gsms().flatMap { it.persistentAnnotationsList }.filter { it.typeList.contains(type) }.distinctBy { it.id }
-
-private fun List<GREToClientMessage>.annotations(type: AnnotationType): List<AnnotationInfo> =
-    gsms().flatMap { it.annotationsList }.filter { it.typeList.contains(type) }.distinctBy { it.id }
-
-private fun List<GREToClientMessage>.firstGameObjectFor(iid: Int) =
-    gsms().firstNotNullOfOrNull { gsm -> gsm.gameObjectsList.firstOrNull { it.instanceId == iid } }

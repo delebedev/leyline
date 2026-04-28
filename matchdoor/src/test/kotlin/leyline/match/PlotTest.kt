@@ -39,6 +39,9 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 @Suppress(
     "MissingAssertSoftly",
     "UnnecessaryNotNullOperator",
+    // Zone-guard tests assert the absence of an offer — boolean predicates on
+    // the action list are the native idiom (no equality-shape to assert).
+    "WeakAssertionOnly",
 )
 class PlotTest :
     FunSpec({

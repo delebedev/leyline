@@ -227,7 +227,13 @@ class TargetingHandler(
      *   "resolve my stack effects" — skips the stack prompt when the player has
      *   no meaningful responses, matching client behavior (#92).
      */
-    @Suppress("ReturnCount")
+    @Suppress(
+        "ReturnCount",
+        // Sacrifice/ExileFromGrave route to PayCostsReq; everything else falls
+        // through to SelectNReq. Exhaustive when would block adding new
+        // Reason variants gracefully.
+        "ElseCaseInsteadOfExhaustiveWhen",
+    )
     fun handlePostCastPrompt(
         bridge: GameBridge,
         clientAutoResolve: Boolean = false,

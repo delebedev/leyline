@@ -5,7 +5,6 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -143,7 +142,7 @@ class DisturbTest :
                     .firstOrNull { it.alternativeCost == AlternativeCost.Disturb }
             // Forge restricts the Disturb SA to the graveyard zone — should not be
             // surfaced from hand.
-            (handDisturbSa == null).shouldBeTrue()
+            handDisturbSa shouldBe null
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)

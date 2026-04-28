@@ -327,6 +327,7 @@ class ActionPerformer(
             expected.manaCostList == actual.manaCostList &&
             expected.autoTapSolution == actual.autoTapSolution
 
+    @Suppress("ReturnCount")
     private fun resolveAltCostAbilityIndex(
         action: Action,
         cardId: ForgeCardId,

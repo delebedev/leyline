@@ -264,6 +264,12 @@ object SnapshotCapture {
      * [bridge] is needed to resolve instance IDs for combat targets/blockers.
      * [human] (seat 1 player) is needed to resolve attacker target player seat IDs.
      */
+    @Suppress(
+        // Branches once per card-state attribute the snapshot tracks (foretold
+        // face-down identity, prepared linkage, copy/token, attachment, combat,
+        // designations). Each new mechanic adds one branch. Inherent.
+        "CyclomaticComplexMethod",
+    )
     private fun captureCard(
         card: Card,
         combat: forge.game.combat.Combat?,

@@ -185,7 +185,16 @@ object ZoneTransferDetector {
      * for ID allocation but defers tracking side effects (retireToLimbo, recordZone)
      * to the caller via the result.
      */
-    @Suppress("LongMethod")
+    @Suppress(
+        "LongMethod",
+        // Detection branches per Forge zone-transfer category (cast, resolve,
+        // exile, foretell, designation-related, mana-pay, etc.). Each new
+        // category adds an arm.
+        "CyclomaticComplexMethod",
+        // Inherited from the upstream caller's parameter list — refactor would
+        // also touch StateMapper threading.
+        "LongParameterList",
+    )
     internal fun detectZoneTransfers(
         gameObjects: List<GameObjectInfo>,
         zones: List<ZoneInfo>,

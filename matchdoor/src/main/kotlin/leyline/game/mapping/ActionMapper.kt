@@ -493,6 +493,12 @@ object ActionMapper {
      * alt-cost like Jump-start mirroring Escape), add the AlternativeCost
      * case to the matching branch.
      */
+    @Suppress(
+        // The else branch is the deliberate "future keyword fallback" path —
+        // exhaustive `when` on AlternativeCost would block any new Forge enum
+        // value from reaching the bridge gracefully.
+        "ElseCaseInsteadOfExhaustiveWhen",
+    )
     private fun configureKeywordCastShape(
         actionBuilder: Action.Builder,
         sa: SpellAbility,

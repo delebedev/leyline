@@ -153,7 +153,7 @@ class EscapeTest :
             val handEscapeSa =
                 getAllCastableAbilities(card, human)
                     .firstOrNull { it.alternativeCost == AlternativeCost.Escape }
-            (handEscapeSa == null).shouldBeTrue()
+            handEscapeSa shouldBe null
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
@@ -183,7 +183,7 @@ class EscapeTest :
                     .firstOrNull { it.alternativeCost == AlternativeCost.Escape }
             // Forge's getAlternativeCosts gates on canPlay, which checks payAdditionalCosts.
             // With 3 others < 5 required, the escape SA should not be castable.
-            (escapeSa == null).shouldBeTrue()
+            escapeSa shouldBe null
 
             val glimpseGrpId = b.cardRepository.findGrpIdByName("Glimpse of Freedom")!!
             val escapeAbilityGrpId =
