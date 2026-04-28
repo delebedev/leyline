@@ -450,7 +450,11 @@ object ActionMapper {
                 val effectiveCost = computeEffectiveCost(sa, player)
                 if (effectiveCost != null && !effectiveCost.isNoCost) {
                     addManaCostFromForge(effectiveCost, actionBuilder)
-                } else if (cardData != null) {
+                } else if (altCost == null && cardData != null) {
+                    // Fallback to printed mana cost only when there's no alt-cost
+                    // SA. AlternativeCost.Plotted (cast plotted card from exile)
+                    // and similar copyWithNoManaCost rails have isNoCost==true and
+                    // must NOT inherit the printed cost on the wire.
                     for ((color, count) in cardData.manaCost) {
                         actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
                     }
