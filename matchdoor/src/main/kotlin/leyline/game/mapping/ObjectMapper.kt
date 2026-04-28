@@ -263,7 +263,10 @@ object ObjectMapper {
         }
     }
 
-    /** Resolve the other face's grpId for DFC cards. Returns 0 for non-DFC. */
+    /** Resolve the other face's grpId for DFC cards. Returns 0 for non-DFC.
+     *  Back-face cards (Luminous Phantom, Waildrifter, etc.) have IsPrimaryCard=0
+     *  in the Arena DB, so [findGrpIdByName]'s primary-only filter misses them.
+     *  Fall back to [findGrpIdByNameAnyFace] which lifts that filter. */
     internal fun resolveOthersideGrpId(
         card: Card,
         cards: CardRepository,
@@ -276,7 +279,9 @@ object ObjectMapper {
                 forge.card.CardStateName.Backside
             }
         val otherState = card.getState(otherStateName) ?: return 0
-        return cards.findGrpIdByName(otherState.name) ?: 0
+        return cards.findGrpIdByName(otherState.name)
+            ?: cards.findGrpIdByNameAnyFace(otherState.name)
+            ?: 0
     }
 
     /** Forge CoreType → proto CardType mapping. Shared with [leyline.game.snapshot.SnapshotCapture]. */
