@@ -31,6 +31,12 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
  * Alternative rail, `grpId == 0 && facetId == 0` for Escape's minimal-emit
  * shape). Tests that want those add them inline alongside the matcher — they
  * vary by keyword and aren't part of the universal invariant.
+ *
+ * **Subject is `Action?` on purpose.** The selector at the call site is
+ * `castOffers.firstOrNull { it.alternativeGrpId == X }`, which can return
+ * null. The matcher folds the null check into the failure message ("expected
+ * an alt-cost offer carrying grpId=X, got null") so the test doesn't need a
+ * separate `shouldNotBe null` ahead of it.
  */
 
 fun beAltCostOffer(altGrpId: Int): Matcher<Action?> =
