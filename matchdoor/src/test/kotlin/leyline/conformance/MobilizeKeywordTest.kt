@@ -121,20 +121,6 @@ class MobilizeKeywordTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        fun List<GREToClientMessage>.allAnnotationTypes(): Set<AnnotationType> {
-            val transient =
-                asSequence()
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList.asSequence() }
-                    .flatMap { it.typeList.asSequence() }
-            val persistent =
-                asSequence()
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.persistentAnnotationsList.asSequence() }
-                    .flatMap { it.typeList.asSequence() }
-            return (transient + persistent).toSet()
-        }
-
         test("Mobilize 1 trigger emits the full wire shape during attack + resolution") {
             val h = MatchFlowHarness(seed = 42L, validating = false)
             harness = h
@@ -161,14 +147,10 @@ class MobilizeKeywordTest :
             h.passUntil(maxPasses = 30) { h.turn() > 1 || h.isGameOver() }
 
             val post = h.messagesSince(snap)
-            val annotations =
-                post
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList }
-            annotations.shouldNotBeEmpty()
-            val types = post.allAnnotationTypes()
+            post.allAnnotations().toList().shouldNotBeEmpty()
+            val types = post.annotationTypeSet()
 
-            assertSoftly("Mobilize 1 wire shape") {
+            assertSoftly("Mobilize 1") {
                 // Trigger half
                 types shouldContain AnnotationType.AbilityInstanceCreated
                 types shouldContain AnnotationType.TriggeringObject
@@ -245,12 +227,7 @@ class MobilizeKeywordTest :
             h.passUntil(maxPasses = 30) { h.turn() > 1 || h.isGameOver() }
 
             val post = h.messagesSince(snap)
-            val tokenCreatedCount =
-                post
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList }
-                    .count { it.typeList.contains(AnnotationType.TokenCreated) }
-            tokenCreatedCount shouldBeGreaterThanOrEqual 3
+            post.annotationsOfType(AnnotationType.TokenCreated).size shouldBeGreaterThanOrEqual 3
         }
 
         test("two Mobilize sources both surface AbilityInstanceCreated + TriggeringObject") {
@@ -272,32 +249,26 @@ class MobilizeKeywordTest :
 
             val post = h.messagesSince(snap)
             // Both triggers should surface — count distinct AbilityInstanceCreated affectedIds.
-            val abilityCreated =
-                post
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList }
-                    .filter { it.typeList.contains(AnnotationType.AbilityInstanceCreated) }
             // affectedIds is the stack ability instanceId.
-            val distinctAbilities = abilityCreated.flatMap { it.affectedIdsList }.toSet()
+            val distinctAbilities =
+                post
+                    .annotationsOfType(AnnotationType.AbilityInstanceCreated)
+                    .flatMap { it.affectedIdsList }
+                    .toSet()
             distinctAbilities.size shouldBeGreaterThanOrEqual 2
 
             // At least two TriggeringObject pAnns (one per source).
-            val triggeringObjects =
-                post
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
-                    .filter { it.typeList.contains(AnnotationType.TriggeringObject) }
-            triggeringObjects.size shouldBeGreaterThanOrEqual 2
+            post.persistentAnnotationsOfType(AnnotationType.TriggeringObject)
+                .size shouldBeGreaterThanOrEqual 2
 
             // Distinct TriggerHolder gameObjects — one per source-card resolution.
             // Catches a regression where two sources collapse onto a single
             // holder iid (e.g. if the holder forge id ever reverts to a
             // per-controller key).
             val holders =
-                post
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.gameObjectsList }
+                post.allGameObjects()
                     .filter { it.type == GameObjectType.TriggerHolder }
+                    .toList()
             val distinctHolderIids = holders.map { it.instanceId }.toSet()
             distinctHolderIids.size shouldBeGreaterThanOrEqual 2
             // Each holder points at a distinct source via parentId.
@@ -321,19 +292,14 @@ class MobilizeKeywordTest :
             h.passUntil(maxPasses = 30) { h.turn() > 1 || h.isGameOver() }
 
             val post = h.messagesSince(snap)
-            val annotations =
-                post
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList }
-
             val sacrifice =
-                annotations.filter { ann ->
-                    ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
+                post.annotationsOfType(AnnotationType.ZoneTransfer_af5a)
+                    .filter { ann ->
                         ann.detailsList.any { d -> d.key == "category" && "Sacrifice" in d.valueStringList }
-                }
+                    }
             sacrifice.size shouldBeGreaterThanOrEqual 1
 
-            val types = post.allAnnotationTypes()
+            val types = post.annotationTypeSet()
             assertSoftly("cleanup half") {
                 types shouldContain AnnotationType.TokenDeleted
                 types shouldContain AnnotationType.AbilityInstanceDeleted
@@ -357,17 +323,15 @@ class MobilizeKeywordTest :
             h.passUntil(maxPasses = 8) {
                 h.allMessages
                     .drop(snap)
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .allGameObjects()
                     .any { it.type == GameObjectType.TriggerHolder }
             }
 
             val post = h.messagesSince(snap)
             val holders =
-                post
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.gameObjectsList }
+                post.allGameObjects()
                     .filter { it.type == GameObjectType.TriggerHolder }
+                    .toList()
 
             holders.shouldNotBeEmpty()
             val holder = holders.first()
@@ -397,14 +361,8 @@ class MobilizeKeywordTest :
             // The tracker shares the holder iid as affector for both
             // DelayedTriggerAffectees and per-token TemporaryPermanent — so
             // the client links cleanup ability → tokens via this iid.
-            val pAnns =
-                post
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
-            val dta =
-                pAnns.first { it.typeList.contains(AnnotationType.DelayedTriggerAffectees) }
-            val tempPerm =
-                pAnns.first { it.typeList.contains(AnnotationType.TemporaryPermanent) }
+            val dta = post.persistentAnnotationsOfType(AnnotationType.DelayedTriggerAffectees).first()
+            val tempPerm = post.persistentAnnotationsOfType(AnnotationType.TemporaryPermanent).first()
             assertSoftly("annotations reference the holder") {
                 dta.affectorId shouldBe holder.instanceId
                 tempPerm.affectorId shouldBe holder.instanceId

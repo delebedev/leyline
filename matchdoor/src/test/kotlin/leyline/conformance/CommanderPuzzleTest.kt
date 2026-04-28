@@ -5,6 +5,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
@@ -21,7 +22,7 @@ class CommanderPuzzleTest :
 
             val human = humanPlayer(b)
             human.commanders.first().name shouldBe "Arabella, Abandoned Doll"
-            human.getZone(ZoneType.Command).cards.count { it.name == "Arabella, Abandoned Doll" } shouldBe 1
+            "Arabella, Abandoned Doll" should beInCommandOf(human, count = 1)
 
             val snap = GsmSnapshot.capture(game, b, "test", 999)
             val gsm = StateMapper.buildFromSnapshot(snap, 999, "test", b, viewingSeatId = 1).gsm

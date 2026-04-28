@@ -8,6 +8,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
@@ -83,9 +84,9 @@ class TreasureTokenTest :
 
             // --- Preconditions ---
             assertSoftly {
-                human.getZone(ZoneType.Hand).cards.map { it.name } shouldContain "Prosperous Innkeeper"
-                human.getZone(ZoneType.Hand).cards.map { it.name } shouldContain "Lightning Bolt"
-                human.getZone(ZoneType.Battlefield).cards.count { it.name == "Forest" } shouldBe 2
+                "Prosperous Innkeeper" should beInHandOf(human)
+                "Lightning Bolt" should beInHandOf(human)
+                "Forest" should beOnBattlefieldOf(human, count = 2)
                 ai.life shouldBe 3
             }
 

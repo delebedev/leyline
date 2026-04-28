@@ -1,10 +1,12 @@
 package leyline.conformance
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -64,21 +66,19 @@ class AttackerTapStateTest :
             h.submitAttackers()
             val postSubmit = h.messagesSince(snap)
 
-            // Find post-submit GSM diffs
-            val postSubmitGsms =
-                postSubmit
-                    .filter { it.hasGameStateMessage() }
-                    .map { it.gameStateMessage }
-            postSubmitGsms.shouldNotBeEmpty()
+            postSubmit.gameStateMessages().toList().shouldNotBeEmpty()
 
             // Find the creature with attackState=Attacking in any post-submit diff
             val attackerObj =
-                postSubmitGsms
-                    .flatMap { it.gameObjectsList }
+                postSubmit
+                    .allGameObjects()
                     .firstOrNull { it.instanceId == attackerIid && it.attackState == AttackState.Attacking }
 
             attackerObj.shouldNotBeNull()
-            attackerObj.isTapped.shouldBeTrue()
+            assertSoftly {
+                attackerObj should haveAttackState(AttackState.Attacking)
+                attackerObj should beTapped()
+            }
         }
 
         test("TappedUntappedPermanent annotation emitted for attacker") {
@@ -108,18 +108,10 @@ class AttackerTapStateTest :
             h.declareAttackers(listOf(attackerIid))
             val postAttack = h.messagesSince(snap)
 
-            // Collect all annotations from post-attack GSMs
-            val allAnnotations =
-                postAttack
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList }
-
             // Find TappedUntappedPermanent for our attacker
             val tapAnnotation =
-                allAnnotations.firstOrNull { ann ->
-                    ann.typeList.any { it == AnnotationType.TappedUntappedPermanent } &&
-                        attackerIid in ann.affectedIdsList
-                }
+                postAttack.annotationsOfType(AnnotationType.TappedUntappedPermanent)
+                    .firstOrNull { attackerIid in it.affectedIdsList }
 
             tapAnnotation.shouldNotBeNull()
 

@@ -53,8 +53,7 @@ class DrawUpdateTypeShapeTest :
             // pre-fix it carries SendAndRecord.
             val drawGsm =
                 h.allMessages
-                    .filter { it.hasGameStateMessage() }
-                    .map { it.gameStateMessage }
+                    .gameStateMessages()
                     .firstOrNull { gsm ->
                         gsm.annotationsList.any { ann ->
                             AnnotationType.ZoneTransfer_af5a in ann.typeList &&

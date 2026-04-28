@@ -8,12 +8,16 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 
 /**
  * Non-validating harness: combat zone transfers can produce transient
  * instanceId gaps (known StateMapper issue tracked separately).
  */
+// `should beInGraveyardOf(player, count = N)` carries equality semantics — the
+// detekt heuristic just doesn't recognize custom matchers as equality-shape.
+@Suppress("WeakAssertionOnly")
 class BlockerDeclarationInteractionTest :
     InteractionTest({
 
@@ -125,7 +129,7 @@ class BlockerDeclarationInteractionTest :
                 human.life shouldBe lifeBefore
 
                 // Both 1/1s should have traded — human's creature should be in graveyard
-                human.getZone(ZoneType.Graveyard).cards.filter { it.name == "Raging Goblin" } shouldHaveSize 1
+                "Raging Goblin" should beInGraveyardOf(human, count = 1)
 
                 isGameOver().shouldBeFalse()
             }
@@ -162,8 +166,8 @@ class BlockerDeclarationInteractionTest :
 
             assertSoftly {
                 // Both 1/1s should have traded — exactly one Raging Goblin in each graveyard
-                human.getZone(ZoneType.Graveyard).cards.filter { it.name == "Raging Goblin" } shouldHaveSize 1
-                ai.getZone(ZoneType.Graveyard).cards.filter { it.name == "Raging Goblin" } shouldHaveSize 1
+                "Raging Goblin" should beInGraveyardOf(human, count = 1)
+                "Raging Goblin" should beInGraveyardOf(ai, count = 1)
 
                 isGameOver().shouldBeFalse()
             }
