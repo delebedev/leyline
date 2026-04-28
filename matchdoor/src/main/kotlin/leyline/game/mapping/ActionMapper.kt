@@ -439,17 +439,6 @@ object ActionMapper {
                 val isForetellCast = altCost == AlternativeCost.Foretold
                 val isDisturbCast = altCost == AlternativeCost.Disturb
                 val isMinimalEmit = isPlottedCast || isForetellCast
-                // Disturb is built from the back-face SA; the cast on the stack is the
-                // transformed face. The Cast action must carry the back-face grpId so
-                // the client renders the back face on the cast preview — front-face
-                // grpId would render the wrong art.
-                val effectiveGrpId =
-                    if (isDisturbCast) {
-                        ObjectMapper.resolveOthersideGrpId(forgeCard, bridge.cardRepository).takeIf { it > 0 }
-                            ?: grpId
-                    } else {
-                        grpId
-                    }
                 val actionBuilder =
                     Action
                         .newBuilder()
@@ -462,8 +451,13 @@ object ActionMapper {
                 // + abilityGrpId/alternativeGrpId for the keyword + manaCost (where
                 // applicable). Including grpId/facetId here makes MTGA treat the
                 // cast as a regular cast and the alt-cost branch never lands.
+                //
+                // Disturb keeps the front-face grpId on the offer — the card IS
+                // front-face in the graveyard. The back-face transform happens on
+                // cast acceptance (Forge sets currentState=AlternateState, the new
+                // Stack object then resolves to back-face grpId via ObjectMapper).
                 if (!isMinimalEmit) {
-                    actionBuilder.setGrpId(effectiveGrpId)
+                    actionBuilder.setGrpId(grpId)
                     actionBuilder.setFacetId(instanceId)
                 }
 
