@@ -7,6 +7,7 @@ import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
 import forge.game.player.Player
+import forge.game.spellability.AlternativeCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.TargetSelectionResult
@@ -135,6 +136,17 @@ class TargetingCoordinator(
         if (optionList.size <= effectiveMin) return optionList.toList()
         val labels = optionList.map { it.entityLabel() }
         val candidateRefs = buildCandidateRefs(optionList)
+        // Escape's "exile N other cards from your graveyard" additional cost
+        // routes through chooseCardsForZoneChange → chooseEntitiesForEffect →
+        // here. Detect by SA's alternativeCost so the prompt is classified as
+        // a non-mana cost payment (PayCostsReq) instead of a resolution-time
+        // SelectN. Mirrors the existing sacrifice cost-payment path.
+        val effectiveSemantic =
+            if (sa?.alternativeCost == AlternativeCost.Escape) {
+                PromptSemantic.SelectNCostExileFromGrave
+            } else {
+                PromptSemantic.SelectNResolution
+            }
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -143,7 +155,7 @@ class TargetingCoordinator(
                 min = effectiveMin,
                 max = effectiveMax,
                 defaultIndex = 0,
-                semantic = PromptSemantic.SelectNResolution,
+                semantic = effectiveSemantic,
                 candidateRefs = candidateRefs,
                 // Mirror candidateRefs into unfilteredRefs for look-and-pick: every
                 // revealed card is selectable, so unfiltered = candidate. The split

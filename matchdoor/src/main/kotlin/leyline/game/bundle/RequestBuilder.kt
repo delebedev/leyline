@@ -357,6 +357,18 @@ object RequestBuilder {
     fun buildSacrificePayCostsReq(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
+    ): Pair<PayCostsReq, Prompt> = buildSelectCostPayCostsReq(prompt, bridge, PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE)
+
+    /**
+     * Build a `PayCostsReq` for an additional cost paid by selecting N cards
+     * (sacrifice, exile-from-grave, etc). Builder is uniform —
+     * `EffectCostType.Select` + `SelectionContext.NonManaPayment` — only the
+     * [promptId] differs per cost flavor.
+     */
+    fun buildSelectCostPayCostsReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+        promptId: Int,
     ): Pair<PayCostsReq, Prompt> {
         val sourceInstanceId =
             prompt.request.sourceEntityId?.let {
@@ -393,7 +405,7 @@ object RequestBuilder {
         val promptProto =
             Prompt
                 .newBuilder()
-                .setPromptId(PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE)
+                .setPromptId(promptId)
                 .addParameters(
                     PromptParameter
                         .newBuilder()

@@ -260,10 +260,12 @@ class TargetingHandler(
                         game,
                         "post-cast selectN reason=${classified.reason} candidates=${pendingPrompt.request.candidateRefs.size}",
                     )
-                    if (classified.reason == ClassifiedPrompt.SelectN.Reason.Sacrifice) {
-                        sendSacrificePayCostsReq(bridge, classified.pendingPrompt)
-                    } else {
-                        sendSelectNReq(bridge, classified.pendingPrompt, classified.reason)
+                    when (classified.reason) {
+                        ClassifiedPrompt.SelectN.Reason.Sacrifice ->
+                            sendSacrificePayCostsReq(bridge, classified.pendingPrompt)
+                        ClassifiedPrompt.SelectN.Reason.ExileFromGrave ->
+                            sendExileFromGravePayCostsReq(bridge, classified.pendingPrompt)
+                        else -> sendSelectNReq(bridge, classified.pendingPrompt, classified.reason)
                     }
                     return true
                 }
@@ -995,6 +997,22 @@ class TargetingHandler(
         val (req, prompt) = RequestBuilder.buildSacrificePayCostsReq(pendingPrompt, bridge)
         val result = bundles.bundleBuilder!!.payCostsBundle(game, counters.counter, req, prompt)
         Tap.outboundTemplate("PayCostsReq(sacrifice) seat=${counters.seatId}")
+        sink.sendBundledGRE(result.messages)
+    }
+
+    private fun sendExileFromGravePayCostsReq(
+        bridge: GameBridge,
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+    ) {
+        val game = bridge.getGame() ?: return
+        val (req, prompt) =
+            RequestBuilder.buildSelectCostPayCostsReq(
+                pendingPrompt,
+                bridge,
+                leyline.game.mapping.PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE,
+            )
+        val result = bundles.bundleBuilder!!.payCostsBundle(game, counters.counter, req, prompt)
+        Tap.outboundTemplate("PayCostsReq(exile-from-grave) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 
