@@ -22,12 +22,14 @@ import leyline.game.annotations.ZoneTransferDetector
 import leyline.game.bundle.GsmFrame
 import leyline.game.codes.DetailKeys
 import leyline.game.event.GameEvent
+import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PlottedRole
 import leyline.game.snapshot.PreparedRole
 import leyline.game.state.BridgeMutations
 import leyline.game.state.EffectTracker
 import leyline.game.state.GameBridge
+import leyline.game.state.HolderRecord
 import leyline.game.state.PersistentAnnotationStore
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -125,7 +127,7 @@ object StateMapper {
      * objectInstanceIds (for card count) but no GameObjectInfo (renders face-down).
      * Use 0 to include all objects (internal snapshots for diffing).
      */
-    @Suppress("LongMethod", "LongParameterList")
+    @Suppress("LongMethod", "LongParameterList", "CyclomaticComplexMethod")
     fun buildFromSnapshot(
         snap: GsmSnapshot,
         gameStateId: Int,
@@ -227,7 +229,11 @@ object StateMapper {
         zones.add(ZoneMapper.makeZone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 0, Visibility.Public))
         zones.add(ZoneMapper.makeZone(ZoneIds.EXILE, ZoneType.Exile, 0, Visibility.Public))
         // Limbo zone: include all previously accumulated retired instanceIds.
-        // New retirements are appended in the annotation loop below.
+        // TriggerHolder iids are spliced in after the holder-tracker diff runs
+        // below — see the splice that wraps `transferResultWithHolders`. They
+        // must reflect post-diff state (holder added → in zone, holder removed
+        // → out of zone) so the deletion GSM's Limbo listing doesn't disagree
+        // with `diffDeletedInstanceIds`.
         val limboZone =
             ZoneInfo
                 .newBuilder()
@@ -320,10 +326,134 @@ object StateMapper {
             snap.objects.values
                 .filter { it.isOnAdventure }
                 .map { AnnotationBuilder.qualification(instanceId = bridge.getOrAllocInstanceId(it.forgeCardId)) }
+        val eotTokens = snap.objects.values.filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
+        // Group EOT-sacrifice tokens by their source card so each delayed-trigger
+        // registration gets its own TriggerHolder iid. The canonical shape mints
+        // a transient gameObject in Limbo (grpId=5) per `registerDelayedTrigger`
+        // call — keying the holder forge id on
+        // `<source card forge id> + DELAYED_TRIGGER_HOLDER_FORGE_OFFSET` produces
+        // a stable iid that both DelayedTriggerAffectees and per-token
+        // TemporaryPermanent reference, mirroring the shared-holder shape
+        // (Mobilize 3: one holder, three tokens; two Mobilize sources: two holders).
+        // Tokens whose source can't be resolved (non-Mobilize EOT copy tokens, etc.)
+        // fall back to a per-controller holder.
+        val tokenSources: Map<CardSnapshot, ForgeCardId?> =
+            eotTokens.associateWith { tokenSourceForgeId(it.forgeCardId, bridge) }
         val temporaryPermanentPersistentFromSnap =
-            snap.objects.values
-                .filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
-                .map { AnnotationBuilder.temporaryPermanent(bridge.getOrAllocInstanceId(it.forgeCardId)) }
+            eotTokens.map { token ->
+                val tokenIid = bridge.getOrAllocInstanceId(token.forgeCardId)
+                val sourceForgeId = tokenSources[token]
+                val cleanupGrpId =
+                    sourceForgeId?.let { mobilizeCleanupGrpIdForSource(it, bridge) }
+                // Holder iid is the per-trigger affector for Mobilize (canonical
+                // shape). For generic EOT-sacrifice copies (Electroduplicate etc.)
+                // legacy callers pass affectorId = tokenIid; preserve that until
+                // the wider holder-pattern survey of non-Mobilize delayed triggers
+                // is done.
+                val affectorIid =
+                    if (cleanupGrpId != null && sourceForgeId != null) {
+                        holderInstanceIdFor(sourceForgeId, bridge)
+                    } else {
+                        tokenIid
+                    }
+                AnnotationBuilder.temporaryPermanent(
+                    tokenInstanceId = tokenIid,
+                    abilityGrpId = cleanupGrpId?.let { GrpId(it) } ?: AnnotationConstants.EOT_SACRIFICE_GRP_ID,
+                    affectorId = affectorIid,
+                )
+            }
+        // DelayedTriggerAffectees is only emitted when we can resolve a real
+        // delayed-trigger keyword on the source (currently Mobilize). Generic
+        // EOT-sacrifice copies skip this annotation — legacy behavior, until
+        // the wider survey of non-Mobilize delayed-trigger sources lands.
+        // Side product: the set of TriggerHolder gameObjects that must surface
+        // in Limbo so the client can render the side-panel timed-effect
+        // indicator. The holder's `objectSourceGrpId` carries the keyword
+        // ability id (e.g. 188696 for Mobilize 3) — that's what drives the
+        // icon and tooltip text; `parentId` points at the source card.
+        // Build the live set of holders that should be alive this GSM (one per
+        // (source card, controller) group with a Mobilize keyword on the
+        // source). Real wire shape: emit the gameObject once on first
+        // appearance, retire via diffDeletedInstanceIds when it disappears.
+        // Lifecycle owned by [bridge.delayedTriggerHolders] — see its KDoc.
+        val currentHolders = mutableListOf<HolderRecord>()
+        val delayedTriggerAffecteesFromSnap =
+            eotTokens
+                .groupBy { tokenSources[it] to it.controller.value }
+                .filterValues { it.isNotEmpty() }
+                .mapNotNull { (key, tokens) ->
+                    val (rawSourceForgeId, seat) = key
+                    val sourceForgeId = rawSourceForgeId ?: return@mapNotNull null
+                    val cleanupGrpId =
+                        mobilizeCleanupGrpIdForSource(sourceForgeId, bridge) ?: return@mapNotNull null
+                    val tokenIds = tokens.map { bridge.getOrAllocInstanceId(it.forgeCardId) }
+                    val holderIid = holderInstanceIdFor(sourceForgeId, bridge)
+                    val keywordGrpId = mobilizeKeywordGrpIdForSource(sourceForgeId, bridge) ?: 0
+                    val sourceIid = bridge.getOrAllocInstanceId(sourceForgeId).value
+                    currentHolders.add(
+                        HolderRecord(
+                            iid = holderIid.value,
+                            ownerSeat = seat,
+                            objectSourceGrpId = keywordGrpId,
+                            parentIid = sourceIid,
+                            cleanupGrpId = cleanupGrpId,
+                        ),
+                    )
+                    AnnotationBuilder.delayedTriggerAffectees(
+                        triggerHolderId = holderIid,
+                        tokenInstanceIds = tokenIds,
+                        abilityGrpId = GrpId(cleanupGrpId),
+                    )
+                }
+        // Diff against the bridge-side tracker. The client keeps cached holders
+        // across GSMs by instanceId, so we only emit a gameObject for newly-added
+        // holders; removed holders flow through
+        // [bridge.delayedTriggerHolders.drainDeletions] into
+        // diffDeletedInstanceIds in [buildDiff]. The Limbo zone listing,
+        // however, must reflect the **post-diff** active set every GSM —
+        // otherwise the deletion GSM ships the iid both in Limbo and in
+        // diffDeletedInstanceIds, and a between-emit-and-delete GSM that
+        // rebuilt Limbo without the holder would orphan the cached object.
+        // assembleGsm reads zones/objects from `transferResult.patchedZones`/
+        // `patchedObjects` (see assembleGsm wiring below), not the local lists,
+        // so we splice both the gameObject and the Limbo membership into a
+        // copy of TransferResult here.
+        val holderBatch = bridge.delayedTriggerHolders.computeBatch(currentHolders)
+        val postDiffActiveIids =
+            (bridge.delayedTriggerHolders.activeIids() + holderBatch.added.map { it.iid }) - holderBatch.removed.toSet()
+        val transferResultWithHolders =
+            if (holderBatch.added.isEmpty() && holderBatch.removed.isEmpty() && postDiffActiveIids.isEmpty()) {
+                transferResult
+            } else {
+                val patchedZones = transferResult.patchedZones.toMutableList()
+                val patchedObjects = transferResult.patchedObjects.toMutableList()
+                val existingLimbo = patchedZones.find { it.zoneId == ZoneIds.LIMBO }
+                val limboBuilder =
+                    (existingLimbo?.toBuilder() ?: ZoneInfo.newBuilder().setZoneId(ZoneIds.LIMBO).setType(ZoneType.Limbo))
+                if (existingLimbo != null) patchedZones.removeIf { it.zoneId == ZoneIds.LIMBO }
+                val baseIids = limboBuilder.objectInstanceIdsList.toMutableSet()
+                // Drop deleted holders from the listing (deletion GSM).
+                baseIids.removeAll(holderBatch.removed.toSet())
+                // Add post-diff active holders.
+                baseIids.addAll(postDiffActiveIids)
+                limboBuilder.clearObjectInstanceIds()
+                for (iid in baseIids) limboBuilder.addObjectInstanceIds(iid)
+                for (holder in holderBatch.added) {
+                    patchedObjects.add(
+                        ObjectMapper.buildTriggerHolderObject(
+                            instanceId = holder.iid,
+                            ownerSeatId = holder.ownerSeat,
+                            objectSourceGrpId = holder.objectSourceGrpId,
+                            parentInstanceId = holder.parentIid,
+                            uniqueAbilityGrpId = holder.cleanupGrpId,
+                            uniqueAbilityId = bridge.effects.nextEffectId(),
+                        ),
+                    )
+                }
+                patchedZones.add(limboBuilder.build())
+                transferResult.copy(patchedZones = patchedZones, patchedObjects = patchedObjects)
+            }
+        bridge.delayedTriggerHolders.apply(holderBatch)
         val abilityWordPersistentFromSnap =
             snap.abilityWordEntries.map { entry ->
                 AnnotationBuilder.abilityWordActive(
@@ -392,6 +522,7 @@ object StateMapper {
                 combatResult,
                 qualificationPersistentFromSnap = qualificationPersistentFromSnap,
                 temporaryPermanentPersistentFromSnap = temporaryPermanentPersistentFromSnap,
+                delayedTriggerAffecteesPersistentFromSnap = delayedTriggerAffecteesFromSnap,
                 abilityWordPersistentFromSnap = abilityWordPersistentFromSnap,
                 preparedDesignationPersistentFromSnap = preparedDesignationPersistentFromSnap,
                 plottedDesignationPersistentFromSnap = plottedDesignationPersistentFromSnap,
@@ -403,7 +534,7 @@ object StateMapper {
                 gameStateId,
                 gameInfo.build(),
                 frame,
-                transferResult,
+                transferResultWithHolders,
                 remaining,
                 combatResult,
                 team1.build(),
@@ -617,8 +748,14 @@ object StateMapper {
                 .setUpdate(updateType)
                 .setPrevGameStateId(prev.gameStateId)
 
-        if (deletedIds.isNotEmpty()) {
-            builder.addAllDiffDeletedInstanceIds(deletedIds)
+        // Fold any TriggerHolder gameObjects retired this GSM into the delete
+        // list. The tracker queues them in `apply` (which ran inside the
+        // wrapped buildFromSnapshot above) and we drain here so the client
+        // retires the cached holder via instance-id.
+        val holderDeletions = bridge.delayedTriggerHolders.drainDeletions()
+        val allDeletedIds = deletedIds + holderDeletions
+        if (allDeletedIds.isNotEmpty()) {
+            builder.addAllDiffDeletedInstanceIds(allDeletedIds)
         }
 
         // Embed stripped actions + set pendingMessageCount when AAR follows
@@ -927,6 +1064,7 @@ object StateMapper {
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
         qualificationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         temporaryPermanentPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        delayedTriggerAffecteesPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         abilityWordPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         preparedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         plottedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
@@ -951,7 +1089,30 @@ object StateMapper {
                 effectIdAllocator = { bridge.effects.nextEffectId() },
                 activeStealForgeCardIds = bridge.annotations.activeStealForgeCardIds(),
             )
-        annotations.addAll(mechanicResult.transient)
+        // Token entries belong before combat damage: a Mobilize trigger that
+        // resolves between attacker declaration and combat damage produces tokens
+        // that themselves attack and deal damage. The client identity map needs
+        // them in place before processing the DamageDealt entries that reference
+        // their iids — otherwise the tokens visually pop in after first damage
+        // animates. Other mechanic annotations (counters, scry, surveil, …) keep
+        // their post-combat slot since they typically come from damage-triggered
+        // effects.
+        val (tokenCreatedAnns, otherMechanic) =
+            mechanicResult.transient.partition { ann ->
+                AnnotationType.TokenCreated in ann.typeList
+            }
+        if (tokenCreatedAnns.isNotEmpty()) {
+            val firstDamageIdx =
+                annotations.indexOfFirst { ann ->
+                    AnnotationType.DamageDealt_af5a in ann.typeList
+                }
+            if (firstDamageIdx >= 0) {
+                annotations.addAll(firstDamageIdx, tokenCreatedAnns)
+            } else {
+                annotations.addAll(tokenCreatedAnns)
+            }
+        }
+        annotations.addAll(otherMechanic)
 
         // AbilityWordActive: consumed from pre-computed snap entries
         val abilityWordPersistent = abilityWordPersistentFromSnap
@@ -986,6 +1147,11 @@ object StateMapper {
         // TemporaryPermanent pAnn for any token with EOT-sacrifice (copy or otherwise)
         val temporaryPermanentPersistent = temporaryPermanentPersistentFromSnap
 
+        // DelayedTriggerAffectees groups EOT-sacrifice tokens that share a
+        // delayed trigger (Mobilize, EOT-sacrifice copies). One annotation per
+        // group, persistent until the trigger resolves.
+        val delayedTriggerAffecteesPersistent = delayedTriggerAffecteesPersistentFromSnap
+
         // TargetSpec pAnn for each targeted spell/ability on the stack
         val targetSpecPersistent = buildTargetSpecAnnotations(bridge)
 
@@ -1000,6 +1166,7 @@ object StateMapper {
                 crewedThisTurnPersistent = crewedThisTurnPersistent,
                 crewTypeChangePersistent = crewTypeChangePersistent,
                 temporaryPermanentPersistent = temporaryPermanentPersistent,
+                delayedTriggerAffecteesPersistent = delayedTriggerAffecteesPersistent,
                 targetSpecPersistent = targetSpecPersistent,
                 preparedDesignationPersistent = preparedDesignationPersistentFromSnap,
                 plottedDesignationPersistent = plottedDesignationPersistentFromSnap,
@@ -1048,6 +1215,7 @@ object StateMapper {
         transferResult: TransferResult,
         actingSeat: Int,
         combatResult: CombatAnnotationResult,
+        bridge: GameBridge? = null,
     ): Pair<MutableList<AnnotationInfo>, MutableList<AnnotationInfo>> {
         val annotations = mutableListOf<AnnotationInfo>()
         val transferPersistent = mutableListOf<AnnotationInfo>()
@@ -1070,6 +1238,8 @@ object StateMapper {
         }
 
         for (transfer in immediateTransfers) emitTransfer(transfer)
+        // Snapshot-derived appearances (cast spells visible on the stack at snapshot time).
+        val snapshotSourceIids = transferResult.stackAbilityAppearances.map { it.sourceCardInstanceId }.toSet()
         for (a in transferResult.stackAbilityAppearances) {
             annotations.add(
                 AnnotationBuilder.abilityInstanceCreated(
@@ -1077,6 +1247,25 @@ object StateMapper {
                     InstanceId(a.sourceCardInstanceId),
                     a.sourceZoneId,
                 ),
+            )
+        }
+        val snapshotDisappearanceIids = transferResult.stackAbilityDisappearances.map { it.abilityInstanceId }.toSet()
+        // Event-driven trigger lifecycle. With auto-pass on the local turn the
+        // trigger can fire and resolve between two snapshots so the snap-diff
+        // misses both halves; with the per-trigger GSM split (GamePlayback)
+        // each half lands in its own GSM, so cast and resolve events arrive in
+        // separate drains. We emit the cast-side annotations from cast events
+        // and the resolve-side from resolve events independently — guarding
+        // against double-emission when the snap-diff also caught the
+        // appearance/disappearance.
+        if (bridge != null) {
+            emitTriggerLifecycleAnnotations(
+                events = events,
+                snapshotSourceIids = snapshotSourceIids,
+                snapshotDisappearanceIids = snapshotDisappearanceIids,
+                annotations = annotations,
+                transferPersistent = transferPersistent,
+                bridge = bridge,
             )
         }
         for (d in transferResult.stackAbilityDisappearances) {
@@ -1093,6 +1282,203 @@ object StateMapper {
         annotations.addAll(combatResult.annotations)
         for (transfer in deferredTransfers) emitTransfer(transfer)
         return annotations to transferPersistent
+    }
+
+    /**
+     * Emit AbilityInstanceCreated / TriggeringObject / ResolutionStart-Complete /
+     * AbilityInstanceDeleted for triggered abilities that surfaced via the event
+     * stream but were missed by snapshot-diff (auto-resolved between snapshots).
+     *
+     * The stack ability instanceId is synthesized as `sourceCardForgeId + OFFSET`,
+     * matching ZoneMapper.addStackAbilitiesFromSnapshot so a later snapshot that
+     * does see the trigger reuses the same id.
+     */
+    private fun emitTriggerLifecycleAnnotations(
+        events: List<GameEvent>,
+        snapshotSourceIids: Set<Int>,
+        snapshotDisappearanceIids: Set<Int>,
+        annotations: MutableList<AnnotationInfo>,
+        transferPersistent: MutableList<AnnotationInfo>,
+        bridge: GameBridge,
+    ) {
+        // Cast half: AbilityInstanceCreated (when snap-diff missed it) + persistent TriggeringObject.
+        for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }) {
+            val sourceCardIid = bridge.getOrAllocInstanceId(cast.cardId).value
+            val abilityIid =
+                bridge
+                    .getOrAllocInstanceId(
+                        ForgeCardId(cast.cardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET),
+                    ).value
+            val sourceZone = currentSourceZoneId(cast.cardId, bridge)
+
+            if (sourceCardIid !in snapshotSourceIids) {
+                annotations.add(
+                    AnnotationBuilder.abilityInstanceCreated(
+                        InstanceId(abilityIid),
+                        InstanceId(sourceCardIid),
+                        sourceZone,
+                    ),
+                )
+            }
+            transferPersistent.add(
+                AnnotationBuilder.triggeringObject(
+                    abilityInstanceId = InstanceId(abilityIid),
+                    sourceCardInstanceId = InstanceId(sourceCardIid),
+                    sourceZone = sourceZone,
+                ),
+            )
+        }
+
+        // Resolve half: ResolutionStart/Complete (always — snap-diff doesn't emit
+        // these for stack-only abilities) + AbilityInstanceDeleted (when snap-diff
+        // missed it).
+        for (resolved in events.filterIsInstance<GameEvent.SpellResolved>().filter { it.isTrigger }) {
+            val sourceCardIid = bridge.getOrAllocInstanceId(resolved.cardId).value
+            val abilityIid =
+                bridge
+                    .getOrAllocInstanceId(
+                        ForgeCardId(resolved.cardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET),
+                    ).value
+            val abilityGrpId = abilityGrpIdForSource(resolved.cardId, bridge)
+
+            annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
+            annotations.add(AnnotationBuilder.resolutionComplete(InstanceId(abilityIid), GrpId(abilityGrpId)))
+            if (abilityIid !in snapshotDisappearanceIids) {
+                annotations.add(
+                    AnnotationBuilder.abilityInstanceDeleted(
+                        InstanceId(abilityIid),
+                        InstanceId(sourceCardIid),
+                    ),
+                )
+            }
+        }
+    }
+
+    /** Best-effort source-zone lookup for an event-derived trigger. Falls back
+     *  to Battlefield (28) — the dominant case for combat / state-change triggers.
+     *  ZoneType has many rarely-used values (Sideboard, Ante, Subgame…) that
+     *  don't host triggering objects we'd surface to the wire; mapping each
+     *  is noise. The else-branch keeps the fallback explicit. */
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+    private fun currentSourceZoneId(
+        cardId: ForgeCardId,
+        bridge: GameBridge,
+    ): Int {
+        val card = bridge.findCard(cardId) ?: return ZoneIds.BATTLEFIELD
+        val ownerSeat = ownerSeatOf(card, bridge)
+        return when (card.zone?.zoneType) {
+            ForgeZoneType.Battlefield -> ZoneIds.BATTLEFIELD
+            ForgeZoneType.Stack -> ZoneIds.STACK
+            ForgeZoneType.Graveyard -> ZoneIds.graveyardOf(ownerSeat)
+            ForgeZoneType.Exile -> ZoneIds.EXILE
+            ForgeZoneType.Hand -> ZoneIds.handOf(ownerSeat)
+            ForgeZoneType.Library -> ZoneIds.libraryOf(ownerSeat)
+            ForgeZoneType.Command -> ZoneIds.COMMAND
+            else -> ZoneIds.BATTLEFIELD
+        }
+    }
+
+    /** Look up the wire-side ability grpId for a triggered source. For known
+     *  keyword triggers (Mobilize, …) this resolves to the per-card keyword
+     *  ability grpId — e.g. 188698 for a Mobilize 1 source — so
+     *  `ResolutionStart`/`Complete` carry the keyword row id rather than the
+     *  source card's grpId. Falls back to the source card's grpId for triggers
+     *  whose keyword isn't in [KEYWORD_BASE_IDS] yet. */
+    private fun abilityGrpIdForSource(
+        cardId: ForgeCardId,
+        bridge: GameBridge,
+    ): Int {
+        val card = bridge.findCard(cardId) ?: return 0
+        val cardGrpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
+        for (keyword in keywordTriggerNames) {
+            val abilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, keyword)
+            if (abilityGrpId != null) return abilityGrpId
+        }
+        return cardGrpId
+    }
+
+    /** Keywords whose triggers we want to surface on the wire as
+     *  `ResolutionStart`/`Complete grpid = <keyword ability id>`. Extend as new
+     *  combat/ETB/state-trigger keywords ship and need precise grpId fidelity. */
+    private val keywordTriggerNames = listOf("MOBILIZE")
+
+    /** Forge id of the source card that spawned [tokenForgeId], or null when
+     *  the token has no `tokenSpawningAbility` (puzzle-injected tokens, copy
+     *  tokens, etc.). Used by EOT-cleanup pAnn emission to derive both the
+     *  cleanup ability grpId and the trigger-holder iid. */
+    private fun tokenSourceForgeId(
+        tokenForgeId: ForgeCardId,
+        bridge: GameBridge,
+    ): ForgeCardId? {
+        val tokenCard = bridge.findCard(tokenForgeId) ?: return null
+        val sourceCard = tokenCard.tokenSpawningAbility?.hostCard ?: return null
+        return ForgeCardId(sourceCard.id)
+    }
+
+    /** Cleanup ability grpId paired with the source card's Mobilize keyword.
+     *  Looked up from the source's `Cards.HiddenAbilityIds` field — the
+     *  card-DB pairs every Mobilize-N (keyword on `AbilityIds`) with its
+     *  "Sacrifice them at the beginning of the next end step." entry on
+     *  `HiddenAbilityIds`. Filters on Category == 2 (triggered) so cards
+     *  that pair the cleanup with a static hidden ability (e.g. Zurgo,
+     *  Thunder's Decree's "can't be sacrificed") still pick the cleanup
+     *  row deterministically regardless of ordering. Null when the source
+     *  isn't a Mobilize card or has no hidden triggered ability; callers
+     *  fall back to the universal EOT-sacrifice grpId. Generic over
+     *  Mobilize-N — works for any future Mobilize value without table
+     *  updates. */
+    private fun mobilizeCleanupGrpIdForSource(
+        sourceForgeId: ForgeCardId,
+        bridge: GameBridge,
+    ): Int? {
+        val sourceCard = bridge.findCard(sourceForgeId) ?: return null
+        val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
+        // Confirm the source actually carries Mobilize before claiming a
+        // hidden triggered ability is the Mobilize cleanup row — guards
+        // against unrelated hidden abilities on cards that don't use the
+        // keyword.
+        bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, "MOBILIZE") ?: return null
+        return bridge.cardRepository.findHiddenTriggeredAbilityGrpId(sourceGrpId)
+    }
+
+    /** The Mobilize keyword ability grpId on a Mobilize source (188696, 188698…),
+     *  used as `objectSourceGrpId` on the TriggerHolder gameObject so the client
+     *  renders the right ability icon and tooltip text in the timed-effect
+     *  side panel. Null when the source doesn't carry Mobilize. */
+    private fun mobilizeKeywordGrpIdForSource(
+        sourceForgeId: ForgeCardId,
+        bridge: GameBridge,
+    ): Int? {
+        val sourceCard = bridge.findCard(sourceForgeId) ?: return null
+        val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
+        return bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, "MOBILIZE")
+    }
+
+    /** Stable per-trigger-registration holder iid keyed on the source card's
+     *  forge id, so all tokens spawned by the same source-card resolution
+     *  share one holder (matching the canonical Mobilize 3 →
+     *  one-holder-three-tokens shape). Caller resolves [sourceForgeId] via
+     *  [tokenSourceForgeId] before invoking — currently every TriggerHolder
+     *  emit path requires a known source. */
+    private fun holderInstanceIdFor(
+        sourceForgeId: ForgeCardId,
+        bridge: GameBridge,
+    ): InstanceId {
+        val holderForge = ForgeCardId(sourceForgeId.value + GameBridge.DELAYED_TRIGGER_HOLDER_FORGE_OFFSET)
+        return bridge.getOrAllocInstanceId(holderForge)
+    }
+
+    /** Best-effort owner seat lookup for an event-derived source card. */
+    private fun ownerSeatOf(
+        card: forge.game.card.Card,
+        bridge: GameBridge,
+    ): Int {
+        val owner = card.owner ?: return 1
+        return if (owner.lobbyPlayer is forge.ai.LobbyPlayerAi) {
+            bridge.seating.familiarSeat.value
+        } else {
+            bridge.seating.humanSeat.value
+        }
     }
 
     /**
@@ -1256,6 +1642,7 @@ object StateMapper {
                 transferResult = transferResult,
                 actingSeat = actingSeat,
                 combatResult = combatResult,
+                bridge = bridge,
             )
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }

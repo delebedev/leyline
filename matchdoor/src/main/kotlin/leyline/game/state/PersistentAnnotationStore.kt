@@ -195,7 +195,11 @@ class PersistentAnnotationStore {
                     { it.affectedIdsList.firstOrNull() ?: 0 },
                 )
 
-            // 3f. TemporaryPermanent — full-replacement upsert (keyed by token affectorId)
+            // 3f. TemporaryPermanent — full-replacement upsert keyed by the
+            // affected token instanceId. Affector is the trigger-holder (shared
+            // by all tokens spawned by a single Mobilize fire); keying on the
+            // affected token gives each warrior its own annotation row, matching
+            // the canonical "one TemporaryPermanent per token" shape.
             nextId =
                 upsertByType(
                     active,
@@ -203,6 +207,17 @@ class PersistentAnnotationStore {
                     nextId,
                     AnnotationType.TemporaryPermanent,
                     mechanicResult.temporaryPermanentPersistent,
+                    { it.affectedIdsList.firstOrNull() ?: it.affectorId },
+                )
+
+            // 3f-bis. DelayedTriggerAffectees — full-replacement upsert (keyed by trigger holder)
+            nextId =
+                upsertByType(
+                    active,
+                    deletions,
+                    nextId,
+                    AnnotationType.DelayedTriggerAffectees,
+                    mechanicResult.delayedTriggerAffecteesPersistent,
                     { it.affectorId },
                 )
 

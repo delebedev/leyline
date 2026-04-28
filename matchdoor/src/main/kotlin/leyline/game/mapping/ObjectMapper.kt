@@ -49,6 +49,53 @@ object ObjectMapper {
             .build()
 
     /**
+     * Build a [GameObjectInfo] for a transient `TriggerHolder` object that owns a
+     * delayed trigger (Mobilize EOT-sacrifice, exile-and-return, etc.). Lives in
+     * Limbo with a fixed `grpId = 5` and `type = GameObjectType.TriggerHolder`,
+     * controlled by the source's controller. The same instanceId is the affector
+     * for `DelayedTriggerAffectees` and per-token `TemporaryPermanent` annotations.
+     * The client renders this object as the side-panel timed-effect indicator —
+     * `objectSourceGrpId` (the keyword ability grpId, e.g. 188696 for Mobilize 3)
+     * is what carries the icon and tooltip text; `parentId` points at the source
+     * card so the client can link the indicator back to its origin.
+     */
+    fun buildTriggerHolderObject(
+        instanceId: Int,
+        ownerSeatId: Int,
+        objectSourceGrpId: Int = 0,
+        parentInstanceId: Int = 0,
+        uniqueAbilityGrpId: Int = 0,
+        uniqueAbilityId: Int = 0,
+    ): GameObjectInfo {
+        val builder =
+            GameObjectInfo
+                .newBuilder()
+                .setInstanceId(instanceId)
+                .setGrpId(TRIGGER_HOLDER_GRP_ID)
+                .setType(GameObjectType.TriggerHolder)
+                .setZoneId(ZoneIds.LIMBO)
+                .setVisibility(Visibility.Public)
+                .setOwnerSeatId(ownerSeatId)
+                .setControllerSeatId(ownerSeatId)
+                .setOverlayGrpId(TRIGGER_HOLDER_GRP_ID)
+        if (objectSourceGrpId != 0) builder.objectSourceGrpId = objectSourceGrpId
+        if (parentInstanceId != 0) builder.parentId = parentInstanceId
+        if (uniqueAbilityGrpId != 0) {
+            builder.addUniqueAbilities(
+                UniqueAbilityInfo
+                    .newBuilder()
+                    .setId(uniqueAbilityId)
+                    .setGrpId(uniqueAbilityGrpId)
+                    .build(),
+            )
+        }
+        return builder.build()
+    }
+
+    /** Fixed grpId Arena uses for transient trigger-holder objects in Limbo. */
+    const val TRIGGER_HOLDER_GRP_ID = 5
+
+    /**
      * Build a [GameObjectInfo] for echo-back GSMs during iterative combat declaration.
      *
      * Echo objects carry NO combat state (no attackState/blockState).

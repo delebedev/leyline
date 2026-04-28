@@ -125,6 +125,28 @@ interface CardRepository {
     ): Boolean = keywordPrefixes.any { findKeywordAbilityGrpId(cardGrpId, it) != null }
 
     /**
+     * Hidden ability grpId of the first **triggered** ability
+     * ([Abilities.Category] == 2) on [cardGrpId]. Robust against cards with
+     * multiple hidden entries where the cleanup row isn't first — e.g.
+     * Zurgo, Thunder's Decree pairs its Mobilize cleanup (Category=2,
+     * id=189933) with a static "can't be sacrificed" (Category=3, id=188976);
+     * filtering on category picks the cleanup deterministically regardless
+     * of ordering.
+     *
+     * Returns null if no candidate has [AbilityInfo.category] == 2 — every
+     * production source carries Category, and tests must register matching
+     * [AbilityInfo] for any hidden cleanup id they exercise.
+     */
+    fun findHiddenTriggeredAbilityGrpId(cardGrpId: Int): Int? {
+        val data = findByGrpId(cardGrpId) ?: return null
+        for ((abilityGrpId, _) in data.hiddenAbilityIds) {
+            val info = findAbilityInfo(abilityGrpId) ?: continue
+            if (info.category == 2) return abilityGrpId
+        }
+        return null
+    }
+
+    /**
      * Token grpId produced by [sourceGrpId].
      * Single token -> returns directly. Multiple -> matches by [tokenName].
      */
@@ -158,11 +180,18 @@ data class ModalAbilityInfo(
 
 /**
  * Single row from the client's Abilities table. Minimal fields needed to
- * disambiguate keyword alt-cost rows (Warp, Sneak, …) within a card.
+ * disambiguate keyword alt-cost rows (Warp, Sneak, …) within a card and to
+ * filter hidden delayed-trigger abilities by kind.
+ *
+ * @param category from the client card-DB `Abilities.Category` column.
+ *   Observed values: 1 = Activated, 2 = Triggered, 3 = Static/Replacement,
+ *   4 = SpellEffect, 8 = AlternativeCost. Defaults to 0 (unknown) for
+ *   synthetic test data and rows the production repo couldn't load.
  */
 data class AbilityInfo(
     val baseId: Int,
     val manaCost: List<Pair<ManaColor, Int>>,
+    val category: Int = 0,
 )
 
 /**
@@ -190,12 +219,13 @@ val KEYWORD_BASE_IDS: Map<String, Int> =
         "SNEAK" to 394,
         "FLASHBACK" to 35,
         // "PLOT" matches the Forge keyword string ("Plot:3 G"); "PLOTTED" matches the
-        // Arena designation name. Both alias to BaseId=328 so the test-side AbilityInfo
-        // auto-seed (registerKeywordAbilityGrpIds) catches Forge's keyword string AND
-        // the production ActionMapper path (which passes "PLOTTED") still resolves.
+        // designation name passed by ActionMapper. Both alias to BaseId=328 so the
+        // test-side AbilityInfo auto-seed (registerKeywordAbilityGrpIds) catches
+        // Forge's keyword string AND the production ActionMapper path resolves.
         "PLOT" to 328,
         "PLOTTED" to 328,
         "FORETELL" to 208,
         "DISTURB" to 215,
         "ESCAPE" to 199,
+        "MOBILIZE" to 363,
     )

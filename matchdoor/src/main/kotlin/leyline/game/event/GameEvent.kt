@@ -87,6 +87,10 @@ sealed interface GameEvent {
         val manaPayments: List<ManaPayment> = emptyList(),
         val isAdventure: Boolean = false,
         val altCostAbilityGrpId: Int = 0,
+        /** True if this is a triggered ability landing on the stack, not a player-cast spell. */
+        val isTrigger: Boolean = false,
+        /** Forge SpellAbility id when [isTrigger] — used to mint the stack-ability instanceId. */
+        val abilityForgeId: Int = 0,
     ) : GameEvent
 
     /** A spell was placed on the stack before costs were paid.
@@ -101,6 +105,10 @@ sealed interface GameEvent {
     data class SpellResolved(
         val cardId: ForgeCardId,
         val hasFizzled: Boolean,
+        /** True if the resolved item was a triggered ability rather than a cast spell. */
+        val isTrigger: Boolean = false,
+        /** Forge SpellAbility id when [isTrigger] — used to mint the stack-ability instanceId. */
+        val abilityForgeId: Int = 0,
     ) : GameEvent
 
     /** A card changed zones (generic — covers destroy, exile, sacrifice, bounce, etc.). */
