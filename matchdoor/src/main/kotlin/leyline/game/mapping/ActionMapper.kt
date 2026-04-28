@@ -436,6 +436,8 @@ object ActionMapper {
                         ?: bridge.resolveGrpId(forgeCard, instanceId)
                 val altCost = sa.alternativeCost
                 val isPlottedCast = altCost == AlternativeCost.Plotted
+                val isForetellCast = altCost == AlternativeCost.Foretold
+                val isMinimalEmit = isPlottedCast || isForetellCast
                 val actionBuilder =
                     Action
                         .newBuilder()
@@ -443,20 +445,34 @@ object ActionMapper {
                         .setInstanceId(instanceId)
                         .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
 
-                // Plotted cast-from-exile emits a minimal shape — no grpId / facetId.
-                // The wire-canonical shape carries only instanceId + abilityGrpId
-                // (PLOT keyword 328) + alternativeGrpId (CAST_WITHOUT_PAYING_MANA 149).
-                // Including grpId/facetId here makes MTGA treat the cast as a regular
-                // cast and the alt-cost branch never lands.
-                if (!isPlottedCast) {
+                // Plotted and foretold cast-from-exile use a minimal action shape —
+                // no grpId / facetId. The canonical action carries only instanceId
+                // + abilityGrpId/alternativeGrpId for the keyword + manaCost (where
+                // applicable). Including grpId/facetId here makes MTGA treat the
+                // cast as a regular cast and the alt-cost branch never lands.
+                if (!isMinimalEmit) {
                     actionBuilder.setGrpId(grpId)
                     actionBuilder.setFacetId(instanceId)
                 }
 
                 val cardData = bridge.cardRepository.findByGrpId(grpId)
+                // Resolve the foretell ability id once — used both as alternativeGrpId
+                // on the action and as the abilityGrpId echo inside each ManaRequirement.
+                val foretellAbilityGrpId =
+                    if (isForetellCast) {
+                        bridge.cardRepository.findKeywordAbilityGrpId(grpId, "FORETELL") ?: 0
+                    } else {
+                        0
+                    }
                 if (isPlottedCast) {
                     actionBuilder.setAlternativeGrpId(CAST_WITHOUT_PAYING_MANA_GRP_ID)
                     actionBuilder.setAbilityGrpId(KEYWORD_BASE_IDS.getValue("PLOTTED"))
+                } else if (isForetellCast) {
+                    // Foretell cast-from-exile uses the type=13 CastingTimeOption rail
+                    // with the per-card foretell ability id as alternativeGrpId.
+                    // No top-level abilityGrpId — the foretell BaseId (208) is universal,
+                    // not per-card; the per-card row id is what the action needs.
+                    if (foretellAbilityGrpId > 0) actionBuilder.setAlternativeGrpId(foretellAbilityGrpId)
                 } else if (altCost != null) {
                     // TODO(leyline-9n6): extend KEYWORD_BASE_IDS for Escape/Mayhem/etc.
                     val altCostName = altCost.name.uppercase()
@@ -467,12 +483,16 @@ object ActionMapper {
 
                 val effectiveCost = computeEffectiveCost(sa, player)
                 if (effectiveCost != null && !effectiveCost.isNoCost) {
-                    addManaCostFromForge(effectiveCost, actionBuilder)
+                    if (isForetellCast && foretellAbilityGrpId > 0) {
+                        addManaCostFromForge(effectiveCost, actionBuilder, foretellAbilityGrpId)
+                    } else {
+                        addManaCostFromForge(effectiveCost, actionBuilder)
+                    }
                 } else if (altCost == null && cardData != null) {
                     // Fallback to printed mana cost only when there's no alt-cost
                     // SA. AlternativeCost.Plotted (cast plotted card from exile)
                     // and similar copyWithNoManaCost rails have isNoCost==true and
-                    // must NOT inherit the printed cost on the wire.
+                    // must NOT inherit the printed cost.
                     for ((color, count) in cardData.manaCost) {
                         actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
                     }
