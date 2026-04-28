@@ -6,7 +6,6 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.game.data.ModalAbilityInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -26,29 +25,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
 class BushwhackFightTest :
     InteractionTest({
 
-        // Synthetic grpIds for Bushwhack's modal options. The in-memory repo
-        // has no modal entries unless we register them, and the script's
-        // `Choices$ FetchBasic,Fight` SVars don't carry grpIds on their own.
-        val parentAbilityGrpId = 99100
-        val fetchBasicGrpId = 99101
-        val fightGrpId = 99102
-
-        fun registerBushwhackModal() {
-            val bushwhackGrpId =
-                TestCardRegistry.repo.findGrpIdByName("Bushwhack")
-                    ?: error("Bushwhack not registered — puzzle setup must run first")
-            TestCardRegistry.repo.registerModalOptions(
-                bushwhackGrpId,
-                ModalAbilityInfo(
-                    parentGrpId = parentAbilityGrpId,
-                    childGrpIds = listOf(fetchBasicGrpId, fightGrpId),
-                ),
-            )
-        }
-
         test("Bushwhack Fight mode emits SelectTargetsReq for both target groups") {
             startPuzzleFile("puzzles/bushwhack-fight.pzl")
-            registerBushwhackModal()
 
             val cto = castSpellUntilCastingTimeOptionsReq("Bushwhack")
             cto.castingTimeOptionReqCount shouldBe 1
@@ -78,7 +56,6 @@ class BushwhackFightTest :
 
         test("Bushwhack Fight resolves: mutual damage, both creatures take damage") {
             startPuzzleFile("puzzles/bushwhack-fight.pzl")
-            registerBushwhackModal()
 
             val ownIid = instanceIdOf("Centaur Courser", player = human)
             val oppIid = instanceIdOf("Grizzly Bears", player = ai)

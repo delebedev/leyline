@@ -11,7 +11,6 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.data.ModalAbilityInfo
 import leyline.game.mapping.ObjectMapper
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -36,12 +35,12 @@ class ModalETBFlowTest :
 
         tags(IntegrationTag)
 
-        // Synthetic grpIds for Trufflesnout modal options
-        val parentAbilityGrpId = 99001
-        val counterModeGrpId = 99002
-        val lifeModeGrpId = 99003
+        // Trufflesnout modal ability ids — match `trufflesnout.yaml` fixture.
+        val parentAbilityGrpId = 137979
+        val counterModeGrpId = 60590
+        val lifeModeGrpId = 121504
 
-        // Charming Prince grpIds from client card DB
+        // Charming Prince modal ability ids — match `charming_prince.yaml` fixture.
         val princeAbilityGrpId = 136341
         val princeScryModeGrpId = 136338
         val princeLifeModeGrpId = 26167
@@ -57,36 +56,14 @@ class ModalETBFlowTest :
         fun setupTrufflesnout(): MatchFlowHarness {
             val h = MatchFlowHarness(validating = false)
             harness = h
-
             h.connectAndKeepPuzzle("puzzles/modal-etb.pzl")
-
-            val trufflesnoutGrpId = TestCardRegistry.repo.findGrpIdByName("Trufflesnout")!!
-            TestCardRegistry.repo.registerModalOptions(
-                trufflesnoutGrpId,
-                ModalAbilityInfo(
-                    parentGrpId = parentAbilityGrpId,
-                    childGrpIds = listOf(counterModeGrpId, lifeModeGrpId),
-                ),
-            )
-
             return h
         }
 
         fun setupPrince(): MatchFlowHarness {
             val h = MatchFlowHarness(validating = false)
             harness = h
-
             h.connectAndKeepPuzzle("puzzles/prince-etb.pzl")
-
-            val princeGrpId = TestCardRegistry.repo.findGrpIdByName("Charming Prince")!!
-            TestCardRegistry.repo.registerModalOptions(
-                princeGrpId,
-                ModalAbilityInfo(
-                    parentGrpId = princeAbilityGrpId,
-                    childGrpIds = listOf(princeScryModeGrpId, princeLifeModeGrpId, princeFlickerModeGrpId),
-                ),
-            )
-
             return h
         }
 

@@ -132,17 +132,6 @@ class WarpTest :
             val warpAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
-            // Seed Abilities-table data for the warp ability row (BaseId=371, cost={1}{G}).
-            // Mirrors the live Arena DB shape where the Warp row carries its own mana cost
-            // and a per-keyword BaseId.
-            (b.cardRepository as InMemoryCardRepository).registerAbilityInfo(
-                warpAbilityGrpId,
-                AbilityInfo(
-                    baseId = 371,
-                    manaCost = listOf(ManaColor.Green_afc9 to 1, ManaColor.Generic to 1),
-                ),
-            )
-
             val actions =
                 ActionMapper.buildActionList(
                     player = human,
@@ -187,21 +176,14 @@ class WarpTest :
             val realWarpAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
-            // Inject a second abilityId that *precedes* the warp row and *would* be picked
-            // by positional lookup (the old bug). Register AbilityInfo for both:
-            // - fakeEtbId: BaseId=0 (the ETB trigger shape) — should be skipped
-            // - realWarpAbilityGrpId: BaseId=371, cost {1}{G} — should be picked
+            // Inject a fake ETB ability id (BaseId=0) at a leading position via the
+            // cardDataLookup override below. It must be registered with AbilityInfo so
+            // findAlternativeCostAbilityGrpId considers it during the BaseId scan, and
+            // must be rejected in favor of the real Warp row (BaseId=371 + cost match).
             val fakeEtbId = 999001
             (b.cardRepository as InMemoryCardRepository).registerAbilityInfo(
                 fakeEtbId,
                 AbilityInfo(baseId = 0, manaCost = emptyList()),
-            )
-            (b.cardRepository as InMemoryCardRepository).registerAbilityInfo(
-                realWarpAbilityGrpId,
-                AbilityInfo(
-                    baseId = 371,
-                    manaCost = listOf(ManaColor.Green_afc9 to 1, ManaColor.Generic to 1),
-                ),
             )
 
             val actions =
@@ -350,23 +332,11 @@ class WarpTest :
             try {
                 h.connectAndKeepPuzzleText(WARP_PUZZLE)
                 val player = h.bridge.getPlayer(SeatId(1))!!
-                val repo = h.bridge.cardRepository as InMemoryCardRepository
+                val repo = h.bridge.cardRepository
 
-                val wurmGrpId = h.bridge.cardRepository.findGrpIdByName("Germinating Wurm")!!
+                val wurmGrpId = repo.findGrpIdByName("Germinating Wurm")!!
                 val warpAbilityGrpId =
                     repo.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
-
-                // Explicitly re-register AbilityInfo with real manaCost — auto-seed
-                // from the deriver is empty-cost; ensure the prod-shaped cost is
-                // present so submission goes through the same chain the live
-                // ExposedCardRepository would expose.
-                repo.registerAbilityInfo(
-                    warpAbilityGrpId,
-                    leyline.game.data.AbilityInfo(
-                        baseId = 371,
-                        manaCost = listOf(ManaColor.Green_afc9 to 1, ManaColor.Generic to 1),
-                    ),
-                )
 
                 h.castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId).shouldBeTrue()
                 h
