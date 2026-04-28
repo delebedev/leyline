@@ -796,6 +796,26 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
             .build()
 
+    /** FaceDown transient annotation. Marks an exile object as face-down
+     *  (foretell, hideaway, suspend). Carries no detail keys. */
+    fun faceDown(instanceId: InstanceId): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.FaceDown)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .build()
+
+    /** SuppressedPowerAndToughness transient annotation. Pairs with FaceDown
+     *  for face-down exile objects that lose their P/T projection. */
+    fun suppressedPowerAndToughness(instanceId: InstanceId): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.SuppressedPowerAndToughness)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .build()
+
     /** Layered effect creation event (buff/debuff started). client type 18 (LayeredEffectCreated).
      *  Transient — fires once when the effect begins. No detail keys on this annotation;
      *  all metadata lives on the companion LayeredEffect persistent annotation.

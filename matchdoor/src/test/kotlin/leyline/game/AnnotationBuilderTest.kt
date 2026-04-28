@@ -712,6 +712,26 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("faceDownFields") {
+            val ann = AnnotationBuilder.faceDown(instanceId = 388.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.FaceDown
+                ann.affectorId shouldBe 388
+                ann.affectedIdsList shouldContain 388
+                ann.detailsList.isEmpty() shouldBe true
+            }
+        }
+
+        test("suppressedPowerAndToughnessFields") {
+            val ann = AnnotationBuilder.suppressedPowerAndToughness(instanceId = 388.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.SuppressedPowerAndToughness
+                ann.affectorId shouldBe 388
+                ann.affectedIdsList shouldContain 388
+                ann.detailsList.isEmpty() shouldBe true
+            }
+        }
+
         // --- LayeredEffect (Tier 1 stub) ---
 
         test("layeredEffectFields") {
