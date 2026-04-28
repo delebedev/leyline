@@ -1,0 +1,8 @@
+name: "Sterling Hound"
+grpId: 90595
+titleId: 756930
+abilities:
+  - id: 121357
+    textId: 823588
+    category: 2
+expansionCode: "OTJ"

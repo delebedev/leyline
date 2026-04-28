@@ -1,0 +1,17 @@
+name: "Summon: Brynhildr"
+grpId: 96026
+titleId: 928252
+abilities:
+  - id: 189304
+    textId: 928254
+    category: 2
+    baseId: 166
+  - id: 189305
+    textId: 928256
+    category: 2
+    baseId: 166
+  - id: 189306
+    textId: 928257
+    category: 2
+    baseId: 166
+expansionCode: "FIN"
