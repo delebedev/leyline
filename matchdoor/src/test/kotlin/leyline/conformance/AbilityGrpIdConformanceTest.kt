@@ -34,7 +34,7 @@ class AbilityGrpIdConformanceTest :
                 // The initial registration from TestCardRegistry uses a temp card (null player)
                 // which may lack activated abilities. Re-registering updates the repo with
                 // the post-injection ability shape, stamped with the fixture's Arena identity.
-                val cardData = CardDataDeriver.fromForgeCardWithFixture(card, cardName)
+                val cardData = CardDataDeriver.fromForgeCard(card, cardName)
                 TestCardRegistry.repo.registerData(cardData, cardName)
 
                 // AbilityRegistry is lazily built by GameBridge.abilityRegistryFor on first access

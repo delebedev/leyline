@@ -3,19 +3,18 @@ package leyline.game.data
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.UnitTag
-import leyline.game.InMemoryCardRepository
 
 /**
  * Self-contained: no Arena SQLite required, no Forge classes loaded. Asserts
- * the per-card YAML fixtures parse into the right shape (Slim vs Full) and
- * that Full fixtures hydrate a [CardRepository] correctly.
+ * the per-card YAML fixtures parse into the right shape (slim ⇔ rules null,
+ * full ⇔ rules non-null) and that the byName/byGrpId indices form a
+ * coherent closure graph.
  *
- * Slim fixtures are exercised end-to-end by tests in the conformance package
- * which thread Forge through. Here we only verify identity round-trip.
+ * Closure-walk + register coverage lives in `FixtureCardLoaderTest`.
  */
 class TestCardFixturesTest :
     FunSpec({
@@ -23,7 +22,7 @@ class TestCardFixturesTest :
 
         test("slim fixture: identity-only").config(tags = tag) {
             val f = TestCardFixtures.findFixture("Grizzly Bears").shouldNotBeNull()
-            f.shouldBeInstanceOf<TestCardFixtures.Fixture.Slim>()
+            f.rules.shouldBeNull()
             f.identity.grpId shouldBe 79334
             f.identity.expansionCode shouldBe "J21"
             f.identity.abilities shouldHaveSize 0
@@ -35,7 +34,7 @@ class TestCardFixturesTest :
 
         test("slim fixture: DFC linked faces are bidirectional").config(tags = tag) {
             val front = TestCardFixtures.findFixture("Delver of Secrets").shouldNotBeNull()
-            front.shouldBeInstanceOf<TestCardFixtures.Fixture.Slim>()
+            front.rules.shouldBeNull()
             front.identity.linkedFaces shouldHaveSize 1
             val backGrpId = front.identity.linkedFaces.first()
             val back = TestCardFixtures.findFixtureByGrpId(backGrpId).shouldNotBeNull()
@@ -44,59 +43,41 @@ class TestCardFixturesTest :
             back.identity.isPrimaryCard shouldBe false
         }
 
-        test("slim fixture: token producer references a Full token").config(tags = tag) {
+        test("slim fixture: token producer references a full token").config(tags = tag) {
             val producer = TestCardFixtures.findFixture("Resolute Reinforcements").shouldNotBeNull()
-            producer.shouldBeInstanceOf<TestCardFixtures.Fixture.Slim>()
+            producer.rules.shouldBeNull()
             producer.identity.tokens.size shouldBe 1
             val (sourceAbilityId, tokenGrpId) = producer.identity.tokens.entries.first()
             producer.identity.abilities.map { it.id } shouldContain sourceAbilityId
             val token = TestCardFixtures.findFixtureByGrpId(tokenGrpId).shouldNotBeNull()
-            token.shouldBeInstanceOf<TestCardFixtures.Fixture.Full>()
+            val rules = token.rules.shouldNotBeNull()
             token.identity.name shouldBe "Soldier"
-            token.rules.power shouldBe "1"
-            token.rules.toughness shouldBe "1"
+            rules.power shouldBe "1"
+            rules.toughness shouldBe "1"
             token.identity.isToken shouldBe true
         }
 
-        test("slim fixture: saga has chapter abilities, no chapterAbilityGrpIds").config(tags = tag) {
+        test("saga: 3 chapter abilities, no chapterAbilityGrpIds field needed").config(tags = tag) {
             val f = TestCardFixtures.findFixture("History of Benalia").shouldNotBeNull()
-            f.shouldBeInstanceOf<TestCardFixtures.Fixture.Slim>()
+            f.rules.shouldBeNull()
             f.identity.abilities shouldHaveSize 3
             f.identity.tokens.values.toSet().shouldHaveSize(1)
         }
 
-        test("slim fixture: modal card has parent + children").config(tags = tag) {
+        test("modal card: parent ability has 4 children").config(tags = tag) {
             val f = TestCardFixtures.findFixture("Cryptic Command").shouldNotBeNull()
             val parent = f.identity.abilities.firstOrNull { it.modalChildren.isNotEmpty() }
                 .shouldNotBeNull()
             parent.modalChildren shouldHaveSize 4
         }
 
-        test("registerFull fails on slim closure").config(tags = tag) {
-            val repo = InMemoryCardRepository()
-            try {
-                TestCardFixtures.registerFull(repo, "Grizzly Bears")
-                error("expected registerFull to fail on slim fixture")
-            } catch (e: IllegalStateException) {
-                e.message.shouldNotBeNull()
-            }
+        test("token alias: 'Soldier Token' resolves the same fixture as 'Soldier'").config(tags = tag) {
+            val byBareName = TestCardFixtures.findFixture("Soldier").shouldNotBeNull()
+            val byTokenSuffix = TestCardFixtures.findFixture("Soldier Token").shouldNotBeNull()
+            byTokenSuffix.identity.grpId shouldBe byBareName.identity.grpId
         }
 
-        test("registerFull works on token + closure (full fixtures)").config(tags = tag) {
-            // Soldier is full; registering it directly should work.
-            val repo = InMemoryCardRepository()
-            TestCardFixtures.registerFull(repo, "Soldier")
-            val grpId = repo.findGrpIdByName("Soldier").shouldNotBeNull()
-            val data = repo.findByGrpId(grpId).shouldNotBeNull()
-            data.power shouldBe "1"
-            data.toughness shouldBe "1"
-        }
-
-        test("registerAllFull skips slim, registers full").config(tags = tag) {
-            val repo = InMemoryCardRepository()
-            TestCardFixtures.registerAllFull(repo)
-            // We have several Full fixtures (tokens). Slim ones should not be present.
-            repo.findGrpIdByName("Grizzly Bears") shouldBe null
-            repo.findGrpIdByName("Soldier").shouldNotBeNull()
+        test("missing card returns null, not error").config(tags = tag) {
+            TestCardFixtures.findFixture("This Card Does Not Exist").shouldBeNull()
         }
     })

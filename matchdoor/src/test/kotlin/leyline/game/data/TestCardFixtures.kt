@@ -1,7 +1,5 @@
 package leyline.game.data
 
-import leyline.game.InMemoryCardRepository
-import leyline.game.codes.SlotKind
 import org.yaml.snakeyaml.Yaml
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.nio.file.Files
@@ -11,25 +9,29 @@ import kotlin.io.path.extension
 import kotlin.io.path.isRegularFile
 
 /**
- * Per-card YAML fixture loader. Reads each YAML file under the test resources
- * directory `test-cards` and exposes them as either Arena-identity-only ([Slim])
- * for cards Forge owns rules data for, or self-contained ([Full]) for tokens
- * and Alchemy/digital-only cards Forge has no entry for.
+ * Per-card YAML fixture parser and index. Reads each YAML file under the
+ * test resources directory `test-cards` into a [Fixture] (Arena identity
+ * plus optional rules data) and exposes name- and grpId-keyed lookups.
  *
- * Schema mirrors the narrow column subset that [ExposedCardRepository] reads.
+ * Two shapes:
+ * - **Slim** ([Fixture.rules] is null): Forge cardsfolder owns rules data
+ *   (P/T, types, colors, mana cost). Used for cards in Forge cardsfolder.
+ * - **Full** ([Fixture.rules] is non-null): self-contained. Used for tokens
+ *   and Alchemy / digital-only cards Forge has no entry for.
+ *
  * Field IDs (colors, types, subtypes, supertypes, ability category) are
  * Arena's enum integers as stored in `Cards.*` columns.
  *
- * Fixtures form a closed graph: every grpId referenced in `tokens` or
- * `linkedFaces` must have its own YAML in the same directory.
+ * Closure invariant: every grpId referenced in `tokens` or `linkedFaces`
+ * has its own YAML in the same directory. Closure walking lives in
+ * [leyline.conformance.FixtureCardLoader], not here.
  */
 object TestCardFixtures {
     private const val DEFAULT_RESOURCE_DIR = "test-cards"
 
     /**
-     * Arena identity for a card — the integers Forge cardsfolder doesn't carry.
-     * Stamped onto a Forge-derived [CardData] by [ArenaIdentityOverlay] for
-     * slim fixtures.
+     * Arena identity for a card — the integers Forge cardsfolder doesn't
+     * carry. Stamped onto a Forge-derived [CardData] for slim fixtures.
      */
     data class Identity(
         val name: String,
@@ -52,29 +54,23 @@ object TestCardFixtures {
         )
     }
 
-    /**
-     * A loaded fixture — either Slim (rules data lives in Forge) or Full
-     * (self-contained, used for tokens / Alchemy where Forge has no entry).
-     */
-    sealed interface Fixture {
-        val identity: Identity
+    /** Forge-redundant rules data; present on Full fixtures, null on Slim. */
+    data class Rules(
+        val power: String,
+        val toughness: String,
+        val colors: List<Int>,
+        val types: List<Int>,
+        val subtypes: List<Int>,
+        val supertypes: List<Int>,
+        val manaCost: List<Pair<ManaColor, Int>>,
+    )
 
-        data class Slim(override val identity: Identity) : Fixture
-
-        data class Full(
-            override val identity: Identity,
-            val rules: Rules,
-        ) : Fixture {
-            data class Rules(
-                val power: String,
-                val toughness: String,
-                val colors: List<Int>,
-                val types: List<Int>,
-                val subtypes: List<Int>,
-                val supertypes: List<Int>,
-                val manaCost: List<Pair<ManaColor, Int>>,
-            )
-        }
+    /** A loaded fixture. Slim ⇔ [rules] is null; Full ⇔ [rules] is non-null. */
+    data class Fixture(
+        val identity: Identity,
+        val rules: Rules?,
+    ) {
+        val isFull: Boolean get() = rules != null
     }
 
     private val byName: Map<String, Fixture> by lazy {
@@ -90,109 +86,14 @@ object TestCardFixtures {
     }
     private val byGrpId: Map<Int, Fixture> by lazy { loadAllFixtures().associateBy { it.identity.grpId } }
 
-    /** Lookup fixture by display name. */
+    /** Lookup fixture by display name (or "<Name> Token" alias for token fixtures). */
     fun findFixture(name: String): Fixture? = byName[name]
 
-    /** Lookup fixture by grpId. Used to walk the fixture graph (linkedFaces / tokens). */
+    /** Lookup fixture by grpId. */
     fun findFixtureByGrpId(grpId: Int): Fixture? = byGrpId[grpId]
 
-    /** Convenience: returns full closure (the named card + its linked faces and produced tokens). */
-    fun findClosure(name: String): List<Fixture> {
-        val root = findFixture(name) ?: return emptyList()
-        val seen = mutableSetOf<Int>()
-        val ordered = mutableListOf<Fixture>()
-        val stack = ArrayDeque<Int>()
-        stack.add(root.identity.grpId)
-        while (stack.isNotEmpty()) {
-            val id = stack.removeLast()
-            if (!seen.add(id)) continue
-            val f = byGrpId[id] ?: continue
-            ordered += f
-            stack.addAll(f.identity.linkedFaces)
-            stack.addAll(f.identity.tokens.values)
-        }
-        return ordered
-    }
-
-    /**
-     * Register a card and its closure into [repo] using **only** Full fixtures.
-     * Slim fixtures need Forge-derived rules data — use the FixtureCardLoader
-     * (in conformance package) which threads Forge through.
-     *
-     * Errors loudly if the named card is missing or any closure entry is Slim.
-     */
-    fun registerFull(repo: InMemoryCardRepository, cardName: String) {
-        val closure = findClosure(cardName)
-        check(closure.isNotEmpty()) {
-            "No fixture found for card '$cardName' under $DEFAULT_RESOURCE_DIR/. " +
-                "Generate via `card-fixtures emit \"$cardName\"`."
-        }
-        for (f in closure) {
-            check(f is Fixture.Full) {
-                "Closure for '$cardName' contains slim fixture '${f.identity.name}' — " +
-                    "use FixtureCardLoader (Forge-aware) to register slim cards."
-            }
-            applyFull(repo, f)
-        }
-    }
-
-    /**
-     * Register every Full fixture (tokens, Alchemy, etc.). Slim fixtures are
-     * skipped — they need Forge-derived rules data.
-     */
-    fun registerAllFull(repo: InMemoryCardRepository) {
-        for (f in byName.values) {
-            if (f is Fixture.Full) applyFull(repo, f)
-        }
-    }
-
-    /**
-     * Register a single Full fixture into [repo] without walking its closure.
-     * Used by the joining layer (FixtureCardLoader) which dispatches Full
-     * fixtures here while handling Slim fixtures via Forge.
-     */
-    fun applyFull(repo: InMemoryCardRepository, fixture: Fixture.Full) = doApplyFull(repo, fixture)
-
-    private fun doApplyFull(repo: InMemoryCardRepository, fixture: Fixture.Full) {
-        val id = fixture.identity
-        val abilityIds = id.abilities.map { it.id to it.textId }
-        val abilityKinds = id.abilities.map { ab ->
-            if (ab.category == 1) SlotKind.Activated else SlotKind.Intrinsic
-        }
-        val data = CardData(
-            grpId = id.grpId,
-            titleId = id.titleId,
-            power = fixture.rules.power,
-            toughness = fixture.rules.toughness,
-            colors = fixture.rules.colors,
-            types = fixture.rules.types,
-            subtypes = fixture.rules.subtypes,
-            supertypes = fixture.rules.supertypes,
-            abilityIds = abilityIds,
-            abilityKinds = abilityKinds,
-            manaCost = fixture.rules.manaCost,
-            tokenGrpIds = id.tokens,
-            linkedFaceGrpIds = id.linkedFaces,
-        )
-        repo.registerData(data, id.name)
-        registerAbilityMetadata(repo, id)
-    }
-
-    /**
-     * Register the [AbilityInfo] and [ModalAbilityInfo] entries from the
-     * fixture's ability list. Used by both [applyFull] and the slim path
-     * (after Forge-derived CardData has been constructed and registered).
-     */
-    fun registerAbilityMetadata(repo: InMemoryCardRepository, identity: Identity) {
-        for (ab in identity.abilities) {
-            if (ab.baseId != 0 || ab.activationMana.isNotEmpty()) {
-                repo.registerAbilityInfo(ab.id, AbilityInfo(ab.baseId, ab.activationMana))
-            }
-            if (ab.modalChildren.isNotEmpty()) {
-                repo.registerModalOptions(identity.grpId, ModalAbilityInfo(ab.id, ab.modalChildren))
-            }
-        }
-    }
+    /** All loaded fixtures, indexed by display name. */
+    val all: Map<String, Fixture> get() = byName
 
     // --- Loading ---
 
@@ -215,48 +116,47 @@ object TestCardFixtures {
 
     @Suppress("UNCHECKED_CAST")
     private fun parseFile(path: Path): Fixture {
-        val raw = Files.newBufferedReader(path).use { Yaml().load<Map<String, Any?>>(it) }
-            ?: error("Empty fixture: $path")
+        return try {
+            val raw = Files.newBufferedReader(path).use { Yaml().load<Map<String, Any?>>(it) }
+                ?: error("file is empty")
 
-        val identity = Identity(
-            name = raw["name"] as String,
-            grpId = (raw["grpId"] as Number).toInt(),
-            titleId = (raw["titleId"] as Number).toInt(),
-            expansionCode = raw["expansionCode"] as String? ?: "",
-            abilities = (raw["abilities"] as List<*>? ?: emptyList<Any>()).map { entry ->
-                val m = entry as Map<String, Any?>
-                Identity.Ability(
-                    id = (m["id"] as Number).toInt(),
-                    textId = (m["textId"] as Number).toInt(),
-                    category = (m["category"] as Number).toInt(),
-                    baseId = (m["baseId"] as Number?)?.toInt() ?: 0,
-                    activationMana = parseManaCost(m["mana"] as String? ?: ""),
-                    modalChildren = (m["modalChildren"] as List<*>? ?: emptyList<Any>())
-                        .map { (it as Number).toInt() },
-                )
-            },
-            tokens = (raw["tokens"] as Map<*, *>? ?: emptyMap<Any, Any>())
-                .entries.associate { (k, v) ->
-                    val key = when (k) {
-                        is Number -> k.toInt()
-                        is String -> k.toInt()
-                        else -> error("unexpected token key type: $k")
-                    }
-                    key to (v as Number).toInt()
+            val identity = Identity(
+                name = raw.requireField<String>("name"),
+                grpId = raw.requireField<Number>("grpId").toInt(),
+                titleId = raw.requireField<Number>("titleId").toInt(),
+                expansionCode = raw["expansionCode"] as String? ?: "",
+                abilities = (raw["abilities"] as List<*>? ?: emptyList<Any>()).mapIndexed { i, entry ->
+                    val m = entry as Map<String, Any?>
+                    Identity.Ability(
+                        id = (m["id"] as Number?)?.toInt() ?: error("abilities[$i].id missing"),
+                        textId = (m["textId"] as Number?)?.toInt() ?: error("abilities[$i].textId missing"),
+                        category = (m["category"] as Number?)?.toInt() ?: error("abilities[$i].category missing"),
+                        baseId = (m["baseId"] as Number?)?.toInt() ?: 0,
+                        activationMana = parseManaCost(m["mana"] as String? ?: ""),
+                        modalChildren = (m["modalChildren"] as List<*>? ?: emptyList<Any>())
+                            .map { (it as Number).toInt() },
+                    )
                 },
-            linkedFaces = (raw["linkedFaces"] as List<*>? ?: emptyList<Any>())
-                .map { (it as Number).toInt() },
-            isToken = raw["isToken"] as Boolean? ?: false,
-            isPrimaryCard = raw["isPrimaryCard"] as Boolean? ?: true,
-        )
+                tokens = (raw["tokens"] as Map<*, *>? ?: emptyMap<Any, Any>())
+                    .entries.associate { (k, v) ->
+                        val key = when (k) {
+                            is Number -> k.toInt()
+                            is String -> k.toInt()
+                            else -> error("token key '$k' is neither Number nor String")
+                        }
+                        key to (v as Number).toInt()
+                    },
+                linkedFaces = (raw["linkedFaces"] as List<*>? ?: emptyList<Any>())
+                    .map { (it as Number).toInt() },
+                isToken = raw["isToken"] as Boolean? ?: false,
+                isPrimaryCard = raw["isPrimaryCard"] as Boolean? ?: true,
+            )
 
-        // Full shape includes Forge-derivable rules fields. Slim omits them.
-        val hasRulesFields = listOf("power", "toughness", "colors", "types", "subtypes", "supertypes", "manaCost")
-            .any { raw.containsKey(it) }
-        return if (hasRulesFields) {
-            Fixture.Full(
-                identity = identity,
-                rules = Fixture.Full.Rules(
+            // Full shape includes Forge-derivable rules fields. Slim omits them.
+            val hasRulesFields = listOf("power", "toughness", "colors", "types", "subtypes", "supertypes", "manaCost")
+                .any { raw.containsKey(it) }
+            val rules = if (hasRulesFields) {
+                Rules(
                     power = raw["power"] as String? ?: "",
                     toughness = raw["toughness"] as String? ?: "",
                     colors = (raw["colors"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
@@ -264,10 +164,18 @@ object TestCardFixtures {
                     subtypes = (raw["subtypes"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
                     supertypes = (raw["supertypes"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
                     manaCost = parseManaCost(raw["manaCost"] as String? ?: ""),
-                ),
-            )
-        } else {
-            Fixture.Slim(identity)
+                )
+            } else {
+                null
+            }
+            Fixture(identity, rules)
+        } catch (e: Exception) {
+            throw IllegalStateException("Failed to parse fixture $path: ${e.message}", e)
         }
+    }
+
+    private inline fun <reified T> Map<String, Any?>.requireField(name: String): T {
+        val v = this[name] ?: error("required field '$name' missing")
+        return v as? T ?: error("field '$name' has wrong type: expected ${T::class.simpleName}, got ${v::class.simpleName}")
     }
 }

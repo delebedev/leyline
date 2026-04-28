@@ -29,16 +29,10 @@ object TestCardRegistry {
         )
 
     /**
-     * Register a card by name. Idempotent. Routes through [FixtureCardLoader],
-     * which sources Arena identity from YAML fixtures under
-     * `matchdoor/src/test/resources/test-cards/` and rules data (P/T, types,
-     * mana, etc.) from Forge's `CardRules`. Errors loudly when no fixture
-     * exists for a card Forge knows about; returns 0 silently for
-     * engine-internal names that aren't in Forge either.
+     * Register a card by name. Idempotent. Thin wrapper over
+     * [FixtureCardLoader.ensureCardRegistered] (which owns the
+     * Forge-static-data mutex).
      */
-    // Serialize card registration: Forge's StaticData.attemptToLoadCard mutates
-    // static state. Concurrent Kotest specs would race on it.
-    @Synchronized
     fun ensureCardRegistered(cardName: String): Int =
         FixtureCardLoader.ensureCardRegistered(repo, cardName)
 
@@ -70,13 +64,12 @@ object TestCardRegistry {
     }
 
     /**
-     * Register all puzzle cards after [GameBridge.startPuzzle].
-     *
-     * Walks all zones in the game and derives synthetic [CardData] for each card
-     * via [PuzzleCardRegistrar]. Production doesn't need this — card data is in SQLite.
+     * Register all puzzle cards after `GameBridge.startPuzzle`. Walks every
+     * zone of every player and routes each card name through
+     * [FixtureCardLoader]. Production doesn't need this — card data is in
+     * SQLite.
      */
     fun registerPuzzleCards(game: forge.game.Game) {
-        val registrar = leyline.game.PuzzleCardRegistrar(repo)
         val allZones =
             listOf(
                 forge.game.zone.ZoneType.Hand,
@@ -89,11 +82,7 @@ object TestCardRegistry {
         for (player in game.players) {
             for (zone in allZones) {
                 for (card in player.getZone(zone).cards) {
-                    if (card.rules != null) {
-                        registrar.ensureCardRegistered(card)
-                    } else {
-                        registrar.ensureCardRegisteredByName(card.name)
-                    }
+                    FixtureCardLoader.ensureCardRegistered(repo, card.name)
                 }
             }
         }

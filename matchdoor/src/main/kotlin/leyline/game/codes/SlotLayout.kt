@@ -60,4 +60,30 @@ data class SlotEntry(
     val kind: SlotKind,
 )
 
-enum class SlotKind { Keyword, Activated, Mana, Intrinsic }
+enum class SlotKind {
+    Keyword,
+    Activated,
+    Mana,
+    Intrinsic,
+    ;
+
+    companion object {
+        /**
+         * Map an Arena `Abilities.Category` value to a [SlotKind].
+         *
+         * Category=1 → [Activated]. Category=0 (schema default, never
+         * populated) and "row absent" → [Activated] (treat unknown as
+         * activate-able for compat — `ExposedCardRepository` does the same).
+         * Anything else (2 = trigger, 3+ = static/passive) → [Intrinsic].
+         *
+         * Single source of truth shared by [ExposedCardRepository] (prod)
+         * and the YAML fixture loader (test). Keeps prod and test on the
+         * same mapping rule.
+         */
+        fun fromArenaCategory(category: Int?): SlotKind =
+            when (category) {
+                1, 0, null -> Activated
+                else -> Intrinsic
+            }
+    }
+}

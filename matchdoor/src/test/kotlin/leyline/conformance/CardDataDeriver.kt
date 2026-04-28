@@ -16,9 +16,10 @@ import leyline.game.data.TestCardFixtures
  * Forge owns the rules data (P/T, types, subtypes, supertypes, colors, mana
  * cost). The fixture supplies the Arena identity (grpId, ability ids paired
  * with category/baseId, token map, linked faces). [FixtureCardLoader] is the
- * normal entry point — direct callers use [fromForgeCardWithFixture] when
- * they need to re-derive after a card has gained a player context (e.g.
- * planeswalker abilities only populate after `TestCardInjector.inject`).
+ * normal entry point; tests that need to re-derive after a card gains a
+ * player context (planeswalker abilities only populate after
+ * `TestCardInjector.inject`) call [fromForgeCard] directly with the card
+ * name.
  *
  * `CardData.chapterAbilityGrpIds` is intentionally empty — Arena's
  * `Cards.AbilityIds` column orders chapter abilities at leading positions,
@@ -28,10 +29,10 @@ import leyline.game.data.TestCardFixtures
  */
 object CardDataDeriver {
     /**
-     * Derive [CardData] from a Forge [Card]; identity comes from the named
-     * fixture. Errors loudly when no fixture exists for the card.
+     * Derive [CardData] from a Forge [Card]; Arena identity is looked up
+     * from the named fixture. Errors loudly when no fixture exists.
      */
-    fun fromForgeCardWithFixture(
+    fun fromForgeCard(
         card: Card,
         cardName: String,
     ): CardData {
@@ -41,10 +42,10 @@ object CardDataDeriver {
     }
 
     /**
-     * Same as [fromForgeCardWithFixture] but with the identity already in
-     * hand — used by [FixtureCardLoader] which walks fixture closures.
+     * Identity-already-in-hand entry — used by [FixtureCardLoader] when
+     * walking a fixture closure. Most callers should prefer [fromForgeCard].
      */
-    fun fromForgeCardWithIdentity(
+    internal fun fromForgeCardWithIdentity(
         card: Card,
         identity: TestCardFixtures.Identity,
     ): CardData {
@@ -69,9 +70,7 @@ object CardDataDeriver {
         val manaCost = ManaColorMapping.deriveManaCost(rules.manaCost)
 
         val abilityIds = identity.abilities.map { it.id to it.textId }
-        val abilityKinds = identity.abilities.map { ab ->
-            if (ab.category == 1) SlotKind.Activated else SlotKind.Intrinsic
-        }
+        val abilityKinds = identity.abilities.map { ab -> SlotKind.fromArenaCategory(ab.category) }
 
         return CardData(
             grpId = identity.grpId,

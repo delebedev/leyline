@@ -38,7 +38,7 @@ class AbilityRegistryTest :
 
                 // Derive CardData from the live card (has game context → full abilities),
                 // stamped with Arena identity from the fixture.
-                val cardData = CardDataDeriver.fromForgeCardWithFixture(card, cardName)
+                val cardData = CardDataDeriver.fromForgeCard(card, cardName)
 
                 // Chandra has 4 loyalty abilities (all activated, non-mana)
                 val loyaltyAbilities =

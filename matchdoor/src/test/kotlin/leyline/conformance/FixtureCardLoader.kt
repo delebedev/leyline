@@ -3,19 +3,22 @@ package leyline.conformance
 import forge.game.card.Card
 import forge.model.FModel
 import leyline.game.InMemoryCardRepository
+import leyline.game.codes.SlotKind
+import leyline.game.data.AbilityInfo
+import leyline.game.data.CardData
+import leyline.game.data.ModalAbilityInfo
 import leyline.game.data.TestCardFixtures
 import org.slf4j.LoggerFactory
 
 /**
  * Joining layer between [TestCardFixtures] (Arena identity) and Forge
- * (rules data). The single entry point that test setup paths use to
- * register a card by name into an [InMemoryCardRepository].
+ * (rules data). The single entry point test setup paths use to register
+ * a card by name into an [InMemoryCardRepository].
  *
  * Source of truth for grpId, ability ids, token map, linked faces is the
  * YAML fixture under `matchdoor/src/test/resources/test-cards/`. For Slim
- * fixtures, rules data (P/T, types, mana cost, etc.) is derived from
- * Forge's `CardRules`. For Full fixtures (tokens, Alchemy), data is
- * self-contained in YAML.
+ * fixtures (rules absent), rules data is derived from Forge's `CardRules`.
+ * For Full fixtures (tokens, Alchemy), data is self-contained in YAML.
  *
  * Errors loudly when a fixture is missing — no synthetic-grpId fallback.
  * If a test needs a card without a fixture, generate one with the
@@ -29,11 +32,16 @@ object FixtureCardLoader {
      * Register [cardName] (and its closure: linked faces, produced tokens)
      * into [repo]. Idempotent — if [cardName] already resolves in [repo],
      * returns its grpId without re-registering.
+     *
+     * Synchronized: Forge's `StaticData.attemptToLoadCard` mutates static
+     * state (used by [forgeHas] and [loadForgeCard]). Concurrent Kotest
+     * specs would race on it without this lock.
      */
+    @Synchronized
     fun ensureCardRegistered(repo: InMemoryCardRepository, cardName: String): Int {
         repo.findGrpIdByName(cardName)?.let { return it }
 
-        val closure = TestCardFixtures.findClosure(cardName)
+        val closure = findClosure(cardName)
         if (closure.isEmpty()) {
             // No fixture. If Forge has no entry either, treat as engine-internal
             // (Puzzle Goal, DetachedCardEffect, etc.) — return 0 quietly. If
@@ -53,14 +61,80 @@ object FixtureCardLoader {
             // tokens across saga chapters, or token-producer + token registered
             // separately by sibling tests).
             if (repo.findByGrpId(f.identity.grpId) != null) continue
-            when (f) {
-                is TestCardFixtures.Fixture.Full -> TestCardFixtures.applyFull(repo, f)
-                is TestCardFixtures.Fixture.Slim -> registerSlim(repo, f)
-            }
+            register(repo, f)
         }
 
         return repo.findGrpIdByName(cardName)
             ?: error("Closure for '$cardName' resolved but did not register the named card itself")
+    }
+
+    /**
+     * The named card plus its closure (linked faces, produced tokens),
+     * walked breadth-first through fixture `linkedFaces` and `tokens`.
+     */
+    private fun findClosure(name: String): List<TestCardFixtures.Fixture> {
+        val root = TestCardFixtures.findFixture(name) ?: return emptyList()
+        val seen = mutableSetOf<Int>()
+        val ordered = mutableListOf<TestCardFixtures.Fixture>()
+        val stack = ArrayDeque<Int>()
+        stack.add(root.identity.grpId)
+        while (stack.isNotEmpty()) {
+            val id = stack.removeLast()
+            if (!seen.add(id)) continue
+            val f = TestCardFixtures.findFixtureByGrpId(id) ?: continue
+            ordered += f
+            stack.addAll(f.identity.linkedFaces)
+            stack.addAll(f.identity.tokens.values)
+        }
+        return ordered
+    }
+
+    /** Build CardData and register a single fixture. Slim ⇒ thread Forge for rules. */
+    private fun register(repo: InMemoryCardRepository, fixture: TestCardFixtures.Fixture) {
+        val data = if (fixture.rules != null) {
+            buildFromFixtureRules(fixture)
+        } else {
+            CardDataDeriver.fromForgeCardWithIdentity(loadForgeCard(fixture.identity.name), fixture.identity)
+        }
+        repo.registerData(data, fixture.identity.name)
+        registerAbilityMetadata(repo, fixture.identity)
+    }
+
+    private fun buildFromFixtureRules(fixture: TestCardFixtures.Fixture): CardData {
+        val identity = fixture.identity
+        val rules = requireNotNull(fixture.rules)
+        val abilityIds = identity.abilities.map { it.id to it.textId }
+        val abilityKinds = identity.abilities.map { ab -> SlotKind.fromArenaCategory(ab.category) }
+        return CardData(
+            grpId = identity.grpId,
+            titleId = identity.titleId,
+            power = rules.power,
+            toughness = rules.toughness,
+            colors = rules.colors,
+            types = rules.types,
+            subtypes = rules.subtypes,
+            supertypes = rules.supertypes,
+            abilityIds = abilityIds,
+            abilityKinds = abilityKinds,
+            manaCost = rules.manaCost,
+            tokenGrpIds = identity.tokens,
+            linkedFaceGrpIds = identity.linkedFaces,
+        )
+    }
+
+    /** Register the [AbilityInfo] and [ModalAbilityInfo] entries from the fixture's ability list. */
+    private fun registerAbilityMetadata(
+        repo: InMemoryCardRepository,
+        identity: TestCardFixtures.Identity,
+    ) {
+        for (ab in identity.abilities) {
+            if (ab.baseId != 0 || ab.activationMana.isNotEmpty()) {
+                repo.registerAbilityInfo(ab.id, AbilityInfo(ab.baseId, ab.activationMana))
+            }
+            if (ab.modalChildren.isNotEmpty()) {
+                repo.registerModalOptions(identity.grpId, ModalAbilityInfo(ab.id, ab.modalChildren))
+            }
+        }
     }
 
     private fun forgeHas(cardName: String): Boolean {
@@ -70,16 +144,6 @@ object FixtureCardLoader {
                 forge.StaticData.instance().attemptToLoadCard(cardName)
                 db.getCard(cardName) != null
             }
-    }
-
-    private fun registerSlim(
-        repo: InMemoryCardRepository,
-        fixture: TestCardFixtures.Fixture.Slim,
-    ) {
-        val forgeCard = loadForgeCard(fixture.identity.name)
-        val data = CardDataDeriver.fromForgeCardWithIdentity(forgeCard, fixture.identity)
-        repo.registerData(data, fixture.identity.name)
-        TestCardFixtures.registerAbilityMetadata(repo, fixture.identity)
     }
 
     private fun loadForgeCard(cardName: String): Card {
