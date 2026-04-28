@@ -179,14 +179,11 @@ object TestCardFixtures {
     }
 
     /**
-     * Register the [AbilityInfo], [ModalAbilityInfo], and per-card keyword
-     * map entries from the fixture's ability list. Used by both [applyFull]
-     * and the slim path (after Forge-derived CardData has been constructed
-     * and registered).
+     * Register the [AbilityInfo] and [ModalAbilityInfo] entries from the
+     * fixture's ability list. Used by both [applyFull] and the slim path
+     * (after Forge-derived CardData has been constructed and registered).
      */
     fun registerAbilityMetadata(repo: InMemoryCardRepository, identity: Identity) {
-        val baseIdToKeyword = KEYWORD_BASE_IDS.entries.associate { (k, v) -> v to k }
-        val keywordMap = mutableMapOf<String, Int>()
         for (ab in identity.abilities) {
             if (ab.baseId != 0 || ab.activationMana.isNotEmpty()) {
                 repo.registerAbilityInfo(ab.id, AbilityInfo(ab.baseId, ab.activationMana))
@@ -194,14 +191,6 @@ object TestCardFixtures {
             if (ab.modalChildren.isNotEmpty()) {
                 repo.registerModalOptions(identity.grpId, ModalAbilityInfo(ab.id, ab.modalChildren))
             }
-            // Also populate the test-only keyword map (used by
-            // InMemoryCardRepository.findTestKeywordAbilityGrpId) for parity
-            // with the AbilityIdDeriver-driven path. Keys are uppercase keyword
-            // names (WARP, SNEAK, FLASHBACK, ...).
-            baseIdToKeyword[ab.baseId]?.let { kw -> keywordMap[kw] = ab.id }
-        }
-        if (keywordMap.isNotEmpty()) {
-            repo.registerKeywordAbilityGrpIds(identity.grpId, keywordMap)
         }
     }
 

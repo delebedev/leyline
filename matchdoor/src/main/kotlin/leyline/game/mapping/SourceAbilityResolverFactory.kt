@@ -3,6 +3,7 @@ package leyline.game.mapping
 import forge.game.Game
 import leyline.bridge.findCard
 import leyline.bridge.types.InstanceId
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.state.GameBridge
 
 /**
@@ -21,8 +22,8 @@ import leyline.game.state.GameBridge
  * `card.staticAbilities` lookups).
  */
 object SourceAbilityResolverFactory {
-    /** Keywords whose triggered/resolved effects produce P/T boosts with staticId=0. */
-    private val PT_BOOST_KEYWORDS = setOf("PROWESS")
+    /** Keyword ability ids whose triggered/resolved effects produce P/T boosts with staticId=0. */
+    private val PT_BOOST_KEYWORDS = setOf(KeywordAbilityIds.PROWESS)
 
     fun build(bridge: GameBridge): (InstanceId, Long) -> Int? {
         val game: Game = bridge.getGame() ?: return { _, _ -> null }
@@ -33,13 +34,9 @@ object SourceAbilityResolverFactory {
             val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return@resolver null
 
             // Resolved pump effects (Prowess, Giant Growth): staticId = 0
-            // TODO(leyline-9n6): PROWESS BaseId unknown — once populated in
-            //   KEYWORD_BASE_IDS, this lookup becomes prod-functional. Today
-            //   it returns null in prod (same as pre-migration behavior since
-            //   ExposedCardRepository never populated the old keyword map).
             if (staticId == 0L) {
-                for (keyword in PT_BOOST_KEYWORDS) {
-                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, keyword)?.let { return@resolver it }
+                for (keywordId in PT_BOOST_KEYWORDS) {
+                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId)?.let { return@resolver it }
                 }
                 return@resolver null
             }

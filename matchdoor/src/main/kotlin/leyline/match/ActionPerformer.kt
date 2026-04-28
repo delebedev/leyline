@@ -7,7 +7,7 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
-import leyline.game.data.KEYWORD_BASE_IDS
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -341,8 +341,8 @@ class ActionPerformer(
         val info = bridge.cardRepository.findAbilityInfo(alternativeGrpId) ?: return null
         val targetAltCost =
             when (info.baseId) {
-                KEYWORD_BASE_IDS.getValue("WARP") -> AlternativeCost.Warp
-                KEYWORD_BASE_IDS.getValue("SNEAK") -> AlternativeCost.Sneak
+                KeywordAbilityIds.WARP -> AlternativeCost.Warp
+                KeywordAbilityIds.SNEAK -> AlternativeCost.Sneak
                 else -> return null
             }
 

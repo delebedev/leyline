@@ -18,6 +18,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.codes.ManaColorMapping
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityRegistry
 import leyline.game.state.GameBridge
@@ -438,10 +439,14 @@ object ActionMapper {
                 val cardData = bridge.cardRepository.findByGrpId(grpId)
                 val altCost = sa.alternativeCost
                 if (altCost != null) {
-                    // TODO(leyline-9n6): extend KEYWORD_BASE_IDS for Escape/Mayhem/etc.
-                    val altCostName = altCost.name.uppercase()
+                    // TODO(leyline-9n6): extend KeywordAbilityIds for Escape/Mayhem/etc.
+                    val keywordId = KeywordAbilityIds.fromForgeAltCostName(altCost.name)
                     val abilityGrpId =
-                        bridge.cardRepository.findKeywordAbilityGrpId(grpId, altCostName) ?: 0
+                        if (keywordId != null) {
+                            bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
+                        } else {
+                            0
+                        }
                     if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
                 }
 
@@ -1003,9 +1008,9 @@ object ActionMapper {
             // AbilityInfo is registered on InMemoryCardRepository.
             val payCostPairs: List<Pair<ManaColor, Int>> =
                 effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
-            val altCostKey = altCost.name.uppercase()
+            val keywordBaseId = KeywordAbilityIds.fromForgeAltCostName(altCost.name) ?: continue
             val alternativeGrpId =
-                cardRepository?.findAlternativeCostAbilityGrpId(grpId, altCostKey, payCostPairs)
+                cardRepository?.findAlternativeCostAbilityGrpId(grpId, keywordBaseId, payCostPairs)
                     ?: 0
             if (alternativeGrpId <= 0) continue
 
@@ -1056,12 +1061,14 @@ object ActionMapper {
             val cardData = cardDataLookup(grpId)
             val altCost = sa.alternativeCost
             if (altCost != null) {
-                val altCostName = altCost.name.uppercase()
-                // TODO(leyline-9n6): Warp/Sneak/Flashback resolve via KEYWORD_BASE_IDS;
-                //   Escape/Mayhem/Commander etc. need BaseIds populated once verified
-                //   against recordings. Until then those keywords return null here.
+                // TODO(leyline-9n6): extend KeywordAbilityIds for Escape/Mayhem/etc.
+                val keywordId = KeywordAbilityIds.fromForgeAltCostName(altCost.name)
                 val abilityGrpId =
-                    cardRepository?.findKeywordAbilityGrpId(grpId, altCostName) ?: 0
+                    if (keywordId != null) {
+                        cardRepository?.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
+                    } else {
+                        0
+                    }
                 if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
             }
 

@@ -80,34 +80,6 @@ object FixtureCardLoader {
         val data = CardDataDeriver.fromForgeCardWithIdentity(forgeCard, fixture.identity)
         repo.registerData(data, fixture.identity.name)
         TestCardFixtures.registerAbilityMetadata(repo, fixture.identity)
-        registerForgeKeywordMap(repo, forgeCard, fixture.identity)
-    }
-
-    /**
-     * Populate the test-only `keywordMaps` for keyword names Forge knows but
-     * Arena's `Abilities.BaseId` doesn't identify (PROWESS, MADNESS, etc.).
-     * Maps Forge's keyword list to the leading positions of the fixture's
-     * ability ids — the same assumption the pre-migration `AbilityIdDeriver`
-     * used. `findKeywordAbilityGrpId` keeps the BaseId path; this is the
-     * fallback consulted by `findTestKeywordAbilityGrpId` for keywords with
-     * no BaseId entry.
-     */
-    private fun registerForgeKeywordMap(
-        repo: InMemoryCardRepository,
-        forgeCard: forge.game.card.Card,
-        identity: TestCardFixtures.Identity,
-    ) {
-        val keywords = forgeCard.rules?.mainPart?.keywords?.toList() ?: return
-        if (keywords.isEmpty() || identity.abilities.isEmpty()) return
-        val map = mutableMapOf<String, Int>()
-        for ((i, kw) in keywords.withIndex()) {
-            if (i >= identity.abilities.size) break
-            // Forge keyword strings can have argument forms like "PROWESS:foo" or
-            // "WARP:1 G". InMemoryCardRepository's keyword resolver matches on
-            // uppercase prefix, so the raw form is fine.
-            map[kw.uppercase()] = identity.abilities[i].id
-        }
-        if (map.isNotEmpty()) repo.registerKeywordAbilityGrpIds(identity.grpId, map)
     }
 
     private fun loadForgeCard(cardName: String): Card {
