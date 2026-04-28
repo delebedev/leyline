@@ -373,6 +373,7 @@ object StateMapper {
         if (prev != null) {
             insertPreparedTransients(annotations, prev, snap, bridge)
             insertPlottedTransients(annotations, prev, snap, bridge)
+            insertForetellTransients(annotations, prev, snap, bridge)
         }
 
         // Stages 4-5 + persistent computation
@@ -876,6 +877,37 @@ object StateMapper {
     private fun plottedForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
         snap.objects.values
             .filter { it.plottedRole is PlottedRole.Plotted }
+            .map { it.forgeCardId }
+            .toSet()
+
+    /**
+     * Diff prev vs cur on the foretold set; emit FaceDown +
+     * SuppressedPowerAndToughness transient annotations when a card becomes
+     * foretold (hand → face-down exile), affixed to the live exile iid.
+     *
+     * Skipped on full-snapshot rebuild (caller's prev null guard) — these are
+     * face-state markers, not state-flag designations, and the client already
+     * understands face-down on a fresh state via the visibility flag.
+     */
+    private fun insertForetellTransients(
+        annotations: MutableList<AnnotationInfo>,
+        prev: GsmSnapshot,
+        cur: GsmSnapshot,
+        bridge: GameBridge,
+    ) {
+        val curForetold = foretoldForgeIds(cur)
+        val prevForetold = foretoldForgeIds(prev)
+
+        for (fid in curForetold - prevForetold) {
+            val iid = bridge.getOrAllocInstanceId(fid)
+            annotations.add(AnnotationBuilder.faceDown(iid))
+            annotations.add(AnnotationBuilder.suppressedPowerAndToughness(iid))
+        }
+    }
+
+    private fun foretoldForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
+        snap.objects.values
+            .filter { it.isForetold }
             .map { it.forgeCardId }
             .toSet()
 
