@@ -272,7 +272,16 @@ object SnapshotCapture {
         preparedLinkage: PreparedLinkage,
     ): CardSnapshot {
         val onBf = card.isInZone(ForgeZoneType.Battlefield)
-        val type = card.type
+        // Foretold cards are face-down — `card.type` reads from the FaceDown state
+        // (Creature 2/2). Owner-perspective output must show the Original state
+        // (Instant for Demon Bolt, etc.) so MTGA renders the real card and offers
+        // the foretell-cast UX. (Forge's FaceDown defaults are appropriate for
+        // morph / disguise on the battlefield, not for face-down-in-exile.)
+        val isForetoldCard = Foretell.isForetold(card)
+        val originalState =
+            if (isForetoldCard) card.getOriginalState(forge.card.CardStateName.Original) else null
+        val type = originalState?.type ?: card.type
+        val resolvedName = originalState?.name?.takeIf { it.isNotEmpty() } ?: card.name
 
         // Live card types as proto CardType ordinal ints (mirrors overlayCardTypes logic)
         val liveTypeNumbers =
@@ -315,15 +324,12 @@ object SnapshotCapture {
                 // spell card — resolve their grpId by name, bypassing the
                 // token-spawning-ability path which only fits engine-spawned tokens.
                 PreparedSpell.resolveCopyGrpId(card, bridge.cardRepository) ?: 0
-            } else if (Foretell.isForetold(card)) {
+            } else if (isForetoldCard) {
                 // Foretold cards are face-down in exile; Forge's `card.name` is "" while
                 // face-down. Look up the grpId via the Original state's name to bypass
                 // the strict resolveGrpId crash on empty names.
-                val originalName =
-                    card.getOriginalState(forge.card.CardStateName.Original)?.name
-                        ?: card.name
-                bridge.cardRepository.findGrpIdByName(originalName)
-                    ?: bridge.cardRepository.findGrpIdByNameAnyFace(originalName)
+                bridge.cardRepository.findGrpIdByName(resolvedName)
+                    ?: bridge.cardRepository.findGrpIdByNameAnyFace(resolvedName)
                     ?: 0
             } else {
                 ObjectMapper.resolveGrpId(card, bridge.cardRepository, instanceId = instanceId, bridge.tokenRegistry)
@@ -344,7 +350,7 @@ object SnapshotCapture {
 
         return CardSnapshot(
             forgeCardId = ForgeCardId(card.id),
-            name = card.name,
+            name = resolvedName,
             grpId = grpId,
             owner = ownerSeat,
             controller = controllerSeat,
