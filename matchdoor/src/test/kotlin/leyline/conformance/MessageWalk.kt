@@ -28,14 +28,12 @@ fun List<GREToClientMessage>.gameStateMessages(): Sequence<GameStateMessage> =
         .filter { it.hasGameStateMessage() }
         .map { it.gameStateMessage }
 
-fun List<GREToClientMessage>.allAnnotations(): Sequence<AnnotationInfo> =
-    gameStateMessages().flatMap { it.annotationsList.asSequence() }
+fun List<GREToClientMessage>.allAnnotations(): Sequence<AnnotationInfo> = gameStateMessages().flatMap { it.annotationsList.asSequence() }
 
 fun List<GREToClientMessage>.allPersistentAnnotations(): Sequence<AnnotationInfo> =
     gameStateMessages().flatMap { it.persistentAnnotationsList.asSequence() }
 
-fun List<GREToClientMessage>.allGameObjects(): Sequence<GameObjectInfo> =
-    gameStateMessages().flatMap { it.gameObjectsList.asSequence() }
+fun List<GREToClientMessage>.allGameObjects(): Sequence<GameObjectInfo> = gameStateMessages().flatMap { it.gameObjectsList.asSequence() }
 
 fun List<GREToClientMessage>.annotationsOfType(type: AnnotationType): List<AnnotationInfo> =
     allAnnotations().filter { type in it.typeList }.toList()

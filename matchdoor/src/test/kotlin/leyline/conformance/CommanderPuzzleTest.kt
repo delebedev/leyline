@@ -1,7 +1,6 @@
 package leyline.conformance
 
 import forge.game.GameType
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty

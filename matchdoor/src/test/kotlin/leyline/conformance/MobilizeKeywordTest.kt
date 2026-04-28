@@ -10,7 +10,6 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 /**
@@ -258,7 +257,8 @@ class MobilizeKeywordTest :
             distinctAbilities.size shouldBeGreaterThanOrEqual 2
 
             // At least two TriggeringObject pAnns (one per source).
-            post.persistentAnnotationsOfType(AnnotationType.TriggeringObject)
+            post
+                .persistentAnnotationsOfType(AnnotationType.TriggeringObject)
                 .size shouldBeGreaterThanOrEqual 2
 
             // Distinct TriggerHolder gameObjects — one per source-card resolution.
@@ -266,7 +266,8 @@ class MobilizeKeywordTest :
             // holder iid (e.g. if the holder forge id ever reverts to a
             // per-controller key).
             val holders =
-                post.allGameObjects()
+                post
+                    .allGameObjects()
                     .filter { it.type == GameObjectType.TriggerHolder }
                     .toList()
             val distinctHolderIids = holders.map { it.instanceId }.toSet()
@@ -293,7 +294,8 @@ class MobilizeKeywordTest :
 
             val post = h.messagesSince(snap)
             val sacrifice =
-                post.annotationsOfType(AnnotationType.ZoneTransfer_af5a)
+                post
+                    .annotationsOfType(AnnotationType.ZoneTransfer_af5a)
                     .filter { ann ->
                         ann.detailsList.any { d -> d.key == "category" && "Sacrifice" in d.valueStringList }
                     }
@@ -329,7 +331,8 @@ class MobilizeKeywordTest :
 
             val post = h.messagesSince(snap)
             val holders =
-                post.allGameObjects()
+                post
+                    .allGameObjects()
                     .filter { it.type == GameObjectType.TriggerHolder }
                     .toList()
 

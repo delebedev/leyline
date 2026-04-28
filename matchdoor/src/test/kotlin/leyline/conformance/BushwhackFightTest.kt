@@ -7,7 +7,6 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Regression for fix/bushwhack-fight-mode (bd leyline-xny).

@@ -110,7 +110,8 @@ class AttackerTapStateTest :
 
             // Find TappedUntappedPermanent for our attacker
             val tapAnnotation =
-                postAttack.annotationsOfType(AnnotationType.TappedUntappedPermanent)
+                postAttack
+                    .annotationsOfType(AnnotationType.TappedUntappedPermanent)
                     .firstOrNull { attackerIid in it.affectedIdsList }
 
             tapAnnotation.shouldNotBeNull()
