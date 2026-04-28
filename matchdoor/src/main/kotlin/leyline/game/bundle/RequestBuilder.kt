@@ -375,16 +375,28 @@ object RequestBuilder {
                 bridge.getOrAllocInstanceId(ForgeCardId(it)).value
             } ?: 0
 
+        // Non-mana cost selections are mandatory: pay exactly N. Some upstream
+        // call sites pass min=0 (Forge's "non-mandatory" flag, which doesn't
+        // apply to keyword-cost additional payment) — coerce to max so the
+        // client treats the picker as a fixed-N payment, not a variable range.
+        val maxSel = prompt.request.max.coerceAtLeast(prompt.request.min).coerceAtLeast(1)
+        val minSel = maxSel
         val selection =
             SelectNReq
                 .newBuilder()
-                .setMinSel(prompt.request.min)
-                .setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
+                .setMinSel(minSel)
+                .setMaxSel(maxSel)
                 .setContext(SelectionContext.NonManaPayment)
                 .setOptionContext(OptionContext.Payment)
                 .setListType(SelectionListType.Dynamic)
                 .setIdType(IdType.InstanceId_ab2c)
                 .setValidationType(SelectionValidationType.NonRepeatable)
+                // Canonical envelope for non-mana cost selection: client
+                // expects min/max weight extremes set explicitly (proto3
+                // defaults are 0, which the client treats as "no candidates
+                // selectable").
+                .setMinWeight(Int.MIN_VALUE)
+                .setMaxWeight(Int.MAX_VALUE)
 
         for (ref in prompt.request.candidateRefs) {
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
@@ -395,6 +407,10 @@ object RequestBuilder {
         val req =
             PayCostsReq
                 .newBuilder()
+                // paymentActions is required as an empty ActionsAvailableReq on the client.
+                // Without it, the picker renders but treats every card as
+                // non-selectable (greyed out).
+                .setPaymentActions(ActionsAvailableReq.newBuilder().build())
                 .setEffectCostReq(
                     EffectCostReq
                         .newBuilder()
