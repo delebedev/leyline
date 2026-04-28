@@ -302,6 +302,8 @@ object ActionMapper {
         }
 
         // --- Hand: non-battlefield activated abilities (Channel, Ninjutsu, etc.) ---
+        // Plot is intentionally NOT here — Plot's hand SA rides the Cast-with-alt-cost
+        // rail via [addHandAltCostCastActions] (mirroring Warp / Sneak).
         for (fid in hand) {
             val cardSnap = snap.objects[fid] ?: continue
             if (!cardSnap.hasNonManaActivatedAbilities) continue
@@ -627,6 +629,7 @@ object ActionMapper {
         }
 
         // Hand cards: activated abilities with non-battlefield activation zones (Channel, etc.)
+        // Plot is intentionally NOT here — see addHandAltCostCastActions for the Plot rail.
         // Client expects: instanceId + abilityGrpId + manaCost — no grpId/facetId.
         // Including grpId causes the client to render card text instead of ability text.
         if (checkLegality) {
@@ -985,10 +988,13 @@ object ActionMapper {
         cardRepository: CardRepository?,
         builder: ActionsAvailableReq.Builder,
     ) {
+        // getAllCastableAbilities now includes plot SAs (CardLookup.kt) so a single
+        // iteration covers Warp / Sneak / Plot.
         val castable = getAllCastableAbilities(card, player)
         for (sa in castable) {
             val altCost = sa.alternativeCost
-            if (altCost != AlternativeCost.Warp && altCost != AlternativeCost.Sneak) continue
+            val isPlotHandSA = sa.isPlotting
+            if (altCost != AlternativeCost.Warp && altCost != AlternativeCost.Sneak && !isPlotHandSA) continue
             val canPay =
                 try {
                     ComputerUtilMana.canPayManaCost(sa, player, 0, false)
@@ -998,12 +1004,12 @@ object ActionMapper {
             if (!canPay) continue
 
             val effectiveCost = computeEffectiveCost(sa, player)
-            // Resolve the per-card warp/sneak row by (BaseId match + mana-cost match)
+            // Resolve the per-card warp/sneak/plot row by (BaseId match + mana-cost match)
             // via the Arena DB Abilities table. Works in prod and in tests when
             // AbilityInfo is registered on InMemoryCardRepository.
             val payCostPairs: List<Pair<ManaColor, Int>> =
                 effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
-            val altCostKey = altCost.name.uppercase()
+            val altCostKey = if (isPlotHandSA) "PLOTTED" else altCost!!.name.uppercase()
             val alternativeGrpId =
                 cardRepository?.findAlternativeCostAbilityGrpId(grpId, altCostKey, payCostPairs)
                     ?: 0

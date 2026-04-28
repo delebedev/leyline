@@ -339,6 +339,18 @@ class ActionPerformer(
         val player = bridge.getPlayer(counters.seatId) ?: return null
         val card = findCard(game, cardId) ?: return null
         val info = bridge.cardRepository.findAbilityInfo(alternativeGrpId) ?: return null
+
+        // Plot's hand SA is an AbilityStatic with isPlotting==true, not an
+        // AlternativeCost — match it by sa.isPlotting instead. Warp / Sneak
+        // hand SAs use AlternativeCost. Plot SA isn't in card.getSpells() (the
+        // basis of getAllCastableAbilities) — search card.spellAbilities directly.
+        if (info.baseId == KEYWORD_BASE_IDS["PLOTTED"]) {
+            val combined = card.spellAbilities + getAllCastableAbilities(card, player)
+            return combined
+                .withIndex()
+                .firstOrNull { (_, sa) -> sa.isPlotting }?.index
+        }
+
         val targetAltCost =
             when (info.baseId) {
                 KEYWORD_BASE_IDS.getValue("WARP") -> AlternativeCost.Warp
