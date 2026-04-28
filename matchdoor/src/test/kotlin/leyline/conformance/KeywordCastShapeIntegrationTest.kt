@@ -1,7 +1,6 @@
 package leyline.conformance
 
 import forge.game.zone.ZoneType
-import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -95,8 +94,7 @@ class KeywordCastShapeIntegrationTest :
 // differential and only emit in the GSM that introduced them.
 // ──────────────────────────────────────────────────────────────────────────
 
-private fun List<GREToClientMessage>.gsms() =
-    mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+private fun List<GREToClientMessage>.gsms() = mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
 
 private fun List<GREToClientMessage>.persistentAnnotations(type: AnnotationType): List<AnnotationInfo> =
     gsms().flatMap { it.persistentAnnotationsList }.filter { it.typeList.contains(type) }.distinctBy { it.id }

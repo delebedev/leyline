@@ -361,7 +361,9 @@ object ObjectMapper {
         // Foretold cards are face-down in exile — Forge's `card.name` is "" while
         // face-down, which would crash the strict resolver. Look up via the
         // Original state's name (the underlying card identity) instead.
-        if (leyline.game.snapshot.Foretell.isForetold(card)) {
+        if (leyline.game.snapshot.Foretell
+                .isForetold(card)
+        ) {
             val originalName =
                 card.getOriginalState(forge.card.CardStateName.Original)?.name ?: card.name
             return cards.findGrpIdByName(originalName)

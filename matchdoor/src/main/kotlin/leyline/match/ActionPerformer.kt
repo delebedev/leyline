@@ -350,7 +350,8 @@ class ActionPerformer(
         ) {
             return getAllCastableAbilities(card, player)
                 .withIndex()
-                .firstOrNull { (_, sa) -> sa.alternativeCost == AlternativeCost.Plotted }?.index
+                .firstOrNull { (_, sa) -> sa.alternativeCost == AlternativeCost.Plotted }
+                ?.index
         }
 
         val info = bridge.cardRepository.findAbilityInfo(alternativeGrpId) ?: return null
@@ -363,7 +364,8 @@ class ActionPerformer(
         if (info.baseId == KEYWORD_BASE_IDS["PLOTTED"]) {
             return getAllCastableAbilities(card, player)
                 .withIndex()
-                .firstOrNull { (_, sa) -> sa.isPlotting }?.index
+                .firstOrNull { (_, sa) -> sa.isPlotting }
+                ?.index
         }
         if (info.baseId == KEYWORD_BASE_IDS["FORETELL"]) {
             // Foretell has two SA flavors:

@@ -157,9 +157,14 @@ class DisturbTest :
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Galedrifter", human, ZoneType.Graveyard)
                 }
-            val card = game.humanPlayer.getZone(ZoneType.Graveyard).cards.first { it.name == "Galedrifter" }
-            val waildrifterGrpId = b.cardRepository.findGrpIdByName("Waildrifter")
-                ?: leyline.conformance.TestCardRegistry.ensureCardRegistered("Waildrifter")
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Graveyard)
+                    .cards
+                    .first { it.name == "Galedrifter" }
+            val waildrifterGrpId =
+                b.cardRepository.findGrpIdByName("Waildrifter")
+                    ?: leyline.conformance.TestCardRegistry.ensureCardRegistered("Waildrifter")
             val othersideGrpId = ObjectMapper.resolveOthersideGrpId(card, b.cardRepository)
             othersideGrpId shouldBeGreaterThan 0
             othersideGrpId shouldBe waildrifterGrpId

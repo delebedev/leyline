@@ -384,7 +384,10 @@ object RequestBuilder {
         // TODO: when a "pay up to N" cost arrives (e.g. variable additional
         // costs on activated abilities), thread a `mandatory: Boolean` flag
         // through call sites so this coercion can opt out.
-        val maxSel = prompt.request.max.coerceAtLeast(prompt.request.min).coerceAtLeast(1)
+        val maxSel =
+            prompt.request.max
+                .coerceAtLeast(prompt.request.min)
+                .coerceAtLeast(1)
         val minSel = maxSel
         val selection =
             SelectNReq

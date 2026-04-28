@@ -17,7 +17,6 @@ import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
 import leyline.game.InMemoryCardRepository
 import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.ObjectMapper
 import leyline.game.snapshot.SnapshotCapture
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
