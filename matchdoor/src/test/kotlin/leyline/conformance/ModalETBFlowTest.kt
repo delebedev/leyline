@@ -42,9 +42,7 @@ class ModalETBFlowTest :
 
         // Charming Prince modal ability ids — match `charming_prince.yaml` fixture.
         val princeAbilityGrpId = 136341
-        val princeScryModeGrpId = 136338
         val princeLifeModeGrpId = 26167
-        val princeFlickerModeGrpId = 136340
 
         var harness: MatchFlowHarness? = null
 

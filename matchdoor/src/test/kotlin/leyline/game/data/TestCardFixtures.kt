@@ -108,70 +108,82 @@ object TestCardFixtures {
     }
 
     private fun resolveResourceDir(): Path {
-        val url = Thread.currentThread().contextClassLoader
-            .getResource(DEFAULT_RESOURCE_DIR)
-            ?: error("Resource directory '$DEFAULT_RESOURCE_DIR' not on classpath")
+        val url =
+            Thread
+                .currentThread()
+                .contextClassLoader
+                .getResource(DEFAULT_RESOURCE_DIR)
+                ?: error("Resource directory '$DEFAULT_RESOURCE_DIR' not on classpath")
         return Paths.get(url.toURI())
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private fun parseFile(path: Path): Fixture {
-        return try {
-            val raw = Files.newBufferedReader(path).use { Yaml().load<Map<String, Any?>>(it) }
-                ?: error("file is empty")
-
-            val identity = Identity(
-                name = raw.requireField<String>("name"),
-                grpId = raw.requireField<Number>("grpId").toInt(),
-                titleId = raw.requireField<Number>("titleId").toInt(),
-                expansionCode = raw["expansionCode"] as String? ?: "",
-                abilities = (raw["abilities"] as List<*>? ?: emptyList<Any>()).mapIndexed { i, entry ->
-                    val m = entry as Map<String, Any?>
-                    Identity.Ability(
-                        id = (m["id"] as Number?)?.toInt() ?: error("abilities[$i].id missing"),
-                        textId = (m["textId"] as Number?)?.toInt() ?: error("abilities[$i].textId missing"),
-                        category = (m["category"] as Number?)?.toInt() ?: error("abilities[$i].category missing"),
-                        baseId = (m["baseId"] as Number?)?.toInt() ?: 0,
-                        activationMana = parseManaCost(m["mana"] as String? ?: ""),
-                        modalChildren = (m["modalChildren"] as List<*>? ?: emptyList<Any>())
-                            .map { (it as Number).toInt() },
-                    )
-                },
-                tokens = (raw["tokens"] as Map<*, *>? ?: emptyMap<Any, Any>())
-                    .entries.associate { (k, v) ->
-                        val key = when (k) {
-                            is Number -> k.toInt()
-                            is String -> k.toInt()
-                            else -> error("token key '$k' is neither Number nor String")
-                        }
-                        key to (v as Number).toInt()
-                    },
-                linkedFaces = (raw["linkedFaces"] as List<*>? ?: emptyList<Any>())
-                    .map { (it as Number).toInt() },
-                isToken = raw["isToken"] as Boolean? ?: false,
-                isPrimaryCard = raw["isPrimaryCard"] as Boolean? ?: true,
-            )
-
-            // Full shape includes Forge-derivable rules fields. Slim omits them.
-            val hasRulesFields = listOf("power", "toughness", "colors", "types", "subtypes", "supertypes", "manaCost")
-                .any { raw.containsKey(it) }
-            val rules = if (hasRulesFields) {
-                Rules(
-                    power = raw["power"] as String? ?: "",
-                    toughness = raw["toughness"] as String? ?: "",
-                    colors = (raw["colors"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
-                    types = (raw["types"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
-                    subtypes = (raw["subtypes"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
-                    supertypes = (raw["supertypes"] as List<*>? ?: emptyList<Any>()).map { (it as Number).toInt() },
-                    manaCost = parseManaCost(raw["manaCost"] as String? ?: ""),
-                )
-            } else {
-                null
-            }
-            Fixture(identity, rules)
+    private fun parseFile(path: Path): Fixture =
+        try {
+            val raw =
+                Files.newBufferedReader(path).use { Yaml().load<Map<String, Any?>>(it) }
+                    ?: error("file is empty")
+            Fixture(parseIdentity(raw), parseRules(raw))
         } catch (e: Exception) {
             throw IllegalStateException("Failed to parse fixture $path: ${e.message}", e)
         }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseIdentity(raw: Map<String, Any?>): Identity =
+        Identity(
+            name = raw.requireField<String>("name"),
+            grpId = raw.requireField<Number>("grpId").toInt(),
+            titleId = raw.requireField<Number>("titleId").toInt(),
+            expansionCode = (raw["expansionCode"] as? String).orEmpty(),
+            abilities =
+                (raw["abilities"] as? List<*>).orEmpty().mapIndexed { i, entry ->
+                    parseAbility(i, entry as Map<String, Any?>)
+                },
+            tokens = parseTokens(raw["tokens"] as? Map<*, *>),
+            linkedFaces = (raw["linkedFaces"] as? List<*>).orEmpty().map { (it as Number).toInt() },
+            isToken = (raw["isToken"] as? Boolean) ?: false,
+            isPrimaryCard = (raw["isPrimaryCard"] as? Boolean) ?: true,
+        )
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseAbility(
+        i: Int,
+        m: Map<String, Any?>,
+    ): Identity.Ability =
+        Identity.Ability(
+            id = (m["id"] as? Number)?.toInt() ?: error("abilities[$i].id missing"),
+            textId = (m["textId"] as? Number)?.toInt() ?: error("abilities[$i].textId missing"),
+            category = (m["category"] as? Number)?.toInt() ?: error("abilities[$i].category missing"),
+            baseId = (m["baseId"] as? Number)?.toInt() ?: 0,
+            activationMana = parseManaCost((m["mana"] as? String).orEmpty()),
+            modalChildren = (m["modalChildren"] as? List<*>).orEmpty().map { (it as Number).toInt() },
+        )
+
+    private fun parseTokens(raw: Map<*, *>?): Map<Int, Int> =
+        raw.orEmpty().entries.associate { (k, v) ->
+            val key =
+                when (k) {
+                    is Number -> k.toInt()
+                    is String -> k.toInt()
+                    else -> error("token key '$k' is neither Number nor String")
+                }
+            key to (v as Number).toInt()
+        }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseRules(raw: Map<String, Any?>): Rules? {
+        val hasRulesFields =
+            listOf("power", "toughness", "colors", "types", "subtypes", "supertypes", "manaCost")
+                .any { raw.containsKey(it) }
+        if (!hasRulesFields) return null
+        return Rules(
+            power = (raw["power"] as? String).orEmpty(),
+            toughness = (raw["toughness"] as? String).orEmpty(),
+            colors = (raw["colors"] as? List<*>).orEmpty().map { (it as Number).toInt() },
+            types = (raw["types"] as? List<*>).orEmpty().map { (it as Number).toInt() },
+            subtypes = (raw["subtypes"] as? List<*>).orEmpty().map { (it as Number).toInt() },
+            supertypes = (raw["supertypes"] as? List<*>).orEmpty().map { (it as Number).toInt() },
+            manaCost = parseManaCost((raw["manaCost"] as? String).orEmpty()),
+        )
     }
 
     private inline fun <reified T> Map<String, Any?>.requireField(name: String): T {

@@ -1,7 +1,6 @@
 package leyline.conformance
 
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.game.InMemoryCardRepository
@@ -23,16 +22,16 @@ class FixtureCardLoaderTest :
             val repo = InMemoryCardRepository()
             FixtureCardLoader.ensureCardRegistered(repo, "Ratcatcher Trainee")
 
-            repo.findGrpIdByName("Ratcatcher Trainee").shouldNotBeNull()
-            repo.findGrpIdByName("Pest Problem").shouldNotBeNull()
+            repo.findGrpIdByName("Ratcatcher Trainee") shouldBe 86845
+            repo.findGrpIdByName("Pest Problem") shouldBe 86846
         }
 
         test("registers DFC backside face alongside primary") {
             val repo = InMemoryCardRepository()
             FixtureCardLoader.ensureCardRegistered(repo, "Delver of Secrets")
 
-            repo.findGrpIdByName("Delver of Secrets").shouldNotBeNull()
-            repo.findGrpIdByName("Insectile Aberration").shouldNotBeNull()
+            repo.findGrpIdByName("Delver of Secrets") shouldBe 78378
+            repo.findGrpIdByName("Insectile Aberration") shouldBe 78379
         }
 
         // Split-card closure coverage is deferred — the client's `A /// B` naming
@@ -44,7 +43,7 @@ class FixtureCardLoaderTest :
             val repo = InMemoryCardRepository()
             FixtureCardLoader.ensureCardRegistered(repo, "Grizzly Bears")
 
-            repo.findGrpIdByName("Grizzly Bears").shouldNotBeNull()
+            repo.findGrpIdByName("Grizzly Bears") shouldBe 79334
             repo.registeredCount shouldBe 1
         }
 
@@ -52,8 +51,8 @@ class FixtureCardLoaderTest :
             val repo = InMemoryCardRepository()
             FixtureCardLoader.ensureCardRegistered(repo, "Concealing Curtains")
 
-            repo.findGrpIdByName("Concealing Curtains").shouldNotBeNull()
-            repo.findGrpIdByName("Revealing Eye").shouldNotBeNull()
+            repo.findGrpIdByName("Concealing Curtains") shouldBe 78895
+            repo.findGrpIdByName("Revealing Eye") shouldBe 78896
         }
 
         test("returns 0 for synthetic engine names absent from both Forge and fixtures") {

@@ -38,7 +38,10 @@ object FixtureCardLoader {
      * specs would race on it without this lock.
      */
     @Synchronized
-    fun ensureCardRegistered(repo: InMemoryCardRepository, cardName: String): Int {
+    fun ensureCardRegistered(
+        repo: InMemoryCardRepository,
+        cardName: String,
+    ): Int {
         repo.findGrpIdByName(cardName)?.let { return it }
 
         val closure = findClosure(cardName)
@@ -90,12 +93,16 @@ object FixtureCardLoader {
     }
 
     /** Build CardData and register a single fixture. Slim ⇒ thread Forge for rules. */
-    private fun register(repo: InMemoryCardRepository, fixture: TestCardFixtures.Fixture) {
-        val data = if (fixture.rules != null) {
-            buildFromFixtureRules(fixture)
-        } else {
-            CardDataDeriver.fromForgeCardWithIdentity(loadForgeCard(fixture.identity.name), fixture.identity)
-        }
+    private fun register(
+        repo: InMemoryCardRepository,
+        fixture: TestCardFixtures.Fixture,
+    ) {
+        val data =
+            if (fixture.rules != null) {
+                buildFromFixtureRules(fixture)
+            } else {
+                CardDataDeriver.fromForgeCardWithIdentity(loadForgeCard(fixture.identity.name), fixture.identity)
+            }
         repo.registerData(data, fixture.identity.name)
         registerAbilityMetadata(repo, fixture.identity)
     }
@@ -147,18 +154,20 @@ object FixtureCardLoader {
     }
 
     private fun loadForgeCard(cardName: String): Card {
-        val db = FModel.getMagicDb()?.commonCards
-            ?: error("Forge card DB not initialized — call GameBootstrap.initializeCardDatabase first")
-        val paperCard = db.getCard(cardName)
-            ?: run {
-                forge.StaticData.instance().attemptToLoadCard(cardName)
-                db.getCard(cardName)
-            }
-            ?: error(
-                "Slim fixture for '$cardName' but Forge has no entry. " +
-                    "Either the fixture should be Full (regenerate with `card-fixtures emit`) " +
-                    "or the card name has drifted between the client and Forge.",
-            )
+        val db =
+            FModel.getMagicDb()?.commonCards
+                ?: error("Forge card DB not initialized — call GameBootstrap.initializeCardDatabase first")
+        val paperCard =
+            db.getCard(cardName)
+                ?: run {
+                    forge.StaticData.instance().attemptToLoadCard(cardName)
+                    db.getCard(cardName)
+                }
+                ?: error(
+                    "Slim fixture for '$cardName' but Forge has no entry. " +
+                        "Either the fixture should be Full (regenerate with `card-fixtures emit`) " +
+                        "or the card name has drifted between the client and Forge.",
+                )
         return Card.fromPaperCard(paperCard, null)
     }
 }

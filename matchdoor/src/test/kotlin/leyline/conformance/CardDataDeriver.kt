@@ -36,8 +36,9 @@ object CardDataDeriver {
         card: Card,
         cardName: String,
     ): CardData {
-        val identity = TestCardFixtures.findFixture(cardName)?.identity
-            ?: error("No fixture for '$cardName' under matchdoor/src/test/resources/test-cards/.")
+        val identity =
+            TestCardFixtures.findFixture(cardName)?.identity
+                ?: error("No fixture for '$cardName' under matchdoor/src/test/resources/test-cards/.")
         return fromForgeCardWithIdentity(card, identity)
     }
 

@@ -1,19 +1,16 @@
 package leyline.conformance
 
 import leyline.game.InMemoryCardRepository
-import org.slf4j.LoggerFactory
 
 /**
  * Registers test deck cards in the shared [InMemoryCardRepository].
  *
- * Routes through [FixtureCardLoader]: Arena identity (grpId, ability ids,
+ * Routes through [FixtureCardLoader]: client identity (grpId, ability ids,
  * tokens, linked faces) comes from per-card YAML fixtures under
  * `matchdoor/src/test/resources/test-cards/`; rules data (P/T, types, mana,
  * etc.) is derived from Forge's `CardRules` at test startup. No SQLite needed.
  */
 object TestCardRegistry {
-    private val log = LoggerFactory.getLogger(TestCardRegistry::class.java)
-
     /** Shared repository for all tests. */
     val repo = InMemoryCardRepository()
 
@@ -33,8 +30,7 @@ object TestCardRegistry {
      * [FixtureCardLoader.ensureCardRegistered] (which owns the
      * Forge-static-data mutex).
      */
-    fun ensureCardRegistered(cardName: String): Int =
-        FixtureCardLoader.ensureCardRegistered(repo, cardName)
+    fun ensureCardRegistered(cardName: String): Int = FixtureCardLoader.ensureCardRegistered(repo, cardName)
 
     /**
      * Bulk-register all card names from a deck list string.
