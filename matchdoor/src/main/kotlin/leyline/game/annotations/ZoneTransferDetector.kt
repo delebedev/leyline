@@ -8,6 +8,7 @@ import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
+import leyline.game.snapshot.Foretell
 import leyline.game.state.GameBridge
 import leyline.game.state.InstanceIdRegistry
 import org.slf4j.LoggerFactory
@@ -168,6 +169,9 @@ object ZoneTransferDetector {
                     val card = bridge.getGame()?.let { findCard(it, fid) }
                     if (card != null) bridge.cardRepository.findGrpIdByName(card.name) ?: 0 else 0
                 },
+                isForetoldLookup = { fid ->
+                    bridge.getGame()?.let { findCard(it, fid) }?.let { Foretell.isForetold(it) } ?: false
+                },
             )
         return result.copy(idReallocations = plannedReallocs.toList())
     }
@@ -193,6 +197,11 @@ object ZoneTransferDetector {
         manaAbilityGrpIdResolver: (ForgeCardId) -> Int = { 0 },
         /** Resolve grpId for a source card's ForgeCardId (for stack ability resolution annotations). */
         grpIdResolver: (ForgeCardId) -> Int = { 0 },
+        /** True when [forgeCardId] is currently foretold (in Exile with Card.foretold==true).
+         *  Used to override Hand→Exile category from `Exile` to `Foretell` for the
+         *  foretell-action transfer (Forge fires no dedicated GameEvent we can dispatch on
+         *  — `GameEventCardForetold` carries only the activating player). */
+        isForetoldLookup: (ForgeCardId) -> Boolean = { false },
     ): TransferResult {
         val patchedObjects = gameObjects.toMutableList()
         val patchedZones = zones.toMutableList()
@@ -205,12 +214,25 @@ object ZoneTransferDetector {
             val prevZone = previousZones[obj.instanceId]
             if (prevZone != null && prevZone != obj.zoneId) {
                 val forgeCardId = forgeIdLookup(InstanceId(obj.instanceId))
-                val category =
+                val baseCategory =
                     if (forgeCardId != null && events.isNotEmpty()) {
                         TransferCategoryResolver.categoryFromEvents(forgeCardId, events)
                             ?: inferCategory(obj, prevZone, obj.zoneId)
                     } else {
                         inferCategory(obj, prevZone, obj.zoneId)
+                    }
+                // Foretell override: a Hand→Exile transfer where the destination card
+                // is foretold (Card.foretold==true && Card.isInZone(Exile)) is the
+                // foretell action, not a generic Exile. Forge fires no card-specific
+                // event for this — we detect it via the post-transfer card state.
+                val isHandToExile =
+                    (prevZone == ZoneIds.P1_HAND || prevZone == ZoneIds.P2_HAND) &&
+                        obj.zoneId == ZoneIds.EXILE
+                val category =
+                    if (isHandToExile && forgeCardId != null && isForetoldLookup(forgeCardId)) {
+                        TransferCategory.Foretell
+                    } else {
+                        baseCategory
                     }
                 // Allocate new instanceId for zone transfer (protocol requires this).
                 // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
