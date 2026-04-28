@@ -384,6 +384,7 @@ class ActionPerformer(
                 KEYWORD_BASE_IDS.getValue("WARP") -> AlternativeCost.Warp
                 KEYWORD_BASE_IDS.getValue("SNEAK") -> AlternativeCost.Sneak
                 KEYWORD_BASE_IDS.getValue("DISTURB") -> AlternativeCost.Disturb
+                KEYWORD_BASE_IDS.getValue("ESCAPE") -> AlternativeCost.Escape
                 else -> return null
             }
 
