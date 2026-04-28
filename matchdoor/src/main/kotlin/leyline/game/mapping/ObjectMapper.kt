@@ -264,6 +264,12 @@ object ObjectMapper {
     }
 
     /** Resolve the other face's grpId for DFC cards. Returns 0 for non-DFC.
+     *
+     *  Scope: **transform DFCs + meld pairs only** — Forge's `Card.isDoubleFaced`
+     *  predicate is `isTransformable() || isMeldable()`. MDFC, Adventure, Split,
+     *  Flip, Saga, Battle, and Room cards do NOT enter this branch; their grpId
+     *  resolution goes through [resolveGrpId]'s primary/any-face fallback chain.
+     *
      *  Back-face cards (Luminous Phantom, Waildrifter, etc.) have IsPrimaryCard=0
      *  in the Arena DB, so [findGrpIdByName]'s primary-only filter misses them.
      *  Fall back to [findGrpIdByNameAnyFace] which lifts that filter. */

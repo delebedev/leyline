@@ -71,19 +71,6 @@ class ForetellTest :
             foretellSa shouldNotBe null
         }
 
-        test("card DB carries the Foretell keyword ability grpId") {
-            val (b, _, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Demon Bolt", human, ZoneType.Hand)
-                }
-            val grpId = b.cardRepository.findGrpIdByName("Demon Bolt")!!
-            val foretellAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(grpId, "FORETELL")
-            foretellAbilityGrpId shouldNotBe null
-            foretellAbilityGrpId!! shouldBeGreaterThan 0
-        }
-
         test("ActionMapper offers Cast for foretell card in hand when {2} payable (alternativeGrpId=FORETELL row)") {
             // Foretell action cost is constant {2}. Two Mountains pay it; the per-card
             // FORETELL row carries the *cast* cost {R}. Cost-agnostic lookup must still

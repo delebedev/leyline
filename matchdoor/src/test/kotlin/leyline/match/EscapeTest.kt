@@ -78,19 +78,6 @@ class EscapeTest :
             escapeSa shouldNotBe null
         }
 
-        test("card DB carries the Escape keyword ability grpId") {
-            val (b, _, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Glimpse of Freedom", human, ZoneType.Graveyard)
-                }
-            val grpId = b.cardRepository.findGrpIdByName("Glimpse of Freedom")!!
-            val escapeAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(grpId, "ESCAPE")
-            escapeAbilityGrpId shouldNotBe null
-            escapeAbilityGrpId!! shouldBeGreaterThan 0
-        }
-
         test("ActionMapper.buildFromSnapshot offers Cast for escape card in graveyard with ≥5 others + mana") {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->

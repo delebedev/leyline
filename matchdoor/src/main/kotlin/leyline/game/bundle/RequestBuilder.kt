@@ -375,10 +375,15 @@ object RequestBuilder {
                 bridge.getOrAllocInstanceId(ForgeCardId(it)).value
             } ?: 0
 
-        // Non-mana cost selections are mandatory: pay exactly N. Some upstream
-        // call sites pass min=0 (Forge's "non-mandatory" flag, which doesn't
-        // apply to keyword-cost additional payment) — coerce to max so the
-        // client treats the picker as a fixed-N payment, not a variable range.
+        // Non-mana cost selections are assumed mandatory: pay exactly N.
+        // Some upstream call sites pass min=0 (Forge's "non-mandatory" flag,
+        // which doesn't apply to keyword-cost additional payment) — coerce to
+        // max so the client treats the picker as a fixed-N payment, not a
+        // variable range.
+        //
+        // TODO: when a "pay up to N" cost arrives (e.g. variable additional
+        // costs on activated abilities), thread a `mandatory: Boolean` flag
+        // through call sites so this coercion can opt out.
         val maxSel = prompt.request.max.coerceAtLeast(prompt.request.min).coerceAtLeast(1)
         val minSel = maxSel
         val selection =

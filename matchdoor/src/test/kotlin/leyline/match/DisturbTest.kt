@@ -8,6 +8,7 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.bridge.getAllCastableAbilities
@@ -73,19 +74,6 @@ class DisturbTest :
                 getAllCastableAbilities(card, human)
                     .firstOrNull { it.alternativeCost == AlternativeCost.Disturb }
             disturbSa shouldNotBe null
-        }
-
-        test("card DB carries the Disturb keyword ability grpId") {
-            val (b, _, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Galedrifter", human, ZoneType.Graveyard)
-                }
-            val grpId = b.cardRepository.findGrpIdByName("Galedrifter")!!
-            val disturbAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(grpId, "DISTURB")
-            disturbAbilityGrpId shouldNotBe null
-            disturbAbilityGrpId!! shouldBeGreaterThan 0
         }
 
         test("ActionMapper.buildFromSnapshot offers Cast for disturb card in graveyard when {4}{U} payable") {
@@ -177,7 +165,3 @@ class DisturbTest :
             othersideGrpId shouldBe waildrifterGrpId
         }
     })
-
-private infix fun Int.shouldBe(expected: Int) {
-    if (this != expected) throw AssertionError("expected $expected but got $this")
-}

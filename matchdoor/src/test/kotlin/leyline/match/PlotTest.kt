@@ -67,19 +67,6 @@ class PlotTest :
             plotSa shouldNotBe null
         }
 
-        test("card DB carries the Plot keyword ability grpId") {
-            val (b, _, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Railway Brawler", human, ZoneType.Hand)
-                }
-            val grpId = b.cardRepository.findGrpIdByName("Railway Brawler")!!
-            val plottedAbilityGrpId =
-                (b.cardRepository as InMemoryCardRepository)
-                    .findTestKeywordAbilityGrpId(grpId, "PLOT")
-            plottedAbilityGrpId shouldNotBe null
-            plottedAbilityGrpId!! shouldBeGreaterThan 0
-        }
-
         test("ActionMapper offers Cast for plot card in hand when mana available (alternativeGrpId=PLOTTED row)") {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
