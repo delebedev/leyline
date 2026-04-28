@@ -355,15 +355,28 @@ class ActionPerformer(
 
         val info = bridge.cardRepository.findAbilityInfo(alternativeGrpId) ?: return null
 
-        // Plot's hand SA is an AbilityStatic with isPlotting==true, not an
-        // AlternativeCost — match it by sa.isPlotting instead. Warp / Sneak
-        // hand SAs use AlternativeCost. Plot SA isn't in card.getSpells() (the
-        // basis of getAllCastableAbilities) — search card.spellAbilities directly.
+        // Plot and Foretell hand SAs are AbilityStatic with isPlotting /
+        // isForetelling==true, not an AlternativeCost — match them by the
+        // keyword-specific predicate. Warp / Sneak hand SAs use AlternativeCost.
+        // Plot/Foretell SAs are appended into getAllCastableAbilities by
+        // CardLookup, so the index is well-defined for the cast pathway.
         if (info.baseId == KEYWORD_BASE_IDS["PLOTTED"]) {
-            val combined = card.spellAbilities + getAllCastableAbilities(card, player)
-            return combined
+            return getAllCastableAbilities(card, player)
                 .withIndex()
                 .firstOrNull { (_, sa) -> sa.isPlotting }?.index
+        }
+        if (info.baseId == KEYWORD_BASE_IDS["FORETELL"]) {
+            // Foretell has two SA flavors:
+            //   - hand activation:  sa.isForetelling == true (AbilityStatic, no AltCost)
+            //   - cast from exile:  sa.alternativeCost == AlternativeCost.Foretold
+            // The action's alternativeGrpId points to the same per-card foretell row
+            // for both — disambiguate by which SA is currently surfaced (canPlay-
+            // filtered getAllCastableAbilities only returns one at a time per zone).
+            return getAllCastableAbilities(card, player)
+                .withIndex()
+                .firstOrNull { (_, sa) ->
+                    sa.isForetelling || sa.alternativeCost == AlternativeCost.Foretold
+                }?.index
         }
 
         val targetAltCost =

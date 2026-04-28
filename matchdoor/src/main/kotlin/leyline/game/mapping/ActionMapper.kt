@@ -1010,13 +1010,13 @@ object ActionMapper {
         cardRepository: CardRepository?,
         builder: ActionsAvailableReq.Builder,
     ) {
-        // getAllCastableAbilities now includes plot SAs (CardLookup.kt) so a single
-        // iteration covers Warp / Sneak / Plot.
+        // getAllCastableAbilities now includes plot + foretell SAs (CardLookup.kt) so
+        // a single iteration covers Warp / Sneak / Plot / Foretell.
         val castable = getAllCastableAbilities(card, player)
         for (sa in castable) {
             val altCost = sa.alternativeCost
-            val isPlotHandSA = sa.isPlotting
-            if (altCost != AlternativeCost.Warp && altCost != AlternativeCost.Sneak && !isPlotHandSA) continue
+            val isKeywordHandSA = sa.isPlotting || sa.isForetelling
+            if (altCost != AlternativeCost.Warp && altCost != AlternativeCost.Sneak && !isKeywordHandSA) continue
             val canPay =
                 try {
                     ComputerUtilMana.canPayManaCost(sa, player, 0, false)
@@ -1026,12 +1026,17 @@ object ActionMapper {
             if (!canPay) continue
 
             val effectiveCost = computeEffectiveCost(sa, player)
-            // Resolve the per-card warp/sneak/plot row by (BaseId match + mana-cost match)
-            // via the Arena DB Abilities table. Works in prod and in tests when
-            // AbilityInfo is registered on InMemoryCardRepository.
+            // Resolve the per-card warp/sneak/plot/foretell row by (BaseId match +
+            // mana-cost match) via the Arena DB Abilities table. Works in prod and
+            // in tests when AbilityInfo is registered on InMemoryCardRepository.
             val payCostPairs: List<Pair<ManaColor, Int>> =
                 effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
-            val altCostKey = if (isPlotHandSA) "PLOTTED" else altCost!!.name.uppercase()
+            val altCostKey =
+                when {
+                    sa.isPlotting -> "PLOTTED"
+                    sa.isForetelling -> "FORETELL"
+                    else -> altCost!!.name.uppercase()
+                }
             val alternativeGrpId =
                 cardRepository?.findAlternativeCostAbilityGrpId(grpId, altCostKey, payCostPairs)
                     ?: 0

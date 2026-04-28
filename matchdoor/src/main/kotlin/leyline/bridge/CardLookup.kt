@@ -87,12 +87,13 @@ internal fun getAllCastableAbilities(
         expanded.addAll(other)
     }
 
-    // Plot's hand SA is added by Forge as a KeywordInstance ability (CardFactoryUtil
-    // K:Plot:) and isn't returned by card.getSpells() — append directly from
-    // card.spellAbilities so it's reachable through the same index space the cast
-    // pathway uses (action emit, alt-cost resolution, SpellExecutor.castSpell).
-    val plotSAs = card.spellAbilities.filter { it.isPlotting }
-    expanded.addAll(plotSAs)
+    // Plot and Foretell's hand SAs are added by Forge as KeywordInstance abilities
+    // (CardFactoryUtil K:Plot: / K:Foretell:) and aren't returned by card.getSpells()
+    // — append directly from card.spellAbilities so they're reachable through the
+    // same index space the cast pathway uses (action emit, alt-cost resolution,
+    // SpellExecutor.castSpell).
+    val keywordHandSAs = card.spellAbilities.filter { it.isPlotting || it.isForetelling }
+    expanded.addAll(keywordHandSAs)
 
     return expanded.filter { it.canPlay() && it.canCastTiming(player) }
 }
