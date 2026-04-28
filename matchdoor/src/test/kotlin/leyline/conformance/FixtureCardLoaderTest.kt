@@ -35,9 +35,9 @@ class FixtureCardLoaderTest :
             repo.findGrpIdByName("Insectile Aberration").shouldNotBeNull()
         }
 
-        // Split-card closure coverage is deferred — Arena's `A /// B` naming
+        // Split-card closure coverage is deferred — the client's `A /// B` naming
         // disagrees with Forge's `A // B`, and the fixture inventory has no
-        // Arena split card. TODO(card-fixtures): pick one, emit a fixture,
+        // client split card. TODO(card-fixtures): pick one, emit a fixture,
         // add the assertion here.
 
         test("plain card has no alternate faces registered") {

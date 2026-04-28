@@ -10,7 +10,7 @@ import kotlin.io.path.isRegularFile
 
 /**
  * Per-card YAML fixture parser and index. Reads each YAML file under the
- * test resources directory `test-cards` into a [Fixture] (Arena identity
+ * test resources directory `test-cards` into a [Fixture] (client identity
  * plus optional rules data) and exposes name- and grpId-keyed lookups.
  *
  * Two shapes:
@@ -20,7 +20,7 @@ import kotlin.io.path.isRegularFile
  *   and Alchemy / digital-only cards Forge has no entry for.
  *
  * Field IDs (colors, types, subtypes, supertypes, ability category) are
- * Arena's enum integers as stored in `Cards.*` columns.
+ * client enum integers as stored in `Cards.*` columns.
  *
  * Closure invariant: every grpId referenced in `tokens` or `linkedFaces`
  * has its own YAML in the same directory. Closure walking lives in
@@ -30,7 +30,7 @@ object TestCardFixtures {
     private const val DEFAULT_RESOURCE_DIR = "test-cards"
 
     /**
-     * Arena identity for a card — the integers Forge cardsfolder doesn't
+     * Client identity for a card — the integers Forge cardsfolder doesn't
      * carry. Stamped onto a Forge-derived [CardData] for slim fixtures.
      */
     data class Identity(
@@ -78,7 +78,7 @@ object TestCardFixtures {
         val map = mutableMapOf<String, Fixture>()
         for (f in all) {
             map[f.identity.name] = f
-            // Forge names tokens "Soldier Token"; Arena DB stores them as "Soldier".
+            // Forge names tokens "Soldier Token"; client DB stores them as "Soldier".
             // Index both forms so callers passing either resolve.
             if (f.identity.isToken) map["${f.identity.name} Token"] = f
         }

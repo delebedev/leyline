@@ -23,7 +23,7 @@ data class SlotLayout(
     val slots: List<SlotEntry>,
 ) {
     /**
-     * Map an Arena abilityGrpId to its Forge ability index.
+     * Map a client abilityGrpId to its Forge ability index.
      *
      * Returns the index into the Forge-order non-mana activated abilities
      * (i.e., what `getNonManaActivatedAbilities` returns) — counting only
@@ -69,7 +69,8 @@ enum class SlotKind {
 
     companion object {
         /**
-         * Map an Arena `Abilities.Category` value to a [SlotKind].
+         * Map an ability category integer (the client's `Abilities.Category`
+         * column) to a [SlotKind].
          *
          * Category=1 → [Activated]. Category=0 (schema default, never
          * populated) and "row absent" → [Activated] (treat unknown as
@@ -80,7 +81,7 @@ enum class SlotKind {
          * and the YAML fixture loader (test). Keeps prod and test on the
          * same mapping rule.
          */
-        fun fromArenaCategory(category: Int?): SlotKind =
+        fun fromCategory(category: Int?): SlotKind =
             when (category) {
                 1, 0, null -> Activated
                 else -> Intrinsic

@@ -128,7 +128,7 @@ interface CardRepository {
         if (tokens.isEmpty()) return null
         if (tokens.size == 1) return tokens.values.first()
         if (tokenName == null) return null
-        // Forge names tokens "Rat Token", Arena DB uses "Rat" — try both
+        // Forge names tokens "Rat Token", client DB uses "Rat" — try both
         val normalized = tokenName.removeSuffix(" Token")
         for ((_, tokenGrpId) in tokens) {
             val name = findNameByGrpId(tokenGrpId) ?: continue
@@ -157,7 +157,7 @@ data class AbilityInfo(
 )
 
 /**
- * Well-known keyword ability identifiers from Arena's `Abilities` table.
+ * Well-known keyword ability identifiers from the client's `Abilities` table.
  *
  * Two shapes mix here, both consumed by [CardRepository.findKeywordAbilityGrpId]:
  *
@@ -170,7 +170,7 @@ data class AbilityInfo(
  *
  * Extend when a mapper/resolver layer needs to address another keyword.
  * Identify the integer by inspecting a sample card's fixture YAML or
- * querying Arena's `Abilities` / `Localizations_enUS` tables.
+ * querying the client's `Abilities` / `Localizations_enUS` tables.
  */
 object KeywordAbilityIds {
     // Direct ability ids — well-known shared row used verbatim per card.
@@ -186,7 +186,7 @@ object KeywordAbilityIds {
     /**
      * Resolve a Forge `AlternativeCost.name` (uppercase enum name like
      * `"WARP"`, `"SNEAK"`, `"FLASHBACK"`) to the keyword's ability id.
-     * Returns null for alt-costs we don't have an Arena identifier for yet.
+     * Returns null for alt-costs we don't have a client identifier for yet.
      */
     fun fromForgeAltCostName(name: String): Int? =
         when (name.uppercase()) {

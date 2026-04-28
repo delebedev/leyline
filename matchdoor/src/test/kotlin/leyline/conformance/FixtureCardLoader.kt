@@ -11,7 +11,7 @@ import leyline.game.data.TestCardFixtures
 import org.slf4j.LoggerFactory
 
 /**
- * Joining layer between [TestCardFixtures] (Arena identity) and Forge
+ * Joining layer between [TestCardFixtures] (client identity) and Forge
  * (rules data). The single entry point test setup paths use to register
  * a card by name into an [InMemoryCardRepository].
  *
@@ -104,7 +104,7 @@ object FixtureCardLoader {
         val identity = fixture.identity
         val rules = requireNotNull(fixture.rules)
         val abilityIds = identity.abilities.map { it.id to it.textId }
-        val abilityKinds = identity.abilities.map { ab -> SlotKind.fromArenaCategory(ab.category) }
+        val abilityKinds = identity.abilities.map { ab -> SlotKind.fromCategory(ab.category) }
         return CardData(
             grpId = identity.grpId,
             titleId = identity.titleId,
@@ -157,7 +157,7 @@ object FixtureCardLoader {
             ?: error(
                 "Slim fixture for '$cardName' but Forge has no entry. " +
                     "Either the fixture should be Full (regenerate with `card-fixtures emit`) " +
-                    "or the card name has drifted between Arena and Forge.",
+                    "or the card name has drifted between the client and Forge.",
             )
         return Card.fromPaperCard(paperCard, null)
     }

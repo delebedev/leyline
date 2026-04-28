@@ -9,19 +9,19 @@ import leyline.game.data.CardData
 import leyline.game.data.TestCardFixtures
 
 /**
- * Derives [CardData] from Forge's in-memory `CardRules`, stamped with Arena
+ * Derives [CardData] from Forge's in-memory `CardRules`, stamped with client
  * identity from a YAML fixture under
  * `matchdoor/src/test/resources/test-cards/`.
  *
  * Forge owns the rules data (P/T, types, subtypes, supertypes, colors, mana
- * cost). The fixture supplies the Arena identity (grpId, ability ids paired
+ * cost). The fixture supplies the client identity (grpId, ability ids paired
  * with category/baseId, token map, linked faces). [FixtureCardLoader] is the
  * normal entry point; tests that need to re-derive after a card gains a
  * player context (planeswalker abilities only populate after
  * `TestCardInjector.inject`) call [fromForgeCard] directly with the card
  * name.
  *
- * `CardData.chapterAbilityGrpIds` is intentionally empty — Arena's
+ * `CardData.chapterAbilityGrpIds` is intentionally empty — the client's
  * `Cards.AbilityIds` column orders chapter abilities at leading positions,
  * and `ZoneMapper.chapterGrpIdFromCardData` falls back to that positional
  * ordering when the explicit chapter list is empty (matching the prod
@@ -29,7 +29,7 @@ import leyline.game.data.TestCardFixtures
  */
 object CardDataDeriver {
     /**
-     * Derive [CardData] from a Forge [Card]; Arena identity is looked up
+     * Derive [CardData] from a Forge [Card]; client identity is looked up
      * from the named fixture. Errors loudly when no fixture exists.
      */
     fun fromForgeCard(
@@ -70,7 +70,7 @@ object CardDataDeriver {
         val manaCost = ManaColorMapping.deriveManaCost(rules.manaCost)
 
         val abilityIds = identity.abilities.map { it.id to it.textId }
-        val abilityKinds = identity.abilities.map { ab -> SlotKind.fromArenaCategory(ab.category) }
+        val abilityKinds = identity.abilities.map { ab -> SlotKind.fromCategory(ab.category) }
 
         return CardData(
             grpId = identity.grpId,
