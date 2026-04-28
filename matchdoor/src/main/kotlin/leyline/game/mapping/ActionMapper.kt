@@ -18,6 +18,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.codes.ManaColorMapping
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
+import leyline.game.data.KEYWORD_BASE_IDS
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityRegistry
 import leyline.game.state.GameBridge
@@ -35,6 +36,11 @@ object ActionMapper {
     private val log = LoggerFactory.getLogger(ActionMapper::class.java)
 
     private const val INITIAL_MANA_ID = 10
+
+    /** Universal Arena ability id for "Cast without paying mana cost" — used as
+     *  `alternativeGrpId` on cast actions for plotted / suspended / similar
+     *  no-mana cast rails. */
+    private const val CAST_WITHOUT_PAYING_MANA_GRP_ID = 149
 
     /**
      * Naive action list: Cast for all non-lands, Play for all lands in hand,
@@ -428,18 +434,30 @@ object ActionMapper {
                 val grpId =
                     snap.objects[fid]?.grpId
                         ?: bridge.resolveGrpId(forgeCard, instanceId)
+                val altCost = sa.alternativeCost
+                val isPlottedCast = altCost == AlternativeCost.Plotted
                 val actionBuilder =
                     Action
                         .newBuilder()
                         .setActionType(ActionType.Cast)
                         .setInstanceId(instanceId)
-                        .setGrpId(grpId)
-                        .setFacetId(instanceId)
                         .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
 
+                // Plotted cast-from-exile emits a minimal shape — no grpId / facetId.
+                // The wire-canonical shape carries only instanceId + abilityGrpId
+                // (PLOT keyword 328) + alternativeGrpId (CAST_WITHOUT_PAYING_MANA 149).
+                // Including grpId/facetId here makes MTGA treat the cast as a regular
+                // cast and the alt-cost branch never lands.
+                if (!isPlottedCast) {
+                    actionBuilder.setGrpId(grpId)
+                    actionBuilder.setFacetId(instanceId)
+                }
+
                 val cardData = bridge.cardRepository.findByGrpId(grpId)
-                val altCost = sa.alternativeCost
-                if (altCost != null) {
+                if (isPlottedCast) {
+                    actionBuilder.setAlternativeGrpId(CAST_WITHOUT_PAYING_MANA_GRP_ID)
+                    actionBuilder.setAbilityGrpId(KEYWORD_BASE_IDS.getValue("PLOTTED"))
+                } else if (altCost != null) {
                     // TODO(leyline-9n6): extend KEYWORD_BASE_IDS for Escape/Mayhem/etc.
                     val altCostName = altCost.name.uppercase()
                     val abilityGrpId =

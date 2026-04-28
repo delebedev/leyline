@@ -338,6 +338,21 @@ class ActionPerformer(
         val game = bridge.getGame() ?: return null
         val player = bridge.getPlayer(counters.seatId) ?: return null
         val card = findCard(game, cardId) ?: return null
+
+        // alternativeGrpId=149 is the universal "Cast without paying mana cost"
+        // grpId — used for plot cast-from-exile (and other no-mana rails). It
+        // isn't a per-card ability, so findAbilityInfo returns null. Disambiguate
+        // by the action's abilityGrpId (which carries the keyword BaseId — 328
+        // for Plot) plus the card's eligible alt-cost SAs.
+        // 149 = universal "Cast without paying mana cost" grpId.
+        if (alternativeGrpId == 149 &&
+            action.abilityGrpId == KEYWORD_BASE_IDS["PLOTTED"]
+        ) {
+            return getAllCastableAbilities(card, player)
+                .withIndex()
+                .firstOrNull { (_, sa) -> sa.alternativeCost == AlternativeCost.Plotted }?.index
+        }
+
         val info = bridge.cardRepository.findAbilityInfo(alternativeGrpId) ?: return null
 
         // Plot's hand SA is an AbilityStatic with isPlotting==true, not an
