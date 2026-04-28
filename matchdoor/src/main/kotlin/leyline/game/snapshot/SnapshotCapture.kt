@@ -362,6 +362,7 @@ object SnapshotCapture {
             combatRole = combatRole,
             preparedRole = preparedRole,
             plottedRole = if (Plotted.isPlotted(card)) PlottedRole.Plotted else PlottedRole.None,
+            isForetold = Foretell.isForetold(card),
         )
     }
 

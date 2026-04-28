@@ -97,6 +97,15 @@ data class CardSnapshot(
      * Source/Copy split — the card itself is in exile, not a copy.
      */
     val plottedRole: PlottedRole = PlottedRole.None,
+    /**
+     * True when the card is currently in Exile with the foretold state.
+     * Drives the face-down exile rendering (FaceDown +
+     * SuppressedPowerAndToughness annotations + visibility=Private). Foretell
+     * is single-state — None or Foretold — so a Boolean is enough; no Role
+     * hierarchy needed (compare PlottedRole / PreparedRole which carry
+     * additional structural variants).
+     */
+    val isForetold: Boolean = false,
 )
 
 /**
