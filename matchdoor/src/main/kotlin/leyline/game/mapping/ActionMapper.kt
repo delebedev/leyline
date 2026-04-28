@@ -437,7 +437,19 @@ object ActionMapper {
                 val altCost = sa.alternativeCost
                 val isPlottedCast = altCost == AlternativeCost.Plotted
                 val isForetellCast = altCost == AlternativeCost.Foretold
+                val isDisturbCast = altCost == AlternativeCost.Disturb
                 val isMinimalEmit = isPlottedCast || isForetellCast
+                // Disturb is built from the back-face SA; the cast on the stack is the
+                // transformed face. The Cast action must carry the back-face grpId so
+                // the client renders the back face on the cast preview — front-face
+                // grpId would render the wrong art.
+                val effectiveGrpId =
+                    if (isDisturbCast) {
+                        ObjectMapper.resolveOthersideGrpId(forgeCard, bridge.cardRepository).takeIf { it > 0 }
+                            ?: grpId
+                    } else {
+                        grpId
+                    }
                 val actionBuilder =
                     Action
                         .newBuilder()
@@ -451,7 +463,7 @@ object ActionMapper {
                 // applicable). Including grpId/facetId here makes MTGA treat the
                 // cast as a regular cast and the alt-cost branch never lands.
                 if (!isMinimalEmit) {
-                    actionBuilder.setGrpId(grpId)
+                    actionBuilder.setGrpId(effectiveGrpId)
                     actionBuilder.setFacetId(instanceId)
                 }
 
@@ -473,6 +485,16 @@ object ActionMapper {
                     // No top-level abilityGrpId — the foretell BaseId (208) is universal,
                     // not per-card; the per-card row id is what the action needs.
                     if (foretellAbilityGrpId > 0) actionBuilder.setAlternativeGrpId(foretellAbilityGrpId)
+                } else if (isDisturbCast) {
+                    // Disturb cast: both alternativeGrpId AND abilityGrpId carry the
+                    // per-card disturb ability id (BaseId=215 chain). Mirrors the
+                    // UserActionTaken shape that the cast resolves to.
+                    val disturbAbilityGrpId =
+                        bridge.cardRepository.findKeywordAbilityGrpId(grpId, "DISTURB") ?: 0
+                    if (disturbAbilityGrpId > 0) {
+                        actionBuilder.setAlternativeGrpId(disturbAbilityGrpId)
+                        actionBuilder.setAbilityGrpId(disturbAbilityGrpId)
+                    }
                 } else if (altCost != null) {
                     // TODO(leyline-9n6): extend KEYWORD_BASE_IDS for Escape/Mayhem/etc.
                     val altCostName = altCost.name.uppercase()
