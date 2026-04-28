@@ -727,8 +727,7 @@ class TargetingHandler(
         val cardData = bridge.cardRepository.findByGrpId(action.grpId)
         // Keywords occupy the first N slots of CardData.abilityIds; optional costs
         // index past them. SlotLayout (from AbilityRegistry) is the source of
-        // truth for keyword count — it's derived the same way whether the card
-        // came from the Arena DB (prod) or the test-side AbilityIdDeriver.
+        // truth for keyword count.
         val keywordCount =
             if (cardData != null) {
                 bridge.abilityRegistryFor(card, cardData)?.slotLayout?.keywordCount ?: 0

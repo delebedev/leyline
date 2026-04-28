@@ -5,103 +5,44 @@ import forge.card.CardType.Supertype
 import forge.game.card.Card
 import leyline.game.codes.ManaColorMapping
 import leyline.game.codes.SlotKind
-import leyline.game.data.AbilityIdDeriver
 import leyline.game.data.CardData
 import leyline.game.data.TestCardFixtures
-import org.slf4j.LoggerFactory
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Derives [CardData] from Forge's in-memory [forge.card.CardRules].
+ * Derives [CardData] from Forge's in-memory `CardRules`, stamped with Arena
+ * identity from a YAML fixture under
+ * `matchdoor/src/test/resources/test-cards/`.
  *
- * Eliminates the need for the client SQLite DB in tests — all card metadata
- * is derived from Forge's own card database (already loaded at test startup).
+ * Forge owns the rules data (P/T, types, subtypes, supertypes, colors, mana
+ * cost). The fixture supplies the Arena identity (grpId, ability ids paired
+ * with category/baseId, token map, linked faces). [FixtureCardLoader] is the
+ * normal entry point — direct callers use [fromForgeCardWithFixture] when
+ * they need to re-derive after a card has gained a player context (e.g.
+ * planeswalker abilities only populate after `TestCardInjector.inject`).
  *
- * Synthetic grpIds start at 200000 (well above production grpIds which reach ~100000+).
+ * `CardData.chapterAbilityGrpIds` is intentionally empty — Arena's
+ * `Cards.AbilityIds` column orders chapter abilities at leading positions,
+ * and `ZoneMapper.chapterGrpIdFromCardData` falls back to that positional
+ * ordering when the explicit chapter list is empty (matching the prod
+ * `ExposedCardRepository` shape).
  */
 object CardDataDeriver {
-    @Suppress("UnusedPrivateProperty")
-    private val log = LoggerFactory.getLogger(CardDataDeriver::class.java)
-
-    private val nextGrpId = AtomicInteger(200000)
-    private val nextTitleId = AtomicInteger(10000)
-    private val nextAbilityGrpId = AtomicInteger(10000)
-
-    /** name → grpId cache: same card name always gets same grpId within a JVM. */
-    private val nameToGrpId = mutableMapOf<String, Int>()
-
-    /** Derive CardData from a live Forge [Card] object. */
-    fun fromForgeCard(card: Card): CardData {
-        val name = card.name
-        val grpId = nameToGrpId.getOrPut(name) { nextGrpId.getAndIncrement() }
-        val titleId = nextTitleId.getAndIncrement()
-
-        val type = card.type
-        val rules = card.rules
-
-        // Card types → proto int values
-        val types = type.coreTypes.mapNotNull { CORE_TYPE_MAP[it] }
-
-        // Supertypes → proto int values
-        val supertypes = type.supertypes.mapNotNull { SUPERTYPE_MAP[it] }
-
-        // Subtypes → proto int values (skip unknown)
-        val subtypes = type.subtypes.mapNotNull { SUBTYPE_MAP[it.lowercase()] }
-
-        // Colors → proto CardColor values
-        val colorSet = card.rules.color
-        val colors = mutableListOf<Int>()
-        if (colorSet.hasWhite()) colors.add(1) // White
-        if (colorSet.hasBlue()) colors.add(2) // Blue
-        if (colorSet.hasBlack()) colors.add(3) // Black
-        if (colorSet.hasRed()) colors.add(4) // Red
-        if (colorSet.hasGreen()) colors.add(5) // Green
-
-        // Power / Toughness
-        val power = if (type.isCreature) (rules.intPower.let { if (it == Integer.MAX_VALUE) "0" else it.toString() }) else ""
-        val toughness = if (type.isCreature) (rules.intToughness.let { if (it == Integer.MAX_VALUE) "0" else it.toString() }) else ""
-
-        // Mana cost → (ManaColor, count) pairs
-        val manaCost = deriveManaCost(rules.manaCost)
-
-        // Abilities — assign synthetic sequential IDs per ability on the card
-        val derived = deriveAbilityIds(card)
-        val abilityIds = derived.abilityIds
-
-        val linkedFaces = resolveLinkedFaceGrpIds(card)
-
-        return CardData(
-            grpId = grpId,
-            titleId = titleId,
-            power = power,
-            toughness = toughness,
-            colors = colors,
-            types = types,
-            subtypes = subtypes,
-            supertypes = supertypes,
-            abilityIds = abilityIds,
-            abilityKinds = derived.abilityKinds,
-            manaCost = manaCost,
-            chapterAbilityGrpIds = derived.chapterAbilityGrpIds,
-            linkedFaceGrpIds = linkedFaces,
-        ).also {
-            // Stash the keyword-name → grpId map on the repo for test-side lookup.
-            TestCardRegistry.repo.registerKeywordAbilityGrpIds(grpId, derived.keywordAbilityGrpIds)
-        }
+    /**
+     * Derive [CardData] from a Forge [Card]; identity comes from the named
+     * fixture. Errors loudly when no fixture exists for the card.
+     */
+    fun fromForgeCardWithFixture(
+        card: Card,
+        cardName: String,
+    ): CardData {
+        val identity = TestCardFixtures.findFixture(cardName)?.identity
+            ?: error("No fixture for '$cardName' under matchdoor/src/test/resources/test-cards/.")
+        return fromForgeCardWithIdentity(card, identity)
     }
 
     /**
-     * Derive [CardData] from a Forge [Card] and stamp Arena identity from a
-     * fixture's [TestCardFixtures.Identity] in place of the synthetic ids
-     * [fromForgeCard] would assign. Used by the Slim fixture path: Forge
-     * owns rules data (P/T, types, mana, etc.); the fixture supplies the
-     * Arena grpId, ability ids, token map, and linked faces.
-     *
-     * `chapterAbilityGrpIds` is intentionally empty — Arena's `AbilityIds`
-     * column orders chapter abilities at leading positions, and
-     * `ZoneMapper.chapterGrpIdFromCardData` falls back to that positional
-     * ordering when the explicit chapter list is empty (matching the prod
-     * `ExposedCardRepository` shape).
+     * Same as [fromForgeCardWithFixture] but with the identity already in
+     * hand — used by [FixtureCardLoader] which walks fixture closures.
      */
     fun fromForgeCardWithIdentity(
         card: Card,
@@ -114,7 +55,7 @@ object CardDataDeriver {
         val supertypes = type.supertypes.mapNotNull { SUPERTYPE_MAP[it] }
         val subtypes = type.subtypes.mapNotNull { SUBTYPE_MAP[it.lowercase()] }
 
-        val colorSet = card.rules.color
+        val colorSet = rules.color
         val colors = mutableListOf<Int>()
         if (colorSet.hasWhite()) colors.add(1)
         if (colorSet.hasBlue()) colors.add(2)
@@ -122,10 +63,10 @@ object CardDataDeriver {
         if (colorSet.hasRed()) colors.add(4)
         if (colorSet.hasGreen()) colors.add(5)
 
-        val power = if (type.isCreature) (rules.intPower.let { if (it == Integer.MAX_VALUE) "0" else it.toString() }) else ""
-        val toughness = if (type.isCreature) (rules.intToughness.let { if (it == Integer.MAX_VALUE) "0" else it.toString() }) else ""
+        val power = if (type.isCreature) rules.intPower.let { if (it == Integer.MAX_VALUE) "0" else it.toString() } else ""
+        val toughness = if (type.isCreature) rules.intToughness.let { if (it == Integer.MAX_VALUE) "0" else it.toString() } else ""
 
-        val manaCost = deriveManaCost(rules.manaCost)
+        val manaCost = ManaColorMapping.deriveManaCost(rules.manaCost)
 
         val abilityIds = identity.abilities.map { it.id to it.textId }
         val abilityKinds = identity.abilities.map { ab ->
@@ -148,25 +89,6 @@ object CardDataDeriver {
             linkedFaceGrpIds = identity.linkedFaces,
         )
     }
-
-    private fun deriveManaCost(cost: forge.card.mana.ManaCost?) = ManaColorMapping.deriveManaCost(cost)
-
-    private fun resolveLinkedFaceGrpIds(card: Card): List<Int> {
-        val states = card.states ?: return emptyList()
-        if (states.size <= 1) return emptyList()
-        val linkedIds = mutableListOf<Int>()
-        for (stateName in states) {
-            if (stateName == forge.card.CardStateName.Original) continue
-            if (stateName == forge.card.CardStateName.FaceDown) continue
-            val altState = card.getState(stateName) ?: continue
-            val altName = altState.name ?: continue
-            if (altName == card.name) continue
-            linkedIds.add(nameToGrpId.getOrPut(altName) { nextGrpId.getAndIncrement() })
-        }
-        return linkedIds
-    }
-
-    private fun deriveAbilityIds(card: Card) = AbilityIdDeriver.deriveAbilityIds(card, nextAbilityGrpId)
 
     // ---- Static mapping tables ----
 
@@ -201,7 +123,7 @@ object CardDataDeriver {
 
     /**
      * Forge subtype name (lowercase) → proto SubType int value.
-     * Covers the ~80 most common subtypes; unknown subtypes are silently skipped.
+     * Covers the most common subtypes; unknown subtypes are silently skipped.
      * Extend on demand when tests need specific subtypes.
      */
     private val SUBTYPE_MAP =

@@ -3,10 +3,11 @@ package leyline.game.codes
 /**
  * Single source of truth for the ability slot layout of a card.
  *
- * Produced by [leyline.game.data.AbilityIdDeriver] (for synthetic cards) and [leyline.game.state.AbilityRegistry.build]
- * (for all cards at runtime). Consumed by `MatchSession.resolveAbilityIndex`.
- * Eliminates the dual-derivation bug class where keyword count was computed
- * independently in two places.
+ * Produced by [leyline.game.state.AbilityRegistry.build] from a card's
+ * Forge spell abilities and its [leyline.game.data.CardData] slot list.
+ * Consumed by `MatchSession.resolveAbilityIndex`. Eliminates the
+ * dual-derivation bug class where keyword count was computed independently
+ * in two places.
  *
  * Slot ordering matches the source `Cards.AbilityIds` array verbatim. Slots
  * may interleave kinds (e.g. an intrinsic trigger at slot 0 followed by

@@ -21,23 +21,19 @@ data class CardData(
     /**
      * Per-slot kind aligned 1:1 with [abilityIds]. Sourced from Arena
      * `Abilities.Category` (1=Activated → [SlotKind.Activated]; everything
-     * else → [SlotKind.Intrinsic] for triggers/statics) for production
-     * data, and from explicit construction by [AbilityIdDeriver] for
-     * puzzle/test paths. Empty list means "kinds unknown" — consumers
-     * should fall back to the legacy "all-after-keywords-are-activated"
-     * positional assumption.
+     * else → [SlotKind.Intrinsic] for triggers/statics). Empty list means
+     * "kinds unknown" — consumers should fall back to the legacy
+     * "all-after-keywords-are-activated" positional assumption.
      */
     val abilityKinds: List<SlotKind> = emptyList(),
     val manaCost: List<Pair<ManaColor, Int>>, // (color, count) from OldSchoolManaText
     val tokenGrpIds: Map<Int, Int> = emptyMap(), // abilityGrpId → tokenGrpId
     /**
-     * Per-chapter ability grpIds for Saga cards, indexed 0-based by chapter number
-     * (chapter I at index 0, chapter II at index 1, ...). Empty for non-saga cards.
-     *
-     * Production (Arena client DB) stores these inside [abilityIds] and the resolver
-     * falls back to positional lookup there. This field is populated by
-     * [AbilityIdDeriver] from live Forge triggers so InMemoryCardRepository tests
-     * can exercise the same resolution path.
+     * Per-chapter ability grpIds for Saga cards, indexed 0-based by chapter
+     * number. Empty list is the normal shape — Arena's `Cards.AbilityIds`
+     * column stores chapter abilities at leading positions of [abilityIds],
+     * and `ZoneMapper.chapterGrpIdFromCardData` resolves chapters via
+     * positional fallback when this list is empty.
      */
     val chapterAbilityGrpIds: List<Int> = emptyList(),
     val linkedFaceGrpIds: List<Int> = emptyList(),

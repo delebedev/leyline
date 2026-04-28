@@ -2,9 +2,9 @@ package leyline.conformance
 
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
-import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
@@ -32,8 +32,9 @@ class AbilityGrpIdConformanceTest :
 
                 // Re-derive CardData from the live card (has player → full spellAbilities).
                 // The initial registration from TestCardRegistry uses a temp card (null player)
-                // which may lack activated abilities. Re-registering updates the repo.
-                val cardData = CardDataDeriver.fromForgeCard(card)
+                // which may lack activated abilities. Re-registering updates the repo with
+                // the post-injection ability shape, stamped with the fixture's Arena identity.
+                val cardData = CardDataDeriver.fromForgeCardWithFixture(card, cardName)
                 TestCardRegistry.repo.registerData(cardData, cardName)
 
                 // AbilityRegistry is lazily built by GameBridge.abilityRegistryFor on first access
@@ -58,13 +59,11 @@ class AbilityGrpIdConformanceTest :
                 val grpIds = activateActions.map { it.abilityGrpId }
                 grpIds.distinct() shouldHaveSize grpIds.size
 
-                // The abilityGrpIds should match CardData.abilityIds slots in order
-                val keywordCount = TestCardRegistry.repo.testKeywordAbilityGrpIds(cardData.grpId).size
-                val expectedSlots =
-                    cardData.abilityIds
-                        .drop(keywordCount) // skip keyword ability slots
-                        .take(activateActions.size) // match the playable count
-                        .map { it.first }
-                grpIds shouldBe expectedSlots
+                // Activate actions should reference ability ids that appear in
+                // cardData.abilityIds. With the fixture path, ability ids are
+                // Arena-real and slot ordering matches Arena's `Cards.AbilityIds`
+                // column directly (no synthetic keyword/activated bucketing).
+                val cardAbilityIds = cardData.abilityIds.map { it.first }.toSet()
+                grpIds.forEach { cardAbilityIds shouldContain it }
             }
     })
