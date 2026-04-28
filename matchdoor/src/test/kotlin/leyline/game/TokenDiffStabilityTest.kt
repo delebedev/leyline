@@ -13,7 +13,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.TestCardRegistry
-import leyline.game.data.CardData
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.CardType
@@ -43,33 +42,6 @@ class TokenDiffStabilityTest :
             TestCardRegistry.ensureRegistered()
             TestCardRegistry.ensureCardRegistered("Novice Inspector")
             TestCardRegistry.ensureCardRegistered("Plains")
-
-            // Register Clue Token with types/subtypes so CardProtoBuilder populates fields
-            val repo = TestCardRegistry.repo
-            val clueGrpId = 300100
-            repo.registerData(
-                CardData(
-                    grpId = clueGrpId,
-                    titleId = 0,
-                    power = "",
-                    toughness = "",
-                    colors = emptyList(),
-                    types = listOf(CardType.Artifact_a80b.number),
-                    subtypes = listOf(SubType.Clue.number),
-                    supertypes = emptyList(),
-                    abilityIds = emptyList(),
-                    manaCost = emptyList(),
-                ),
-                "Clue Token",
-            )
-
-            // Wire token mapping: Novice Inspector → Clue Token
-            val inspectorGrpId = repo.findGrpIdByName("Novice Inspector")!!
-            val inspectorData = repo.findByGrpId(inspectorGrpId)!!
-            repo.registerData(
-                inspectorData.copy(tokenGrpIds = mapOf(0 to clueGrpId)),
-                "Novice Inspector",
-            )
         }
 
         val puzzleText =
