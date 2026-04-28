@@ -438,7 +438,8 @@ object ActionMapper {
                 val isPlottedCast = altCost == AlternativeCost.Plotted
                 val isForetellCast = altCost == AlternativeCost.Foretold
                 val isDisturbCast = altCost == AlternativeCost.Disturb
-                val isMinimalEmit = isPlottedCast || isForetellCast
+                val isEscapeCast = altCost == AlternativeCost.Escape
+                val isMinimalEmit = isPlottedCast || isForetellCast || isEscapeCast
                 val actionBuilder =
                     Action
                         .newBuilder()
@@ -470,6 +471,12 @@ object ActionMapper {
                     } else {
                         0
                     }
+                val escapeAbilityGrpId =
+                    if (isEscapeCast) {
+                        bridge.cardRepository.findKeywordAbilityGrpId(grpId, "ESCAPE") ?: 0
+                    } else {
+                        0
+                    }
                 if (isPlottedCast) {
                     actionBuilder.setAlternativeGrpId(CAST_WITHOUT_PAYING_MANA_GRP_ID)
                     actionBuilder.setAbilityGrpId(KEYWORD_BASE_IDS.getValue("PLOTTED"))
@@ -489,8 +496,18 @@ object ActionMapper {
                         actionBuilder.setAlternativeGrpId(disturbAbilityGrpId)
                         actionBuilder.setAbilityGrpId(disturbAbilityGrpId)
                     }
+                } else if (isEscapeCast) {
+                    // Escape cast: same minimal-emit shape as Plot/Foretell — both
+                    // alternativeGrpId and abilityGrpId carry the per-card escape
+                    // ability id (BaseId=199 chain). The {N other cards} additional
+                    // cost is paid via Forge's Cost.payAdditionalCosts pipeline,
+                    // which surfaces as a separate exile-N selection prompt.
+                    if (escapeAbilityGrpId > 0) {
+                        actionBuilder.setAlternativeGrpId(escapeAbilityGrpId)
+                        actionBuilder.setAbilityGrpId(escapeAbilityGrpId)
+                    }
                 } else if (altCost != null) {
-                    // TODO(leyline-9n6): extend KEYWORD_BASE_IDS for Escape/Mayhem/etc.
+                    // TODO(leyline-9n6): extend KEYWORD_BASE_IDS for Mayhem/etc.
                     val altCostName = altCost.name.uppercase()
                     val abilityGrpId =
                         bridge.cardRepository.findKeywordAbilityGrpId(grpId, altCostName) ?: 0
@@ -501,6 +518,8 @@ object ActionMapper {
                 if (effectiveCost != null && !effectiveCost.isNoCost) {
                     if (isForetellCast && foretellAbilityGrpId > 0) {
                         addManaCostFromForge(effectiveCost, actionBuilder, foretellAbilityGrpId)
+                    } else if (isEscapeCast && escapeAbilityGrpId > 0) {
+                        addManaCostFromForge(effectiveCost, actionBuilder, escapeAbilityGrpId)
                     } else {
                         addManaCostFromForge(effectiveCost, actionBuilder)
                     }
