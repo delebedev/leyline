@@ -1046,9 +1046,17 @@ object ActionMapper {
             if (!canPay) continue
 
             val effectiveCost = computeEffectiveCost(sa, player)
-            // Resolve the per-card warp/sneak/plot/foretell row by (BaseId match +
-            // mana-cost match) via the Arena DB Abilities table. Works in prod and
-            // in tests when AbilityInfo is registered on InMemoryCardRepository.
+            // Resolve the per-card warp/sneak/plot/foretell row.
+            //
+            // For Warp/Sneak/Plot the hand SA's mana cost == the alt-cost row's
+            // mana cost (e.g. Plot {3}{G} hand SA pays {3}{G}, row is {3}{G}),
+            // so cost-aware findAlternativeCostAbilityGrpId matches cleanly.
+            //
+            // For Foretell the hand SA's cost is the constant {2} (the foretell
+            // *action* cost), but the per-card row's mana cost is the foretell
+            // *cast* cost ({R} for Demon Bolt). Cost-aware lookup misses. Fall
+            // back to cost-agnostic findKeywordAbilityGrpId for foretell — there
+            // is at most one FORETELL row per card.
             val payCostPairs: List<Pair<ManaColor, Int>> =
                 effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
             val altCostKey =
@@ -1058,8 +1066,11 @@ object ActionMapper {
                     else -> altCost!!.name.uppercase()
                 }
             val alternativeGrpId =
-                cardRepository?.findAlternativeCostAbilityGrpId(grpId, altCostKey, payCostPairs)
-                    ?: 0
+                if (sa.isForetelling) {
+                    cardRepository?.findKeywordAbilityGrpId(grpId, altCostKey) ?: 0
+                } else {
+                    cardRepository?.findAlternativeCostAbilityGrpId(grpId, altCostKey, payCostPairs) ?: 0
+                }
             if (alternativeGrpId <= 0) continue
 
             val actionBuilder =
