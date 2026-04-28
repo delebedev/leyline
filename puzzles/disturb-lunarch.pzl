@@ -1,0 +1,18 @@
+[metadata]
+Name:Disturb Lunarch Veteran
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Kill your Lunarch Veteran with Lightning Bolt to send it to the graveyard. Then cast Disturb on it from the graveyard for {1}{W}; it returns transformed as Luminous Phantom (1/1 flying spirit, exile-instead-of-graveyard).
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Lightning Bolt
+humanbattlefield=Mountain;Plains;Plains;Lunarch Veteran
+humanlibrary=Plains;Plains;Plains;Plains
+aibattlefield=
+ailibrary=Forest;Forest;Forest;Forest

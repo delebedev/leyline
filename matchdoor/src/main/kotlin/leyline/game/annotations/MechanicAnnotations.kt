@@ -41,10 +41,14 @@ data class MechanicAnnotationResult(
     val crewTypeChangePersistent: List<AnnotationInfo> = emptyList(),
     /** TemporaryPermanent pAnns for copy tokens with EOT-sacrifice — full replacement set. */
     val temporaryPermanentPersistent: List<AnnotationInfo> = emptyList(),
+    /** DelayedTriggerAffectees pAnns grouping EOT-sacrifice tokens — full replacement set. */
+    val delayedTriggerAffecteesPersistent: List<AnnotationInfo> = emptyList(),
     /** TargetSpec pAnns for spells/abilities on stack with targets — full replacement set. */
     val targetSpecPersistent: List<AnnotationInfo> = emptyList(),
     /** Prepared `Designation` pAnns for cards with `Card.isPrepared` — full replacement set. */
     val preparedDesignationPersistent: List<AnnotationInfo> = emptyList(),
+    /** Plotted `Designation` pAnns for cards with `Card.isPlotted` in exile — full replacement set. */
+    val plottedDesignationPersistent: List<AnnotationInfo> = emptyList(),
 ) {
     /** Tracks an active controller-change effect for persistent annotation lifecycle. */
     data class ControllerChangedEffect(

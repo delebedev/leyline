@@ -1,0 +1,8 @@
+name: "Dark Ritual"
+grpId: 101092
+titleId: 4023
+abilities:
+  - id: 2287
+    textId: 234494
+    category: 4
+expansionCode: "TMC"

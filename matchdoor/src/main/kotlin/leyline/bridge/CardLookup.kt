@@ -61,7 +61,18 @@ internal fun getAllCastableAbilities(
     card: Card,
     player: Player,
 ): List<SpellAbility> {
-    val baseAbilities = card.getSpells()
+    // Foretold cards in exile are face-down — card.getSpells() reads from the
+    // current state (face-down) which has no spells. Reach into the original
+    // state to recover the underlying castable SA, then let
+    // GameActionUtil.getAlternativeCosts attach the AlternativeCost.Foretold
+    // wrapper. Without this, foretold cards never surface a cast action.
+    val baseAbilities =
+        if (card.isForetold && card.isInZone(forge.game.zone.ZoneType.Exile) && card.getSpells().isEmpty()) {
+            card.getOriginalState(forge.card.CardStateName.Original)?.nonManaAbilities?.filter { it.isSpell }
+                ?: emptyList()
+        } else {
+            card.getSpells()
+        }
     if (baseAbilities.isEmpty()) return emptyList()
 
     val withAddCosts = mutableListOf<SpellAbility>()
@@ -86,6 +97,14 @@ internal fun getAllCastableAbilities(
         expanded.add(sa)
         expanded.addAll(other)
     }
+
+    // Plot and Foretell's hand SAs are added by Forge as KeywordInstance abilities
+    // (CardFactoryUtil K:Plot: / K:Foretell:) and aren't returned by card.getSpells()
+    // — append directly from card.spellAbilities so they're reachable through the
+    // same index space the cast pathway uses (action emit, alt-cost resolution,
+    // SpellExecutor.castSpell).
+    val keywordHandSAs = card.spellAbilities.filter { it.isPlotting || it.isForetelling }
+    expanded.addAll(keywordHandSAs)
 
     return expanded.filter { it.canPlay() && it.canCastTiming(player) }
 }

@@ -67,14 +67,60 @@ class GamePlayback(
         captureAndPause(LAND_DELAY)
     }
 
+    /**
+     * SpellAbility ids of trigger casts seen on the local turn that haven't yet
+     * resolved. Used to recognise the matching `GameEventSpellResolved` so we
+     * can split the trigger lifecycle into its own GSMs even when the player
+     * is acting (the canonical Mobilize wire ships announcement, resolution
+     * + tokens, and combat damage in three separate diffs at Combat/DeclareAttack
+     * → Combat/CombatDamage). Independent of [GameEventCollector.pendingTriggers]
+     * because the EventBus drains both subscribers in registration order and
+     * the collector consumes its map on the resolve event.
+     */
+    private val pendingLocalTriggers = java.util.concurrent.ConcurrentHashMap<Int, Boolean>()
+
     override fun visit(ev: GameEventSpellAbilityCast) {
-        if (!isRemoteActing()) return
+        val isTrigger = ev.si()?.isTrigger == true
+        val splitForLocalTrigger = isTrigger && shouldSplitOnLocalTurn(ev.sa()?.hostCard?.id)
+        if (splitForLocalTrigger) {
+            val saId = ev.sa()?.id ?: 0
+            if (saId != 0) pendingLocalTriggers[saId] = true
+        }
+        // Specific keyword triggers (Mobilize today) always need their own diff
+        // on the local turn so the client renders the trigger landing on the
+        // stack before the resolution + tokens diff. Other triggers keep the
+        // legacy single-GSM-per-action bundling — broader rollout follows
+        // shape-survey of integration tests that asserted on the old shape.
+        if (!isRemoteActing() && !splitForLocalTrigger) return
         captureAndPause(CAST_DELAY)
     }
 
     override fun visit(ev: GameEventSpellResolved) {
-        if (!isRemoteActing()) return
+        val saId = ev.spell()?.id ?: 0
+        val splitForLocalTrigger = saId != 0 && pendingLocalTriggers.remove(saId) != null
+        // Mirror the cast hook above — trigger resolutions on a local turn need
+        // their own diff so TokenCreated lands before the next combat-damage
+        // diff. Gated on the same Mobilize-keyword check via the
+        // [pendingLocalTriggers] entry recorded at cast time.
+        if (!isRemoteActing() && !splitForLocalTrigger) return
         captureAndPause(RESOLVE_DELAY)
+    }
+
+    /** Decide whether to split this trigger's lifecycle into its own diff on
+     *  the local turn. Today: only Mobilize keyword triggers (so the warrior
+     *  tokens enter a beat before combat damage).
+     *
+     *  Widening to other keyword triggers (other combat triggers, ETB
+     *  mechanics with delayed-trigger tokens, etc.) inserts an extra Diff
+     *  GSM per trigger fire. Any [MatchFlowHarness]-based integration test
+     *  asserting a single-GSM-per-action wire shape will need to update its
+     *  assertions before the keyword can be added to the predicate. Audit
+     *  before extending the list. */
+    private fun shouldSplitOnLocalTurn(hostCardForgeId: Int?): Boolean {
+        if (hostCardForgeId == null) return false
+        val card = bridge.findCard(leyline.bridge.types.ForgeCardId(hostCardForgeId)) ?: return false
+        val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return false
+        return bridge.cardRepository.findKeywordAbilityGrpId(grpId, leyline.game.data.KeywordAbilityIds.MOBILIZE) != null
     }
 
     override fun visit(ev: GameEventTurnBegan) {

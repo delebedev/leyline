@@ -2,6 +2,7 @@ package leyline.game
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -700,6 +701,38 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("plottedDesignationFields") {
+            val ann = AnnotationBuilder.plottedDesignation(instanceId = 411.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.Designation
+                ann.affectorId shouldBe 411
+                ann.affectedIdsList shouldContain 411
+                ann.detailInt("DesignationType") shouldBe 18
+                // No PreparedCopyZcid analog — plotted card itself is in exile, no copy
+                ann.detailsList.filter { it.key == "PreparedCopyZcid" }.shouldBeEmpty()
+            }
+        }
+
+        test("faceDownFields") {
+            val ann = AnnotationBuilder.faceDown(instanceId = 388.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.FaceDown
+                ann.affectorId shouldBe 388
+                ann.affectedIdsList shouldContain 388
+                ann.detailsList.shouldBeEmpty()
+            }
+        }
+
+        test("suppressedPowerAndToughnessFields") {
+            val ann = AnnotationBuilder.suppressedPowerAndToughness(instanceId = 388.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.SuppressedPowerAndToughness
+                ann.affectorId shouldBe 388
+                ann.affectedIdsList shouldContain 388
+                ann.detailsList.shouldBeEmpty()
+            }
+        }
+
         // --- LayeredEffect (Tier 1 stub) ---
 
         test("layeredEffectFields") {
@@ -898,10 +931,16 @@ class AnnotationBuilderTest :
         // --- TriggeringObject (Tier 2) ---
 
         test("triggeringObjectFields") {
-            val ann = AnnotationBuilder.triggeringObject(instanceId = 294.iid, sourceZone = 27)
+            val ann =
+                AnnotationBuilder.triggeringObject(
+                    abilityInstanceId = 294.iid,
+                    sourceCardInstanceId = 195.iid,
+                    sourceZone = 27,
+                )
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.TriggeringObject
-                ann.affectedIdsList shouldContain 294
+                ann.affectorId shouldBe 294
+                ann.affectedIdsList shouldContain 195
                 ann.detailInt("source_zone") shouldBe 27
             }
         }

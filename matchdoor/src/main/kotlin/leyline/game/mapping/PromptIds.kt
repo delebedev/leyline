@@ -57,6 +57,9 @@ object PromptIds {
     const val CHOOSE_OR_COST_PAY_SACRIFICE = 1029
     const val CHOOSE_OR_COST_PAY_MANA = 4160
 
+    /** Pay-cost-via-select for "exile N from graveyard" — Escape's additional cost. */
+    const val CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE = 5500
+
     /** sourceId on SelectNReq for legend rule. */
     const val SELECT_N_LEGEND_RULE_SOURCE = 15168
 }

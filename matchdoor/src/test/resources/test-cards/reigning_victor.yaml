@@ -1,0 +1,14 @@
+name: "Reigning Victor"
+grpId: 95741
+titleId: 927321
+abilities:
+  - id: 188698
+    textId: 926697
+    category: 2
+    baseId: 363
+  - id: 188945
+    textId: 927322
+    category: 2
+expansionCode: "TDM"
+tokens:
+  "188698": 95832

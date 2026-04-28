@@ -18,4 +18,9 @@ object AnnotationConstants {
     /** `DesignationType` enum value for the `Prepared` card-state designation.
      *  Carried on `GainDesignation` / persistent `Designation` / `LoseDesignation`. */
     const val DESIGNATION_TYPE_PREPARED: Int = 24
+
+    /** `DesignationType` enum value for the `Plotted` card-state designation.
+     *  Carried on `GainDesignation` / persistent `Designation` / `LoseDesignation`
+     *  for cards exiled with the plot keyword. */
+    const val DESIGNATION_TYPE_PLOTTED: Int = 18
 }

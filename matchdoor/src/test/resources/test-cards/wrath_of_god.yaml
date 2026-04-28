@@ -1,0 +1,8 @@
+name: "Wrath of God"
+grpId: 73820
+titleId: 400
+abilities:
+  - id: 1521
+    textId: 61006
+    category: 4
+expansionCode: "AKR"

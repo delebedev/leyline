@@ -1,0 +1,17 @@
+name: "Mardu Thunderkite"
+grpId: 97061
+titleId: 1061758
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 188698
+    textId: 926697
+    category: 2
+    baseId: 363
+  - id: 192522
+    textId: 1062075
+    category: 2
+expansionCode: "Y25"
+tokens:
+  "188698": 97071

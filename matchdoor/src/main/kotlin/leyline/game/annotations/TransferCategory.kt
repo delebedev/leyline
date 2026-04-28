@@ -28,6 +28,7 @@ enum class TransferCategory(
     Search("Search"),
     Put("Put"),
     Surveil("Surveil"),
+    Foretell("Foretell"),
     SbaLegendRule("SBA_LegendRule"),
     SbaUnattachedAura("SBA_UnattachedAura"),
     ZoneTransfer("ZoneTransfer"),

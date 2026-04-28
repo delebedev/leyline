@@ -1,0 +1,13 @@
+name: "Glimpse of Freedom"
+grpId: 70561
+titleId: 419793
+abilities:
+  - id: 25848
+    textId: 730
+    category: 4
+  - id: 136624
+    textId: 419795
+    category: 3
+    baseId: 199
+    mana: "o2oU"
+expansionCode: "THB"

@@ -1,0 +1,8 @@
+name: "Doom Blade"
+grpId: 77507
+titleId: 2306
+abilities:
+  - id: 1060
+    textId: 2307
+    category: 4
+expansionCode: "STA"

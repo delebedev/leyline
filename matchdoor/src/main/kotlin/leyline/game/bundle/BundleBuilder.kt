@@ -1102,6 +1102,12 @@ class BundleBuilder(
             makeGRE(GREMessageType.PayCostsReq_695e, nextGs, counter.nextMsgId()) {
                 it.payCostsReq = req
                 it.setPrompt(prompt ?: Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
+                // Without these two flags the client renders the cost-selection
+                // picker but treats every card as non-clickable (greyed out).
+                // Matches the canonical envelope for non-mana-payment costs
+                // (sacrifice, exile-from-grave additional cost).
+                it.allowCancel = AllowCancel.Abort
+                it.allowUndo = true
             }
 
         cursor.lastSent = snap
@@ -1683,7 +1689,7 @@ class BundleBuilder(
             if (!hasActiveSeatDraw) return false
 
             val hasActiveSeatSpellCast =
-                events.any { ev -> ev is GameEvent.SpellCast && ev.seatId == activeSeat }
+                events.any { ev -> ev is GameEvent.SpellCast && ev.seatId == activeSeat && !ev.isTrigger }
             if (hasActiveSeatSpellCast) return false
 
             val hasActiveSeatSpellResolved =

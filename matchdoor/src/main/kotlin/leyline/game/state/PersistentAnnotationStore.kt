@@ -195,7 +195,11 @@ class PersistentAnnotationStore {
                     { it.affectedIdsList.firstOrNull() ?: 0 },
                 )
 
-            // 3f. TemporaryPermanent — full-replacement upsert (keyed by token affectorId)
+            // 3f. TemporaryPermanent — full-replacement upsert keyed by the
+            // affected token instanceId. Affector is the trigger-holder (shared
+            // by all tokens spawned by a single Mobilize fire); keying on the
+            // affected token gives each warrior its own annotation row, matching
+            // the canonical "one TemporaryPermanent per token" shape.
             nextId =
                 upsertByType(
                     active,
@@ -203,6 +207,17 @@ class PersistentAnnotationStore {
                     nextId,
                     AnnotationType.TemporaryPermanent,
                     mechanicResult.temporaryPermanentPersistent,
+                    { it.affectedIdsList.firstOrNull() ?: it.affectorId },
+                )
+
+            // 3f-bis. DelayedTriggerAffectees — full-replacement upsert (keyed by trigger holder)
+            nextId =
+                upsertByType(
+                    active,
+                    deletions,
+                    nextId,
+                    AnnotationType.DelayedTriggerAffectees,
+                    mechanicResult.delayedTriggerAffecteesPersistent,
                     { it.affectorId },
                 )
 
@@ -232,6 +247,16 @@ class PersistentAnnotationStore {
                     deletions,
                     nextId,
                     mechanicResult.preparedDesignationPersistent,
+                )
+
+            // 3j. Plotted Designation — full-replacement upsert keyed by plotted-card iid.
+            // Filters by `DesignationType=18` so it doesn't clobber seat-scoped or other-card Designations.
+            nextId =
+                upsertPlottedDesignations(
+                    active,
+                    deletions,
+                    nextId,
+                    mechanicResult.plottedDesignationPersistent,
                 )
 
             // 3h. DamagedThisTurn — grow-in-place within a turn, clear at Upkeep
@@ -548,6 +573,57 @@ class PersistentAnnotationStore {
                 it.key == DetailKeys.DESIGNATION_TYPE &&
                     it.valueInt32Count > 0 &&
                     it.getValueInt32(0) == leyline.game.annotations.AnnotationConstants.DESIGNATION_TYPE_PREPARED
+            }
+
+        /**
+         * Full-replacement upsert for `Plotted` `Designation` pAnns. Keyed by the affected
+         * card iid; filters by `DesignationType=18` detail so it only touches Plotted rows
+         * and leaves seat-scoped or other-card Designation pAnns alone.
+         */
+        private fun upsertPlottedDesignations(
+            active: MutableMap<Int, AnnotationInfo>,
+            deletions: MutableList<Int>,
+            startId: Int,
+            newAnnotations: List<AnnotationInfo>,
+        ): Int {
+            var nextId = startId
+            val newByKey = newAnnotations.associateBy { it.affectedIdsList.firstOrNull() ?: 0 }
+            val staleIds =
+                active.entries
+                    .filter { (_, ann) ->
+                        ann.typeList.any { it == AnnotationType.Designation } &&
+                            isPlottedDesignation(ann) &&
+                            (ann.affectedIdsList.firstOrNull() ?: 0) !in newByKey.keys
+                    }.map { it.key }
+            for (id in staleIds) {
+                active.remove(id)
+                deletions.add(id)
+            }
+            for ((key, ann) in newByKey) {
+                val existingEntry =
+                    active.entries.firstOrNull { (_, e) ->
+                        e.typeList.any { it == AnnotationType.Designation } &&
+                            isPlottedDesignation(e) &&
+                            (e.affectedIdsList.firstOrNull() ?: 0) == key
+                    }
+                if (existingEntry == null) {
+                    val numbered = ann.toBuilder().setId(nextId++).build()
+                    active[numbered.id] = numbered
+                } else if (existingEntry.value.detailsList != ann.detailsList) {
+                    active.remove(existingEntry.key)
+                    deletions.add(existingEntry.key)
+                    val numbered = ann.toBuilder().setId(nextId++).build()
+                    active[numbered.id] = numbered
+                }
+            }
+            return nextId
+        }
+
+        private fun isPlottedDesignation(ann: AnnotationInfo): Boolean =
+            ann.detailsList.any {
+                it.key == DetailKeys.DESIGNATION_TYPE &&
+                    it.valueInt32Count > 0 &&
+                    it.getValueInt32(0) == leyline.game.annotations.AnnotationConstants.DESIGNATION_TYPE_PLOTTED
             }
 
         private fun findByAura(

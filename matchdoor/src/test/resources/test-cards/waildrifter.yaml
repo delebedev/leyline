@@ -1,0 +1,14 @@
+name: "Waildrifter"
+grpId: 78388
+titleId: 529884
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 145145
+    textId: 529886
+    category: 3
+expansionCode: "MID"
+linkedFaces:
+  - 78387
+isPrimaryCard: false
