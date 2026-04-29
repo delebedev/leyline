@@ -5,25 +5,24 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
+import leyline.match.GameOps
 import leyline.match.MatchEventType
-import leyline.match.SessionOps
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Test double for [SessionOps] that traces all calls for assertion.
+ * Test double for [GameOps] that traces all calls for assertion.
  *
- * Provides a real [BundleBuilder] when constructed with a [GameBridge],
- * or null by default (for tests that don't need action building).
+ * Always constructed with a [GameBridge] — handlers under test need
+ * a non-null `bundleBuilder` and `gameBridge`.
  */
 class SessionTraceOps(
     override val seatId: SeatId = SeatId(1),
     override val matchId: String = "test-match",
     override var counter: MessageCounter = MessageCounter(),
-    private val bridge: GameBridge? = null,
-) : SessionOps {
-    @Suppress("CanBeNonNullable") // Overrides the nullable `SessionOps.bundleBuilder` contract.
-    override val bundleBuilder: BundleBuilder? =
-        bridge?.let { BundleBuilder(it, matchId, seatId.value) }
+    override val gameBridge: GameBridge,
+) : GameOps {
+    override val bundleBuilder: BundleBuilder =
+        BundleBuilder(gameBridge, matchId, seatId.value)
 
     // --- Traced calls ---
 

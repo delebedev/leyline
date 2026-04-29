@@ -38,7 +38,7 @@ class MatchSession(
     override val gameBridge: GameBridge,
     val paceDelayMs: Long = 200L,
     override var counter: MessageCounter = gameBridge.messageCounter,
-) : SessionOps {
+) : GameOps {
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
     override val seatId: SeatId get() = connection.seatId

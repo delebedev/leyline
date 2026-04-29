@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import leyline.UnitTag
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.SeatId
+import leyline.game.InMemoryCardRepository
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
@@ -60,7 +61,10 @@ class HandlerConstructorContractTest :
             ) {}
         }
 
-        class BundlesOnly : BundleBuilderHolder
+        class BundlesOnly : BundleBuilderHolder {
+            private val stubBridge = GameBridge(cardRepository = InMemoryCardRepository())
+            override val bundleBuilder: BundleBuilder = BundleBuilder(stubBridge, "test", 1)
+        }
 
         class PacingOnly : Pacing {
             override fun paceDelay(multiplier: Int) {}

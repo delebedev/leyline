@@ -113,7 +113,7 @@ class TargetingHandler(
             PendingClientInteraction.TargetSelection(pendingPrompt.promptId, selectedIndices, selectedInstanceIds)
 
         // Echo-back: actions-only GSM diff + re-prompt with selection reflected
-        val echoDiff = bundles.bundleBuilder!!.buildEchoDiffGsm(counters.counter)
+        val echoDiff = bundles.bundleBuilder.buildEchoDiffGsm(counters.counter)
         val gsId = counters.counter.currentGsId()
         val rePrompt = RequestBuilder.buildSelectTargetsRePrompt(pendingPrompt, bridge, selectedInstanceIds, counters.seatId.value)
         val rePromptMsg =
@@ -289,7 +289,7 @@ class TargetingHandler(
             // When auto-resolve is active and the player has no meaningful responses
             // (only Pass), skip the prompt — let autoPassAndAdvance() handle stack
             // resolution transparently, matching client behavior (#92).
-            if (clientAutoResolve && BundleBuilder.shouldAutoPass(bundles.bundleBuilder!!.buildActions())) {
+            if (clientAutoResolve && BundleBuilder.shouldAutoPass(bundles.bundleBuilder.buildActions())) {
                 return false
             }
             sink.sendRealGameState(bridge)
@@ -535,7 +535,7 @@ class TargetingHandler(
         }
         // Diff baseline is invalid post library-search — revealed objects must
         // vanish next bundle; see BundleCursor.invalidate KDoc (#42).
-        bundles.bundleBuilder?.cursor?.invalidate()
+        bundles.bundleBuilder.cursor.invalidate()
         sink.sendRealGameState(bridge)
         autoPass(ctx)
     }
@@ -624,7 +624,7 @@ class TargetingHandler(
         }
 
         val ctoReq =
-            bundles.bundleBuilder!!.buildModalCastingTimeOptionsReq(
+            bundles.bundleBuilder.buildModalCastingTimeOptionsReq(
                 parentGrpId = modalInfo.parentGrpId,
                 childGrpIds = modalInfo.childGrpIds,
                 minSel = req.min,
@@ -648,7 +648,7 @@ class TargetingHandler(
             }
 
         val result =
-            bundles.bundleBuilder!!.castingTimeOptionsBundle(
+            bundles.bundleBuilder.castingTimeOptionsBundle(
                 game,
                 counters.counter,
                 ctoReq,
@@ -764,7 +764,7 @@ class TargetingHandler(
             }
 
         val (ctoReq, costCtoIds) =
-            bundles.bundleBuilder!!.buildOptionalCostCastingTimeOptionsReq(
+            bundles.bundleBuilder.buildOptionalCostCastingTimeOptionsReq(
                 instanceId = action.instanceId,
                 optionalCosts = costEntries,
             )
@@ -779,7 +779,7 @@ class TargetingHandler(
 
         // Send prompt
         val result =
-            bundles.bundleBuilder!!.castingTimeOptionsBundle(
+            bundles.bundleBuilder.castingTimeOptionsBundle(
                 game,
                 counters.counter,
                 ctoReq,
@@ -816,7 +816,7 @@ class TargetingHandler(
             }
 
         val (ctoReq, ctoIds) =
-            bundles.bundleBuilder!!.buildChooseOrCostCastingTimeOptionsReq(
+            bundles.bundleBuilder.buildChooseOrCostCastingTimeOptionsReq(
                 instanceId = action.instanceId,
                 grpId = action.grpId,
                 optionCount = castable.size,
@@ -829,7 +829,7 @@ class TargetingHandler(
                 abilityIndicesByCtoId = ctoIds.mapIndexed { index, ctoId -> ctoId to index }.toMap(),
             )
 
-        val result = bundles.bundleBuilder!!.castingTimeOptionsBundle(game, counters.counter, ctoReq)
+        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
         Tap.outboundTemplate("CastingTimeOptionsReq (alternate additional cost) seat=${counters.seatId} card=${card.name}")
         sink.sendBundledGRE(result.messages)
         return true
@@ -949,7 +949,7 @@ class TargetingHandler(
         val msgId = counters.counter.nextMsgId()
         val gsId = counters.counter.currentGsId()
         val msg =
-            bundles.bundleBuilder!!.buildSearchReq(
+            bundles.bundleBuilder.buildSearchReq(
                 msgId = msgId,
                 gsId = gsId,
                 sourceInstanceId = sourceId,
@@ -973,7 +973,7 @@ class TargetingHandler(
         ctx: SessionContext,
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
     ) {
-        val result = bundles.bundleBuilder!!.selectTargetsBundle(ctx.game, counters.counter, pendingPrompt)
+        val result = bundles.bundleBuilder.selectTargetsBundle(ctx.game, counters.counter, pendingPrompt)
         Tap.outboundTemplate("SelectTargetsReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
@@ -984,7 +984,7 @@ class TargetingHandler(
         reason: ClassifiedPrompt.SelectN.Reason,
     ) {
         val game = ctx.game
-        val bb = bundles.bundleBuilder!!
+        val bb = bundles.bundleBuilder
         val req = bb.buildSelectNReq(pendingPrompt)
         val result =
             bb.selectNBundle(
@@ -1005,7 +1005,7 @@ class TargetingHandler(
     ) {
         val bridge = ctx.bridge
         val (req, prompt) = RequestBuilder.buildSacrificePayCostsReq(pendingPrompt, bridge)
-        val result = bundles.bundleBuilder!!.payCostsBundle(ctx.game, counters.counter, req, prompt)
+        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
         Tap.outboundTemplate("PayCostsReq(sacrifice) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
@@ -1021,7 +1021,7 @@ class TargetingHandler(
                 bridge,
                 leyline.game.mapping.PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE,
             )
-        val result = bundles.bundleBuilder!!.payCostsBundle(ctx.game, counters.counter, req, prompt)
+        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
         Tap.outboundTemplate("PayCostsReq(exile-from-grave) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
@@ -1044,7 +1044,7 @@ class TargetingHandler(
         val req = pendingPrompt.request
 
         // Resolve candidateRefs → cards + build bundle. Returns null if no cards resolved.
-        val result = bundles.bundleBuilder!!.resolveSurveilScryBundle(req.candidateRefs, context, counters.counter)
+        val result = bundles.bundleBuilder.resolveSurveilScryBundle(req.candidateRefs, context, counters.counter)
         if (result == null) {
             log.warn(
                 "TargetingHandler: surveil/scry resolve failed — candidateRefs={} (falling back)",

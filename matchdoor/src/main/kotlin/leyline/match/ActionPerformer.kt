@@ -79,7 +79,7 @@ class ActionPerformer(
 
         // Stop decision timer — client responded
         if (bridge.matchConfig.game.timer) {
-            val timerStop = bundles.bundleBuilder!!.timerStop(counters.counter)
+            val timerStop = bundles.bundleBuilder.timerStop(counters.counter)
             sink.sendBundledGRE(timerStop.messages)
         }
 
@@ -215,7 +215,7 @@ class ActionPerformer(
         // The subsequent priority grant in autoPassEngine naturally produces
         // the next GSM+AAR bundle when the player still has priority.
         if (action.actionType == ActionType.Play_add3) {
-            val bb = bundles.bundleBuilder!!
+            val bb = bundles.bundleBuilder
             sink.sendBundle(bb.stateOnlyDiff(game, counters.counter))
         }
 

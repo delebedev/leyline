@@ -353,7 +353,7 @@ open class CombatHandler(
                     if (combat != null && combat.attackers.isNotEmpty()) {
                         return Signal.CONTINUE
                     }
-                    val req = bundles.bundleBuilder!!.buildDeclareAttackersReq()
+                    val req = bundles.bundleBuilder.buildDeclareAttackersReq()
                     if (req.attackersCount > 0) {
                         tracer.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
                         sendDeclareAttackersReq(ctx, req)
@@ -618,7 +618,7 @@ open class CombatHandler(
      */
     private fun sendAttackerEchoBack(ctx: SessionContext) {
         val result =
-            bundles.bundleBuilder!!.echoAttackersBundle(
+            bundles.bundleBuilder.echoAttackersBundle(
                 ctx.game,
                 counters.counter,
                 selectedAttackerIds = lastDeclaredAttackerIds,
@@ -637,7 +637,7 @@ open class CombatHandler(
         req: DeclareAttackersReq? = null,
         resetSelection: Boolean = true,
     ) {
-        val result = bundles.bundleBuilder!!.declareAttackersBundle(ctx.game, counters.counter, req)
+        val result = bundles.bundleBuilder.declareAttackersBundle(ctx.game, counters.counter, req)
 
         val builtReq = result.messages.firstOrNull { it.hasDeclareAttackersReq() }?.declareAttackersReq
         pendingLegalAttackers = builtReq?.attackersList?.map { it.attackerInstanceId } ?: emptyList()
@@ -657,7 +657,7 @@ open class CombatHandler(
      */
     private fun sendBlockerEchoBack(ctx: SessionContext) {
         val result =
-            bundles.bundleBuilder!!.echoBlockersBundle(
+            bundles.bundleBuilder.echoBlockersBundle(
                 ctx.game,
                 counters.counter,
                 blockAssignments = lastDeclaredBlockAssignments.toMap(),
@@ -675,7 +675,7 @@ open class CombatHandler(
             return true // caller should auto-advance
         }
 
-        val result = bundles.bundleBuilder!!.declareBlockersBundle(ctx.game, counters.counter)
+        val result = bundles.bundleBuilder.declareBlockersBundle(ctx.game, counters.counter)
         pendingBlockersSent = true
         Tap.outboundTemplate("DeclareBlockersReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)

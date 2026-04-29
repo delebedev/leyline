@@ -47,7 +47,7 @@ class AutoPassEngineTest :
 
         test("checkHumanActions — AI turn always returns Skip(OnlyPassActions)") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
                     sink = ops,
@@ -72,7 +72,7 @@ class AutoPassEngineTest :
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val autoPassState = ClientAutoPassState()
             autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
                     sink = ops,
@@ -99,7 +99,7 @@ class AutoPassEngineTest :
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val autoPassState = ClientAutoPassState()
             autoPassState.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
                     sink = ops,
@@ -129,7 +129,7 @@ class AutoPassEngineTest :
                 }
             val autoPassState = ClientAutoPassState()
             autoPassState.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
                     sink = ops,
@@ -152,7 +152,7 @@ class AutoPassEngineTest :
 
         test("checkHumanActions — no autoPass + pass-only → Skip(OnlyPassActions)") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
                     sink = ops,
@@ -178,7 +178,7 @@ class AutoPassEngineTest :
                     base.addCard("Forest", human, ZoneType.Battlefield)
                     base.addCard("Forest", human, ZoneType.Battlefield)
                 }
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
                     sink = ops,
@@ -203,7 +203,7 @@ class AutoPassEngineTest :
 
         test("checkHumanActions records decisions in decisionLog") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
                     sink = ops,
@@ -228,7 +228,7 @@ class AutoPassEngineTest :
 
         test("AI turn skip does not record in decisionLog") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
                     sink = ops,
@@ -250,7 +250,7 @@ class AutoPassEngineTest :
         test("autoPassAndAdvance — game over sends sendGameOver and returns") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             game.setGameOver(GameEndReason.AllOpposingTeamsLost)
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
                     sink = ops,
@@ -279,7 +279,7 @@ class AutoPassEngineTest :
                     base.addCard("Forest", human, ZoneType.Battlefield)
                     base.addCard("Forest", human, ZoneType.Battlefield)
                 }
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
                     sink = ops,
@@ -302,7 +302,7 @@ class AutoPassEngineTest :
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val autoPassState = ClientAutoPassState()
             autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
                     sink = ops,
@@ -327,7 +327,7 @@ class AutoPassEngineTest :
 
         test("autoPassAndAdvance — combat STOP exits loop immediately") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
 
             val stubCombat =
                 object : CombatHandler(
@@ -369,7 +369,7 @@ class AutoPassEngineTest :
                     base.addCard("Forest", human, ZoneType.Battlefield)
                     base.addCard("Forest", human, ZoneType.Battlefield)
                 }
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
 
             val stubCombat =
                 object : CombatHandler(
@@ -407,7 +407,7 @@ class AutoPassEngineTest :
 
         test("autoPassAndAdvance — SEND_STATE with pass-only actions emits state-only bundle") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
-            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
 
             val stubCombat =
                 object : CombatHandler(

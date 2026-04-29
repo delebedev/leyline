@@ -123,7 +123,7 @@ class AutoPassEngine(
                         // Still emit a state-only diff when actions are pass-only so
                         // combat/death animations don't collapse into the next later
                         // priority-stop packet on the human turn.
-                        val bb = bundles.bundleBuilder!!
+                        val bb = bundles.bundleBuilder
                         val actions = bb.buildActions()
                         if (!BundleBuilder.shouldAutoPass(actions)) {
                             sink.sendRealGameState(bridge)
@@ -221,7 +221,7 @@ class AutoPassEngine(
         if (isAiTurn) {
             return PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
         }
-        val actions = bundles.bundleBuilder!!.buildActions()
+        val actions = bundles.bundleBuilder.buildActions()
 
         // Full control: always grant priority (never auto-pass on session side)
         if (autoPassState.isFullControl) {
@@ -295,7 +295,7 @@ class AutoPassEngine(
             // sends edictal passes during AI turn. Sending them interrupts the
             // client's animation pipeline (enters post-pass "waiting" state).
             if (!isAiTurn) {
-                val edictal = bundles.bundleBuilder!!.edictalPass(counters.counter)
+                val edictal = bundles.bundleBuilder.edictalPass(counters.counter)
                 sink.sendBundledGRE(edictal.messages)
             }
             bridge.seat(counters.seatId).action.submitAction(pending.actionId, PlayerAction.PassPriority)

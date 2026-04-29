@@ -95,10 +95,6 @@ class SessionOpsDefaultsTest :
             shouldNotThrowAny { ops.onPuzzleStart() }
         }
 
-        test("gameBridge default is null") {
-            ops.gameBridge.shouldBeNull()
-        }
-
         test("recorder default is null") {
             ops.recorder.shouldBeNull()
         }

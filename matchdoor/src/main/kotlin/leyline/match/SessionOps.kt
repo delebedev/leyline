@@ -60,12 +60,12 @@ interface SessionTracer {
 /**
  * Accessor for the per-session [BundleBuilder].
  *
- * Non-null for [MatchSession] (whose `BundleBuilder` is constructed from the
- * bridge at session construction); null for read-only sessions that never
- * build bundles ([FamiliarSession]).
+ * Implemented by sessions that drive game logic ([MatchSession]). Read-only
+ * sessions that never build bundles ([FamiliarSession]) do not implement this
+ * interface — the type system enforces the absence rather than a runtime null.
  */
 interface BundleBuilderHolder {
-    val bundleBuilder: BundleBuilder? get() = null
+    val bundleBuilder: BundleBuilder
 }
 
 /** Engine pacing (AI turn delay, etc.). */
@@ -116,11 +116,11 @@ interface ActionReceiver {
 }
 
 /**
- * Composite session contract — storage type for [MatchRegistry]
+ * Connection-bound session contract — storage type for [MatchRegistry]
  * and [MatchHandler], and the declared supertype of both
  * [MatchSession] and [FamiliarSession].
  *
- * Extends six focused interfaces so **handlers should take the
+ * Extends five focused interfaces so **handlers should take the
  * sub-interfaces they need**, not `SessionOps` as a whole. The only
  * code that should still accept `SessionOps` is:
  *
@@ -129,6 +129,11 @@ interface ActionReceiver {
  *   the full [ActionReceiver] surface)
  * - Whole-surface test doubles (e.g. `SessionTraceOps`).
  *
+ * [BundleBuilderHolder] and a non-null `gameBridge` are NOT part of this
+ * contract — sessions that drive game logic ([MatchSession]) implement
+ * those separately via [GameOps]. Read-only sessions ([FamiliarSession])
+ * do not, and the type system enforces the asymmetry.
+ *
  * [HandlerConstructorContractTest] pins each narrow handler contract
  * at compile time.
  */
@@ -136,11 +141,18 @@ interface SessionOps :
     GreMessageSink,
     SessionCounters,
     SessionTracer,
-    BundleBuilderHolder,
     Pacing,
     ActionReceiver {
     val matchId: String
+}
 
-    /** Game bridge — non-null for [MatchSession], null for [FamiliarSession]. */
-    val gameBridge: GameBridge? get() = null
+/**
+ * Game-bound session contract — adds the non-null game state surface
+ * to [SessionOps]. Implemented by [MatchSession]; not implemented by
+ * [FamiliarSession].
+ */
+interface GameOps :
+    SessionOps,
+    BundleBuilderHolder {
+    val gameBridge: GameBridge
 }
