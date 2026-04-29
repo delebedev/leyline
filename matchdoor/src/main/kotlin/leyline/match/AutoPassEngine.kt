@@ -85,6 +85,7 @@ class AutoPassEngine(
     fun autoPassAndAdvance(bridge: GameBridge) {
         repeat(MAX_ITERATIONS) {
             val game = bridge.getGame() ?: return
+            val ctx = SessionContext(game, bridge)
             if (game.isGameOver) {
                 tracer.traceEvent(MatchEventType.GAME_OVER, game, "game over detected")
                 sink.sendGameOver()
@@ -103,10 +104,10 @@ class AutoPassEngine(
             // Must run before combat phase SEND_STATE handling: COMBAT_DAMAGE on the
             // human turn emits a visual checkpoint, but manual assignment takes
             // precedence and should surface AssignDamageReq immediately.
-            if (combatHandler.checkPendingDamageAssignment(bridge)) return
+            if (combatHandler.checkPendingDamageAssignment(ctx)) return
 
             // Combat phase handling
-            when (combatHandler.checkCombatPhase(bridge, game, phase, isHumanTurn, isAiTurn)) {
+            when (combatHandler.checkCombatPhase(ctx, phase, isHumanTurn, isAiTurn)) {
                 CombatHandler.Signal.STOP -> return
                 CombatHandler.Signal.SEND_STATE -> {
                     // AI turn: never offer actions — client expects combat GSMs

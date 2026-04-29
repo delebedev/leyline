@@ -18,6 +18,7 @@ import leyline.match.AutoPassEngine
 import leyline.match.CombatHandler
 import leyline.match.MatchEventType
 import leyline.match.OptionalActionHandler
+import leyline.match.SessionContext
 import leyline.match.TargetingHandler
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
@@ -363,8 +364,7 @@ class AutoPassEngineTest :
                     pacing = ops,
                 ) {
                     override fun checkCombatPhase(
-                        bridge: GameBridge,
-                        game: forge.game.Game,
+                        ctx: SessionContext,
                         phase: forge.game.phase.PhaseType?,
                         isHumanTurn: Boolean,
                         isAiTurn: Boolean,
@@ -406,8 +406,7 @@ class AutoPassEngineTest :
                     pacing = ops,
                 ) {
                     override fun checkCombatPhase(
-                        bridge: GameBridge,
-                        game: forge.game.Game,
+                        ctx: SessionContext,
                         phase: forge.game.phase.PhaseType?,
                         isHumanTurn: Boolean,
                         isAiTurn: Boolean,
@@ -445,8 +444,7 @@ class AutoPassEngineTest :
                     pacing = ops,
                 ) {
                     override fun checkCombatPhase(
-                        bridge: GameBridge,
-                        game: forge.game.Game,
+                        ctx: SessionContext,
                         phase: forge.game.phase.PhaseType?,
                         isHumanTurn: Boolean,
                         isAiTurn: Boolean,

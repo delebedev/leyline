@@ -219,21 +219,21 @@ class MatchSession(
     override fun onDeclareAttackers(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
             val ctx = resolveContext() ?: return
-            combatHandler.onDeclareAttackers(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+            combatHandler.onDeclareAttackers(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
         }
 
     /** Handle DeclareBlockersResp — delegates to [CombatHandler]. */
     override fun onDeclareBlockers(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
             val ctx = resolveContext() ?: return
-            combatHandler.onDeclareBlockers(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+            combatHandler.onDeclareBlockers(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
         }
 
     /** Handle AssignDamageResp — delegates to [CombatHandler]. */
     override fun onAssignDamage(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
             val ctx = resolveContext() ?: return
-            combatHandler.onAssignDamage(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+            combatHandler.onAssignDamage(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
         }
 
     /** Handle OptionalActionResp — delegates to [OptionalActionHandler]. */
@@ -304,7 +304,7 @@ class MatchSession(
             val ctx = resolveContext() ?: return
             // During combat declaration, cancel means "pass combat" (submit empty attackers).
             if (combatHandler.pendingLegalAttackers.isNotEmpty()) {
-                combatHandler.onCancelAttackers(ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+                combatHandler.onCancelAttackers(ctx) { autoPassEngine.autoPassAndAdvance(it) }
                 return
             }
             targetingHandler.onCancelAction(ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
