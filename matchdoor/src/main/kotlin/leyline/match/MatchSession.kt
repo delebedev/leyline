@@ -150,7 +150,7 @@ class MatchSession(
             bb.cursor.lastSent = snap1
 
             // Auto-pass through phases where human has no real actions
-            autoPassEngine.autoPassAndAdvance(ctx.bridge)
+            autoPassEngine.autoPassAndAdvance(ctx)
         }
 
     /**
@@ -164,9 +164,9 @@ class MatchSession(
      * Used by tests when the engine is already at a combat phase and
      * CombatHandler needs to send the prompt (DeclareBlockersReq).
      */
-    fun triggerAutoPass(bridge: GameBridge) =
+    fun triggerAutoPass(ctx: SessionContext) =
         synchronized(sessionLock) {
-            autoPassEngine.autoPassAndAdvance(bridge)
+            autoPassEngine.autoPassAndAdvance(ctx)
         }
 
     /** Reset session-scoped handler state for puzzle hot-swap. */
@@ -201,7 +201,7 @@ class MatchSession(
             bundleBuilder.cursor.lastSent = snap2
 
             // Auto-pass through phases where human has no real actions
-            autoPassEngine.autoPassAndAdvance(ctx.bridge)
+            autoPassEngine.autoPassAndAdvance(ctx)
         }
 
     /**
@@ -240,48 +240,48 @@ class MatchSession(
     override fun onOptionalActionResp(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
             val ctx = resolveContext() ?: return
-            optionalActionHandler.onOptionalActionResp(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+            optionalActionHandler.onOptionalActionResp(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
         }
 
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
     override fun onSelectTargets(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
             val ctx = resolveContext() ?: return
-            targetingHandler.onSelectTargets(greMsg, ctx.bridge)
+            targetingHandler.onSelectTargets(greMsg, ctx)
         }
 
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */
     override fun onSubmitTargets(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
             val ctx = resolveContext() ?: return
-            targetingHandler.onSubmitTargets(ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onSubmitTargets(ctx) { autoPassEngine.autoPassAndAdvance(it) }
         }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */
     override fun onSelectN(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
             val ctx = resolveContext() ?: return
-            targetingHandler.onSelectN(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onSelectN(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
         }
 
     override fun onEffectCost(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
             val ctx = resolveContext() ?: return
-            targetingHandler.onEffectCost(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onEffectCost(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
         }
 
     /** Handle GroupResp for surveil/scry — delegates to [TargetingHandler]. */
     override fun onGroupResp(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
             val ctx = resolveContext() ?: return
-            targetingHandler.onGroupResp(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onGroupResp(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
         }
 
     /** Handle CastingTimeOptionsResp — delegates to [TargetingHandler]. */
     override fun onCastingTimeOptions(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
             val ctx = resolveContext() ?: return
-            targetingHandler.onCastingTimeOptions(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onCastingTimeOptions(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
         }
 
     /** Handle SearchResp — delegates to [TargetingHandler]. */
@@ -289,7 +289,7 @@ class MatchSession(
         synchronized(sessionLock) {
             val ctx = resolveContext() ?: return
             val itemsFound = greMsg.searchResp?.itemsFoundList ?: emptyList()
-            targetingHandler.onSearchResp(ctx.bridge, itemsFound) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onSearchResp(ctx, itemsFound) { autoPassEngine.autoPassAndAdvance(it) }
         }
 
     /**
@@ -307,7 +307,7 @@ class MatchSession(
                 combatHandler.onCancelAttackers(ctx) { autoPassEngine.autoPassAndAdvance(it) }
                 return
             }
-            targetingHandler.onCancelAction(ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onCancelAction(ctx) { autoPassEngine.autoPassAndAdvance(it) }
         }
 
     /** Handle concede: send game-over sequence, then route through centralized teardown. */

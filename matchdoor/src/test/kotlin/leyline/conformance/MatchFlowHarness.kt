@@ -323,7 +323,7 @@ class MatchFlowHarness(
      * combat pending, which is not what you want.
      */
     fun triggerAutoPass() {
-        session.triggerAutoPass(bridge)
+        session.triggerAutoPass(leyline.match.SessionContext(game(), bridge))
     }
 
     /**

@@ -119,14 +119,14 @@ class ActionPerformer(
             }
             ActionType.Cast -> {
                 val castAbilityIndex = resolveCastAbilityIndex(action, bridge)
-                if (targetingHandler.checkAlternateAdditionalCostChoice(action, pending.actionId, bridge)) {
+                if (targetingHandler.checkAlternateAdditionalCostChoice(action, pending.actionId, ctx)) {
                     Tap.outboundTemplate("Cast deferred — alternate additional cost prompt sent")
                     return
                 }
                 // Check for optional costs (kicker, buyback, etc.) before submitting.
                 // If found, sends CastingTimeOptionsReq to client and returns without
                 // submitting to engine. onCastingTimeOptions resumes the cast.
-                if (targetingHandler.checkOptionalCosts(action, pending.actionId, bridge, castAbilityIndex)) {
+                if (targetingHandler.checkOptionalCosts(action, pending.actionId, ctx, castAbilityIndex)) {
                     Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
                     // Don't submit to engine yet — wait for CastingTimeOptionsResp
                     return
@@ -221,37 +221,35 @@ class ActionPerformer(
 
         // After a cast or activate, check for targeting prompt or intermediate stack state.
         // Pass clientAutoResolve when the client opts in to auto-resolving stack effects (#92).
-        if (isCastOrActivate && targetingHandler.handlePostCastPrompt(bridge, autoPassState.shouldAutoPass())) return
+        if (isCastOrActivate && targetingHandler.handlePostCastPrompt(ctx, autoPassState.shouldAutoPass())) return
 
         // After stack resolution: check for modal ETB prompt before sending state.
         // The engine may have fired a modal trigger (e.g. Charming Prince ETB)
         // during resolution, blocking in chooseModeForAbility.
         if (stackWasNonEmpty) {
-            val g = bridge.getGame()
-            if (g != null) {
-                // Check for pending modal prompt from ETB trigger
-                when (targetingHandler.checkPendingPrompt(bridge, g)) {
-                    TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
-                    TargetingHandler.PromptResult.AUTO_RESOLVED -> {
-                        // Fall through to autoPass
-                    }
-                    TargetingHandler.PromptResult.NONE -> {
-                        if (g.stack.isEmpty) {
-                            log.info("ActionPerformer: stack resolved, sending intermediate resolution state")
-                            sink.sendRealGameState(bridge)
-                            if (g.isGameOver) {
-                                log.info("ActionPerformer: game over after stack resolution")
-                                sink.sendGameOver()
-                                return
-                            }
+            val g = ctx.game
+            // Check for pending modal prompt from ETB trigger
+            when (targetingHandler.checkPendingPrompt(ctx)) {
+                TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
+                TargetingHandler.PromptResult.AUTO_RESOLVED -> {
+                    // Fall through to autoPass
+                }
+                TargetingHandler.PromptResult.NONE -> {
+                    if (g.stack.isEmpty) {
+                        log.info("ActionPerformer: stack resolved, sending intermediate resolution state")
+                        sink.sendRealGameState(bridge)
+                        if (g.isGameOver) {
+                            log.info("ActionPerformer: game over after stack resolution")
+                            sink.sendGameOver()
                             return
                         }
+                        return
                     }
                 }
             }
         }
 
-        autoPassEngine.autoPassAndAdvance(bridge)
+        autoPassEngine.autoPassAndAdvance(ctx)
     }
 
     /**

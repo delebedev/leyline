@@ -12,7 +12,6 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.opponent
 import leyline.game.bundle.RequestBuilder
 import leyline.game.mapping.PromptIds
-import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
@@ -94,7 +93,7 @@ open class CombatHandler(
     fun onDeclareAttackers(
         greMsg: ClientToGREMessage,
         ctx: SessionContext,
-        autoPass: (GameBridge) -> Unit,
+        autoPass: (SessionContext) -> Unit,
     ) {
         val bridge = ctx.bridge
         val isSubmit = greMsg.type == ClientMessageType.SubmitAttackersReq
@@ -194,7 +193,7 @@ open class CombatHandler(
             PlayerAction.DeclareAttackers(attackerCardIds, defender = defenderPlayerId?.let { Target.Player(ForgePlayerId(it)) }),
         )
         bridge.awaitPriority()
-        autoPass(bridge)
+        autoPass(ctx)
     }
 
     /**
@@ -206,7 +205,7 @@ open class CombatHandler(
      */
     fun onCancelAttackers(
         ctx: SessionContext,
-        autoPass: (GameBridge) -> Unit,
+        autoPass: (SessionContext) -> Unit,
     ) {
         val bridge = ctx.bridge
         val seatBridge = bridge.seat(counters.seatId)
@@ -243,7 +242,7 @@ open class CombatHandler(
             PlayerAction.DeclareAttackers(emptyList(), defender = defenderPlayerId?.let { Target.Player(ForgePlayerId(it)) }),
         )
         bridge.awaitPriority()
-        autoPass(bridge)
+        autoPass(ctx)
     }
 
     /**
@@ -256,7 +255,7 @@ open class CombatHandler(
     fun onDeclareBlockers(
         greMsg: ClientToGREMessage,
         ctx: SessionContext,
-        autoPass: (GameBridge) -> Unit,
+        autoPass: (SessionContext) -> Unit,
     ) {
         val bridge = ctx.bridge
         val isSubmit = greMsg.type == ClientMessageType.SubmitBlockersReq
@@ -328,7 +327,7 @@ open class CombatHandler(
             PlayerAction.DeclareBlockers(blockAssignments),
         )
         bridge.awaitPriority()
-        autoPass(bridge)
+        autoPass(ctx)
     }
 
     /**
@@ -442,7 +441,7 @@ open class CombatHandler(
     fun onAssignDamage(
         greMsg: ClientToGREMessage,
         ctx: SessionContext,
-        autoPass: (GameBridge) -> Unit,
+        autoPass: (SessionContext) -> Unit,
     ) {
         val bridge = ctx.bridge
         val game = ctx.game
@@ -530,7 +529,7 @@ open class CombatHandler(
             prompt.future.complete(mutableMapOf())
         }
         bridge.awaitPriority()
-        autoPass(bridge)
+        autoPass(ctx)
     }
 
     /**
