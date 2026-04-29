@@ -1,7 +1,9 @@
 package leyline.conformance
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 
@@ -24,12 +26,11 @@ class BrawlMatchFlowTest :
             val (b, _, _) = startGameAtMain1(seed = 42L, deckList = brawlDeck, variant = "brawl")
 
             val human = humanPlayer(b)
-            human.life shouldBe 25
-            human.getZone(ZoneType.Hand).size() shouldBe 7
-
-            val commandCards = human.getZone(ZoneType.Command).cards.filter { it.name == "Isamaru, Hound of Konda" }
-            commandCards.size shouldBe 1
-
-            b.getHandGrpIds(SeatId(1)).shouldNotBeEmpty()
+            assertSoftly {
+                human.life shouldBe 25
+                human.getZone(ZoneType.Hand).size() shouldBe 7
+                "Isamaru, Hound of Konda" should beInCommandOf(human, count = 1)
+                b.getHandGrpIds(SeatId(1)).shouldNotBeEmpty()
+            }
         }
     })

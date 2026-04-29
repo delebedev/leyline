@@ -1,11 +1,11 @@
 package leyline.conformance
 
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
@@ -138,14 +138,10 @@ class StockUpTest :
                 selectTargetsCount shouldBe 0
 
                 // Both chosen cards land in hand.
-                val handNames = human.getZone(ZoneType.Hand).cards.map { it.name }
-                pickedNames.forEach { handNames shouldContain it }
+                pickedNames.forEach { it should beInHandOf(human) }
 
                 // Stock Up itself ends up in graveyard.
-                human
-                    .getZone(ZoneType.Graveyard)
-                    .cards
-                    .filter { it.name == "Stock Up" } shouldHaveSize 1
+                "Stock Up" should beInGraveyardOf(human, count = 1)
             }
         }
     })

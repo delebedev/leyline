@@ -4,17 +4,18 @@ import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.booleans.shouldBeFalse
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.conformance.ConformanceTestBase
+import leyline.conformance.beAltCostOffer
 import leyline.conformance.humanPlayer
+import leyline.conformance.offerAltCost
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
@@ -42,10 +43,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  *
  * Card: Glimpse of Freedom (Instant {U}, "Draw a card.", Escape {2}{U}+exile-5).
  */
-@Suppress(
-    "MissingAssertSoftly",
-    "UnnecessaryNotNullOperator",
-)
+@Suppress("UnnecessaryNotNullOperator")
 class EscapeTest :
     FunSpec({
 
@@ -115,15 +113,12 @@ class EscapeTest :
                 }
             castOffers.shouldNotBeEmpty()
             val escapeOffer = castOffers.firstOrNull { it.abilityGrpId == escapeAbilityGrpId }
-            assertSoftly(escapeOffer) {
-                it shouldNotBe null
-                // Minimal-emit shape: NO grpId, NO facetId on the offer.
-                it!!.grpId shouldBe 0
-                it.facetId shouldBe 0
-                it.alternativeGrpId shouldBe escapeAbilityGrpId
-                it.manaCostCount shouldBeGreaterThan 0
-                // Each ManaRequirement echoes the escape ability grpId.
-                it.manaCostList.all { mc -> mc.abilityGrpId == escapeAbilityGrpId }.shouldBeTrue()
+            assertSoftly {
+                escapeOffer should beAltCostOffer(escapeAbilityGrpId)
+                // Minimal-emit shape (Escape-specific): NO grpId, NO facetId on the offer.
+                escapeOffer!!.grpId shouldBe 0
+                escapeOffer.facetId shouldBe 0
+                escapeOffer.alternativeGrpId shouldBe escapeAbilityGrpId
             }
         }
 
@@ -155,9 +150,7 @@ class EscapeTest :
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
-            val hasEscapeOffer =
-                fromSnap.actionsList.any { it.abilityGrpId == escapeAbilityGrpId }
-            hasEscapeOffer.shouldBeFalse()
+            fromSnap shouldNot offerAltCost(escapeAbilityGrpId)
         }
 
         test("escape card in graveyard but only 3 other GY cards → no Escape offer (additional cost not payable)") {
@@ -189,8 +182,6 @@ class EscapeTest :
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
-            val hasEscapeOffer =
-                fromSnap.actionsList.any { it.abilityGrpId == escapeAbilityGrpId }
-            hasEscapeOffer.shouldBeFalse()
+            fromSnap shouldNot offerAltCost(escapeAbilityGrpId)
         }
     })

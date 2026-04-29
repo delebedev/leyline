@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -82,6 +83,6 @@ class EatenAliveInteractionTest :
             passUntilResolved(maxPasses = 8)
 
             ai.getZone(ForgeZoneType.Exile).cards.map { it.name } shouldBe listOf("Centaur Courser")
-            human.getZone(ForgeZoneType.Graveyard).cards.any { it.name == "Walking Corpse" } shouldBe true
+            "Walking Corpse" should beInGraveyardOf(human)
         }
     })

@@ -64,17 +64,12 @@ class AttackerTapStateTest :
             h.submitAttackers()
             val postSubmit = h.messagesSince(snap)
 
-            // Find post-submit GSM diffs
-            val postSubmitGsms =
-                postSubmit
-                    .filter { it.hasGameStateMessage() }
-                    .map { it.gameStateMessage }
-            postSubmitGsms.shouldNotBeEmpty()
+            postSubmit.gameStateMessages().shouldNotBeEmpty()
 
             // Find the creature with attackState=Attacking in any post-submit diff
             val attackerObj =
-                postSubmitGsms
-                    .flatMap { it.gameObjectsList }
+                postSubmit
+                    .allGameObjects()
                     .firstOrNull { it.instanceId == attackerIid && it.attackState == AttackState.Attacking }
 
             attackerObj.shouldNotBeNull()
@@ -108,18 +103,11 @@ class AttackerTapStateTest :
             h.declareAttackers(listOf(attackerIid))
             val postAttack = h.messagesSince(snap)
 
-            // Collect all annotations from post-attack GSMs
-            val allAnnotations =
-                postAttack
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList }
-
             // Find TappedUntappedPermanent for our attacker
             val tapAnnotation =
-                allAnnotations.firstOrNull { ann ->
-                    ann.typeList.any { it == AnnotationType.TappedUntappedPermanent } &&
-                        attackerIid in ann.affectedIdsList
-                }
+                postAttack
+                    .annotationsOfType(AnnotationType.TappedUntappedPermanent)
+                    .firstOrNull { attackerIid in it.affectedIdsList }
 
             tapAnnotation.shouldNotBeNull()
 

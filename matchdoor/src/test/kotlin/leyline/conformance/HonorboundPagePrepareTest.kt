@@ -3,6 +3,7 @@ package leyline.conformance
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
@@ -12,41 +13,23 @@ import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 /**
- * Walk every emitted GSM and return the active Prepared `Designation` pAnns
- * (DesignationType=24), deduped by id. Tests use this instead of inspecting a
- * single GSM because persistent annotations are differential — a pAnn added in
- * an earlier diff GSM doesn't republish in later ones.
+ * Active Prepared `Designation` pAnns (DesignationType=24) emitted in the
+ * slice, deduped by id. Persistent annotations are differential — a pAnn
+ * added in an earlier diff GSM doesn't republish in later ones, so a single
+ * GSM lookup misses them.
  */
-private fun preparedDesignations(messages: List<GREToClientMessage>): List<AnnotationInfo> =
-    messages
-        .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
-        .flatMap { it.persistentAnnotationsList }
+private fun List<GREToClientMessage>.preparedDesignations(): List<AnnotationInfo> =
+    persistentAnnotationsOfType(AnnotationType.Designation)
         .filter { ann ->
-            ann.typeList.contains(AnnotationType.Designation) &&
-                ann.detailsList.any {
-                    it.key == DetailKeys.DESIGNATION_TYPE &&
-                        it.valueInt32Count > 0 &&
-                        it.getValueInt32(0) == AnnotationConstants.DESIGNATION_TYPE_PREPARED
-                }
+            ann.detailsList.any {
+                it.key == DetailKeys.DESIGNATION_TYPE &&
+                    it.valueInt32Count > 0 &&
+                    it.getValueInt32(0) == AnnotationConstants.DESIGNATION_TYPE_PREPARED
+            }
         }.distinctBy { it.id }
-
-/**
- * First emitted [GameObjectInfo] for [iid] across all GSMs — diff GSMs only
- * carry the object in the GSM that introduced it; subsequent diffs reference
- * by iid only. The introduction GSM is the canonical source for static fields
- * (type, isCopy, parentId, abilities).
- */
-private fun firstGameObjectFor(
-    messages: List<GREToClientMessage>,
-    iid: Int,
-): GameObjectInfo =
-    messages
-        .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
-        .firstNotNullOf { gsm -> gsm.gameObjectsList.firstOrNull { it.instanceId == iid } }
 
 /**
  * End-to-end coverage for the Prepared card-state designation (bd leyline-jtsv).
@@ -83,8 +66,7 @@ class HonorboundPagePrepareTest :
             // Persistent annotations are differential — pAnns added in earlier
             // GSMs aren't republished in later diffs. Walk every emitted GSM,
             // dedupe by id, take the matching Prepared Designation.
-            val designation =
-                preparedDesignations(allMessages).single()
+            val designation = allMessages.preparedDesignations().single()
             assertSoftly {
                 designation.affectorId shouldBe sourceIid
                 designation.affectedIdsList shouldContain sourceIid
@@ -97,7 +79,8 @@ class HonorboundPagePrepareTest :
             // Exile copy GameObjectInfo: rendered as Card (not Token), parented back
             // to the source creature, isCopy=true, grpId resolved by name to the
             // prepare-spell face — bypasses the engine-spawned-token grpId path.
-            val copyObj = firstGameObjectFor(allMessages, copyIid)
+            val copyObj = allMessages.firstGameObjectByIid(copyIid)
+            copyObj.shouldNotBeNull()
             assertSoftly {
                 copyObj.type shouldBe GameObjectType.Card
                 copyObj.isCopy shouldBe true
@@ -208,7 +191,7 @@ class HonorboundPagePrepareTest :
             // Pre-cast: persistent Designation pAnn exists for the source. Save
             // its id so we can assert it's listed in diffDeletedPersistentAnnotationIds
             // after the cast clears the prepared state.
-            val designationIdBeforeCast = preparedDesignations(allMessages).single().id
+            val designationIdBeforeCast = allMessages.preparedDesignations().single().id
             val cutoffMessageCount = allMessages.size
 
             // Cast the prepared copy and select a target — Forge's SpellCast trigger

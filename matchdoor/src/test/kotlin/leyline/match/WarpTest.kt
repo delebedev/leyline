@@ -7,7 +7,9 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.IntegrationTag
@@ -16,8 +18,10 @@ import leyline.bridge.types.GrpId
 import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.MatchFlowHarness
+import leyline.conformance.beAltCostOffer
 import leyline.conformance.detailInt
 import leyline.conformance.humanPlayer
+import leyline.conformance.offerAltCost
 import leyline.game.InMemoryCardRepository
 import leyline.game.data.AbilityInfo
 import leyline.game.data.KeywordAbilityIds
@@ -104,11 +108,9 @@ class WarpTest :
                 }
             castOffers.shouldNotBeEmpty()
             val warpOffer = castOffers.firstOrNull { it.alternativeGrpId == warpAbilityGrpId }
-            assertSoftly(warpOffer) {
-                it shouldNotBe null
-                it!!.abilityGrpId shouldBe 0
-                it.manaCostCount shouldBeGreaterThan 0
-                it.manaCostList.all { mc -> mc.abilityGrpId == warpAbilityGrpId }.shouldBeTrue()
+            assertSoftly {
+                warpOffer should beAltCostOffer(warpAbilityGrpId)
+                warpOffer!!.abilityGrpId shouldBe 0 // alternative rail
             }
         }
 
@@ -148,11 +150,9 @@ class WarpTest :
                 actions.actionsList.firstOrNull {
                     it.actionType == ActionType.Cast && it.grpId == wurmGrpId && it.alternativeGrpId == warpAbilityGrpId
                 }
-            assertSoftly(warpOffer) {
-                it shouldNotBe null
-                it!!.abilityGrpId shouldBe 0
-                it.manaCostCount shouldBeGreaterThan 0
-                it.manaCostList.all { mc -> mc.abilityGrpId == warpAbilityGrpId }.shouldBeTrue()
+            assertSoftly {
+                warpOffer should beAltCostOffer(warpAbilityGrpId)
+                warpOffer!!.abilityGrpId shouldBe 0 // alternative rail
             }
         }
 
@@ -207,12 +207,11 @@ class WarpTest :
                 actions.actionsList.firstOrNull {
                     it.actionType == ActionType.Cast && it.grpId == wurmGrpId && it.alternativeGrpId != 0
                 }
-            assertSoftly(warpOffer) {
-                it shouldNotBe null
-                it!!.alternativeGrpId shouldBe realWarpAbilityGrpId
-                it.alternativeGrpId shouldNotBe fakeEtbId
-                it.abilityGrpId shouldBe 0
-                it.manaCostList.all { mc -> mc.abilityGrpId == realWarpAbilityGrpId }.shouldBeTrue()
+            assertSoftly {
+                warpOffer should beAltCostOffer(realWarpAbilityGrpId)
+                warpOffer!!.alternativeGrpId shouldBe realWarpAbilityGrpId
+                warpOffer.alternativeGrpId shouldNotBe fakeEtbId
+                warpOffer.abilityGrpId shouldBe 0 // alternative rail
             }
         }
 
@@ -268,11 +267,9 @@ class WarpTest :
                         it.instanceId == riddlerIid &&
                         it.alternativeGrpId == warpAbilityGrpId
                 }
-            assertSoftly(warpOffer) {
-                it shouldNotBe null
-                it!!.abilityGrpId shouldBe 0
-                it.manaCostCount shouldBeGreaterThan 0
-                it.manaCostList.all { mc -> mc.abilityGrpId == warpAbilityGrpId }.shouldBeTrue()
+            assertSoftly {
+                warpOffer should beAltCostOffer(warpAbilityGrpId)
+                warpOffer!!.abilityGrpId shouldBe 0 // alternative rail
             }
         }
 
@@ -310,11 +307,9 @@ class WarpTest :
                         it.instanceId == wurmIid &&
                         it.alternativeGrpId == warpAbilityGrpId
                 }
-            assertSoftly(warpOffer) {
-                it shouldNotBe null
-                it!!.abilityGrpId shouldBe 0
-                it.manaCostCount shouldBeGreaterThan 0
-                it.manaCostList.all { mc -> mc.abilityGrpId == warpAbilityGrpId }.shouldBeTrue()
+            assertSoftly {
+                warpOffer should beAltCostOffer(warpAbilityGrpId)
+                warpOffer!!.abilityGrpId shouldBe 0 // alternative rail
             }
         }
 
@@ -551,10 +546,7 @@ class WarpTest :
                     cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
-            val hasWarpOffer =
-                actions.actionsList.any { it.alternativeGrpId == warpAbilityGrpId } ||
-                    actions.inactiveActionsList.any { it.alternativeGrpId == warpAbilityGrpId }
-            hasWarpOffer.shouldBeFalse()
+            actions shouldNot offerAltCost(warpAbilityGrpId)
         }
 
         test("warp card only in library → no alt-cost Cast offer (no speculative library-top rail)").config(tags = setOf(ConformanceTag)) {
@@ -580,10 +572,7 @@ class WarpTest :
                     cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
-            val hasWarpOffer =
-                actions.actionsList.any { it.alternativeGrpId == warpAbilityGrpId } ||
-                    actions.inactiveActionsList.any { it.alternativeGrpId == warpAbilityGrpId }
-            hasWarpOffer.shouldBeFalse()
+            actions shouldNot offerAltCost(warpAbilityGrpId)
         }
 
         test("warp card in graveyard → no alt-cost Cast offer").config(tags = setOf(ConformanceTag)) {
@@ -609,10 +598,7 @@ class WarpTest :
                     cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
-            val hasWarpOffer =
-                actions.actionsList.any { it.alternativeGrpId == warpAbilityGrpId } ||
-                    actions.inactiveActionsList.any { it.alternativeGrpId == warpAbilityGrpId }
-            hasWarpOffer.shouldBeFalse()
+            actions shouldNot offerAltCost(warpAbilityGrpId)
         }
     })
 

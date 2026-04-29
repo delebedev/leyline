@@ -3,18 +3,19 @@ package leyline.match
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.booleans.shouldBeFalse
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.conformance.ConformanceTestBase
+import leyline.conformance.beAltCostOffer
 import leyline.conformance.humanPlayer
+import leyline.conformance.offerAltCost
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
@@ -38,10 +39,9 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * Card: Railway Brawler (Sorcery 4G, Plot {3}{G}).
  */
 @Suppress(
-    "MissingAssertSoftly",
     "UnnecessaryNotNullOperator",
-    // Zone-guard tests assert the absence of an offer — boolean predicates on
-    // the action list are the native idiom (no equality-shape to assert).
+    // Zone-guard tests assert offer absence via `shouldNot offerAltCost(...)`. The
+    // detekt heuristic doesn't recognize custom matchers as equality-shape.
     "WeakAssertionOnly",
 )
 class PlotTest :
@@ -103,11 +103,9 @@ class PlotTest :
                 }
             castOffers.shouldNotBeEmpty()
             val plotOffer = castOffers.firstOrNull { it.alternativeGrpId == plottedAbilityGrpId }
-            assertSoftly(plotOffer) {
-                it shouldNotBe null
-                it!!.abilityGrpId shouldBe 0
-                it.manaCostCount shouldBeGreaterThan 0
-                it.manaCostList.all { mc -> mc.abilityGrpId == plottedAbilityGrpId }.shouldBeTrue()
+            assertSoftly {
+                plotOffer should beAltCostOffer(plottedAbilityGrpId)
+                plotOffer!!.abilityGrpId shouldBe 0 // alternative rail
             }
         }
 
@@ -145,11 +143,9 @@ class PlotTest :
                         it.instanceId == brawlerIid &&
                         it.alternativeGrpId == plottedAbilityGrpId
                 }
-            assertSoftly(plotOffer) {
-                it shouldNotBe null
-                it!!.abilityGrpId shouldBe 0
-                it.manaCostCount shouldBeGreaterThan 0
-                it.manaCostList.all { mc -> mc.abilityGrpId == plottedAbilityGrpId }.shouldBeTrue()
+            assertSoftly {
+                plotOffer should beAltCostOffer(plottedAbilityGrpId)
+                plotOffer!!.abilityGrpId shouldBe 0 // alternative rail
             }
         }
 
@@ -178,9 +174,7 @@ class PlotTest :
                     cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
-            val hasActivePlotOffer =
-                actions.actionsList.any { it.alternativeGrpId == plottedAbilityGrpId }
-            hasActivePlotOffer.shouldBeFalse()
+            actions shouldNot offerAltCost(plottedAbilityGrpId)
         }
 
         test("plot card only in graveyard → no Cast offer with alternativeGrpId=PLOTTED row") {
@@ -209,9 +203,6 @@ class PlotTest :
                     cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
-            val hasOffer =
-                actions.actionsList.any { it.alternativeGrpId == plottedAbilityGrpId } ||
-                    actions.inactiveActionsList.any { it.alternativeGrpId == plottedAbilityGrpId }
-            hasOffer.shouldBeFalse()
+            actions shouldNot offerAltCost(plottedAbilityGrpId)
         }
     })

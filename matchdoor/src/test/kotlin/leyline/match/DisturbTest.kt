@@ -2,18 +2,18 @@ package leyline.match
 
 import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
-import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
+import leyline.conformance.offerAltCost
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
@@ -43,10 +43,6 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * Card: Galedrifter (front, Creature 3/2 Flying, ManaCost {3}{U}, K:Disturb:4 U).
  * Back face: Waildrifter (Creature 2/2 Flying Spirit, exile-instead-of-graveyard).
  */
-@Suppress(
-    "MissingAssertSoftly",
-    "UnnecessaryNotNullOperator",
-)
 class DisturbTest :
     FunSpec({
 
@@ -110,10 +106,12 @@ class DisturbTest :
                 }
             castOffers.shouldNotBeEmpty()
             val disturbOffer = castOffers.firstOrNull { it.abilityGrpId == disturbAbilityGrpId }
-            assertSoftly(disturbOffer) {
-                it shouldNotBe null
-                it!!.manaCostCount shouldBeGreaterThan 0
-            }
+            // NOT using `beAltCostOffer(disturbAbilityGrpId)` — the bridge doesn't yet
+            // stamp Disturb's manaCost entries with the disturb ability grpId
+            // (each ManaRequirement has abilityGrpId=0). Foretell/Plot/Warp/Escape
+            // do stamp. Once the stamp lands for Disturb, switch to the matcher.
+            disturbOffer shouldNotBe null
+            disturbOffer!!.manaCostCount shouldBeGreaterThan 0
         }
 
         test("disturb card only in hand → no graveyard-cast offer (zone guard)") {
@@ -144,9 +142,7 @@ class DisturbTest :
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
-            val hasDisturbOffer =
-                fromSnap.actionsList.any { it.abilityGrpId == disturbAbilityGrpId }
-            hasDisturbOffer.shouldBeFalse()
+            fromSnap shouldNot offerAltCost(disturbAbilityGrpId)
         }
 
         test("ObjectMapper.resolveOthersideGrpId returns Waildrifter for Galedrifter (DFC linkage)") {

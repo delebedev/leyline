@@ -2,12 +2,11 @@ package leyline.conformance
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Regression for fix/bushwhack-fight-mode (bd leyline-xny).
@@ -69,26 +68,13 @@ class BushwhackFightTest :
             passUntilResolved()
 
             // DamageDealt fires twice for fight (each creature deals to the other).
-            val damageAnns =
-                allMessages
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList }
-                    .filter { AnnotationType.DamageDealt_af5a in it.typeList }
-            damageAnns.shouldNotBeEmpty()
+            allMessages.annotationsOfType(AnnotationType.DamageDealt_af5a).size shouldBeGreaterThanOrEqual 2
 
             // Bushwhack moved Stack→GY, not countered.
             assertSoftly {
-                human
-                    .getZone(ForgeZoneType.Graveyard)
-                    .cards
-                    .filter { it.name == "Bushwhack" } shouldHaveSize 1
-
+                "Bushwhack" should beInGraveyardOf(human, count = 1)
                 // Grizzly Bears (2/2) takes 3 damage from Centaur Courser → dies.
-                ai
-                    .getZone(ForgeZoneType.Graveyard)
-                    .cards
-                    .filter { it.name == "Grizzly Bears" }
-                    .shouldNotBeEmpty()
+                "Grizzly Bears" should beInGraveyardOf(ai)
             }
         }
     })

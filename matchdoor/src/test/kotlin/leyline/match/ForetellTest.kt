@@ -3,18 +3,19 @@ package leyline.match
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.booleans.shouldBeFalse
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.conformance.ConformanceTestBase
+import leyline.conformance.beAltCostOffer
 import leyline.conformance.humanPlayer
+import leyline.conformance.offerAltCost
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
@@ -44,10 +45,11 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * Card: Demon Bolt (Sorcery R, Foretell {2} / cast for {R} from foretell).
  */
 @Suppress(
-    "MissingAssertSoftly",
     "UnnecessaryNotNullOperator",
-    // Zone-guard tests assert the absence of an offer — boolean predicates on
-    // the action list are the native idiom (no equality-shape to assert).
+    // Zone-guard tests assert offer absence via `shouldNot offerAltCost(...)`. The
+    // detekt heuristic doesn't recognize custom matchers as equality-shape, but the
+    // matcher's failure message names the keyword grpId + counts. Cleaner than the
+    // pre-matcher `actionsList.any{}.shouldBeFalse()` either way.
     "WeakAssertionOnly",
 )
 class ForetellTest :
@@ -108,11 +110,9 @@ class ForetellTest :
                 }
             castOffers.shouldNotBeEmpty()
             val foretellOffer = castOffers.firstOrNull { it.alternativeGrpId == foretellAbilityGrpId }
-            assertSoftly(foretellOffer) {
-                it shouldNotBe null
-                it!!.abilityGrpId shouldBe 0
-                it.manaCostCount shouldBeGreaterThan 0
-                it.manaCostList.all { mc -> mc.abilityGrpId == foretellAbilityGrpId }.shouldBeTrue()
+            assertSoftly {
+                foretellOffer should beAltCostOffer(foretellAbilityGrpId)
+                foretellOffer!!.abilityGrpId shouldBe 0 // alternative rail — abilityGrpId stays 0
             }
         }
 
@@ -154,11 +154,9 @@ class ForetellTest :
                         it.instanceId == boltIid &&
                         it.alternativeGrpId == foretellAbilityGrpId
                 }
-            assertSoftly(foretellOffer) {
-                it shouldNotBe null
-                it!!.abilityGrpId shouldBe 0
-                it.manaCostCount shouldBeGreaterThan 0
-                it.manaCostList.all { mc -> mc.abilityGrpId == foretellAbilityGrpId }.shouldBeTrue()
+            assertSoftly {
+                foretellOffer should beAltCostOffer(foretellAbilityGrpId)
+                foretellOffer!!.abilityGrpId shouldBe 0 // alternative rail
             }
         }
 
@@ -186,9 +184,7 @@ class ForetellTest :
                     cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
-            val hasActiveForetellOffer =
-                actions.actionsList.any { it.alternativeGrpId == foretellAbilityGrpId }
-            hasActiveForetellOffer.shouldBeFalse()
+            actions shouldNot offerAltCost(foretellAbilityGrpId)
         }
 
         test("foretell card only in graveyard → no Cast offer with alternativeGrpId=FORETELL row") {
@@ -216,9 +212,6 @@ class ForetellTest :
                     cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
-            val hasOffer =
-                actions.actionsList.any { it.alternativeGrpId == foretellAbilityGrpId } ||
-                    actions.inactiveActionsList.any { it.alternativeGrpId == foretellAbilityGrpId }
-            hasOffer.shouldBeFalse()
+            actions shouldNot offerAltCost(foretellAbilityGrpId)
         }
     })
