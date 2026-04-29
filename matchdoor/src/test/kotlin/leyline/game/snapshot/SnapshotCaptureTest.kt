@@ -35,8 +35,6 @@ class SnapshotCaptureTest :
                     human.getZone(ZoneType.Command).add(goal)
                 }
 
-            // Would previously throw: DevCheck.fail in ObjectMapper.resolveGrpId
-            // ("grpId=0 for 'Puzzle Goal' (forgeId=-1): not in client card DB").
             val snap = SnapshotCapture.run(game, b, "test", 0)
 
             val goalFid = ForgeCardId(-1)

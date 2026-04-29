@@ -5,7 +5,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Caches resolved token grpId per instanceId.
  *
- * Populated at first resolution (during [leyline.game.mapping.ObjectMapper.resolveGrpId]),
+ * Populated at first resolution (during [leyline.game.snapshot.GrpIdResolver.resolve]),
  * consulted on every subsequent GSM build. Eliminates fragile re-resolution via Forge
  * runtime references that can break between diff ticks (e.g. detached spawning ability).
  *

@@ -38,7 +38,7 @@ class ObjectMapperTest :
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
-            val obj = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, 1, b)
+            val obj = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, 1, b.cardProto)
 
             val frontGrpId = b.cardRepository.findGrpIdByName("Concealing Curtains")!!
             val backGrpId = b.cardRepository.findGrpIdByName("Revealing Eye")!!
@@ -62,7 +62,7 @@ class ObjectMapperTest :
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
-            val obj = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, 1, b)
+            val obj = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, 1, b.cardProto)
 
             obj.othersideGrpId shouldBe 0
         }

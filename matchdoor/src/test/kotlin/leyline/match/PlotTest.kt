@@ -17,7 +17,7 @@ import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.ObjectMapper
+import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
@@ -92,7 +92,7 @@ class PlotTest :
                     seatId = 1,
                     checkLegality = true,
                     idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
                     cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                     cardRepository = b.cardRepository,
                 )
@@ -174,7 +174,7 @@ class PlotTest :
                     seatId = 1,
                     checkLegality = true,
                     idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
                     cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
@@ -205,7 +205,7 @@ class PlotTest :
                     seatId = 1,
                     checkLegality = true,
                     idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
                     cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 

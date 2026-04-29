@@ -128,7 +128,7 @@ object ZoneMapper {
                 log.warn("no snapshot for {} card {} — skipping game object", zoneName, fid)
                 return null
             }
-        return ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, seatId.value, bridge, visibility)
+        return ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, seatId.value, bridge.cardProto, visibility)
     }
 
     // --- Snapshot-based shared zones ---
@@ -169,7 +169,15 @@ object ZoneMapper {
                     continue
                 }
             gameObjects.add(
-                ObjectMapper.buildFromSnapshot(cardSnap, instanceId, arenaZoneId, ownerSeatId, bridge, Visibility.Public, keywordSnapshot),
+                ObjectMapper.buildFromSnapshot(
+                    cardSnap,
+                    instanceId,
+                    arenaZoneId,
+                    ownerSeatId,
+                    bridge.cardProto,
+                    Visibility.Public,
+                    keywordSnapshot,
+                ),
             )
         }
         zones.add(zoneBuilder.build())

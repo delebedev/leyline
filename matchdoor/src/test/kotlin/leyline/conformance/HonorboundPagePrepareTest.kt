@@ -64,7 +64,7 @@ private fun firstGameObjectFor(
  *   `isCopy=true`, `parentId` pointing back at the prepared creature, and
  *   `grpId` resolved to the prepare-spell face's id via name lookup.
  * - Cast-from-exile is offered as a normal `Cast` action and resolves through
- *   `ObjectMapper.resolveGrpId` without tripping the strict-mode token-grpId
+ *   `GrpIdResolver.resolve` without tripping the strict-mode token-grpId
  *   guard — Forge reallocates the copy's `Card.id` on the exile→stack
  *   transition, so detection has to be state-based, not identity-based.
  */
@@ -110,16 +110,12 @@ class HonorboundPagePrepareTest :
             }
         }
 
-        test("ObjectMapper.resolveGrpId on prepared copy returns by-name grpId, not 0") {
+        test("GrpIdResolver.resolve on prepared copy returns by-name grpId, not 0") {
             startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = false)
 
             castSpellByName("Honorbound Page")
             passUntilResolved()
 
-            // Direct exercise of ObjectMapper.resolveGrpId — the path
-            // ActionPerformer.resolveCastAbilityIndex takes when the player casts
-            // the prepared copy. Pre-fix this returned 0 (DevCheck.fail) because
-            // the token-spawning-ability path doesn't fit prepared copies.
             val copy =
                 human
                     .getZone(ZoneType.Exile)

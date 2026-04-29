@@ -47,7 +47,7 @@ class ObjectMapperSnapshotTest :
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val cardSnap = snap.objects.getValue(fid)
 
-            val fromSnap = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, ZoneIds.P1_HAND, 1, b)
+            val fromSnap = ObjectMapper.buildFromSnapshot(cardSnap, instanceId, ZoneIds.P1_HAND, 1, b.cardProto)
 
             assertSoftly {
                 fromSnap.instanceId shouldBe instanceId
@@ -87,7 +87,7 @@ class ObjectMapperSnapshotTest :
                     instanceId,
                     ZoneIds.BATTLEFIELD,
                     1,
-                    b,
+                    b.cardProto,
                     Visibility.Public,
                 )
 
@@ -123,7 +123,7 @@ class ObjectMapperSnapshotTest :
                     instanceId,
                     ZoneIds.P1_GRAVEYARD,
                     1,
-                    b,
+                    b.cardProto,
                     Visibility.Public,
                 )
 
@@ -161,7 +161,7 @@ class ObjectMapperSnapshotTest :
                     instanceId,
                     ZoneIds.BATTLEFIELD,
                     1,
-                    b,
+                    b.cardProto,
                     Visibility.Public,
                 )
 
@@ -196,7 +196,7 @@ class ObjectMapperSnapshotTest :
                     instanceId,
                     ZoneIds.BATTLEFIELD,
                     1,
-                    b,
+                    b.cardProto,
                     Visibility.Public,
                 )
 
@@ -231,7 +231,7 @@ class ObjectMapperSnapshotTest :
                     instanceId,
                     ZoneIds.BATTLEFIELD,
                     2,
-                    b,
+                    b.cardProto,
                     Visibility.Public,
                 )
 

@@ -516,7 +516,7 @@ class BundleBuilder(
                     iid,
                     ZoneIds.BATTLEFIELD,
                     ownerSeatId = seatId,
-                    bridge = bridge,
+                    cardProto = bridge.cardProto,
                 ),
             )
         }
@@ -632,7 +632,7 @@ class BundleBuilder(
                     iid,
                     ZoneIds.BATTLEFIELD,
                     ownerSeatId = seatId,
-                    bridge = bridge,
+                    cardProto = bridge.cardProto,
                 ),
             )
         }
@@ -920,7 +920,7 @@ class BundleBuilder(
                         instanceId = iid,
                         zoneId = libraryZoneId,
                         ownerSeatId = seatId,
-                        bridge = bridge,
+                        cardProto = bridge.cardProto,
                         visibility = Visibility.Private,
                     ).toBuilder()
                     .addViewers(seatId)
@@ -1592,7 +1592,7 @@ class BundleBuilder(
         val revealedObjects =
             topCardSnaps.zip(cardInstanceIds).map { (cardSnap, iid) ->
                 ObjectMapper
-                    .buildFromSnapshot(cardSnap, iid, libZoneId, seatId, bridge, Visibility.Private)
+                    .buildFromSnapshot(cardSnap, iid, libZoneId, seatId, bridge.cardProto, Visibility.Private)
                     .toBuilder()
                     .addViewers(seatId)
                     .build()

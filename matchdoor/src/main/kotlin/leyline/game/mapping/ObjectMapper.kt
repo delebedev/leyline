@@ -1,7 +1,6 @@
 package leyline.game.mapping
 
 import forge.game.card.Card
-import leyline.DevCheck
 import leyline.game.codes.KeywordGrpIds
 import leyline.game.data.CardProtoBuilder
 import leyline.game.data.CardRepository
@@ -9,9 +8,6 @@ import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.CombatRole
 import leyline.game.snapshot.PreparedRole
 import leyline.game.state.EffectTracker
-import leyline.game.state.GameBridge
-import leyline.game.state.TokenIdentityRegistry
-import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.card.CardType.CoreType as ForgeCoreType
 
@@ -23,8 +19,6 @@ import forge.card.CardType.CoreType as ForgeCoreType
  * sickness, damage, loyalty, combat state, and attachment info.
  */
 object ObjectMapper {
-    private val log = LoggerFactory.getLogger(ObjectMapper::class.java)
-
     /** Offset added to source card IDs for stack ability instance IDs. */
     internal const val STACK_ABILITY_ID_OFFSET = 100_000
 
@@ -108,7 +102,7 @@ object ObjectMapper {
         instanceId: Int,
         zoneId: Int,
         ownerSeatId: Int,
-        bridge: GameBridge,
+        cardProto: CardProtoBuilder,
     ): GameObjectInfo {
         val objType =
             if (cardSnap.isToken && cardSnap.preparedRole !is PreparedRole.Copy) {
@@ -118,7 +112,7 @@ object ObjectMapper {
                 // normal castable spell — projected as plain Cards.
                 GameObjectType.Card
             }
-        return bridge.cardProto
+        return cardProto
             .buildObjectInfo(cardSnap.grpId)
             .setInstanceId(instanceId)
             .setType(objType)
@@ -127,7 +121,7 @@ object ObjectMapper {
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(cardSnap.controller.value)
             .setOthersideGrpId(cardSnap.othersideGrpId)
-            .applyFieldsFromSnapshot(cardSnap, bridge) // echo objects carry no combat state (combatRole=null in snap)
+            .applyFieldsFromSnapshot(cardSnap) // echo objects carry no combat state (combatRole=null in snap)
             .build()
     }
 
@@ -144,9 +138,9 @@ object ObjectMapper {
         handZoneId: Int,
         ownerSeatId: Int,
         viewerSeatId: Int,
-        bridge: GameBridge,
+        cardProto: CardProtoBuilder,
     ): GameObjectInfo =
-        bridge.cardProto
+        cardProto
             .buildObjectInfo(cardSnap.grpId)
             .setInstanceId(proxyInstanceId)
             .setType(GameObjectType.RevealedCard)
@@ -155,7 +149,7 @@ object ObjectMapper {
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(ownerSeatId)
             .addViewers(viewerSeatId)
-            .applyFieldsFromSnapshot(cardSnap, bridge)
+            .applyFieldsFromSnapshot(cardSnap)
             .build()
 
     /**
@@ -173,7 +167,7 @@ object ObjectMapper {
         instanceId: Int,
         zoneId: Int,
         ownerSeatId: Int,
-        bridge: GameBridge,
+        cardProto: CardProtoBuilder,
         visibility: Visibility = Visibility.Private,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ): GameObjectInfo {
@@ -189,7 +183,7 @@ object ObjectMapper {
             keywordSnapshot[instanceId]
                 ?.mapNotNull { KeywordGrpIds.forKeyword(it.keyword) }
                 ?: emptyList()
-        return bridge.cardProto
+        return cardProto
             .buildObjectInfo(cardSnap.grpId, extrinsicKeywordGrpIds = extrinsicKws)
             .setInstanceId(instanceId)
             .setType(objType)
@@ -198,7 +192,7 @@ object ObjectMapper {
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(cardSnap.controller.value)
             .setOthersideGrpId(cardSnap.othersideGrpId)
-            .applyFieldsFromSnapshot(cardSnap, bridge)
+            .applyFieldsFromSnapshot(cardSnap)
             .build()
     }
 
@@ -207,10 +201,7 @@ object ObjectMapper {
      *
      * Overlays: live card types, P/T, tapped, sickness, damage, loyalty, combat, attachment.
      */
-    private fun GameObjectInfo.Builder.applyFieldsFromSnapshot(
-        cardSnap: CardSnapshot,
-        bridge: GameBridge,
-    ): GameObjectInfo.Builder {
+    private fun GameObjectInfo.Builder.applyFieldsFromSnapshot(cardSnap: CardSnapshot): GameObjectInfo.Builder {
         // Live card types — overlay when they differ from DB (same logic as overlayCardTypes)
         overlayCardTypesFromSnapshot(cardSnap)
 
@@ -240,25 +231,22 @@ object ObjectMapper {
             setObjectSourceGrpId(this.grpId)
         }
 
-        // Attachment (Auras, Equipment) — resolve attached-to instance ID via bridge.
+        // Attachment (Auras, Equipment) — pre-resolved instanceId from snapshot.
         // Set FIRST so the prepared-copy branch below has final say if both apply
         // (theoretical: a continuous effect attaching the exile copy to something).
         // The protocol semantic for "prepared exile copy that's also attached" is
         // unspecified; preferring the prepared parentId keeps the cast-from-exile
         // linkage intact for the client.
-        val attachedTo = cardSnap.attachedTo
-        if (attachedTo != null) {
-            setParentId(bridge.getOrAllocInstanceId(attachedTo).value)
-        }
+        cardSnap.attachedToInstanceId?.let { setParentId(it) }
 
         // Prepared-spell exile copy — projects as a Card parented to the prepared
         // source creature. GameObject form: isCopy=true, parentId=<creature iid>,
         // no objectSourceGrpId (that field is for engine-spawned tokens). The
-        // sourceForgeCardId can be null mid-cast; isCopy still applies, parentId
+        // source instanceId can be null mid-cast; isCopy still applies, parentId
         // is omitted in that case.
-        (cardSnap.preparedRole as? PreparedRole.Copy)?.let { copy ->
+        if (cardSnap.preparedRole is PreparedRole.Copy) {
             setIsCopy(true)
-            copy.sourceForgeCardId?.let { setParentId(bridge.getOrAllocInstanceId(it).value) }
+            cardSnap.preparedCopySourceInstanceId?.let { setParentId(it) }
         }
 
         // Combat state
@@ -315,7 +303,8 @@ object ObjectMapper {
      *  Scope: **transform DFCs + meld pairs only** — Forge's `Card.isDoubleFaced`
      *  predicate is `isTransformable() || isMeldable()`. MDFC, Adventure, Split,
      *  Flip, Saga, Battle, and Room cards do NOT enter this branch; their grpId
-     *  resolution goes through [resolveGrpId]'s primary/any-face fallback chain.
+     *  resolution goes through [leyline.game.snapshot.GrpIdResolver]'s
+     *  primary/any-face fallback chain.
      *
      *  Back-face cards (Luminous Phantom, Waildrifter, etc.) have IsPrimaryCard=0
      *  in the Arena DB, so [findGrpIdByName]'s primary-only filter misses them.
@@ -350,97 +339,4 @@ object ObjectMapper {
             ForgeCoreType.Kindred to CardType.Kindred,
             ForgeCoreType.Battle to CardType.Battle,
         )
-
-    /**
-     * Resolve grpId for a card. Tokens use the [TokenIdentityRegistry] cache,
-     * falling back to the standard lookup chain on first encounter.
-     * Copy tokens (Forge `copiedPermanent != null`) use the source permanent's grpId.
-     */
-    internal fun resolveGrpId(
-        card: Card,
-        cards: CardRepository,
-        instanceId: Int = 0,
-        tokenRegistry: TokenIdentityRegistry = TokenIdentityRegistry(),
-    ): Int {
-        if (card.isToken) {
-            // 1. Registry cache — stable across diff ticks
-            tokenRegistry.resolve(instanceId)?.let { return it }
-
-            // 2. Prepared-spell copy — Forge marks the alt face copy as TOKEN-piece
-            // typed, but it represents a normal castable spell. Resolve by name on
-            // the current face, which survives the Forge `Card.id` reallocation
-            // that happens when the copy moves Exile → Stack on cast.
-            //
-            // Same `findGrpIdByName(...) ?: findGrpIdByNameAnyFace(...)` chain as the
-            // non-token branch below; centralized in `PreparedSpell.resolveCopyGrpId`
-            // because this branch must run BEFORE the token-spawning-ability path
-            // (a prepared copy is `isToken==true` but doesn't have a
-            // `tokenSpawningAbility.hostCard`, so the standard token resolution would
-            // fall through to `DevCheck.fail`).
-            leyline.game.snapshot.PreparedSpell.resolveCopyGrpId(card, cards)?.let { preparedGrpId ->
-                if (instanceId != 0) tokenRegistry.register(instanceId, preparedGrpId)
-                return preparedGrpId
-            }
-
-            // 3. Copy token — use source permanent's grpId
-            val copiedPermanent = card.copiedPermanent
-            if (copiedPermanent != null) {
-                val sourceGrpId =
-                    cards.findGrpIdByNameAnyFace(copiedPermanent.name)
-                        ?: run {
-                            log.error("copy token grpId=0: source '{}' not in card DB", copiedPermanent.name)
-                            return GameBridge.FALLBACK_GRPID
-                        }
-                if (instanceId != 0) tokenRegistry.register(instanceId, sourceGrpId)
-                return sourceGrpId
-            }
-
-            // 3. Standard token — AbilityIdToLinkedTokenGrpId lookup
-            val tokenGrpId = resolveTokenGrpId(card, cards)
-            if (tokenGrpId != null) {
-                if (instanceId != 0) tokenRegistry.register(instanceId, tokenGrpId)
-                return tokenGrpId
-            }
-            log.error("token grpId=0 for '{}' (forgeId={})", card.name, card.id)
-            DevCheck.fail { "token grpId=0 for '${card.name}' (forgeId=${card.id})" }
-            return GameBridge.FALLBACK_GRPID
-        }
-        // Foretold cards are face-down in exile — Forge's `card.name` is "" while
-        // face-down, which would crash the strict resolver. Look up via the
-        // Original state's name (the underlying card identity) instead.
-        if (leyline.game.snapshot.Foretell
-                .isForetold(card)
-        ) {
-            val originalName =
-                card.getOriginalState(forge.card.CardStateName.Original)?.name ?: card.name
-            return cards.findGrpIdByName(originalName)
-                ?: cards.findGrpIdByNameAnyFace(originalName)
-                ?: GameBridge.FALLBACK_GRPID
-        }
-        // Primary-face lookup, falling back to any-face for DFC back faces
-        // (e.g. saga transforms to Echo of Death's Wail — the back face lives in
-        // the Arena DB under a non-primary flag; findGrpIdByName misses it).
-        return cards.findGrpIdByName(card.name)
-            ?: cards.findGrpIdByNameAnyFace(card.name)
-            ?: run {
-                log.error("grpId=0 for card '{}' (forgeId={}): not in client card DB", card.name, card.id)
-                DevCheck.fail { "grpId=0 for '${card.name}' (forgeId=${card.id}): not in client card DB" }
-                GameBridge.FALLBACK_GRPID
-            }
-    }
-
-    /** Resolve token grpId via source card's AbilityIdToLinkedTokenGrpId mapping. */
-    private fun resolveTokenGrpId(
-        card: Card,
-        cards: CardRepository,
-    ): Int? {
-        val sourceCard = card.tokenSpawningAbility?.hostCard ?: return null
-        // Try current state name first (e.g. "Pest Problem" for adventure on stack),
-        // then primary face name as fallback. Token mappings in Arena DB can be on
-        // either face — adventure tokens map from the adventure face grpId.
-        val sourceGrpId =
-            cards.findGrpIdByNameAnyFace(sourceCard.name)
-                ?: return null
-        return cards.tokenGrpIdForCard(sourceGrpId, card.name)
-    }
 }

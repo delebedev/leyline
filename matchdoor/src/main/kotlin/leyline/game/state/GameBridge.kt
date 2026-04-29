@@ -40,6 +40,7 @@ import leyline.game.event.DrainedEvents
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
 import leyline.game.mapping.ObjectMapper
+import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.GsmSnapshot
 import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
@@ -203,11 +204,12 @@ class GameBridge(
     fun findCard(fid: ForgeCardId): Card? = game?.findById(fid.value)
 
     /**
-     * Resolve a Forge [Card] to its client grpId — single entry point for all callers.
+     * Resolve a Forge [Card] to its client grpId — single entry point for runtime
+     * callers that hold a live Forge card without a [leyline.game.snapshot.CardSnapshot]
+     * in scope (e.g. [leyline.match.ActionPerformer] resolving an incoming action).
      *
-     * Encapsulates the full token resolution chain (registry cache → copy permanent →
-     * standard token → card DB lookup) so callers can't accidentally omit dependencies.
-     * Delegates to [ObjectMapper.resolveGrpId] with all required params.
+     * Threads the token registry + card repository so callers can't accidentally
+     * omit dependencies. Delegates to [GrpIdResolver.resolve].
      *
      * @param card the Forge card to resolve
      * @param instanceId client instanceId for registry cache lookups (0 = skip cache)
@@ -215,7 +217,7 @@ class GameBridge(
     fun resolveGrpId(
         card: Card,
         instanceId: Int = 0,
-    ): Int = ObjectMapper.resolveGrpId(card, cardRepository, instanceId, tokenRegistry)
+    ): Int = GrpIdResolver.resolve(card, cardRepository, instanceId, tokenRegistry)
 
     // --- Composed components ---
 
