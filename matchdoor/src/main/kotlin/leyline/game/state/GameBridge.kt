@@ -36,7 +36,7 @@ import leyline.game.codes.CounterTypes
 import leyline.game.data.CardData
 import leyline.game.data.CardProtoBuilder
 import leyline.game.data.CardRepository
-import leyline.game.event.DrainedEvents
+import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
 import leyline.game.mapping.ObjectMapper
@@ -360,27 +360,27 @@ class GameBridge(
         annotations.setAnnotationId(m.nextAnnotationId)
     }
 
-    override fun drainEvents(): DrainedEvents = eventCollector?.drainEvents() ?: DrainedEvents(emptyList())
+    override fun closeFrame(): FrameEventLog = eventCollector?.closeFrame() ?: FrameEventLog.EMPTY
 
     /**
-     * Drain all events for one bundle build: queued Forge events + reveal records
+     * Close the event frame for one bundle build: collector events + reveal records
      * for [viewingSeatId] (promoted to [GameEvent.CardsRevealed]). Caller passes
-     * the returned list to [leyline.game.mapping.StateMapper.buildFromSnapshot] /
+     * the returned log to [leyline.game.mapping.StateMapper.buildFromSnapshot] /
      * [leyline.game.mapping.StateMapper.buildDiff].
      *
-     * One drain per call; per-seat reveal consumption is seat-scoped. A multi-seat
-     * drain (so two per-seat builds of the same snapshot see the same reveals) is
+     * One close per call; per-seat reveal consumption is seat-scoped. A multi-seat
+     * close (so two per-seat builds of the same snapshot see the same reveals) is
      * a separate design concern if the pattern ever matters.
      */
-    fun drainBundleEvents(viewingSeatId: Int = 0): List<GameEvent> {
-        val events = drainEvents().events.toMutableList()
+    fun closeBundleFrame(viewingSeatId: Int = 0): FrameEventLog {
+        val events = closeFrame().events.toMutableList()
         for (reveal in drainReveals(viewingSeatId)) {
             events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
         }
-        return events
+        return FrameEventLog(events)
     }
 
-    /** True if there are Forge events queued but not yet drained into a GSM. */
+    /** True if the open frame has accumulated events not yet closed into a GSM. */
     fun hasPendingEvents(): Boolean = eventCollector?.hasEvents() ?: false
 
     companion object {
@@ -525,7 +525,7 @@ class GameBridge(
         loop.start()
         loop.awaitStarted()
 
-        // Register event collector FIRST — must fire before playback so drainEvents()
+        // Register event collector FIRST — must fire before playback so closeFrame()
         // includes the current event when playback's captureAndPause runs.
         val collector = GameEventCollector(this)
         eventCollector = collector

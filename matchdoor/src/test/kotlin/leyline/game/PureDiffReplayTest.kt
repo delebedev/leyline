@@ -7,6 +7,7 @@ import leyline.ConformanceTag
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
+import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
@@ -84,7 +85,7 @@ class PureDiffReplayTest :
                         StateMapper.buildDiff(
                             prev = step.prev,
                             cur = step.cur,
-                            events = step.events,
+                            events = FrameEventLog(step.events),
                             gameStateId = step.gameStateId,
                             matchId = ConformanceTestBase.TEST_MATCH_ID,
                             bridge = replayBridge,
@@ -126,7 +127,7 @@ class PureDiffReplayTest :
                         StateMapper.buildDiff(
                             prev = step.prev,
                             cur = step.cur,
-                            events = step.events,
+                            events = FrameEventLog(step.events),
                             gameStateId = step.gameStateId,
                             matchId = ConformanceTestBase.TEST_MATCH_ID,
                             bridge = replayBridge,
@@ -167,7 +168,7 @@ class PureDiffReplayTest :
                     StateMapper.buildDiff(
                         prev = step.prev,
                         cur = step.cur,
-                        events = step.events,
+                        events = FrameEventLog(step.events),
                         gameStateId = step.gameStateId,
                         matchId = ConformanceTestBase.TEST_MATCH_ID,
                         bridge = replayBridge,

@@ -21,6 +21,7 @@ import leyline.game.annotations.TransferResult
 import leyline.game.annotations.ZoneTransferDetector
 import leyline.game.bundle.GsmFrame
 import leyline.game.codes.DetailKeys
+import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
@@ -57,7 +58,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * batch, nextAnnotationId) flow exclusively through the returned mutations.
  *
  * Inputs to [buildDiff] are pure values: `prev: GsmSnapshot?`, `cur: GsmSnapshot`,
- * `events: List<GameEvent>`. Outputs are pure: `GameStateMessage` + [leyline.game.state.BridgeMutations].
+ * `events: FrameEventLog`. Outputs are pure: `GameStateMessage` + [leyline.game.state.BridgeMutations].
  *
  * The acceptance forcing function for this boundary is [PureDiffReplayTest],
  * which replays recorded `(snap, events, diff)` tuples through [buildDiff] on
@@ -139,13 +140,13 @@ object StateMapper {
         revealForSeat: Int? = null,
         prev: GsmSnapshot? = null,
         /**
-         * Bundle events consumed by the annotation pipeline. Defaults to draining
-         * the bridge via [GameBridge.drainBundleEvents] — the drain was previously
+         * Bundle events consumed by the annotation pipeline. Defaults to closing
+         * the bridge frame via [GameBridge.closeBundleFrame] — previously this was
          * done inside this function. Callers in the bundle loop (BundleBuilder)
-         * pass an explicit list so the drain happens once per bundle and the
+         * pass an explicit log so the frame closes once per bundle and the
          * mapper is pure on event inputs.
          */
-        events: List<GameEvent> = bridge.drainBundleEvents(viewingSeatId),
+        events: FrameEventLog = bridge.closeBundleFrame(viewingSeatId),
     ): BuildResult {
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
@@ -153,7 +154,7 @@ object StateMapper {
 
         // ═══ GATHER: snapshot mutable state (events arrive from caller) ═══
         // applyRevealProxies may append RevealProxiesDeleted on reveal end; keep local mutable copy.
-        val eventsMutable = events.toMutableList()
+        val eventsMutable = events.events.toMutableList()
         // Evict stale AbilityRegistry entries for transformed cards so the next
         // abilityRegistryFor() call rebuilds from the current face.
         for (ev in eventsMutable) {
@@ -578,7 +579,7 @@ object StateMapper {
     fun buildDiff(
         prev: GsmSnapshot?,
         cur: GsmSnapshot,
-        events: List<GameEvent>,
+        events: FrameEventLog,
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,

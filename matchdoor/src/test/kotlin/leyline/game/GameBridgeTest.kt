@@ -23,6 +23,7 @@ import leyline.conformance.TestCardRegistry
 import leyline.conformance.detailString
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
+import leyline.game.event.FrameEventLog
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
@@ -642,7 +643,7 @@ class GameBridgeTest :
 
             // No diff baseline — buildDiff with null prev falls back to Full
             val snapFull = GsmSnapshot.capture(game, b, "test-match", 1)
-            val gs = StateMapper.buildDiff(null, snapFull, emptyList(), 1, "test-match", b).gsm
+            val gs = StateMapper.buildDiff(null, snapFull, FrameEventLog.EMPTY, 1, "test-match", b).gsm
             gs.type shouldBe Messages.GameStateType.Full
             gs.zonesCount shouldBeGreaterThan 0
         }
