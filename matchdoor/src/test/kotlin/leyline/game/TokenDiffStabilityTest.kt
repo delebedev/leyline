@@ -13,6 +13,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.TestCardRegistry
+import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.CardType
@@ -132,7 +133,7 @@ class TokenDiffStabilityTest :
 
             // Second GSM — diff against snapClue2 baseline
             val snapClue3 = GsmSnapshot.capture(h.game(), h.bridge, "test-clue", 2)
-            val gsm2 = StateMapper.buildDiff(snapClue2, snapClue3, emptyList(), 2, "test-clue", h.bridge, viewingSeatId = 1).gsm
+            val gsm2 = StateMapper.buildDiff(snapClue2, snapClue3, FrameEventLog.EMPTY, 2, "test-clue", h.bridge, viewingSeatId = 1).gsm
 
             // If Clue appears in diff, fields must be intact (not stripped)
             val clueInDiff = gsm2.gameObjectsList.firstOrNull { it.instanceId == clueIid }

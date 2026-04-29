@@ -6,7 +6,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.GamePlayback
-import leyline.game.event.DrainedEvents
+import leyline.game.event.FrameEventLog
 
 /**
  * Focused interfaces for [GameBridge] capabilities.
@@ -66,10 +66,10 @@ interface AnnotationIds {
     fun nextPersistentAnnotationId(): Int
 }
 
-/** Drain queued game events for annotation building. */
+/** Close the current event frame and return its accumulated events. */
 interface EventDrain {
-    /** Drain all queued events since last drain. Empty if no events. */
-    fun drainEvents(): DrainedEvents
+    /** Atomically swap the open frame for an empty one and return the closed log. */
+    fun closeFrame(): FrameEventLog
 }
 
 /**

@@ -28,7 +28,7 @@ import leyline.game.event.Zone
  * captured and converted to the correct [leyline.game.event.GameEvent] variants.
  *
  * Uses startWithBoard{} — fires events directly via game.fireEvent(),
- * then asserts on collector.drainEvents(). ~0.01s per test.
+ * then asserts on collector.closeFrame(). ~0.01s per test.
  */
 class GameEventCollectorTest :
     FunSpec({
@@ -54,14 +54,14 @@ class GameEventCollectorTest :
             val collector = b.eventCollector!!
 
             // startWithBoard fires some events during setup
-            collector.drainEvents()
+            collector.closeFrame()
 
             // Fire a simple event
             game.fireEvent(GameEventShuffle(game.humanPlayer))
-            val events1 = collector.drainEvents().events
+            val events1 = collector.closeFrame().events
             events1.shouldNotBeEmpty()
 
-            val events2 = collector.drainEvents().events
+            val events2 = collector.closeFrame().events
             events2.shouldBeEmpty()
         }
 
@@ -73,7 +73,7 @@ class GameEventCollectorTest :
                     base.addCard("Forest", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val land =
                 game.humanPlayer
@@ -82,7 +82,7 @@ class GameEventCollectorTest :
                     .first { it.isLand }
             game.fireEvent(GameEventLandPlayed(PlayerView.get(game.humanPlayer), CardView.get(land)))
 
-            val events = collector.drainEvents().events
+            val events = collector.closeFrame().events
             val lp = events.filterIsInstance<GameEvent.LandPlayed>()
             assertSoftly {
                 lp.size shouldBe 1
@@ -99,7 +99,7 @@ class GameEventCollectorTest :
                     base.addCard("Lightning Bolt", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val spell =
                 game.humanPlayer
@@ -108,7 +108,7 @@ class GameEventCollectorTest :
                     .first()
             game.fireEvent(GameEventSpellAbilityCast(spell.firstSpellAbility, null, 0))
 
-            val events = collector.drainEvents().events
+            val events = collector.closeFrame().events
             val sc = events.filterIsInstance<GameEvent.SpellCast>()
             assertSoftly {
                 sc.size shouldBe 1
@@ -125,7 +125,7 @@ class GameEventCollectorTest :
                     base.addCard("Lightning Bolt", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val spell =
                 game.humanPlayer
@@ -134,7 +134,7 @@ class GameEventCollectorTest :
                     .first()
             game.fireEvent(GameEventSpellResolved(spell.firstSpellAbility, false))
 
-            val events = collector.drainEvents().events
+            val events = collector.closeFrame().events
             val sr = events.filterIsInstance<GameEvent.SpellResolved>()
             assertSoftly {
                 sr.size shouldBe 1
@@ -149,7 +149,7 @@ class GameEventCollectorTest :
                     base.addCard("Lightning Bolt", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val spell =
                 game.humanPlayer
@@ -158,7 +158,7 @@ class GameEventCollectorTest :
                     .first()
             game.fireEvent(GameEventSpellResolved(spell.firstSpellAbility, true))
 
-            val sr = collector.drainEvents().events.filterIsInstance<GameEvent.SpellResolved>()
+            val sr = collector.closeFrame().events.filterIsInstance<GameEvent.SpellResolved>()
             sr.size shouldBe 1
             sr[0].hasFizzled.shouldBeTrue()
         }
@@ -171,7 +171,7 @@ class GameEventCollectorTest :
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val creature =
                 game.humanPlayer
@@ -182,7 +182,7 @@ class GameEventCollectorTest :
             val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
             game.fireEvent(GameEventCardChangeZone(creature, bf, gy))
 
-            val events = collector.drainEvents().events
+            val events = collector.closeFrame().events
             // BF→GY via zone change now produces ZoneChanged (not CardDestroyed)
             val zoneChanges = events.filterIsInstance<GameEvent.ZoneChanged>()
             zoneChanges.size shouldBe 1
@@ -196,7 +196,7 @@ class GameEventCollectorTest :
                     base.addCard("Lightning Bolt", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val creature =
                 game.humanPlayer
@@ -210,7 +210,7 @@ class GameEventCollectorTest :
                     .first()
             game.fireEvent(GameEventCardDestroyed(creature, bolt))
 
-            val events = collector.drainEvents().events
+            val events = collector.closeFrame().events
             val destroyed = events.filterIsInstance<GameEvent.CardDestroyed>()
             assertSoftly {
                 destroyed.size shouldBe 1
@@ -226,7 +226,7 @@ class GameEventCollectorTest :
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val creature =
                 game.humanPlayer
@@ -237,7 +237,7 @@ class GameEventCollectorTest :
             val hand = game.humanPlayer.getZone(ZoneType.Hand)
             game.fireEvent(GameEventCardChangeZone(creature, bf, hand))
 
-            val bounced = collector.drainEvents().events.filterIsInstance<GameEvent.CardBounced>()
+            val bounced = collector.closeFrame().events.filterIsInstance<GameEvent.CardBounced>()
             bounced.size shouldBe 1
             bounced[0].cardId shouldBe ForgeCardId(creature.id)
         }
@@ -248,7 +248,7 @@ class GameEventCollectorTest :
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val creature =
                 game.humanPlayer
@@ -259,7 +259,7 @@ class GameEventCollectorTest :
             val exile = game.humanPlayer.getZone(ZoneType.Exile)
             game.fireEvent(GameEventCardChangeZone(creature, bf, exile))
 
-            val exiled = collector.drainEvents().events.filterIsInstance<GameEvent.CardExiled>()
+            val exiled = collector.closeFrame().events.filterIsInstance<GameEvent.CardExiled>()
             exiled.size shouldBe 1
         }
 
@@ -269,7 +269,7 @@ class GameEventCollectorTest :
                     base.addCard("Lightning Bolt", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val card =
                 game.humanPlayer
@@ -280,7 +280,7 @@ class GameEventCollectorTest :
             val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
             game.fireEvent(GameEventCardChangeZone(card, hand, gy))
 
-            val discarded = collector.drainEvents().events.filterIsInstance<GameEvent.CardDiscarded>()
+            val discarded = collector.closeFrame().events.filterIsInstance<GameEvent.CardDiscarded>()
             discarded.size shouldBe 1
         }
 
@@ -290,7 +290,7 @@ class GameEventCollectorTest :
                     base.addCard("Forest", human, ZoneType.Library)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val card =
                 game.humanPlayer
@@ -301,7 +301,7 @@ class GameEventCollectorTest :
             val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
             game.fireEvent(GameEventCardChangeZone(card, lib, gy))
 
-            val milled = collector.drainEvents().events.filterIsInstance<GameEvent.CardMilled>()
+            val milled = collector.closeFrame().events.filterIsInstance<GameEvent.CardMilled>()
             milled.size shouldBe 1
         }
 
@@ -311,7 +311,7 @@ class GameEventCollectorTest :
                     base.addCard("Forest", human, ZoneType.Graveyard)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val card =
                 game.humanPlayer
@@ -322,7 +322,7 @@ class GameEventCollectorTest :
             val lib = game.humanPlayer.getZone(ZoneType.Library)
             game.fireEvent(GameEventCardChangeZone(card, gy, lib))
 
-            val zc = collector.drainEvents().events.filterIsInstance<GameEvent.ZoneChanged>()
+            val zc = collector.closeFrame().events.filterIsInstance<GameEvent.ZoneChanged>()
             assertSoftly {
                 zc.size shouldBe 1
                 zc[0].from shouldBe Zone.Graveyard
@@ -338,7 +338,7 @@ class GameEventCollectorTest :
                     base.addCard("Forest", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val land =
                 game.humanPlayer
@@ -347,7 +347,7 @@ class GameEventCollectorTest :
                     .first()
             game.fireEvent(GameEventCardTapped(land, true))
 
-            val tapped = collector.drainEvents().events.filterIsInstance<GameEvent.CardTapped>()
+            val tapped = collector.closeFrame().events.filterIsInstance<GameEvent.CardTapped>()
             assertSoftly {
                 tapped.size shouldBe 1
                 tapped[0].cardId shouldBe ForgeCardId(land.id)
@@ -361,7 +361,7 @@ class GameEventCollectorTest :
                     base.addCard("Forest", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val land =
                 game.humanPlayer
@@ -370,7 +370,7 @@ class GameEventCollectorTest :
                     .first()
             game.fireEvent(GameEventCardTapped(land, false))
 
-            val tapped = collector.drainEvents().events.filterIsInstance<GameEvent.CardTapped>()
+            val tapped = collector.closeFrame().events.filterIsInstance<GameEvent.CardTapped>()
             tapped.size shouldBe 1
             tapped[0].tapped.shouldBeFalse()
         }
@@ -384,7 +384,7 @@ class GameEventCollectorTest :
                     base.addCard("Serra Angel", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val cards =
                 game.humanPlayer
@@ -395,7 +395,7 @@ class GameEventCollectorTest :
             val target = cards[1]
             game.fireEvent(GameEventCardDamaged(CardView.get(target), CardView.get(source), 2, GameEventCardDamaged.DamageType.Normal))
 
-            val dmg = collector.drainEvents().events.filterIsInstance<GameEvent.DamageDealtToCard>()
+            val dmg = collector.closeFrame().events.filterIsInstance<GameEvent.DamageDealtToCard>()
             assertSoftly {
                 dmg.size shouldBe 1
                 dmg[0].sourceCardId shouldBe ForgeCardId(source.id)
@@ -410,7 +410,7 @@ class GameEventCollectorTest :
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val creature =
                 game.humanPlayer
@@ -419,7 +419,7 @@ class GameEventCollectorTest :
                     .first { it.isCreature }
             game.fireEvent(GameEventPlayerDamaged(PlayerView.get(game.humanPlayer), CardView.get(creature), 3, true, false))
 
-            val dmg = collector.drainEvents().events.filterIsInstance<GameEvent.DamageDealtToPlayer>()
+            val dmg = collector.closeFrame().events.filterIsInstance<GameEvent.DamageDealtToPlayer>()
             assertSoftly {
                 dmg.size shouldBe 1
                 dmg[0].sourceCardId shouldBe ForgeCardId(creature.id)
@@ -434,11 +434,11 @@ class GameEventCollectorTest :
         test("life changed event") {
             val (b, game, _) = base.startWithBoard { _, _, _ -> }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             game.fireEvent(GameEventPlayerLivesChanged(game.humanPlayer, 20, 17))
 
-            val lc = collector.drainEvents().events.filterIsInstance<GameEvent.LifeChanged>()
+            val lc = collector.closeFrame().events.filterIsInstance<GameEvent.LifeChanged>()
             assertSoftly {
                 lc.size shouldBe 1
                 lc[0].seatId shouldBe SeatId(1)
@@ -455,7 +455,7 @@ class GameEventCollectorTest :
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val creature =
                 game.humanPlayer
@@ -464,7 +464,7 @@ class GameEventCollectorTest :
                     .first { it.isCreature }
             game.fireEvent(GameEventCardSacrificed(CardView.get(creature)))
 
-            val sac = collector.drainEvents().events.filterIsInstance<GameEvent.CardSacrificed>()
+            val sac = collector.closeFrame().events.filterIsInstance<GameEvent.CardSacrificed>()
             assertSoftly {
                 sac.size shouldBe 1
                 sac[0].cardId shouldBe ForgeCardId(creature.id)
@@ -481,7 +481,7 @@ class GameEventCollectorTest :
                     base.addCard("Pacifism", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val cards =
                 game.humanPlayer
@@ -492,7 +492,7 @@ class GameEventCollectorTest :
             val creature = cards.first { it.isCreature }
             game.fireEvent(GameEventCardAttachment(aura, null, creature))
 
-            val attached = collector.drainEvents().events.filterIsInstance<GameEvent.CardAttached>()
+            val attached = collector.closeFrame().events.filterIsInstance<GameEvent.CardAttached>()
             assertSoftly {
                 attached.size shouldBe 1
                 attached[0].cardId shouldBe ForgeCardId(aura.id)
@@ -507,7 +507,7 @@ class GameEventCollectorTest :
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val aura =
                 game.humanPlayer
@@ -521,7 +521,7 @@ class GameEventCollectorTest :
                     .first { it.isCreature }
             game.fireEvent(GameEventCardAttachment(aura, creature, null))
 
-            val detached = collector.drainEvents().events.filterIsInstance<GameEvent.CardDetached>()
+            val detached = collector.closeFrame().events.filterIsInstance<GameEvent.CardDetached>()
             detached.size shouldBe 1
             detached[0].cardId shouldBe ForgeCardId(aura.id)
         }
@@ -534,7 +534,7 @@ class GameEventCollectorTest :
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val creature =
                 game.humanPlayer
@@ -543,7 +543,7 @@ class GameEventCollectorTest :
                     .first { it.isCreature }
             game.fireEvent(GameEventCardCounters(creature, CounterEnumType.P1P1, 0, 2))
 
-            val cc = collector.drainEvents().events.filterIsInstance<GameEvent.CountersChanged>()
+            val cc = collector.closeFrame().events.filterIsInstance<GameEvent.CountersChanged>()
             assertSoftly {
                 cc.size shouldBe 1
                 cc[0].cardId shouldBe ForgeCardId(creature.id)
@@ -561,7 +561,7 @@ class GameEventCollectorTest :
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val creature =
                 game.humanPlayer
@@ -571,13 +571,13 @@ class GameEventCollectorTest :
 
             // First event establishes baseline (no prior cached P/T -> no delta)
             game.fireEvent(GameEventCardStatsChanged(creature))
-            collector.drainEvents()
+            collector.closeFrame()
 
             // Pump the creature, fire again
             creature.setBasePower(creature.getNetPower() + 2)
             game.fireEvent(GameEventCardStatsChanged(creature))
 
-            val pt = collector.drainEvents().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
+            val pt = collector.closeFrame().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
             assertSoftly {
                 pt.size shouldBe 1
                 pt[0].cardId shouldBe ForgeCardId(creature.id)
@@ -591,7 +591,7 @@ class GameEventCollectorTest :
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val creature =
                 game.humanPlayer
@@ -601,10 +601,10 @@ class GameEventCollectorTest :
 
             // Fire twice with same stats -- second should not emit
             game.fireEvent(GameEventCardStatsChanged(creature))
-            collector.drainEvents()
+            collector.closeFrame()
             game.fireEvent(GameEventCardStatsChanged(creature))
 
-            val pt = collector.drainEvents().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
+            val pt = collector.closeFrame().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
             pt.shouldBeEmpty()
         }
 
@@ -616,7 +616,7 @@ class GameEventCollectorTest :
                     base.addCard("Concealing Curtains", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents() // clear setup events
+            collector.closeFrame() // clear setup events
 
             val card =
                 game.humanPlayer
@@ -626,14 +626,14 @@ class GameEventCollectorTest :
 
             // First stats event establishes baseline (no prior cached backside -> no delta)
             game.fireEvent(GameEventCardStatsChanged(card))
-            collector.drainEvents()
+            collector.closeFrame()
 
             // Simulate transform — toggle to back side
             card.setState(CardStateName.Backside, true)
             card.setBackSide(true)
             game.fireEvent(GameEventCardStatsChanged(card))
 
-            val events = collector.drainEvents().events
+            val events = collector.closeFrame().events
             val transformed = events.filterIsInstance<GameEvent.CardTransformed>()
             assertSoftly {
                 transformed.size shouldBe 1
@@ -648,7 +648,7 @@ class GameEventCollectorTest :
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val card =
                 game.humanPlayer
@@ -657,7 +657,7 @@ class GameEventCollectorTest :
                     .first { it.name == "Grizzly Bears" }
             game.fireEvent(GameEventCardStatsChanged(card))
 
-            val events = collector.drainEvents().events
+            val events = collector.closeFrame().events
             events.filterIsInstance<GameEvent.CardTransformed>().shouldBeEmpty()
         }
 
@@ -666,11 +666,11 @@ class GameEventCollectorTest :
         test("library shuffled event") {
             val (b, game, _) = base.startWithBoard { _, _, _ -> }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             game.fireEvent(GameEventShuffle(game.humanPlayer))
 
-            val sh = collector.drainEvents().events.filterIsInstance<GameEvent.LibraryShuffled>()
+            val sh = collector.closeFrame().events.filterIsInstance<GameEvent.LibraryShuffled>()
             sh.size shouldBe 1
             sh[0].seatId shouldBe SeatId(1)
         }
@@ -680,11 +680,11 @@ class GameEventCollectorTest :
         test("scry event") {
             val (b, game, _) = base.startWithBoard { _, _, _ -> }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             game.fireEvent(GameEventScry(PlayerView.get(game.humanPlayer), 1, 2))
 
-            val scry = collector.drainEvents().events.filterIsInstance<GameEvent.Scry>()
+            val scry = collector.closeFrame().events.filterIsInstance<GameEvent.Scry>()
             assertSoftly {
                 scry.size shouldBe 1
                 scry[0].seatId shouldBe SeatId(1)
@@ -698,11 +698,11 @@ class GameEventCollectorTest :
         test("surveil event") {
             val (b, game, _) = base.startWithBoard { _, _, _ -> }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             game.fireEvent(GameEventSurveil(PlayerView.get(game.humanPlayer), 1, 3))
 
-            val sv = collector.drainEvents().events.filterIsInstance<GameEvent.Surveil>()
+            val sv = collector.closeFrame().events.filterIsInstance<GameEvent.Surveil>()
             assertSoftly {
                 sv.size shouldBe 1
                 sv[0].seatId shouldBe SeatId(1)
@@ -716,11 +716,11 @@ class GameEventCollectorTest :
         test("combat ended event") {
             val (b, game, _) = base.startWithBoard { _, _, _ -> }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             game.fireEvent(GameEventCombatEnded(listOf(), listOf()))
 
-            val ce = collector.drainEvents().events.filterIsInstance<GameEvent.CombatEnded>()
+            val ce = collector.closeFrame().events.filterIsInstance<GameEvent.CombatEnded>()
             ce.size shouldBe 1
         }
 
@@ -729,11 +729,11 @@ class GameEventCollectorTest :
         test("AI player gets seatId 2") {
             val (b, game, _) = base.startWithBoard { _, _, _ -> }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             game.fireEvent(GameEventShuffle(game.aiPlayer))
 
-            val sh = collector.drainEvents().events.filterIsInstance<GameEvent.LibraryShuffled>()
+            val sh = collector.closeFrame().events.filterIsInstance<GameEvent.LibraryShuffled>()
             sh.size shouldBe 1
             sh[0].seatId shouldBe SeatId(2)
         }
@@ -746,7 +746,7 @@ class GameEventCollectorTest :
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
-            collector.drainEvents()
+            collector.closeFrame()
 
             val creature =
                 game.humanPlayer
@@ -756,18 +756,18 @@ class GameEventCollectorTest :
 
             // Establish baseline P/T
             game.fireEvent(GameEventCardStatsChanged(creature))
-            collector.drainEvents()
+            collector.closeFrame()
 
             // Creature leaves battlefield -- should clear P/T cache
             val bf = game.humanPlayer.getZone(ZoneType.Battlefield)
             val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
             game.fireEvent(GameEventCardChangeZone(creature, bf, gy))
-            collector.drainEvents()
+            collector.closeFrame()
 
             // Re-enter: P/T event should not compare against old cached value
             game.fireEvent(GameEventCardChangeZone(creature, gy, bf))
             game.fireEvent(GameEventCardStatsChanged(creature))
-            val pt = collector.drainEvents().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
+            val pt = collector.closeFrame().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
             pt.shouldBeEmpty()
         }
     })

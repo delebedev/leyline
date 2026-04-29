@@ -14,6 +14,7 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.conformance.TestCardRegistry
+import leyline.game.event.FrameEventLog
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
@@ -68,7 +69,7 @@ class EffectLifecycleTest :
 
             // Build a diff — should not crash even with no state changes
             val snapEff2 = GsmSnapshot.capture(game, b, "test", 2)
-            val gsm2 = StateMapper.buildDiff(snapEff1, snapEff2, emptyList(), 2, "test", b).gsm
+            val gsm2 = StateMapper.buildDiff(snapEff1, snapEff2, FrameEventLog.EMPTY, 2, "test", b).gsm
             gsm2 shouldNotBe null
             gsm2.gameStateId shouldBe 2
 

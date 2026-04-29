@@ -17,6 +17,7 @@ import leyline.conformance.MatchFlowHarness
 import leyline.conformance.TestCardRegistry
 import leyline.conformance.detailInt
 import leyline.game.codes.DetailKeys
+import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -181,7 +182,7 @@ class CopyTokenIntegrationTest :
 
             // Second GSM — diff from baseline
             val snapCopy4 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 2)
-            val gsm2 = StateMapper.buildDiff(snapCopy3, snapCopy4, emptyList(), 2, "test-copy", h.bridge, viewingSeatId = 1).gsm
+            val gsm2 = StateMapper.buildDiff(snapCopy3, snapCopy4, FrameEventLog.EMPTY, 2, "test-copy", h.bridge, viewingSeatId = 1).gsm
 
             // If the copy token appears in the diff, its fields must be intact
             val copyInDiff = gsm2.gameObjectsList.firstOrNull { it.instanceId == copyIid }

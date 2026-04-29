@@ -386,7 +386,7 @@ class ZoneTransferTest :
 
             creature.addCounterInternal(CounterEnumType.P1P1, 3, game.humanPlayer, true, null, AbilityKey.newMap())
             b.seedDiffBaseline(game, counter.currentGsId())
-            b.drainEvents()
+            b.closeFrame()
 
             val gsm =
                 capture(b, game, counter) {

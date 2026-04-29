@@ -19,24 +19,23 @@ import leyline.game.mapping.PlayerMapper
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * Subscribes to the Forge engine's Guava EventBus and converts rich Java
  * [GameEvent][forge.game.event.GameEvent] objects into protocol-oriented
  * [GameEvent] sealed variants.
  *
- * ## Drain contract
+ * ## Frame contract
  *
- * Events accumulate in a thread-safe [ConcurrentLinkedQueue]. [drainEvents]
- * atomically empties the queue and returns events in firing order, wrapped in
- * [DrainedEvents] to make single-use visible in the type system.
+ * Events accumulate in a per-frame [MutableList]. [closeFrame] returns the
+ * accumulated list as an immutable [FrameEventLog] and atomically swaps in a
+ * fresh empty list for the next frame. Multiple downstream consumers can each
+ * call [FrameEventLog.events]`.filterIsInstance<…>()` independently — the
+ * frozen list is shared safely.
  *
- * **Drain exactly once per GSM build.** [leyline.game.mapping.StateMapper.buildFromSnapshot] drains in
- * the GATHER phase. Double-draining silently loses events — the second drain
- * returns an empty list with no error. The [DrainedEvents] wrapper prevents
- * accidental re-drain of the same result but cannot prevent calling
- * [drainEvents] twice on the collector itself.
+ * [leyline.game.mapping.StateMapper.buildFromSnapshot] closes the frame in the
+ * GATHER phase. A double-close returns an empty log; calling code does not
+ * need to defend against it because the type forbids appending past close.
  *
  * ## Event ordering
  *
@@ -66,10 +65,11 @@ import java.util.concurrent.ConcurrentLinkedQueue
  *
  * ## Threading
  *
- * Events fire synchronously on the engine thread. Queue access is via
- * [ConcurrentLinkedQueue] so the Netty/handler thread can drain safely,
- * though in practice [drainEvents] is always called from the engine thread
- * via [leyline.game.mapping.StateMapper].
+ * Events fire synchronously on the engine thread. [closeFrame] is also called
+ * on the engine thread (via [leyline.game.mapping.StateMapper] / GSM build).
+ * The `@Volatile` reference swap is sufficient: the engine thread's `add`
+ * happens-before the swap; the new frame starts empty; the returned list is
+ * never mutated past the swap.
  *
  * **Adding new mechanics:** When upstream Forge events lack the granularity we need
  * (per-card IDs, zone-pair specificity), add a new event to our fork rather than
@@ -80,18 +80,26 @@ import java.util.concurrent.ConcurrentLinkedQueue
  *   (never mutated beyond flag consumption)
  */
 
-/** Wrapper making event drain's single-use nature visible in the type system. */
-@JvmInline
-value class DrainedEvents(
+/** Immutable per-frame snapshot of game events in firing order. */
+class FrameEventLog(
     val events: List<GameEvent>,
-)
+) {
+    companion object {
+        val EMPTY = FrameEventLog(emptyList())
+    }
+}
 
 class GameEventCollector(
     private val bridge: GameBridge,
 ) : IGameEventVisitor.Base<Unit>() {
     private val log = LoggerFactory.getLogger(GameEventCollector::class.java)
 
-    private val queue = ConcurrentLinkedQueue<GameEvent>()
+    // Atomic frame swap: engine-thread @Subscribe handlers append; closeFrame() takes
+    // the current list and installs a fresh empty one. The reference is volatile, the
+    // list itself is mutated only before the swap.
+    @Suppress("DoubleMutabilityForCollection")
+    @Volatile
+    private var frame: MutableList<GameEvent> = mutableListOf()
 
     /** Last-seen P/T per card ID — used to detect deltas on GameEventCardStatsChanged. */
     private val lastPT = ConcurrentHashMap<ForgeCardId, Pair<Int, Int>>()
@@ -120,26 +128,23 @@ class GameEventCollector(
     fun isTriggerResolving(saId: Int): Boolean = pendingTriggers.containsKey(saId)
 
     /**
-     * Drain all queued events since last drain. Returns events in engine firing order.
+     * Close the current frame: returns events accumulated since the last
+     * close in engine firing order, and starts a fresh empty frame.
      *
-     * **Call exactly once per GSM build** — second call returns empty (events are gone).
-     * [leyline.game.mapping.StateMapper.buildFromSnapshot] calls this in the GATHER phase before any annotation
-     * pipeline stages run.
+     * Called once per GSM build by [leyline.game.mapping.StateMapper.buildFromSnapshot]
+     * in the GATHER phase. A second call returns an empty log.
      */
-    fun drainEvents(): DrainedEvents =
-        DrainedEvents(
-            buildList {
-                while (true) {
-                    add(queue.poll() ?: break)
-                }
-            },
-        )
+    fun closeFrame(): FrameEventLog {
+        val out = frame
+        frame = mutableListOf()
+        return FrameEventLog(out)
+    }
 
-    /** Peek at queued events without draining (for tests). */
-    fun peekEvents(): List<GameEvent> = queue.toList()
+    /** Peek at the current open frame without closing it (for tests). */
+    fun peekEvents(): List<GameEvent> = frame.toList()
 
-    /** True if there are events waiting. */
-    fun hasEvents(): Boolean = queue.isNotEmpty()
+    /** True if the current frame has events accumulated. */
+    fun hasEvents(): Boolean = frame.isNotEmpty()
 
     // -- EventBus entry point --
 
@@ -155,7 +160,7 @@ class GameEventCollector(
                 .findCard(ForgeCardId(ev.land().id))
                 ?.let(::computeColorOrdinals)
                 ?: emptyList()
-        queue.add(GameEvent.LandPlayed(ForgeCardId(ev.land().id), seat, colorOrdinals))
+        frame.add(GameEvent.LandPlayed(ForgeCardId(ev.land().id), seat, colorOrdinals))
         log.debug("event: LandPlayed card={} seat={} colors={}", ev.land().name, seat, colorOrdinals)
     }
 
@@ -209,7 +214,7 @@ class GameEventCollector(
         if (isTrigger && abilityForgeId != 0) {
             pendingTriggers[abilityForgeId] = ForgeCardId(card.id)
         }
-        queue.add(
+        frame.add(
             GameEvent.SpellCast(
                 cardId = ForgeCardId(card.id),
                 seatId = seat,
@@ -235,7 +240,7 @@ class GameEventCollector(
     override fun visit(ev: GameEventSpellMovedToStack) {
         val card = ev.card()
         val seat = seatOf(card.controller) ?: return
-        queue.add(GameEvent.SpellMovedToStack(ForgeCardId(card.id), seat))
+        frame.add(GameEvent.SpellMovedToStack(ForgeCardId(card.id), seat))
         log.debug("event: SpellMovedToStack card={} seat={}", card.name, seat)
     }
 
@@ -243,7 +248,7 @@ class GameEventCollector(
         val card = ev.spell().hostCard ?: return
         val saId = ev.spell().id
         val isTrigger = pendingTriggers.remove(saId) != null
-        queue.add(
+        frame.add(
             GameEvent.SpellResolved(
                 cardId = ForgeCardId(card.id),
                 hasFizzled = ev.hasFizzled(),
@@ -322,30 +327,30 @@ class GameEventCollector(
             lastStateName.remove(ForgeCardId(card.id))
         }
 
-        queue.add(event)
+        frame.add(event)
         log.debug("event: {} card={} {} → {}", event::class.simpleName, card.name, from, to)
 
         // Emit TokenDestroyed when a token leaves the battlefield
         if (card.isToken && from == ZoneType.Battlefield && seat != null) {
-            queue.add(GameEvent.TokenDestroyed(ForgeCardId(card.id), seat))
+            frame.add(GameEvent.TokenDestroyed(ForgeCardId(card.id), seat))
             log.debug("event: TokenDestroyed card={} seat={}", card.name, seat)
         }
     }
 
     override fun visit(ev: GameEventCardTapped) {
-        queue.add(GameEvent.CardTapped(ForgeCardId(ev.card().id), ev.tapped()))
+        frame.add(GameEvent.CardTapped(ForgeCardId(ev.card().id), ev.tapped()))
         log.debug("event: CardTapped card={} tapped={}", ev.card().name, ev.tapped())
     }
 
     override fun visit(ev: GameEventManaAbilityActivated) {
         val card = ev.source()
         val seat = seatOf(card.controller) ?: return
-        queue.add(GameEvent.ManaAbilityActivated(ForgeCardId(card.id), seat, ev.produced()))
+        frame.add(GameEvent.ManaAbilityActivated(ForgeCardId(card.id), seat, ev.produced()))
         log.debug("event: ManaAbilityActivated card={} seat={} produced={}", card.name, seat, ev.produced())
     }
 
     override fun visit(ev: GameEventCardDamaged) {
-        queue.add(
+        frame.add(
             GameEvent.DamageDealtToCard(
                 sourceCardId = ForgeCardId(ev.source().id),
                 targetCardId = ForgeCardId(ev.card().id),
@@ -357,7 +362,7 @@ class GameEventCollector(
     override fun visit(ev: GameEventPlayerDamaged) {
         val seat = seatOf(ev.target()) ?: return
         val source = ev.source() ?: return
-        queue.add(
+        frame.add(
             GameEvent.DamageDealtToPlayer(
                 sourceCardId = ForgeCardId(source.id),
                 targetSeatId = seat,
@@ -369,7 +374,7 @@ class GameEventCollector(
 
     override fun visit(ev: GameEventPlayerLivesChanged) {
         val seat = seatOf(ev.player()) ?: return
-        queue.add(
+        frame.add(
             GameEvent.LifeChanged(
                 seatId = seat,
                 oldLife = ev.oldLives(),
@@ -382,7 +387,7 @@ class GameEventCollector(
         val seat = seatOf(ev.player()) ?: return
         val ids = ev.attackersMap().values().map { ForgeCardId(it.id) }
         if (ids.isNotEmpty()) {
-            queue.add(GameEvent.AttackersDeclared(ids, seat))
+            frame.add(GameEvent.AttackersDeclared(ids, seat))
         }
     }
 
@@ -394,7 +399,7 @@ class GameEventCollector(
                 multimap.keys().map { ForgeCardId(it.id) }
             }
         if (ids.isNotEmpty()) {
-            queue.add(GameEvent.BlockersDeclared(ids, seat))
+            frame.add(GameEvent.BlockersDeclared(ids, seat))
         }
     }
 
@@ -403,7 +408,7 @@ class GameEventCollector(
     override fun visit(ev: GameEventCardSacrificed) {
         val card = ev.card()
         val seat = seatOf(card.controller) ?: return
-        queue.add(GameEvent.CardSacrificed(ForgeCardId(card.id), seat))
+        frame.add(GameEvent.CardSacrificed(ForgeCardId(card.id), seat))
         log.debug("event: CardSacrificed card={} seat={}", card.name, seat)
     }
 
@@ -411,7 +416,7 @@ class GameEventCollector(
         val card = ev.card() ?: return
         val seat = seatOf(card.controller) ?: return
         val sourceId = ev.activator()?.id
-        queue.add(GameEvent.CardDestroyed(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }))
+        frame.add(GameEvent.CardDestroyed(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }))
         log.debug("event: CardDestroyed card={} seat={} source={}", card.name, seat, sourceId?.let { ForgeCardId(it) })
     }
 
@@ -422,10 +427,10 @@ class GameEventCollector(
         val seat = seatOf(card.controller) ?: return
         val newTarget = ev.newTarget()
         if (newTarget != null) {
-            queue.add(GameEvent.CardAttached(ForgeCardId(card.id), ForgeCardId(newTarget.id), seat))
+            frame.add(GameEvent.CardAttached(ForgeCardId(card.id), ForgeCardId(newTarget.id), seat))
             log.debug("event: CardAttached card={} target={} seat={}", card.name, newTarget.name, seat)
         } else {
-            queue.add(GameEvent.CardDetached(ForgeCardId(card.id), seat))
+            frame.add(GameEvent.CardDetached(ForgeCardId(card.id), seat))
             log.debug("event: CardDetached card={} seat={}", card.name, seat)
         }
     }
@@ -433,7 +438,7 @@ class GameEventCollector(
     // -- Group B: annotation-producing events --
 
     override fun visit(ev: GameEventCardCounters) {
-        queue.add(
+        frame.add(
             GameEvent.CountersChanged(
                 cardId = ForgeCardId(ev.card().id),
                 counterType = ev.type().name,
@@ -457,7 +462,7 @@ class GameEventCollector(
             val oldPower = prev?.first ?: newPower
             val oldTough = prev?.second ?: newTough
             if (oldPower != newPower || oldTough != newTough) {
-                queue.add(
+                frame.add(
                     GameEvent.PowerToughnessChanged(
                         cardId = id,
                         oldPower = oldPower,
@@ -473,19 +478,19 @@ class GameEventCollector(
 
     override fun visit(ev: GameEventShuffle) {
         val seat = seatOf(ev.player()) ?: return
-        queue.add(GameEvent.LibraryShuffled(seat))
+        frame.add(GameEvent.LibraryShuffled(seat))
         log.debug("event: LibraryShuffled seat={}", seat)
     }
 
     override fun visit(ev: GameEventScry) {
         val seat = seatOf(ev.player()) ?: return
-        queue.add(GameEvent.Scry(seat, ev.toTop(), ev.toBottom()))
+        frame.add(GameEvent.Scry(seat, ev.toTop(), ev.toBottom()))
         log.debug("event: Scry seat={} top={} bottom={}", seat, ev.toTop(), ev.toBottom())
     }
 
     override fun visit(ev: GameEventSurveil) {
         val seat = seatOf(ev.player()) ?: return
-        queue.add(GameEvent.Surveil(seat, ev.toLibrary(), ev.toGraveyard()))
+        frame.add(GameEvent.Surveil(seat, ev.toLibrary(), ev.toGraveyard()))
         log.debug("event: Surveil seat={} lib={} gy={}", seat, ev.toLibrary(), ev.toGraveyard())
     }
 
@@ -495,7 +500,7 @@ class GameEventCollector(
     override fun visit(ev: GameEventCardSurveiled) {
         val seat = seatOf(ev.card().controller) ?: return
         val sourceId = ev.causeCard()?.id
-        queue.add(GameEvent.CardSurveiled(ForgeCardId(ev.card().id), seat, sourceId?.let { ForgeCardId(it) }))
+        frame.add(GameEvent.CardSurveiled(ForgeCardId(ev.card().id), seat, sourceId?.let { ForgeCardId(it) }))
         log.debug("event: CardSurveiled card={} seat={} source={}", ev.card().name, seat, sourceId?.let { ForgeCardId(it) })
     }
 
@@ -503,7 +508,7 @@ class GameEventCollector(
         for (card in ev.tokens()) {
             val seat = seatOf(card.controller) ?: continue
             val sourceId = card.tokenSpawningAbility?.hostCard?.id
-            queue.add(GameEvent.TokenCreated(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }))
+            frame.add(GameEvent.TokenCreated(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }))
             log.debug("event: TokenCreated card={} seat={} source={}", card.name, seat, sourceId?.let { ForgeCardId(it) })
         }
     }
@@ -512,7 +517,7 @@ class GameEventCollector(
         val card = ev.card()
         val oldSeat = seatOf(ev.oldController()) ?: return
         val newSeat = seatOf(ev.newController()) ?: return
-        queue.add(GameEvent.ControllerChanged(ForgeCardId(card.id), oldSeat, newSeat))
+        frame.add(GameEvent.ControllerChanged(ForgeCardId(card.id), oldSeat, newSeat))
         log.debug("event: ControllerChanged card={} {} -> {}", card.name, oldSeat, newSeat)
     }
 
@@ -520,7 +525,7 @@ class GameEventCollector(
 
     override fun visit(ev: GameEventExtrinsicKeywordAdded) {
         val card = ev.card()
-        queue.add(
+        frame.add(
             GameEvent.KeywordGranted(
                 cardId = ForgeCardId(card.id),
                 keyword = ev.keyword(),
@@ -534,7 +539,7 @@ class GameEventCollector(
     // -- Group C: combat enrichment --
 
     override fun visit(ev: GameEventCombatEnded) {
-        queue.add(GameEvent.CombatEnded)
+        frame.add(GameEvent.CombatEnded)
         log.debug("event: CombatEnded")
     }
 
@@ -544,7 +549,7 @@ class GameEventCollector(
         val seat = seatOf(ev.playerTurn()) ?: return
         val phase = PlayerMapper.mapPhase(ev.phase()).number
         val step = PlayerMapper.mapStep(ev.phase()).number
-        queue.add(GameEvent.PhaseChanged(seat, phase, step))
+        frame.add(GameEvent.PhaseChanged(seat, phase, step))
         log.debug("event: PhaseChanged seat={} phase={} step={}", seat, phase, step)
     }
 
@@ -559,7 +564,7 @@ class GameEventCollector(
         val newState = cardView.currentState?.state ?: return
         val prevState = lastStateName.put(id, newState)
         if (prevState != null && prevState != newState) {
-            queue.add(GameEvent.CardTransformed(id, newState))
+            frame.add(GameEvent.CardTransformed(id, newState))
             log.debug("event: CardTransformed card={} {} → {}", cardView.name, prevState, newState)
         }
     }

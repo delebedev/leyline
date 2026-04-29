@@ -441,7 +441,7 @@ object HandshakeMessages {
                 matchId = matchId,
                 bridge = bridge,
                 viewingSeatId = seatId.value,
-                events = bridge.drainBundleEvents(seatId.value),
+                events = bridge.closeBundleFrame(seatId.value),
             )
         bridge.applyMutations(fullResult.mutations)
         val gsm =
