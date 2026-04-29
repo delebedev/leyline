@@ -22,6 +22,7 @@ import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
+import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
 import wotc.mtgo.gre.external.messaging.Messages.GameStage as ProtoGameStage
@@ -233,10 +234,13 @@ class PuzzleBridgeTest :
             val sink1 = ListMessageSink()
             val session1 =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = matchId,
-                    sink = sink1,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = matchId,
+                            sink = sink1,
+                            registry = registry,
+                        ),
                     gameBridge = b,
                     paceDelayMs = 0,
                 )
@@ -250,10 +254,13 @@ class PuzzleBridgeTest :
             val sink2 = ListMessageSink()
             val session2 =
                 MatchSession(
-                    seatId = SeatId(2),
-                    matchId = matchId,
-                    sink = sink2,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(2),
+                            matchId = matchId,
+                            sink = sink2,
+                            registry = registry,
+                        ),
                     gameBridge = b,
                     paceDelayMs = 0,
                 )

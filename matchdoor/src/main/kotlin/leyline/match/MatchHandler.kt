@@ -162,16 +162,16 @@ class MatchHandler(
     ): MatchSession {
         val sink = NettyMessageSink(ctx, dumpEnabled = true)
         val rec = recorderFactory?.invoke()
-        val s =
-            MatchSession(
+        val connection =
+            ConnectionState(
                 seatId = SeatId(seatId),
                 matchId = matchId,
                 sink = sink,
                 registry = registry,
-                gameBridge = bridge,
                 recorder = rec,
                 coordinator = coordinator,
             ).also { it.playerId = clientId.removeSuffix("_Familiar") }
+        val s = MatchSession(connection = connection, gameBridge = bridge)
         session = s
         registry.registerSession(matchId, SeatId(seatId), s)
         registry.registerHandler(matchId, SeatId(seatId), this)

@@ -12,6 +12,7 @@ import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.infra.ListMessageSink
+import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
 import leyline.match.PuzzleHandler
@@ -77,10 +78,13 @@ class PuzzleHandlerTest :
                 val bridge = handler.getOrCreatePuzzleBridge("puzzle-bolt-face")
                 val session =
                     MatchSession(
-                        seatId = SeatId(1),
-                        matchId = "puzzle-bolt-face",
-                        sink = sink,
-                        registry = registry,
+                        connection =
+                            ConnectionState(
+                                seatId = SeatId(1),
+                                matchId = "puzzle-bolt-face",
+                                sink = sink,
+                                registry = registry,
+                            ),
                         gameBridge = bridge,
                         paceDelayMs = 0,
                     )
@@ -109,10 +113,13 @@ class PuzzleHandlerTest :
                 val first = handler.getOrCreatePuzzleBridge("puzzle-lands-only")
                 val session1 =
                     MatchSession(
-                        seatId = SeatId(1),
-                        matchId = "puzzle-lands-only",
-                        sink = sink1,
-                        registry = registry,
+                        connection =
+                            ConnectionState(
+                                seatId = SeatId(1),
+                                matchId = "puzzle-lands-only",
+                                sink = sink1,
+                                registry = registry,
+                            ),
                         gameBridge = first,
                         paceDelayMs = 0,
                     )
@@ -123,10 +130,13 @@ class PuzzleHandlerTest :
                 val second = handler.getOrCreatePuzzleBridge("puzzle-lands-only")
                 val session2 =
                     MatchSession(
-                        seatId = SeatId(1),
-                        matchId = "puzzle-lands-only",
-                        sink = sink2,
-                        registry = registry,
+                        connection =
+                            ConnectionState(
+                                seatId = SeatId(1),
+                                matchId = "puzzle-lands-only",
+                                sink = sink2,
+                                registry = registry,
+                            ),
                         gameBridge = second,
                         paceDelayMs = 0,
                     )
@@ -184,10 +194,13 @@ class PuzzleHandlerTest :
                 val bridge = handler.getOrCreatePuzzleBridge("puzzle-cli-puzzle")
                 val session =
                     MatchSession(
-                        seatId = SeatId(1),
-                        matchId = "puzzle-cli-puzzle",
-                        sink = sink,
-                        registry = registry,
+                        connection =
+                            ConnectionState(
+                                seatId = SeatId(1),
+                                matchId = "puzzle-cli-puzzle",
+                                sink = sink,
+                                registry = registry,
+                            ),
                         gameBridge = bridge,
                         paceDelayMs = 0,
                     )

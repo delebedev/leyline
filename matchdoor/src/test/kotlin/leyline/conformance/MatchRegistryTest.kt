@@ -14,6 +14,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
+import leyline.match.ConnectionState
 import leyline.match.FamiliarSession
 import leyline.match.Match
 import leyline.match.MatchHandler
@@ -65,19 +66,25 @@ class MatchRegistryTest :
             val sink = ListMessageSink()
             val s1 =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = "m1",
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = "m1",
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = stubBridge(),
                     paceDelayMs = 0,
                 )
             val s2 =
                 MatchSession(
-                    seatId = SeatId(2),
-                    matchId = "m1",
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(2),
+                            matchId = "m1",
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = stubBridge(),
                     paceDelayMs = 0,
                 )
@@ -166,10 +173,13 @@ class MatchRegistryTest :
             val sink = ListMessageSink()
             val human =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = "m1",
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = "m1",
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = stubBridge(),
                     paceDelayMs = 0,
                 )
@@ -185,10 +195,13 @@ class MatchRegistryTest :
             val sink = ListMessageSink()
             val human =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = "m1",
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = "m1",
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = stubBridge(),
                     paceDelayMs = 0,
                 )
@@ -215,10 +228,13 @@ class MatchRegistryTest :
             val sink = ListMessageSink()
             val session =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = "m1",
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = "m1",
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = match.bridge,
                     paceDelayMs = 0,
                 )
@@ -242,10 +258,13 @@ class MatchRegistryTest :
             val sink = ListMessageSink()
             val session =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = matchId,
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = matchId,
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = match.bridge,
                     paceDelayMs = 0,
                 )
@@ -266,10 +285,13 @@ class MatchRegistryTest :
             val recreated = registry.getOrCreateMatch(matchId) { Match(matchId, GameBridge(cardRepository = InMemoryCardRepository())) }
             val replacement =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = matchId,
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = matchId,
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = stubBridge(),
                     paceDelayMs = 0,
                 )

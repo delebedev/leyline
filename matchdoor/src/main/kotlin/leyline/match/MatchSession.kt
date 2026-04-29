@@ -34,18 +34,35 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
  * [MatchHandler] creates one per connection and delegates GRE messages here.
  */
 class MatchSession(
-    override val seatId: SeatId,
-    override val matchId: String,
-    val sink: MessageSink,
-    val registry: MatchRegistry,
+    val connection: ConnectionState,
     override val gameBridge: GameBridge,
     val paceDelayMs: Long = 200L,
-    override val recorder: MatchRecorder? = null,
     override var counter: MessageCounter = gameBridge.messageCounter,
-    /** Cross-BC coordinator — match results flow back to FD services. */
-    val coordinator: MatchCoordinator? = null,
 ) : SessionOps {
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
+
+    override val seatId: SeatId get() = connection.seatId
+    override val matchId: String get() = connection.matchId
+    val sink: MessageSink get() = connection.sink
+    val registry: MatchRegistry get() = connection.registry
+    override val recorder: MatchRecorder? get() = connection.recorder
+    val coordinator: MatchCoordinator? get() = connection.coordinator
+
+    /** Client player ID — delegate; mutable on connection. */
+    var playerId: String
+        get() = connection.playerId
+        set(value) {
+            connection.playerId = value
+        }
+
+    /** Client SetSettingsReq state — delegate; mutable on connection. */
+    var clientSettings: SettingsMessage?
+        get() = connection.clientSettings
+        set(value) {
+            connection.clientSettings = value
+        }
+
+    val autoPassState: ClientAutoPassState get() = connection.autoPassState
 
     /** Serializes all game-logic entry points (Netty I/O threads are concurrent). */
     private val sessionLock = Any()
@@ -57,15 +74,6 @@ class MatchSession(
     }
 
     override val bundleBuilder: BundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
-
-    /** Client player ID — set by MatchHandler after auth, used in MatchCompleted room state. */
-    var playerId: String = "forge-player-1"
-
-    /** Saved client settings for echoing in SetSettingsResp. */
-    var clientSettings: SettingsMessage? = null
-
-    /** Client auto-pass settings (autoPassOption / stackAutoPassOption). */
-    val autoPassState = ClientAutoPassState()
 
     init {
         gameBridge.humanController?.setAutoPassState(autoPassState)

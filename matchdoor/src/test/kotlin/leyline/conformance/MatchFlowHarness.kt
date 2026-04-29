@@ -14,6 +14,7 @@ import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
+import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -92,10 +93,13 @@ class MatchFlowHarness(
 
         session =
             MatchSession(
-                seatId = seatId,
-                matchId = matchId,
-                sink = effectiveSink,
-                registry = registry,
+                connection =
+                    ConnectionState(
+                        seatId = seatId,
+                        matchId = matchId,
+                        sink = effectiveSink,
+                        registry = registry,
+                    ),
                 gameBridge = bridge,
                 paceDelayMs = 0,
             )
@@ -177,10 +181,13 @@ class MatchFlowHarness(
 
         session =
             MatchSession(
-                seatId = seatId,
-                matchId = matchId,
-                sink = effectiveSink,
-                registry = registry,
+                connection =
+                    ConnectionState(
+                        seatId = seatId,
+                        matchId = matchId,
+                        sink = effectiveSink,
+                        registry = registry,
+                    ),
                 gameBridge = bridge,
                 paceDelayMs = 0,
             )
