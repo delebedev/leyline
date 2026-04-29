@@ -86,7 +86,7 @@ class ImmersturmPredatorTest :
             h.bridge.awaitPriority()
 
             // Drain messages produced by the sacrifice
-            h.session.triggerAutoPass(h.bridge)
+            h.session.triggerAutoPass(leyline.match.SessionContext(h.bridge.getGame()!!, h.bridge))
             h.drainSink()
 
             // Bears should be sacrificed now
@@ -117,7 +117,7 @@ class ImmersturmPredatorTest :
                     .prompt
                     .submitResponse(tapPrompt.promptId, listOf(0))
                 h.bridge.awaitPriority()
-                h.session.triggerAutoPass(h.bridge)
+                h.session.triggerAutoPass(leyline.match.SessionContext(h.bridge.getGame()!!, h.bridge))
                 h.drainSink()
             }
 

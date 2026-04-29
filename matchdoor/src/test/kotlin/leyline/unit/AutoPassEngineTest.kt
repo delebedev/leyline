@@ -12,12 +12,11 @@ import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PriorityDecision
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.settingsMessage
-import leyline.game.InMemoryCardRepository
-import leyline.game.state.GameBridge
 import leyline.match.AutoPassEngine
 import leyline.match.CombatHandler
 import leyline.match.MatchEventType
 import leyline.match.OptionalActionHandler
+import leyline.match.SessionContext
 import leyline.match.TargetingHandler
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
@@ -264,7 +263,7 @@ class AutoPassEngineTest :
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
                 )
 
-            engine.autoPassAndAdvance(bridge)
+            engine.autoPassAndAdvance(SessionContext(game, bridge))
 
             assertSoftly {
                 ops.sendGameOverCount shouldBe 1
@@ -293,7 +292,7 @@ class AutoPassEngineTest :
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
                 )
 
-            engine.autoPassAndAdvance(bridge)
+            engine.autoPassAndAdvance(SessionContext(game, bridge))
 
             ops.sendRealGameStateCount shouldBe 1
             ops.sendGameOverCount shouldBe 0
@@ -317,34 +316,10 @@ class AutoPassEngineTest :
                     autoPassState = autoPassState,
                 )
 
-            engine.autoPassAndAdvance(bridge)
+            engine.autoPassAndAdvance(SessionContext(game, bridge))
 
             ops.sendRealGameStateCount shouldBe 1
             ops.hasTraceContaining("fullControl") shouldBe true
-        }
-
-        test("autoPassAndAdvance — null game returns immediately") {
-            val bridge = GameBridge(cardRepository = InMemoryCardRepository())
-            val ops = SessionTraceOps()
-            val engine =
-                AutoPassEngine(
-                    sink = ops,
-                    counters = ops,
-                    tracer = ops,
-                    bundles = ops,
-                    pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
-                    optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
-                )
-
-            engine.autoPassAndAdvance(bridge)
-
-            assertSoftly {
-                ops.sendRealGameStateCount shouldBe 0
-                ops.sendGameOverCount shouldBe 0
-                ops.tracedEvents.size shouldBe 0
-            }
         }
 
         // --- autoPassAndAdvance: combat signal tests ---
@@ -363,8 +338,7 @@ class AutoPassEngineTest :
                     pacing = ops,
                 ) {
                     override fun checkCombatPhase(
-                        bridge: GameBridge,
-                        game: forge.game.Game,
+                        ctx: SessionContext,
                         phase: forge.game.phase.PhaseType?,
                         isHumanTurn: Boolean,
                         isAiTurn: Boolean,
@@ -382,7 +356,7 @@ class AutoPassEngineTest :
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
                 )
-            engine.autoPassAndAdvance(bridge)
+            engine.autoPassAndAdvance(SessionContext(game, bridge))
 
             ops.sendRealGameStateCount shouldBe 0
             ops.sendGameOverCount shouldBe 0
@@ -406,8 +380,7 @@ class AutoPassEngineTest :
                     pacing = ops,
                 ) {
                     override fun checkCombatPhase(
-                        bridge: GameBridge,
-                        game: forge.game.Game,
+                        ctx: SessionContext,
                         phase: forge.game.phase.PhaseType?,
                         isHumanTurn: Boolean,
                         isAiTurn: Boolean,
@@ -425,7 +398,7 @@ class AutoPassEngineTest :
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
                 )
-            engine.autoPassAndAdvance(bridge)
+            engine.autoPassAndAdvance(SessionContext(game, bridge))
 
             // Human turn + real actions → sendRealGameState from SEND_STATE path
             ops.sendRealGameStateCount shouldBe 1
@@ -445,8 +418,7 @@ class AutoPassEngineTest :
                     pacing = ops,
                 ) {
                     override fun checkCombatPhase(
-                        bridge: GameBridge,
-                        game: forge.game.Game,
+                        ctx: SessionContext,
                         phase: forge.game.phase.PhaseType?,
                         isHumanTurn: Boolean,
                         isAiTurn: Boolean,
@@ -464,7 +436,7 @@ class AutoPassEngineTest :
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops),
                 )
-            engine.autoPassAndAdvance(bridge)
+            engine.autoPassAndAdvance(SessionContext(game, bridge))
 
             val bundle = ops.sentGRE.single()
             assertSoftly {

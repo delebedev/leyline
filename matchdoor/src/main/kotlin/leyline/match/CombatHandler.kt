@@ -1,6 +1,5 @@
 package leyline.match
 
-import forge.game.Game
 import forge.game.phase.PhaseType
 import leyline.DevCheck
 import leyline.bridge.findCard
@@ -13,7 +12,6 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.opponent
 import leyline.game.bundle.RequestBuilder
 import leyline.game.mapping.PromptIds
-import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
@@ -94,9 +92,10 @@ open class CombatHandler(
      */
     fun onDeclareAttackers(
         greMsg: ClientToGREMessage,
-        bridge: GameBridge,
-        autoPass: (GameBridge) -> Unit,
+        ctx: SessionContext,
+        autoPass: (SessionContext) -> Unit,
     ) {
+        val bridge = ctx.bridge
         val isSubmit = greMsg.type == ClientMessageType.SubmitAttackersReq
 
         // Reject stale Submit messages — the client may send on either channel (race).
@@ -141,7 +140,7 @@ open class CombatHandler(
             }
             // Echo back GSM with creature object (no combat state) + DeclareAttackersReq.
             // Echo carries NO attackState — only base card fields.
-            sendAttackerEchoBack(bridge)
+            sendAttackerEchoBack(ctx)
             return
         }
 
@@ -182,12 +181,11 @@ open class CombatHandler(
         )
 
         // Resolve the defending player: the opponent of the active (attacking) player.
-        val game = bridge.getGame()
         val humanPlayer = bridge.getPlayer(counters.seatId)
         val defenderPlayerId =
-            game
-                ?.players
-                ?.firstOrNull { it != humanPlayer }
+            ctx.game
+                .players
+                .firstOrNull { it != humanPlayer }
                 ?.id
 
         seatBridge.action.submitAction(
@@ -195,7 +193,7 @@ open class CombatHandler(
             PlayerAction.DeclareAttackers(attackerCardIds, defender = defenderPlayerId?.let { Target.Player(ForgePlayerId(it)) }),
         )
         bridge.awaitPriority()
-        autoPass(bridge)
+        autoPass(ctx)
     }
 
     /**
@@ -206,9 +204,10 @@ open class CombatHandler(
      * which passes combat entirely (no attacks, skip to post-combat main).
      */
     fun onCancelAttackers(
-        bridge: GameBridge,
-        autoPass: (GameBridge) -> Unit,
+        ctx: SessionContext,
+        autoPass: (SessionContext) -> Unit,
     ) {
+        val bridge = ctx.bridge
         val seatBridge = bridge.seat(counters.seatId)
         val pending =
             seatBridge.action.getPending() ?: run {
@@ -231,12 +230,11 @@ open class CombatHandler(
             ),
         )
 
-        val game = bridge.getGame()
         val humanPlayer = bridge.getPlayer(counters.seatId)
         val defenderPlayerId =
-            game
-                ?.players
-                ?.firstOrNull { it != humanPlayer }
+            ctx.game
+                .players
+                .firstOrNull { it != humanPlayer }
                 ?.id
 
         seatBridge.action.submitAction(
@@ -244,7 +242,7 @@ open class CombatHandler(
             PlayerAction.DeclareAttackers(emptyList(), defender = defenderPlayerId?.let { Target.Player(ForgePlayerId(it)) }),
         )
         bridge.awaitPriority()
-        autoPass(bridge)
+        autoPass(ctx)
     }
 
     /**
@@ -256,9 +254,10 @@ open class CombatHandler(
      */
     fun onDeclareBlockers(
         greMsg: ClientToGREMessage,
-        bridge: GameBridge,
-        autoPass: (GameBridge) -> Unit,
+        ctx: SessionContext,
+        autoPass: (SessionContext) -> Unit,
     ) {
+        val bridge = ctx.bridge
         val isSubmit = greMsg.type == ClientMessageType.SubmitBlockersReq
 
         // Reject stale Submit — same pattern as attackers (see onDeclareAttackers).
@@ -288,7 +287,7 @@ open class CombatHandler(
                 }
             }
             log.info("CombatHandler: blocker update — assignments={}, echoing DeclareBlockersReq", lastDeclaredBlockAssignments)
-            sendBlockerEchoBack(bridge)
+            sendBlockerEchoBack(ctx)
             return
         }
 
@@ -328,7 +327,7 @@ open class CombatHandler(
             PlayerAction.DeclareBlockers(blockAssignments),
         )
         bridge.awaitPriority()
-        autoPass(bridge)
+        autoPass(ctx)
     }
 
     /**
@@ -337,12 +336,12 @@ open class CombatHandler(
      */
     @Suppress("ReturnCount")
     open fun checkCombatPhase(
-        bridge: GameBridge,
-        game: Game,
+        ctx: SessionContext,
         phase: PhaseType?,
         isHumanTurn: Boolean,
         isAiTurn: Boolean,
     ): Signal {
+        val game = ctx.game
         val combat = game.phaseHandler.combat
 
         when (phase) {
@@ -357,7 +356,7 @@ open class CombatHandler(
                     val req = bundles.bundleBuilder!!.buildDeclareAttackersReq()
                     if (req.attackersCount > 0) {
                         tracer.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
-                        sendDeclareAttackersReq(bridge, req)
+                        sendDeclareAttackersReq(ctx, req)
                         return Signal.STOP
                     }
                 } else if (isAiTurn && combat != null && combat.attackers.isNotEmpty()) {
@@ -372,19 +371,19 @@ open class CombatHandler(
                     // PlayerController — it creates a pending action via awaitAction().
                     // Without this, we'd send DeclareBlockersReq before the engine is
                     // ready to accept the response, causing "no pending action" errors.
-                    bridge.awaitPriority()
+                    ctx.bridge.awaitPriority()
                     // Drain any pending playback messages — the engine thread may have
-                    // captured AI actions between the last drain and now.
-                    drainPendingPlayback(bridge)
+                    // queued AI actions between the last drain and now.
+                    drainPendingPlayback(ctx)
                     tracer.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
-                    val skipBlockers = sendDeclareBlockersReq(bridge)
+                    val skipBlockers = sendDeclareBlockersReq(ctx)
                     if (skipBlockers) {
                         // Zero legal blockers — submit empty declaration and advance
-                        val seatBridge = bridge.seat(counters.seatId)
+                        val seatBridge = ctx.bridge.seat(counters.seatId)
                         val pending = seatBridge.action.getPending()
                         if (pending != null) {
                             seatBridge.action.submitAction(pending.actionId, PlayerAction.DeclareBlockers(emptyMap()))
-                            bridge.awaitPriority()
+                            ctx.bridge.awaitPriority()
                         }
                         return Signal.SEND_STATE
                     }
@@ -422,13 +421,12 @@ open class CombatHandler(
      *
      * @return true if AssignDamageReq was sent (caller should exit the loop)
      */
-    fun checkPendingDamageAssignment(bridge: GameBridge): Boolean {
-        val wpc = bridge.humanController ?: return false
+    fun checkPendingDamageAssignment(ctx: SessionContext): Boolean {
+        val wpc = ctx.bridge.humanController ?: return false
         val prompt = wpc.pendingDamageAssignment ?: return false
-        val game = bridge.getGame() ?: return false
 
         log.info("CombatHandler: damage assignment pending for {} (damage={})", prompt.attacker.name, prompt.damageDealt)
-        sendAssignDamageReq(bridge, prompt)
+        sendAssignDamageReq(ctx, prompt)
         return true
     }
 
@@ -442,9 +440,11 @@ open class CombatHandler(
      */
     fun onAssignDamage(
         greMsg: ClientToGREMessage,
-        bridge: GameBridge,
-        autoPass: (GameBridge) -> Unit,
+        ctx: SessionContext,
+        autoPass: (SessionContext) -> Unit,
     ) {
+        val bridge = ctx.bridge
+        val game = ctx.game
         val resp = greMsg.assignDamageResp
         val wpc =
             bridge.humanController ?: run {
@@ -458,7 +458,6 @@ open class CombatHandler(
                 sink.sendRealGameState(bridge)
                 return
             }
-        val game = bridge.getGame() ?: return
 
         // Parse all assigners. First assigner completes the blocking future;
         // subsequent assigners are cached for Forge's per-attacker loop.
@@ -530,7 +529,7 @@ open class CombatHandler(
             prompt.future.complete(mutableMapOf())
         }
         bridge.awaitPriority()
-        autoPass(bridge)
+        autoPass(ctx)
     }
 
     /**
@@ -538,9 +537,10 @@ open class CombatHandler(
      * [DamageAssignmentPrompt] context.
      */
     private fun sendAssignDamageReq(
-        bridge: GameBridge,
+        ctx: SessionContext,
         prompt: PlayerController.DamageAssignmentPrompt,
     ) {
+        val bridge = ctx.bridge
         val humanPlayer = bridge.getPlayer(counters.seatId) ?: return
 
         val attackerIid = bridge.getOrAllocInstanceId(ForgeCardId(prompt.attacker.id))
@@ -616,11 +616,10 @@ open class CombatHandler(
      * Echo-back for iterative attacker toggle: sends GSM with provisional
      * combat state on toggled creatures + fresh DeclareAttackersReq.
      */
-    private fun sendAttackerEchoBack(bridge: GameBridge) {
-        val game = bridge.getGame() ?: return
+    private fun sendAttackerEchoBack(ctx: SessionContext) {
         val result =
             bundles.bundleBuilder!!.echoAttackersBundle(
-                game,
+                ctx.game,
                 counters.counter,
                 selectedAttackerIds = lastDeclaredAttackerIds,
                 allLegalAttackerIds = pendingLegalAttackers,
@@ -634,12 +633,11 @@ open class CombatHandler(
      *                       false on echo-back (preserve current [lastDeclaredAttackerIds]).
      */
     private fun sendDeclareAttackersReq(
-        bridge: GameBridge,
+        ctx: SessionContext,
         req: DeclareAttackersReq? = null,
         resetSelection: Boolean = true,
     ) {
-        val game = bridge.getGame() ?: return
-        val result = bundles.bundleBuilder!!.declareAttackersBundle(game, counters.counter, req)
+        val result = bundles.bundleBuilder!!.declareAttackersBundle(ctx.game, counters.counter, req)
 
         val builtReq = result.messages.firstOrNull { it.hasDeclareAttackersReq() }?.declareAttackersReq
         pendingLegalAttackers = builtReq?.attackersList?.map { it.attackerInstanceId } ?: emptyList()
@@ -657,11 +655,10 @@ open class CombatHandler(
      * Echo-back for iterative blocker toggle: sends GSM with provisional
      * block state on toggled creatures + fresh DeclareBlockersReq.
      */
-    private fun sendBlockerEchoBack(bridge: GameBridge) {
-        val game = bridge.getGame() ?: return
+    private fun sendBlockerEchoBack(ctx: SessionContext) {
         val result =
             bundles.bundleBuilder!!.echoBlockersBundle(
-                game,
+                ctx.game,
                 counters.counter,
                 blockAssignments = lastDeclaredBlockAssignments.toMap(),
             )
@@ -669,9 +666,8 @@ open class CombatHandler(
         sink.sendBundledGRE(result.messages)
     }
 
-    private fun sendDeclareBlockersReq(bridge: GameBridge): Boolean {
-        val game = bridge.getGame() ?: return false
-        val req = RequestBuilder.buildDeclareBlockersReq(game, counters.seatId, bridge)
+    private fun sendDeclareBlockersReq(ctx: SessionContext): Boolean {
+        val req = RequestBuilder.buildDeclareBlockersReq(ctx.game, counters.seatId, ctx.bridge)
 
         if (req.blockersCount == 0) {
             log.info("CombatHandler: zero legal blockers — auto-submitting empty declaration")
@@ -679,7 +675,7 @@ open class CombatHandler(
             return true // caller should auto-advance
         }
 
-        val result = bundles.bundleBuilder!!.declareBlockersBundle(game, counters.counter)
+        val result = bundles.bundleBuilder!!.declareBlockersBundle(ctx.game, counters.counter)
         pendingBlockersSent = true
         Tap.outboundTemplate("DeclareBlockersReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
@@ -694,8 +690,8 @@ open class CombatHandler(
      * With the shared MessageCounter, no counter syncing is needed — just
      * drain and send.
      */
-    private fun drainPendingPlayback(bridge: GameBridge) {
-        val playback = bridge.playbacks[counters.seatId] ?: return
+    private fun drainPendingPlayback(ctx: SessionContext) {
+        val playback = ctx.bridge.playbacks[counters.seatId] ?: return
         if (playback.hasPendingMessages()) {
             val batches = playback.drainQueue()
             for (batch in batches) {

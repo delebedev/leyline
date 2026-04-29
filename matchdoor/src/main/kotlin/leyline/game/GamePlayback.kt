@@ -125,7 +125,11 @@ class GamePlayback(
 
     override fun visit(ev: GameEventTurnBegan) {
         if (!isRemoteActing()) return
-        val game = bridge.getGame() ?: return
+        val game =
+            bridge.getGame() ?: run {
+                log.debug("GamePlayback: TurnBegan during teardown (game null), dropping event")
+                return
+            }
         lastCapturedTurn = game.phaseHandler.turn
         lastCapturedPhase = game.phaseHandler.phase
         captureAndPause(PHASE_DELAY, turnStarted = true)
@@ -133,7 +137,11 @@ class GamePlayback(
 
     override fun visit(ev: GameEventTurnPhase) {
         if (!isRemoteActing()) return
-        val game = bridge.getGame() ?: return
+        val game =
+            bridge.getGame() ?: run {
+                log.debug("GamePlayback: TurnPhase during teardown (game null), dropping event")
+                return
+            }
         val turn = game.phaseHandler.turn
         val phase = game.phaseHandler.phase
         // Skip if TurnBegan already captured this exact turn+phase
@@ -203,7 +211,11 @@ class GamePlayback(
         delayMs: Int,
         turnStarted: Boolean = false,
     ) {
-        val game = bridge.getGame() ?: return
+        val game =
+            bridge.getGame() ?: run {
+                log.debug("GamePlayback: captureAndPause during teardown (game null), skipping")
+                return
+            }
 
         try {
             val result =
@@ -246,6 +258,8 @@ class GamePlayback(
      * Fires for AI turns and remote-seat turns uniformly.
      */
     private fun isRemoteActing(): Boolean {
+        // No log here — called from every event listener; logging would
+        // duplicate the teardown messages emitted by the listeners themselves.
         val game = bridge.getGame() ?: return false
         val turnPlayer = game.phaseHandler.playerTurn ?: return false
         val myPlayer = bridge.getPlayer(SeatId(seatId)) ?: return false

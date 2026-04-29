@@ -7,7 +7,6 @@ import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PriorityDecision
 import leyline.game.bundle.BundleBuilder
-import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 
 /**
@@ -82,9 +81,10 @@ class AutoPassEngine(
      * Detects combat phases and sends appropriate combat prompts.
      */
     @Suppress("CyclomaticComplexMethod", "ReturnCount") // linear check-and-return pipeline; splitting obscures flow
-    fun autoPassAndAdvance(bridge: GameBridge) {
+    fun autoPassAndAdvance(ctx: SessionContext) {
+        val bridge = ctx.bridge
+        val game = ctx.game
         repeat(MAX_ITERATIONS) {
-            val game = bridge.getGame() ?: return
             if (game.isGameOver) {
                 tracer.traceEvent(MatchEventType.GAME_OVER, game, "game over detected")
                 sink.sendGameOver()
@@ -92,7 +92,7 @@ class AutoPassEngine(
             }
 
             // Drain pending AI-action diffs
-            if (drainPlayback(bridge)) return@repeat
+            if (drainPlayback(ctx)) return@repeat
 
             val human = bridge.getPlayer(counters.seatId)
             val phase = game.phaseHandler.phase
@@ -103,10 +103,10 @@ class AutoPassEngine(
             // Must run before combat phase SEND_STATE handling: COMBAT_DAMAGE on the
             // human turn emits a visual checkpoint, but manual assignment takes
             // precedence and should surface AssignDamageReq immediately.
-            if (combatHandler.checkPendingDamageAssignment(bridge)) return
+            if (combatHandler.checkPendingDamageAssignment(ctx)) return
 
             // Combat phase handling
-            when (combatHandler.checkCombatPhase(bridge, game, phase, isHumanTurn, isAiTurn)) {
+            when (combatHandler.checkCombatPhase(ctx, phase, isHumanTurn, isAiTurn)) {
                 CombatHandler.Signal.STOP -> return
                 CombatHandler.Signal.SEND_STATE -> {
                     // AI turn: never offer actions — client expects combat GSMs
@@ -145,10 +145,10 @@ class AutoPassEngine(
             }
 
             // Optional action prompt — "you may" trigger (dedicated future)
-            if (optionalActionHandler.checkPendingOptionalAction(bridge)) return
+            if (optionalActionHandler.checkPendingOptionalAction(ctx)) return
 
             // Interactive prompt (targeting, sacrifice, discard, etc.)
-            when (targetingHandler.checkPendingPrompt(bridge, game)) {
+            when (targetingHandler.checkPendingPrompt(ctx)) {
                 TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
                 TargetingHandler.PromptResult.AUTO_RESOLVED -> return@repeat // re-evaluate
                 TargetingHandler.PromptResult.NONE -> {} // continue
@@ -157,24 +157,23 @@ class AutoPassEngine(
             // Action check — prompt human if meaningful actions exist
             val decision = checkHumanActions(game, isAiTurn)
             if (decision is PriorityDecision.Grant) {
-                if (drainPlayback(bridge)) return@repeat
+                if (drainPlayback(ctx)) return@repeat
                 sink.sendRealGameState(bridge)
                 return
             }
 
             // Auto-pass or wait
-            when (advanceOrWait(bridge, game, phase, isAiTurn)) {
+            when (advanceOrWait(ctx, phase, isAiTurn)) {
                 LoopSignal.EXIT -> return
                 LoopSignal.CONTINUE -> {} // next iteration
             }
         }
 
-        val game2 = bridge.getGame()
-        val phase2 = game2?.phaseHandler?.phase?.name ?: "?"
-        val turn2 = game2?.phaseHandler?.turn ?: -1
+        val phase2 = game.phaseHandler.phase?.name ?: "?"
+        val turn2 = game.phaseHandler.turn
         log.warn("autoPassAndAdvance: hit max iterations ({}) at phase={} turn={}", MAX_ITERATIONS, phase2, turn2)
-        val human2 = game2?.let { bridge.getPlayer(counters.seatId) }
-        val stillAiTurn = human2 != null && game2.phaseHandler.playerTurn != human2
+        val human2 = bridge.getPlayer(counters.seatId)
+        val stillAiTurn = human2 != null && game.phaseHandler.playerTurn != human2
         if (stillAiTurn) {
             log.debug("max-iterations: AI turn, suppressing ActionsAvailableReq")
         } else {
@@ -189,8 +188,8 @@ class AutoPassEngine(
      * With the shared [MessageCounter], no counter syncing is needed — messages
      * produced by [GamePlayback] already have correct sequence numbers.
      */
-    private fun drainPlayback(bridge: GameBridge): Boolean {
-        val playback = bridge.playbacks[counters.seatId] ?: return false
+    private fun drainPlayback(ctx: SessionContext): Boolean {
+        val playback = ctx.bridge.playbacks[counters.seatId] ?: return false
         if (!playback.hasPendingMessages()) return false
         val batches = playback.drainQueue()
         for ((idx, batch) in batches.withIndex()) {
@@ -271,11 +270,12 @@ class AutoPassEngine(
      * (priority granted to client, game over, or timeout).
      */
     private fun advanceOrWait(
-        bridge: GameBridge,
-        game: Game,
+        ctx: SessionContext,
         phase: PhaseType?,
         isAiTurn: Boolean,
     ): LoopSignal {
+        val bridge = ctx.bridge
+        val game = ctx.game
         val pending = bridge.seat(counters.seatId).action.getPending()
         log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, game.phaseHandler.turn, isAiTurn, pending != null)
 
@@ -304,8 +304,7 @@ class AutoPassEngine(
             tracer.traceEvent(MatchEventType.AI_TURN_WAIT, game, "waiting for AI")
             val reachedPriority = bridge.awaitPriorityWithTimeout(bridge.matchConfig.server.aiTurnWaitMs)
             if (!reachedPriority) {
-                val g = bridge.getGame()
-                if (g != null && g.isGameOver) {
+                if (game.isGameOver) {
                     tracer.traceEvent(MatchEventType.GAME_OVER, game, "game over during AI wait")
                     sink.sendGameOver()
                     return LoopSignal.EXIT

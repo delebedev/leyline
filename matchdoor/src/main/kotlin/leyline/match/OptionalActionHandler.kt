@@ -3,7 +3,6 @@ package leyline.match
 import leyline.bridge.forge.PlayerController
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.PromptIds
-import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -31,15 +30,15 @@ class OptionalActionHandler(
      *
      * @return true if an OptionalActionMessage was sent (caller should exit loop)
      */
-    fun checkPendingOptionalAction(bridge: GameBridge): Boolean {
-        val wpc = bridge.humanController ?: return false
+    fun checkPendingOptionalAction(ctx: SessionContext): Boolean {
+        val wpc = ctx.bridge.humanController ?: return false
         val prompt = wpc.pendingOptionalAction ?: return false
 
         log.info(
             "OptionalActionHandler: optional trigger pending for {}",
             prompt.hostCard?.name ?: "unknown",
         )
-        sendOptionalActionMessage(bridge, prompt)
+        sendOptionalActionMessage(ctx, prompt)
         return true
     }
 
@@ -48,9 +47,10 @@ class OptionalActionHandler(
      */
     fun onOptionalActionResp(
         greMsg: ClientToGREMessage,
-        bridge: GameBridge,
-        autoPass: (GameBridge) -> Unit,
+        ctx: SessionContext,
+        autoPass: (SessionContext) -> Unit,
     ) {
+        val bridge = ctx.bridge
         val wpc =
             bridge.humanController ?: run {
                 log.warn("OptionalActionHandler: no humanController for OptionalActionResp")
@@ -74,15 +74,16 @@ class OptionalActionHandler(
 
         prompt.future.complete(accepted)
         bridge.awaitPriority()
-        autoPass(bridge)
+        autoPass(ctx)
     }
 
     // --- Private ---
 
     private fun sendOptionalActionMessage(
-        bridge: GameBridge,
+        ctx: SessionContext,
         prompt: PlayerController.OptionalActionPrompt,
     ) {
+        val bridge = ctx.bridge
         val hostCard = prompt.hostCard
         if (hostCard == null) {
             log.warn("OptionalActionHandler: hostCard is null — cannot send OptionalActionMessage")
