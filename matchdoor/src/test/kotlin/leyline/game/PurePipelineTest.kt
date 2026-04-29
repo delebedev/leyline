@@ -10,6 +10,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.conformance.detailInt
@@ -606,7 +607,7 @@ class PurePipelineTest :
                     forgeIdLookup = forgeIdLookup,
                     idAllocator = noOpAllocator,
                     idLookup = idLookup,
-                    grpIdResolver = { fid -> if (fid == sourceForgeId) cardGrpId else 0 },
+                    grpIdResolver = { fid -> GrpId(if (fid == sourceForgeId) cardGrpId else 0) },
                 )
 
             result.stackAbilityDisappearances shouldHaveSize 1
@@ -633,7 +634,7 @@ class PurePipelineTest :
                     forgeIdLookup = forgeIdLookup,
                     idAllocator = noOpAllocator,
                     idLookup = idLookup,
-                    grpIdResolver = { fid -> if (fid == sourceForgeId) cardGrpId else 0 },
+                    grpIdResolver = { fid -> GrpId(if (fid == sourceForgeId) cardGrpId else 0) },
                 )
 
             result.stackAbilityDisappearances shouldHaveSize 1

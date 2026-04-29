@@ -9,7 +9,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
 import leyline.game.data.KeywordAbilityIds
@@ -137,9 +137,9 @@ class SneakTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { g -> b.cardRepository.findByGrpId(g) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { g -> b.cardRepository.findByGrpId(g.value) },
                     abilityRegistryLookup = { card, cd -> b.abilityRegistryFor(card, cd) },
                 )
 
@@ -169,9 +169,9 @@ class SneakTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { g -> b.cardRepository.findByGrpId(g) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { g -> b.cardRepository.findByGrpId(g.value) },
                 )
 
             val hasSneakOffer =
@@ -198,9 +198,9 @@ class SneakTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { g -> b.cardRepository.findByGrpId(g) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { g -> b.cardRepository.findByGrpId(g.value) },
                 )
 
             val hasSneakOffer =
@@ -227,9 +227,9 @@ class SneakTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { g -> b.cardRepository.findByGrpId(g) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { g -> b.cardRepository.findByGrpId(g.value) },
                 )
 
             val hasSneakOffer =

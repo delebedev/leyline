@@ -8,6 +8,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.types.EffectId
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -29,7 +30,7 @@ class ControllerChangedPipelineTest :
 
         var nextEffect = 7005
 
-        fun testEffectAllocator(): Int = nextEffect++
+        fun testEffectAllocator(): EffectId = EffectId(nextEffect++)
 
         beforeTest { nextEffect = 7005 }
 

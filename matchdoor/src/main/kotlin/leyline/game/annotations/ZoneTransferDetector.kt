@@ -2,6 +2,7 @@ package leyline.game.annotations
 
 import leyline.bridge.findCard
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.game.data.BasicLandAbilities
 import leyline.game.event.GameEvent
@@ -97,6 +98,7 @@ data class TransferResult(
  *
  * Pure functions — no shared mutable state.
  */
+@Suppress("LargeClass")
 object ZoneTransferDetector {
     private val log = LoggerFactory.getLogger(ZoneTransferDetector::class.java)
 
@@ -156,18 +158,20 @@ object ZoneTransferDetector {
                 idLookup = idLookup,
                 manaAbilityGrpIdResolver = { fid ->
                     val card = bridge.getGame()?.let { findCard(it, fid) }
-                    if (card != null) {
-                        val subtypes = card.type.subtypes.map { it.lowercase() }
-                        BasicLandAbilities.BY_SUBTYPE
-                            .firstOrNull { it.first in subtypes }
-                            ?.second ?: 0
-                    } else {
-                        0
-                    }
+                    val abilityGrpId =
+                        if (card != null) {
+                            val subtypes = card.type.subtypes.map { it.lowercase() }
+                            BasicLandAbilities.BY_SUBTYPE
+                                .firstOrNull { it.first in subtypes }
+                                ?.second ?: 0
+                        } else {
+                            0
+                        }
+                    GrpId(abilityGrpId)
                 },
                 grpIdResolver = { fid ->
                     val card = bridge.getGame()?.let { findCard(it, fid) }
-                    if (card != null) bridge.cardRepository.findGrpIdByName(card.name) ?: 0 else 0
+                    GrpId(if (card != null) bridge.cardRepository.findGrpIdByName(card.name) ?: 0 else 0)
                 },
                 isForetoldLookup = { fid ->
                     bridge.getGame()?.let { findCard(it, fid) }?.let { Foretell.isForetold(it) } ?: false
@@ -203,9 +207,9 @@ object ZoneTransferDetector {
         forgeIdLookup: (InstanceId) -> ForgeCardId?,
         idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
         idLookup: (ForgeCardId) -> InstanceId,
-        manaAbilityGrpIdResolver: (ForgeCardId) -> Int = { 0 },
+        manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
         /** Resolve grpId for a source card's ForgeCardId (for stack ability resolution annotations). */
-        grpIdResolver: (ForgeCardId) -> Int = { 0 },
+        grpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
         /** True when [forgeCardId] is currently foretold (in Exile with Card.foretold==true).
          *  Used to override Hand→Exile category from `Exile` to `Foretell` for the
          *  foretell-action transfer (Forge fires no dedicated GameEvent we can dispatch on
@@ -301,7 +305,7 @@ object ZoneTransferDetector {
                     spellCastEvent?.manaPayments?.map { mp ->
                         val landIid = idLookup(mp.sourceCardId).value
                         val manaAbilityIid = idLookup(ForgeCardId(mp.sourceCardId.value + MANA_ABILITY_ID_OFFSET)).value
-                        val abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId)
+                        val abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId).value
                         ManaPaymentRecord(
                             landInstanceId = landIid,
                             manaAbilityInstanceId = manaAbilityIid,
@@ -514,7 +518,7 @@ object ZoneTransferDetector {
         mainLoopIds: Set<Int>,
         forgeIdLookup: (InstanceId) -> ForgeCardId?,
         idLookup: (ForgeCardId) -> InstanceId,
-        grpIdResolver: (ForgeCardId) -> Int,
+        grpIdResolver: (ForgeCardId) -> GrpId,
     ): Pair<List<StackAbilityDisappearance>, List<Int>> {
         val resolvedEvents = events.filterIsInstance<GameEvent.SpellResolved>()
         val disappearances = mutableListOf<StackAbilityDisappearance>()
@@ -531,7 +535,7 @@ object ZoneTransferDetector {
 
             val sourceCardForgeId = ForgeCardId(abilityForgeId.value - ObjectMapper.STACK_ABILITY_ID_OFFSET)
             val sourceCardIid = idLookup(sourceCardForgeId).value
-            val grpId = grpIdResolver(sourceCardForgeId)
+            val grpId = grpIdResolver(sourceCardForgeId).value
 
             // Correlate with SpellResolved event for fizzle detection.
             val resolvedEv = resolvedEvents.firstOrNull { it.cardId == sourceCardForgeId }
@@ -686,7 +690,7 @@ object ZoneTransferDetector {
         forgeIdLookup: (InstanceId) -> ForgeCardId?,
         idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
         idLookup: (ForgeCardId) -> InstanceId,
-        manaAbilityGrpIdResolver: (ForgeCardId) -> Int,
+        manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
     ) {
         val currentInstanceIds = patchedObjects.map { it.instanceId }.toSet()
         val sacrificeEvents = events.filterIsInstance<GameEvent.CardSacrificed>()
@@ -779,7 +783,7 @@ object ZoneTransferDetector {
         manaAbilityEvents: List<GameEvent.ManaAbilityActivated>,
         spellCastEvents: List<GameEvent.SpellCast>,
         idLookup: (ForgeCardId) -> InstanceId,
-        manaAbilityGrpIdResolver: (ForgeCardId) -> Int,
+        manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
     ): List<ManaPaymentRecord> {
         if (manaAbilityEvents.none { it.cardId == forgeCardId }) return emptyList()
         val castEv =
@@ -792,7 +796,7 @@ object ZoneTransferDetector {
                 landInstanceId = origId,
                 manaAbilityInstanceId = idLookup(ForgeCardId(forgeCardId.value + MANA_ABILITY_ID_OFFSET)).value,
                 color = mp.color,
-                abilityGrpId = manaAbilityGrpIdResolver(forgeCardId),
+                abilityGrpId = manaAbilityGrpIdResolver(forgeCardId).value,
                 spellInstanceId = idLookup(castEv.cardId).value,
             ),
         )

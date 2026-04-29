@@ -67,7 +67,7 @@ data class MechanicAnnotationResult(
  *
  * Pure functions — no shared mutable state.
  */
-@Suppress("MemberNameEqualsClassName")
+@Suppress("ElseCaseInsteadOfExhaustiveWhen", "MemberNameEqualsClassName")
 object MechanicAnnotations {
     private val log = LoggerFactory.getLogger(MechanicAnnotations::class.java)
 
@@ -86,7 +86,7 @@ object MechanicAnnotations {
         events: List<GameEvent>,
         manaPaidForgeCardIds: Set<ForgeCardId> = emptySet(),
         idResolver: (ForgeCardId) -> InstanceId,
-        effectIdAllocator: () -> Int = { 0 },
+        effectIdAllocator: () -> EffectId = { EffectId(0) },
         activeStealForgeCardIds: Set<ForgeCardId> = emptySet(),
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
@@ -264,7 +264,7 @@ object MechanicAnnotations {
                             } else {
                                 InstanceId(0)
                             }
-                        val effectId = EffectId(effectIdAllocator())
+                        val effectId = effectIdAllocator()
                         annotations.add(AnnotationBuilder.layeredEffectCreated(effectId, affectorIid))
                         annotations.add(AnnotationBuilder.controllerChanged(affectorIid, cardIid))
                         persistent.add(AnnotationBuilder.controllerChangedEffect(affectorIid, cardIid, effectId))
@@ -317,9 +317,9 @@ object MechanicAnnotations {
      */
     fun effectAnnotations(
         diff: EffectTracker.DiffResult,
-        sourceAbilityResolver: ((InstanceId, Long) -> Int?)? = null,
+        sourceAbilityResolver: ((InstanceId, Long) -> GrpId?)? = null,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
-        keywordAffectorResolver: ((String, Long, Long) -> Int)? = null,
+        keywordAffectorResolver: ((String, Long, Long) -> InstanceId)? = null,
         uniqueAbilityIdAllocator: (() -> Int)? = null,
     ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
         val hasBoosts = diff.created.isNotEmpty() || diff.destroyed.isNotEmpty()
@@ -371,7 +371,7 @@ object MechanicAnnotations {
                     powerDelta = effect.powerDelta,
                     toughnessDelta = effect.toughnessDelta,
                     affectorId = cardIid,
-                    sourceAbilityGrpId = sourceAbilityGrpId?.let { GrpId(it) },
+                    sourceAbilityGrpId = sourceAbilityGrpId,
                 ),
             )
         }
@@ -392,7 +392,7 @@ object MechanicAnnotations {
                 val (keyword, timestamp, staticId) = key
                 val grpId = GrpId(KeywordGrpIds.forKeyword(keyword) ?: continue)
                 val effectId = EffectId(effects.first().syntheticId)
-                val affectorId = InstanceId(keywordAffectorResolver?.invoke(keyword, timestamp, staticId) ?: 0)
+                val affectorId = keywordAffectorResolver?.invoke(keyword, timestamp, staticId) ?: InstanceId(0)
 
                 transient.add(
                     AnnotationBuilder.layeredEffectCreated(

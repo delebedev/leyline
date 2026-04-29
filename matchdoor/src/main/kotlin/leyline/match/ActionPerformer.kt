@@ -6,6 +6,7 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.state.GameBridge
@@ -305,12 +306,12 @@ class ActionPerformer(
                 instanceId = action.instanceId,
                 grpId = grpId,
                 checkLegality = true,
-                idResolver = { forgeId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeId)).value },
+                idResolver = { forgeId -> bridge.getOrAllocInstanceId(forgeId) },
                 grpIdResolver = { candidate ->
                     val iid = bridge.getOrAllocInstanceId(ForgeCardId(candidate.id)).value
-                    bridge.resolveGrpId(candidate, iid)
+                    GrpId(bridge.resolveGrpId(candidate, iid))
                 },
-                cardDataLookup = { candidateGrpId -> bridge.cardRepository.findByGrpId(candidateGrpId) },
+                cardDataLookup = { candidateGrpId -> bridge.cardRepository.findByGrpId(candidateGrpId.value) },
                 abilityRegistryLookup = { candidate, cardData -> bridge.abilityRegistryFor(candidate, cardData) },
             )
         return candidates.indexOfFirst { equivalentCastAction(it, action) }.takeIf { it >= 0 }

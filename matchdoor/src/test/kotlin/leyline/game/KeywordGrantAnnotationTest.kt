@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.types.InstanceId
 import leyline.conformance.detailInt
 import leyline.conformance.detailUint
 import leyline.game.annotations.MechanicAnnotations
@@ -38,7 +39,7 @@ class KeywordGrantAnnotationTest :
                 MechanicAnnotations.effectAnnotations(
                     diff = boostDiff,
                     keywordDiff = kwDiff,
-                    keywordAffectorResolver = { _, _, _ -> 435 },
+                    keywordAffectorResolver = { _, _, _ -> InstanceId(435) },
                     uniqueAbilityIdAllocator = { uniqueId++ },
                 )
 
@@ -105,7 +106,7 @@ class KeywordGrantAnnotationTest :
                 MechanicAnnotations.effectAnnotations(
                     diff = EffectTracker.DiffResult(emptyList(), emptyList()),
                     keywordDiff = kwDiff,
-                    keywordAffectorResolver = { _, _, _ -> 500 },
+                    keywordAffectorResolver = { _, _, _ -> InstanceId(500) },
                     uniqueAbilityIdAllocator = { uniqueId++ },
                 )
 
@@ -149,7 +150,7 @@ class KeywordGrantAnnotationTest :
                 MechanicAnnotations.effectAnnotations(
                     diff = boostDiff,
                     keywordDiff = kwDiff,
-                    keywordAffectorResolver = { _, _, _ -> 435 },
+                    keywordAffectorResolver = { _, _, _ -> InstanceId(435) },
                     uniqueAbilityIdAllocator = { uniqueId++ },
                 )
 

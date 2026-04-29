@@ -1086,7 +1086,7 @@ object StateMapper {
                 events,
                 manaPaidForgeCardIds,
                 idResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
-                effectIdAllocator = { bridge.effects.nextEffectId() },
+                effectIdAllocator = { leyline.bridge.types.EffectId(bridge.effects.nextEffectId()) },
                 activeStealForgeCardIds = bridge.annotations.activeStealForgeCardIds(),
             )
         // Token entries belong before combat damage: a Mobilize trigger that
@@ -1134,8 +1134,8 @@ object StateMapper {
                     events
                         .filterIsInstance<GameEvent.SpellResolved>()
                         .lastOrNull()
-                        ?.let { bridge.getOrAllocInstanceId(it.cardId).value }
-                        ?: 0
+                        ?.let { bridge.getOrAllocInstanceId(it.cardId) }
+                        ?: leyline.bridge.types.InstanceId(0)
                 },
                 uniqueAbilityIdAllocator = { bridge.effects.nextEffectId() },
             )
