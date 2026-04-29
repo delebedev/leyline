@@ -10,10 +10,12 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.UnitTag
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
+import leyline.match.ConnectionState
 import leyline.match.FamiliarSession
 import leyline.match.Match
 import leyline.match.MatchHandler
@@ -27,7 +29,14 @@ class MatchRegistryTest :
 
         tags(UnitTag)
 
-        fun stubBridge() = GameBridge(cardRepository = InMemoryCardRepository())
+        // Wrap a fresh in-process Game without calling bridge.start() — avoids
+        // racing the MyRandom static RNG with conformance tests that depend on
+        // a stable seed-shuffle window (see ConformanceTestBase.startGameAtMain1
+        // for the lock that MatchRegistryTest can't share).
+        fun stubBridge(): GameBridge =
+            GameBridge(cardRepository = InMemoryCardRepository()).also {
+                it.wrapGame(GameBootstrap.createGame())
+            }
 
         test("getOrCreateMatch creates on first call, reuses on second") {
             val registry = MatchRegistry()
@@ -35,12 +44,12 @@ class MatchRegistryTest :
             val m1 =
                 registry.getOrCreateMatch("m1") {
                     created++
-                    Match("m1", GameBridge(cardRepository = InMemoryCardRepository()))
+                    Match("m1", stubBridge())
                 }
             val m2 =
                 registry.getOrCreateMatch("m1") {
                     created++
-                    Match("m1", GameBridge(cardRepository = InMemoryCardRepository()))
+                    Match("m1", stubBridge())
                 }
             m1 shouldBeSameInstanceAs m2
             created shouldBe 1
@@ -56,7 +65,7 @@ class MatchRegistryTest :
         test("getMatch returns match or null") {
             val registry = MatchRegistry()
             registry.getMatch("nope").shouldBeNull()
-            val m = registry.getOrCreateMatch("m1") { Match("m1", GameBridge(cardRepository = InMemoryCardRepository())) }
+            val m = registry.getOrCreateMatch("m1") { Match("m1", stubBridge()) }
             registry.getMatch("m1") shouldBeSameInstanceAs m
         }
 
@@ -65,19 +74,25 @@ class MatchRegistryTest :
             val sink = ListMessageSink()
             val s1 =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = "m1",
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = "m1",
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = stubBridge(),
                     paceDelayMs = 0,
                 )
             val s2 =
                 MatchSession(
-                    seatId = SeatId(2),
-                    matchId = "m1",
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(2),
+                            matchId = "m1",
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = stubBridge(),
                     paceDelayMs = 0,
                 )
@@ -89,8 +104,8 @@ class MatchRegistryTest :
 
         test("evictStale removes old match entries and closes them") {
             val registry = MatchRegistry()
-            val old = registry.getOrCreateMatch("old-match") { Match("old-match", GameBridge(cardRepository = InMemoryCardRepository())) }
-            registry.getOrCreateMatch("current") { Match("current", GameBridge(cardRepository = InMemoryCardRepository())) }
+            val old = registry.getOrCreateMatch("old-match") { Match("old-match", stubBridge()) }
+            registry.getOrCreateMatch("current") { Match("current", stubBridge()) }
             val evicted = registry.evictStale("current")
             evicted.size shouldBe 1
             old.state shouldBe MatchState.FINISHED
@@ -99,12 +114,12 @@ class MatchRegistryTest :
         // --- Match lifecycle tests ---
 
         test("new Match starts in WAITING state") {
-            val m = Match("m1", GameBridge(cardRepository = InMemoryCardRepository()))
+            val m = Match("m1", stubBridge())
             m.state shouldBe MatchState.WAITING
         }
 
         test("close() transitions to FINISHED and fires callback") {
-            val m = Match("m1", GameBridge(cardRepository = InMemoryCardRepository()))
+            val m = Match("m1", stubBridge())
             val observed = mutableListOf<MatchState>()
             m.onStateChanged = { observed.add(it) }
             m.close()
@@ -113,7 +128,7 @@ class MatchRegistryTest :
         }
 
         test("close() is idempotent — second call is a no-op") {
-            val m = Match("m1", GameBridge(cardRepository = InMemoryCardRepository()))
+            val m = Match("m1", stubBridge())
             val observed = mutableListOf<MatchState>()
             m.onStateChanged = { observed.add(it) }
             m.close()
@@ -123,7 +138,7 @@ class MatchRegistryTest :
         }
 
         test("start() transitions WAITING -> RUNNING") {
-            val m = Match("m1", GameBridge(cardRepository = InMemoryCardRepository()))
+            val m = Match("m1", stubBridge())
             val observed = mutableListOf<MatchState>()
             m.onStateChanged = { observed.add(it) }
             m.state shouldBe MatchState.WAITING
@@ -134,7 +149,7 @@ class MatchRegistryTest :
         }
 
         test("start() on already-RUNNING match is a no-op for state") {
-            val m = Match("m1", GameBridge(cardRepository = InMemoryCardRepository()))
+            val m = Match("m1", stubBridge())
             val observed = mutableListOf<MatchState>()
             m.onStateChanged = { observed.add(it) }
             m.start()
@@ -144,7 +159,7 @@ class MatchRegistryTest :
         }
 
         test("start() on FINISHED match does not transition back") {
-            val m = Match("m1", GameBridge(cardRepository = InMemoryCardRepository()))
+            val m = Match("m1", stubBridge())
             m.close()
             m.state shouldBe MatchState.FINISHED
             val observed = mutableListOf<MatchState>()
@@ -166,10 +181,13 @@ class MatchRegistryTest :
             val sink = ListMessageSink()
             val human =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = "m1",
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = "m1",
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = stubBridge(),
                     paceDelayMs = 0,
                 )
@@ -185,10 +203,13 @@ class MatchRegistryTest :
             val sink = ListMessageSink()
             val human =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = "m1",
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = "m1",
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = stubBridge(),
                     paceDelayMs = 0,
                 )
@@ -200,7 +221,7 @@ class MatchRegistryTest :
 
         test("onStateChanged callback enables auto-removal from registry") {
             val registry = MatchRegistry()
-            val m = registry.getOrCreateMatch("m1") { Match("m1", GameBridge(cardRepository = InMemoryCardRepository())) }
+            val m = registry.getOrCreateMatch("m1") { Match("m1", stubBridge()) }
             m.onStateChanged = { state ->
                 if (state == MatchState.FINISHED) registry.removeMatch(m.matchId)
             }
@@ -211,14 +232,17 @@ class MatchRegistryTest :
 
         test("teardownMatch removes match sessions and handlers together") {
             val registry = MatchRegistry()
-            val match = registry.getOrCreateMatch("m1") { Match("m1", GameBridge(cardRepository = InMemoryCardRepository())) }
+            val match = registry.getOrCreateMatch("m1") { Match("m1", stubBridge()) }
             val sink = ListMessageSink()
             val session =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = "m1",
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = "m1",
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = match.bridge,
                     paceDelayMs = 0,
                 )
@@ -238,14 +262,17 @@ class MatchRegistryTest :
         test("channelInactive tears down state and next session can recreate match") {
             val registry = MatchRegistry()
             val matchId = "forge-match-1"
-            val match = registry.getOrCreateMatch(matchId) { Match(matchId, GameBridge(cardRepository = InMemoryCardRepository())) }
+            val match = registry.getOrCreateMatch(matchId) { Match(matchId, stubBridge()) }
             val sink = ListMessageSink()
             val session =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = matchId,
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = matchId,
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = match.bridge,
                     paceDelayMs = 0,
                 )
@@ -263,13 +290,16 @@ class MatchRegistryTest :
             registry.getHandler(matchId, SeatId(1)).shouldBeNull()
             registry.activeSession().shouldBeNull()
 
-            val recreated = registry.getOrCreateMatch(matchId) { Match(matchId, GameBridge(cardRepository = InMemoryCardRepository())) }
+            val recreated = registry.getOrCreateMatch(matchId) { Match(matchId, stubBridge()) }
             val replacement =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = matchId,
-                    sink = sink,
-                    registry = registry,
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = matchId,
+                            sink = sink,
+                            registry = registry,
+                        ),
                     gameBridge = stubBridge(),
                     paceDelayMs = 0,
                 )

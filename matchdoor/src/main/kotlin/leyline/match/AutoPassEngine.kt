@@ -26,6 +26,7 @@ class AutoPassEngine(
     private val combatHandler: CombatHandler,
     private val targetingHandler: TargetingHandler,
     private val optionalActionHandler: OptionalActionHandler,
+    private val ctx: SessionContext,
     private val autoPassState: ClientAutoPassState = ClientAutoPassState(),
 ) {
     private val log = LoggerFactory.getLogger(AutoPassEngine::class.java)
@@ -81,7 +82,7 @@ class AutoPassEngine(
      * Detects combat phases and sends appropriate combat prompts.
      */
     @Suppress("CyclomaticComplexMethod", "ReturnCount") // linear check-and-return pipeline; splitting obscures flow
-    fun autoPassAndAdvance(ctx: SessionContext) {
+    fun autoPassAndAdvance() {
         val bridge = ctx.bridge
         val game = ctx.game
         repeat(MAX_ITERATIONS) {
@@ -92,7 +93,7 @@ class AutoPassEngine(
             }
 
             // Drain pending AI-action diffs
-            if (drainPlayback(ctx)) return@repeat
+            if (drainPlayback()) return@repeat
 
             val human = bridge.getPlayer(counters.seatId)
             val phase = game.phaseHandler.phase
@@ -103,10 +104,10 @@ class AutoPassEngine(
             // Must run before combat phase SEND_STATE handling: COMBAT_DAMAGE on the
             // human turn emits a visual checkpoint, but manual assignment takes
             // precedence and should surface AssignDamageReq immediately.
-            if (combatHandler.checkPendingDamageAssignment(ctx)) return
+            if (combatHandler.checkPendingDamageAssignment()) return
 
             // Combat phase handling
-            when (combatHandler.checkCombatPhase(ctx, phase, isHumanTurn, isAiTurn)) {
+            when (combatHandler.checkCombatPhase(phase, isHumanTurn, isAiTurn)) {
                 CombatHandler.Signal.STOP -> return
                 CombatHandler.Signal.SEND_STATE -> {
                     // AI turn: never offer actions — client expects combat GSMs
@@ -123,7 +124,7 @@ class AutoPassEngine(
                         // Still emit a state-only diff when actions are pass-only so
                         // combat/death animations don't collapse into the next later
                         // priority-stop packet on the human turn.
-                        val bb = bundles.bundleBuilder!!
+                        val bb = bundles.bundleBuilder
                         val actions = bb.buildActions()
                         if (!BundleBuilder.shouldAutoPass(actions)) {
                             sink.sendRealGameState(bridge)
@@ -145,10 +146,10 @@ class AutoPassEngine(
             }
 
             // Optional action prompt — "you may" trigger (dedicated future)
-            if (optionalActionHandler.checkPendingOptionalAction(ctx)) return
+            if (optionalActionHandler.checkPendingOptionalAction()) return
 
             // Interactive prompt (targeting, sacrifice, discard, etc.)
-            when (targetingHandler.checkPendingPrompt(ctx)) {
+            when (targetingHandler.checkPendingPrompt()) {
                 TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
                 TargetingHandler.PromptResult.AUTO_RESOLVED -> return@repeat // re-evaluate
                 TargetingHandler.PromptResult.NONE -> {} // continue
@@ -157,13 +158,13 @@ class AutoPassEngine(
             // Action check — prompt human if meaningful actions exist
             val decision = checkHumanActions(game, isAiTurn)
             if (decision is PriorityDecision.Grant) {
-                if (drainPlayback(ctx)) return@repeat
+                if (drainPlayback()) return@repeat
                 sink.sendRealGameState(bridge)
                 return
             }
 
             // Auto-pass or wait
-            when (advanceOrWait(ctx, phase, isAiTurn)) {
+            when (advanceOrWait(phase, isAiTurn)) {
                 LoopSignal.EXIT -> return
                 LoopSignal.CONTINUE -> {} // next iteration
             }
@@ -188,7 +189,7 @@ class AutoPassEngine(
      * With the shared [MessageCounter], no counter syncing is needed — messages
      * produced by [GamePlayback] already have correct sequence numbers.
      */
-    private fun drainPlayback(ctx: SessionContext): Boolean {
+    private fun drainPlayback(): Boolean {
         val playback = ctx.bridge.playbacks[counters.seatId] ?: return false
         if (!playback.hasPendingMessages()) return false
         val batches = playback.drainQueue()
@@ -221,7 +222,7 @@ class AutoPassEngine(
         if (isAiTurn) {
             return PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
         }
-        val actions = bundles.bundleBuilder!!.buildActions()
+        val actions = bundles.bundleBuilder.buildActions()
 
         // Full control: always grant priority (never auto-pass on session side)
         if (autoPassState.isFullControl) {
@@ -270,7 +271,6 @@ class AutoPassEngine(
      * (priority granted to client, game over, or timeout).
      */
     private fun advanceOrWait(
-        ctx: SessionContext,
         phase: PhaseType?,
         isAiTurn: Boolean,
     ): LoopSignal {
@@ -295,7 +295,7 @@ class AutoPassEngine(
             // sends edictal passes during AI turn. Sending them interrupts the
             // client's animation pipeline (enters post-pass "waiting" state).
             if (!isAiTurn) {
-                val edictal = bundles.bundleBuilder!!.edictalPass(counters.counter)
+                val edictal = bundles.bundleBuilder.edictalPass(counters.counter)
                 sink.sendBundledGRE(edictal.messages)
             }
             bridge.seat(counters.seatId).action.submitAction(pending.actionId, PlayerAction.PassPriority)

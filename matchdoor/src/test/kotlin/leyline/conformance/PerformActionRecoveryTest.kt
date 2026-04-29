@@ -5,6 +5,7 @@ import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.types.SeatId
 import leyline.infra.ListMessageSink
+import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
 
@@ -29,10 +30,13 @@ class PerformActionRecoveryTest :
             val sink = ListMessageSink()
             val session =
                 MatchSession(
-                    seatId = SeatId(1),
-                    matchId = "test-missing-pending",
-                    sink = sink,
-                    registry = MatchRegistry(),
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = "test-missing-pending",
+                            sink = sink,
+                            registry = MatchRegistry(),
+                        ),
                     gameBridge = bridge,
                     paceDelayMs = 0,
                 )

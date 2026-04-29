@@ -162,16 +162,16 @@ class MatchHandler(
     ): MatchSession {
         val sink = NettyMessageSink(ctx, dumpEnabled = true)
         val rec = recorderFactory?.invoke()
-        val s =
-            MatchSession(
+        val connection =
+            ConnectionState(
                 seatId = SeatId(seatId),
                 matchId = matchId,
                 sink = sink,
                 registry = registry,
-                gameBridge = bridge,
                 recorder = rec,
                 coordinator = coordinator,
             ).also { it.playerId = clientId.removeSuffix("_Familiar") }
+        val s = MatchSession(connection = connection, gameBridge = bridge)
         session = s
         registry.registerSession(matchId, SeatId(seatId), s)
         registry.registerHandler(matchId, SeatId(seatId), this)
@@ -271,8 +271,15 @@ class MatchHandler(
             // GroupResp routes to mulligan handler (London tuck) or session (surveil/scry).
             // During mulligan phase, route to mulligan handler; otherwise to session.
             ClientMessageType.GroupResp_097b -> {
-                if (s?.gameBridge?.let { it.seat(SeatId(seatId)).prompt.getPendingPrompt() } != null) {
-                    s.onGroupResp(greMsg)
+                val gameSession = s as? GameOps
+                val pendingPrompt =
+                    gameSession
+                        ?.gameBridge
+                        ?.seat(SeatId(seatId))
+                        ?.prompt
+                        ?.getPendingPrompt()
+                if (pendingPrompt != null) {
+                    gameSession.onGroupResp(greMsg)
                 } else {
                     mulliganHandler.onGroupResp(greMsg)
                 }
@@ -374,7 +381,7 @@ class MatchHandler(
             reason = MatchTeardownReason.Disconnect,
             seatId = SeatId(seatId),
             recorder = session?.recorder,
-            fallbackBridge = session?.gameBridge,
+            fallbackBridge = (session as? GameOps)?.gameBridge,
         )
         super.channelInactive(ctx)
     }
@@ -389,7 +396,7 @@ class MatchHandler(
             reason = MatchTeardownReason.Exception,
             seatId = SeatId(seatId),
             recorder = session?.recorder,
-            fallbackBridge = session?.gameBridge,
+            fallbackBridge = (session as? GameOps)?.gameBridge,
         )
         ctx.close()
     }
