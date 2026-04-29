@@ -81,11 +81,15 @@ A matcher earns its keep when **both** are true:
 1. **The predicate appears 3+ times across distinct files**, or 2+ times if the failure-message gain is meaningful (multi-field shape checks usually qualify — the alt-cost-stamp shape clears the bar at 2 sites because it's four fields).
 2. **The matcher's failure message names the domain entity + the field that diverged**, not just `expected true was false`. If the only win is brevity, write a function (extension/private helper), not a matcher. If the win is a self-describing failure, write a matcher.
 
+The bar is *predicate sites*, not *file count*. Five different fields on the same gameObject across two files is one site per call — you don't get to stack the count by calling the matcher more times in the same body. A matcher that ends up used in only one or two places gets deleted on review and the call sites get inlined back.
+
 Don't:
 
-- Wrap a single property access. `actionType shouldBe Cast` is fine inline; `beCast()` adds nothing.
+- Wrap a single property access. `actionType shouldBe Cast` is fine inline; `beCast()` adds nothing. The "but the failure message would name the iid" argument doesn't carry — `obj.instanceId shouldBe X` (or just including the iid in the surrounding `shouldBe` chain) gets the same locator without a new symbol.
 - Pre-build matchers for shapes that have appeared once. Wait for the second site so the abstraction matches the actual variation.
 - Add a matcher whose failure message is just the predicate restated. The whole point is naming the domain entity ("'Stock Up' should be in human's Graveyard, found in Hand") not the boolean (`expected true, got false`).
+- Widen a predicate when extracting it. If the call site asserted `actions.actionsList.any { ... }.shouldBeFalse()` (active list only), don't replace it with a matcher that searches active *and* inactive — that's a stricter assertion that may pass today but constrains future behavior in a direction the original test never claimed. Either keep the predicate scope or split the matcher (`offerActiveAltCost` vs `offerAltCost`).
+- Add a `count = N` knob without thinking about the negation. `shouldNot beInZoneOf(zone, p, count = N)` does NOT mean "must not be in zone"; it means "must not have *exactly* N copies". If both meanings are useful, name them separately.
 
 When you do add one:
 

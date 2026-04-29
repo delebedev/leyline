@@ -4,7 +4,6 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
@@ -84,9 +83,10 @@ class HonorboundPagePrepareTest :
             copyObj.shouldNotBeNull()
             assertSoftly {
                 copyObj.type shouldBe GameObjectType.Card
-                copyObj should beCopyOf(sourceIid)
-                copyObj should haveResolvedGrpId()
-                copyObj should haveZone(ZoneIds.EXILE)
+                copyObj.isCopy shouldBe true
+                copyObj.parentId shouldBe sourceIid
+                copyObj.grpId shouldNotBe 0
+                copyObj.zoneId shouldBe ZoneIds.EXILE
                 // Prepared copies do NOT carry objectSourceGrpId — that field is
                 // reserved for engine-spawned tokens (e.g. Krenko goblins).
                 copyObj.objectSourceGrpId shouldBe 0

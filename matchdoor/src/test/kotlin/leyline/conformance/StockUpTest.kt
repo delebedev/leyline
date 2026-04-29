@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
@@ -11,6 +12,7 @@ import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ParameterType
+import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 /**
  * Regression for fix/stock-up-selectn (bd leyline-7ev).
@@ -100,10 +102,11 @@ class StockUpTest :
             candidateObjs shouldHaveSize 5
             assertSoftly {
                 for (obj in candidateObjs) {
-                    obj should bePrivateTo(SeatId(1).value)
-                    obj should haveZone(ZoneIds.libraryOf(1))
+                    obj.visibility shouldBe Visibility.Private
+                    obj.viewersList shouldContain SeatId(1).value
+                    obj.zoneId shouldBe ZoneIds.libraryOf(1)
                     // Snapshot pipeline preserves grpId — iids must point at real cards.
-                    obj should haveResolvedGrpId()
+                    obj.grpId shouldBeGreaterThan 0
                 }
             }
         }

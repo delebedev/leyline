@@ -18,6 +18,12 @@ import io.kotest.matchers.MatcherResult
  *
  * Failure messages name the card, player, zone, and (when set) count so
  * assertSoftly reports are self-describing.
+ *
+ * Negation gotcha — `count` flips to *exact-cardinality negation*. With
+ * `count = N`, the predicate is `actual == N`, so `shouldNot beInZoneOf(zone,
+ * p, count = 1)` passes when the actual count is 0 OR 2+ — it does NOT mean
+ * "must not be in zone in any quantity." For "X must not be in zone at all"
+ * use `shouldNot beInZoneOf(zone, p)` with no count.
  */
 
 fun beInZoneOf(

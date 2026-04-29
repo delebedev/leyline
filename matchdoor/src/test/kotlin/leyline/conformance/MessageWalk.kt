@@ -23,23 +23,19 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  * fewer place to typo.
  */
 
-fun List<GREToClientMessage>.gameStateMessages(): Sequence<GameStateMessage> =
-    asSequence()
-        .filter { it.hasGameStateMessage() }
-        .map { it.gameStateMessage }
+fun List<GREToClientMessage>.gameStateMessages(): List<GameStateMessage> =
+    mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
 
-fun List<GREToClientMessage>.allAnnotations(): Sequence<AnnotationInfo> = gameStateMessages().flatMap { it.annotationsList.asSequence() }
+fun List<GREToClientMessage>.allAnnotations(): List<AnnotationInfo> = gameStateMessages().flatMap { it.annotationsList }
 
-fun List<GREToClientMessage>.allPersistentAnnotations(): Sequence<AnnotationInfo> =
-    gameStateMessages().flatMap { it.persistentAnnotationsList.asSequence() }
+fun List<GREToClientMessage>.allPersistentAnnotations(): List<AnnotationInfo> = gameStateMessages().flatMap { it.persistentAnnotationsList }
 
-fun List<GREToClientMessage>.allGameObjects(): Sequence<GameObjectInfo> = gameStateMessages().flatMap { it.gameObjectsList.asSequence() }
+fun List<GREToClientMessage>.allGameObjects(): List<GameObjectInfo> = gameStateMessages().flatMap { it.gameObjectsList }
 
-fun List<GREToClientMessage>.annotationsOfType(type: AnnotationType): List<AnnotationInfo> =
-    allAnnotations().filter { type in it.typeList }.toList()
+fun List<GREToClientMessage>.annotationsOfType(type: AnnotationType): List<AnnotationInfo> = allAnnotations().filter { type in it.typeList }
 
 fun List<GREToClientMessage>.persistentAnnotationsOfType(type: AnnotationType): List<AnnotationInfo> =
-    allPersistentAnnotations().filter { type in it.typeList }.toList()
+    allPersistentAnnotations().filter { type in it.typeList }
 
 /**
  * Set of every annotation type emitted (transient + persistent) across the
@@ -49,7 +45,7 @@ fun List<GREToClientMessage>.persistentAnnotationsOfType(type: AnnotationType): 
  */
 fun List<GREToClientMessage>.annotationTypeSet(): Set<AnnotationType> =
     (allAnnotations() + allPersistentAnnotations())
-        .flatMap { it.typeList.asSequence() }
+        .flatMap { it.typeList }
         .toSet()
 
 /**
@@ -61,8 +57,7 @@ fun List<GREToClientMessage>.annotationTypeSet(): Set<AnnotationType> =
  */
 fun List<GREToClientMessage>.firstGameObjectByIid(iid: Int): GameObjectInfo? =
     gameStateMessages()
-        .mapNotNull { gsm -> gsm.gameObjectsList.firstOrNull { it.instanceId == iid } }
-        .firstOrNull()
+        .firstNotNullOfOrNull { gsm -> gsm.gameObjectsList.firstOrNull { it.instanceId == iid } }
 
 /**
  * The first GSM that introduced [iid] in its `gameObjectsList`. Pair with

@@ -146,7 +146,7 @@ class MobilizeKeywordTest :
             h.passUntil(maxPasses = 30) { h.turn() > 1 || h.isGameOver() }
 
             val post = h.messagesSince(snap)
-            post.allAnnotations().toList().shouldNotBeEmpty()
+            post.allAnnotations().shouldNotBeEmpty()
             val types = post.annotationTypeSet()
 
             assertSoftly("Mobilize 1") {
@@ -269,7 +269,6 @@ class MobilizeKeywordTest :
                 post
                     .allGameObjects()
                     .filter { it.type == GameObjectType.TriggerHolder }
-                    .toList()
             val distinctHolderIids = holders.map { it.instanceId }.toSet()
             distinctHolderIids.size shouldBeGreaterThanOrEqual 2
             // Each holder points at a distinct source via parentId.
@@ -334,7 +333,6 @@ class MobilizeKeywordTest :
                 post
                     .allGameObjects()
                     .filter { it.type == GameObjectType.TriggerHolder }
-                    .toList()
 
             holders.shouldNotBeEmpty()
             val holder = holders.first()
