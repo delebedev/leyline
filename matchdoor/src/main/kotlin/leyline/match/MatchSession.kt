@@ -64,14 +64,14 @@ class MatchSession(
 
     val autoPassState: ClientAutoPassState get() = connection.autoPassState
 
-    /** Serializes all game-logic entry points (Netty I/O threads are concurrent). */
-    private val sessionLock = Any()
+    private val sessionLock get() = connection.sessionLock
 
-    /** Returns null only if the game has not started yet. */
-    private fun resolveContext(): SessionContext? {
-        val g = gameBridge.getGame() ?: return null
-        return SessionContext(g, gameBridge)
-    }
+    /**
+     * Game + bridge bound at construction. MatchSession is per-game; on
+     * puzzle hot-swap MatchHandler builds a fresh instance for the new
+     * game, so this snapshot stays valid for the session's lifetime.
+     */
+    val ctx: SessionContext = SessionContext(requireNotNull(gameBridge.getGame()) { "MatchSession requires non-null game" }, gameBridge)
 
     override val bundleBuilder: BundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
 
@@ -87,6 +87,7 @@ class MatchSession(
             tracer = this,
             bundles = this,
             pacing = this,
+            ctx = ctx,
         )
     val targetingHandler =
         TargetingHandler(
@@ -94,8 +95,14 @@ class MatchSession(
             counters = this,
             tracer = this,
             bundles = this,
+            ctx = ctx,
         )
-    val optionalActionHandler = OptionalActionHandler(sink = this, counters = this)
+    val optionalActionHandler =
+        OptionalActionHandler(
+            sink = this,
+            counters = this,
+            ctx = ctx,
+        )
     val autoPassEngine =
         AutoPassEngine(
             sink = this,
@@ -106,6 +113,7 @@ class MatchSession(
             combatHandler = combatHandler,
             targetingHandler = targetingHandler,
             optionalActionHandler = optionalActionHandler,
+            ctx = ctx,
             autoPassState = autoPassState,
         )
     val actionPerformer =
@@ -117,6 +125,7 @@ class MatchSession(
             targetingHandler = targetingHandler,
             autoPassEngine = autoPassEngine,
             autoPassState = autoPassState,
+            ctx = ctx,
         )
 
     // --- Public entry points (called by MatchHandler) ---
@@ -131,8 +140,6 @@ class MatchSession(
             log.info("MatchSession: waiting for engine to reach priority after keep")
 
             bridge.awaitPriority()
-
-            val ctx = resolveContext() ?: return
 
             traceEvent(MatchEventType.GAME_START, ctx.game, "post-mulligan, entering Main1")
 
@@ -158,7 +165,7 @@ class MatchSession(
             bb.cursor.lastSent = snap1
 
             // Auto-pass through phases where human has no real actions
-            autoPassEngine.autoPassAndAdvance(ctx)
+            autoPassEngine.autoPassAndAdvance()
         }
 
     /**
@@ -172,17 +179,29 @@ class MatchSession(
      * Used by tests when the engine is already at a combat phase and
      * CombatHandler needs to send the prompt (DeclareBlockersReq).
      */
-    fun triggerAutoPass(ctx: SessionContext) =
+    fun triggerAutoPass() =
         synchronized(sessionLock) {
-            autoPassEngine.autoPassAndAdvance(ctx)
+            autoPassEngine.autoPassAndAdvance()
         }
 
-    /** Reset session-scoped handler state for puzzle hot-swap. */
-    fun resetForPuzzle() =
+    /**
+     * Replace this session with a fresh one bound to a hot-swapped puzzle game.
+     *
+     * The connection (sink, identity, settings, autoPassState, sessionLock) and
+     * the bridge instance survive — only the `Game` inside the bridge changes,
+     * and a new MatchSession is built with handlers ctx-bound to the new game.
+     *
+     * Held under [connection.sessionLock] so concurrent inbound messages can't
+     * interleave with the swap.
+     *
+     * @return Pair of (new session, ids the client should delete from its view).
+     */
+    fun replaceForPuzzle(puzzle: forge.gamemodes.puzzle.Puzzle): Pair<MatchSession, List<Int>> =
         synchronized(sessionLock) {
-            combatHandler.reset()
-            targetingHandler.reset()
-            autoPassEngine.reset()
+            val deletedIds = gameBridge.resetForPuzzle(puzzle)
+            val replacement = MatchSession(connection, gameBridge, paceDelayMs, counter)
+            registry.registerSession(matchId, seatId, replacement)
+            replacement to deletedIds
         }
 
     override fun onPuzzleStart() =
@@ -191,7 +210,6 @@ class MatchSession(
             // path only fires for MatchSession. Warn if somehow called for a non-human
             // MatchSession — it would consume the human seat's pending priority via the
             // shared ActionBridge, advancing the engine past Main1.
-            val ctx = resolveContext() ?: return
             val humanSeat = gameBridge.seating.humanSeat
             if (seatId != humanSeat) {
                 log.warn("MatchSession: onPuzzleStart called for seat {} — expected humanSeat {}", seatId.value, humanSeat.value)
@@ -209,7 +227,7 @@ class MatchSession(
             bundleBuilder.cursor.lastSent = snap2
 
             // Auto-pass through phases where human has no real actions
-            autoPassEngine.autoPassAndAdvance(ctx)
+            autoPassEngine.autoPassAndAdvance()
         }
 
     /**
@@ -219,85 +237,73 @@ class MatchSession(
      */
     override fun onPerformAction(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            val ctx = resolveContext() ?: return
-            actionPerformer.perform(ctx, greMsg)
+            actionPerformer.perform(greMsg)
         }
 
     /** Handle DeclareAttackersResp — delegates to [CombatHandler]. */
     override fun onDeclareAttackers(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            val ctx = resolveContext() ?: return
-            combatHandler.onDeclareAttackers(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
+            combatHandler.onDeclareAttackers(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle DeclareBlockersResp — delegates to [CombatHandler]. */
     override fun onDeclareBlockers(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            val ctx = resolveContext() ?: return
-            combatHandler.onDeclareBlockers(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
+            combatHandler.onDeclareBlockers(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle AssignDamageResp — delegates to [CombatHandler]. */
     override fun onAssignDamage(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            val ctx = resolveContext() ?: return
-            combatHandler.onAssignDamage(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
+            combatHandler.onAssignDamage(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle OptionalActionResp — delegates to [OptionalActionHandler]. */
     override fun onOptionalActionResp(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            val ctx = resolveContext() ?: return
-            optionalActionHandler.onOptionalActionResp(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
+            optionalActionHandler.onOptionalActionResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
     override fun onSelectTargets(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            val ctx = resolveContext() ?: return
-            targetingHandler.onSelectTargets(greMsg, ctx)
+            targetingHandler.onSelectTargets(greMsg)
         }
 
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */
     override fun onSubmitTargets(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            val ctx = resolveContext() ?: return
-            targetingHandler.onSubmitTargets(ctx) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onSubmitTargets { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */
     override fun onSelectN(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            val ctx = resolveContext() ?: return
-            targetingHandler.onSelectN(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onSelectN(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     override fun onEffectCost(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            val ctx = resolveContext() ?: return
-            targetingHandler.onEffectCost(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onEffectCost(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle GroupResp for surveil/scry — delegates to [TargetingHandler]. */
     override fun onGroupResp(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            val ctx = resolveContext() ?: return
-            targetingHandler.onGroupResp(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onGroupResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle CastingTimeOptionsResp — delegates to [TargetingHandler]. */
     override fun onCastingTimeOptions(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            val ctx = resolveContext() ?: return
-            targetingHandler.onCastingTimeOptions(greMsg, ctx) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onCastingTimeOptions(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SearchResp — delegates to [TargetingHandler]. */
     override fun onSearch(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            val ctx = resolveContext() ?: return
             val itemsFound = greMsg.searchResp?.itemsFoundList ?: emptyList()
-            targetingHandler.onSearchResp(ctx, itemsFound) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onSearchResp(itemsFound) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /**
@@ -309,13 +315,12 @@ class MatchSession(
      */
     override fun onCancelAction(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            val ctx = resolveContext() ?: return
             // During combat declaration, cancel means "pass combat" (submit empty attackers).
             if (combatHandler.pendingLegalAttackers.isNotEmpty()) {
-                combatHandler.onCancelAttackers(ctx) { autoPassEngine.autoPassAndAdvance(it) }
+                combatHandler.onCancelAttackers { autoPassEngine.autoPassAndAdvance() }
                 return
             }
-            targetingHandler.onCancelAction(ctx) { autoPassEngine.autoPassAndAdvance(it) }
+            targetingHandler.onCancelAction { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle concede: send game-over sequence, then route through centralized teardown. */

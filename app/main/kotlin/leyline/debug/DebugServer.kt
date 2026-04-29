@@ -516,24 +516,23 @@ class DebugServer(
                 }
             }
 
-        session.resetForPuzzle()
-        val deletedIds = bridge.resetForPuzzle(puzzle)
+        val (newSession, deletedIds) = session.replaceForPuzzle(puzzle)
 
-        val counter = session.counter
+        val counter = newSession.counter
         val gsId = counter.nextGsId()
         val msgId = counter.nextMsgId()
 
         val game = bridge.getGame()!!
-        val snap = SnapshotCapture.run(game, bridge, session.matchId, gsId)
+        val snap = SnapshotCapture.run(game, bridge, newSession.matchId, gsId)
         val fullGsm =
             StateMapper
                 .buildFromSnapshot(
                     snap,
                     gsId,
-                    session.matchId,
+                    newSession.matchId,
                     bridge,
                     updateType = GameStateUpdate.SendAndRecord,
-                    viewingSeatId = session.seatId.value,
+                    viewingSeatId = newSession.seatId.value,
                 ).gsm
 
         val gsmWithDeletes =
@@ -549,22 +548,22 @@ class DebugServer(
                 .setType(GREMessageType.GameStateMessage_695e)
                 .setMsgId(msgId)
                 .setGameStateId(gsId)
-                .addSystemSeatIds(session.seatId.value)
+                .addSystemSeatIds(newSession.seatId.value)
                 .setGameStateMessage(gsmWithDeletes)
                 .build()
 
-        val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
+        val actions = ActionMapper.buildFromSnapshot(newSession.seatId.value, snap, bridge)
         val greActions =
             GREToClientMessage
                 .newBuilder()
                 .setType(GREMessageType.ActionsAvailableReq_695e)
                 .setMsgId(counter.nextMsgId())
                 .setGameStateId(gsId)
-                .addSystemSeatIds(session.seatId.value)
+                .addSystemSeatIds(newSession.seatId.value)
                 .setActionsAvailableReq(actions)
                 .build()
 
-        session.sendBundledGRE(listOf(greGsm, greActions))
+        newSession.sendBundledGRE(listOf(greGsm, greActions))
         bridge.bundleCursor.lastSent = snap
 
         return if (fileParam != null) {

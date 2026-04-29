@@ -7,6 +7,7 @@ import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import leyline.match.GameOps
 import leyline.match.MatchEventType
+import leyline.match.SessionContext
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -23,6 +24,9 @@ class SessionTraceOps(
 ) : GameOps {
     override val bundleBuilder: BundleBuilder =
         BundleBuilder(gameBridge, matchId, seatId.value)
+
+    /** Snapshot for handler construction in tests. */
+    val ctx: SessionContext = SessionContext(requireNotNull(gameBridge.getGame()) { "SessionTraceOps requires non-null game" }, gameBridge)
 
     // --- Traced calls ---
 

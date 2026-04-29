@@ -32,20 +32,16 @@ class ActionPerformer(
     private val targetingHandler: TargetingHandler,
     private val autoPassEngine: AutoPassEngine,
     private val autoPassState: ClientAutoPassState,
+    private val ctx: SessionContext,
 ) {
     private val log = LoggerFactory.getLogger(ActionPerformer::class.java)
 
     /**
      * Handle a client action (land play, spell cast, activate, pass, …) and
      * advance the engine to the next priority stop.
-     *
-     * Caller resolves [ctx]; this method does not re-resolve.
      */
     @Suppress("ReturnCount", "LongMethod", "CyclomaticComplexMethod")
-    fun perform(
-        ctx: SessionContext,
-        greMsg: ClientToGREMessage,
-    ) {
+    fun perform(greMsg: ClientToGREMessage) {
         val bridge = ctx.bridge
         val seatBridge = bridge.seat(counters.seatId)
         log.info("ActionPerformer: perform enter gsId={} (current={})", greMsg.gameStateId, counters.counter.currentGsId())
@@ -119,14 +115,14 @@ class ActionPerformer(
             }
             ActionType.Cast -> {
                 val castAbilityIndex = resolveCastAbilityIndex(action, bridge)
-                if (targetingHandler.checkAlternateAdditionalCostChoice(action, pending.actionId, ctx)) {
+                if (targetingHandler.checkAlternateAdditionalCostChoice(action, pending.actionId)) {
                     Tap.outboundTemplate("Cast deferred — alternate additional cost prompt sent")
                     return
                 }
                 // Check for optional costs (kicker, buyback, etc.) before submitting.
                 // If found, sends CastingTimeOptionsReq to client and returns without
                 // submitting to engine. onCastingTimeOptions resumes the cast.
-                if (targetingHandler.checkOptionalCosts(action, pending.actionId, ctx, castAbilityIndex)) {
+                if (targetingHandler.checkOptionalCosts(action, pending.actionId, castAbilityIndex)) {
                     Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
                     // Don't submit to engine yet — wait for CastingTimeOptionsResp
                     return
@@ -221,7 +217,7 @@ class ActionPerformer(
 
         // After a cast or activate, check for targeting prompt or intermediate stack state.
         // Pass clientAutoResolve when the client opts in to auto-resolving stack effects (#92).
-        if (isCastOrActivate && targetingHandler.handlePostCastPrompt(ctx, autoPassState.shouldAutoPass())) return
+        if (isCastOrActivate && targetingHandler.handlePostCastPrompt(autoPassState.shouldAutoPass())) return
 
         // After stack resolution: check for modal ETB prompt before sending state.
         // The engine may have fired a modal trigger (e.g. Charming Prince ETB)
@@ -229,7 +225,7 @@ class ActionPerformer(
         if (stackWasNonEmpty) {
             val g = ctx.game
             // Check for pending modal prompt from ETB trigger
-            when (targetingHandler.checkPendingPrompt(ctx)) {
+            when (targetingHandler.checkPendingPrompt()) {
                 TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
                 TargetingHandler.PromptResult.AUTO_RESOLVED -> {
                     // Fall through to autoPass
@@ -249,7 +245,7 @@ class ActionPerformer(
             }
         }
 
-        autoPassEngine.autoPassAndAdvance(ctx)
+        autoPassEngine.autoPassAndAdvance()
     }
 
     /**

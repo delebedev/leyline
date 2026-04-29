@@ -21,6 +21,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class OptionalActionHandler(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
+    private val ctx: SessionContext,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -30,7 +31,7 @@ class OptionalActionHandler(
      *
      * @return true if an OptionalActionMessage was sent (caller should exit loop)
      */
-    fun checkPendingOptionalAction(ctx: SessionContext): Boolean {
+    fun checkPendingOptionalAction(): Boolean {
         val wpc = ctx.bridge.humanController ?: return false
         val prompt = wpc.pendingOptionalAction ?: return false
 
@@ -38,7 +39,7 @@ class OptionalActionHandler(
             "OptionalActionHandler: optional trigger pending for {}",
             prompt.hostCard?.name ?: "unknown",
         )
-        sendOptionalActionMessage(ctx, prompt)
+        sendOptionalActionMessage(prompt)
         return true
     }
 
@@ -47,8 +48,7 @@ class OptionalActionHandler(
      */
     fun onOptionalActionResp(
         greMsg: ClientToGREMessage,
-        ctx: SessionContext,
-        autoPass: (SessionContext) -> Unit,
+        autoPass: () -> Unit,
     ) {
         val bridge = ctx.bridge
         val wpc =
@@ -74,15 +74,12 @@ class OptionalActionHandler(
 
         prompt.future.complete(accepted)
         bridge.awaitPriority()
-        autoPass(ctx)
+        autoPass()
     }
 
     // --- Private ---
 
-    private fun sendOptionalActionMessage(
-        ctx: SessionContext,
-        prompt: PlayerController.OptionalActionPrompt,
-    ) {
+    private fun sendOptionalActionMessage(prompt: PlayerController.OptionalActionPrompt) {
         val bridge = ctx.bridge
         val hostCard = prompt.hostCard
         if (hostCard == null) {
