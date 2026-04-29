@@ -15,8 +15,8 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.StateMapper
+import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -27,7 +27,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * Crash: Treasure tokens get grpId=0 → ExposedCardRepository.findByGrpId
  * puts null into ConcurrentHashMap → NPE in ActionMapper.buildActionList.
  *
- * Fix: ActionMapper uses ObjectMapper.resolveGrpId (token-aware) instead
+ * Fix: ActionMapper uses GrpIdResolver.resolve (token-aware) instead
  * of findGrpIdByName (filters isToken=0). ExposedCardRepository guards
  * against null cache puts.
  *
@@ -113,7 +113,7 @@ class TreasureTokenTest :
             treasure.isToken.shouldBeTrue()
 
             // --- Regression: Treasure grpId must resolve to non-zero ---
-            val treasureGrpId = ObjectMapper.resolveGrpId(treasure, h.bridge.cardRepository)
+            val treasureGrpId = GrpIdResolver.resolve(treasure, h.bridge.cardRepository)
             treasureGrpId shouldBeGreaterThan 0
 
             // --- Regression: buildFromSnapshot must not crash (was NPE) ---

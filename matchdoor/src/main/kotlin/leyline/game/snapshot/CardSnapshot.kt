@@ -52,6 +52,19 @@ data class CardSnapshot(
      */
     val attachedTo: ForgeCardId? = null,
     /**
+     * Pre-resolved client instanceId of [attachedTo], populated at snapshot time.
+     * Lets [leyline.game.mapping.ObjectMapper.buildFromSnapshot] set `parentId`
+     * without re-touching the bridge.
+     */
+    val attachedToInstanceId: Int? = null,
+    /**
+     * For [PreparedRole.Copy], the pre-resolved client instanceId of the live
+     * battlefield Source. Null when no source is linked (mid-cast or unprepared).
+     * Lets [leyline.game.mapping.ObjectMapper.buildFromSnapshot] set the cast-from-
+     * exile parent linkage without bridge access.
+     */
+    val preparedCopySourceInstanceId: Int? = null,
+    /**
      * Live core card types from Forge (continuous effects can add/remove types).
      * Stored as proto [CardType] ordinal integers for easy comparison.
      */

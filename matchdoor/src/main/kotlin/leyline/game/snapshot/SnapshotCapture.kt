@@ -1,6 +1,5 @@
 package leyline.game.snapshot
 
-import forge.card.GamePieceType
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
@@ -304,42 +303,34 @@ object SnapshotCapture {
                 null
             }
 
-        // Attachment
+        // Attachment — pre-resolve the parent instanceId here so ObjectMapper
+        // doesn't need bridge access at projection time.
         val attachedTo = card.attachedTo?.let { ForgeCardId(it.id) }
+        val attachedToInstanceId = attachedTo?.let { bridge.getOrAllocInstanceId(it).value }
 
         val ownForgeId = ForgeCardId(card.id)
         val preparedRole = resolvePreparedRole(card, onBf, ownForgeId, preparedLinkage)
+        val preparedCopySourceInstanceId =
+            (preparedRole as? PreparedRole.Copy)?.sourceForgeCardId?.let {
+                bridge.getOrAllocInstanceId(it).value
+            }
 
         // DFC fields — mirror resolveOthersideGrpId logic
         val othersideGrpId = ObjectMapper.resolveOthersideGrpId(card, bridge.cardRepository)
         val currentStateNameIsBackside =
             card.currentState?.stateName == forge.card.CardStateName.Backside
 
-        // grpId — delegate to the same resolution used by buildCardObject.
-        // Pass the live instanceId so that copy/token registry entries are populated.
-        // EFFECT cards (Puzzle Goal, Monarch, The Ring, Radiation, City's Blessing,
-        // DetachedCardEffect, keywordEffect) are engine-bookkeeping surrogates without
-        // a client-DB grpId by design — skip strict resolution; the projection layer
-        // drops them via (gamePieceType==EFFECT && grpId==0).
+        // grpId — single resolution path. [GrpIdResolver] handles every case
+        // (EFFECT → 0, tokens via registry/preparedCopy/copyPermanent/standard,
+        // foretold via original-state name, regular via primary/any-face).
         val instanceId = bridge.getOrAllocInstanceId(ownForgeId).value
         val grpId =
-            if (card.gamePieceType == GamePieceType.EFFECT) {
-                0
-            } else if (preparedRole is PreparedRole.Copy) {
-                // Prepared-spell copies are TOKEN-piece-typed but represent a normal
-                // spell card — resolve their grpId by name, bypassing the
-                // token-spawning-ability path which only fits engine-spawned tokens.
-                PreparedSpell.resolveCopyGrpId(card, bridge.cardRepository) ?: 0
-            } else if (isForetoldCard) {
-                // Foretold cards are face-down in exile; Forge's `card.name` is "" while
-                // face-down. Look up the grpId via the Original state's name to bypass
-                // the strict resolveGrpId crash on empty names.
-                bridge.cardRepository.findGrpIdByName(resolvedName)
-                    ?: bridge.cardRepository.findGrpIdByNameAnyFace(resolvedName)
-                    ?: 0
-            } else {
-                ObjectMapper.resolveGrpId(card, bridge.cardRepository, instanceId = instanceId, bridge.tokenRegistry)
-            }
+            GrpIdResolver.resolve(
+                card,
+                bridge.cardRepository,
+                instanceId = instanceId,
+                tokenRegistry = bridge.tokenRegistry,
+            )
 
         // Owner/controller seats: seat 1 = human
         val ownerSeat = SeatId(if (card.owner == human) 1 else 2)
@@ -377,6 +368,8 @@ object SnapshotCapture {
             isToken = card.isToken,
             isCopyToken = card.isToken && card.copiedPermanent != null,
             attachedTo = attachedTo,
+            attachedToInstanceId = attachedToInstanceId,
+            preparedCopySourceInstanceId = preparedCopySourceInstanceId,
             liveCardTypeNumbers = liveTypeNumbers,
             isDoubleFaced = card.isDoubleFaced,
             othersideGrpId = othersideGrpId,

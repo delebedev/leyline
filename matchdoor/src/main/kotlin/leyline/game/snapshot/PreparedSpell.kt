@@ -18,18 +18,18 @@ import leyline.game.data.CardRepository
  * miscategorize them:
  *
  * 1. **`gamePieceType.TOKEN` is overloaded.** It also covers engine-spawned
- *    tokens (Goblin tokens, Treasure tokens, copy tokens). The standard
- *    `ObjectMapper.resolveGrpId` token branch reads `tokenSpawningAbility.hostCard`
- *    to pin a grpId on the source spell — but a prepared copy has no such
- *    spawning ability (it was made by `CardCopyService`, not by a token-creator
- *    spell), so that branch falls through to `DevCheck.fail` with grpId=0.
+ *    tokens (Goblin tokens, Treasure tokens, copy tokens). The standard token
+ *    branch in [GrpIdResolver] reads `tokenSpawningAbility.hostCard` to pin a
+ *    grpId on the source spell — but a prepared copy has no such spawning
+ *    ability (it was made by `CardCopyService`, not by a token-creator spell),
+ *    so that branch falls through to `DevCheck.fail` with grpId=0.
  * 2. **The protocol's `GameObjectInfo` for a prepared copy is a normal Card,**
  *    with a real card-DB grpId on the spell face — not a Token. So the wire
  *    shape diverges from the Forge piece-type classification.
  *
  * This module concentrates the "Forge says X, protocol means Y" reasoning into
- * one place. Consumers (`SnapshotCapture`, `ObjectMapper.resolveGrpId`) each
- * call one function instead of repeating the state-name guards inline.
+ * one place. Consumers ([SnapshotCapture], [GrpIdResolver]) each call one
+ * function instead of repeating the state-name guards inline.
  *
  * ## Generalization
  *
@@ -78,10 +78,10 @@ object PreparedSpell {
      * in the card repository.
      *
      * The fallback chain (`findGrpIdByName ?: findGrpIdByNameAnyFace`) mirrors
-     * the standard non-token branch in `ObjectMapper.resolveGrpId`. The
-     * duplication is intentional: this branch must run before the
-     * token-spawning-ability path because prepared copies are
-     * `gamePieceType==TOKEN` but the standard chain would crash on them.
+     * the standard non-token branch in [GrpIdResolver]. The duplication is
+     * intentional: this branch must run before the token-spawning-ability path
+     * because prepared copies are `gamePieceType==TOKEN` but the standard chain
+     * would crash on them.
      */
     fun resolveCopyGrpId(
         card: Card,

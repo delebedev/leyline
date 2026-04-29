@@ -15,7 +15,7 @@ import leyline.conformance.humanPlayer
 import leyline.conformance.offerAltCost
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.ObjectMapper
+import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
 
 /**
@@ -136,7 +136,7 @@ class SneakTest :
                     seatId = 1,
                     checkLegality = true,
                     idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
                     cardDataLookup = { g -> b.cardRepository.findByGrpId(g.value) },
                     abilityRegistryLookup = { card, cd -> b.abilityRegistryFor(card, cd) },
                 )
@@ -165,7 +165,7 @@ class SneakTest :
                     seatId = 1,
                     checkLegality = true,
                     idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
                     cardDataLookup = { g -> b.cardRepository.findByGrpId(g.value) },
                 )
 
@@ -191,7 +191,7 @@ class SneakTest :
                     seatId = 1,
                     checkLegality = true,
                     idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
                     cardDataLookup = { g -> b.cardRepository.findByGrpId(g.value) },
                 )
 
@@ -217,7 +217,7 @@ class SneakTest :
                     seatId = 1,
                     checkLegality = true,
                     idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
                     cardDataLookup = { g -> b.cardRepository.findByGrpId(g.value) },
                 )
 

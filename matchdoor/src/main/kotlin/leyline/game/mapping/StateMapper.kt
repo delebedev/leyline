@@ -1606,7 +1606,7 @@ object StateMapper {
                     }
                 revealedZoneBuilder.addObjectInstanceIds(proxyId.value)
                 gameObjects.add(
-                    ObjectMapper.buildRevealedCardProxy(cardSnap, proxyId.value, handZoneId, ownerSeat, viewerSeat, bridge),
+                    ObjectMapper.buildRevealedCardProxy(cardSnap, proxyId.value, handZoneId, ownerSeat, viewerSeat, bridge.cardProto),
                 )
             }
             zones.add(revealedZoneBuilder.build())
