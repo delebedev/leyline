@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
 import leyline.game.data.KeywordAbilityIds
@@ -90,9 +91,9 @@ class PlotTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                     cardRepository = b.cardRepository,
                 )
 
@@ -172,9 +173,9 @@ class PlotTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
             val hasActivePlotOffer =
@@ -203,9 +204,9 @@ class PlotTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
             val hasOffer =

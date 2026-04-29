@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.IntegrationTag
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
 import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.MatchFlowHarness
@@ -91,9 +92,9 @@ class WarpTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                     cardRepository = b.cardRepository,
                 )
 
@@ -136,9 +137,9 @@ class WarpTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                     abilityRegistryLookup = { card, cardData -> b.abilityRegistryFor(card, cardData) },
                     cardRepository = b.cardRepository,
                 )
@@ -190,12 +191,12 @@ class WarpTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
                     cardDataLookup = { grpId ->
                         // Prepend the ETB id so positional-first-wins would pick the wrong row.
-                        b.cardRepository.findByGrpId(grpId)?.copy(
-                            abilityIds = listOf(fakeEtbId to 0) + (b.cardRepository.findByGrpId(grpId)?.abilityIds ?: emptyList()),
+                        b.cardRepository.findByGrpId(grpId.value)?.copy(
+                            abilityIds = listOf(fakeEtbId to 0) + (b.cardRepository.findByGrpId(grpId.value)?.abilityIds ?: emptyList()),
                         )
                     },
                     abilityRegistryLookup = { card, cardData -> b.abilityRegistryFor(card, cardData) },
@@ -545,9 +546,9 @@ class WarpTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
             val hasWarpOffer =
@@ -574,9 +575,9 @@ class WarpTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
             val hasWarpOffer =
@@ -603,9 +604,9 @@ class WarpTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
             val hasWarpOffer =

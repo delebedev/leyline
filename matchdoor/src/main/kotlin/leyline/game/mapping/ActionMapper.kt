@@ -14,6 +14,8 @@ import forge.game.spellability.SpellAbility
 import leyline.bridge.chooseCastAbility
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
+import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.codes.ManaColorMapping
 import leyline.game.data.CardData
@@ -69,12 +71,12 @@ object ActionMapper {
             player = player,
             seatId = seatId,
             checkLegality = checkLegality,
-            idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
+            idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(forgeCardId) },
             grpIdResolver = { card ->
                 val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-                bridge.resolveGrpId(card, iid)
+                GrpId(bridge.resolveGrpId(card, iid))
             },
-            cardDataLookup = { grpId -> bridge.cardRepository.findByGrpId(grpId) },
+            cardDataLookup = { grpId -> bridge.cardRepository.findByGrpId(grpId.value) },
             abilityRegistryLookup = { card, cardData -> bridge.abilityRegistryFor(card, cardData) },
             cardRepository = bridge.cardRepository,
         )
@@ -121,7 +123,7 @@ object ActionMapper {
                         forgeCard,
                         instanceId,
                         grpId,
-                        { bridge.cardRepository.findByGrpId(it) },
+                        { bridge.cardRepository.findByGrpId(it.value) },
                         { c, d -> bridge.abilityRegistryFor(c, d) },
                     ),
                 )
@@ -271,9 +273,9 @@ object ActionMapper {
                     buildAutoTapSolution(
                         costPairs,
                         player,
-                        idResolver = { bridge.getOrAllocInstanceId(ForgeCardId(it)).value },
-                        grpIdResolver = { c -> bridge.resolveGrpId(c, bridge.getOrAllocInstanceId(ForgeCardId(c.id)).value) },
-                        cardDataLookup = { bridge.cardRepository.findByGrpId(it) },
+                        idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(forgeCardId) },
+                        grpIdResolver = { c -> GrpId(bridge.resolveGrpId(c, bridge.getOrAllocInstanceId(ForgeCardId(c.id)).value)) },
+                        cardDataLookup = { bridge.cardRepository.findByGrpId(it.value) },
                         abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
                     )
                 if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
@@ -595,9 +597,9 @@ object ActionMapper {
         player: Player,
         seatId: Int,
         checkLegality: Boolean,
-        idResolver: (Int) -> Int,
-        grpIdResolver: (Card) -> Int,
-        cardDataLookup: (Int) -> CardData?,
+        idResolver: (ForgeCardId) -> InstanceId,
+        grpIdResolver: (Card) -> GrpId,
+        cardDataLookup: (GrpId) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry? = { _, _ -> null },
         cardRepository: CardRepository? = null,
     ): ActionsAvailableReq {
@@ -608,8 +610,8 @@ object ActionMapper {
             // Naive mode only cares about ActivateMana — skip tapped cards entirely
             if (!checkLegality && card.isTapped) continue
 
-            val instanceId = idResolver(card.id)
-            val grpId = grpIdResolver(card)
+            val instanceId = idResolver(ForgeCardId(card.id)).value
+            val grpId = grpIdResolver(card).value
 
             // ActivateMana — untapped permanents with mana abilities
             if (!card.isTapped && card.manaAbilities.isNotEmpty()) {
@@ -618,7 +620,7 @@ object ActionMapper {
 
             // Activate — non-mana activated abilities (only with legality checks)
             if (checkLegality) {
-                val cardData = cardDataLookup(grpId)
+                val cardData = cardDataLookup(GrpId(grpId))
                 for (ability in card.spellAbilities) {
                     ability.setActivatingPlayer(player)
                     if (!ability.isActivatedAbility) continue
@@ -667,8 +669,8 @@ object ActionMapper {
 
         // Lands: playable → actions, not playable → inactiveActions (legality only)
         for (card in CardLists.filter(handCards, CardPredicates.LANDS)) {
-            val instanceId = idResolver(card.id)
-            val grpId = grpIdResolver(card)
+            val instanceId = idResolver(ForgeCardId(card.id)).value
+            val grpId = grpIdResolver(card).value
             val canPlay =
                 if (checkLegality) {
                     val landAbility = LandAbility(card, card.currentState)
@@ -702,8 +704,8 @@ object ActionMapper {
 
         // Non-land spells (Cast before Activate_add3 — client uses emission order for text assignment)
         for (card in CardLists.filter(handCards, CardPredicates.NON_LANDS)) {
-            val instanceId = idResolver(card.id)
-            val grpId = grpIdResolver(card)
+            val instanceId = idResolver(ForgeCardId(card.id)).value
+            val grpId = grpIdResolver(card).value
             val (actions, inactive) =
                 buildHandCastActionsForCard(
                     card = card,
@@ -759,9 +761,9 @@ object ActionMapper {
                         } catch (_: Exception) {
                             false
                         }
-                    val instanceId = idResolver(card.id)
-                    val grpId = grpIdResolver(card)
-                    val cardData = cardDataLookup(grpId)
+                    val instanceId = idResolver(ForgeCardId(card.id)).value
+                    val grpId = grpIdResolver(card).value
+                    val cardData = cardDataLookup(GrpId(grpId))
                     val registry = abilityRegistryLookup(card, cardData)
                     val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
                     val abilityCost = ability.payCosts?.totalMana
@@ -838,12 +840,12 @@ object ActionMapper {
         instanceId: Int,
         grpId: Int,
         checkLegality: Boolean,
-        idResolver: (Int) -> Int,
-        grpIdResolver: (Card) -> Int,
-        cardDataLookup: (Int) -> CardData?,
+        idResolver: (ForgeCardId) -> InstanceId,
+        grpIdResolver: (Card) -> GrpId,
+        cardDataLookup: (GrpId) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry? = { _, _ -> null },
     ): Pair<List<Action>, List<Action>> {
-        val cardData = cardDataLookup(grpId)
+        val cardData = cardDataLookup(GrpId(grpId))
         if (!checkLegality) {
             return listOf(buildFallbackCastAction(instanceId, grpId, cardData)) to emptyList()
         }
@@ -890,10 +892,10 @@ object ActionMapper {
         grpId: Int,
         player: Player,
         checkLegality: Boolean,
-        idResolver: (Int) -> Int,
-        grpIdResolver: (Card) -> Int,
+        idResolver: (ForgeCardId) -> InstanceId,
+        grpIdResolver: (Card) -> GrpId,
         cardData: CardData?,
-        cardDataLookup: (Int) -> CardData?,
+        cardDataLookup: (GrpId) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ): Action {
         val usesAlternateAdditionalCost =
@@ -954,10 +956,10 @@ object ActionMapper {
         card: Card,
         instanceId: Int,
         grpId: Int,
-        cardDataLookup: (Int) -> CardData?,
+        cardDataLookup: (GrpId) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ): Action {
-        val cardData = cardDataLookup(grpId)
+        val cardData = cardDataLookup(GrpId(grpId))
         val sa = card.manaAbilities.first()
         val registry = abilityRegistryLookup(card, cardData)
         val abilityGrpId = registry?.forSpellAbility(sa.id) ?: 0
@@ -1180,9 +1182,9 @@ object ActionMapper {
     private fun addZoneCastActions(
         player: Player,
         builder: ActionsAvailableReq.Builder,
-        idResolver: (Int) -> Int,
-        grpIdResolver: (Card) -> Int,
-        cardDataLookup: (Int) -> CardData?,
+        idResolver: (ForgeCardId) -> InstanceId,
+        grpIdResolver: (Card) -> GrpId,
+        cardDataLookup: (GrpId) -> CardData?,
         cardRepository: CardRepository?,
     ) {
         val game = player.game ?: return
@@ -1192,8 +1194,8 @@ object ActionMapper {
             if (castable.isEmpty()) continue
             val sa = castable.first()
 
-            val instanceId = idResolver(card.id)
-            val grpId = grpIdResolver(card)
+            val instanceId = idResolver(ForgeCardId(card.id)).value
+            val grpId = grpIdResolver(card).value
             val actionBuilder =
                 Action
                     .newBuilder()
@@ -1204,7 +1206,7 @@ object ActionMapper {
                     .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
 
             // Set abilityGrpId from the alternate cost keyword (flashback, escape, etc.)
-            val cardData = cardDataLookup(grpId)
+            val cardData = cardDataLookup(GrpId(grpId))
             val altCost = sa.alternativeCost
             if (altCost != null) {
                 // TODO(leyline-9n6): extend KeywordAbilityIds for Escape/Mayhem/etc.
@@ -1248,9 +1250,9 @@ object ActionMapper {
     private fun buildAutoTapSolution(
         manaCost: List<Pair<ManaColor, Int>>,
         player: Player,
-        idResolver: (Int) -> Int,
-        grpIdResolver: (Card) -> Int,
-        cardDataLookup: (Int) -> CardData?,
+        idResolver: (ForgeCardId) -> InstanceId,
+        grpIdResolver: (Card) -> GrpId,
+        cardDataLookup: (GrpId) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ): AutoTapSolution? {
         if (manaCost.isEmpty()) return null
@@ -1273,9 +1275,9 @@ object ActionMapper {
                 val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
                 val colors = produced.split(" ").mapNotNull { producedToManaColor(it) }
                 if (colors.isEmpty()) continue
-                val instanceId = idResolver(card.id)
-                val grpId = grpIdResolver(card)
-                val cardData = cardDataLookup(grpId)
+                val instanceId = idResolver(ForgeCardId(card.id)).value
+                val grpId = grpIdResolver(card).value
+                val cardData = cardDataLookup(GrpId(grpId))
                 val registry = abilityRegistryLookup(card, cardData)
                 val abilityGrpId = registry?.forSpellAbility(sa.id) ?: 0
                 for (color in colors) {

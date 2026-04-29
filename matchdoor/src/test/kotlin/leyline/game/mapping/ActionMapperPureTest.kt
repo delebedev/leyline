@@ -7,7 +7,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
-import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
 import leyline.conformance.mana
@@ -20,6 +20,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * game loop. The key point: [ActionMapper.buildActionList] itself holds no
  * [leyline.game.state.GameBridge] reference — the bridge only provides the lambdas.
  */
+@Suppress("WeakAssertionOnly")
 class ActionMapperPureTest :
     FunSpec({
 
@@ -42,9 +43,9 @@ class ActionMapperPureTest :
                     player = human,
                     seatId = 1,
                     checkLegality = false,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
             val hasPass = actions.actionsList.any { it.actionType == ActionType.Pass }
@@ -67,9 +68,9 @@ class ActionMapperPureTest :
                     player = human,
                     seatId = 1,
                     checkLegality = false,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
             // In naive mode lands are always non-playable → inactiveActions
@@ -93,9 +94,9 @@ class ActionMapperPureTest :
                     player = human,
                     seatId = 1,
                     checkLegality = false,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
             val hasCast = actions.actionsList.any { it.actionType == ActionType.Cast }
@@ -118,9 +119,9 @@ class ActionMapperPureTest :
                     player = human,
                     seatId = 1,
                     checkLegality = false,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
             val hasActivateMana = actions.actionsList.any { it.actionType == ActionType.ActivateMana }
@@ -144,9 +145,9 @@ class ActionMapperPureTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
             // Cast should be inactive, not active
@@ -173,9 +174,9 @@ class ActionMapperPureTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
             actions.actionsList.any { it.actionType == ActionType.Cast }.shouldBeTrue()
@@ -201,9 +202,9 @@ class ActionMapperPureTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
             // Activate should be in inactiveActions (can't pay), not actions
@@ -233,9 +234,9 @@ class ActionMapperPureTest :
                     player = human,
                     seatId = 1,
                     checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-                    grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, b.cardRepository) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId) },
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(ObjectMapper.resolveGrpId(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
             actions.actionsList.any { it.actionType == ActionType.Activate_add3 }.shouldBeTrue()

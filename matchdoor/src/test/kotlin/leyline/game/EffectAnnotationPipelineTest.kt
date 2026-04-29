@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.conformance.detailInt
 import leyline.game.annotations.MechanicAnnotations
@@ -141,8 +142,8 @@ class EffectAnnotationPipelineTest :
                 )
             val diff = EffectTracker.DiffResult(created, emptyList())
 
-            val resolver: (InstanceId, Long) -> Int? = { _, sid ->
-                if (sid == staticId) 99999 else null
+            val resolver: (InstanceId, Long) -> GrpId? = { _, sid ->
+                if (sid == staticId) GrpId(99999) else null
             }
 
             val (_, persistent) = MechanicAnnotations.effectAnnotations(diff, resolver)
@@ -165,8 +166,8 @@ class EffectAnnotationPipelineTest :
             val diff = EffectTracker.DiffResult(created, emptyList())
 
             // Resolver returns null for staticId=0 (SpellAbility effects)
-            val resolver: (InstanceId, Long) -> Int? = { _, sid ->
-                if (sid == 0L) null else 99999
+            val resolver: (InstanceId, Long) -> GrpId? = { _, sid ->
+                if (sid == 0L) null else GrpId(99999)
             }
 
             val (_, persistent) = MechanicAnnotations.effectAnnotations(diff, resolver)
