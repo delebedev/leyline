@@ -201,6 +201,11 @@ class MatchSession(
             val deletedIds = gameBridge.resetForPuzzle(puzzle)
             val replacement = MatchSession(connection, gameBridge, paceDelayMs, counter)
             registry.registerSession(matchId, seatId, replacement)
+            // Update the per-channel handler so future inbound GRE messages dispatch
+            // to the new session. Without this, MatchHandler keeps a stale reference
+            // and the next PerformActionResp builds a Diff against unrelated game
+            // state, producing spurious diffDeletedInstanceIds.
+            registry.getHandler(matchId, seatId)?.session = replacement
             replacement to deletedIds
         }
 

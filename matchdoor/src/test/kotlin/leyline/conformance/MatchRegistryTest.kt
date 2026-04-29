@@ -10,6 +10,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.UnitTag
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
 import leyline.game.state.GameBridge
@@ -28,7 +29,14 @@ class MatchRegistryTest :
 
         tags(UnitTag)
 
-        fun stubBridge() = GameBridge(cardRepository = InMemoryCardRepository()).also { it.start(seed = 0L) }
+        // Wrap a fresh in-process Game without calling bridge.start() — avoids
+        // racing the MyRandom static RNG with conformance tests that depend on
+        // a stable seed-shuffle window (see ConformanceTestBase.startGameAtMain1
+        // for the lock that MatchRegistryTest can't share).
+        fun stubBridge(): GameBridge =
+            GameBridge(cardRepository = InMemoryCardRepository()).also {
+                it.wrapGame(GameBootstrap.createGame())
+            }
 
         test("getOrCreateMatch creates on first call, reuses on second") {
             val registry = MatchRegistry()
