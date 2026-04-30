@@ -474,15 +474,15 @@ object StateMapper {
                 )
             }
         val preparedDesignationPersistentFromSnap =
-            snap.objects.values
-                .mapNotNull { card ->
+            snap.boundCards.values
+                .mapNotNull { bound ->
                     // PreparedRole.Source is set only on battlefield permanents with a
                     // live linked copy — exactly the set of cards that should carry the
                     // persistent Designation pAnn. The role-based shape avoids the stale
                     // isPrepared flags Forge keeps on retired stack/limbo card states.
-                    val source = card.preparedRole as? PreparedRole.Source ?: return@mapNotNull null
+                    val source = bound.designations.prepared as? PreparedRole.Source ?: return@mapNotNull null
                     AnnotationBuilder.preparedDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(card.forgeCardId),
+                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
                         preparedCopyInstanceId = bridge.getOrAllocInstanceId(source.copyForgeCardId),
                     )
                 }
@@ -491,11 +491,11 @@ object StateMapper {
         // PlottedRole.Plotted. The snapshot pass filtered the role to `isPlotted &&
         // isInZone(Exile)`, so no zone guard needed here.
         val plottedDesignationPersistentFromSnap =
-            snap.objects.values
-                .mapNotNull { card ->
-                    if (card.plottedRole !is PlottedRole.Plotted) return@mapNotNull null
+            snap.boundCards.values
+                .mapNotNull { bound ->
+                    if (!bound.designations.isPlotted) return@mapNotNull null
                     AnnotationBuilder.plottedDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(card.forgeCardId),
+                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
                     )
                 }
 
@@ -971,8 +971,8 @@ object StateMapper {
     }
 
     private fun sourceForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
-        snap.objects.values
-            .filter { it.preparedRole is PreparedRole.Source }
+        snap.boundCards.values
+            .filter { it.designations.isPreparedSource }
             .map { it.forgeCardId }
             .toSet()
 
@@ -1019,8 +1019,8 @@ object StateMapper {
     }
 
     private fun plottedForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
-        snap.objects.values
-            .filter { it.plottedRole is PlottedRole.Plotted }
+        snap.boundCards.values
+            .filter { it.designations.isPlotted }
             .map { it.forgeCardId }
             .toSet()
 
@@ -1050,8 +1050,8 @@ object StateMapper {
     }
 
     private fun foretoldForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
-        snap.objects.values
-            .filter { it.isForetold }
+        snap.boundCards.values
+            .filter { it.designations.isForetold }
             .map { it.forgeCardId }
             .toSet()
 

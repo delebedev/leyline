@@ -32,6 +32,12 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *    emission on [leyline.game.mapping.ObjectMapper]'s GameObject build path.
  *    Auras / Equipment surface as [ParentLinkage.AttachedTo]; prepared-spell
  *    exile copies as [ParentLinkage.PreparedCopy]; null for everything else.
+ *  - [designations] gathers card-state designations (Prepared, Plotted,
+ *    Foretold) into one struct so StateMapper's three transient inserters
+ *    can address them through a single field rather than three independent
+ *    snapshot reads. Sets up the future S3.B
+ *    `CardStateDesignations` registry where each designation row plugs into
+ *    one diff loop.
  */
 data class BoundCard(
     val forgeCardId: ForgeCardId,
@@ -40,6 +46,7 @@ data class BoundCard(
     val altCosts: List<AltCostBinding> = emptyList(),
     val mobilizeCleanup: Int? = null,
     val parentLinkage: ParentLinkage? = null,
+    val designations: DesignationSet = DesignationSet(),
 ) {
     /**
      * Find the alt-cost row whose [AltCostBinding.keywordBaseId] matches
@@ -146,6 +153,27 @@ data class AltCostBinding(
     /** Cast cost on this row (multiset-keyed for cost-aware disambiguation). */
     val manaCost: List<Pair<ManaColor, Int>>,
 )
+
+/**
+ * Card-state designations gathered into one struct: Prepared role, Plotted
+ * role, and the Foretold flag. Groups three previously-independent
+ * [CardSnapshot] fields under a single name so StateMapper's per-designation
+ * transient inserters address one field rather than three.
+ *
+ * Sealed/Boolean shapes are preserved verbatim — [PreparedRole.Source] still
+ * carries `copyForgeCardId`, [PreparedRole.Copy] still carries
+ * `sourceForgeCardId?` — to keep S3.A / S3.B refactors loss-free.
+ */
+data class DesignationSet(
+    val prepared: PreparedRole = PreparedRole.None,
+    val plotted: PlottedRole = PlottedRole.None,
+    val foretold: Boolean = false,
+) {
+    val isPreparedSource: Boolean get() = prepared is PreparedRole.Source
+    val isPreparedCopy: Boolean get() = prepared is PreparedRole.Copy
+    val isPlotted: Boolean get() = plotted is PlottedRole.Plotted
+    val isForetold: Boolean get() = foretold
+}
 
 /**
  * Per-card parent linkage that drives `parentId` emission on the GameObject
