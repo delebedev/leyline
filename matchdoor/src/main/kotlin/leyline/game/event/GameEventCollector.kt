@@ -101,12 +101,6 @@ class GameEventCollector(
     @Volatile
     private var frame: MutableList<GameEvent> = mutableListOf()
 
-    /** Last-seen P/T per card ID — used to detect deltas on GameEventCardStatsChanged. */
-    private val lastPT = ConcurrentHashMap<ForgeCardId, Pair<Int, Int>>()
-
-    /** Last-seen CardStateName per card — used to detect transform in GameEventCardStatsChanged. */
-    private val lastStateName = ConcurrentHashMap<ForgeCardId, CardStateName>()
-
     /**
      * SpellAbility ids of triggered abilities currently on the stack. Populated when
      * the trigger is cast (visit GameEventSpellAbilityCast with si.isTrigger == true),
@@ -320,13 +314,6 @@ class GameEventCollector(
                 GameEvent.ZoneChanged(ForgeCardId(card.id), from?.let { Zone.fromForge(it) } ?: Zone.Other, Zone.fromForge(to))
             }
 
-        // Clear cached P/T and state name when a card leaves the battlefield so re-entering
-        // cards diff against fresh values instead of stale prior-lifetime stats.
-        if (from == ZoneType.Battlefield) {
-            lastPT.remove(ForgeCardId(card.id))
-            lastStateName.remove(ForgeCardId(card.id))
-        }
-
         frame.add(event)
         log.debug("event: {} card={} {} → {}", event::class.simpleName, card.name, from, to)
 
@@ -449,33 +436,6 @@ class GameEventCollector(
         log.debug("event: CountersChanged card={} {} {}→{}", ev.card().name, ev.type(), ev.oldValue(), ev.newValue())
     }
 
-    override fun visit(ev: GameEventCardStatsChanged) {
-        for (card in ev.cards()) {
-            val id = ForgeCardId(card.id)
-
-            // Detect transform (DFC, flip, modal)
-            checkForTransform(card)
-
-            val newPower = card.currentState.power
-            val newTough = card.currentState.toughness
-            val prev = lastPT.put(id, Pair(newPower, newTough))
-            val oldPower = prev?.first ?: newPower
-            val oldTough = prev?.second ?: newTough
-            if (oldPower != newPower || oldTough != newTough) {
-                frame.add(
-                    GameEvent.PowerToughnessChanged(
-                        cardId = id,
-                        oldPower = oldPower,
-                        newPower = newPower,
-                        oldToughness = oldTough,
-                        newToughness = newTough,
-                    ),
-                )
-                log.debug("event: P/T changed card={} {}/{}→{}/{}", card.name, oldPower, oldTough, newPower, newTough)
-            }
-        }
-    }
-
     override fun visit(ev: GameEventShuffle) {
         val seat = seatOf(ev.player()) ?: return
         frame.add(GameEvent.LibraryShuffled(seat))
@@ -554,20 +514,6 @@ class GameEventCollector(
     }
 
     // -- helpers --
-
-    /**
-     * Check if a card's state name changed (transform, flip, modal face switch).
-     * Emits [GameEvent.CardTransformed] on change.
-     */
-    private fun checkForTransform(cardView: CardView) {
-        val id = ForgeCardId(cardView.id)
-        val newState = cardView.currentState?.state ?: return
-        val prevState = lastStateName.put(id, newState)
-        if (prevState != null && prevState != newState) {
-            frame.add(GameEvent.CardTransformed(id, newState))
-            log.debug("event: CardTransformed card={} {} → {}", cardView.name, prevState, newState)
-        }
-    }
 
     private fun seatOf(player: Player?): SeatId? {
         if (player == null) return null

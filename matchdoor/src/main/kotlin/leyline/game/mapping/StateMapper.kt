@@ -23,6 +23,7 @@ import leyline.game.bundle.GsmFrame
 import leyline.game.codes.DetailKeys
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
+import leyline.game.event.SnapDeltaSynthesizer
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PlottedRole
@@ -154,7 +155,12 @@ object StateMapper {
 
         // ═══ GATHER: snapshot mutable state (events arrive from caller) ═══
         // applyRevealProxies may append RevealProxiesDeleted on reveal end; keep local mutable copy.
+        // Snap delta drives PowerToughnessChanged + CardTransformed instead of a parallel
+        // diff in GameEventCollector — see SnapDeltaSynthesizer for the gating rules.
         val eventsMutable = events.events.toMutableList()
+        if (prev != null) {
+            eventsMutable += SnapDeltaSynthesizer.synthesize(prev, snap)
+        }
         // Evict stale AbilityRegistry entries for transformed cards so the next
         // abilityRegistryFor() call rebuilds from the current face.
         for (ev in eventsMutable) {
