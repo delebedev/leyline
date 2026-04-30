@@ -128,7 +128,15 @@ object ZoneMapper {
                 log.warn("no snapshot for {} card {} — skipping game object", zoneName, fid)
                 return null
             }
-        return ObjectMapper.buildFromSnapshot(cardSnap, instanceId, zoneId, seatId.value, bridge.cardProto, visibility)
+        return ObjectMapper.buildFromSnapshot(
+            cardSnap,
+            instanceId,
+            zoneId,
+            seatId.value,
+            bridge.cardProto,
+            visibility,
+            parentLinkage = snap.boundCards[fid]?.parentLinkage,
+        )
     }
 
     // --- Snapshot-based shared zones ---
@@ -177,6 +185,7 @@ object ZoneMapper {
                     bridge.cardProto,
                     Visibility.Public,
                     keywordSnapshot,
+                    parentLinkage = snap.boundCards[fid]?.parentLinkage,
                 ),
             )
         }

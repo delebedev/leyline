@@ -26,7 +26,6 @@ import leyline.game.event.GameEvent
 import leyline.game.event.SnapDeltaSynthesizer
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
-import leyline.game.snapshot.PlottedRole
 import leyline.game.snapshot.PreparedRole
 import leyline.game.state.BridgeMutations
 import leyline.game.state.EffectTracker
@@ -326,7 +325,7 @@ object StateMapper {
         val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, eventsMutable)
         val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
-            computeAnnotations(eventsMutable, transferResult, actingSeat, bridge, prev = prev)
+            computeAnnotations(eventsMutable, transferResult, actingSeat, bridge, prev = prev, snap = snap)
 
         // Snap-derived pAnn inputs — computed here where snap is in scope.
         val qualificationPersistentFromSnap =
@@ -351,7 +350,7 @@ object StateMapper {
                 val tokenIid = bridge.getOrAllocInstanceId(token.forgeCardId)
                 val sourceForgeId = tokenSources[token]
                 val cleanupGrpId =
-                    sourceForgeId?.let { mobilizeCleanupGrpIdForSource(it, bridge) }
+                    sourceForgeId?.let { mobilizeCleanupGrpIdForSource(it, snap) }
                 // Holder iid is the per-trigger affector for Mobilize (canonical
                 // shape). For generic EOT-sacrifice copies (Electroduplicate etc.)
                 // legacy callers pass affectorId = tokenIid; preserve that until
@@ -392,10 +391,10 @@ object StateMapper {
                     val (rawSourceForgeId, seat) = key
                     val sourceForgeId = rawSourceForgeId ?: return@mapNotNull null
                     val cleanupGrpId =
-                        mobilizeCleanupGrpIdForSource(sourceForgeId, bridge) ?: return@mapNotNull null
+                        mobilizeCleanupGrpIdForSource(sourceForgeId, snap) ?: return@mapNotNull null
                     val tokenIds = tokens.map { bridge.getOrAllocInstanceId(it.forgeCardId) }
                     val holderIid = holderInstanceIdFor(sourceForgeId, bridge)
-                    val keywordGrpId = mobilizeKeywordGrpIdForSource(sourceForgeId, bridge) ?: 0
+                    val keywordGrpId = mobilizeKeywordGrpIdForSource(sourceForgeId, snap) ?: 0
                     val sourceIid = bridge.getOrAllocInstanceId(sourceForgeId).value
                     currentHolders.add(
                         HolderRecord(
@@ -474,15 +473,15 @@ object StateMapper {
                 )
             }
         val preparedDesignationPersistentFromSnap =
-            snap.objects.values
-                .mapNotNull { card ->
+            snap.boundCards.values
+                .mapNotNull { bound ->
                     // PreparedRole.Source is set only on battlefield permanents with a
                     // live linked copy — exactly the set of cards that should carry the
                     // persistent Designation pAnn. The role-based shape avoids the stale
                     // isPrepared flags Forge keeps on retired stack/limbo card states.
-                    val source = card.preparedRole as? PreparedRole.Source ?: return@mapNotNull null
+                    val source = bound.designations.prepared as? PreparedRole.Source ?: return@mapNotNull null
                     AnnotationBuilder.preparedDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(card.forgeCardId),
+                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
                         preparedCopyInstanceId = bridge.getOrAllocInstanceId(source.copyForgeCardId),
                     )
                 }
@@ -491,11 +490,11 @@ object StateMapper {
         // PlottedRole.Plotted. The snapshot pass filtered the role to `isPlotted &&
         // isInZone(Exile)`, so no zone guard needed here.
         val plottedDesignationPersistentFromSnap =
-            snap.objects.values
-                .mapNotNull { card ->
-                    if (card.plottedRole !is PlottedRole.Plotted) return@mapNotNull null
+            snap.boundCards.values
+                .mapNotNull { bound ->
+                    if (!bound.designations.isPlotted) return@mapNotNull null
                     AnnotationBuilder.plottedDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(card.forgeCardId),
+                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
                     )
                 }
 
@@ -971,8 +970,8 @@ object StateMapper {
     }
 
     private fun sourceForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
-        snap.objects.values
-            .filter { it.preparedRole is PreparedRole.Source }
+        snap.boundCards.values
+            .filter { it.designations.isPreparedSource }
             .map { it.forgeCardId }
             .toSet()
 
@@ -1019,8 +1018,8 @@ object StateMapper {
     }
 
     private fun plottedForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
-        snap.objects.values
-            .filter { it.plottedRole is PlottedRole.Plotted }
+        snap.boundCards.values
+            .filter { it.designations.isPlotted }
             .map { it.forgeCardId }
             .toSet()
 
@@ -1050,8 +1049,8 @@ object StateMapper {
     }
 
     private fun foretoldForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
-        snap.objects.values
-            .filter { it.isForetold }
+        snap.boundCards.values
+            .filter { it.designations.isForetold }
             .map { it.forgeCardId }
             .toSet()
 
@@ -1223,6 +1222,7 @@ object StateMapper {
         actingSeat: Int,
         combatResult: CombatAnnotationResult,
         bridge: GameBridge? = null,
+        snap: GsmSnapshot? = null,
     ): Pair<MutableList<AnnotationInfo>, MutableList<AnnotationInfo>> {
         val annotations = mutableListOf<AnnotationInfo>()
         val transferPersistent = mutableListOf<AnnotationInfo>()
@@ -1265,7 +1265,7 @@ object StateMapper {
         // and the resolve-side from resolve events independently — guarding
         // against double-emission when the snap-diff also caught the
         // appearance/disappearance.
-        if (bridge != null) {
+        if (bridge != null && snap != null) {
             emitTriggerLifecycleAnnotations(
                 events = events,
                 snapshotSourceIids = snapshotSourceIids,
@@ -1273,6 +1273,7 @@ object StateMapper {
                 annotations = annotations,
                 transferPersistent = transferPersistent,
                 bridge = bridge,
+                snap = snap,
             )
         }
         for (d in transferResult.stackAbilityDisappearances) {
@@ -1307,6 +1308,7 @@ object StateMapper {
         annotations: MutableList<AnnotationInfo>,
         transferPersistent: MutableList<AnnotationInfo>,
         bridge: GameBridge,
+        snap: GsmSnapshot,
     ) {
         // Cast half: AbilityInstanceCreated (when snap-diff missed it) + persistent TriggeringObject.
         for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }) {
@@ -1346,7 +1348,7 @@ object StateMapper {
                     .getOrAllocInstanceId(
                         ForgeCardId(resolved.cardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET),
                     ).value
-            val abilityGrpId = abilityGrpIdForSource(resolved.cardId, bridge)
+            val abilityGrpId = abilityGrpIdForSource(resolved.cardId, snap)
 
             annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
             annotations.add(AnnotationBuilder.resolutionComplete(InstanceId(abilityIid), GrpId(abilityGrpId)))
@@ -1385,7 +1387,7 @@ object StateMapper {
         }
     }
 
-    /** Look up the wire-side ability grpId for a triggered source. For known
+    /** Look up the outbound ability grpId for a triggered source. For known
      *  keyword triggers (Mobilize, …) this resolves to the per-card keyword
      *  ability grpId — e.g. 188698 for a Mobilize 1 source — so
      *  `ResolutionStart`/`Complete` carry the keyword row id rather than the
@@ -1393,15 +1395,13 @@ object StateMapper {
      *  whose keyword isn't in [leyline.game.data.KeywordAbilityIds] yet. */
     private fun abilityGrpIdForSource(
         cardId: ForgeCardId,
-        bridge: GameBridge,
+        snap: GsmSnapshot,
     ): Int {
-        val card = bridge.findCard(cardId) ?: return 0
-        val cardGrpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
+        val bound = snap.boundCards[cardId] ?: return 0
         for (keywordId in keywordTriggerIds) {
-            val abilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, keywordId)
-            if (abilityGrpId != null) return abilityGrpId
+            bound.altCost(keywordId)?.abilityGrpId?.let { return it }
         }
-        return cardGrpId
+        return bound.snapshot.grpId
     }
 
     /** Keywords whose triggers we want to surface on the wire as
@@ -1422,31 +1422,13 @@ object StateMapper {
         return ForgeCardId(sourceCard.id)
     }
 
-    /** Cleanup ability grpId paired with the source card's Mobilize keyword.
-     *  Looked up from the source's `Cards.HiddenAbilityIds` field — the
-     *  card-DB pairs every Mobilize-N (keyword on `AbilityIds`) with its
-     *  "Sacrifice them at the beginning of the next end step." entry on
-     *  `HiddenAbilityIds`. Filters on Category == 2 (triggered) so cards
-     *  that pair the cleanup with a static hidden ability (e.g. Zurgo,
-     *  Thunder's Decree's "can't be sacrificed") still pick the cleanup
-     *  row deterministically regardless of ordering. Null when the source
-     *  isn't a Mobilize card or has no hidden triggered ability; callers
-     *  fall back to the universal EOT-sacrifice grpId. Generic over
-     *  Mobilize-N — works for any future Mobilize value without table
-     *  updates. */
+    /** See [BoundCard.mobilizeCleanup]. Null when the source isn't a Mobilize
+     *  card or has no hidden triggered ability; callers fall back to the
+     *  universal EOT-sacrifice grpId. */
     private fun mobilizeCleanupGrpIdForSource(
         sourceForgeId: ForgeCardId,
-        bridge: GameBridge,
-    ): Int? {
-        val sourceCard = bridge.findCard(sourceForgeId) ?: return null
-        val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
-        // Confirm the source actually carries Mobilize before claiming a
-        // hidden triggered ability is the Mobilize cleanup row — guards
-        // against unrelated hidden abilities on cards that don't use the
-        // keyword.
-        bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, leyline.game.data.KeywordAbilityIds.MOBILIZE) ?: return null
-        return bridge.cardRepository.findHiddenTriggeredAbilityGrpId(sourceGrpId)
-    }
+        snap: GsmSnapshot,
+    ): Int? = snap.boundCards[sourceForgeId]?.mobilizeCleanup
 
     /** The Mobilize keyword ability grpId on a Mobilize source (188696, 188698…),
      *  used as `objectSourceGrpId` on the TriggerHolder gameObject so the client
@@ -1454,12 +1436,11 @@ object StateMapper {
      *  side panel. Null when the source doesn't carry Mobilize. */
     private fun mobilizeKeywordGrpIdForSource(
         sourceForgeId: ForgeCardId,
-        bridge: GameBridge,
-    ): Int? {
-        val sourceCard = bridge.findCard(sourceForgeId) ?: return null
-        val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
-        return bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, leyline.game.data.KeywordAbilityIds.MOBILIZE)
-    }
+        snap: GsmSnapshot,
+    ): Int? =
+        snap.boundCards[sourceForgeId]
+            ?.altCost(leyline.game.data.KeywordAbilityIds.MOBILIZE)
+            ?.abilityGrpId
 
     /** Stable per-trigger-registration holder iid keyed on the source card's
      *  forge id, so all tokens spawned by the same source-card resolution
@@ -1613,7 +1594,15 @@ object StateMapper {
                     }
                 revealedZoneBuilder.addObjectInstanceIds(proxyId.value)
                 gameObjects.add(
-                    ObjectMapper.buildRevealedCardProxy(cardSnap, proxyId.value, handZoneId, ownerSeat, viewerSeat, bridge.cardProto),
+                    ObjectMapper.buildRevealedCardProxy(
+                        cardSnap,
+                        proxyId.value,
+                        handZoneId,
+                        ownerSeat,
+                        viewerSeat,
+                        bridge.cardProto,
+                        parentLinkage = snap.boundCards[forgeCardId]?.parentLinkage,
+                    ),
                 )
             }
             zones.add(revealedZoneBuilder.build())
@@ -1631,6 +1620,7 @@ object StateMapper {
         actingSeat: Int,
         bridge: GameBridge,
         prev: GsmSnapshot? = null,
+        snap: GsmSnapshot? = null,
     ): AnnotationPipelineResult {
         val combatTransferredIds =
             transferResult.transfers
@@ -1650,6 +1640,7 @@ object StateMapper {
                 actingSeat = actingSeat,
                 combatResult = combatResult,
                 bridge = bridge,
+                snap = snap,
             )
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }

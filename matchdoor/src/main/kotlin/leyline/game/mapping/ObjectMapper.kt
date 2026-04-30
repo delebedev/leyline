@@ -3,9 +3,9 @@ package leyline.game.mapping
 import forge.game.card.Card
 import leyline.game.codes.KeywordGrpIds
 import leyline.game.data.CardProtoBuilder
-import leyline.game.data.CardRepository
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.CombatRole
+import leyline.game.snapshot.ParentLinkage
 import leyline.game.snapshot.PreparedRole
 import leyline.game.state.EffectTracker
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -103,6 +103,7 @@ object ObjectMapper {
         zoneId: Int,
         ownerSeatId: Int,
         cardProto: CardProtoBuilder,
+        parentLinkage: ParentLinkage? = null,
     ): GameObjectInfo {
         val objType =
             if (cardSnap.isToken && cardSnap.preparedRole !is PreparedRole.Copy) {
@@ -121,7 +122,7 @@ object ObjectMapper {
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(cardSnap.controller.value)
             .setOthersideGrpId(cardSnap.othersideGrpId)
-            .applyFieldsFromSnapshot(cardSnap) // echo objects carry no combat state (combatRole=null in snap)
+            .applyFieldsFromSnapshot(cardSnap, parentLinkage) // echo objects carry no combat state
             .build()
     }
 
@@ -139,6 +140,7 @@ object ObjectMapper {
         ownerSeatId: Int,
         viewerSeatId: Int,
         cardProto: CardProtoBuilder,
+        parentLinkage: ParentLinkage? = null,
     ): GameObjectInfo =
         cardProto
             .buildObjectInfo(cardSnap.grpId)
@@ -149,7 +151,7 @@ object ObjectMapper {
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(ownerSeatId)
             .addViewers(viewerSeatId)
-            .applyFieldsFromSnapshot(cardSnap)
+            .applyFieldsFromSnapshot(cardSnap, parentLinkage)
             .build()
 
     /**
@@ -170,6 +172,7 @@ object ObjectMapper {
         cardProto: CardProtoBuilder,
         visibility: Visibility = Visibility.Private,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
+        parentLinkage: ParentLinkage? = null,
     ): GameObjectInfo {
         val objType =
             if (cardSnap.isToken && cardSnap.preparedRole !is PreparedRole.Copy) {
@@ -192,7 +195,7 @@ object ObjectMapper {
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(cardSnap.controller.value)
             .setOthersideGrpId(cardSnap.othersideGrpId)
-            .applyFieldsFromSnapshot(cardSnap)
+            .applyFieldsFromSnapshot(cardSnap, parentLinkage)
             .build()
     }
 
@@ -201,7 +204,10 @@ object ObjectMapper {
      *
      * Overlays: live card types, P/T, tapped, sickness, damage, loyalty, combat, attachment.
      */
-    private fun GameObjectInfo.Builder.applyFieldsFromSnapshot(cardSnap: CardSnapshot): GameObjectInfo.Builder {
+    private fun GameObjectInfo.Builder.applyFieldsFromSnapshot(
+        cardSnap: CardSnapshot,
+        parentLinkage: ParentLinkage? = null,
+    ): GameObjectInfo.Builder {
         // Live card types — overlay when they differ from DB (same logic as overlayCardTypes)
         overlayCardTypesFromSnapshot(cardSnap)
 
@@ -231,22 +237,18 @@ object ObjectMapper {
             setObjectSourceGrpId(this.grpId)
         }
 
-        // Attachment (Auras, Equipment) — pre-resolved instanceId from snapshot.
-        // Set FIRST so the prepared-copy branch below has final say if both apply
-        // (theoretical: a continuous effect attaching the exile copy to something).
-        // The protocol semantic for "prepared exile copy that's also attached" is
-        // unspecified; preferring the prepared parentId keeps the cast-from-exile
-        // linkage intact for the client.
-        cardSnap.attachedToInstanceId?.let { setParentId(it) }
-
-        // Prepared-spell exile copy — projects as a Card parented to the prepared
-        // source creature. GameObject form: isCopy=true, parentId=<creature iid>,
-        // no objectSourceGrpId (that field is for engine-spawned tokens). The
-        // source instanceId can be null mid-cast; isCopy still applies, parentId
-        // is omitted in that case.
+        // Prepared-spell exile copies project as Card with isCopy=true. The
+        // parentId is set below via parentLinkage; the source can be null mid-
+        // cast, in which case parentLinkage is also null and parentId is
+        // omitted while isCopy still applies.
         if (cardSnap.preparedRole is PreparedRole.Copy) {
             setIsCopy(true)
-            cardSnap.preparedCopySourceInstanceId?.let { setParentId(it) }
+        }
+
+        when (parentLinkage) {
+            is ParentLinkage.PreparedCopy -> setParentId(parentLinkage.parentInstanceId)
+            is ParentLinkage.AttachedTo -> setParentId(parentLinkage.parentInstanceId)
+            null -> {}
         }
 
         // Combat state
@@ -296,34 +298,6 @@ object ObjectMapper {
         for (num in liveNums) {
             CardType.forNumber(num)?.let { addCardTypes(it) }
         }
-    }
-
-    /** Resolve the other face's grpId for DFC cards. Returns 0 for non-DFC.
-     *
-     *  Scope: **transform DFCs + meld pairs only** — Forge's `Card.isDoubleFaced`
-     *  predicate is `isTransformable() || isMeldable()`. MDFC, Adventure, Split,
-     *  Flip, Saga, Battle, and Room cards do NOT enter this branch; their grpId
-     *  resolution goes through [leyline.game.snapshot.GrpIdResolver]'s
-     *  primary/any-face fallback chain.
-     *
-     *  Back-face cards (Luminous Phantom, Waildrifter, etc.) have IsPrimaryCard=0
-     *  in the Arena DB, so [findGrpIdByName]'s primary-only filter misses them.
-     *  Fall back to [findGrpIdByNameAnyFace] which lifts that filter. */
-    internal fun resolveOthersideGrpId(
-        card: Card,
-        cards: CardRepository,
-    ): Int {
-        if (!card.isDoubleFaced) return 0
-        val otherStateName =
-            if (card.currentState.stateName == forge.card.CardStateName.Backside) {
-                forge.card.CardStateName.Original
-            } else {
-                forge.card.CardStateName.Backside
-            }
-        val otherState = card.getState(otherStateName) ?: return 0
-        return cards.findGrpIdByName(otherState.name)
-            ?: cards.findGrpIdByNameAnyFace(otherState.name)
-            ?: 0
     }
 
     /** Forge CoreType → proto CardType mapping. Shared with [leyline.game.snapshot.SnapshotCapture]. */

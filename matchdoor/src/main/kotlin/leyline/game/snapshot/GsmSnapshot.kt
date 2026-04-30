@@ -8,17 +8,22 @@ import leyline.game.state.GameBridge
 import org.jetbrains.annotations.VisibleForTesting
 
 /**
- * Immutable capture of every field the GSM pipeline reads from the engine.
- * Captured once per bundle at entry; every downstream stage is a pure function of it.
+ * Immutable per-frame snapshot of every field the GSM pipeline reads from
+ * the engine. Built once per bundle at entry; every downstream stage is a
+ * pure function of it.
  *
- * Field set grows as mappers migrate — see this bundle's plan for migration order.
+ * Per-card state lives on [boundCards] as [BoundCard] — pairs the live
+ * [CardSnapshot] with static [leyline.game.data.CardData], pre-resolved
+ * alt-cost bindings, designations, and parent linkage. The [objects] map is
+ * a derived view exposing each [BoundCard]'s underlying [CardSnapshot] by
+ * ForgeCardId.
  */
 class GsmSnapshot internal constructor(
     val matchId: String,
     val gameStateId: Int,
     val seats: List<SeatSnapshot>,
     val zones: Map<Int, ZoneSnapshot>,
-    val objects: Map<ForgeCardId, CardSnapshot>,
+    val boundCards: Map<ForgeCardId, BoundCard>,
     val stack: StackSnapshot,
     val phase: PhaseSnapshot,
     val combat: CombatSnapshot?,
@@ -26,6 +31,15 @@ class GsmSnapshot internal constructor(
     val persistentAnnotationState: PersistentAnnotationState,
     val capturedAt: CaptureMarker,
 ) {
+    /**
+     * Derived view exposing each [BoundCard]'s underlying [CardSnapshot] by
+     * ForgeCardId. Memoized — diff-time loops iterate `snap.objects`
+     * repeatedly and a recomputing accessor would re-allocate per access.
+     */
+    val objects: Map<ForgeCardId, CardSnapshot> by lazy {
+        boundCards.mapValues { it.value.snapshot }
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is GsmSnapshot) return false
@@ -34,7 +48,7 @@ class GsmSnapshot internal constructor(
             gameStateId == other.gameStateId &&
             seats == other.seats &&
             zones == other.zones &&
-            objects == other.objects &&
+            boundCards == other.boundCards &&
             stack == other.stack &&
             phase == other.phase &&
             combat == other.combat &&
@@ -47,7 +61,7 @@ class GsmSnapshot internal constructor(
         h = 31 * h + gameStateId
         h = 31 * h + seats.hashCode()
         h = 31 * h + zones.hashCode()
-        h = 31 * h + objects.hashCode()
+        h = 31 * h + boundCards.hashCode()
         h = 31 * h + stack.hashCode()
         h = 31 * h + phase.hashCode()
         h = 31 * h + (combat?.hashCode() ?: 0)
@@ -74,6 +88,7 @@ class GsmSnapshot internal constructor(
             seats: List<SeatSnapshot> = emptyList(),
             zones: Map<Int, ZoneSnapshot> = emptyMap(),
             objects: Map<ForgeCardId, CardSnapshot> = emptyMap(),
+            boundCards: Map<ForgeCardId, BoundCard>? = null,
             stack: StackSnapshot = StackSnapshot(emptyList()),
             phase: PhaseSnapshot =
                 PhaseSnapshot(
@@ -86,13 +101,16 @@ class GsmSnapshot internal constructor(
             abilityWordEntries: List<AbilityWordScanner.AbilityWordEntry> = emptyList(),
             persistentAnnotationState: PersistentAnnotationState = PersistentAnnotationState.INITIAL,
             capturedAt: CaptureMarker = CaptureMarker.unknown(),
-        ): GsmSnapshot =
-            GsmSnapshot(
+        ): GsmSnapshot {
+            val resolvedBoundCards =
+                boundCards
+                    ?: objects.mapValues { (fid, snap) -> BoundCard(fid, snap, data = null) }
+            return GsmSnapshot(
                 matchId,
                 gameStateId,
                 seats,
                 zones,
-                objects,
+                resolvedBoundCards,
                 stack,
                 phase,
                 combat,
@@ -100,5 +118,6 @@ class GsmSnapshot internal constructor(
                 persistentAnnotationState,
                 capturedAt,
             )
+        }
     }
 }

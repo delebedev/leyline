@@ -21,6 +21,8 @@ import leyline.game.codes.ManaColorMapping
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.snapshot.AltCostBinding
+import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityRegistry
 import leyline.game.state.GameBridge
@@ -118,12 +120,13 @@ object ActionMapper {
 
             if (!card.tapped && card.hasManaAbilities) {
                 val forgeCard = bridge.findCard(fid) ?: continue
+                val boundData = snap.boundCards[fid]?.data
                 builder.addActions(
                     buildActivateManaAction(
                         forgeCard,
                         instanceId,
                         grpId,
-                        { bridge.cardRepository.findByGrpId(it.value) },
+                        { boundData },
                         { c, d -> bridge.abilityRegistryFor(c, d) },
                     ),
                 )
@@ -132,7 +135,7 @@ object ActionMapper {
             if (card.hasNonManaActivatedAbilities) {
                 val forgeCard = bridge.findCard(fid) ?: continue
                 val player = bridge.getPlayer(SeatId(seatId)) ?: continue
-                val cardData = bridge.cardRepository.findByGrpId(grpId)
+                val cardData = snap.boundCards[fid]?.data
                 for (ability in forgeCard.spellAbilities) {
                     ability.setActivatingPlayer(player)
                     if (!ability.isActivatedAbility) continue
@@ -237,7 +240,7 @@ object ActionMapper {
                 if (effectiveCost != null && !effectiveCost.isNoCost) {
                     addManaCostFromForge(effectiveCost, inactiveBuilder)
                 } else {
-                    val cardData = bridge.cardRepository.findByGrpId(grpId)
+                    val cardData = snap.boundCards[fid]?.data
                     if (cardData != null) {
                         for ((color, count) in cardData.manaCost) {
                             inactiveBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
@@ -250,7 +253,7 @@ object ActionMapper {
                     player = player,
                     instanceId = instanceId,
                     grpId = grpId,
-                    cardRepository = bridge.cardRepository,
+                    altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
                     builder = builder,
                 )
                 continue
@@ -280,7 +283,7 @@ object ActionMapper {
                     )
                 if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
             } else {
-                val cardData = bridge.cardRepository.findByGrpId(grpId)
+                val cardData = snap.boundCards[fid]?.data
                 if (cardData != null) {
                     for ((color, count) in cardData.manaCost) {
                         actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
@@ -294,7 +297,7 @@ object ActionMapper {
                 player = player,
                 instanceId = instanceId,
                 grpId = grpId,
-                cardRepository = bridge.cardRepository,
+                altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
                 builder = builder,
             )
 
@@ -330,7 +333,7 @@ object ActionMapper {
                     }
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
                 val grpId = cardSnap.grpId
-                val cardData = bridge.cardRepository.findByGrpId(grpId)
+                val cardData = snap.boundCards[fid]?.data
                 val registry = bridge.abilityRegistryFor(forgeCard, cardData)
                 val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
                 val abilityCost = ability.payCosts?.totalMana
@@ -453,7 +456,7 @@ object ActionMapper {
                     actionBuilder.setFacetId(instanceId)
                 }
 
-                configureKeywordCastShape(actionBuilder, sa, altCost, grpId, bridge.cardRepository)
+                configureKeywordCastShape(actionBuilder, sa, altCost, snap.boundCards[fid])
                 builder.addActions(actionBuilder)
             }
         }
@@ -505,10 +508,8 @@ object ActionMapper {
         actionBuilder: Action.Builder,
         sa: SpellAbility,
         altCost: AlternativeCost?,
-        grpId: Int,
-        cardRepository: CardRepository,
+        bound: BoundCard?,
     ) {
-        val cardData = cardRepository.findByGrpId(grpId)
         when (altCost) {
             AlternativeCost.Plotted -> {
                 actionBuilder.setAlternativeGrpId(CAST_WITHOUT_PAYING_MANA_GRP_ID)
@@ -517,14 +518,12 @@ object ActionMapper {
                 // cost would mislead the client into a regular cast UI.
             }
             AlternativeCost.Foretold -> {
-                val foretellAbilityGrpId =
-                    cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.FORETELL) ?: 0
+                val foretellAbilityGrpId = bound?.altCost(KeywordAbilityIds.FORETELL)?.abilityGrpId ?: 0
                 if (foretellAbilityGrpId > 0) actionBuilder.setAlternativeGrpId(foretellAbilityGrpId)
                 emitAltCostManaCost(actionBuilder, sa, foretellAbilityGrpId)
             }
             AlternativeCost.Disturb -> {
-                val disturbAbilityGrpId =
-                    cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.DISTURB) ?: 0
+                val disturbAbilityGrpId = bound?.altCost(KeywordAbilityIds.DISTURB)?.abilityGrpId ?: 0
                 if (disturbAbilityGrpId > 0) {
                     actionBuilder.setAlternativeGrpId(disturbAbilityGrpId)
                     actionBuilder.setAbilityGrpId(disturbAbilityGrpId)
@@ -532,8 +531,7 @@ object ActionMapper {
                 emitAltCostManaCost(actionBuilder, sa, abilityGrpIdEcho = 0)
             }
             AlternativeCost.Escape -> {
-                val escapeAbilityGrpId =
-                    cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.ESCAPE) ?: 0
+                val escapeAbilityGrpId = bound?.altCost(KeywordAbilityIds.ESCAPE)?.abilityGrpId ?: 0
                 if (escapeAbilityGrpId > 0) {
                     actionBuilder.setAlternativeGrpId(escapeAbilityGrpId)
                     actionBuilder.setAbilityGrpId(escapeAbilityGrpId)
@@ -543,6 +541,7 @@ object ActionMapper {
             null -> {
                 // No alt-cost — emit printed cost from CardData as the fallback
                 // for regular zone-zone casts.
+                val cardData = bound?.data
                 if (cardData != null) {
                     for ((color, count) in cardData.manaCost) {
                         actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
@@ -552,7 +551,7 @@ object ActionMapper {
             else -> {
                 val keywordId = KeywordAbilityIds.fromForgeAltCostName(altCost.name)
                 val abilityGrpId =
-                    if (keywordId != null) cardRepository.findKeywordAbilityGrpId(grpId, keywordId) ?: 0 else 0
+                    if (keywordId != null) bound?.altCost(keywordId)?.abilityGrpId ?: 0 else 0
                 if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
                 emitAltCostManaCost(actionBuilder, sa, abilityGrpIdEcho = 0)
             }
@@ -722,12 +721,16 @@ object ActionMapper {
             inactive.forEach(builder::addInactiveActions)
 
             if (checkLegality) {
+                val altCosts =
+                    cardRepository?.let { repo ->
+                        BoundCard.bindAltCosts(repo.findByGrpId(grpId), repo)
+                    } ?: emptyList()
                 addHandAltCostCastActions(
                     card = card,
                     player = player,
                     instanceId = instanceId,
                     grpId = grpId,
-                    cardRepository = cardRepository,
+                    altCosts = altCosts,
                     builder = builder,
                 )
             }
@@ -1101,7 +1104,7 @@ object ActionMapper {
         player: Player,
         instanceId: Int,
         grpId: Int,
-        cardRepository: CardRepository?,
+        altCosts: List<AltCostBinding>,
         builder: ActionsAvailableReq.Builder,
     ) {
         // getAllCastableAbilities now includes plot + foretell SAs (CardLookup.kt) so
@@ -1120,17 +1123,6 @@ object ActionMapper {
             if (!canPay) continue
 
             val effectiveCost = computeEffectiveCost(sa, player)
-            // Resolve the per-card warp/sneak/plot/foretell row.
-            //
-            // For Warp/Sneak/Plot the hand SA's mana cost == the alt-cost row's
-            // mana cost (e.g. Plot {3}{G} hand SA pays {3}{G}, row is {3}{G}),
-            // so cost-aware findAlternativeCostAbilityGrpId matches cleanly.
-            //
-            // For Foretell the hand SA's cost is the constant {2} (the foretell
-            // *action* cost), but the per-card row's mana cost is the foretell
-            // *cast* cost ({R} for Demon Bolt). Cost-aware lookup misses. Fall
-            // back to cost-agnostic findKeywordAbilityGrpId for foretell — there
-            // is at most one FORETELL row per card.
             val payCostPairs: List<Pair<ManaColor, Int>> =
                 effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
             val keywordBaseId =
@@ -1140,14 +1132,7 @@ object ActionMapper {
                     else -> KeywordAbilityIds.fromForgeAltCostName(altCost!!.name) ?: continue
                 }
             val alternativeGrpId =
-                if (sa.isForetelling) {
-                    // Foretell hand SA's mana cost is the foretell-action cost ({2}),
-                    // not the per-card cast cost. Cost-aware lookup would miss; fall
-                    // back to cost-agnostic — at most one FORETELL row per card.
-                    cardRepository?.findKeywordAbilityGrpId(grpId, keywordBaseId) ?: 0
-                } else {
-                    cardRepository?.findAlternativeCostAbilityGrpId(grpId, keywordBaseId, payCostPairs) ?: 0
-                }
+                resolveHandAltCostGrpId(altCosts, keywordBaseId, payCostPairs, sa.isForetelling)
             if (alternativeGrpId <= 0) continue
 
             val actionBuilder =
@@ -1166,6 +1151,29 @@ object ActionMapper {
             builder.addActions(actionBuilder)
         }
     }
+
+    /**
+     * Pick the per-card alt-cost ability grpId for a hand-cast SA. Foretell's
+     * hand SA pays the constant {2} `foretell *action* cost` while the
+     * pre-bound row carries the foretell *cast* cost ({R} for Demon Bolt) —
+     * cost-aware lookup misses, so fall back to cost-agnostic and rely on
+     * each card carrying at most one Foretell row. Warp/Sneak/Plot keep the
+     * cost-aware match.
+     */
+    private fun resolveHandAltCostGrpId(
+        altCosts: List<AltCostBinding>,
+        keywordBaseId: Int,
+        payCostPairs: List<Pair<ManaColor, Int>>,
+        isForetelling: Boolean,
+    ): Int =
+        if (isForetelling) {
+            altCosts.firstOrNull { it.keywordBaseId == keywordBaseId }?.abilityGrpId ?: 0
+        } else {
+            altCosts
+                .firstOrNull {
+                    it.keywordBaseId == keywordBaseId && it.manaCost.toMap() == payCostPairs.toMap()
+                }?.abilityGrpId ?: 0
+        }
 
     /**
      * Legacy: live-Forge variant of [addZoneCastActionsFromSnap]. The snapshot
@@ -1212,8 +1220,11 @@ object ActionMapper {
                 // TODO(leyline-9n6): extend KeywordAbilityIds for Escape/Mayhem/etc.
                 val keywordId = KeywordAbilityIds.fromForgeAltCostName(altCost.name)
                 val abilityGrpId =
-                    if (keywordId != null) {
-                        cardRepository?.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
+                    if (keywordId != null && cardRepository != null) {
+                        BoundCard
+                            .bindAltCosts(cardData, cardRepository)
+                            .firstOrNull { it.keywordBaseId == keywordId }
+                            ?.abilityGrpId ?: 0
                     } else {
                         0
                     }

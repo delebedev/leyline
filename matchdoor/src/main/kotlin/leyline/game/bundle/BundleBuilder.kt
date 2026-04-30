@@ -517,6 +517,7 @@ class BundleBuilder(
                     ZoneIds.BATTLEFIELD,
                     ownerSeatId = seatId,
                     cardProto = bridge.cardProto,
+                    parentLinkage = snap.boundCards[fid]?.parentLinkage,
                 ),
             )
         }
@@ -633,6 +634,7 @@ class BundleBuilder(
                     ZoneIds.BATTLEFIELD,
                     ownerSeatId = seatId,
                     cardProto = bridge.cardProto,
+                    parentLinkage = snap.boundCards[fid]?.parentLinkage,
                 ),
             )
         }
