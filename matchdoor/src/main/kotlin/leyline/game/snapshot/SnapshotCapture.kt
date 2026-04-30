@@ -49,6 +49,7 @@ object SnapshotCapture {
             }
         val zones = captureZones(game, bridge)
         val objects = captureObjects(game, bridge, zones)
+        val boundCards = bindCards(objects, bridge)
         val phase = capturePhase(game, human)
         val stack = captureStack(game, bridge, human)
         val abilityWordEntries = computeAbilityWordEntries(game, bridge)
@@ -64,6 +65,7 @@ object SnapshotCapture {
             seats = seats,
             zones = zones,
             objects = objects,
+            boundCards = boundCards,
             phase = phase,
             stack = stack,
             abilityWordEntries = abilityWordEntries,
@@ -74,6 +76,29 @@ object SnapshotCapture {
                     wallClockMs = System.currentTimeMillis(),
                 ),
         )
+    }
+
+    /**
+     * Pair every [CardSnapshot] with its static [leyline.game.data.CardData],
+     * resolving the DB lookup once per card. Phase 0 of the BoundCard migration
+     * (S2.A in leyline-y3pf): no consumers read from the result yet — this is
+     * the binding step that future phases extend.
+     *
+     * `data == null` for cards whose [CardSnapshot.grpId] has no DB row
+     * (`EFFECT` pieces with grpId=0; tokens or unknown identities that the
+     * resolver couldn't bind).
+     */
+    private fun bindCards(
+        objects: Map<ForgeCardId, CardSnapshot>,
+        bridge: GameBridge,
+    ): Map<ForgeCardId, BoundCard> {
+        val repo = bridge.cardRepository
+        val out = linkedMapOf<ForgeCardId, BoundCard>()
+        for ((fid, snap) in objects) {
+            val data = if (snap.grpId > 0) repo.findByGrpId(snap.grpId) else null
+            out[fid] = BoundCard(fid, snap, data)
+        }
+        return out
     }
 
     // --- Task 10: phase + stack capture ---

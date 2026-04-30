@@ -19,6 +19,13 @@ class GsmSnapshot internal constructor(
     val seats: List<SeatSnapshot>,
     val zones: Map<Int, ZoneSnapshot>,
     val objects: Map<ForgeCardId, CardSnapshot>,
+    /**
+     * Per-card bound view — paired with [objects] one-for-one. Built alongside
+     * `objects` so consumers can read static [leyline.game.data.CardData] without
+     * reaching into `bridge.cardRepository`. See [BoundCard]'s KDoc for the
+     * BoundCard migration plan (S2.A in leyline-y3pf).
+     */
+    val boundCards: Map<ForgeCardId, BoundCard>,
     val stack: StackSnapshot,
     val phase: PhaseSnapshot,
     val combat: CombatSnapshot?,
@@ -35,6 +42,7 @@ class GsmSnapshot internal constructor(
             seats == other.seats &&
             zones == other.zones &&
             objects == other.objects &&
+            boundCards == other.boundCards &&
             stack == other.stack &&
             phase == other.phase &&
             combat == other.combat &&
@@ -48,6 +56,7 @@ class GsmSnapshot internal constructor(
         h = 31 * h + seats.hashCode()
         h = 31 * h + zones.hashCode()
         h = 31 * h + objects.hashCode()
+        h = 31 * h + boundCards.hashCode()
         h = 31 * h + stack.hashCode()
         h = 31 * h + phase.hashCode()
         h = 31 * h + (combat?.hashCode() ?: 0)
@@ -74,6 +83,7 @@ class GsmSnapshot internal constructor(
             seats: List<SeatSnapshot> = emptyList(),
             zones: Map<Int, ZoneSnapshot> = emptyMap(),
             objects: Map<ForgeCardId, CardSnapshot> = emptyMap(),
+            boundCards: Map<ForgeCardId, BoundCard>? = null,
             stack: StackSnapshot = StackSnapshot(emptyList()),
             phase: PhaseSnapshot =
                 PhaseSnapshot(
@@ -86,13 +96,17 @@ class GsmSnapshot internal constructor(
             abilityWordEntries: List<AbilityWordScanner.AbilityWordEntry> = emptyList(),
             persistentAnnotationState: PersistentAnnotationState = PersistentAnnotationState.INITIAL,
             capturedAt: CaptureMarker = CaptureMarker.unknown(),
-        ): GsmSnapshot =
-            GsmSnapshot(
+        ): GsmSnapshot {
+            val resolvedBoundCards =
+                boundCards
+                    ?: objects.mapValues { (fid, snap) -> BoundCard(fid, snap, data = null) }
+            return GsmSnapshot(
                 matchId,
                 gameStateId,
                 seats,
                 zones,
                 objects,
+                resolvedBoundCards,
                 stack,
                 phase,
                 combat,
@@ -100,5 +114,6 @@ class GsmSnapshot internal constructor(
                 persistentAnnotationState,
                 capturedAt,
             )
+        }
     }
 }
