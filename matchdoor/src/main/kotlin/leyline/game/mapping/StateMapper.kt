@@ -26,7 +26,6 @@ import leyline.game.event.GameEvent
 import leyline.game.event.SnapDeltaSynthesizer
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
-import leyline.game.snapshot.PlottedRole
 import leyline.game.snapshot.PreparedRole
 import leyline.game.state.BridgeMutations
 import leyline.game.state.EffectTracker

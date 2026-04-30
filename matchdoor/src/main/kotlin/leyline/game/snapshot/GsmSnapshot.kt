@@ -36,9 +36,13 @@ class GsmSnapshot internal constructor(
      * ForgeCardId. Held for callers that read live state directly off the
      * snapshot type; new code should prefer [boundCards] so static [CardData]
      * and pre-resolved fields are reachable without a second lookup.
+     *
+     * Memoized — diff-time loops iterate `snap.objects` repeatedly and a
+     * recomputing accessor would re-allocate per access.
      */
-    val objects: Map<ForgeCardId, CardSnapshot>
-        get() = boundCards.mapValues { it.value.snapshot }
+    val objects: Map<ForgeCardId, CardSnapshot> by lazy {
+        boundCards.mapValues { it.value.snapshot }
+    }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

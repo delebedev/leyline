@@ -120,12 +120,13 @@ object ActionMapper {
 
             if (!card.tapped && card.hasManaAbilities) {
                 val forgeCard = bridge.findCard(fid) ?: continue
+                val boundData = snap.boundCards[fid]?.data
                 builder.addActions(
                     buildActivateManaAction(
                         forgeCard,
                         instanceId,
                         grpId,
-                        { bridge.cardRepository.findByGrpId(it.value) },
+                        { boundData },
                         { c, d -> bridge.abilityRegistryFor(c, d) },
                     ),
                 )
@@ -1140,13 +1141,7 @@ object ActionMapper {
                     else -> KeywordAbilityIds.fromForgeAltCostName(altCost!!.name) ?: continue
                 }
             val alternativeGrpId =
-                if (sa.isForetelling) {
-                    altCosts.firstOrNull { it.keywordBaseId == keywordBaseId }?.abilityGrpId ?: 0
-                } else {
-                    altCosts.firstOrNull {
-                        it.keywordBaseId == keywordBaseId && it.manaCost.toMap() == payCostPairs.toMap()
-                    }?.abilityGrpId ?: 0
-                }
+                resolveHandAltCostGrpId(altCosts, keywordBaseId, payCostPairs, sa.isForetelling)
             if (alternativeGrpId <= 0) continue
 
             val actionBuilder =
@@ -1165,6 +1160,29 @@ object ActionMapper {
             builder.addActions(actionBuilder)
         }
     }
+
+    /**
+     * Pick the per-card alt-cost ability grpId for a hand-cast SA. Foretell's
+     * hand SA pays the constant {2} `foretell *action* cost` while the
+     * pre-bound row carries the foretell *cast* cost ({R} for Demon Bolt) —
+     * cost-aware lookup misses, so fall back to cost-agnostic and rely on
+     * each card carrying at most one Foretell row. Warp/Sneak/Plot keep the
+     * cost-aware match.
+     */
+    private fun resolveHandAltCostGrpId(
+        altCosts: List<AltCostBinding>,
+        keywordBaseId: Int,
+        payCostPairs: List<Pair<ManaColor, Int>>,
+        isForetelling: Boolean,
+    ): Int =
+        if (isForetelling) {
+            altCosts.firstOrNull { it.keywordBaseId == keywordBaseId }?.abilityGrpId ?: 0
+        } else {
+            altCosts
+                .firstOrNull {
+                    it.keywordBaseId == keywordBaseId && it.manaCost.toMap() == payCostPairs.toMap()
+                }?.abilityGrpId ?: 0
+        }
 
     /**
      * Legacy: live-Forge variant of [addZoneCastActionsFromSnap]. The snapshot

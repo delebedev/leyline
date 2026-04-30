@@ -90,12 +90,23 @@ data class BoundCard(
             )
 
         /**
-         * Walk [data]'s `abilityIds` once and return the alt-cost rows whose
-         * [leyline.game.data.AbilityInfo.baseId] is one of the well-known
-         * keyword roots ([ALT_COST_BASE_IDS]). Single source of truth for the
-         * "what alt-cost rails does this card carry" question — production
-         * snapshot binding and the deprecated live-Forge action path both
-         * call here so the lookup never recurs at consumer sites.
+         * Walk [data]'s `abilityIds` once and return the alt-cost rows the
+         * card carries. Mirrors [CardRepository.findKeywordAbilityGrpId]'s
+         * two-shape resolution so consumers reading from [BoundCard.altCosts]
+         * agree with the live lookup:
+         *
+         *  1. **Direct match** — the well-known root id appears verbatim in
+         *     `Cards.AbilityIds`. Rare for alt-cost keywords (the canonical
+         *     shape is the BaseId chain), but surfaces in fixtures that
+         *     register only the keyword's bare id without a per-printing
+         *     `AbilityInfo` row.
+         *  2. **BaseId chain** — an ability on the card has
+         *     [leyline.game.data.AbilityInfo.baseId] equal to a well-known
+         *     root.
+         *
+         * Single source of truth for the "what alt-cost rails does this card
+         * carry" question — production snapshot binding and the deprecated
+         * live-Forge action path both call here.
          */
         fun bindAltCosts(
             data: CardData?,
@@ -104,6 +115,18 @@ data class BoundCard(
             if (data == null) return emptyList()
             val out = mutableListOf<AltCostBinding>()
             for ((abilityGrpId, _) in data.abilityIds) {
+                if (abilityGrpId in ALT_COST_BASE_IDS) {
+                    // Direct-match shape: the well-known root id stands in
+                    // for the per-printing row. No AbilityInfo registration
+                    // needed; mana cost defaults to empty.
+                    out +=
+                        AltCostBinding(
+                            keywordBaseId = abilityGrpId,
+                            abilityGrpId = abilityGrpId,
+                            manaCost = emptyList(),
+                        )
+                    continue
+                }
                 val info = repo.findAbilityInfo(abilityGrpId) ?: continue
                 if (info.baseId !in ALT_COST_BASE_IDS) continue
                 out +=
@@ -186,10 +209,13 @@ data class DesignationSet(
  *    Source creature. The parent is the live Source whose `prepared.firstRemembered`
  *    points at the copy.
  *
- * Replaces the previously-scattered `attachedToInstanceId` /
- * `preparedCopySourceInstanceId` nullable pair on [CardSnapshot]; consumers
- * pattern-match on the sealed type instead of mentally AND-ing two
- * independent nulls.
+ * Collapses the previously-scattered `attachedToInstanceId` /
+ * `preparedCopySourceInstanceId` nullable pair on [CardSnapshot] into one
+ * sealed choice that downstream consumers (e.g. [ObjectMapper]) read instead
+ * of mentally AND-ing two independent nulls. The underlying nullable fields
+ * still live on [CardSnapshot] as binding-only inputs — `bindParentLinkage`
+ * resolves them once at snapshot time and no consumer reads the raw fields
+ * anymore. Their own retirement waits on the broader `CardSnapshot` sunset.
  */
 sealed interface ParentLinkage {
     /** The instanceId of the parent object — what gets stamped as `parentId`. */

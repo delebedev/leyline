@@ -3,7 +3,6 @@ package leyline.game.mapping
 import forge.game.card.Card
 import leyline.game.codes.KeywordGrpIds
 import leyline.game.data.CardProtoBuilder
-import leyline.game.data.CardRepository
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.CombatRole
 import leyline.game.snapshot.ParentLinkage
