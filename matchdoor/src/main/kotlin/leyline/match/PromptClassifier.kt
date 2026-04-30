@@ -1,6 +1,7 @@
 package leyline.match
 
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 
@@ -52,51 +53,40 @@ sealed interface ClassifiedPrompt {
 object PromptClassifier {
     fun classify(pendingPrompt: InteractivePromptBridge.PendingPrompt): ClassifiedPrompt {
         val req = pendingPrompt.request
-        return when {
-            req.semantic == PromptSemantic.GroupingSurveil -> {
-                ClassifiedPrompt.Grouping(pendingPrompt, GroupingContext.Surveil)
-            }
-
-            req.semantic == PromptSemantic.GroupingScry -> {
-                ClassifiedPrompt.Grouping(pendingPrompt, GroupingContext.Scry_a0f6)
-            }
-
-            req.semantic == PromptSemantic.ModalChoice -> ClassifiedPrompt.ModalChoice(pendingPrompt)
-            req.semantic == PromptSemantic.SelectNLegendRule ->
-                ClassifiedPrompt.SelectN(
-                    pendingPrompt,
-                    ClassifiedPrompt.SelectN.Reason.LegendRule,
-                )
-            req.semantic == PromptSemantic.Search -> ClassifiedPrompt.Search(pendingPrompt)
-            req.semantic == PromptSemantic.SelectNDiscard ->
-                ClassifiedPrompt.SelectN(
-                    pendingPrompt,
-                    ClassifiedPrompt.SelectN.Reason.Discard,
-                )
-            req.promptType == "choose_cards" && req.message.contains("sacrifice", ignoreCase = true) ->
-                ClassifiedPrompt.SelectN(
-                    pendingPrompt,
-                    ClassifiedPrompt.SelectN.Reason.Sacrifice,
-                )
-            req.semantic == PromptSemantic.RevealChoose ->
-                ClassifiedPrompt.SelectN(
-                    pendingPrompt,
-                    ClassifiedPrompt.SelectN.Reason.RevealChoose,
-                )
-            req.semantic == PromptSemantic.SelectNCostExileFromGrave ->
-                ClassifiedPrompt.SelectN(
-                    pendingPrompt,
-                    ClassifiedPrompt.SelectN.Reason.ExileFromGrave,
-                )
-            req.semantic == PromptSemantic.SelectNResolution ->
-                ClassifiedPrompt.SelectN(
-                    pendingPrompt,
-                    ClassifiedPrompt.SelectN.Reason.Resolution,
-                )
-            // Ordering: explicit semantics above must precede candidateRefs fallback,
-            // since reveal-choose prompts also have candidateRefs populated.
-            req.candidateRefs.isNotEmpty() -> ClassifiedPrompt.Targeting(pendingPrompt)
-            else -> ClassifiedPrompt.AutoResolve(pendingPrompt)
-        }
+        return classifyBySemantic(pendingPrompt, req) ?: classifyGeneric(pendingPrompt, req)
     }
+
+    // Exhaustive on PromptSemantic — adding a new variant fails compile until classified.
+    private fun classifyBySemantic(
+        p: InteractivePromptBridge.PendingPrompt,
+        req: PromptRequest,
+    ): ClassifiedPrompt? =
+        when (req.semantic) {
+            PromptSemantic.GroupingSurveil -> ClassifiedPrompt.Grouping(p, GroupingContext.Surveil)
+            PromptSemantic.GroupingScry -> ClassifiedPrompt.Grouping(p, GroupingContext.Scry_a0f6)
+            PromptSemantic.ModalChoice -> ClassifiedPrompt.ModalChoice(p)
+            PromptSemantic.SelectNLegendRule ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.LegendRule)
+            PromptSemantic.SelectNDiscard ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.Discard)
+            PromptSemantic.Search -> ClassifiedPrompt.Search(p)
+            PromptSemantic.RevealChoose ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.RevealChoose)
+            PromptSemantic.SelectNCostExileFromGrave ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.ExileFromGrave)
+            PromptSemantic.SelectNResolution ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.Resolution)
+            PromptSemantic.Generic -> null
+        }
+
+    private fun classifyGeneric(
+        p: InteractivePromptBridge.PendingPrompt,
+        req: PromptRequest,
+    ): ClassifiedPrompt =
+        when {
+            req.promptType == "choose_cards" && req.message.contains("sacrifice", ignoreCase = true) ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.Sacrifice)
+            req.candidateRefs.isNotEmpty() -> ClassifiedPrompt.Targeting(p)
+            else -> ClassifiedPrompt.AutoResolve(p)
+        }
 }

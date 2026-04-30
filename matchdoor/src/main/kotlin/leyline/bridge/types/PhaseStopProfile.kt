@@ -70,12 +70,9 @@ class PhaseStopProfile private constructor(
          * forge-web GameSessionManager which expects nullable.
          */
         fun forPhaseKey(key: String): PhaseType? =
-            try {
-                val pt = PhaseType.valueOf(key)
-                if (pt in CANONICAL_PHASES) pt else null
-            } catch (_: IllegalArgumentException) {
-                null
-            }
+            runCatching { PhaseType.valueOf(key) }
+                .getOrNull()
+                ?.takeIf { it in CANONICAL_PHASES }
 
         /**
          * Own-turn defaults for the human player — matches the protocol's initial stop set.
