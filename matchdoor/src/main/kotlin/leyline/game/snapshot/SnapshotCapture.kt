@@ -66,7 +66,6 @@ object SnapshotCapture {
             gameStateId = gameStateId,
             seats = seats,
             zones = zones,
-            objects = objects,
             boundCards = boundCards,
             phase = phase,
             stack = stack,

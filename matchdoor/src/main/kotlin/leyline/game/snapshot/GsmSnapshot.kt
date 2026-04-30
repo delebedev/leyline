@@ -8,23 +8,21 @@ import leyline.game.state.GameBridge
 import org.jetbrains.annotations.VisibleForTesting
 
 /**
- * Immutable capture of every field the GSM pipeline reads from the engine.
- * Captured once per bundle at entry; every downstream stage is a pure function of it.
+ * Immutable per-frame snapshot of every field the GSM pipeline reads from
+ * the engine. Built once per bundle at entry; every downstream stage is a
+ * pure function of it.
  *
- * Field set grows as mappers migrate — see this bundle's plan for migration order.
+ * Per-card state lives on [boundCards] as [BoundCard] — pairs the live
+ * [CardSnapshot] with static [leyline.game.data.CardData], pre-resolved
+ * alt-cost bindings, designations, and parent linkage. The [objects] map is
+ * a derived view exposing the underlying [CardSnapshot]s by ForgeCardId for
+ * callers that haven't migrated to the BoundCard reads yet.
  */
 class GsmSnapshot internal constructor(
     val matchId: String,
     val gameStateId: Int,
     val seats: List<SeatSnapshot>,
     val zones: Map<Int, ZoneSnapshot>,
-    val objects: Map<ForgeCardId, CardSnapshot>,
-    /**
-     * Per-card bound view — paired with [objects] one-for-one. Built alongside
-     * `objects` so consumers can read static [leyline.game.data.CardData] without
-     * reaching into `bridge.cardRepository`. See [BoundCard]'s KDoc for the
-     * BoundCard migration plan (S2.A in leyline-y3pf).
-     */
     val boundCards: Map<ForgeCardId, BoundCard>,
     val stack: StackSnapshot,
     val phase: PhaseSnapshot,
@@ -33,6 +31,15 @@ class GsmSnapshot internal constructor(
     val persistentAnnotationState: PersistentAnnotationState,
     val capturedAt: CaptureMarker,
 ) {
+    /**
+     * Derived view exposing each [BoundCard]'s underlying [CardSnapshot] by
+     * ForgeCardId. Held for callers that read live state directly off the
+     * snapshot type; new code should prefer [boundCards] so static [CardData]
+     * and pre-resolved fields are reachable without a second lookup.
+     */
+    val objects: Map<ForgeCardId, CardSnapshot>
+        get() = boundCards.mapValues { it.value.snapshot }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is GsmSnapshot) return false
@@ -41,7 +48,6 @@ class GsmSnapshot internal constructor(
             gameStateId == other.gameStateId &&
             seats == other.seats &&
             zones == other.zones &&
-            objects == other.objects &&
             boundCards == other.boundCards &&
             stack == other.stack &&
             phase == other.phase &&
@@ -55,7 +61,6 @@ class GsmSnapshot internal constructor(
         h = 31 * h + gameStateId
         h = 31 * h + seats.hashCode()
         h = 31 * h + zones.hashCode()
-        h = 31 * h + objects.hashCode()
         h = 31 * h + boundCards.hashCode()
         h = 31 * h + stack.hashCode()
         h = 31 * h + phase.hashCode()
@@ -105,7 +110,6 @@ class GsmSnapshot internal constructor(
                 gameStateId,
                 seats,
                 zones,
-                objects,
                 resolvedBoundCards,
                 stack,
                 phase,
