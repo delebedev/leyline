@@ -1,0 +1,112 @@
+package leyline.game.mapping
+
+import io.kotest.assertions.assertSoftly
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.shouldBe
+import leyline.UnitTag
+import leyline.game.data.KeywordAbilityIds
+import leyline.game.snapshot.AltCostBinding
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+
+/**
+ * Pins for the [CastRails] table. Smoke-level row coverage — verifies each
+ * row's [resolveAltGrpId] dispatch agrees with the lookup mode it declares.
+ * The richer SA-predicate contract is exercised by the per-keyword
+ * conformance tests (KeywordCastShapeIntegrationTest, PlotTest, ForetellTest,
+ * DisturbTest, EscapeTest, SneakTest).
+ */
+class CastRailsTest :
+    FunSpec({
+        tags(UnitTag)
+
+        val warpRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.WARP,
+                abilityGrpId = 9001,
+                manaCost = listOf(ManaColor.Red_afc9 to 1, ManaColor.Generic to 2),
+            )
+        val foretellRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.FORETELL,
+                abilityGrpId = 8001,
+                // Cast cost on the bound row — the hand SA pays the constant {2} action
+                // cost, so cost-aware lookup misses on purpose.
+                manaCost = listOf(ManaColor.Red_afc9 to 1),
+            )
+        val escapeRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.ESCAPE,
+                abilityGrpId = 7001,
+                manaCost = listOf(ManaColor.Generic to 3),
+            )
+        val plotRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.PLOT,
+                abilityGrpId = 6001,
+                manaCost = listOf(ManaColor.Red_afc9 to 1, ManaColor.Generic to 1),
+            )
+        val altCosts = listOf(warpRow, foretellRow, escapeRow, plotRow)
+
+        test("Plot exile rail returns universal-149 regardless of altCosts contents") {
+            val plotExile = CastRails.fromExile.first { it.kind == AltCostKind.PLOT }
+            resolveAltGrpId(plotExile, altCosts, payCostPairs = emptyList()) shouldBe 149
+            resolveAltGrpId(plotExile, emptyList(), payCostPairs = emptyList()) shouldBe 149
+        }
+
+        test("Foretell exile rail is cost-agnostic — returns row even when payCostPairs disagree") {
+            val foretellExile = CastRails.fromExile.first { it.kind == AltCostKind.FORETELL }
+            // Action SA pays {2} (different from row's {R}), but cost-agnostic still hits.
+            val payAction = listOf(ManaColor.Generic to 2)
+            resolveAltGrpId(foretellExile, altCosts, payAction) shouldBe foretellRow.abilityGrpId
+        }
+
+        test("Disturb / Escape graveyard rails are cost-agnostic per current behavior") {
+            val escape = CastRails.fromGraveyard.first { it.kind == AltCostKind.ESCAPE }
+            // Empty payCostPairs still resolves — graveyard rails default to cost-agnostic.
+            resolveAltGrpId(escape, altCosts, payCostPairs = emptyList()) shouldBe escapeRow.abilityGrpId
+        }
+
+        test("Warp hand rail is cost-aware — matches on mana cost multiset") {
+            val warp = CastRails.handWithAltCost.first { it.kind == AltCostKind.WARP }
+            val matching = listOf(ManaColor.Red_afc9 to 1, ManaColor.Generic to 2)
+            resolveAltGrpId(warp, altCosts, matching) shouldBe warpRow.abilityGrpId
+            // Cost mismatch → row not selected.
+            val mismatched = listOf(ManaColor.Blue_afc9 to 1)
+            resolveAltGrpId(warp, altCosts, mismatched) shouldBe 0
+        }
+
+        test("Foretell hand rail is cost-agnostic — handles the {2} action vs cast-cost mismatch") {
+            val foretellHand = CastRails.handWithAltCost.first { it.kind == AltCostKind.FORETELL }
+            val payAction = listOf(ManaColor.Generic to 2)
+            resolveAltGrpId(foretellHand, altCosts, payAction) shouldBe foretellRow.abilityGrpId
+        }
+
+        test("Plot hand rail is cost-aware") {
+            val plotHand = CastRails.handWithAltCost.first { it.kind == AltCostKind.PLOT }
+            val matching = listOf(ManaColor.Red_afc9 to 1, ManaColor.Generic to 1)
+            resolveAltGrpId(plotHand, altCosts, matching) shouldBe plotRow.abilityGrpId
+        }
+
+        test("Rails inventory — buckets cover the six AltCostKind values without overlap loss") {
+            assertSoftly {
+                CastRails.fromExile.map { it.kind } shouldContainExactly listOf(AltCostKind.PLOT, AltCostKind.FORETELL)
+                CastRails.fromGraveyard.map { it.kind } shouldContainExactly listOf(AltCostKind.DISTURB, AltCostKind.ESCAPE)
+                CastRails.handWithAltCost.map { it.kind } shouldContainExactly
+                    listOf(AltCostKind.WARP, AltCostKind.SNEAK, AltCostKind.PLOT, AltCostKind.FORETELL)
+            }
+        }
+
+        test("Universal-149 source is exclusively the Plot exile leg") {
+            val universal149Rails =
+                CastRails.all.filter { rail ->
+                    rail is ZoneCastRail && rail.altGrpIdSource is AltGrpIdSource.Universal149
+                }
+            universal149Rails.map { it.kind } shouldContainExactly listOf(AltCostKind.PLOT)
+        }
+
+        test("Every AltCostKind appears in at least one rail") {
+            val kindsCovered = CastRails.all.map { it.kind }.toSortedSet()
+            kindsCovered shouldContainExactly AltCostKind.entries.toSortedSet()
+        }
+    })
