@@ -79,14 +79,15 @@ object SnapshotCapture {
     }
 
     /**
-     * Pair every [CardSnapshot] with its static [leyline.game.data.CardData],
-     * resolving the DB lookup once per card. Phase 0 of the BoundCard migration
-     * (S2.A in leyline-y3pf): no consumers read from the result yet — this is
-     * the binding step that future phases extend.
+     * Pair every [CardSnapshot] with its static [leyline.game.data.CardData]
+     * and the alt-cost rows the card carries, resolving DB lookups once per
+     * card. Phases of the BoundCard migration (S2.A in leyline-y3pf) extend
+     * the bound view incrementally — each new field shifts a consumer-side
+     * `bridge.cardRepository.*` call onto the bind path here.
      *
      * `data == null` for cards whose [CardSnapshot.grpId] has no DB row
      * (`EFFECT` pieces with grpId=0; tokens or unknown identities that the
-     * resolver couldn't bind).
+     * resolver couldn't bind). [BoundCard.altCosts] is empty for those.
      */
     private fun bindCards(
         objects: Map<ForgeCardId, CardSnapshot>,
@@ -96,7 +97,8 @@ object SnapshotCapture {
         val out = linkedMapOf<ForgeCardId, BoundCard>()
         for ((fid, snap) in objects) {
             val data = if (snap.grpId > 0) repo.findByGrpId(snap.grpId) else null
-            out[fid] = BoundCard(fid, snap, data)
+            val altCosts = BoundCard.bindAltCosts(data, repo)
+            out[fid] = BoundCard(fid, snap, data, altCosts)
         }
         return out
     }
