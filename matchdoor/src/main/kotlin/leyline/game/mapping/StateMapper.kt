@@ -1422,18 +1422,9 @@ object StateMapper {
         return ForgeCardId(sourceCard.id)
     }
 
-    /** Cleanup ability grpId paired with the source card's Mobilize keyword.
-     *  Looked up from the source's `Cards.HiddenAbilityIds` field — the
-     *  card-DB pairs every Mobilize-N (keyword on `AbilityIds`) with its
-     *  "Sacrifice them at the beginning of the next end step." entry on
-     *  `HiddenAbilityIds`. Filters on Category == 2 (triggered) so cards
-     *  that pair the cleanup with a static hidden ability (e.g. Zurgo,
-     *  Thunder's Decree's "can't be sacrificed") still pick the cleanup
-     *  row deterministically regardless of ordering. Null when the source
-     *  isn't a Mobilize card or has no hidden triggered ability; callers
-     *  fall back to the universal EOT-sacrifice grpId. Generic over
-     *  Mobilize-N — works for any future Mobilize value without table
-     *  updates. */
+    /** See [BoundCard.mobilizeCleanup]. Null when the source isn't a Mobilize
+     *  card or has no hidden triggered ability; callers fall back to the
+     *  universal EOT-sacrifice grpId. */
     private fun mobilizeCleanupGrpIdForSource(
         sourceForgeId: ForgeCardId,
         snap: GsmSnapshot,

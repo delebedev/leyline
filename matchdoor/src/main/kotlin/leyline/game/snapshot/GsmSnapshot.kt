@@ -15,8 +15,8 @@ import org.jetbrains.annotations.VisibleForTesting
  * Per-card state lives on [boundCards] as [BoundCard] — pairs the live
  * [CardSnapshot] with static [leyline.game.data.CardData], pre-resolved
  * alt-cost bindings, designations, and parent linkage. The [objects] map is
- * a derived view exposing the underlying [CardSnapshot]s by ForgeCardId for
- * callers that haven't migrated to the BoundCard reads yet.
+ * a derived view exposing each [BoundCard]'s underlying [CardSnapshot] by
+ * ForgeCardId.
  */
 class GsmSnapshot internal constructor(
     val matchId: String,
@@ -33,12 +33,8 @@ class GsmSnapshot internal constructor(
 ) {
     /**
      * Derived view exposing each [BoundCard]'s underlying [CardSnapshot] by
-     * ForgeCardId. Held for callers that read live state directly off the
-     * snapshot type; new code should prefer [boundCards] so static [CardData]
-     * and pre-resolved fields are reachable without a second lookup.
-     *
-     * Memoized — diff-time loops iterate `snap.objects` repeatedly and a
-     * recomputing accessor would re-allocate per access.
+     * ForgeCardId. Memoized — diff-time loops iterate `snap.objects`
+     * repeatedly and a recomputing accessor would re-allocate per access.
      */
     val objects: Map<ForgeCardId, CardSnapshot> by lazy {
         boundCards.mapValues { it.value.snapshot }

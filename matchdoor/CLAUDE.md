@@ -95,9 +95,9 @@ ArchUnit enforces: bridge → game → match (no reverse deps within the module)
 - `ActionMapper`'s `cardDataLookup` lambdas in `buildActionList`, `buildAutoTapSolution`, `buildActivateManaAction` — `(GrpId) -> CardData?` abstraction is grpId-keyed, not forgeCardId-keyed; the cost solver queries any grpId, not just the carrying card's.
 - Name-keyed lookups: `TargetingHandler.sendCastingTimeOptionsReq` (modal options by card name), `StateMapper.buildTargetSpecAnnotations` (target spec by spell name), `ZoneTransferDetector`'s `grpIdResolver` (token grpId by Forge card name) — BoundCard is keyed on `ForgeCardId`, not name.
 
-`GsmSnapshot.objects` is now a derived view of `boundCards.mapValues { it.snapshot }` (memoized); `boundCards` is the single source of truth and `equals`/`hashCode` ignore the derived projection.
+`GsmSnapshot.objects` is a memoized derived view of `boundCards.mapValues { it.snapshot }`; `boundCards` is the single source of truth and `equals`/`hashCode` ignore the derived projection.
 
-**TokenIdentityRegistry stays load-bearing.** Even with deterministic per-frame BoundCard binding, the cross-frame `instanceId → grpId` cache guards against Forge state that mutates between diff ticks — a token's `tokenSpawningAbility` can detach (source sacrificed, host bounced) and a copied token's source `Card` can stop being legally resolvable while the token instance lives on. The registry's "first write wins" pin keeps the wire grpId stable through those transitions. Don't retire it as part of the BoundCard work.
+**TokenIdentityRegistry stays load-bearing.** The cross-frame `instanceId → grpId` cache guards against Forge state that mutates between diff ticks — a token's `tokenSpawningAbility` can detach (source sacrificed, host bounced) and a copied token's source `Card` can stop being legally resolvable while the token instance lives on. The registry's "first write wins" pin keeps the wire grpId stable through those transitions.
 
 ## Cost Data Flow
 

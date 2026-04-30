@@ -81,10 +81,9 @@ object SnapshotCapture {
 
     /**
      * Pair every [CardSnapshot] with its static [leyline.game.data.CardData]
-     * and the alt-cost rows the card carries, resolving DB lookups once per
-     * card. Phases of the BoundCard migration (S2.A in leyline-y3pf) extend
-     * the bound view incrementally — each new field shifts a consumer-side
-     * `bridge.cardRepository.*` call onto the bind path here.
+     * plus pre-resolved consumer queries (alt-cost rows, Mobilize cleanup,
+     * parent linkage, designations) so mappers don't re-call
+     * `bridge.cardRepository.*` per consumer site.
      *
      * `data == null` for cards whose [CardSnapshot.grpId] has no DB row
      * (`EFFECT` pieces with grpId=0; tokens or unknown identities that the
@@ -114,12 +113,11 @@ object SnapshotCapture {
 
     /**
      * Collapse the pair of parent-link instanceIds on [snap] into a single
-     * [ParentLinkage] case. Returns null when the card has neither attachment
-     * nor prepared-copy linkage. Prepared-copy wins when both are populated —
-     * mirrors the previous direct-field precedence (the prepared-copy branch
-     * ran second and overrode the attachedTo `setParentId`); the protocol
-     * semantic for "prepared exile copy that's also attached" is unspecified
-     * either way.
+     * [ParentLinkage] case. Returns null when the card has neither
+     * attachment nor prepared-copy linkage. Prepared-copy wins when both
+     * are populated — the protocol semantic for "prepared exile copy that's
+     * also attached" is unspecified either way; preferring the prepared
+     * linkage keeps the cast-from-exile shape intact for the client.
      */
     private fun bindParentLinkage(snap: CardSnapshot): ParentLinkage? {
         if (snap.preparedRole is PreparedRole.Copy) {

@@ -8,36 +8,28 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
  * Per-frame bound view of one card — pairs the live [CardSnapshot] with the
- * static [CardData] resolved at snapshot time, plus pre-resolved alt-cost
- * bindings so consumers don't reach back into `bridge.cardRepository`.
+ * static [CardData] resolved at snapshot time, plus pre-resolved fields that
+ * downstream mappers would otherwise reach into `bridge.cardRepository` for.
  *
- * The cornerstone of the architectural-pressure epic (S2.A in `leyline-y3pf`):
- * as phases land, more pre-resolved fields move onto BoundCard (modal options,
- * mobilize cleanup, parent linkage, designations) and `CardSnapshot` shrinks
- * until Phase 7 retires it entirely.
- *
- * Field set today:
- *  - [snapshot] holds the live state (zone-affecting fields, P/T, designations)
- *  - [data] holds the static metadata (null when no DB row exists)
- *  - [altCosts] enumerates the BaseId-chain alt-cost ability rows on the card
+ *  - [snapshot] holds the live state (zone-affecting fields, P/T, designation
+ *    flags).
+ *  - [data] holds the static metadata. Null when no DB row exists for the
+ *    card's grpId — `EFFECT` engine pieces (grpId=0) and unbound tokens.
+ *  - [altCosts] enumerates the alt-cost ability rows the card carries
  *    (Plot, Foretell, Disturb, Escape, Warp, Sneak, Madness, Flashback,
- *    Mobilize) — the data driving [leyline.game.mapping.ActionMapper]'s
+ *    Mobilize). Drives [leyline.game.mapping.ActionMapper]'s
  *    cast-from-non-hand-zone and hand-alt-cost rails.
- *  - [mobilizeCleanup] is the per-card hidden triggered-ability grpId (the
- *    "Sacrifice them at the next end step" row) for Mobilize sources;
- *    null for non-Mobilize cards. Drives StateMapper's TemporaryPermanent
- *    + DelayedTriggerAffectees pAnn emission for EOT-sacrifice tokens.
- *  - [parentLinkage] collapses the previously-scattered attachedTo /
- *    preparedCopySource pair into a sealed type that drives `parentId`
- *    emission on [leyline.game.mapping.ObjectMapper]'s GameObject build path.
- *    Auras / Equipment surface as [ParentLinkage.AttachedTo]; prepared-spell
- *    exile copies as [ParentLinkage.PreparedCopy]; null for everything else.
+ *  - [mobilizeCleanup] is the per-card hidden triggered-ability grpId — the
+ *    "Sacrifice them at the next end step" row paired with every Mobilize
+ *    keyword. Null for non-Mobilize cards. Drives StateMapper's
+ *    TemporaryPermanent + DelayedTriggerAffectees pAnn emission.
+ *  - [parentLinkage] drives `parentId` emission on
+ *    [leyline.game.mapping.ObjectMapper]'s GameObject build path. Auras /
+ *    Equipment surface as [ParentLinkage.AttachedTo]; prepared-spell exile
+ *    copies as [ParentLinkage.PreparedCopy].
  *  - [designations] gathers card-state designations (Prepared, Plotted,
- *    Foretold) into one struct so StateMapper's three transient inserters
- *    can address them through a single field rather than three independent
- *    snapshot reads. Sets up the future S3.B
- *    `CardStateDesignations` registry where each designation row plugs into
- *    one diff loop.
+ *    Foretold) so StateMapper's per-designation transient inserters address
+ *    one field rather than three independent snapshot reads.
  */
 data class BoundCard(
     val forgeCardId: ForgeCardId,
@@ -103,10 +95,6 @@ data class BoundCard(
          *  2. **BaseId chain** — an ability on the card has
          *     [leyline.game.data.AbilityInfo.baseId] equal to a well-known
          *     root.
-         *
-         * Single source of truth for the "what alt-cost rails does this card
-         * carry" question — production snapshot binding and the deprecated
-         * live-Forge action path both call here.
          */
         fun bindAltCosts(
             data: CardData?,
@@ -179,13 +167,13 @@ data class AltCostBinding(
 
 /**
  * Card-state designations gathered into one struct: Prepared role, Plotted
- * role, and the Foretold flag. Groups three previously-independent
- * [CardSnapshot] fields under a single name so StateMapper's per-designation
- * transient inserters address one field rather than three.
+ * role, and the Foretold flag. StateMapper's per-designation transient
+ * inserters address this one field rather than scanning three independent
+ * snapshot fields.
  *
- * Sealed/Boolean shapes are preserved verbatim — [PreparedRole.Source] still
- * carries `copyForgeCardId`, [PreparedRole.Copy] still carries
- * `sourceForgeCardId?` — to keep S3.A / S3.B refactors loss-free.
+ * [PreparedRole.Source] carries `copyForgeCardId` and [PreparedRole.Copy]
+ * carries `sourceForgeCardId?` — the structural data each role needs to
+ * recover its partner without a second lookup.
  */
 data class DesignationSet(
     val prepared: PreparedRole = PreparedRole.None,
@@ -203,19 +191,15 @@ data class DesignationSet(
  * proto. Sealed because the two cases are structurally distinct:
  *
  *  - [AttachedTo] — Aura/Equipment attached to a permanent. The attachment is
- *    a Forge `Card.attachedTo` reference and the parent is the carrier
+ *    a Forge `Card.attachedTo` reference; the parent is the carrier
  *    permanent.
  *  - [PreparedCopy] — prepared-spell exile copy linked to its battlefield
- *    Source creature. The parent is the live Source whose `prepared.firstRemembered`
- *    points at the copy.
+ *    Source creature. The parent is the live Source whose
+ *    `prepared.firstRemembered` points at the copy.
  *
- * Collapses the previously-scattered `attachedToInstanceId` /
- * `preparedCopySourceInstanceId` nullable pair on [CardSnapshot] into one
- * sealed choice that downstream consumers (e.g. [ObjectMapper]) read instead
- * of mentally AND-ing two independent nulls. The underlying nullable fields
- * still live on [CardSnapshot] as binding-only inputs — `bindParentLinkage`
- * resolves them once at snapshot time and no consumer reads the raw fields
- * anymore. Their own retirement waits on the broader `CardSnapshot` sunset.
+ * Resolved by `SnapshotCapture.bindParentLinkage`; consumers (e.g.
+ * `ObjectMapper`) pattern-match here instead of AND-ing two independent
+ * nulls.
  */
 sealed interface ParentLinkage {
     /** The instanceId of the parent object — what gets stamped as `parentId`. */

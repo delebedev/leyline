@@ -245,16 +245,10 @@ object ObjectMapper {
             setIsCopy(true)
         }
 
-        // Parent linkage — sealed choice between aura/equipment attachment and
-        // prepared-copy source. When both would apply, [SnapshotCapture]'s
-        // bindParentLinkage resolves to PreparedCopy first; the protocol
-        // semantic for "prepared exile copy that's also attached" is
-        // unspecified, and the prepared linkage keeps the cast-from-exile
-        // shape intact for the client.
         when (parentLinkage) {
             is ParentLinkage.PreparedCopy -> setParentId(parentLinkage.parentInstanceId)
             is ParentLinkage.AttachedTo -> setParentId(parentLinkage.parentInstanceId)
-            null -> {} // no parent
+            null -> {}
         }
 
         // Combat state

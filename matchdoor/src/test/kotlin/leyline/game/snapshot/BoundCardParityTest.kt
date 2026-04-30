@@ -17,12 +17,11 @@ import leyline.conformance.ConformanceTestBase
 import leyline.game.data.KeywordAbilityIds
 
 /**
- * Phase 0 parity gate for the BoundCard migration (S2.A in `leyline-y3pf`).
- *
- * Verifies that the per-card bound view built alongside `objects` agrees with
- * direct `cardRepository.findByGrpId` lookups: same cardinality, same grpId
- * binding, no off-by-one keying. Disposable — deleted at Phase 7 once
- * `CardSnapshot` retires and BoundCard becomes the sole per-card type.
+ * Pins that BoundCard's per-card bound view agrees with direct
+ * `cardRepository` lookups — same cardinality, same grpId binding,
+ * designation fields mirror the underlying snapshot, parent linkage
+ * materializes for attachments. Catches binding regressions at the
+ * snapshot/projection boundary.
  */
 class BoundCardParityTest :
     FunSpec({
@@ -102,9 +101,8 @@ class BoundCardParityTest :
             val snap = SnapshotCapture.run(game, b, "test", 0)
 
             // Every BoundCard's DesignationSet must mirror the underlying
-            // CardSnapshot fields verbatim — the wrapper struct is the
-            // substrate for the future S3.B registry, so loss-free copying
-            // is load-bearing.
+            // CardSnapshot fields verbatim — loss-free copying is load-bearing
+            // for downstream pattern-matches over the role hierarchy.
             for (bound in snap.boundCards.values) {
                 val cardSnap = bound.snapshot
                 assertSoftly {
@@ -147,7 +145,7 @@ class BoundCardParityTest :
             bearBound.parentLinkage.shouldBeNull()
         }
 
-        test("altCosts pre-resolves Mobilize via either direct match or BaseId chain") {
+        test("non-Mobilize cards carry no Mobilize alt-cost row and no cleanup") {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
@@ -155,7 +153,6 @@ class BoundCardParityTest :
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
 
-            // Sanity baseline: Grizzly Bears carries no alt-cost rows.
             val bearsBound =
                 snap.boundCards.values
                     .firstOrNull {

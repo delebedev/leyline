@@ -1123,15 +1123,6 @@ object ActionMapper {
             if (!canPay) continue
 
             val effectiveCost = computeEffectiveCost(sa, player)
-            // Resolve the per-card warp/sneak/plot/foretell row from the
-            // pre-bound alt-cost list. For Warp/Sneak/Plot the hand SA's mana
-            // cost == the alt-cost row's mana cost (e.g. Plot {3}{G} hand SA
-            // pays {3}{G}, row is {3}{G}), so the cost-aware lookup matches
-            // cleanly. For Foretell the hand SA's cost is the constant {2}
-            // (the foretell *action* cost), but the row's mana cost is the
-            // foretell *cast* cost ({R} for Demon Bolt) — cost-aware would
-            // miss; fall back to cost-agnostic since at most one FORETELL row
-            // exists per card.
             val payCostPairs: List<Pair<ManaColor, Int>> =
                 effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
             val keywordBaseId =
