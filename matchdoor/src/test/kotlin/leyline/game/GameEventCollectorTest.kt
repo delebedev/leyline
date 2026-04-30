@@ -1,6 +1,5 @@
 package leyline.game
 
-import forge.card.CardStateName
 import forge.game.card.CardView
 import forge.game.card.CounterEnumType
 import forge.game.event.*
@@ -553,113 +552,9 @@ class GameEventCollectorTest :
             }
         }
 
-        // -- P/T changed --
-
-        test("power toughness changed event") {
-            val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                }
-            val collector = b.eventCollector!!
-            collector.closeFrame()
-
-            val creature =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.isCreature }
-
-            // First event establishes baseline (no prior cached P/T -> no delta)
-            game.fireEvent(GameEventCardStatsChanged(creature))
-            collector.closeFrame()
-
-            // Pump the creature, fire again
-            creature.setBasePower(creature.getNetPower() + 2)
-            game.fireEvent(GameEventCardStatsChanged(creature))
-
-            val pt = collector.closeFrame().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
-            assertSoftly {
-                pt.size shouldBe 1
-                pt[0].cardId shouldBe ForgeCardId(creature.id)
-                pt[0].newPower shouldBe creature.getNetPower()
-            }
-        }
-
-        test("power toughness unchanged - no duplicate") {
-            val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                }
-            val collector = b.eventCollector!!
-            collector.closeFrame()
-
-            val creature =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.isCreature }
-
-            // Fire twice with same stats -- second should not emit
-            game.fireEvent(GameEventCardStatsChanged(creature))
-            collector.closeFrame()
-            game.fireEvent(GameEventCardStatsChanged(creature))
-
-            val pt = collector.closeFrame().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
-            pt.shouldBeEmpty()
-        }
-
-        // -- Transform --
-
-        test("transform emits CardTransformed") {
-            val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Concealing Curtains", human, ZoneType.Battlefield)
-                }
-            val collector = b.eventCollector!!
-            collector.closeFrame() // clear setup events
-
-            val card =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Concealing Curtains" }
-
-            // First stats event establishes baseline (no prior cached backside -> no delta)
-            game.fireEvent(GameEventCardStatsChanged(card))
-            collector.closeFrame()
-
-            // Simulate transform — toggle to back side
-            card.setState(CardStateName.Backside, true)
-            card.setBackSide(true)
-            game.fireEvent(GameEventCardStatsChanged(card))
-
-            val events = collector.closeFrame().events
-            val transformed = events.filterIsInstance<GameEvent.CardTransformed>()
-            assertSoftly {
-                transformed.size shouldBe 1
-                transformed[0].cardId shouldBe ForgeCardId(card.id)
-                transformed[0].isBackSide shouldBe true
-            }
-        }
-
-        test("non-transform stats change does not emit CardTransformed") {
-            val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                }
-            val collector = b.eventCollector!!
-            collector.closeFrame()
-
-            val card =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
-            game.fireEvent(GameEventCardStatsChanged(card))
-
-            val events = collector.closeFrame().events
-            events.filterIsInstance<GameEvent.CardTransformed>().shouldBeEmpty()
-        }
+        // P/T deltas and DFC backside flips are now synthesized from the
+        // prev/cur snap delta in [leyline.game.event.SnapDeltaSynthesizer] —
+        // see SnapDeltaSynthesizerTest.
 
         // -- Shuffle --
 
@@ -736,38 +631,5 @@ class GameEventCollectorTest :
             val sh = collector.closeFrame().events.filterIsInstance<GameEvent.LibraryShuffled>()
             sh.size shouldBe 1
             sh[0].seatId shouldBe SeatId(2)
-        }
-
-        // -- P/T cache cleared on zone leave --
-
-        test("P/T cache cleared on leave battlefield") {
-            val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                }
-            val collector = b.eventCollector!!
-            collector.closeFrame()
-
-            val creature =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.isCreature }
-
-            // Establish baseline P/T
-            game.fireEvent(GameEventCardStatsChanged(creature))
-            collector.closeFrame()
-
-            // Creature leaves battlefield -- should clear P/T cache
-            val bf = game.humanPlayer.getZone(ZoneType.Battlefield)
-            val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
-            game.fireEvent(GameEventCardChangeZone(creature, bf, gy))
-            collector.closeFrame()
-
-            // Re-enter: P/T event should not compare against old cached value
-            game.fireEvent(GameEventCardChangeZone(creature, gy, bf))
-            game.fireEvent(GameEventCardStatsChanged(creature))
-            val pt = collector.closeFrame().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
-            pt.shouldBeEmpty()
         }
     })
