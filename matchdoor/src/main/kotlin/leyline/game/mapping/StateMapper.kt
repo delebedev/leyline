@@ -1604,7 +1604,15 @@ object StateMapper {
                     }
                 revealedZoneBuilder.addObjectInstanceIds(proxyId.value)
                 gameObjects.add(
-                    ObjectMapper.buildRevealedCardProxy(cardSnap, proxyId.value, handZoneId, ownerSeat, viewerSeat, bridge.cardProto),
+                    ObjectMapper.buildRevealedCardProxy(
+                        cardSnap,
+                        proxyId.value,
+                        handZoneId,
+                        ownerSeat,
+                        viewerSeat,
+                        bridge.cardProto,
+                        parentLinkage = snap.boundCards[forgeCardId]?.parentLinkage,
+                    ),
                 )
             }
             zones.add(revealedZoneBuilder.build())

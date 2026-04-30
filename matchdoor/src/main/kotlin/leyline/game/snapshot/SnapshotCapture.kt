@@ -7,8 +7,10 @@ import forge.game.spellability.SpellAbilityStackInstance
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AbilityWordScanner
+import leyline.game.data.CardRepository
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
+import org.jetbrains.annotations.VisibleForTesting
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
@@ -99,9 +101,60 @@ object SnapshotCapture {
             val data = if (snap.grpId > 0) repo.findByGrpId(snap.grpId) else null
             val altCosts = BoundCard.bindAltCosts(data, repo)
             val mobilizeCleanup = BoundCard.bindMobilizeCleanup(data, altCosts, repo)
-            out[fid] = BoundCard(fid, snap, data, altCosts, mobilizeCleanup)
+            val parentLinkage = bindParentLinkage(snap)
+            out[fid] = BoundCard(fid, snap, data, altCosts, mobilizeCleanup, parentLinkage)
         }
         return out
+    }
+
+    /**
+     * Collapse the pair of parent-link instanceIds on [snap] into a single
+     * [ParentLinkage] case. Returns null when the card has neither attachment
+     * nor prepared-copy linkage. Prepared-copy wins when both are populated —
+     * mirrors the previous direct-field precedence (the prepared-copy branch
+     * ran second and overrode the attachedTo `setParentId`); the protocol
+     * semantic for "prepared exile copy that's also attached" is unspecified
+     * either way.
+     */
+    private fun bindParentLinkage(snap: CardSnapshot): ParentLinkage? {
+        if (snap.preparedRole is PreparedRole.Copy) {
+            snap.preparedCopySourceInstanceId?.let { return ParentLinkage.PreparedCopy(it) }
+        }
+        snap.attachedToInstanceId?.let { return ParentLinkage.AttachedTo(it) }
+        return null
+    }
+
+    /**
+     * Resolve the other face's grpId for DFC cards. Returns 0 for non-DFC.
+     *
+     * Scope: **transform DFCs + meld pairs only** — Forge's `Card.isDoubleFaced`
+     * predicate is `isTransformable() || isMeldable()`. MDFC, Adventure, Split,
+     * Flip, Saga, Battle, and Room cards do NOT enter this branch; their grpId
+     * resolution goes through [GrpIdResolver]'s primary/any-face fallback chain.
+     *
+     * Back-face cards (Luminous Phantom, Waildrifter, etc.) have `IsPrimaryCard=0`
+     * in the Arena DB, so [findGrpIdByName]'s primary-only filter misses them.
+     * Fall back to [findGrpIdByNameAnyFace] which lifts that filter.
+     *
+     * Visible for tests that pin the back-face fallback at the projection
+     * boundary. Production callers go through [bindCards].
+     */
+    @VisibleForTesting
+    internal fun resolveOthersideGrpId(
+        card: Card,
+        cards: CardRepository,
+    ): Int {
+        if (!card.isDoubleFaced) return 0
+        val otherStateName =
+            if (card.currentState.stateName == forge.card.CardStateName.Backside) {
+                forge.card.CardStateName.Original
+            } else {
+                forge.card.CardStateName.Backside
+            }
+        val otherState = card.getState(otherStateName) ?: return 0
+        return cards.findGrpIdByName(otherState.name)
+            ?: cards.findGrpIdByNameAnyFace(otherState.name)
+            ?: 0
     }
 
     // --- Task 10: phase + stack capture ---
@@ -333,8 +386,8 @@ object SnapshotCapture {
 
         // Attachment — pre-resolve the parent instanceId here so ObjectMapper
         // doesn't need bridge access at projection time.
-        val attachedTo = card.attachedTo?.let { ForgeCardId(it.id) }
-        val attachedToInstanceId = attachedTo?.let { bridge.getOrAllocInstanceId(it).value }
+        val attachedToInstanceId =
+            card.attachedTo?.let { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
 
         val ownForgeId = ForgeCardId(card.id)
         val preparedRole = resolvePreparedRole(card, onBf, ownForgeId, preparedLinkage)
@@ -343,8 +396,10 @@ object SnapshotCapture {
                 bridge.getOrAllocInstanceId(it).value
             }
 
-        // DFC fields — mirror resolveOthersideGrpId logic
-        val othersideGrpId = ObjectMapper.resolveOthersideGrpId(card, bridge.cardRepository)
+        // DFC fields — pre-resolve the other face's grpId here, so the
+        // projection step ([ObjectMapper.buildFromSnapshot]) reads from
+        // [CardSnapshot.othersideGrpId] without bridge access.
+        val othersideGrpId = resolveOthersideGrpId(card, bridge.cardRepository)
         val currentStateNameIsBackside =
             card.currentState?.stateName == forge.card.CardStateName.Backside
 
@@ -395,7 +450,6 @@ object SnapshotCapture {
             endOfTurnLeavePlay = card.isToken && card.hasSVar("EndOfTurnLeavePlay"),
             isToken = card.isToken,
             isCopyToken = card.isToken && card.copiedPermanent != null,
-            attachedTo = attachedTo,
             attachedToInstanceId = attachedToInstanceId,
             preparedCopySourceInstanceId = preparedCopySourceInstanceId,
             liveCardTypeNumbers = liveTypeNumbers,

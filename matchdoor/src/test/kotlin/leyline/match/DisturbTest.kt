@@ -16,7 +16,6 @@ import leyline.conformance.humanPlayer
 import leyline.conformance.offerAltCost
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.ObjectMapper
 import leyline.game.snapshot.SnapshotCapture
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
@@ -145,7 +144,7 @@ class DisturbTest :
             fromSnap shouldNot offerAltCost(disturbAbilityGrpId)
         }
 
-        test("ObjectMapper.resolveOthersideGrpId returns Waildrifter for Galedrifter (DFC linkage)") {
+        test("SnapshotCapture.resolveOthersideGrpId returns Waildrifter for Galedrifter (DFC linkage)") {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Galedrifter", human, ZoneType.Graveyard)
@@ -158,7 +157,7 @@ class DisturbTest :
             val waildrifterGrpId =
                 b.cardRepository.findGrpIdByName("Waildrifter")
                     ?: leyline.conformance.TestCardRegistry.ensureCardRegistered("Waildrifter")
-            val othersideGrpId = ObjectMapper.resolveOthersideGrpId(card, b.cardRepository)
+            val othersideGrpId = SnapshotCapture.resolveOthersideGrpId(card, b.cardRepository)
             othersideGrpId shouldBeGreaterThan 0
             othersideGrpId shouldBe waildrifterGrpId
         }

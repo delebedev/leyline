@@ -49,14 +49,14 @@ class KeywordCastShapeIntegrationTest :
             luminousPhantomGrpId shouldBeGreaterThan 0
 
             // The bare puzzle start emits a single empty diff (baseline). Project
-            // the bf-resident DFC through ObjectMapper.resolveOthersideGrpId
-            // directly — that's the projection the wire emit uses, exercised
-            // at the snapshot/object-projection boundary where the bug lived.
-            // Pre-fix: returned 0 because findGrpIdByName filters IsPrimaryCard=1
-            // and back faces have IsPrimaryCard=0. The fix added a fallback to
-            // findGrpIdByNameAnyFace; this test pins it.
+            // the bf-resident DFC through SnapshotCapture.resolveOthersideGrpId
+            // directly — that's the projection the snapshot binder uses,
+            // exercised at the snapshot/object-projection boundary where the
+            // bug lived. Pre-fix: returned 0 because findGrpIdByName filters
+            // IsPrimaryCard=1 and back faces have IsPrimaryCard=0. The fix
+            // added a fallback to findGrpIdByNameAnyFace; this test pins it.
             val othersideGrpId =
-                leyline.game.mapping.ObjectMapper.resolveOthersideGrpId(
+                leyline.game.snapshot.SnapshotCapture.resolveOthersideGrpId(
                     lunarchOnBf,
                     harness.bridge.cardRepository,
                 )

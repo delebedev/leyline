@@ -47,14 +47,10 @@ data class CardSnapshot(
     /** True when this is a copy token (Forge copiedPermanent != null). */
     val isCopyToken: Boolean = false,
     /**
-     * ForgeCardId of the card this is attached to (Aura/Equipment enchanted/equipped permanent).
-     * Null when not attached.
-     */
-    val attachedTo: ForgeCardId? = null,
-    /**
-     * Pre-resolved client instanceId of [attachedTo], populated at snapshot time.
-     * Lets [leyline.game.mapping.ObjectMapper.buildFromSnapshot] set `parentId`
-     * without re-touching the bridge.
+     * Pre-resolved client instanceId of the Aura/Equipment carrier permanent
+     * this card is attached to, populated at snapshot time. Null when not
+     * attached. Surfaces on [BoundCard.parentLinkage] as
+     * [ParentLinkage.AttachedTo]; `ObjectMapper` reads from there.
      */
     val attachedToInstanceId: Int? = null,
     /**

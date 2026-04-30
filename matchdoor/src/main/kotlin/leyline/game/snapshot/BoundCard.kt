@@ -27,6 +27,11 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *    "Sacrifice them at the next end step" row) for Mobilize sources;
  *    null for non-Mobilize cards. Drives StateMapper's TemporaryPermanent
  *    + DelayedTriggerAffectees pAnn emission for EOT-sacrifice tokens.
+ *  - [parentLinkage] collapses the previously-scattered attachedTo /
+ *    preparedCopySource pair into a sealed type that drives `parentId`
+ *    emission on [leyline.game.mapping.ObjectMapper]'s GameObject build path.
+ *    Auras / Equipment surface as [ParentLinkage.AttachedTo]; prepared-spell
+ *    exile copies as [ParentLinkage.PreparedCopy]; null for everything else.
  */
 data class BoundCard(
     val forgeCardId: ForgeCardId,
@@ -34,6 +39,7 @@ data class BoundCard(
     val data: CardData?,
     val altCosts: List<AltCostBinding> = emptyList(),
     val mobilizeCleanup: Int? = null,
+    val parentLinkage: ParentLinkage? = null,
 ) {
     /**
      * Find the alt-cost row whose [AltCostBinding.keywordBaseId] matches
@@ -140,3 +146,34 @@ data class AltCostBinding(
     /** Cast cost on this row (multiset-keyed for cost-aware disambiguation). */
     val manaCost: List<Pair<ManaColor, Int>>,
 )
+
+/**
+ * Per-card parent linkage that drives `parentId` emission on the GameObject
+ * proto. Sealed because the two cases are structurally distinct:
+ *
+ *  - [AttachedTo] — Aura/Equipment attached to a permanent. The attachment is
+ *    a Forge `Card.attachedTo` reference and the parent is the carrier
+ *    permanent.
+ *  - [PreparedCopy] — prepared-spell exile copy linked to its battlefield
+ *    Source creature. The parent is the live Source whose `prepared.firstRemembered`
+ *    points at the copy.
+ *
+ * Replaces the previously-scattered `attachedToInstanceId` /
+ * `preparedCopySourceInstanceId` nullable pair on [CardSnapshot]; consumers
+ * pattern-match on the sealed type instead of mentally AND-ing two
+ * independent nulls.
+ */
+sealed interface ParentLinkage {
+    /** The instanceId of the parent object — what gets stamped as `parentId`. */
+    val parentInstanceId: Int
+
+    /** Aura/Equipment attached to the carrier permanent at [parentInstanceId]. */
+    data class AttachedTo(
+        override val parentInstanceId: Int,
+    ) : ParentLinkage
+
+    /** Prepared-spell exile copy whose Source creature lives at [parentInstanceId]. */
+    data class PreparedCopy(
+        override val parentInstanceId: Int,
+    ) : ParentLinkage
+}
