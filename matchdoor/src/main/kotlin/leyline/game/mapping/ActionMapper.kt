@@ -134,7 +134,7 @@ object ActionMapper {
             if (card.hasNonManaActivatedAbilities) {
                 val forgeCard = bridge.findCard(fid) ?: continue
                 val player = bridge.getPlayer(SeatId(seatId)) ?: continue
-                val cardData = bridge.cardRepository.findByGrpId(grpId)
+                val cardData = snap.boundCards[fid]?.data
                 for (ability in forgeCard.spellAbilities) {
                     ability.setActivatingPlayer(player)
                     if (!ability.isActivatedAbility) continue
@@ -239,7 +239,7 @@ object ActionMapper {
                 if (effectiveCost != null && !effectiveCost.isNoCost) {
                     addManaCostFromForge(effectiveCost, inactiveBuilder)
                 } else {
-                    val cardData = bridge.cardRepository.findByGrpId(grpId)
+                    val cardData = snap.boundCards[fid]?.data
                     if (cardData != null) {
                         for ((color, count) in cardData.manaCost) {
                             inactiveBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
@@ -282,7 +282,7 @@ object ActionMapper {
                     )
                 if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
             } else {
-                val cardData = bridge.cardRepository.findByGrpId(grpId)
+                val cardData = snap.boundCards[fid]?.data
                 if (cardData != null) {
                     for ((color, count) in cardData.manaCost) {
                         actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
@@ -332,7 +332,7 @@ object ActionMapper {
                     }
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
                 val grpId = cardSnap.grpId
-                val cardData = bridge.cardRepository.findByGrpId(grpId)
+                val cardData = snap.boundCards[fid]?.data
                 val registry = bridge.abilityRegistryFor(forgeCard, cardData)
                 val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
                 val abilityCost = ability.payCosts?.totalMana
