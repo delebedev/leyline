@@ -108,6 +108,17 @@ class PromptClassifierTest :
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.Resolution
         }
 
+        test("generic sacrifice prompt classifies as select-n with Sacrifice reason") {
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "Sacrifice a creature",
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.Sacrifice
+        }
+
         test("candidate refs without a stronger semantic classifies as targeting") {
             classify(
                 promptType = "choose_cards",
