@@ -98,7 +98,8 @@ object SnapshotCapture {
         for ((fid, snap) in objects) {
             val data = if (snap.grpId > 0) repo.findByGrpId(snap.grpId) else null
             val altCosts = BoundCard.bindAltCosts(data, repo)
-            out[fid] = BoundCard(fid, snap, data, altCosts)
+            val mobilizeCleanup = BoundCard.bindMobilizeCleanup(data, altCosts, repo)
+            out[fid] = BoundCard(fid, snap, data, altCosts, mobilizeCleanup)
         }
         return out
     }

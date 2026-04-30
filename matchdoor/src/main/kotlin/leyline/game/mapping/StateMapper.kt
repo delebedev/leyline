@@ -326,7 +326,7 @@ object StateMapper {
         val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, eventsMutable)
         val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
-            computeAnnotations(eventsMutable, transferResult, actingSeat, bridge, prev = prev)
+            computeAnnotations(eventsMutable, transferResult, actingSeat, bridge, prev = prev, snap = snap)
 
         // Snap-derived pAnn inputs — computed here where snap is in scope.
         val qualificationPersistentFromSnap =
@@ -351,7 +351,7 @@ object StateMapper {
                 val tokenIid = bridge.getOrAllocInstanceId(token.forgeCardId)
                 val sourceForgeId = tokenSources[token]
                 val cleanupGrpId =
-                    sourceForgeId?.let { mobilizeCleanupGrpIdForSource(it, bridge) }
+                    sourceForgeId?.let { mobilizeCleanupGrpIdForSource(it, snap) }
                 // Holder iid is the per-trigger affector for Mobilize (canonical
                 // shape). For generic EOT-sacrifice copies (Electroduplicate etc.)
                 // legacy callers pass affectorId = tokenIid; preserve that until
@@ -392,10 +392,10 @@ object StateMapper {
                     val (rawSourceForgeId, seat) = key
                     val sourceForgeId = rawSourceForgeId ?: return@mapNotNull null
                     val cleanupGrpId =
-                        mobilizeCleanupGrpIdForSource(sourceForgeId, bridge) ?: return@mapNotNull null
+                        mobilizeCleanupGrpIdForSource(sourceForgeId, snap) ?: return@mapNotNull null
                     val tokenIds = tokens.map { bridge.getOrAllocInstanceId(it.forgeCardId) }
                     val holderIid = holderInstanceIdFor(sourceForgeId, bridge)
-                    val keywordGrpId = mobilizeKeywordGrpIdForSource(sourceForgeId, bridge) ?: 0
+                    val keywordGrpId = mobilizeKeywordGrpIdForSource(sourceForgeId, snap) ?: 0
                     val sourceIid = bridge.getOrAllocInstanceId(sourceForgeId).value
                     currentHolders.add(
                         HolderRecord(
@@ -1223,6 +1223,7 @@ object StateMapper {
         actingSeat: Int,
         combatResult: CombatAnnotationResult,
         bridge: GameBridge? = null,
+        snap: GsmSnapshot? = null,
     ): Pair<MutableList<AnnotationInfo>, MutableList<AnnotationInfo>> {
         val annotations = mutableListOf<AnnotationInfo>()
         val transferPersistent = mutableListOf<AnnotationInfo>()
@@ -1265,7 +1266,7 @@ object StateMapper {
         // and the resolve-side from resolve events independently — guarding
         // against double-emission when the snap-diff also caught the
         // appearance/disappearance.
-        if (bridge != null) {
+        if (bridge != null && snap != null) {
             emitTriggerLifecycleAnnotations(
                 events = events,
                 snapshotSourceIids = snapshotSourceIids,
@@ -1273,6 +1274,7 @@ object StateMapper {
                 annotations = annotations,
                 transferPersistent = transferPersistent,
                 bridge = bridge,
+                snap = snap,
             )
         }
         for (d in transferResult.stackAbilityDisappearances) {
@@ -1307,6 +1309,7 @@ object StateMapper {
         annotations: MutableList<AnnotationInfo>,
         transferPersistent: MutableList<AnnotationInfo>,
         bridge: GameBridge,
+        snap: GsmSnapshot,
     ) {
         // Cast half: AbilityInstanceCreated (when snap-diff missed it) + persistent TriggeringObject.
         for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }) {
@@ -1346,7 +1349,7 @@ object StateMapper {
                     .getOrAllocInstanceId(
                         ForgeCardId(resolved.cardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET),
                     ).value
-            val abilityGrpId = abilityGrpIdForSource(resolved.cardId, bridge)
+            val abilityGrpId = abilityGrpIdForSource(resolved.cardId, snap)
 
             annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
             annotations.add(AnnotationBuilder.resolutionComplete(InstanceId(abilityIid), GrpId(abilityGrpId)))
@@ -1385,7 +1388,7 @@ object StateMapper {
         }
     }
 
-    /** Look up the wire-side ability grpId for a triggered source. For known
+    /** Look up the outbound ability grpId for a triggered source. For known
      *  keyword triggers (Mobilize, …) this resolves to the per-card keyword
      *  ability grpId — e.g. 188698 for a Mobilize 1 source — so
      *  `ResolutionStart`/`Complete` carry the keyword row id rather than the
@@ -1393,15 +1396,13 @@ object StateMapper {
      *  whose keyword isn't in [leyline.game.data.KeywordAbilityIds] yet. */
     private fun abilityGrpIdForSource(
         cardId: ForgeCardId,
-        bridge: GameBridge,
+        snap: GsmSnapshot,
     ): Int {
-        val card = bridge.findCard(cardId) ?: return 0
-        val cardGrpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
+        val bound = snap.boundCards[cardId] ?: return 0
         for (keywordId in keywordTriggerIds) {
-            val abilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, keywordId)
-            if (abilityGrpId != null) return abilityGrpId
+            bound.altCost(keywordId)?.abilityGrpId?.let { return it }
         }
-        return cardGrpId
+        return bound.snapshot.grpId
     }
 
     /** Keywords whose triggers we want to surface on the wire as
@@ -1436,17 +1437,8 @@ object StateMapper {
      *  updates. */
     private fun mobilizeCleanupGrpIdForSource(
         sourceForgeId: ForgeCardId,
-        bridge: GameBridge,
-    ): Int? {
-        val sourceCard = bridge.findCard(sourceForgeId) ?: return null
-        val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
-        // Confirm the source actually carries Mobilize before claiming a
-        // hidden triggered ability is the Mobilize cleanup row — guards
-        // against unrelated hidden abilities on cards that don't use the
-        // keyword.
-        bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, leyline.game.data.KeywordAbilityIds.MOBILIZE) ?: return null
-        return bridge.cardRepository.findHiddenTriggeredAbilityGrpId(sourceGrpId)
-    }
+        snap: GsmSnapshot,
+    ): Int? = snap.boundCards[sourceForgeId]?.mobilizeCleanup
 
     /** The Mobilize keyword ability grpId on a Mobilize source (188696, 188698…),
      *  used as `objectSourceGrpId` on the TriggerHolder gameObject so the client
@@ -1454,12 +1446,11 @@ object StateMapper {
      *  side panel. Null when the source doesn't carry Mobilize. */
     private fun mobilizeKeywordGrpIdForSource(
         sourceForgeId: ForgeCardId,
-        bridge: GameBridge,
-    ): Int? {
-        val sourceCard = bridge.findCard(sourceForgeId) ?: return null
-        val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
-        return bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, leyline.game.data.KeywordAbilityIds.MOBILIZE)
-    }
+        snap: GsmSnapshot,
+    ): Int? =
+        snap.boundCards[sourceForgeId]
+            ?.altCost(leyline.game.data.KeywordAbilityIds.MOBILIZE)
+            ?.abilityGrpId
 
     /** Stable per-trigger-registration holder iid keyed on the source card's
      *  forge id, so all tokens spawned by the same source-card resolution
@@ -1631,6 +1622,7 @@ object StateMapper {
         actingSeat: Int,
         bridge: GameBridge,
         prev: GsmSnapshot? = null,
+        snap: GsmSnapshot? = null,
     ): AnnotationPipelineResult {
         val combatTransferredIds =
             transferResult.transfers
@@ -1650,6 +1642,7 @@ object StateMapper {
                 actingSeat = actingSeat,
                 combatResult = combatResult,
                 bridge = bridge,
+                snap = snap,
             )
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }

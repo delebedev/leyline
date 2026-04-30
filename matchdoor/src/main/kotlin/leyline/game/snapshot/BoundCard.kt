@@ -23,12 +23,17 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *    (Plot, Foretell, Disturb, Escape, Warp, Sneak, Madness, Flashback,
  *    Mobilize) — the data driving [leyline.game.mapping.ActionMapper]'s
  *    cast-from-non-hand-zone and hand-alt-cost rails.
+ *  - [mobilizeCleanup] is the per-card hidden triggered-ability grpId (the
+ *    "Sacrifice them at the next end step" row) for Mobilize sources;
+ *    null for non-Mobilize cards. Drives StateMapper's TemporaryPermanent
+ *    + DelayedTriggerAffectees pAnn emission for EOT-sacrifice tokens.
  */
 data class BoundCard(
     val forgeCardId: ForgeCardId,
     val snapshot: CardSnapshot,
     val data: CardData?,
     val altCosts: List<AltCostBinding> = emptyList(),
+    val mobilizeCleanup: Int? = null,
 ) {
     /**
      * Find the alt-cost row whose [AltCostBinding.keywordBaseId] matches
@@ -96,6 +101,25 @@ data class BoundCard(
                     )
             }
             return out
+        }
+
+        /**
+         * Resolve the Mobilize cleanup ability grpId — the hidden triggered
+         * "Sacrifice them at the beginning of the next end step." row paired
+         * with every Mobilize keyword. Returns null when [altCosts] doesn't
+         * carry a Mobilize row (gating the lookup so non-Mobilize cards with
+         * unrelated hidden abilities don't get misclassified) OR when [data]
+         * has no matching `hiddenAbilityIds` row with `category == 2`.
+         */
+        fun bindMobilizeCleanup(
+            data: CardData?,
+            altCosts: List<AltCostBinding>,
+            repo: CardRepository,
+        ): Int? {
+            if (data == null) return null
+            val hasMobilize = altCosts.any { it.keywordBaseId == KeywordAbilityIds.MOBILIZE }
+            if (!hasMobilize) return null
+            return repo.findHiddenTriggeredAbilityGrpId(data.grpId)
         }
     }
 }
