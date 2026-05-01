@@ -12,6 +12,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.Foretell
 import leyline.game.state.GameBridge
 import leyline.game.state.InstanceIdRegistry
+import leyline.game.state.ZoneHandoff
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
@@ -249,22 +250,16 @@ object ZoneTransferDetector {
                     }
                 // Allocate new instanceId for zone transfer (protocol requires this).
                 // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
-                val realloc =
+                val handoff =
                     if (!category.keepsSameInstanceId && forgeCardId != null) {
-                        idAllocator(forgeCardId)
+                        ZoneHandoff.fromRealloc(idAllocator(forgeCardId), obj.zoneId)
                     } else {
-                        InstanceIdRegistry.IdReallocation(InstanceId(obj.instanceId), InstanceId(obj.instanceId))
+                        ZoneHandoff.keepingSameInstanceId(InstanceId(obj.instanceId), obj.zoneId)
                     }
-                val origId = realloc.old.value
-                val newId = realloc.new.value
+                val origId = handoff.realloc.old.value
+                val newId = handoff.realloc.new.value
                 log.debug("zone transfer: iid {} → {} category={}", origId, newId, category)
-                // Patch gameObject and zone with new instanceId
-                if (newId != origId) {
-                    patchedObjects[i] = obj.toBuilder().setInstanceId(newId).build()
-                    patchZoneInstanceId(patchedZones, obj.zoneId, origId, newId)
-                    retiredIds.add(origId)
-                    appendToZone(patchedZones, ZoneIds.LIMBO, origId)
-                }
+                applyHandoffToPatchSet(handoff, patchedObjects, i, patchedZones, obj.zoneId, retiredIds)
                 // Resolve affectorId: the ability instance that caused this transfer.
                 // For surveil (and future mechanics), the source card's ability on the
                 // stack has instanceId = getOrAlloc(sourceCardId + STACK_ABILITY_ID_OFFSET).
@@ -708,11 +703,11 @@ object ZoneTransferDetector {
             val sacrificeEv = sacrificeEvents.firstOrNull { it.cardId == forgeCardId } ?: continue
 
             val stillOnBattlefield = instanceId in currentInstanceIds
-            val realloc = idAllocator(forgeCardId)
-            val origId = realloc.old.value
-            val newId = realloc.new.value
             val ownerSeat = sacrificeEv.seatId
             val destZone = ZoneIds.graveyardOf(ownerSeat)
+            val handoff = ZoneHandoff.fromRealloc(idAllocator(forgeCardId), destZone)
+            val origId = handoff.realloc.old.value
+            val newId = handoff.realloc.new.value
 
             // If still in gameObjects, strip it so the client sees it leave.
             val resolvedGrpId =
@@ -753,9 +748,9 @@ object ZoneTransferDetector {
                 }
             }
 
-            if (newId != origId) {
-                retiredIds.add(origId)
-                appendToZone(patchedZones, ZoneIds.LIMBO, origId)
+            handoff.limboRetirement?.let { limbo ->
+                retiredIds.add(limbo.value)
+                appendToZone(patchedZones, ZoneIds.LIMBO, limbo.value)
             }
 
             transfers.add(
@@ -771,7 +766,8 @@ object ZoneTransferDetector {
                     manaPayments = manaPayments,
                 ),
             )
-            zoneRecordings.add(newId to destZone)
+            val (recIid, recZone) = handoff.zoneAssignment
+            zoneRecordings.add(recIid.value to recZone)
             log.debug("disappeared token: iid {} → {} category=Sacrifice manaPayments={}", origId, newId, manaPayments.size)
         }
     }
@@ -800,6 +796,32 @@ object ZoneTransferDetector {
                 spellInstanceId = idLookup(castEv.cardId).value,
             ),
         )
+    }
+
+    /**
+     * Apply a [ZoneHandoff]'s structural mutations to the local patch-set:
+     * rewrite the GameObject's instanceId, rewrite the source zone's
+     * `objectInstanceIds` list, append the old iid to Limbo, and signal
+     * retirement to the caller's [retiredIds] accumulator.
+     *
+     * No-op when [ZoneHandoff.limboRetirement] is null (Resolve / keep-same-iid).
+     */
+    private fun applyHandoffToPatchSet(
+        handoff: ZoneHandoff,
+        patchedObjects: MutableList<GameObjectInfo>,
+        objectIndex: Int,
+        patchedZones: MutableList<ZoneInfo>,
+        sourceZoneId: Int,
+        retiredIds: MutableList<Int>,
+    ) {
+        val limbo = handoff.limboRetirement ?: return
+        val origId = limbo.value
+        val newId = handoff.realloc.new.value
+        val obj = patchedObjects[objectIndex]
+        patchedObjects[objectIndex] = obj.toBuilder().setInstanceId(newId).build()
+        patchZoneInstanceId(patchedZones, sourceZoneId, origId, newId)
+        retiredIds.add(origId)
+        appendToZone(patchedZones, ZoneIds.LIMBO, origId)
     }
 
     /** Replace oldId with newId in a zone's objectInstanceIds list (after instanceId realloc). */

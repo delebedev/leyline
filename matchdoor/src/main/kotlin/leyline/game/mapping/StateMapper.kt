@@ -20,7 +20,6 @@ import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
 import leyline.game.annotations.ZoneTransferDetector
 import leyline.game.bundle.GsmFrame
-import leyline.game.codes.DetailKeys
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.SnapDeltaSynthesizer
@@ -29,6 +28,7 @@ import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PreparedRole
 import leyline.game.state.BridgeMutations
 import leyline.game.state.EffectTracker
+import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
 import leyline.game.state.HolderRecord
 import leyline.game.state.PersistentAnnotationStore
@@ -507,12 +507,29 @@ object StateMapper {
         // snapshot rebuild (prev == null) — the persistent Designation pAnn alone
         // re-syncs client state on rebuild.
         if (prev != null) {
-            insertPreparedTransients(annotations, prev, snap, bridge)
-            insertPlottedTransients(annotations, prev, snap, bridge)
-            insertForetellTransients(annotations, prev, snap, bridge)
+            insertStateDesignationTransients(annotations, prev, snap) { fid ->
+                bridge.getOrAllocInstanceId(fid)
+            }
         }
 
         // Stages 4-5 + persistent computation
+        val battlefieldIids: Set<Int> =
+            snap.zones[ZoneIds.BATTLEFIELD]
+                ?.contents
+                ?.map { fid -> bridge.getOrAllocInstanceId(fid).value }
+                ?.toSet()
+                ?: emptySet()
+        val controllerOf: Map<Int, SeatId> =
+            snap.boundCards.values.associate { bound ->
+                bridge.getOrAllocInstanceId(bound.forgeCardId).value to bound.snapshot.controller
+            }
+        val frameContext =
+            FrameContext(
+                phase = snap.phase.phase,
+                activePlayerSeat = snap.phase.activePlayer,
+                battlefieldIids = battlefieldIids,
+                controllerOf = controllerOf,
+            )
         val remaining =
             computeRemainingAnnotations(
                 eventsMutable,
@@ -524,6 +541,7 @@ object StateMapper {
                 startPersistentId,
                 startAnnotationId,
                 bridge,
+                frameContext,
                 keywordDiff,
                 combatResult,
                 qualificationPersistentFromSnap = qualificationPersistentFromSnap,
@@ -881,179 +899,6 @@ object StateMapper {
         val nextAnnotationId: Int,
     )
 
-    /**
-     * Diff two snapshots on the prepared-source set (cards with `PreparedRole.Source`)
-     * and insert the resulting gain/lose transients into [annotations] at the right
-     * positions for the protocol's bracket order.
-     *
-     * ## Why state-tail diff and not events
-     *
-     * Forge fires no dedicated `GameEvent` when a card transitions to/from
-     * prepared. The `AlterAttribute` SA flips `Card.preparedEffect` directly
-     * — the only `GameEventCardPlotted`-style event in the family is for
-     * Plotted, not Prepared. Rather than patching Forge to add an event,
-     * leyline reads the flag from snapshots and diffs `prev` vs `cur` set
-     * membership. Same approach should work for Plotted, Saddled, etc.
-     *
-     * ## Why the gain insertion isn't an append
-     *
-     * - Each `GainDesignation` lands immediately before the Stack→Battlefield Resolve
-     *   `ZoneTransfer` for the same source iid in the same list. The protocol
-     *   spec brackets these annotations as a unit — gain at position 848,
-     *   ZT-Resolve at 849 — and `AnnotationOrderEnforcer` doesn't have a rule
-     *   covering the pair, so we have to position correctly at construction
-     *   rather than relying on post-build sort.
-     * - Each `LoseDesignation` appends to the end — the cast acceptance GSM
-     *   doesn't carry a co-located ZT for the source (the ZT is on the copy
-     *   moving Exile → Stack), so there's no nearby anchor.
-     *
-     * ## Why caller-side prev null guard
-     *
-     * Caller must skip this on full-snapshot rebuild: without a prior baseline
-     * the diff would mistakenly emit gain transients for already-prepared
-     * sources whose persistent Designation pAnn is already active client-side.
-     * The persistent pAnn from the snap-derivation pass alone re-syncs client
-     * state on full rebuild; transients are for *changes*, and a rebuild isn't
-     * a change.
-     */
-    private fun insertPreparedTransients(
-        annotations: MutableList<AnnotationInfo>,
-        prev: GsmSnapshot,
-        cur: GsmSnapshot,
-        bridge: GameBridge,
-    ) {
-        val curSources = sourceForgeIds(cur)
-        val prevSources = sourceForgeIds(prev)
-
-        for (fid in curSources - prevSources) {
-            val iid = bridge.getOrAllocInstanceId(fid)
-            val gain =
-                AnnotationBuilder.gainDesignationOnCard(
-                    instanceId = iid,
-                    designationType = AnnotationConstants.DESIGNATION_TYPE_PREPARED,
-                )
-            insertGainBeforeResolveZt(annotations, gain, iid.value)
-        }
-        for (fid in prevSources - curSources) {
-            val iid = bridge.getOrAllocInstanceId(fid)
-            annotations.add(
-                AnnotationBuilder.loseDesignation(
-                    instanceId = iid,
-                    designationType = AnnotationConstants.DESIGNATION_TYPE_PREPARED,
-                ),
-            )
-        }
-    }
-
-    /**
-     * Insert [gain] right before the Stack→Battlefield Resolve `ZoneTransfer` whose
-     * `affectedIds` includes [sourceIid]. Falls back to appending if no matching ZT
-     * is in [annotations] — the GSM still carries the persistent Designation pAnn,
-     * so the gain transient at end-of-list is a degraded but non-broken shape.
-     */
-    private fun insertGainBeforeResolveZt(
-        annotations: MutableList<AnnotationInfo>,
-        gain: AnnotationInfo,
-        sourceIid: Int,
-    ) {
-        val ztIndex =
-            annotations.indexOfFirst { ann ->
-                ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
-                    ann.affectedIdsList.contains(sourceIid) &&
-                    ann.detailsList.any {
-                        it.key == DetailKeys.CATEGORY &&
-                            it.valueStringCount > 0 &&
-                            it.getValueString(0) == "Resolve"
-                    }
-            }
-        if (ztIndex >= 0) annotations.add(ztIndex, gain) else annotations.add(gain)
-    }
-
-    private fun sourceForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
-        snap.boundCards.values
-            .filter { it.designations.isPreparedSource }
-            .map { it.forgeCardId }
-            .toSet()
-
-    /**
-     * Diff prev vs cur on the plotted set; emit GainDesignation when a card
-     * becomes Plotted and LoseDesignation when it leaves the Plotted set
-     * (e.g. cast from exile, or removed from exile by an external effect).
-     *
-     * Gains append at the end of [annotations] — unlike Prepared, plotting
-     * doesn't co-locate with a Stack→Battlefield Resolve ZT (the plot
-     * activation moves the card Hand→Exile, no resolve), so there's no anchor
-     * to insert before. Loses also append.
-     *
-     * Skipped on full snapshot rebuild (caller's prev null guard) — the
-     * persistent Designation pAnn alone re-syncs client state on rebuild.
-     */
-    private fun insertPlottedTransients(
-        annotations: MutableList<AnnotationInfo>,
-        prev: GsmSnapshot,
-        cur: GsmSnapshot,
-        bridge: GameBridge,
-    ) {
-        val curPlotted = plottedForgeIds(cur)
-        val prevPlotted = plottedForgeIds(prev)
-
-        for (fid in curPlotted - prevPlotted) {
-            val iid = bridge.getOrAllocInstanceId(fid)
-            annotations.add(
-                AnnotationBuilder.gainDesignationOnCard(
-                    instanceId = iid,
-                    designationType = AnnotationConstants.DESIGNATION_TYPE_PLOTTED,
-                ),
-            )
-        }
-        for (fid in prevPlotted - curPlotted) {
-            val iid = bridge.getOrAllocInstanceId(fid)
-            annotations.add(
-                AnnotationBuilder.loseDesignation(
-                    instanceId = iid,
-                    designationType = AnnotationConstants.DESIGNATION_TYPE_PLOTTED,
-                ),
-            )
-        }
-    }
-
-    private fun plottedForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
-        snap.boundCards.values
-            .filter { it.designations.isPlotted }
-            .map { it.forgeCardId }
-            .toSet()
-
-    /**
-     * Diff prev vs cur on the foretold set; emit FaceDown +
-     * SuppressedPowerAndToughness transient annotations when a card becomes
-     * foretold (hand → face-down exile), affixed to the live exile iid.
-     *
-     * Skipped on full-snapshot rebuild (caller's prev null guard) — these are
-     * face-state markers, not state-flag designations, and the client already
-     * understands face-down on a fresh state via the visibility flag.
-     */
-    private fun insertForetellTransients(
-        annotations: MutableList<AnnotationInfo>,
-        prev: GsmSnapshot,
-        cur: GsmSnapshot,
-        bridge: GameBridge,
-    ) {
-        val curForetold = foretoldForgeIds(cur)
-        val prevForetold = foretoldForgeIds(prev)
-
-        for (fid in curForetold - prevForetold) {
-            val iid = bridge.getOrAllocInstanceId(fid)
-            annotations.add(AnnotationBuilder.faceDown(iid))
-            annotations.add(AnnotationBuilder.suppressedPowerAndToughness(iid))
-        }
-    }
-
-    private fun foretoldForgeIds(snap: GsmSnapshot): Set<ForgeCardId> =
-        snap.boundCards.values
-            .filter { it.designations.isForetold }
-            .map { it.forgeCardId }
-            .toSet()
-
     /** Stages 4-5: mechanic + effect annotations, persistent computation, numbering. */
     @Suppress("LongParameterList", "LongMethod")
     private fun computeRemainingAnnotations(
@@ -1066,6 +911,7 @@ object StateMapper {
         startPersistentId: Int,
         startAnnotationId: Int,
         bridge: GameBridge,
+        frameContext: FrameContext,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
         qualificationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
@@ -1181,6 +1027,7 @@ object StateMapper {
             PersistentAnnotationStore.Companion.computeBatch(
                 currentActive = persistSnapshot,
                 startPersistentId = startPersistentId,
+                frame = frameContext,
                 effectPersistent = effectPersistent,
                 effectDiff = effectDiff,
                 transferPersistent = transferPersistent,
@@ -1472,7 +1319,8 @@ object StateMapper {
     /**
      * Scan the stack for spells/abilities with targets and emit TargetSpec pAnns.
      * Each card target gets a separate annotation with 1-based index per target group.
-     * Removed automatically by upsertByType when the spell resolves (leaves stack).
+     * Pruned automatically by the registry-driven upsert pass (TargetSpecKind's
+     * full-replacement semantics) when the spell resolves and leaves the stack.
      */
     private fun buildTargetSpecAnnotations(bridge: GameBridge): List<AnnotationInfo> {
         // Consume targets captured during selectTargetsInteractively.

@@ -1,0 +1,322 @@
+package leyline.game.state
+
+import forge.game.phase.PhaseType
+import leyline.bridge.types.SeatId
+import leyline.game.annotations.AnnotationConstants
+import leyline.game.codes.DetailKeys
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+
+/**
+ * Per-frame context the persistent-annotation lifecycle reads — phase /
+ * active-player for turn-boundary expiries (EZTT, DamagedThisTurn), plus
+ * battlefield membership for "card-left-play" expiries (ColorProduction).
+ *
+ * Built fresh per Diff GSM by [leyline.game.mapping.StateMapper] from the
+ * current snapshot + bridge.
+ */
+data class FrameContext(
+    val phase: PhaseType?,
+    val activePlayerSeat: SeatId,
+    /** Instance ids currently on the battlefield zone in `cur` snapshot. */
+    val battlefieldIids: Set<Int>,
+    /** Per-iid controller from `cur` snapshot — drives per-controller expiry
+     *  gates. Map omits iids not present in `cur.boundCards` (cards already
+     *  off-objects); EZTT treats unknown-controller as "expire on any Upkeep"
+     *  to prevent stale accumulation. */
+    val controllerOf: Map<Int, SeatId>,
+) {
+    companion object {
+        /** No-op context — phase=null, empty battlefield, empty controller map.
+         *  No [PersistentAnnotationKind.shouldExpire] row fires under it
+         *  (EZTT gates on phase==UPKEEP, ColorProduction on iid-not-in-BF
+         *  which is true for any iid here but only matters when ColorProduction
+         *  rows exist in active). Used by legacy tests that don't exercise
+         *  lifecycle expiry. */
+        val INERT: FrameContext =
+            FrameContext(
+                phase = null,
+                activePlayerSeat = SeatId(1),
+                battlefieldIids = emptySet(),
+                controllerOf = emptyMap(),
+            )
+    }
+}
+
+/**
+ * One persistent-annotation kind. Encapsulates everything
+ * [PersistentAnnotationStore.computeBatch] needs to know about a kind:
+ *
+ *  - [matches] — does an existing active row belong to this kind?
+ *  - [identityKey] — dedup key for upsert dispatch (null for kinds whose
+ *    rows aren't upserted, e.g. EZTT / ColorProduction which arrive via the
+ *    transfer-originated pipeline and are removed by [shouldExpire]).
+ *  - [pruneStale] — when true, active rows of this kind whose identity isn't
+ *    in this frame's incoming set get pruned (full-replacement upsert).
+ *  - [collisionStrategy] — how to handle an incoming row whose identity
+ *    collides with an existing row.
+ *  - [shouldExpire] — turn-boundary / off-zone expiry rule. EZTT fires at
+ *    Upkeep; ColorProduction fires when the source iid leaves the
+ *    battlefield. Returns false by default — most kinds don't auto-expire.
+ *
+ * Replaces the per-kind `upsertX(...)` parallel branches in [PersistentAnnotationStore].
+ * Adding a new kind is now a row in [PersistentAnnotationKinds.all].
+ */
+sealed interface PersistentAnnotationKind {
+    val name: String
+    val pruneStale: Boolean
+    val collisionStrategy: CollisionStrategy
+
+    fun matches(ann: AnnotationInfo): Boolean
+
+    fun identityKey(ann: AnnotationInfo): Any?
+
+    fun shouldExpire(
+        ann: AnnotationInfo,
+        frame: FrameContext,
+    ): Boolean = false
+}
+
+/** Strategy for upsert collisions where an incoming row's identity matches an
+ *  existing active row's identity. */
+enum class CollisionStrategy {
+    /** Active row stays — incoming row is dropped. Used by Qualification, ModifiedType-for-crew,
+     *  TemporaryPermanent, DelayedTriggerAffectees, TargetSpec — all "appears once, value rarely
+     *  changes" kinds. */
+    KEEP_EXISTING,
+
+    /** Active row gets replaced when its detail list differs from the incoming row's.
+     *  AbilityWordActive (value updates), CrewedThisTurn (which vehicles this turn),
+     *  Designation kinds (PreparedCopyZcid swaps). */
+    REPLACE_IF_CHANGED,
+
+    /** Active row always gets replaced — fresh id every collision. Counter (every counter
+     *  add allocates a new id even if the value is unchanged). */
+    REPLACE_ALWAYS,
+}
+
+private fun designationTypeOf(ann: AnnotationInfo): Int? =
+    ann.detailsList
+        .firstOrNull { it.key == DetailKeys.DESIGNATION_TYPE && it.valueInt32Count > 0 }
+        ?.getValueInt32(0)
+
+private fun firstAffectedId(ann: AnnotationInfo): Int = ann.affectedIdsList.firstOrNull() ?: 0
+
+private fun int32Detail(
+    ann: AnnotationInfo,
+    key: String,
+): Int? =
+    ann.detailsList
+        .firstOrNull { it.key == key && it.valueInt32Count > 0 }
+        ?.getValueInt32(0)
+
+private fun stringDetail(
+    ann: AnnotationInfo,
+    key: String,
+): String? =
+    ann.detailsList
+        .firstOrNull { it.key == key && it.valueStringCount > 0 }
+        ?.getValueString(0)
+
+data object CounterKind : PersistentAnnotationKind {
+    override val name = "Counter"
+    override val pruneStale = false
+    override val collisionStrategy = CollisionStrategy.REPLACE_ALWAYS
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.Counter_803b in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any? {
+        val iid = ann.affectedIdsList.firstOrNull() ?: return null
+        val ctype = int32Detail(ann, DetailKeys.COUNTER_TYPE) ?: return null
+        return iid to ctype
+    }
+}
+
+data object AbilityWordActiveKind : PersistentAnnotationKind {
+    override val name = "AbilityWordActive"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.AbilityWordActive in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann) to (stringDetail(ann, DetailKeys.ABILITY_WORD_NAME).orEmpty())
+}
+
+data object QualificationKind : PersistentAnnotationKind {
+    override val name = "Qualification"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.Qualification in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
+data object CrewedThisTurnKind : PersistentAnnotationKind {
+    override val name = "CrewedThisTurn"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.CrewedThisTurn in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId
+}
+
+data object ModifiedTypeForCrewKind : PersistentAnnotationKind {
+    override val name = "ModifiedTypeForCrew"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.ModifiedType in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
+data object TemporaryPermanentKind : PersistentAnnotationKind {
+    override val name = "TemporaryPermanent"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.TemporaryPermanent in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any {
+        val firstAffected = ann.affectedIdsList.firstOrNull()
+        return firstAffected ?: ann.affectorId
+    }
+}
+
+data object DelayedTriggerAffecteesKind : PersistentAnnotationKind {
+    override val name = "DelayedTriggerAffectees"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.DelayedTriggerAffectees in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId
+}
+
+data object TargetSpecKind : PersistentAnnotationKind {
+    override val name = "TargetSpec"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.TargetSpec in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann) to (int32Detail(ann, DetailKeys.INDEX) ?: 0)
+}
+
+data object PreparedDesignationKind : PersistentAnnotationKind {
+    override val name = "PreparedDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList &&
+            designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_PREPARED
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
+data object PlottedDesignationKind : PersistentAnnotationKind {
+    override val name = "PlottedDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList &&
+            designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_PLOTTED
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
+/**
+ * Pure-snapshot persistent annotation: card-entered-zone-this-turn marker.
+ * Does NOT participate in upsert dispatch — rows arrive via the transfer-
+ * originated pipeline (one EZTT per zone transfer landing on Battlefield /
+ * Stack).
+ *
+ * MTG rule: "entered this turn" markers expire at the start of the
+ * controller's next turn. Our hook is the Upkeep step plus a controller
+ * match — `controllerOf[iid] == activePlayerSeat` at `phase == UPKEEP`.
+ * Cards no longer present in `frame.controllerOf` (already off-objects)
+ * expire on any Upkeep so stale rows don't pin in the persistent set.
+ */
+data object EnteredZoneThisTurnKind : PersistentAnnotationKind {
+    override val name = "EnteredZoneThisTurn"
+    override val pruneStale = false
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.EnteredZoneThisTurn in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any? = null
+
+    override fun shouldExpire(
+        ann: AnnotationInfo,
+        frame: FrameContext,
+    ): Boolean {
+        if (frame.phase != PhaseType.UPKEEP) return false
+        val affected = ann.affectedIdsList.firstOrNull() ?: return false
+        val controller = frame.controllerOf[affected]
+        // Known controller: gate on activePlayer == controller. Unknown
+        // controller (card already off-objects): expire on any Upkeep — the
+        // protocol doesn't care about a marker on an iid the client no
+        // longer tracks, and leaving it pinned grows the persistent set.
+        return controller == null || controller == frame.activePlayerSeat
+    }
+}
+
+/**
+ * Land's color-production marker. Removed when the source card leaves the
+ * battlefield — the client has nothing to render the badge against once
+ * the source is no longer present.
+ */
+data object ColorProductionKind : PersistentAnnotationKind {
+    override val name = "ColorProduction"
+    override val pruneStale = false
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.ColorProduction in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any? = null
+
+    override fun shouldExpire(
+        ann: AnnotationInfo,
+        frame: FrameContext,
+    ): Boolean {
+        val sourceIid = ann.affectedIdsList.firstOrNull() ?: return false
+        return sourceIid !in frame.battlefieldIids
+    }
+}
+
+object PersistentAnnotationKinds {
+    /**
+     * Upsert-path kinds — rows are identity-keyed, dispatched by
+     * [PersistentAnnotationStore.computeBatch]'s mechanic upsert pass. Order
+     * matches the legacy step-3 ordering so frame-local id allocation stays
+     * stable across the migration.
+     */
+    val upsertable: List<PersistentAnnotationKind> =
+        listOf(
+            CounterKind,
+            AbilityWordActiveKind,
+            QualificationKind,
+            CrewedThisTurnKind,
+            ModifiedTypeForCrewKind,
+            TemporaryPermanentKind,
+            DelayedTriggerAffecteesKind,
+            TargetSpecKind,
+            PreparedDesignationKind,
+            PlottedDesignationKind,
+        )
+
+    /** Lifecycle-only kinds — pass through pure-append in the transfer pipeline,
+     *  removed only when [PersistentAnnotationKind.shouldExpire] fires. */
+    val lifecycleOnly: List<PersistentAnnotationKind> =
+        listOf(
+            EnteredZoneThisTurnKind,
+            ColorProductionKind,
+        )
+
+    /** All kinds — iterated by the lifecycle expiry pass at the top of computeBatch. */
+    val all: List<PersistentAnnotationKind> = upsertable + lifecycleOnly
+}

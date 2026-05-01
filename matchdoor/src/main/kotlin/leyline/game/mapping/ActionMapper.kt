@@ -8,7 +8,6 @@ import forge.game.card.CardPredicates
 import forge.game.cost.CostAdjustment
 import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
-import forge.game.spellability.AlternativeCost
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
 import leyline.bridge.chooseCastAbility
@@ -40,11 +39,6 @@ object ActionMapper {
     private val log = LoggerFactory.getLogger(ActionMapper::class.java)
 
     private const val INITIAL_MANA_ID = 10
-
-    /** Universal Arena ability id for "Cast without paying mana cost" — used as
-     *  `alternativeGrpId` on cast actions for plotted / suspended / similar
-     *  no-mana cast rails. */
-    private const val CAST_WITHOUT_PAYING_MANA_GRP_ID = 149
 
     /**
      * Naive action list: Cast for all non-lands, Play for all lands in hand,
@@ -417,8 +411,10 @@ object ActionMapper {
     }
 
     /**
-     * Zone casts (graveyard, exile, command) using snapshot zone contents + live Forge legality.
-     * Mirrors [addZoneCastActions] but pulls card IDs from the snapshot.
+     * Zone casts (graveyard, exile, command) — picks the first castable SA per
+     * card and dispatches via [CastRails]. Each (zone, rail-bucket) pair is
+     * declared in [zoneRailBuckets]; rails matching the SA win, otherwise the
+     * fallback path emits a printed-cost or best-effort shape.
      */
     private fun addZoneCastActionsFromSnap(
         seatId: Int,
@@ -427,8 +423,7 @@ object ActionMapper {
         bridge: GameBridge,
     ) {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return
-        val zoneIds = listOf(ZoneIds.P1_GRAVEYARD, ZoneIds.P2_GRAVEYARD, ZoneIds.EXILE, ZoneIds.COMMAND)
-        for (zoneId in zoneIds) {
+        for ((zoneId, rails) in zoneRailBuckets) {
             val zone = snap.zones[zoneId] ?: continue
             for (fid in zone.contents) {
                 val forgeCard = bridge.findCard(fid) ?: continue
@@ -439,122 +434,120 @@ object ActionMapper {
                 val grpId =
                     snap.objects[fid]?.grpId
                         ?: bridge.resolveGrpId(forgeCard, instanceId)
-                val altCost = sa.alternativeCost
-                val omitGrpIdAndFacetId =
-                    altCost == AlternativeCost.Plotted ||
-                        altCost == AlternativeCost.Foretold ||
-                        altCost == AlternativeCost.Escape
+                val bound = snap.boundCards[fid]
+                val rail = rails.firstOrNull { it.saPredicate(sa) }
+                val omit = rail?.omitGrpIdAndFacetId == true
+
                 val actionBuilder =
                     Action
                         .newBuilder()
                         .setActionType(ActionType.Cast)
                         .setInstanceId(instanceId)
                         .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
-
-                if (!omitGrpIdAndFacetId) {
+                if (!omit) {
                     actionBuilder.setGrpId(grpId)
                     actionBuilder.setFacetId(instanceId)
                 }
 
-                configureKeywordCastShape(actionBuilder, sa, altCost, snap.boundCards[fid])
+                if (rail != null) {
+                    configureZoneCastRailShape(actionBuilder, sa, rail, bound, player)
+                } else {
+                    configureZoneCastFallback(actionBuilder, sa, bound)
+                }
                 builder.addActions(actionBuilder)
             }
         }
     }
 
+    /** Per-source-zone rail buckets for [addZoneCastActionsFromSnap]. Empty
+     *  buckets (e.g. COMMAND) participate in iteration so cards there hit the
+     *  fallback path — historically commander-cast shape. */
+    private val zoneRailBuckets: List<Pair<Int, List<ZoneCastRail>>> =
+        listOf(
+            ZoneIds.EXILE to CastRails.fromExile,
+            ZoneIds.P1_GRAVEYARD to CastRails.fromGraveyard,
+            ZoneIds.P2_GRAVEYARD to CastRails.fromGraveyard,
+            ZoneIds.COMMAND to emptyList(),
+        )
+
     /**
-     * Per-keyword cast-offer fields for cast-from-non-hand-zone keywords.
+     * Configure a Cast action's keyword-specific fields per the rail's row in
+     * [CastRails]. Reference fixtures live under matchdoor/src/test/resources/puzzles/
+     * (plot-railway-brawler, foretell-demon-bolt, disturb-lunarch,
+     * escape-glimpse-of-freedom). The rail descriptor encodes:
      *
-     * Each keyword has a distinct action shape; they are not interchangeable.
-     * Reference fixtures live under matchdoor/src/test/resources/puzzles/.
+     *  - `alternativeGrpId` source (Universal-149 vs per-card row from BoundCard)
+     *  - `abilityGrpId` mode (None / FixedKeyword / EchoAlternative)
+     *  - whether mana cost is emitted, and whether each ManaRequirement echoes
+     *    the alternativeGrpId.
      *
-     *   Plot     → alternativeGrpId = 149 (universal "no mana cost"),
-     *              abilityGrpId    = KEYWORD_BASE_IDS["PLOTTED"] (328).
-     *              No mana cost emitted (cast bypasses mana entirely).
-     *              Fixture: puzzles/plot-railway-brawler.pzl
-     *
-     *   Foretell → alternativeGrpId = per-card foretell row (BaseId=208 chain),
-     *              abilityGrpId    = 0.
-     *              Mana cost echoes the foretell ability id on each ManaRequirement.
-     *              Fixture: puzzles/foretell-demon-bolt.pzl
-     *
-     *   Disturb  → alternativeGrpId = per-card disturb row (BaseId=215 chain),
-     *              abilityGrpId    = same per-card disturb row.
-     *              Mana cost echoes per default (no per-keyword tag).
-     *              Card stays front-face on the offer; Forge transforms to
-     *              back face on cast acceptance.
-     *              Fixture: puzzles/disturb-lunarch.pzl
-     *
-     *   Escape   → alternativeGrpId = per-card escape row (BaseId=199 chain),
-     *              abilityGrpId    = same per-card escape row.
-     *              Mana cost echoes the escape ability id on each ManaRequirement.
-     *              Additional "exile N from grave" cost is solicited via
-     *              PayCostsReq (see TargetingHandler.sendExileFromGravePayCostsReq).
-     *              Fixture: puzzles/escape-glimpse-of-freedom.pzl
-     *
-     * When the next keyword lands and doesn't fit any of the four shapes,
-     * add a branch + entry to this comment table. When the next keyword
-     * lands and DOES fit one of the four shapes (e.g. another graveyard
-     * alt-cost like Jump-start mirroring Escape), add the AlternativeCost
-     * case to the matching branch.
+     * `omitGrpIdAndFacetId` is honored by the caller before calling here.
      */
-    @Suppress(
-        // The else branch is the deliberate "future keyword fallback" path —
-        // exhaustive `when` on AlternativeCost would block any new Forge enum
-        // value from reaching the bridge gracefully.
-        "ElseCaseInsteadOfExhaustiveWhen",
-    )
-    private fun configureKeywordCastShape(
+    private fun configureZoneCastRailShape(
         actionBuilder: Action.Builder,
         sa: SpellAbility,
-        altCost: AlternativeCost?,
+        rail: ZoneCastRail,
+        bound: BoundCard?,
+        player: Player,
+    ) {
+        val altCosts = bound?.altCosts ?: emptyList()
+        val altSource = rail.altGrpIdSource
+        val needsCostAware =
+            altSource is AltGrpIdSource.FromBoundCard && altSource.lookupMode == LookupMode.CostAware
+        val payCostPairs: List<Pair<ManaColor, Int>> =
+            if (needsCostAware) {
+                computeEffectiveCost(sa, player)
+                    ?.takeIf { !it.isNoCost }
+                    ?.let { forgeManaCostToPairs(it) }
+                    ?: emptyList()
+            } else {
+                emptyList()
+            }
+        val altGrpId = resolveAltGrpId(rail, altCosts, payCostPairs)
+        if (altGrpId > 0) actionBuilder.setAlternativeGrpId(altGrpId)
+
+        val abilityGrpId =
+            when (val mode = rail.abilityGrpIdMode) {
+                AbilityGrpIdMode.None -> 0
+                is AbilityGrpIdMode.FixedKeyword -> mode.baseId
+                AbilityGrpIdMode.EchoAlternative -> altGrpId
+            }
+        if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+
+        if (rail.emitManaCost) {
+            emitAltCostManaCost(
+                actionBuilder,
+                sa,
+                abilityGrpIdEcho = if (rail.echoAlternativeOnMana) altGrpId else 0,
+            )
+        }
+    }
+
+    /**
+     * Fallback for zone-cast SAs that don't match any [CastRails] rail —
+     * unrecognized alt-costs (Madness, Flashback) and no-alt zone casts
+     * (commander, etc.). Emit printed mana cost from [CardData] when there's
+     * no alt cost; otherwise emit effective SA cost with optional abilityGrpId
+     * lookup. Best-effort shape until a CastRails row lands for the keyword.
+     */
+    private fun configureZoneCastFallback(
+        actionBuilder: Action.Builder,
+        sa: SpellAbility,
         bound: BoundCard?,
     ) {
-        when (altCost) {
-            AlternativeCost.Plotted -> {
-                actionBuilder.setAlternativeGrpId(CAST_WITHOUT_PAYING_MANA_GRP_ID)
-                actionBuilder.setAbilityGrpId(KeywordAbilityIds.PLOT)
-                // Plot has isNoCost==true; do not emit any mana cost — the printed
-                // cost would mislead the client into a regular cast UI.
-            }
-            AlternativeCost.Foretold -> {
-                val foretellAbilityGrpId = bound?.altCost(KeywordAbilityIds.FORETELL)?.abilityGrpId ?: 0
-                if (foretellAbilityGrpId > 0) actionBuilder.setAlternativeGrpId(foretellAbilityGrpId)
-                emitAltCostManaCost(actionBuilder, sa, foretellAbilityGrpId)
-            }
-            AlternativeCost.Disturb -> {
-                val disturbAbilityGrpId = bound?.altCost(KeywordAbilityIds.DISTURB)?.abilityGrpId ?: 0
-                if (disturbAbilityGrpId > 0) {
-                    actionBuilder.setAlternativeGrpId(disturbAbilityGrpId)
-                    actionBuilder.setAbilityGrpId(disturbAbilityGrpId)
-                }
-                emitAltCostManaCost(actionBuilder, sa, abilityGrpIdEcho = 0)
-            }
-            AlternativeCost.Escape -> {
-                val escapeAbilityGrpId = bound?.altCost(KeywordAbilityIds.ESCAPE)?.abilityGrpId ?: 0
-                if (escapeAbilityGrpId > 0) {
-                    actionBuilder.setAlternativeGrpId(escapeAbilityGrpId)
-                    actionBuilder.setAbilityGrpId(escapeAbilityGrpId)
-                }
-                emitAltCostManaCost(actionBuilder, sa, escapeAbilityGrpId)
-            }
-            null -> {
-                // No alt-cost — emit printed cost from CardData as the fallback
-                // for regular zone-zone casts.
-                val cardData = bound?.data
-                if (cardData != null) {
-                    for ((color, count) in cardData.manaCost) {
-                        actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
-                    }
+        val altCost = sa.alternativeCost
+        if (altCost == null) {
+            val cardData = bound?.data
+            if (cardData != null) {
+                for ((color, count) in cardData.manaCost) {
+                    actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
                 }
             }
-            else -> {
-                val keywordId = KeywordAbilityIds.fromForgeAltCostName(altCost.name)
-                val abilityGrpId =
-                    if (keywordId != null) bound?.altCost(keywordId)?.abilityGrpId ?: 0 else 0
-                if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-                emitAltCostManaCost(actionBuilder, sa, abilityGrpIdEcho = 0)
-            }
+        } else {
+            val keywordId = KeywordAbilityIds.fromForgeAltCostName(altCost.name)
+            val abilityGrpId = if (keywordId != null) bound?.altCost(keywordId)?.abilityGrpId ?: 0 else 0
+            if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+            emitAltCostManaCost(actionBuilder, sa, abilityGrpIdEcho = 0)
         }
     }
 
@@ -1084,20 +1077,18 @@ object ActionMapper {
     }
 
     /**
-     * Hand-zone alt-cost casts (Warp, Sneak) — emit one [Action] per eligible alt-cost SA.
+     * Hand-zone alt-cost casts — emit one [Action] per eligible alt-cost SA.
+     * Iterates [CastRails.handWithAltCost]; a rail matches when its
+     * [HandWithAltCost.saPredicate] holds for the SA. Each action carries:
      *
-     * Wire shape per captured Arena recordings:
      *  - `instanceId` = hand card iid, `grpId` = card grpId, `facetId` = iid
-     *  - `abilityGrpId` = 0 (intentionally — the alt-cost row is carried on
-     *    `alternativeGrpId`, not here)
-     *  - `alternativeGrpId` = per-card warp/sneak ability grpId (keyword→grpId lookup)
-     *  - `manaCost` entries echo `alternativeGrpId` on each slot (so the client
-     *    associates the cost display with the alt-cost row)
+     *  - `abilityGrpId` = 0 (the alt-cost row is on `alternativeGrpId`)
+     *  - `alternativeGrpId` = per-card row resolved per the rail's lookup mode
+     *  - `manaCost` entries echo `alternativeGrpId` on each slot
      *
-     * Scoped to Warp/Sneak intentionally — other alt-costs (Madness, Flashback,
-     * Impending, …) are surfaced via their existing rails (OptionalAction for
-     * Madness, zone-cast for Flashback). Widening this path without corpus
-     * evidence risks double-offer regressions.
+     * Madness, Flashback, Impending, … are intentionally NOT in
+     * [CastRails.handWithAltCost] — they ride other rails (OptionalAction for
+     * Madness, zone-cast for Flashback).
      */
     private fun addHandAltCostCastActions(
         card: Card,
@@ -1107,13 +1098,9 @@ object ActionMapper {
         altCosts: List<AltCostBinding>,
         builder: ActionsAvailableReq.Builder,
     ) {
-        // getAllCastableAbilities now includes plot + foretell SAs (CardLookup.kt) so
-        // a single iteration covers Warp / Sneak / Plot / Foretell.
         val castable = getAllCastableAbilities(card, player)
         for (sa in castable) {
-            val altCost = sa.alternativeCost
-            val isKeywordHandSA = sa.isPlotting || sa.isForetelling
-            if (altCost != AlternativeCost.Warp && altCost != AlternativeCost.Sneak && !isKeywordHandSA) continue
+            val rail = CastRails.handWithAltCost.firstOrNull { it.saPredicate(sa) } ?: continue
             val canPay =
                 try {
                     ComputerUtilMana.canPayManaCost(sa, player, 0, false)
@@ -1125,14 +1112,7 @@ object ActionMapper {
             val effectiveCost = computeEffectiveCost(sa, player)
             val payCostPairs: List<Pair<ManaColor, Int>> =
                 effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
-            val keywordBaseId =
-                when {
-                    sa.isPlotting -> KeywordAbilityIds.PLOT
-                    sa.isForetelling -> KeywordAbilityIds.FORETELL
-                    else -> KeywordAbilityIds.fromForgeAltCostName(altCost!!.name) ?: continue
-                }
-            val alternativeGrpId =
-                resolveHandAltCostGrpId(altCosts, keywordBaseId, payCostPairs, sa.isForetelling)
+            val alternativeGrpId = resolveAltGrpId(rail, altCosts, payCostPairs)
             if (alternativeGrpId <= 0) continue
 
             val actionBuilder =
@@ -1151,29 +1131,6 @@ object ActionMapper {
             builder.addActions(actionBuilder)
         }
     }
-
-    /**
-     * Pick the per-card alt-cost ability grpId for a hand-cast SA. Foretell's
-     * hand SA pays the constant {2} `foretell *action* cost` while the
-     * pre-bound row carries the foretell *cast* cost ({R} for Demon Bolt) —
-     * cost-aware lookup misses, so fall back to cost-agnostic and rely on
-     * each card carrying at most one Foretell row. Warp/Sneak/Plot keep the
-     * cost-aware match.
-     */
-    private fun resolveHandAltCostGrpId(
-        altCosts: List<AltCostBinding>,
-        keywordBaseId: Int,
-        payCostPairs: List<Pair<ManaColor, Int>>,
-        isForetelling: Boolean,
-    ): Int =
-        if (isForetelling) {
-            altCosts.firstOrNull { it.keywordBaseId == keywordBaseId }?.abilityGrpId ?: 0
-        } else {
-            altCosts
-                .firstOrNull {
-                    it.keywordBaseId == keywordBaseId && it.manaCost.toMap() == payCostPairs.toMap()
-                }?.abilityGrpId ?: 0
-        }
 
     /**
      * Legacy: live-Forge variant of [addZoneCastActionsFromSnap]. The snapshot
