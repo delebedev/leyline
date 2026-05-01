@@ -1687,6 +1687,7 @@ class BundleBuilder(
     }
 
     /** Build a single GRE message. */
+
     /**
      * Append PlayerSelectingTargets to the GSM that pairs with SelectTargetsReq.
      * No-op if the prompt has no source entity (defensive — should not happen
