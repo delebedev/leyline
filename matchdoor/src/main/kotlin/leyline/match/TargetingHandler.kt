@@ -802,23 +802,40 @@ class TargetingHandler(
                         forge.game.spellability.OptionalCost.Kicker1,
                         forge.game.spellability.OptionalCost.Kicker2,
                         -> CastingTimeOptionType.Kicker
-                        forge.game.spellability.OptionalCost.Bargain -> CastingTimeOptionType.Bargain
-                        // Buyback / Entwine / PromiseGift (Gift) and the rest of the
-                        // "yes/no, pay extra mana, get extra effect" family all render
-                        // as AdditionalCost in MTGA. The proto's `OptionalCost` (6) is
-                        // for a different shape entirely — using it for these gates
-                        // makes the client silently drop the prompt.
+                        // Bargain currently uses AdditionalCost (proto 5) instead of
+                        // its dedicated `Bargain` enum (17). Empirically the
+                        // proto-17 path silently drops in the client even with
+                        // grpId=303 (universal Bargain id) + manaCost +
+                        // playerIdToPrompt populated — same envelope Kicker (proto 3)
+                        // uses successfully. The client's strict proto-17 renderer
+                        // must require an additional field we haven't isolated yet
+                        // (likely `autoTapSolution` on the Done entry, or some
+                        // sacrifice-context field). AdditionalCost goes through the
+                        // permissive renderer and produces a usable Choose-One modal.
+                        // TODO: revisit once the missing field is identified.
+                        forge.game.spellability.OptionalCost.Bargain,
                         forge.game.spellability.OptionalCost.Buyback,
                         forge.game.spellability.OptionalCost.Entwine,
                         forge.game.spellability.OptionalCost.PromiseGift,
                         -> CastingTimeOptionType.AdditionalCost
                         else -> CastingTimeOptionType.AdditionalCost
                     }
+                // Bargain is K:Bargain (a keyword) AND surfaces via getOptionalCostValues,
+                // so the per-card abilityIds layout has a keyword slot (universal Bargain
+                // grpId 303) and a separate per-card "If bargained..." conditional slot.
+                // The client expects the keyword slot's grpId on the CTO entry; without
+                // it the Bargain (proto 17) prompt silently drops.
                 val abilityGrpId =
-                    cardData
-                        ?.abilityIds
-                        ?.getOrNull(keywordCount + i)
-                        ?.first ?: 0
+                    if (cost.type == forge.game.spellability.OptionalCost.Bargain) {
+                        findKeywordSlot(card, "Bargain", keywordCount)
+                            ?.let { cardData?.abilityIds?.getOrNull(it)?.first }
+                            ?: 0
+                    } else {
+                        cardData
+                            ?.abilityIds
+                            ?.getOrNull(keywordCount + i)
+                            ?.first ?: 0
+                    }
                 Pair(ctoType, abilityGrpId)
             }
 
@@ -826,6 +843,15 @@ class TargetingHandler(
         // first in abilityIds; bounded by `keywordCount` (SlotLayout source of
         // truth). Anything beyond is an optional-cost slot and shouldn't be
         // matched as a keyword grpId.
+        //
+        // ctoType: AdditionalCost (proto 5) for all keyword costs. The
+        // dedicated enums (Casualty=15, Conspire=8) silently drop in the
+        // client under our current envelope — same strict-renderer pattern
+        // as Bargain (proto 17). Kicker (proto 3) and AdditionalCost
+        // (proto 5) are the two permissive renderers that produce a
+        // Choose-One modal from the abridged envelope. The missing field
+        // that unlocks the dedicated paths (likely `autoTapSolution`) is
+        // tracked in `leyline-zru7`.
         val keywordEntries =
             keywordCostEntries.mapNotNull { kw ->
                 val slot = findKeywordSlot(card, kw.name, keywordCount) ?: return@mapNotNull null
@@ -840,6 +866,8 @@ class TargetingHandler(
             bundles.bundleBuilder.buildOptionalCostCastingTimeOptionsReq(
                 instanceId = action.instanceId,
                 optionalCosts = combinedCostEntries,
+                playerIdToPrompt = counters.seatId.value,
+                baseManaCost = cardData?.manaCost ?: emptyList(),
             )
 
         // Stash the Cast action for replay after response. Map the trailing

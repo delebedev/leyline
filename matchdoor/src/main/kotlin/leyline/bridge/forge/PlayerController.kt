@@ -669,12 +669,21 @@ class PlayerController(
         alreadyPaid: Boolean,
         allPayers: FCollectionView<Player>,
     ): Boolean {
-        // Shock land (single CostPayLife part) gets the OptionalActionMessage path;
-        // everything else (echo, cumulative upkeep) falls through to PCHuman.
-        val lifePart =
-            cost.costParts.singleOrNull() as? CostPayLife
-                ?: return super.payCostToPreventEffect(cost, sa, alreadyPaid, allPayers)
-        return costPaymentCoordinator.payShockLand(lifePart, sa)
+        // Shock land (single CostPayLife part) gets the OptionalActionMessage path.
+        cost.costParts.singleOrNull().let { single ->
+            if (single is CostPayLife) {
+                return costPaymentCoordinator.payShockLand(single, sa)
+            }
+            // Ward {N} mana tax: Keyword.WARD on the trigger source + a single
+            // CostPartMana. Routes to the AI auto-tap solver under a Yes/No
+            // confirmation so the targeting player can decline.
+            if (single is CostPartMana && sa.isKeyword(Keyword.WARD)) {
+                return costPaymentCoordinator.payWardManaTax(cost, sa)
+            }
+        }
+        // Everything else (echo, cumulative upkeep, multi-part costs) falls
+        // through to PCHuman.
+        return super.payCostToPreventEffect(cost, sa, alreadyPaid, allPayers)
     }
 
     // -- Discard unless type -----------------------------------------------

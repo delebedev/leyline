@@ -5,6 +5,8 @@ import forge.card.mana.ManaCost
 import forge.card.mana.ManaCostShard
 import forge.game.card.Card
 import forge.game.card.CardCollectionView
+import forge.game.cost.Cost
+import forge.game.cost.CostPartMana
 import forge.game.cost.CostPayLife
 import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
@@ -195,6 +197,64 @@ class CostPaymentCoordinator(
             )
         if (accepted) player.payLife(amount, sa, true)
         return accepted
+    }
+
+    /**
+     * Ward {N} mana tax: opponent targeted a permanent with `Ward {<mana>}`,
+     * Forge built a Counter trigger with `UnlessCost$ <mana>` and
+     * `UnlessPayer$ TriggeredSourceSAController`. Forge dispatches
+     * `payCostToPreventEffect` on the cost payer's PlayerController, so the
+     * `[player]` field on this coordinator is the targeting player — the
+     * one who must pay the tax, NOT `sa.activatingPlayer` (which Forge sets
+     * to the warded permanent's controller, the "you" of the Ward trigger).
+     *
+     * Asks `[player]` via [OptionalActionGate]. Decline on timeout — the
+     * spell counters, which is the safe outcome for the warded permanent's
+     * controller. On accept, drain mana via [ComputerUtilMana.payManaCost]
+     * (auto-tap solver). The v2 rewrite to a `PayCostsReq` mana picker is
+     * tracked in `leyline-we4r`.
+     *
+     * Returns true when paid (engine treats the trigger as prevented),
+     * false when declined or auto-tap fails (Counter SA proceeds).
+     */
+    fun payWardManaTax(
+        cost: Cost,
+        sa: SpellAbility,
+    ): Boolean {
+        val hostCard = sa.hostCard
+        // Forge sets `sa.activatingPlayer` to the warded permanent's controller
+        // (the "you" of the Ward trigger). The actual cost payer is the
+        // controller of the spell that targeted — i.e. the controller whose
+        // PlayerController Forge dispatches `payCostToPreventEffect` on:
+        // [player]. Don't trust `sa.activatingPlayer` for the payer here.
+        val payer = player
+        log.info(
+            "payCostToPreventEffect: Ward mana tax {} for {} (payer seat={})",
+            cost,
+            hostCard?.name,
+            payer.lobbyPlayer?.name,
+        )
+        val accepted =
+            optionalActionGate.await(
+                hostCard = hostCard,
+                defaultOnTimeout = false,
+                logContext = "payCostToPreventEffect:ward",
+            )
+        if (!accepted) return false
+
+        val manaPart = cost.costParts.firstOrNull { it is CostPartMana } as? CostPartMana
+        if (manaPart == null) {
+            log.warn("payWardManaTax accepted but no CostPartMana in cost {} — declining", cost)
+            return false
+        }
+        val toPay = ManaCostBeingPaid(manaPart.mana)
+        // AI auto-tap solver runs against the payer's mana pool. Effect=true so
+        // mana paid here is treated as effect-cost (not a primary spell cost).
+        val paid = ComputerUtilMana.payManaCost(toPay, sa, payer, true)
+        if (!paid) {
+            log.warn("payWardManaTax: ComputerUtilMana.payManaCost returned false for {} — Ward not paid", hostCard?.name)
+        }
+        return paid
     }
 
     private fun pickShardForConvoke(

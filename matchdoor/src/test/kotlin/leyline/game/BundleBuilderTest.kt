@@ -259,6 +259,83 @@ class BundleBuilderTest :
             }
         }
 
+        test("buildOptionalCostCastingTimeOptionsReq populates playerIdToPrompt + manaCost on every entry including Done") {
+            // Pins the wire fields the strict-renderer ctoTypes are sensitive to
+            // (see leyline-zru7). The empirical Bargain (proto 17) silent-drop
+            // hinges on these being absent on the Done entry; regress-prevention
+            // for the broader optional-cost path that ships today via proto 5.
+            val (req, costCtoIds) =
+                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                    instanceId = 100,
+                    optionalCosts =
+                        listOf(
+                            Messages.CastingTimeOptionType.AdditionalCost to 303,
+                            Messages.CastingTimeOptionType.Kicker to 94999,
+                        ),
+                    playerIdToPrompt = 1,
+                    baseManaCost =
+                        listOf(
+                            Messages.ManaColor.Generic to 2,
+                            Messages.ManaColor.Black_afc9 to 1,
+                        ),
+                )
+
+            costCtoIds shouldBe listOf(1, 2)
+            req.castingTimeOptionReqCount shouldBe 3 // 2 cost entries + Done
+
+            val cost0 = req.getCastingTimeOptionReq(0)
+            val cost1 = req.getCastingTimeOptionReq(1)
+            val done = req.getCastingTimeOptionReq(2)
+
+            assertSoftly {
+                // Cost entries
+                cost0.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.AdditionalCost
+                cost0.grpId shouldBe 303
+                cost0.affectedId shouldBe 100
+                cost0.affectorId shouldBe 100
+                cost0.playerIdToPrompt shouldBe 1
+                cost0.manaCostCount shouldBe 2
+                cost0.getManaCost(0).getColor(0) shouldBe Messages.ManaColor.Generic
+                cost0.getManaCost(0).count shouldBe 2
+                cost0.getManaCost(0).objectId shouldBe 100
+                cost0.getManaCost(1).getColor(0) shouldBe Messages.ManaColor.Black_afc9
+
+                cost1.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Kicker
+                cost1.grpId shouldBe 94999
+                cost1.playerIdToPrompt shouldBe 1
+                cost1.manaCostCount shouldBe 2
+
+                // Done entry — must carry the SAME playerIdToPrompt + manaCost as cost entries.
+                // The strict renderer reads these off Done to compute base affordability.
+                done.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Done
+                done.isRequired.shouldBeTrue()
+                done.playerIdToPrompt shouldBe 1
+                done.manaCostCount shouldBe 2
+                done.getManaCost(0).getColor(0) shouldBe Messages.ManaColor.Generic
+                done.getManaCost(0).count shouldBe 2
+                done.getManaCost(0).objectId shouldBe 100
+            }
+        }
+
+        test("buildOptionalCostCastingTimeOptionsReq with empty baseManaCost leaves manaCost unset") {
+            // Mana-cost-less casts (rare) should produce a CTO with no manaCost
+            // entries — neither on the cost rows nor on Done.
+            val (req, _) =
+                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                    instanceId = 200,
+                    optionalCosts = listOf(Messages.CastingTimeOptionType.AdditionalCost to 303),
+                    playerIdToPrompt = 2,
+                    baseManaCost = emptyList(),
+                )
+
+            assertSoftly {
+                req.getCastingTimeOptionReq(0).manaCostCount shouldBe 0
+                req.getCastingTimeOptionReq(0).playerIdToPrompt shouldBe 2
+                req.getCastingTimeOptionReq(1).manaCostCount shouldBe 0
+                req.getCastingTimeOptionReq(1).playerIdToPrompt shouldBe 2
+            }
+        }
+
         test("edictalPass sends server-forced Pass action") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
             val result = pureBB().edictalPass(counter = counter)
