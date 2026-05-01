@@ -5,6 +5,8 @@ import forge.card.mana.ManaCost
 import forge.card.mana.ManaCostShard
 import forge.game.card.Card
 import forge.game.card.CardCollectionView
+import forge.game.cost.Cost
+import forge.game.cost.CostPartMana
 import forge.game.cost.CostPayLife
 import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
@@ -195,6 +197,50 @@ class CostPaymentCoordinator(
             )
         if (accepted) player.payLife(amount, sa, true)
         return accepted
+    }
+
+    /**
+     * Ward {N} mana tax. Yes/No via [OptionalActionGate]; on accept, drain
+     * mana via [ComputerUtilMana.payManaCost] (auto-tap solver). Decline on
+     * timeout — the spell counters, the safe outcome for the warded
+     * permanent's controller.
+     *
+     * Payer is `[player]` (the controller whose [PlayerController] Forge
+     * dispatches `payCostToPreventEffect` on), NOT `sa.activatingPlayer` —
+     * Forge sets the latter to the warded permanent's controller (the
+     * trigger's "you"), which is the wrong seat for paying the tax.
+     */
+    fun payWardManaTax(
+        cost: Cost,
+        sa: SpellAbility,
+    ): Boolean {
+        val hostCard = sa.hostCard
+        log.info(
+            "payCostToPreventEffect: Ward mana tax {} for {} (payer seat={})",
+            cost,
+            hostCard?.name,
+            player.lobbyPlayer?.name,
+        )
+        val accepted =
+            optionalActionGate.await(
+                hostCard = hostCard,
+                defaultOnTimeout = false,
+                logContext = "payCostToPreventEffect:ward",
+            )
+        if (!accepted) return false
+
+        val manaPart = cost.costParts.firstOrNull { it is CostPartMana } as? CostPartMana
+        if (manaPart == null) {
+            log.warn("payWardManaTax accepted but no CostPartMana in cost {} — declining", cost)
+            return false
+        }
+        val toPay = ManaCostBeingPaid(manaPart.mana)
+        // effect=true: tax mana, not a primary spell cost.
+        val paid = ComputerUtilMana.payManaCost(toPay, sa, player, true)
+        if (!paid) {
+            log.warn("payWardManaTax: auto-tap could not pay {} for {}", cost, hostCard?.name)
+        }
+        return paid
     }
 
     private fun pickShardForConvoke(

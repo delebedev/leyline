@@ -669,12 +669,17 @@ class PlayerController(
         alreadyPaid: Boolean,
         allPayers: FCollectionView<Player>,
     ): Boolean {
-        // Shock land (single CostPayLife part) gets the OptionalActionMessage path;
-        // everything else (echo, cumulative upkeep) falls through to PCHuman.
-        val lifePart =
-            cost.costParts.singleOrNull() as? CostPayLife
-                ?: return super.payCostToPreventEffect(cost, sa, alreadyPaid, allPayers)
-        return costPaymentCoordinator.payShockLand(lifePart, sa)
+        // Single-part costs route to coordinator helpers; everything else
+        // (echo, cumulative upkeep, multi-part) falls through to PCHuman.
+        cost.costParts.singleOrNull().let { single ->
+            if (single is CostPayLife) {
+                return costPaymentCoordinator.payShockLand(single, sa)
+            }
+            if (single is CostPartMana && sa.isKeyword(Keyword.WARD)) {
+                return costPaymentCoordinator.payWardManaTax(cost, sa)
+            }
+        }
+        return super.payCostToPreventEffect(cost, sa, alreadyPaid, allPayers)
     }
 
     // -- Discard unless type -----------------------------------------------

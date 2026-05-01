@@ -1466,15 +1466,31 @@ class BundleBuilder(
      * Build a [CastingTimeOptionsReq] for optional costs (kicker, buyback, etc.).
      *
      * Pure proto construction — caller handles SpellAbility lookup and pending state.
+     * `playerIdToPrompt` and `baseManaCost` (with `objectId = instanceId`) are
+     * populated on every entry including Done; the Bargain (proto 17) renderer
+     * silently drops without them.
      *
-     * @param instanceId the instanceId of the card being cast
-     * @param optionalCosts list of (ctoType, abilityGrpId) for each optional cost
-     * @return pair of (CastingTimeOptionsReq, costCtoIds)
+     * @param instanceId the instanceId of the card being cast.
+     * @param optionalCosts list of (ctoType, abilityGrpId) for each optional cost.
+     * @param playerIdToPrompt the casting seat (1 or 2).
+     * @param baseManaCost the spell's base mana cost as (color, count) pairs;
+     *   empty list leaves manaCost unset.
      */
     fun buildOptionalCostCastingTimeOptionsReq(
         instanceId: Int,
         optionalCosts: List<Pair<CastingTimeOptionType, Int>>,
+        playerIdToPrompt: Int,
+        baseManaCost: List<Pair<ManaColor, Int>>,
     ): Pair<CastingTimeOptionsReq, List<Int>> {
+        val manaRequirements =
+            baseManaCost.map { (color, count) ->
+                ManaRequirement
+                    .newBuilder()
+                    .addColor(color)
+                    .setCount(count)
+                    .setObjectId(instanceId)
+                    .build()
+            }
         val ctoReqBuilder = CastingTimeOptionsReq.newBuilder()
         val costCtoIds = mutableListOf<Int>()
         for ((i, cost) in optionalCosts.withIndex()) {
@@ -1487,7 +1503,9 @@ class BundleBuilder(
                     .setCastingTimeOptionType(cost.first)
                     .setAffectedId(instanceId)
                     .setAffectorId(instanceId)
-                    .setGrpId(cost.second),
+                    .setGrpId(cost.second)
+                    .setPlayerIdToPrompt(playerIdToPrompt)
+                    .addAllManaCost(manaRequirements),
             )
         }
         ctoReqBuilder.addCastingTimeOptionReq(
@@ -1495,7 +1513,9 @@ class BundleBuilder(
                 .newBuilder()
                 .setCtoId(0)
                 .setCastingTimeOptionType(CastingTimeOptionType.Done)
-                .setIsRequired(true),
+                .setIsRequired(true)
+                .setPlayerIdToPrompt(playerIdToPrompt)
+                .addAllManaCost(manaRequirements),
         )
         return Pair(ctoReqBuilder.build(), costCtoIds)
     }

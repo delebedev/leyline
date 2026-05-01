@@ -795,6 +795,10 @@ class TargetingHandler(
             } else {
                 0
             }
+        // Bargain / Casualty / Conspire have dedicated proto enums but the
+        // client's renderer for those silently drops under our current
+        // envelope — route through AdditionalCost (proto 5), which renders.
+        // Tracked in leyline-zru7.
         val optionalCostEntries =
             optionalCosts.mapIndexed { i, cost ->
                 val ctoType =
@@ -802,30 +806,28 @@ class TargetingHandler(
                         forge.game.spellability.OptionalCost.Kicker1,
                         forge.game.spellability.OptionalCost.Kicker2,
                         -> CastingTimeOptionType.Kicker
-                        forge.game.spellability.OptionalCost.Bargain -> CastingTimeOptionType.Bargain
-                        // Buyback / Entwine / PromiseGift (Gift) and the rest of the
-                        // "yes/no, pay extra mana, get extra effect" family all render
-                        // as AdditionalCost in MTGA. The proto's `OptionalCost` (6) is
-                        // for a different shape entirely — using it for these gates
-                        // makes the client silently drop the prompt.
-                        forge.game.spellability.OptionalCost.Buyback,
-                        forge.game.spellability.OptionalCost.Entwine,
-                        forge.game.spellability.OptionalCost.PromiseGift,
-                        -> CastingTimeOptionType.AdditionalCost
                         else -> CastingTimeOptionType.AdditionalCost
                     }
+                // Bargain has a keyword slot (universal id) AND a per-card
+                // "If bargained..." conditional slot. The client expects the
+                // keyword slot's grpId on the CTO entry.
                 val abilityGrpId =
-                    cardData
-                        ?.abilityIds
-                        ?.getOrNull(keywordCount + i)
-                        ?.first ?: 0
+                    if (cost.type == forge.game.spellability.OptionalCost.Bargain) {
+                        findKeywordSlot(card, "Bargain", keywordCount)
+                            ?.let { cardData?.abilityIds?.getOrNull(it)?.first }
+                            ?: 0
+                    } else {
+                        cardData
+                            ?.abilityIds
+                            ?.getOrNull(keywordCount + i)
+                            ?.first ?: 0
+                    }
                 Pair(ctoType, abilityGrpId)
             }
 
-        // Resolve per-keyword ability grpId from cardData. Keyword slots come
-        // first in abilityIds; bounded by `keywordCount` (SlotLayout source of
-        // truth). Anything beyond is an optional-cost slot and shouldn't be
-        // matched as a keyword grpId.
+        // Keyword slots come first in `abilityIds`, bounded by `keywordCount`
+        // (SlotLayout source of truth). Anything beyond is an optional-cost
+        // slot and shouldn't be matched as a keyword grpId.
         val keywordEntries =
             keywordCostEntries.mapNotNull { kw ->
                 val slot = findKeywordSlot(card, kw.name, keywordCount) ?: return@mapNotNull null
@@ -840,6 +842,8 @@ class TargetingHandler(
             bundles.bundleBuilder.buildOptionalCostCastingTimeOptionsReq(
                 instanceId = action.instanceId,
                 optionalCosts = combinedCostEntries,
+                playerIdToPrompt = counters.seatId.value,
+                baseManaCost = cardData?.manaCost ?: emptyList(),
             )
 
         // Stash the Cast action for replay after response. Map the trailing

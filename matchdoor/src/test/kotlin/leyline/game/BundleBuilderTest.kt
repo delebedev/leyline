@@ -176,6 +176,8 @@ class BundleBuilderTest :
                 pureBB().buildOptionalCostCastingTimeOptionsReq(
                     instanceId = 240,
                     optionalCosts = listOf(Messages.CastingTimeOptionType.AdditionalCost to 173850),
+                    playerIdToPrompt = 1,
+                    baseManaCost = listOf(Messages.ManaColor.Blue_afc9 to 1),
                 )
 
             ids shouldBe listOf(1)
@@ -185,6 +187,7 @@ class BundleBuilderTest :
                 opt.ctoId shouldBe 1
                 opt.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.AdditionalCost
                 opt.grpId shouldBe 173850
+                opt.playerIdToPrompt shouldBe 1
                 opt.affectedId shouldBe 240
                 opt.affectorId shouldBe 240
                 req.getCastingTimeOptionReq(1).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Done
@@ -205,6 +208,8 @@ class BundleBuilderTest :
                             Messages.CastingTimeOptionType.Bargain to 303,
                             Messages.CastingTimeOptionType.AdditionalCost to 173931,
                         ),
+                    playerIdToPrompt = 1,
+                    baseManaCost = listOf(Messages.ManaColor.Generic to 1, Messages.ManaColor.Blue_afc9 to 1),
                 )
 
             assertSoftly {
@@ -225,6 +230,8 @@ class BundleBuilderTest :
                 pureBB().buildOptionalCostCastingTimeOptionsReq(
                     instanceId = 100,
                     optionalCosts = emptyList(),
+                    playerIdToPrompt = 1,
+                    baseManaCost = emptyList(),
                 )
             assertSoftly {
                 ids shouldBe emptyList<Int>()
@@ -256,6 +263,74 @@ class BundleBuilderTest :
                 mr.getModalOptions(0).modeCostCount shouldBe 1
                 mr.getModalOptions(1).modeCostCount shouldBe 1
                 mr.getModalOptions(2).modeCostCount shouldBe 0
+            }
+        }
+
+        test("buildOptionalCostCastingTimeOptionsReq populates playerIdToPrompt + manaCost on every entry including Done") {
+            val (req, costCtoIds) =
+                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                    instanceId = 100,
+                    optionalCosts =
+                        listOf(
+                            Messages.CastingTimeOptionType.AdditionalCost to 303,
+                            Messages.CastingTimeOptionType.Kicker to 94999,
+                        ),
+                    playerIdToPrompt = 1,
+                    baseManaCost =
+                        listOf(
+                            Messages.ManaColor.Generic to 2,
+                            Messages.ManaColor.Black_afc9 to 1,
+                        ),
+                )
+
+            costCtoIds shouldBe listOf(1, 2)
+            req.castingTimeOptionReqCount shouldBe 3 // 2 cost entries + Done
+
+            val cost0 = req.getCastingTimeOptionReq(0)
+            val cost1 = req.getCastingTimeOptionReq(1)
+            val done = req.getCastingTimeOptionReq(2)
+
+            assertSoftly {
+                cost0.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.AdditionalCost
+                cost0.grpId shouldBe 303
+                cost0.affectedId shouldBe 100
+                cost0.affectorId shouldBe 100
+                cost0.playerIdToPrompt shouldBe 1
+                cost0.manaCostCount shouldBe 2
+                cost0.getManaCost(0).getColor(0) shouldBe Messages.ManaColor.Generic
+                cost0.getManaCost(0).count shouldBe 2
+                cost0.getManaCost(0).objectId shouldBe 100
+                cost0.getManaCost(1).getColor(0) shouldBe Messages.ManaColor.Black_afc9
+
+                cost1.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Kicker
+                cost1.grpId shouldBe 94999
+                cost1.playerIdToPrompt shouldBe 1
+                cost1.manaCostCount shouldBe 2
+
+                done.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Done
+                done.isRequired.shouldBeTrue()
+                done.playerIdToPrompt shouldBe 1
+                done.manaCostCount shouldBe 2
+                done.getManaCost(0).getColor(0) shouldBe Messages.ManaColor.Generic
+                done.getManaCost(0).count shouldBe 2
+                done.getManaCost(0).objectId shouldBe 100
+            }
+        }
+
+        test("buildOptionalCostCastingTimeOptionsReq with empty baseManaCost leaves manaCost unset") {
+            val (req, _) =
+                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                    instanceId = 200,
+                    optionalCosts = listOf(Messages.CastingTimeOptionType.AdditionalCost to 303),
+                    playerIdToPrompt = 2,
+                    baseManaCost = emptyList(),
+                )
+
+            assertSoftly {
+                req.getCastingTimeOptionReq(0).manaCostCount shouldBe 0
+                req.getCastingTimeOptionReq(0).playerIdToPrompt shouldBe 2
+                req.getCastingTimeOptionReq(1).manaCostCount shouldBe 0
+                req.getCastingTimeOptionReq(1).playerIdToPrompt shouldBe 2
             }
         }
 

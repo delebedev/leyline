@@ -1,0 +1,19 @@
+[metadata]
+Name:Try Ward - Vren the Relentless
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast Lightning Bolt targeting opp's Vren, the Relentless (Ward 2). Ward trigger fires; pay {2} to keep the Bolt or decline to counter it. Battlefield has 3 lands (Mountain + 2 Forest = {R} + {2} generic).
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Lightning Bolt
+humanbattlefield=Mountain;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+
+aibattlefield=Vren, the Relentless
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
