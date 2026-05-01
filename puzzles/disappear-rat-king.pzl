@@ -12,6 +12,8 @@ HumanLife=20
 AILife=20
 removesummoningsickness=true
 
-humanbattlefield=Rat King, Verminister;Bone Splinters;Grizzly Bears;Swamp;Swamp;Swamp
+humanbattlefield=Rat King, Verminister;Grizzly Bears;Swamp;Swamp;Swamp
+humanhand=Bone Splinters
+aibattlefield=Grizzly Bears
 ailibrary=Forest
 humanlibrary=Swamp

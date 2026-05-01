@@ -114,6 +114,7 @@ object AbilityWordTriggerRecognizers {
         return false
     }
 
+    @Suppress("CyclomaticComplexMethod")
     fun scan(
         battlefieldCards: List<Card>,
         instanceIdResolver: (ForgeCardId) -> InstanceId,
