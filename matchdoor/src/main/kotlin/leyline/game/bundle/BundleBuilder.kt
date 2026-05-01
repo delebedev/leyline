@@ -1394,6 +1394,7 @@ class BundleBuilder(
      * @param ctoId CTO identifier (1-2 for spell-time, 3 for triggered abilities)
      * @param playerIdToPrompt seat number to prompt (null omits the field)
      */
+    @Suppress("LongParameterList") // Each param maps to one explicit proto field; bundling into a struct just renames the bag.
     fun buildModalCastingTimeOptionsReq(
         parentGrpId: Int,
         childGrpIds: List<Int>,

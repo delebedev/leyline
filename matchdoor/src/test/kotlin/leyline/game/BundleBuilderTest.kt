@@ -130,19 +130,43 @@ class BundleBuilderTest :
                 mr.modalOptionsCount shouldBe 2
                 mr.getModalOptions(0).grpId shouldBe 171803
                 mr.getModalOptions(0).modeCostCount shouldBe 1
-                mr.getModalOptions(0).getModeCost(0).manaCost.getColor(0) shouldBe Messages.ManaColor.Generic
-                mr.getModalOptions(0).getModeCost(0).manaCost.count shouldBe 3
+                mr
+                    .getModalOptions(0)
+                    .getModeCost(0)
+                    .manaCost
+                    .getColor(0) shouldBe Messages.ManaColor.Generic
+                mr
+                    .getModalOptions(0)
+                    .getModeCost(0)
+                    .manaCost.count shouldBe 3
 
                 mr.getModalOptions(1).grpId shouldBe 171804
-                mr.getModalOptions(1).getModeCost(0).manaCost.count shouldBe 2
+                mr
+                    .getModalOptions(1)
+                    .getModeCost(0)
+                    .manaCost.count shouldBe 2
 
                 mr.excludedOptionsCount shouldBe 1
                 mr.getExcludedOptions(0).grpId shouldBe 171802
                 mr.getExcludedOptions(0).modeCostCount shouldBe 2
-                mr.getExcludedOptions(0).getModeCost(0).manaCost.getColor(0) shouldBe Messages.ManaColor.Generic
-                mr.getExcludedOptions(0).getModeCost(0).manaCost.count shouldBe 1
-                mr.getExcludedOptions(0).getModeCost(1).manaCost.getColor(0) shouldBe Messages.ManaColor.Blue_afc9
-                mr.getExcludedOptions(0).getModeCost(1).manaCost.count shouldBe 1
+                mr
+                    .getExcludedOptions(0)
+                    .getModeCost(0)
+                    .manaCost
+                    .getColor(0) shouldBe Messages.ManaColor.Generic
+                mr
+                    .getExcludedOptions(0)
+                    .getModeCost(0)
+                    .manaCost.count shouldBe 1
+                mr
+                    .getExcludedOptions(0)
+                    .getModeCost(1)
+                    .manaCost
+                    .getColor(0) shouldBe Messages.ManaColor.Blue_afc9
+                mr
+                    .getExcludedOptions(0)
+                    .getModeCost(1)
+                    .manaCost.count shouldBe 1
             }
         }
 
@@ -165,9 +189,11 @@ class BundleBuilderTest :
                     grpId = 1,
                 )
             val mr = req.getCastingTimeOptionReq(0).modalReq
-            mr.getModalOptions(0).modeCostCount shouldBe 1
-            mr.getModalOptions(1).modeCostCount shouldBe 1
-            mr.getModalOptions(2).modeCostCount shouldBe 0
+            assertSoftly {
+                mr.getModalOptions(0).modeCostCount shouldBe 1
+                mr.getModalOptions(1).modeCostCount shouldBe 1
+                mr.getModalOptions(2).modeCostCount shouldBe 0
+            }
         }
 
         test("edictalPass sends server-forced Pass action") {
