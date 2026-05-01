@@ -69,9 +69,10 @@ class TargetingHandler(
             seatBridge.prompt.getPendingPrompt() ?: run {
                 // Race: bridge prompt timed out and was cleared, then the late
                 // client response arrives. Pre-fix this crashed the match in
-                // strict mode (`MTGA Waiting for the Server` overlay). Downgraded
-                // to failOnAutoPass — caught in tests with strict_pass=true,
-                // soft-dropped in dev. See leyline-xejz for the proper fix.
+                // strict mode (the client gets stuck on a "waiting for the
+                // server" overlay). Downgraded to failOnAutoPass — caught in
+                // tests with strict_pass=true, soft-dropped in dev. See
+                // leyline-xejz for the proper fix.
                 log.warn("TargetingHandler: SelectTargetsResp but no pending prompt (likely timeout race)")
                 DevCheck.failOnAutoPass { "SelectTargetsResp but no pending prompt" }
                 return
@@ -771,7 +772,7 @@ class TargetingHandler(
         // Forge dispatch path (`addKeywordCost` → `chooseNumberForKeywordCost`)
         // but the player-facing surface is identical to OptionalCost — pre-cast
         // yes/no on an extra mana cost. Surface them through the same CTO emit
-        // here so MTGA renders one combined modal; pull decisions back out of
+        // here so the client renders one combined modal; pull decisions back out of
         // the journal in CostPaymentCoordinator when Forge prompts.
         val keywordCostEntries = collectKeywordCostEntries(card)
         if (optionalCosts.isEmpty() && keywordCostEntries.isEmpty()) return false

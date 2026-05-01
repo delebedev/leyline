@@ -115,7 +115,7 @@ class CostPaymentCoordinator(
      * additional cost?"). When [keywordName] is supplied and a CTO-side
      * decision is already stashed (set by `TargetingHandler.checkOptionalCosts`
      * when the player picked from the cost modal), use it — that's the path
-     * that lets MTGA render a proper CastingTimeOptionsReq instead of a bare
+     * that lets the client render a proper CastingTimeOptionsReq instead of a bare
      * confirm prompt. Fall back to the confirm prompt only when no CTO was
      * sent for this keyword (legacy / dev-harness paths). For max > 1 the
      * caller keeps `super.chooseNumberForKeywordCost` which routes through
@@ -125,12 +125,10 @@ class CostPaymentCoordinator(
         prompt: String,
         keywordName: String? = null,
     ): Int {
-        if (keywordName != null) {
-            val cached = bridge.journal.peekKeywordCostDecision(keywordName)
-            if (cached != null) {
-                log.info("chooseKeywordCostBinary: using stashed decision for keyword={} → {}", keywordName, cached)
-                return if (cached) 1 else 0
-            }
+        val stashedAnswer = resolveKeywordCostFromStash(bridge, keywordName)
+        if (stashedAnswer != null) {
+            log.info("chooseKeywordCostBinary: using stashed decision for keyword={} → {}", keywordName, stashedAnswer == 1)
+            return stashedAnswer
         }
         val request =
             PromptRequest(
@@ -217,5 +215,21 @@ class CostPaymentCoordinator(
     companion object {
         /** Drain the optional cost stash from [bridge]'s journal, or null if none recorded. */
         fun consumeStashFor(bridge: InteractivePromptBridge): List<Int>? = bridge.journal.consumeOptionalCostStash()
+
+        /**
+         * Resolve a binary keyword-cost decision from [bridge]'s journal stash.
+         * Returns 1 (pay) or 0 (decline) when a decision is stashed for
+         * [keywordName]. Returns null when [keywordName] is null OR no
+         * decision is stashed for it — caller should fall back to a confirm
+         * prompt. Pure function, no side effects.
+         */
+        fun resolveKeywordCostFromStash(
+            bridge: InteractivePromptBridge,
+            keywordName: String?,
+        ): Int? {
+            if (keywordName == null) return null
+            val cached = bridge.journal.peekKeywordCostDecision(keywordName) ?: return null
+            return if (cached) 1 else 0
+        }
     }
 }

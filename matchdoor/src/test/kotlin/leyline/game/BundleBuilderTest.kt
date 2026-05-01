@@ -39,6 +39,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
  * Unit group: pure proto wrappers (no game needed).
  * Conformance group: bundle shape checks via [startWithBoard].
  */
+@Suppress("LargeClass") // Builder fixture lives in one class so the proto-shape assertions stay co-located.
 class BundleBuilderTest :
     FunSpec({
 
@@ -167,6 +168,68 @@ class BundleBuilderTest :
                     .getExcludedOptions(0)
                     .getModeCost(1)
                     .manaCost.count shouldBe 1
+            }
+        }
+
+        test("buildOptionalCostCastingTimeOptionsReq — Gift shape (single AdditionalCost + Done terminator)") {
+            val (req, ids) =
+                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                    instanceId = 240,
+                    optionalCosts = listOf(Messages.CastingTimeOptionType.AdditionalCost to 173850),
+                )
+
+            ids shouldBe listOf(1)
+            assertSoftly {
+                req.castingTimeOptionReqCount shouldBe 2
+                val opt = req.getCastingTimeOptionReq(0)
+                opt.ctoId shouldBe 1
+                opt.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.AdditionalCost
+                opt.grpId shouldBe 173850
+                opt.affectedId shouldBe 240
+                opt.affectorId shouldBe 240
+                req.getCastingTimeOptionReq(1).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Done
+                req.getCastingTimeOptionReq(1).isRequired.shouldBeTrue()
+            }
+        }
+
+        test("buildOptionalCostCastingTimeOptionsReq — combined Bargain + Offspring shape (mixed ctoTypes)") {
+            // Unified emit: an OptionalCost-enum cost (Bargain) and a
+            // KeywordWithCost cost (Offspring) on the same cast surface as
+            // one combined modal. ctoIds are 1-based sequential; trailing
+            // entry is the Done terminator.
+            val (req, ids) =
+                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                    instanceId = 555,
+                    optionalCosts =
+                        listOf(
+                            Messages.CastingTimeOptionType.Bargain to 303,
+                            Messages.CastingTimeOptionType.AdditionalCost to 173931,
+                        ),
+                )
+
+            assertSoftly {
+                ids shouldBe listOf(1, 2)
+                req.castingTimeOptionReqCount shouldBe 3 // 2 costs + Done
+                req.getCastingTimeOptionReq(0).ctoId shouldBe 1
+                req.getCastingTimeOptionReq(0).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Bargain
+                req.getCastingTimeOptionReq(0).grpId shouldBe 303
+                req.getCastingTimeOptionReq(1).ctoId shouldBe 2
+                req.getCastingTimeOptionReq(1).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.AdditionalCost
+                req.getCastingTimeOptionReq(1).grpId shouldBe 173931
+                req.getCastingTimeOptionReq(2).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Done
+            }
+        }
+
+        test("buildOptionalCostCastingTimeOptionsReq — empty optionalCosts still emits Done terminator") {
+            val (req, ids) =
+                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                    instanceId = 100,
+                    optionalCosts = emptyList(),
+                )
+            assertSoftly {
+                ids shouldBe emptyList<Int>()
+                req.castingTimeOptionReqCount shouldBe 1
+                req.getCastingTimeOptionReq(0).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Done
             }
         }
 
