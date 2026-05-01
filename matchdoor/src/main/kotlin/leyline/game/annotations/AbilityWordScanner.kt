@@ -214,6 +214,15 @@ object AbilityWordScanner {
             }
         }
 
+        // Phase 4: trigger-pattern ability words (Flurry, Infusion, Raid, Coven, …)
+        results.addAll(
+            AbilityWordTriggerRecognizers.scan(
+                battlefieldCards = battlefieldCards,
+                instanceIdResolver = instanceIdResolver,
+                registryResolver = registryResolver,
+            ),
+        )
+
         return results
     }
 }
