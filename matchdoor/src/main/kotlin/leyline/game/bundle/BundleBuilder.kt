@@ -1466,19 +1466,15 @@ class BundleBuilder(
      * Build a [CastingTimeOptionsReq] for optional costs (kicker, buyback, etc.).
      *
      * Pure proto construction — caller handles SpellAbility lookup and pending state.
+     * `playerIdToPrompt` and `baseManaCost` (with `objectId = instanceId`) are
+     * populated on every entry including Done; the Bargain (proto 17) renderer
+     * silently drops without them.
      *
-     * `playerIdToPrompt` and `baseManaCost` are populated on every CTO entry
-     * (including the Done branch). Bargain (proto 17) silently drops without
-     * these fields; AdditionalCost (proto 5) tolerates the abridged emit but
-     * populating uniformly keeps every entry consistent across mechanics.
-     *
-     * @param instanceId the instanceId of the card being cast (used as objectId on
-     *   each manaCost entry).
+     * @param instanceId the instanceId of the card being cast.
      * @param optionalCosts list of (ctoType, abilityGrpId) for each optional cost.
      * @param playerIdToPrompt the casting seat (1 or 2).
      * @param baseManaCost the spell's base mana cost as (color, count) pairs;
-     *   emitted as repeated `ManaRequirement` rows on every entry. Empty list
-     *   leaves manaCost unset (rare — mana-cost-less casts shouldn't reach here).
+     *   empty list leaves manaCost unset.
      */
     fun buildOptionalCostCastingTimeOptionsReq(
         instanceId: Int,

@@ -795,6 +795,10 @@ class TargetingHandler(
             } else {
                 0
             }
+        // Bargain / Casualty / Conspire have dedicated proto enums but the
+        // client's renderer for those silently drops under our current
+        // envelope — route through AdditionalCost (proto 5), which renders.
+        // Tracked in leyline-zru7.
         val optionalCostEntries =
             optionalCosts.mapIndexed { i, cost ->
                 val ctoType =
@@ -802,29 +806,11 @@ class TargetingHandler(
                         forge.game.spellability.OptionalCost.Kicker1,
                         forge.game.spellability.OptionalCost.Kicker2,
                         -> CastingTimeOptionType.Kicker
-                        // Bargain currently uses AdditionalCost (proto 5) instead of
-                        // its dedicated `Bargain` enum (17). Empirically the
-                        // proto-17 path silently drops in the client even with
-                        // grpId=303 (universal Bargain id) + manaCost +
-                        // playerIdToPrompt populated — same envelope Kicker (proto 3)
-                        // uses successfully. The client's strict proto-17 renderer
-                        // must require an additional field we haven't isolated yet
-                        // (likely `autoTapSolution` on the Done entry, or some
-                        // sacrifice-context field). AdditionalCost goes through the
-                        // permissive renderer and produces a usable Choose-One modal.
-                        // TODO: revisit once the missing field is identified.
-                        forge.game.spellability.OptionalCost.Bargain,
-                        forge.game.spellability.OptionalCost.Buyback,
-                        forge.game.spellability.OptionalCost.Entwine,
-                        forge.game.spellability.OptionalCost.PromiseGift,
-                        -> CastingTimeOptionType.AdditionalCost
                         else -> CastingTimeOptionType.AdditionalCost
                     }
-                // Bargain is K:Bargain (a keyword) AND surfaces via getOptionalCostValues,
-                // so the per-card abilityIds layout has a keyword slot (universal Bargain
-                // grpId 303) and a separate per-card "If bargained..." conditional slot.
-                // The client expects the keyword slot's grpId on the CTO entry; without
-                // it the Bargain (proto 17) prompt silently drops.
+                // Bargain has a keyword slot (universal id) AND a per-card
+                // "If bargained..." conditional slot. The client expects the
+                // keyword slot's grpId on the CTO entry.
                 val abilityGrpId =
                     if (cost.type == forge.game.spellability.OptionalCost.Bargain) {
                         findKeywordSlot(card, "Bargain", keywordCount)
@@ -839,19 +825,9 @@ class TargetingHandler(
                 Pair(ctoType, abilityGrpId)
             }
 
-        // Resolve per-keyword ability grpId from cardData. Keyword slots come
-        // first in abilityIds; bounded by `keywordCount` (SlotLayout source of
-        // truth). Anything beyond is an optional-cost slot and shouldn't be
-        // matched as a keyword grpId.
-        //
-        // ctoType: AdditionalCost (proto 5) for all keyword costs. The
-        // dedicated enums (Casualty=15, Conspire=8) silently drop in the
-        // client under our current envelope — same strict-renderer pattern
-        // as Bargain (proto 17). Kicker (proto 3) and AdditionalCost
-        // (proto 5) are the two permissive renderers that produce a
-        // Choose-One modal from the abridged envelope. The missing field
-        // that unlocks the dedicated paths (likely `autoTapSolution`) is
-        // tracked in `leyline-zru7`.
+        // Keyword slots come first in `abilityIds`, bounded by `keywordCount`
+        // (SlotLayout source of truth). Anything beyond is an optional-cost
+        // slot and shouldn't be matched as a keyword grpId.
         val keywordEntries =
             keywordCostEntries.mapNotNull { kw ->
                 val slot = findKeywordSlot(card, kw.name, keywordCount) ?: return@mapNotNull null

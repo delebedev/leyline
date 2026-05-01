@@ -260,10 +260,6 @@ class BundleBuilderTest :
         }
 
         test("buildOptionalCostCastingTimeOptionsReq populates playerIdToPrompt + manaCost on every entry including Done") {
-            // Pins the wire fields the strict-renderer ctoTypes are sensitive to
-            // (see leyline-zru7). The empirical Bargain (proto 17) silent-drop
-            // hinges on these being absent on the Done entry; regress-prevention
-            // for the broader optional-cost path that ships today via proto 5.
             val (req, costCtoIds) =
                 pureBB().buildOptionalCostCastingTimeOptionsReq(
                     instanceId = 100,
@@ -288,7 +284,6 @@ class BundleBuilderTest :
             val done = req.getCastingTimeOptionReq(2)
 
             assertSoftly {
-                // Cost entries
                 cost0.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.AdditionalCost
                 cost0.grpId shouldBe 303
                 cost0.affectedId shouldBe 100
@@ -305,8 +300,6 @@ class BundleBuilderTest :
                 cost1.playerIdToPrompt shouldBe 1
                 cost1.manaCostCount shouldBe 2
 
-                // Done entry — must carry the SAME playerIdToPrompt + manaCost as cost entries.
-                // The strict renderer reads these off Done to compute base affordability.
                 done.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Done
                 done.isRequired.shouldBeTrue()
                 done.playerIdToPrompt shouldBe 1
@@ -318,8 +311,6 @@ class BundleBuilderTest :
         }
 
         test("buildOptionalCostCastingTimeOptionsReq with empty baseManaCost leaves manaCost unset") {
-            // Mana-cost-less casts (rare) should produce a CTO with no manaCost
-            // entries — neither on the cost rows nor on Done.
             val (req, _) =
                 pureBB().buildOptionalCostCastingTimeOptionsReq(
                     instanceId = 200,
