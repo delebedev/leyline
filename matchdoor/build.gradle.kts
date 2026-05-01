@@ -144,8 +144,10 @@ val simclient by tasks.registering(Test::class) {
     systemProperty("kotest.tags", "SimClientTag")
     // Forge's static MyRandom forces serial execution.
     maxParallelForks = 1
-    listOf("SIMCLIENT_DECKS", "SIMCLIENT_SEEDS", "LEYLINE_CARD_DB").forEach { name ->
-        environment(name, System.getenv(name) ?: "")
+    // Only pass through env vars that are actually set — pushing an empty
+    // string clobbers the test's `?: default` fallbacks.
+    listOf("SIMCLIENT_DECKS", "SIMCLIENT_SEEDS", "SIMCLIENT_PUZZLE", "LEYLINE_CARD_DB").forEach { name ->
+        System.getenv(name)?.takeIf { it.isNotEmpty() }?.let { environment(name, it) }
     }
     // Always re-execute — the matrix is env-driven, not source-driven, so
     // gradle's input fingerprint can't tell when we want a different run.

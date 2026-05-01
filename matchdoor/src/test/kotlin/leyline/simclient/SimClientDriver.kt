@@ -34,12 +34,13 @@ class SimClientDriver(
     private val log: PlayerLogWriter,
     private val maxTurns: Int = 50,
     private val maxIterations: Int = 2_000,
+    private val connect: () -> Unit = { harness.connectAndKeep() },
 ) {
     private val logger = LoggerFactory.getLogger(SimClientDriver::class.java)
     private var lastFlushedSize = 0
 
     fun runOneGame(): GameStats {
-        harness.connectAndKeep()
+        connect()
         flushNewMessagesToLog()
 
         var iter = 0

@@ -180,18 +180,30 @@ class MatchFlowHarness(
         aiScript: List<ScriptedAction>?,
     ) {
         GameBootstrap.initializeCardDatabase(quiet = true)
-        TestCardRegistry.ensureRegistered()
+        val repo: leyline.game.data.CardRepository =
+            if (cardRepositoryOverride != null) {
+                cardRepositoryOverride
+            } else {
+                TestCardRegistry.ensureRegistered()
+                TestCardRegistry.repo
+            }
 
         bridge =
             GameBridge(
                 bridgeTimeoutMs = 5_000L,
                 matchConfig = matchConfig,
                 messageCounter = MessageCounter(),
-                cardRepository = TestCardRegistry.repo,
+                cardRepository = repo,
             )
         bridge.priorityWaitMs = 2_000L
         bridge.startPuzzle(puzzle)
-        TestCardRegistry.registerPuzzleCards(bridge.getGame()!!)
+        // Fixture path: hydrate per-card YAML identity into the in-memory repo.
+        // SQLite-override path: card identity comes from the supplied repository;
+        // Forge's lazy script loader already pulled in every card the puzzle
+        // parser referenced.
+        if (cardRepositoryOverride == null) {
+            TestCardRegistry.registerPuzzleCards(bridge.getGame()!!)
+        }
 
         // Install scripted AI BEFORE onPuzzleStart — auto-pass will advance
         // through the human turn into the AI turn, where the script takes over.

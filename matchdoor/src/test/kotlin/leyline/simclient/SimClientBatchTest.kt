@@ -120,11 +120,83 @@ class SimClientBatchTest :
             writeSimClientSidecar(
                 logFile = logFile,
                 matchId = "simclient-$tag",
-                deckTag = deckName,
+                runLabel = deckName,
                 seed = seed,
                 generatedAt = LocalDateTime.now(),
+                runKind = "deck",
             )
             return stats
+        }
+
+        /**
+         * Drive a single puzzle-initialised game.
+         *
+         * Reads `puzzles/<name>` (resolved via `readPuzzle`) and starts the
+         * harness through [MatchFlowHarness.connectAndKeepPuzzleText]. The
+         * SimClientDriver loop is otherwise unchanged — same greedy responder,
+         * same termination guards. Output goes under build/simclient/ tagged
+         * `puzzle:<name>` for downstream filtering.
+         */
+        fun runOnePuzzle(
+            puzzleName: String,
+            puzzleText: String,
+            seed: Long,
+            maxTurns: Int = 30,
+            maxIterations: Int = 3_000,
+        ): GameStats {
+            val harness =
+                MatchFlowHarness(
+                    seed = seed,
+                    deckList = null,
+                    validating = false,
+                    cardRepositoryOverride = cardRepo,
+                )
+            val tag = "$puzzleName-s$seed"
+            val logFile = File(outDir, "$tag.log")
+            var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
+            val writer = logFile.bufferedWriter()
+            val playerLog =
+                PlayerLogWriter(
+                    out = writer,
+                    matchId = "simclient-$tag",
+                    clock = {
+                        fakeNow = fakeNow.plusSeconds(1)
+                        fakeNow
+                    },
+                )
+            val driver =
+                SimClientDriver(
+                    harness,
+                    playerLog,
+                    maxTurns = maxTurns,
+                    maxIterations = maxIterations,
+                    connect = { harness.connectAndKeepPuzzleText(puzzleText) },
+                )
+            val stats = driver.runOneGame()
+            writer.close()
+            writeSimClientSidecar(
+                logFile = logFile,
+                matchId = "simclient-$tag",
+                runLabel = puzzleName,
+                seed = seed,
+                generatedAt = LocalDateTime.now(),
+                runKind = "puzzle",
+            )
+            return stats
+        }
+
+        /** Read a puzzle file from leyline's puzzles/, return its body. */
+        fun readPuzzle(name: String): String {
+            val candidates =
+                listOf(
+                    Paths.get("puzzles/$name"),
+                    Paths.get("../puzzles/$name"),
+                    Paths.get("../../puzzles/$name"),
+                )
+            val path =
+                candidates.firstOrNull { Files.exists(it) }
+                    ?: error("puzzle not found: $name in any of $candidates (cwd=${Paths.get("").toAbsolutePath()})")
+            return Files.readString(path)
         }
 
         /** Built-in deck table — names map to deck-list bodies. */
@@ -167,6 +239,8 @@ class SimClientBatchTest :
         }
 
         test("batch — configurable deck × seed matrix").config(timeout = 8.minutes) {
+            // Mutually exclusive with the puzzle-matrix test below.
+            if (envOrProp("SIMCLIENT_PUZZLE") != null) return@config
             val deckSpec = envOrProp("SIMCLIENT_DECKS") ?: "forest-only,bears,mono-g-curve,mono-r-burn"
             val seedSpec = envOrProp("SIMCLIENT_SEEDS") ?: "7,13,42,99,314"
             val decks = deckSpec.split(",").map { it.trim() }.map { resolveDeck(it) }
@@ -204,6 +278,7 @@ class SimClientBatchTest :
         }
 
         test("batch — Simple test.txt (real seed deck) ×3 seeds").config(timeout = 5.minutes) {
+            if (envOrProp("SIMCLIENT_PUZZLE") != null) return@config
             val deckList =
                 try {
                     readDeck("Simple test.txt")
@@ -238,5 +313,55 @@ class SimClientBatchTest :
                 println("avg turns: ${"%.1f".format(results.map { it.turn }.average())}")
                 println("hit iter cap: ${results.count { it.hitIterCap }}")
             }
+        }
+
+        /**
+         * Puzzle-driven matrix.
+         *
+         * Activated when `SIMCLIENT_PUZZLE` is set: comma-separated list of
+         * puzzle filenames under `puzzles/` (e.g. `bolt-face.pzl`). Same
+         * `SIMCLIENT_SEEDS` parsing as the deck path. Each (puzzle × seed)
+         * starts the harness from the puzzle's declared board state, then
+         * runs the greedy responder until game-over or termination guard.
+         *
+         * The puzzle path skips mulligan + turn advancement, so seeds influence
+         * later RNG decisions (random-target selection, AI choices) rather
+         * than the opening hand.
+         */
+        test("batch — puzzle matrix").config(timeout = 8.minutes) {
+            val puzzleSpec = envOrProp("SIMCLIENT_PUZZLE") ?: return@config
+            val seedSpec = envOrProp("SIMCLIENT_SEEDS") ?: "7,13,42,99,314"
+            val puzzleNames = puzzleSpec.split(",").map { it.trim() }.filter { it.isNotBlank() }
+            val seeds = parseSeeds(seedSpec)
+            println("=== puzzle matrix: ${puzzleNames.size} puzzle(s) × ${seeds.size} seed(s) = ${puzzleNames.size * seeds.size} games ===")
+            val all = mutableListOf<Triple<String, Long, GameStats>>()
+            for (puzzleName in puzzleNames) {
+                val puzzleText =
+                    try {
+                        readPuzzle(puzzleName)
+                    } catch (e: Exception) {
+                        println("[$puzzleName] skipping: ${e.message}")
+                        continue
+                    }
+                val basename = puzzleName.removeSuffix(".pzl").substringAfterLast('/')
+                for (seed in seeds) {
+                    try {
+                        val stats = runOnePuzzle(basename, puzzleText, seed)
+                        all.add(Triple(basename, seed, stats))
+                        println(
+                            "[$basename s=$seed] turn=${stats.turn} gameOver=${stats.gameOver} " +
+                                "iter=${stats.iterations} msgs=${stats.totalMessages} " +
+                                "hitCap=${stats.hitIterCap} prompts=${stats.promptHistogram.size}",
+                        )
+                    } catch (t: Throwable) {
+                        println("[$basename s=$seed] CRASH: ${t::class.qualifiedName}: ${t.message}")
+                        t.stackTrace.take(15).forEach { println("    at $it") }
+                    }
+                }
+            }
+            println("\n=== puzzle summary ===")
+            println("games run: ${all.size}")
+            println("games ended (gameOver): ${all.count { it.third.gameOver }}")
+            println("games hit iter cap: ${all.count { it.third.hitIterCap }}")
         }
     })
