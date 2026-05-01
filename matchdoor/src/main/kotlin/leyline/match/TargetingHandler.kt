@@ -772,9 +772,17 @@ class TargetingHandler(
                         forge.game.spellability.OptionalCost.Kicker1,
                         forge.game.spellability.OptionalCost.Kicker2,
                         -> CastingTimeOptionType.Kicker
-                        forge.game.spellability.OptionalCost.Buyback -> CastingTimeOptionType.AdditionalCost
-                        forge.game.spellability.OptionalCost.Entwine -> CastingTimeOptionType.AdditionalCost
-                        else -> CastingTimeOptionType.OptionalCost
+                        forge.game.spellability.OptionalCost.Bargain -> CastingTimeOptionType.Bargain
+                        // Buyback / Entwine / PromiseGift (Gift) and the rest of the
+                        // "yes/no, pay extra mana, get extra effect" family all render
+                        // as AdditionalCost in MTGA. The proto's `OptionalCost` (6) is
+                        // for a different shape entirely — using it for these gates
+                        // makes the client silently drop the prompt.
+                        forge.game.spellability.OptionalCost.Buyback,
+                        forge.game.spellability.OptionalCost.Entwine,
+                        forge.game.spellability.OptionalCost.PromiseGift,
+                        -> CastingTimeOptionType.AdditionalCost
+                        else -> CastingTimeOptionType.AdditionalCost
                     }
                 val abilityGrpId =
                     cardData
