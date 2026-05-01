@@ -39,6 +39,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
  * Unit group: pure proto wrappers (no game needed).
  * Conformance group: bundle shape checks via [startWithBoard].
  */
+@Suppress("LargeClass") // Builder fixture lives in one class so the proto-shape assertions stay co-located.
 class BundleBuilderTest :
     FunSpec({
 
@@ -72,6 +73,189 @@ class BundleBuilderTest :
                 msg.type shouldBe GREMessageType.QueuedGameStateMessage
                 msg.hasGameStateMessage().shouldBeTrue()
                 msg.gameStateMessage.gameStateId shouldBe 42
+            }
+        }
+
+        test("buildModalCastingTimeOptionsReq — Charm shape (no costs, no excluded)") {
+            val req =
+                pureBB().buildModalCastingTimeOptionsReq(
+                    parentGrpId = 200001,
+                    childGrpIds = listOf(101, 102, 103),
+                    minSel = 1,
+                    maxSel = 1,
+                    sourceInstanceId = 555,
+                    grpId = 90000,
+                )
+
+            req.castingTimeOptionReqCount shouldBe 1
+            val opt = req.getCastingTimeOptionReq(0)
+            opt.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Modal_a7b4
+            val mr = opt.modalReq
+            assertSoftly {
+                mr.modalOptionsCount shouldBe 3
+                mr.getModalOptions(0).grpId shouldBe 101
+                mr.getModalOptions(0).modeCostCount shouldBe 0
+                mr.excludedOptionsCount shouldBe 0
+                mr.minSel shouldBe 1
+                mr.maxSel shouldBe 1
+            }
+        }
+
+        test("buildModalCastingTimeOptionsReq — Spree shape (modeCost + excludedOptions)") {
+            val req =
+                pureBB().buildModalCastingTimeOptionsReq(
+                    parentGrpId = 173717,
+                    childGrpIds = listOf(171803, 171804),
+                    modalCosts =
+                        listOf(
+                            listOf(Messages.ManaColor.Generic to 3),
+                            listOf(Messages.ManaColor.Generic to 2),
+                        ),
+                    excludedGrpIds = listOf(171802),
+                    excludedCosts =
+                        listOf(
+                            listOf(
+                                Messages.ManaColor.Generic to 1,
+                                Messages.ManaColor.Blue_afc9 to 1,
+                            ),
+                        ),
+                    minSel = 1,
+                    maxSel = 2,
+                    sourceInstanceId = 240,
+                    grpId = 90421,
+                )
+
+            val opt = req.getCastingTimeOptionReq(0)
+            val mr = opt.modalReq
+            assertSoftly {
+                mr.modalOptionsCount shouldBe 2
+                mr.getModalOptions(0).grpId shouldBe 171803
+                mr.getModalOptions(0).modeCostCount shouldBe 1
+                mr
+                    .getModalOptions(0)
+                    .getModeCost(0)
+                    .manaCost
+                    .getColor(0) shouldBe Messages.ManaColor.Generic
+                mr
+                    .getModalOptions(0)
+                    .getModeCost(0)
+                    .manaCost.count shouldBe 3
+
+                mr.getModalOptions(1).grpId shouldBe 171804
+                mr
+                    .getModalOptions(1)
+                    .getModeCost(0)
+                    .manaCost.count shouldBe 2
+
+                mr.excludedOptionsCount shouldBe 1
+                mr.getExcludedOptions(0).grpId shouldBe 171802
+                mr.getExcludedOptions(0).modeCostCount shouldBe 2
+                mr
+                    .getExcludedOptions(0)
+                    .getModeCost(0)
+                    .manaCost
+                    .getColor(0) shouldBe Messages.ManaColor.Generic
+                mr
+                    .getExcludedOptions(0)
+                    .getModeCost(0)
+                    .manaCost.count shouldBe 1
+                mr
+                    .getExcludedOptions(0)
+                    .getModeCost(1)
+                    .manaCost
+                    .getColor(0) shouldBe Messages.ManaColor.Blue_afc9
+                mr
+                    .getExcludedOptions(0)
+                    .getModeCost(1)
+                    .manaCost.count shouldBe 1
+            }
+        }
+
+        test("buildOptionalCostCastingTimeOptionsReq — Gift shape (single AdditionalCost + Done terminator)") {
+            val (req, ids) =
+                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                    instanceId = 240,
+                    optionalCosts = listOf(Messages.CastingTimeOptionType.AdditionalCost to 173850),
+                )
+
+            ids shouldBe listOf(1)
+            assertSoftly {
+                req.castingTimeOptionReqCount shouldBe 2
+                val opt = req.getCastingTimeOptionReq(0)
+                opt.ctoId shouldBe 1
+                opt.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.AdditionalCost
+                opt.grpId shouldBe 173850
+                opt.affectedId shouldBe 240
+                opt.affectorId shouldBe 240
+                req.getCastingTimeOptionReq(1).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Done
+                req.getCastingTimeOptionReq(1).isRequired.shouldBeTrue()
+            }
+        }
+
+        test("buildOptionalCostCastingTimeOptionsReq — combined Bargain + Offspring shape (mixed ctoTypes)") {
+            // Unified emit: an OptionalCost-enum cost (Bargain) and a
+            // KeywordWithCost cost (Offspring) on the same cast surface as
+            // one combined modal. ctoIds are 1-based sequential; trailing
+            // entry is the Done terminator.
+            val (req, ids) =
+                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                    instanceId = 555,
+                    optionalCosts =
+                        listOf(
+                            Messages.CastingTimeOptionType.Bargain to 303,
+                            Messages.CastingTimeOptionType.AdditionalCost to 173931,
+                        ),
+                )
+
+            assertSoftly {
+                ids shouldBe listOf(1, 2)
+                req.castingTimeOptionReqCount shouldBe 3 // 2 costs + Done
+                req.getCastingTimeOptionReq(0).ctoId shouldBe 1
+                req.getCastingTimeOptionReq(0).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Bargain
+                req.getCastingTimeOptionReq(0).grpId shouldBe 303
+                req.getCastingTimeOptionReq(1).ctoId shouldBe 2
+                req.getCastingTimeOptionReq(1).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.AdditionalCost
+                req.getCastingTimeOptionReq(1).grpId shouldBe 173931
+                req.getCastingTimeOptionReq(2).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Done
+            }
+        }
+
+        test("buildOptionalCostCastingTimeOptionsReq — empty optionalCosts still emits Done terminator") {
+            val (req, ids) =
+                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                    instanceId = 100,
+                    optionalCosts = emptyList(),
+                )
+            assertSoftly {
+                ids shouldBe emptyList<Int>()
+                req.castingTimeOptionReqCount shouldBe 1
+                req.getCastingTimeOptionReq(0).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Done
+            }
+        }
+
+        test("buildModalCastingTimeOptionsReq — modalCosts shorter than childGrpIds drops late costs") {
+            // Documents the parallel-list invariant: caller is expected to pass
+            // a modalCosts of equal length to childGrpIds; shorter silently drops.
+            val req =
+                pureBB().buildModalCastingTimeOptionsReq(
+                    parentGrpId = 1,
+                    childGrpIds = listOf(10, 20, 30),
+                    modalCosts =
+                        listOf(
+                            listOf(Messages.ManaColor.Generic to 1),
+                            listOf(Messages.ManaColor.Generic to 2),
+                            // mode 30 has no entry — emitted with no cost
+                        ),
+                    minSel = 1,
+                    maxSel = 1,
+                    sourceInstanceId = 1,
+                    grpId = 1,
+                )
+            val mr = req.getCastingTimeOptionReq(0).modalReq
+            assertSoftly {
+                mr.getModalOptions(0).modeCostCount shouldBe 1
+                mr.getModalOptions(1).modeCostCount shouldBe 1
+                mr.getModalOptions(2).modeCostCount shouldBe 0
             }
         }
 

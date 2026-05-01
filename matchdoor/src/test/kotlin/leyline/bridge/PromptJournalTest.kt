@@ -92,4 +92,38 @@ class PromptJournalTest :
             j.record(PromptSideEffect.RevealStarted(listOf(ForgeCardId(2)), SeatId(2)))
             j.activeReveal()?.ownerSeatId shouldBe SeatId(2)
         }
+
+        test("KeywordCostStash peek is non-draining (Forge calls chooseNumberForKeywordCost more than once during cost-prep)") {
+            val j = PromptJournal()
+            j.record(PromptSideEffect.KeywordCostStash(mapOf("Offspring" to true)))
+            assertSoftly {
+                j.peekKeywordCostDecision("Offspring") shouldBe true
+                j.peekKeywordCostDecision("Offspring") shouldBe true
+                j.peekKeywordCostDecision("Casualty") shouldBe null
+            }
+        }
+
+        test("KeywordCostStash is last-writer-wins (a second cast's stash overwrites the prior)") {
+            val j = PromptJournal()
+            j.record(PromptSideEffect.KeywordCostStash(mapOf("Offspring" to false)))
+            j.record(PromptSideEffect.KeywordCostStash(mapOf("Offspring" to true, "Casualty" to false)))
+            assertSoftly {
+                j.peekKeywordCostDecision("Offspring") shouldBe true
+                j.peekKeywordCostDecision("Casualty") shouldBe false
+            }
+        }
+
+        test("clearKeywordCostStash drops the entire stash so a stale pay/decline doesn't leak") {
+            val j = PromptJournal()
+            j.record(PromptSideEffect.KeywordCostStash(mapOf("Offspring" to true)))
+            j.clearKeywordCostStash()
+            j.peekKeywordCostDecision("Offspring") shouldBe null
+        }
+
+        test("resetForPuzzle clears KeywordCostStash") {
+            val j = PromptJournal()
+            j.record(PromptSideEffect.KeywordCostStash(mapOf("Offspring" to true)))
+            j.resetForPuzzle()
+            j.peekKeywordCostDecision("Offspring") shouldBe null
+        }
     })

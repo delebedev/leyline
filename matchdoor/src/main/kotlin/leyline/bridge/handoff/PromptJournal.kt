@@ -18,6 +18,14 @@ import java.util.concurrent.ConcurrentLinkedDeque
  * - `currentStash` — ambient singleton: last-writer-wins for the
  *   [PromptSideEffect.OptionalCostStash] decision. [consumeOptionalCostStash]
  *   drains.
+ * - `currentKeywordStash` — ambient singleton: last-writer-wins for the
+ *   [PromptSideEffect.KeywordCostStash] decision (per-keyword pay/decline map
+ *   recorded by `TargetingHandler.onOptionalCostResponse` after the player
+ *   answers the combined CTO modal). Read with [peekKeywordCostDecision]
+ *   (peek-only — Forge may call `chooseNumberForKeywordCost` more than once
+ *   during cost-prep retries). Cleared at the start of every
+ *   `checkOptionalCosts` so a previous cast's stash never leaks into the
+ *   next, and on [resetForPuzzle].
  *
  * [resetForPuzzle] is called during quiescent puzzle hot-swap; it is not
  * serialized against concurrent consumers.
@@ -31,6 +39,9 @@ class PromptJournal {
     @Volatile
     private var currentStash: List<Int>? = null
 
+    @Volatile
+    private var currentKeywordStash: Map<String, Boolean>? = null
+
     fun record(effect: PromptSideEffect) {
         when (effect) {
             is PromptSideEffect.SearchedToHand,
@@ -39,6 +50,7 @@ class PromptJournal {
             is PromptSideEffect.RevealStarted -> currentReveal = effect
             PromptSideEffect.RevealEnded -> currentReveal = null
             is PromptSideEffect.OptionalCostStash -> currentStash = effect.indices
+            is PromptSideEffect.KeywordCostStash -> currentKeywordStash = effect.decisionsByKeyword
         }
     }
 
@@ -74,9 +86,22 @@ class PromptJournal {
         return out
     }
 
+    /**
+     * Peek the keyword-cost decision for [keywordName] without removing it.
+     * Returns null if no decision is stashed (no CTO was emitted for this
+     * keyword, or it was already consumed).
+     */
+    fun peekKeywordCostDecision(keywordName: String): Boolean? = currentKeywordStash?.get(keywordName)
+
+    /** Drop the entire keyword-cost stash (e.g. on cancel / reset). */
+    fun clearKeywordCostStash() {
+        currentKeywordStash = null
+    }
+
     fun resetForPuzzle() {
         drains.clear()
         currentReveal = null
         currentStash = null
+        currentKeywordStash = null
     }
 }

@@ -52,8 +52,10 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.Seating
+import leyline.bridge.types.manaTokenToPair
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.util.concurrent.CompletableFuture
 import java.util.function.Predicate
 
@@ -775,7 +777,7 @@ class PlayerController(
     ): Int =
         when {
             max <= 0 -> 0
-            max == 1 -> costPaymentCoordinator.chooseKeywordCostBinary(prompt)
+            max == 1 -> costPaymentCoordinator.chooseKeywordCostBinary(prompt, keyword.keyword?.toString())
             // max > 1: getGui().getInteger() is bridged through ClientGuiGame, safe to inherit.
             else -> super.chooseNumberForKeywordCost(sa, cost, keyword, prompt, max)
         }
@@ -857,6 +859,23 @@ class PlayerController(
         if (possible.isEmpty()) return emptyList()
 
         val labels = possible.map { it.description ?: it.toString() }
+
+        // Derive structural data the session layer needs to resolve grpIds.
+        // PlayerController doesn't import the card-DB layer (bridge → game
+        // dependency violation), so we provide:
+        //   - possibleFullIndices: where each possible[i] sits in the full
+        //     Choices list. Lets TargetingHandler index into card-DB childGrpIds
+        //     without re-deriving the filter.
+        //   - excludedFullIndices: full-list positions Forge pruned for legality.
+        //     Maps to ModalReq.excludedOptions[].
+        //   - modalCosts / excludedCosts: per-mode `+ {cost}` parsed from
+        //     `getParam("ModeCost")` (empty for cost-free Charm modes).
+        // Without this, the CastingTimeOptionsReq's ModalOption list reflects
+        // the unfiltered card-DB ordering, which gets out of sync with
+        // `possible` when modes are pruned (e.g. Spree's counter mode with no
+        // stack target) — response indices then map to the wrong AbilitySub.
+        val shape = deriveModalChoiceShape(sa, possible)
+
         val request =
             PromptRequest(
                 promptType = if (num == 1) "choose_one" else "choose_cards",
@@ -869,9 +888,81 @@ class PlayerController(
                 modalSourceCardName = sa.hostCard.name,
                 sourceEntityId = sa.hostCard.id,
                 isTriggeredAbility = sa.isTrigger,
+                modalChoicePossibleFullIndices = shape.possibleFullIndices,
+                modalCosts = shape.modalCosts,
+                excludedModalFullIndices = shape.excludedFullIndices,
+                excludedModalCosts = shape.excludedCosts,
             )
         val result = bridge.requestChoice(request)
         return result.mapNotNull { idx -> possible.getOrNull(idx) }
+    }
+
+    /**
+     * For an SP$ Charm SA (Charm or Spree), compute possible/excluded mappings
+     * into the unfiltered Choices list plus per-mode costs parsed from Forge's
+     * `ModeCost$` SVar. Returns `(null, null, null, null)` when:
+     *   - the SA has no `getAdditionalAbilityList("Choices")` (not a Charm)
+     *   - any element of `possible` isn't in the full list (defensive)
+     *
+     * In those cases the caller falls back to legacy emit (no modeCost,
+     * unfiltered childGrpIds) — preserves existing behavior for non-modal
+     * paths and minimizes blast radius.
+     */
+    private fun deriveModalChoiceShape(
+        sa: SpellAbility,
+        possible: List<AbilitySub>,
+    ): ModalChoiceShape {
+        val fullList = sa.getAdditionalAbilityList("Choices") ?: return ModalChoiceShape.EMPTY
+        if (fullList.isEmpty()) return ModalChoiceShape.EMPTY
+
+        val possibleSet = possible.toSet()
+        val possibleFullIndices = mutableListOf<Int>()
+        val modalCosts = mutableListOf<List<Pair<ManaColor, Int>>>()
+        val excludedFullIndices = mutableListOf<Int>()
+        val excludedCosts = mutableListOf<List<Pair<ManaColor, Int>>>()
+
+        for (sub in possible) {
+            val fullIdx = fullList.indexOf(sub)
+            // Defensive: shouldn't happen with CharmEffect.makePossibleOptions,
+            // but bail to legacy if a mode in `possible` isn't in `fullList`.
+            if (fullIdx < 0) return ModalChoiceShape.EMPTY
+            possibleFullIndices += fullIdx
+            modalCosts += parseForgeModeCost(sub.getParam("ModeCost"))
+        }
+        for ((idx, sub) in fullList.withIndex()) {
+            if (sub in possibleSet) continue
+            excludedFullIndices += idx
+            excludedCosts += parseForgeModeCost(sub.getParam("ModeCost"))
+        }
+
+        return ModalChoiceShape(possibleFullIndices, modalCosts, excludedFullIndices, excludedCosts)
+    }
+
+    /**
+     * Parse Forge's `ModeCost$` text (e.g. `"1 U"`, `"3"`, `"2 R"`) into
+     * (ManaColor, count) pairs. Tokenizer differs from card-DB OldSchoolManaText
+     * (whitespace vs. `o` prefix) but the single-symbol vocabulary is shared via
+     * [manaTokenToPair]. Empty/null returns empty list (Charm-style cost-free mode).
+     */
+    private fun parseForgeModeCost(text: String?): List<Pair<ManaColor, Int>> {
+        if (text.isNullOrBlank()) return emptyList()
+        val counts = mutableMapOf<ManaColor, Int>()
+        for (token in text.trim().split(Regex("\\s+"))) {
+            val pair = manaTokenToPair(token) ?: continue
+            counts.merge(pair.first, pair.second, Int::plus)
+        }
+        return counts.toList()
+    }
+
+    private data class ModalChoiceShape(
+        val possibleFullIndices: List<Int>?,
+        val modalCosts: List<List<Pair<ManaColor, Int>>>?,
+        val excludedFullIndices: List<Int>?,
+        val excludedCosts: List<List<Pair<ManaColor, Int>>>?,
+    ) {
+        companion object {
+            val EMPTY = ModalChoiceShape(null, null, null, null)
+        }
     }
 
     // -- Mulligan / starting player ----------------------------------------

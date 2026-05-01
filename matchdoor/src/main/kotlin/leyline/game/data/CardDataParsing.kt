@@ -1,5 +1,6 @@
 package leyline.game.data
 
+import leyline.bridge.types.manaTokenToPair
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /** Parse "5" or "27,23" → list of ints. */
@@ -27,25 +28,16 @@ internal fun parseAbilityIds(s: String?): List<Pair<Int, Int>> {
  * Parse the client's OldSchoolManaText format into (ManaColor, count) pairs.
  * Format: "oG" = {G}, "o3oGoG" = {3}{G}{G}, "oXoRoR" = {X}{R}{R}.
  * Each "o" prefix starts a mana symbol; digits = generic count, letters = color.
+ *
+ * Tokenizer differs from Forge's `ModeCost$` (whitespace-separated) but the
+ * single-symbol vocabulary is shared via [manaTokenToPair].
  */
 internal fun parseManaCost(s: String?): List<Pair<ManaColor, Int>> {
     if (s.isNullOrBlank()) return emptyList()
     val counts = mutableMapOf<ManaColor, Int>()
     for (part in s.split("o").filter { it.isNotEmpty() }) {
-        when (part.uppercase()) {
-            "W" -> counts.merge(ManaColor.White_afc9, 1, Int::plus)
-            "U" -> counts.merge(ManaColor.Blue_afc9, 1, Int::plus)
-            "B" -> counts.merge(ManaColor.Black_afc9, 1, Int::plus)
-            "R" -> counts.merge(ManaColor.Red_afc9, 1, Int::plus)
-            "G" -> counts.merge(ManaColor.Green_afc9, 1, Int::plus)
-            "X" -> counts.merge(ManaColor.X, 1, Int::plus)
-            "C" -> counts.merge(ManaColor.Colorless_afc9, 1, Int::plus)
-            "S" -> counts.merge(ManaColor.Snow_afc9, 1, Int::plus)
-            else -> {
-                val n = part.toIntOrNull()
-                if (n != null && n > 0) counts.merge(ManaColor.Generic, n, Int::plus)
-            }
-        }
+        val pair = manaTokenToPair(part) ?: continue
+        counts.merge(pair.first, pair.second, Int::plus)
     }
     return counts.toList()
 }

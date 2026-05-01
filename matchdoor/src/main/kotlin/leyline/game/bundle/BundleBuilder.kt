@@ -1377,8 +1377,16 @@ class BundleBuilder(
      *
      * Pure proto construction — caller handles card lookup, fallback, and pending state.
      *
+     * Per-mode `modeCost` and `excludedOptions` are populated when the caller
+     * supplies them (Spree path, and Charm-with-filtered-modes). Charm with all
+     * modes legal can pass nulls and gets the legacy free-mode shape.
+     *
      * @param parentGrpId the abilityGrpId of the modal ability
-     * @param childGrpIds the grpIds for each modal option
+     * @param childGrpIds the grpIds for each modal option, in render order
+     * @param modalCosts optional per-mode `+ {cost}` parallel to childGrpIds; null = all free
+     * @param excludedGrpIds modes that exist on the card but aren't pickable now
+     *   (e.g. Spree counter mode with no stack target). May be empty.
+     * @param excludedCosts costs parallel to excludedGrpIds; same shape as modalCosts
      * @param minSel minimum number of modes to select
      * @param maxSel maximum number of modes to select
      * @param sourceInstanceId the instanceId for affectedId/affectorId
@@ -1386,6 +1394,7 @@ class BundleBuilder(
      * @param ctoId CTO identifier (1-2 for spell-time, 3 for triggered abilities)
      * @param playerIdToPrompt seat number to prompt (null omits the field)
      */
+    @Suppress("LongParameterList") // Each param maps to one explicit proto field; bundling into a struct just renames the bag.
     fun buildModalCastingTimeOptionsReq(
         parentGrpId: Int,
         childGrpIds: List<Int>,
@@ -1395,6 +1404,9 @@ class BundleBuilder(
         grpId: Int,
         ctoId: Int = 2,
         playerIdToPrompt: Int? = null,
+        modalCosts: List<List<Pair<ManaColor, Int>>>? = null,
+        excludedGrpIds: List<Int> = emptyList(),
+        excludedCosts: List<List<Pair<ManaColor, Int>>> = emptyList(),
     ): CastingTimeOptionsReq {
         val modalReq =
             ModalReq
@@ -1402,8 +1414,19 @@ class BundleBuilder(
                 .setAbilityGrpId(parentGrpId)
                 .setMinSel(minSel)
                 .setMaxSel(maxSel)
-        for (childGrpId in childGrpIds) {
-            modalReq.addModalOptions(ModalOption.newBuilder().setGrpId(childGrpId))
+        for ((i, childGrpId) in childGrpIds.withIndex()) {
+            val opt = ModalOption.newBuilder().setGrpId(childGrpId)
+            modalCosts?.getOrNull(i)?.forEach { (color, count) ->
+                opt.addModeCost(buildManaCost(color, count))
+            }
+            modalReq.addModalOptions(opt)
+        }
+        for ((i, exGrpId) in excludedGrpIds.withIndex()) {
+            val opt = ModalOption.newBuilder().setGrpId(exGrpId)
+            excludedCosts.getOrNull(i)?.forEach { (color, count) ->
+                opt.addModeCost(buildManaCost(color, count))
+            }
+            modalReq.addExcludedOptions(opt)
         }
         val ctoBuilder =
             CastingTimeOptionReq
@@ -1423,6 +1446,21 @@ class BundleBuilder(
             .addCastingTimeOptionReq(ctoBuilder)
             .build()
     }
+
+    /** Build a single-color [Cost] message for a `+ {cost}` mode entry. */
+    private fun buildManaCost(
+        color: ManaColor,
+        count: Int,
+    ): Cost =
+        Cost
+            .newBuilder()
+            .setType(CostType.Mana)
+            .setManaCost(
+                ManaCost
+                    .newBuilder()
+                    .addColor(color)
+                    .setCount(count),
+            ).build()
 
     /**
      * Build a [CastingTimeOptionsReq] for optional costs (kicker, buyback, etc.).

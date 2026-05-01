@@ -67,8 +67,14 @@ class TargetingHandler(
         val resp = greMsg.selectTargetsResp
         val pendingPrompt =
             seatBridge.prompt.getPendingPrompt() ?: run {
-                log.warn("TargetingHandler: SelectTargetsResp but no pending prompt")
-                DevCheck.fail { "SelectTargetsResp but no pending prompt" }
+                // Race: bridge prompt timed out and was cleared, then the late
+                // client response arrives. Pre-fix this crashed the match in
+                // strict mode (the client gets stuck on a "waiting for the
+                // server" overlay). Downgraded to failOnAutoPass — caught in
+                // tests with strict_pass=true, soft-dropped in dev. See
+                // leyline-xejz for the proper fix.
+                log.warn("TargetingHandler: SelectTargetsResp but no pending prompt (likely timeout race)")
+                DevCheck.failOnAutoPass { "SelectTargetsResp but no pending prompt" }
                 return
             }
 
@@ -131,8 +137,8 @@ class TargetingHandler(
         val bridge = ctx.bridge
         val pending = pendingInteraction as? PendingClientInteraction.TargetSelection
         if (pending == null) {
-            log.warn("TargetingHandler: SubmitTargetsReq but no pending target selection")
-            DevCheck.fail { "SubmitTargetsReq but no pending target selection" }
+            log.warn("TargetingHandler: SubmitTargetsReq but no pending target selection (likely timeout race)")
+            DevCheck.failOnAutoPass { "SubmitTargetsReq but no pending target selection" }
             return
         }
         pendingInteraction = null
@@ -164,8 +170,8 @@ class TargetingHandler(
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt =
             seatBridge.prompt.getPendingPrompt() ?: run {
-                log.warn("TargetingHandler: SelectNResp but no pending prompt")
-                DevCheck.fail { "SelectNResp but no pending prompt" }
+                log.warn("TargetingHandler: SelectNResp but no pending prompt (likely timeout race)")
+                DevCheck.failOnAutoPass { "SelectNResp but no pending prompt" }
                 return
             }
 
@@ -186,8 +192,8 @@ class TargetingHandler(
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt =
             seatBridge.prompt.getPendingPrompt() ?: run {
-                log.warn("TargetingHandler: EffectCostResp but no pending prompt")
-                DevCheck.fail { "EffectCostResp but no pending prompt" }
+                log.warn("TargetingHandler: EffectCostResp but no pending prompt (likely timeout race)")
+                DevCheck.failOnAutoPass { "EffectCostResp but no pending prompt" }
                 return
             }
 
@@ -390,8 +396,8 @@ class TargetingHandler(
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt =
             seatBridge.prompt.getPendingPrompt() ?: run {
-                log.warn("TargetingHandler: GroupResp but no pending prompt")
-                DevCheck.fail { "GroupResp but no pending prompt" }
+                log.warn("TargetingHandler: GroupResp but no pending prompt (likely timeout race)")
+                DevCheck.failOnAutoPass { "GroupResp but no pending prompt" }
                 return
             }
 
@@ -453,8 +459,8 @@ class TargetingHandler(
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt()
         if (pendingPrompt == null) {
-            log.warn("TargetingHandler: CancelActionReq but no pending prompt")
-            DevCheck.fail { "CancelActionReq but no pending prompt" }
+            log.warn("TargetingHandler: CancelActionReq but no pending prompt (likely timeout race)")
+            DevCheck.failOnAutoPass { "CancelActionReq but no pending prompt" }
             return
         }
 
@@ -479,8 +485,8 @@ class TargetingHandler(
         val bridge = ctx.bridge
         val pending =
             pendingInteraction as? PendingClientInteraction.Search ?: run {
-                log.warn("SearchResp received but no search pending")
-                DevCheck.fail { "SearchResp but no search pending" }
+                log.warn("SearchResp received but no search pending (likely timeout race)")
+                DevCheck.failOnAutoPass { "SearchResp but no search pending" }
                 return
             }
         pendingInteraction = null
@@ -549,6 +555,7 @@ class TargetingHandler(
      * Looks up card grpId and modal option grpIds from CardRepository,
      * saves PendingModal state for response mapping.
      */
+    @Suppress("LongMethod") // Sequential CTO assembly: lookup → translate → build → bundle. Splitting hides the data-flow.
     private fun sendCastingTimeOptionsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
         val bridge = ctx.bridge
         val game = ctx.game
@@ -603,10 +610,51 @@ class TargetingHandler(
             ctoId = 2
         }
 
+        // Resolve per-mode grpIds. When the bridge supplies full-list indices
+        // (Spree path, and any Charm cast where Forge filtered at least one
+        // mode), translate via card-DB childGrpIds — keeps the modal ordering
+        // aligned with `possible[]` upstream. Otherwise fall back to unfiltered
+        // (legacy Charm-with-all-modes-legal path).
+        val possibleFullIndices = req.modalChoicePossibleFullIndices
+        val excludedFullIndices = req.excludedModalFullIndices
+        val effectiveChildGrpIds: List<Int>
+        val effectiveModalCosts: List<List<Pair<ManaColor, Int>>>?
+        val effectiveExcludedGrpIds: List<Int>
+        val effectiveExcludedCosts: List<List<Pair<ManaColor, Int>>>
+        if (possibleFullIndices != null && possibleFullIndices.all { it in modalInfo.childGrpIds.indices }) {
+            effectiveChildGrpIds = possibleFullIndices.map { modalInfo.childGrpIds[it] }
+            effectiveModalCosts = req.modalCosts
+            effectiveExcludedGrpIds =
+                excludedFullIndices
+                    ?.filter { it in modalInfo.childGrpIds.indices }
+                    ?.map { modalInfo.childGrpIds[it] }
+                    ?: emptyList()
+            effectiveExcludedCosts = req.excludedModalCosts ?: emptyList()
+        } else {
+            // Silent fallback: bridge populated full-list indices but they fell
+            // outside card-DB childGrpIds (Forge SVar count vs. card-DB
+            // modalChildIds count drift). Spree-style picked-mode mapping will
+            // regress here. Loud in tests, soft in prod.
+            if (possibleFullIndices != null) {
+                DevCheck.fail {
+                    "modal full-list indices out of card-DB range: " +
+                        "indices=$possibleFullIndices childCount=${modalInfo.childGrpIds.size} " +
+                        "card='$cardName' grpId=$cardGrpId"
+                }
+            }
+            effectiveChildGrpIds = modalInfo.childGrpIds
+            effectiveModalCosts = null
+            effectiveExcludedGrpIds = emptyList()
+            effectiveExcludedCosts = emptyList()
+        }
+
         val ctoReq =
             bundles.bundleBuilder.buildModalCastingTimeOptionsReq(
                 parentGrpId = modalInfo.parentGrpId,
-                childGrpIds = modalInfo.childGrpIds,
+                childGrpIds = effectiveChildGrpIds,
+                modalCosts = effectiveModalCosts,
+                excludedGrpIds = effectiveExcludedGrpIds,
+                excludedCosts = effectiveExcludedCosts,
                 minSel = req.min,
                 maxSel = req.max,
                 sourceInstanceId = sourceInstanceId,
@@ -615,8 +663,10 @@ class TargetingHandler(
                 playerIdToPrompt = if (isTriggered) counters.seatId.value else null,
             )
 
-        // Save pending state for response mapping
-        pendingInteraction = PendingClientInteraction.ModalChoice(pendingPrompt.promptId, modalInfo.childGrpIds)
+        // Save pending state for response mapping. Store the *effective* child
+        // grpIds so `onCastingTimeOptions`'s `indexOf(pickedGrpId)` returns an
+        // index that aligns with `possible[]` upstream — not an unfiltered index.
+        pendingInteraction = PendingClientInteraction.ModalChoice(pendingPrompt.promptId, effectiveChildGrpIds)
 
         // For triggered abilities, pass the source card's instanceId and grpId so the
         // synthesized ability object has correct parentId and objectSourceGrpId.
@@ -678,8 +728,8 @@ class TargetingHandler(
             }
 
             else -> {
-                log.warn("TargetingHandler: CastingTimeOptionsResp but no pending modal or optional cost")
-                DevCheck.fail { "CastingTimeOptionsResp but no pending modal or optional cost" }
+                log.warn("TargetingHandler: CastingTimeOptionsResp but no pending modal or optional cost (likely timeout race)")
+                DevCheck.failOnAutoPass { "CastingTimeOptionsResp but no pending modal or optional cost" }
             }
         }
     }
@@ -706,10 +756,33 @@ class TargetingHandler(
                 ?: castable.firstOrNull()
                 ?: return false
         sa.setActivatingPlayer(player)
-        val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
-        if (optionalCosts.isEmpty()) return false
+        // Drop any stale keyword-cost stash from a prior cast: every
+        // `checkOptionalCosts` invocation either emits a fresh CTO (and
+        // overwrites the stash via `onOptionalCostResponse`) or no CTO at
+        // all. Without this clear, a prior cast's stale `Offspring=true`
+        // leaks into a subsequent non-CTO `chooseNumberForKeywordCost` call
+        // (e.g., a triggered cast that doesn't go through this gate).
+        bridge
+            .seat(counters.seatId)
+            .prompt.journal
+            .clearKeywordCostStash()
 
-        log.info("TargetingHandler: card '{}' has {} optional costs — sending prompt", card.name, optionalCosts.size)
+        val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
+        // Keyword-with-cost keywords (Offspring, Casualty, Conspire) ride a separate
+        // Forge dispatch path (`addKeywordCost` → `chooseNumberForKeywordCost`)
+        // but the player-facing surface is identical to OptionalCost — pre-cast
+        // yes/no on an extra mana cost. Surface them through the same CTO emit
+        // here so the client renders one combined modal; pull decisions back out of
+        // the journal in CostPaymentCoordinator when Forge prompts.
+        val keywordCostEntries = collectKeywordCostEntries(card)
+        if (optionalCosts.isEmpty() && keywordCostEntries.isEmpty()) return false
+
+        log.info(
+            "TargetingHandler: card '{}' has {} optional costs and {} keyword costs — sending prompt",
+            card.name,
+            optionalCosts.size,
+            keywordCostEntries.size,
+        )
 
         // Map each optional cost to (CastingTimeOptionType, abilityGrpId)
         val cardData = bridge.cardRepository.findByGrpId(action.grpId)
@@ -722,16 +795,24 @@ class TargetingHandler(
             } else {
                 0
             }
-        val costEntries =
+        val optionalCostEntries =
             optionalCosts.mapIndexed { i, cost ->
                 val ctoType =
                     when (cost.type) {
                         forge.game.spellability.OptionalCost.Kicker1,
                         forge.game.spellability.OptionalCost.Kicker2,
                         -> CastingTimeOptionType.Kicker
-                        forge.game.spellability.OptionalCost.Buyback -> CastingTimeOptionType.AdditionalCost
-                        forge.game.spellability.OptionalCost.Entwine -> CastingTimeOptionType.AdditionalCost
-                        else -> CastingTimeOptionType.OptionalCost
+                        forge.game.spellability.OptionalCost.Bargain -> CastingTimeOptionType.Bargain
+                        // Buyback / Entwine / PromiseGift (Gift) and the rest of the
+                        // "yes/no, pay extra mana, get extra effect" family all render
+                        // as AdditionalCost in MTGA. The proto's `OptionalCost` (6) is
+                        // for a different shape entirely — using it for these gates
+                        // makes the client silently drop the prompt.
+                        forge.game.spellability.OptionalCost.Buyback,
+                        forge.game.spellability.OptionalCost.Entwine,
+                        forge.game.spellability.OptionalCost.PromiseGift,
+                        -> CastingTimeOptionType.AdditionalCost
+                        else -> CastingTimeOptionType.AdditionalCost
                     }
                 val abilityGrpId =
                     cardData
@@ -741,18 +822,44 @@ class TargetingHandler(
                 Pair(ctoType, abilityGrpId)
             }
 
+        // Resolve per-keyword ability grpId from cardData. Keyword slots come
+        // first in abilityIds; bounded by `keywordCount` (SlotLayout source of
+        // truth). Anything beyond is an optional-cost slot and shouldn't be
+        // matched as a keyword grpId.
+        val keywordEntries =
+            keywordCostEntries.mapNotNull { kw ->
+                val slot = findKeywordSlot(card, kw.name, keywordCount) ?: return@mapNotNull null
+                val abilityGrpId = cardData?.abilityIds?.getOrNull(slot)?.first ?: 0
+                Triple(CastingTimeOptionType.AdditionalCost, abilityGrpId, kw.name)
+            }
+
+        val combinedCostEntries =
+            optionalCostEntries + keywordEntries.map { (ctoType, gid, _) -> ctoType to gid }
+
         val (ctoReq, costCtoIds) =
             bundles.bundleBuilder.buildOptionalCostCastingTimeOptionsReq(
                 instanceId = action.instanceId,
-                optionalCosts = costEntries,
+                optionalCosts = combinedCostEntries,
             )
 
-        // Stash the Cast action for replay after response
+        // Stash the Cast action for replay after response. Map the trailing
+        // ctoIds (the keyword-cost ones) back to their keyword names so the
+        // response handler knows where to journal each decision.
+        val keywordCtoIdMap =
+            keywordEntries
+                .mapIndexed { idx, (_, _, kwName) ->
+                    val ctoIdx = optionalCostEntries.size + idx
+                    val ctoId = costCtoIds.getOrNull(ctoIdx) ?: return@mapIndexed null
+                    ctoId to kwName
+                }.filterNotNull()
+                .toMap()
+
         pendingInteraction =
             PendingClientInteraction.OptionalCost(
                 pendingActionId = pendingActionId,
                 action = PlayerAction.CastSpell(cardId, castAbilityIndex),
                 costCtoIds = costCtoIds,
+                keywordCostsByCtoId = keywordCtoIdMap,
             )
 
         // Send prompt
@@ -829,19 +936,43 @@ class TargetingHandler(
         // ctoId=0 means Done (declined all costs)
         // ctoId>0 means accepted that cost
         val accepted = chosenCtoId != 0 && chosenCtoId in pending.costCtoIds
+        // OptionalCost-enum entries occupy the first N ctoIds (1..N where N =
+        // optionalCostCount); keyword-cost entries fill the trailing slots.
+        // Only stash an OptionalCost-enum index when the picked ctoId lands in
+        // that range — keyword-cost picks route through KeywordCostStash below.
+        val isOptionalCostPick = accepted && chosenCtoId !in pending.keywordCostsByCtoId
         val acceptedIndices =
-            if (accepted) {
-                // For now, accept all costs up to the chosen one (single kicker = index 0)
-                listOf(chosenCtoId - 1) // 1-based ctoId → 0-based index
+            if (isOptionalCostPick) {
+                listOf(chosenCtoId - 1) // 1-based ctoId → 0-based index into optionalCosts
             } else {
                 emptyList()
             }
 
-        log.info("TargetingHandler: optional cost response ctoId={} accepted={} indices={}", chosenCtoId, accepted, acceptedIndices)
+        log.info(
+            "TargetingHandler: optional cost response ctoId={} accepted={} indices={} keywordPick={}",
+            chosenCtoId,
+            accepted,
+            acceptedIndices,
+            chosenCtoId in pending.keywordCostsByCtoId,
+        )
 
         // Stash decision for PlayerController.chooseOptionalCosts to read
         val seatBridge = bridge.seat(counters.seatId)
         stashOptionalCostIndices(seatBridge.prompt, acceptedIndices)
+
+        // For keyword-cost entries (Offspring, Casualty, Conspire) record a
+        // per-keyword pay/decline decision so
+        // CostPaymentCoordinator.chooseKeywordCostBinary can answer when Forge
+        // calls addKeywordCost during cost prep. Every known keyword gets an
+        // entry — true if the player picked its ctoId, false otherwise.
+        if (pending.keywordCostsByCtoId.isNotEmpty()) {
+            val decisions =
+                pending.keywordCostsByCtoId.entries.associate { (ctoId, kwName) ->
+                    kwName to (chosenCtoId == ctoId)
+                }
+            seatBridge.prompt.journal.record(PromptSideEffect.KeywordCostStash(decisions))
+            log.info("TargetingHandler: keyword cost decisions stashed: {}", decisions)
+        }
 
         // Now submit the Cast action to the engine
         val actionBridge = seatBridge.action
@@ -851,8 +982,8 @@ class TargetingHandler(
             bridge.awaitPriority()
             autoPass()
         } else {
-            log.warn("TargetingHandler: optional cost response but no pending engine action")
-            DevCheck.fail { "optional cost response but no pending engine action" }
+            log.warn("TargetingHandler: optional cost response but no pending engine action (likely timeout race)")
+            DevCheck.failOnAutoPass { "optional cost response but no pending engine action" }
         }
     }
 
@@ -881,8 +1012,8 @@ class TargetingHandler(
             bridge.awaitPriority()
             autoPass()
         } else {
-            log.warn("TargetingHandler: alternate cost choice response but no pending engine action")
-            DevCheck.fail { "alternate cost choice response but no pending engine action" }
+            log.warn("TargetingHandler: alternate cost choice response but no pending engine action (likely timeout race)")
+            DevCheck.failOnAutoPass { "alternate cost choice response but no pending engine action" }
         }
     }
 
@@ -986,6 +1117,73 @@ class TargetingHandler(
         val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
         Tap.outboundTemplate("PayCostsReq(exile-from-grave) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
+    }
+
+    /**
+     * Keywords that surface as pre-cast binary optional costs via Forge's
+     * `addKeywordCost` dispatch path (distinct from the `OptionalCostValue`
+     * enum path). Each entry maps to one `CastingTimeOptionType_AdditionalCost`
+     * CTO option in the combined cost prompt at cast time.
+     *
+     * Selection criteria: Forge's `GameActionUtil.getAlternativeCosts`
+     * keyword-cost loop calls `pc.addKeywordCost` (binary yes/no) for
+     * exactly these keywords today — Offspring, Casualty, Conspire.
+     * Multikicker/Replicate/Squad use `chooseNumberForKeywordCost(max=N)`
+     * for repeated payment and need a different protocol shape (deferred
+     * to a future `Multikicker`-typed CTO).
+     *
+     * Cat-C alternative-cast keywords (Disturb, Foretell, Plot, Madness,
+     * Warp, Escape, Flashback, Unearth, Bestow, Suspend, …) ride the
+     * `AlternativeCost`-enum / `addHandAltCostCastActions` path and
+     * deliberately do NOT show up here. Note: Harmonize *does* call
+     * `addKeywordCost` inside its `sa.isHarmonize()` branch in Forge's
+     * loop, but only as a sub-prompt of the Harmonize alt-cast SA itself
+     * (graveyard cast); the normal (non-Harmonize) cast of the same card
+     * doesn't trigger it. Whitelisting Harmonize here would mis-emit a
+     * pre-cast CTO on the normal cast path, so it stays excluded.
+     */
+    private val binaryKeywordCostNames =
+        setOf(
+            forge.game.keyword.Keyword.OFFSPRING,
+            forge.game.keyword.Keyword.CASUALTY,
+            forge.game.keyword.Keyword.CONSPIRE,
+        )
+
+    private data class KeywordCostEntry(
+        val name: String,
+    )
+
+    private fun collectKeywordCostEntries(card: forge.game.card.Card): List<KeywordCostEntry> {
+        val out = mutableListOf<KeywordCostEntry>()
+        for (ki in card.keywords) {
+            val keyword = ki.keyword ?: continue
+            if (keyword in binaryKeywordCostNames) {
+                out += KeywordCostEntry(keyword.toString())
+            }
+        }
+        return out
+    }
+
+    private fun findKeywordSlot(
+        card: forge.game.card.Card,
+        keywordName: String,
+        slotBound: Int,
+    ): Int? {
+        // Match against the card's printed keyword text in declaration order
+        // — the same source `AbilityRegistry.mapKeywords` uses to assign
+        // ability-id slots. Walking `card.keywords` (the live KeywordInterface
+        // list) drifts whenever a static effect grants/removes a keyword
+        // mid-game; printed text is stable.
+        val keywordStrings =
+            card.rules
+                ?.mainPart
+                ?.keywords
+                ?.toList() ?: return null
+        for ((idx, kwText) in keywordStrings.withIndex()) {
+            if (idx >= slotBound) return null
+            if (kwText.startsWith(keywordName)) return idx
+        }
+        return null
     }
 
     /**
