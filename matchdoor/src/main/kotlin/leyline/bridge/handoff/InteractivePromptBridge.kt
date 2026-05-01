@@ -48,8 +48,8 @@ class InteractivePromptBridge(
      * Pending target record: spell/ability source ID + name, the targeted entity, 1-based group index.
      *
      * Exactly one of [targetForgeCardId] (card target) or [targetSeatId] (player target) is non-null.
-     * [isTriggeredAbility] flips the affector iid from the spell card's iid to the synthesized
-     * stack-resident-ability iid (sourceForgeCardId + STACK_ABILITY_ID_OFFSET).
+     * [isTriggeredAbility] flips the affector iid from the spell card's iid to the synthesised
+     * stack-resident-ability iid via [leyline.game.mapping.FrameIdResolver.stackAbilityForgeId].
      */
     data class PendingTarget(
         val spellForgeCardId: Int,
