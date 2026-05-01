@@ -44,10 +44,24 @@ object AbilityWordScanner {
         val booleanOnly: Boolean = false,
     )
 
-    /** Maps Forge Condition$ name → Arena wire shape. Key doubles as AbilityWordName. */
+    /**
+     * Maps Forge `Condition$` name → emission shape for the ability-word badge. Key
+     * doubles as the `AbilityWordName` detail value on the emitted annotation.
+     *
+     * VERIFIED entries are exercised by a puzzle fixture under `puzzles/` plus a
+     * `ConformanceTag` test asserting the annotation contents. UNVERIFIED entries
+     * have a Forge contract but no fixture asserting the emission contents; their
+     * value/threshold/perPlayer shape is inferred from the Threshold/Morbid pattern
+     * and may need adjustment when a fixture exercises one.
+     *
+     * Trigger-pattern ability words without a `Condition$` row (Flurry, Infusion,
+     * Raid, Coven, …) are handled by [AbilityWordTriggerRecognizers] instead.
+     */
     private val CONDITIONS =
         mapOf(
+            // VERIFIED.
             "Threshold" to ConditionSpec(threshold = 7, value = { p, _ -> p.getZone(ZoneType.Graveyard).size() }),
+            // UNVERIFIED.
             "Metalcraft" to
                 ConditionSpec(threshold = 3, value = {
                     p,
@@ -55,6 +69,7 @@ object AbilityWordScanner {
                     ->
                     p.getCardsIn(ZoneType.Battlefield).toList().count { it.isArtifact }
                 }),
+            // VERIFIED.
             "Delirium" to
                 ConditionSpec(threshold = 4, value = {
                     p,
@@ -62,10 +77,12 @@ object AbilityWordScanner {
                     ->
                     AbilityUtils.countCardTypesFromList(p.getCardsIn(ZoneType.Graveyard), false)
                 }),
+            // UNVERIFIED.
             "Ferocious" to ConditionSpec(),
             "Hellbent" to ConditionSpec(),
             "Desert" to ConditionSpec(),
             "Blessing" to ConditionSpec(),
+            // VERIFIED.
             "Morbid" to
                 ConditionSpec(
                     perPlayer = true,
