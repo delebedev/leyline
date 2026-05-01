@@ -1406,29 +1406,41 @@ object StateMapper {
      * full-replacement semantics) when the spell resolves and leaves the stack.
      */
     private fun buildTargetSpecAnnotations(bridge: GameBridge): List<AnnotationInfo> {
-        // Consume targets captured during selectTargetsInteractively.
+        // Drain target picks recorded during selectTargetsInteractively.
         // The spell may have already resolved by now (auto-pass), so we can't
         // rely on scanning game.getStack() — the stack is often empty.
         val pending = bridge.drainPendingTargetSpecs()
         if (pending.isEmpty()) return emptyList()
 
         // TODO: abilityGrpId needs sub-ability registry lookup, promptId needs
-        //  prompt-type mapping. Both require Arena card DB. Falls back to card grpId
-        //  and 0 until wired.
-        return pending.map { spec ->
-            val spellIid =
-                bridge.getOrAllocInstanceId(
-                    ForgeCardId(spec.spellForgeCardId + ObjectMapper.STACK_ABILITY_ID_OFFSET),
-                )
-            val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(spec.targetForgeCardId))
+        //  prompt-type mapping. Both require deeper card-DB plumbing. Falls
+        //  back to card grpId and 0 until wired.
+        return pending.mapNotNull { spec ->
+            // Spells: affector is the spell card's iid (post-realloc on stack).
+            // Triggered abilities: affector is the synthesized stack-ability iid.
+            val affectorForgeId =
+                if (spec.isTriggeredAbility) {
+                    ForgeCardId(spec.spellForgeCardId + ObjectMapper.STACK_ABILITY_ID_OFFSET)
+                } else {
+                    ForgeCardId(spec.spellForgeCardId)
+                }
+            val affectorIid = bridge.getOrAllocInstanceId(affectorForgeId)
+            val targetIid =
+                when {
+                    spec.targetForgeCardId != null ->
+                        bridge.getOrAllocInstanceId(ForgeCardId(spec.targetForgeCardId))
+                    // Player target: Arena uses seatId (1 or 2) as the iid for player entities.
+                    spec.targetSeatId != null -> InstanceId(spec.targetSeatId)
+                    else -> return@mapNotNull null
+                }
             val grpId = GrpId(bridge.cardRepository.findGrpIdByName(spec.spellName) ?: 0)
             AnnotationBuilder.targetSpec(
                 instanceId = targetIid,
-                affectorId = spellIid,
+                affectorId = affectorIid,
                 abilityGrpId = grpId,
                 index = spec.index,
                 promptId = 0,
-                promptParameters = spellIid.value,
+                promptParameters = affectorIid.value,
             )
         }
     }

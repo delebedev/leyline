@@ -44,12 +44,20 @@ class InteractivePromptBridge(
 
     // --- Pending TargetSpec data (captured during selectTargetsInteractively) ---
 
-    /** Captured target: spell card ID + name, target card ID, 1-based group index. */
+    /**
+     * Pending target record: spell/ability source ID + name, the targeted entity, 1-based group index.
+     *
+     * Exactly one of [targetForgeCardId] (card target) or [targetSeatId] (player target) is non-null.
+     * [isTriggeredAbility] flips the affector iid from the spell card's iid to the synthesized
+     * stack-resident-ability iid (sourceForgeCardId + STACK_ABILITY_ID_OFFSET).
+     */
     data class PendingTarget(
         val spellForgeCardId: Int,
         val spellName: String,
-        val targetForgeCardId: Int,
         val index: Int,
+        val targetForgeCardId: Int? = null,
+        val targetSeatId: Int? = null,
+        val isTriggeredAbility: Boolean = false,
     )
 
     private val pendingTargetSpecs = ConcurrentLinkedQueue<PendingTarget>()

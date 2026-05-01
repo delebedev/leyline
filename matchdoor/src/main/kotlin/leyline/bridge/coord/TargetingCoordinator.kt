@@ -374,7 +374,7 @@ class TargetingCoordinator(
         if (allCandidates.size == 1 && mandatory && minTargets >= 1) {
             val target = allCandidates[0]
             sa.targets.add(target)
-            if (target is Card) recordPendingTargetSpec(sa, target)
+            recordPendingTargetSpec(sa, target)
             return TargetSelectionResult(true, true)
         }
 
@@ -426,7 +426,7 @@ class TargetingCoordinator(
                 sa.addDividedAllocation(entity, sa.stillToDivide / (stillNeeded - indices.indexOf(idx)).coerceAtLeast(1))
             }
             sa.targets.add(entity)
-            if (entity is Card) recordPendingTargetSpec(sa, entity)
+            recordPendingTargetSpec(sa, entity)
         }
 
         val totalTargeted = sa.targets.size
@@ -439,15 +439,29 @@ class TargetingCoordinator(
 
     private fun recordPendingTargetSpec(
         sa: SpellAbility,
-        target: Card,
+        target: forge.game.GameEntity,
     ) {
         val spellCard = sa.hostCard ?: return
+        val isTrigger = sa.isTrigger
+        val (targetCardId, targetSeatId) =
+            when (target) {
+                is Card -> target.id to null
+                is forge.game.player.Player -> {
+                    val seat =
+                        if (target.lobbyPlayer is forge.ai.LobbyPlayerAi) seating.familiarSeat
+                        else seating.humanSeat
+                    null to seat.value
+                }
+                else -> return
+            }
         bridge.addPendingTargetSpec(
             InteractivePromptBridge.PendingTarget(
                 spellForgeCardId = spellCard.id,
                 spellName = spellCard.name,
-                targetForgeCardId = target.id,
                 index = bridge.nextTargetSpecIndex(),
+                targetForgeCardId = targetCardId,
+                targetSeatId = targetSeatId,
+                isTriggeredAbility = isTrigger,
             ),
         )
     }
