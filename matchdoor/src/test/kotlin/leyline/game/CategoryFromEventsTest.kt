@@ -296,6 +296,30 @@ class CategoryFromEventsTest :
             TransferCategoryResolver.categoryFromEvents(ForgeCardId(55), events) shouldBe TransferCategory.Sacrifice
         }
 
+        test("fizzledSpellResolvedOutranksCardDestroyed") {
+            // Pins band 90 (Countered) > band 80 (Destroy). Improbable in
+            // practice (a single card going Stack→GY shouldn't also fire
+            // CardDestroyed), but locks the table's priority ordering.
+            val events =
+                listOf(
+                    GameEvent.SpellResolved(cardId = ForgeCardId(77), hasFizzled = true),
+                    GameEvent.CardDestroyed(cardId = ForgeCardId(77), seatId = SeatId(1)),
+                )
+            TransferCategoryResolver.categoryFromEvents(ForgeCardId(77), events) shouldBe TransferCategory.Countered
+        }
+
+        test("surveilOutranksMill") {
+            // Pins band 95 (Surveil) > band 90 (Mill). `Player.surveil()`
+            // fires CardMilled (from moveToGraveyard) immediately followed by
+            // CardSurveiled — the operation event must win over the outcome.
+            val events =
+                listOf(
+                    GameEvent.CardMilled(cardId = ForgeCardId(55), seatId = SeatId(1)),
+                    GameEvent.CardSurveiled(cardId = ForgeCardId(55), seatId = SeatId(1)),
+                )
+            TransferCategoryResolver.categoryFromEvents(ForgeCardId(55), events) shouldBe TransferCategory.Surveil
+        }
+
         test("cardBouncedReturnsBounce") {
             val events =
                 listOf(
