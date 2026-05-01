@@ -359,6 +359,29 @@ data class PromptRequest(
      * only a subset is selectable (e.g., noncreature nonland for Duress).
      */
     val unfilteredRefs: List<PromptCandidateRefDto> = emptyList(),
+    /**
+     * For each `options[i]`, its position in the unfiltered Choices list (the
+     * ability's full mode list before Forge legality-filtering). When set,
+     * `TargetingHandler.sendCastingTimeOptionsReq` uses these to index into
+     * the card-DB childGrpIds — keeps the modal index space aligned with
+     * `possible[]` when modes are pruned (e.g. Spree counter mode with no
+     * stack target).
+     */
+    val modalChoicePossibleFullIndices: List<Int>? = null,
+    /**
+     * Per-`options` mode costs (`+ {cost}` portion only; base spell cost is
+     * separate). One entry per mode in the same order as `options`. Empty
+     * inner list = free mode (Charm). Non-empty = cost-bearing mode (Spree).
+     */
+    val modalCosts: List<List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>>>? = null,
+    /**
+     * Full-list positions of modes Forge legality-filtered out. Resolves to
+     * `ModalReq.excludedOptions[]` on the outbound CastingTimeOptionsReq —
+     * client renders them greyed-out so the player sees what's not pickable.
+     */
+    val excludedModalFullIndices: List<Int>? = null,
+    /** Costs parallel to `excludedModalFullIndices`. Same shape as `modalCosts`. */
+    val excludedModalCosts: List<List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>>>? = null,
 )
 
 /** Convert a pending engine prompt into its wire DTO. */

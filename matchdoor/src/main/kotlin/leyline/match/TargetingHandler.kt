@@ -603,10 +603,40 @@ class TargetingHandler(
             ctoId = 2
         }
 
+        // Resolve per-mode grpIds. When the bridge supplies full-list indices
+        // (Spree path, and any Charm cast where Forge filtered at least one
+        // mode), translate via card-DB childGrpIds — keeps the wire ordering
+        // aligned with `possible[]` upstream. Otherwise fall back to unfiltered
+        // (legacy Charm-with-all-modes-legal path).
+        val possibleFullIndices = req.modalChoicePossibleFullIndices
+        val excludedFullIndices = req.excludedModalFullIndices
+        val effectiveChildGrpIds: List<Int>
+        val effectiveModalCosts: List<List<Pair<ManaColor, Int>>>?
+        val effectiveExcludedGrpIds: List<Int>
+        val effectiveExcludedCosts: List<List<Pair<ManaColor, Int>>>
+        if (possibleFullIndices != null && possibleFullIndices.all { it in modalInfo.childGrpIds.indices }) {
+            effectiveChildGrpIds = possibleFullIndices.map { modalInfo.childGrpIds[it] }
+            effectiveModalCosts = req.modalCosts
+            effectiveExcludedGrpIds =
+                excludedFullIndices
+                    ?.filter { it in modalInfo.childGrpIds.indices }
+                    ?.map { modalInfo.childGrpIds[it] }
+                    ?: emptyList()
+            effectiveExcludedCosts = req.excludedModalCosts ?: emptyList()
+        } else {
+            effectiveChildGrpIds = modalInfo.childGrpIds
+            effectiveModalCosts = null
+            effectiveExcludedGrpIds = emptyList()
+            effectiveExcludedCosts = emptyList()
+        }
+
         val ctoReq =
             bundles.bundleBuilder.buildModalCastingTimeOptionsReq(
                 parentGrpId = modalInfo.parentGrpId,
-                childGrpIds = modalInfo.childGrpIds,
+                childGrpIds = effectiveChildGrpIds,
+                modalCosts = effectiveModalCosts,
+                excludedGrpIds = effectiveExcludedGrpIds,
+                excludedCosts = effectiveExcludedCosts,
                 minSel = req.min,
                 maxSel = req.max,
                 sourceInstanceId = sourceInstanceId,
@@ -615,8 +645,10 @@ class TargetingHandler(
                 playerIdToPrompt = if (isTriggered) counters.seatId.value else null,
             )
 
-        // Save pending state for response mapping
-        pendingInteraction = PendingClientInteraction.ModalChoice(pendingPrompt.promptId, modalInfo.childGrpIds)
+        // Save pending state for response mapping. Store the *effective* child
+        // grpIds so `onCastingTimeOptions`'s `indexOf(pickedGrpId)` returns an
+        // index that aligns with `possible[]` upstream — not an unfiltered index.
+        pendingInteraction = PendingClientInteraction.ModalChoice(pendingPrompt.promptId, effectiveChildGrpIds)
 
         // For triggered abilities, pass the source card's instanceId and grpId so the
         // synthesized ability object has correct parentId and objectSourceGrpId.
