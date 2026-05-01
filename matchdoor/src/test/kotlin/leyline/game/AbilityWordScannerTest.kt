@@ -175,6 +175,59 @@ class AbilityWordScannerTest :
             results.filter { it.abilityWordName == "Raid" }.shouldBeEmpty()
         }
 
+        test("Flurry card with 0 spells cast emits value=0 threshold=2") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Jeskai Devotee", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val devotee =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Jeskai Devotee" }
+            val devoteeIid = b.getOrAllocInstanceId(ForgeCardId(devotee.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+
+            val flurry = results.firstOrNull { it.abilityWordName == "Flurry" }
+            assertSoftly {
+                flurry.shouldNotBeNull()
+                flurry.value shouldBe 0
+                flurry.threshold shouldBe 2
+                flurry.affectorId shouldBe 1
+                flurry.affectedIds shouldContain devoteeIid
+            }
+        }
+
+        test("Flurry card with 2 spells cast this turn emits value=2") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Jeskai Devotee", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            human.addSpellCastThisTurn()
+            human.addSpellCastThisTurn()
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+            val flurry = results.firstOrNull { it.abilityWordName == "Flurry" }
+            assertSoftly {
+                flurry.shouldNotBeNull()
+                flurry.value shouldBe 2
+                flurry.threshold shouldBe 2
+            }
+        }
+
         test("Raid card after declaring an attacker emits keyword-only AbilityWordActive") {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->

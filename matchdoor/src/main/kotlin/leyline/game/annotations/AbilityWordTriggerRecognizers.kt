@@ -100,5 +100,20 @@ object AbilityWordTriggerRecognizers {
                 )
             }
         }
+
+        // Flurry — quantitative spell-count marker. Always emitted while a Flurry source is in play.
+        // value = spells cast this turn by controller; threshold = 2 (the trigger fires on second spell).
+        register("Flurry") { _, controller, iid, seatIdx, _ ->
+            listOf(
+                AbilityWordScanner.AbilityWordEntry(
+                    instanceId = iid,
+                    abilityWordName = "Flurry",
+                    value = controller.spellsCastThisTurn,
+                    threshold = 2,
+                    affectorId = seatIdx,
+                    affectedIds = listOf(iid),
+                ),
+            )
+        }
     }
 }
