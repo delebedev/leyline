@@ -1,0 +1,19 @@
+name: "Poisoner's Apprentice"
+grpId: 102551
+titleId: 1111101
+abilities:
+  - id: 204371
+    textId: 1111104
+    category: 2
+expansionCode: "SOS"
+power: "2"
+toughness: "2"
+colors:
+  - 3
+types:
+  - 2
+subtypes:
+  - 221
+  - 368
+supertypes: []
+manaCost: "o2oB"

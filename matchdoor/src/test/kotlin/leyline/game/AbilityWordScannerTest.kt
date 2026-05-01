@@ -228,6 +228,60 @@ class AbilityWordScannerTest :
             }
         }
 
+        test("Infusion source with life gained emits Infusion marker + LifeGainedThisTurn helper") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Poisoner's Apprentice", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            human.lifeGainedThisTurn = 3
+            val pois =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Poisoner's Apprentice" }
+            val poisIid = b.getOrAllocInstanceId(ForgeCardId(pois.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { card ->
+                        val grpId = b.cardRepository.findGrpIdByName(card.name) ?: 0
+                        b.abilityRegistryFor(card, b.cardRepository.findByGrpId(grpId))
+                    },
+                )
+
+            val marker = results.firstOrNull { it.abilityWordName == "Infusion" }
+            val helper = results.firstOrNull { it.abilityWordName == "LifeGainedThisTurn" }
+            assertSoftly {
+                marker.shouldNotBeNull()
+                marker.affectorId shouldBe 1
+                marker.affectedIds shouldContain poisIid
+                marker.value shouldBe null
+                helper.shouldNotBeNull()
+                helper.value shouldBe 3
+                helper.affectedIds shouldContain poisIid
+            }
+        }
+
+        test("Infusion source without life gain emits marker only — no LifeGainedThisTurn helper") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Poisoner's Apprentice", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            // lifeGainedThisTurn defaults to 0
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+            results.firstOrNull { it.abilityWordName == "Infusion" }.shouldNotBeNull()
+            results.filter { it.abilityWordName == "LifeGainedThisTurn" }.shouldBeEmpty()
+        }
+
         test("Raid card after declaring an attacker emits keyword-only AbilityWordActive") {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->

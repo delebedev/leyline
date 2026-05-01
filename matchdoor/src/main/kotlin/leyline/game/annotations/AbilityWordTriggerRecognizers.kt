@@ -115,5 +115,40 @@ object AbilityWordTriggerRecognizers {
                 ),
             )
         }
+
+        // Infusion — keyword marker plus a LifeGainedThisTurn quantitative helper.
+        // The marker is always-on while a source is in play. The helper rides the Infusion
+        // ability id (looked up via registry from the trigger whose description carries the
+        // 'Infusion —' prefix) and is omitted when no life has been gained this turn.
+        register("Infusion") { card, controller, iid, seatIdx, registry ->
+            val out = mutableListOf<AbilityWordScanner.AbilityWordEntry>()
+            out.add(
+                AbilityWordScanner.AbilityWordEntry(
+                    instanceId = iid,
+                    abilityWordName = "Infusion",
+                    affectorId = seatIdx,
+                    affectedIds = listOf(iid),
+                ),
+            )
+            val lifeGained = controller.lifeGainedThisTurn
+            if (lifeGained > 0) {
+                val infusionTrigger = card.triggers?.firstOrNull { t ->
+                    val desc = t.getParam("TriggerDescription") ?: return@firstOrNull false
+                    desc.startsWith("Infusion $EM_DASH")
+                }
+                val abilityGrpId = infusionTrigger?.let { registry?.forTrigger(it.id)?.takeIf { id -> id > 0 } }
+                out.add(
+                    AbilityWordScanner.AbilityWordEntry(
+                        instanceId = iid,
+                        abilityWordName = "LifeGainedThisTurn",
+                        value = lifeGained,
+                        abilityGrpId = abilityGrpId,
+                        affectorId = seatIdx,
+                        affectedIds = listOf(iid),
+                    ),
+                )
+            }
+            out
+        }
     }
 }
