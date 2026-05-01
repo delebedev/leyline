@@ -605,7 +605,7 @@ class TargetingHandler(
 
         // Resolve per-mode grpIds. When the bridge supplies full-list indices
         // (Spree path, and any Charm cast where Forge filtered at least one
-        // mode), translate via card-DB childGrpIds — keeps the wire ordering
+        // mode), translate via card-DB childGrpIds — keeps the modal ordering
         // aligned with `possible[]` upstream. Otherwise fall back to unfiltered
         // (legacy Charm-with-all-modes-legal path).
         val possibleFullIndices = req.modalChoicePossibleFullIndices
@@ -624,6 +624,17 @@ class TargetingHandler(
                     ?: emptyList()
             effectiveExcludedCosts = req.excludedModalCosts ?: emptyList()
         } else {
+            // Silent fallback: bridge populated full-list indices but they fell
+            // outside card-DB childGrpIds (Forge SVar count vs. card-DB
+            // modalChildIds count drift). Spree-style picked-mode mapping will
+            // regress here. Loud in tests, soft in prod.
+            if (possibleFullIndices != null) {
+                DevCheck.fail {
+                    "modal full-list indices out of card-DB range: " +
+                        "indices=$possibleFullIndices childCount=${modalInfo.childGrpIds.size} " +
+                        "card='$cardName' grpId=$cardGrpId"
+                }
+            }
             effectiveChildGrpIds = modalInfo.childGrpIds
             effectiveModalCosts = null
             effectiveExcludedGrpIds = emptyList()

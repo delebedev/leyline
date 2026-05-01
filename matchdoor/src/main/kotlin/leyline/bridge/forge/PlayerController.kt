@@ -52,6 +52,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.Seating
+import leyline.bridge.types.manaTokenToPair
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -873,12 +874,7 @@ class PlayerController(
         // the unfiltered card-DB ordering, which gets out of sync with
         // `possible` when modes are pruned (e.g. Spree's counter mode with no
         // stack target) — response indices then map to the wrong AbilitySub.
-        val (
-            possibleFullIndices,
-            modalCosts,
-            excludedFullIndices,
-            excludedCosts,
-        ) = deriveModalChoiceShape(sa, possible)
+        val shape = deriveModalChoiceShape(sa, possible)
 
         val request =
             PromptRequest(
@@ -892,10 +888,10 @@ class PlayerController(
                 modalSourceCardName = sa.hostCard.name,
                 sourceEntityId = sa.hostCard.id,
                 isTriggeredAbility = sa.isTrigger,
-                modalChoicePossibleFullIndices = possibleFullIndices,
-                modalCosts = modalCosts,
-                excludedModalFullIndices = excludedFullIndices,
-                excludedModalCosts = excludedCosts,
+                modalChoicePossibleFullIndices = shape.possibleFullIndices,
+                modalCosts = shape.modalCosts,
+                excludedModalFullIndices = shape.excludedFullIndices,
+                excludedModalCosts = shape.excludedCosts,
             )
         val result = bridge.requestChoice(request)
         return result.mapNotNull { idx -> possible.getOrNull(idx) }
@@ -944,28 +940,16 @@ class PlayerController(
 
     /**
      * Parse Forge's `ModeCost$` text (e.g. `"1 U"`, `"3"`, `"2 R"`) into
-     * (ManaColor, count) pairs matching `parseManaCost` shape used elsewhere.
-     * Empty/null returns empty list (Charm-style cost-free mode).
+     * (ManaColor, count) pairs. Tokenizer differs from card-DB OldSchoolManaText
+     * (whitespace vs. `o` prefix) but the single-symbol vocabulary is shared via
+     * [manaTokenToPair]. Empty/null returns empty list (Charm-style cost-free mode).
      */
     private fun parseForgeModeCost(text: String?): List<Pair<ManaColor, Int>> {
         if (text.isNullOrBlank()) return emptyList()
         val counts = mutableMapOf<ManaColor, Int>()
         for (token in text.trim().split(Regex("\\s+"))) {
-            if (token.isEmpty()) continue
-            when (token.uppercase()) {
-                "W" -> counts.merge(ManaColor.White_afc9, 1, Int::plus)
-                "U" -> counts.merge(ManaColor.Blue_afc9, 1, Int::plus)
-                "B" -> counts.merge(ManaColor.Black_afc9, 1, Int::plus)
-                "R" -> counts.merge(ManaColor.Red_afc9, 1, Int::plus)
-                "G" -> counts.merge(ManaColor.Green_afc9, 1, Int::plus)
-                "C" -> counts.merge(ManaColor.Colorless_afc9, 1, Int::plus)
-                "S" -> counts.merge(ManaColor.Snow_afc9, 1, Int::plus)
-                "X" -> counts.merge(ManaColor.X, 1, Int::plus)
-                else -> {
-                    val n = token.toIntOrNull()
-                    if (n != null && n > 0) counts.merge(ManaColor.Generic, n, Int::plus)
-                }
-            }
+            val pair = manaTokenToPair(token) ?: continue
+            counts.merge(pair.first, pair.second, Int::plus)
         }
         return counts.toList()
     }

@@ -372,15 +372,23 @@ data class PromptRequest(
      * Per-`options` mode costs (`+ {cost}` portion only; base spell cost is
      * separate). One entry per mode in the same order as `options`. Empty
      * inner list = free mode (Charm). Non-empty = cost-bearing mode (Spree).
+     *
+     * When non-null, MUST have exactly `modalChoicePossibleFullIndices.size`
+     * entries (== `options.size`); shorter lists silently drop costs from
+     * later modes. Use empty inner list, not omission, for free modes.
      */
     val modalCosts: List<List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>>>? = null,
     /**
-     * Full-list positions of modes Forge legality-filtered out. Resolves to
-     * `ModalReq.excludedOptions[]` on the outbound CastingTimeOptionsReq —
-     * client renders them greyed-out so the player sees what's not pickable.
+     * Full-list positions of modes Forge legality-filtered out (parallel to
+     * `excludedModalCosts`). Resolves to `ModalReq.excludedOptions[]` on the
+     * outbound CastingTimeOptionsReq — client renders them greyed-out so the
+     * player sees what's not pickable.
      */
     val excludedModalFullIndices: List<Int>? = null,
-    /** Costs parallel to `excludedModalFullIndices`. Same shape as `modalCosts`. */
+    /**
+     * Costs parallel to `excludedModalFullIndices`. Same shape and parallel-list
+     * invariants as `modalCosts`.
+     */
     val excludedModalCosts: List<List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>>>? = null,
 )
 

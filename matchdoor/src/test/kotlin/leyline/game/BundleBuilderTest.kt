@@ -75,6 +75,101 @@ class BundleBuilderTest :
             }
         }
 
+        test("buildModalCastingTimeOptionsReq — Charm shape (no costs, no excluded)") {
+            val req =
+                pureBB().buildModalCastingTimeOptionsReq(
+                    parentGrpId = 200001,
+                    childGrpIds = listOf(101, 102, 103),
+                    minSel = 1,
+                    maxSel = 1,
+                    sourceInstanceId = 555,
+                    grpId = 90000,
+                )
+
+            req.castingTimeOptionReqCount shouldBe 1
+            val opt = req.getCastingTimeOptionReq(0)
+            opt.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Modal_a7b4
+            val mr = opt.modalReq
+            assertSoftly {
+                mr.modalOptionsCount shouldBe 3
+                mr.getModalOptions(0).grpId shouldBe 101
+                mr.getModalOptions(0).modeCostCount shouldBe 0
+                mr.excludedOptionsCount shouldBe 0
+                mr.minSel shouldBe 1
+                mr.maxSel shouldBe 1
+            }
+        }
+
+        test("buildModalCastingTimeOptionsReq — Spree shape (modeCost + excludedOptions)") {
+            val req =
+                pureBB().buildModalCastingTimeOptionsReq(
+                    parentGrpId = 173717,
+                    childGrpIds = listOf(171803, 171804),
+                    modalCosts =
+                        listOf(
+                            listOf(Messages.ManaColor.Generic to 3),
+                            listOf(Messages.ManaColor.Generic to 2),
+                        ),
+                    excludedGrpIds = listOf(171802),
+                    excludedCosts =
+                        listOf(
+                            listOf(
+                                Messages.ManaColor.Generic to 1,
+                                Messages.ManaColor.Blue_afc9 to 1,
+                            ),
+                        ),
+                    minSel = 1,
+                    maxSel = 2,
+                    sourceInstanceId = 240,
+                    grpId = 90421,
+                )
+
+            val opt = req.getCastingTimeOptionReq(0)
+            val mr = opt.modalReq
+            assertSoftly {
+                mr.modalOptionsCount shouldBe 2
+                mr.getModalOptions(0).grpId shouldBe 171803
+                mr.getModalOptions(0).modeCostCount shouldBe 1
+                mr.getModalOptions(0).getModeCost(0).manaCost.getColor(0) shouldBe Messages.ManaColor.Generic
+                mr.getModalOptions(0).getModeCost(0).manaCost.count shouldBe 3
+
+                mr.getModalOptions(1).grpId shouldBe 171804
+                mr.getModalOptions(1).getModeCost(0).manaCost.count shouldBe 2
+
+                mr.excludedOptionsCount shouldBe 1
+                mr.getExcludedOptions(0).grpId shouldBe 171802
+                mr.getExcludedOptions(0).modeCostCount shouldBe 2
+                mr.getExcludedOptions(0).getModeCost(0).manaCost.getColor(0) shouldBe Messages.ManaColor.Generic
+                mr.getExcludedOptions(0).getModeCost(0).manaCost.count shouldBe 1
+                mr.getExcludedOptions(0).getModeCost(1).manaCost.getColor(0) shouldBe Messages.ManaColor.Blue_afc9
+                mr.getExcludedOptions(0).getModeCost(1).manaCost.count shouldBe 1
+            }
+        }
+
+        test("buildModalCastingTimeOptionsReq — modalCosts shorter than childGrpIds drops late costs") {
+            // Documents the parallel-list invariant: caller is expected to pass
+            // a modalCosts of equal length to childGrpIds; shorter silently drops.
+            val req =
+                pureBB().buildModalCastingTimeOptionsReq(
+                    parentGrpId = 1,
+                    childGrpIds = listOf(10, 20, 30),
+                    modalCosts =
+                        listOf(
+                            listOf(Messages.ManaColor.Generic to 1),
+                            listOf(Messages.ManaColor.Generic to 2),
+                            // mode 30 has no entry — emitted with no cost
+                        ),
+                    minSel = 1,
+                    maxSel = 1,
+                    sourceInstanceId = 1,
+                    grpId = 1,
+                )
+            val mr = req.getCastingTimeOptionReq(0).modalReq
+            mr.getModalOptions(0).modeCostCount shouldBe 1
+            mr.getModalOptions(1).modeCostCount shouldBe 1
+            mr.getModalOptions(2).modeCostCount shouldBe 0
+        }
+
         test("edictalPass sends server-forced Pass action") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
             val result = pureBB().edictalPass(counter = counter)
