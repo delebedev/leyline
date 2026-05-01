@@ -579,6 +579,7 @@ object StateMapper {
                 startAnnotationId,
                 bridge,
                 frameContext,
+                transferResult,
                 keywordDiff,
                 combatResult,
                 qualificationPersistentFromSnap = qualificationPersistentFromSnap,
@@ -954,6 +955,7 @@ object StateMapper {
         startAnnotationId: Int,
         bridge: GameBridge,
         frameContext: FrameContext,
+        transferResult: TransferResult,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
         qualificationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
@@ -975,13 +977,39 @@ object StateMapper {
                 .map { it.cardId }
                 .toSet()
         val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds
+        // Realloc-aware id resolver: cards moving zones this drain
+        // (e.g. cast spell Hand→Stack) have their post-realloc iid in
+        // transferResult.transfers.newId. The bridge still holds the
+        // pre-realloc iid until applyMutations runs after buildDiff returns.
+        // SpellCast-driven annotations (ManaPaid, UAT-cast) need to reference
+        // the post-realloc spell iid to match transfer-driven OIC/ZT.
+        val postReallocIids: Map<leyline.bridge.types.ForgeCardId, leyline.bridge.types.InstanceId> =
+            transferResult.transfers
+                .mapNotNull { transfer ->
+                    transfer.forgeCardId?.let { fid -> fid to leyline.bridge.types.InstanceId(transfer.newId) }
+                }.toMap()
+        val reallocAwareIdResolver: (leyline.bridge.types.ForgeCardId) -> leyline.bridge.types.InstanceId =
+            { fid -> postReallocIids[fid] ?: bridge.getOrAllocInstanceId(fid) }
         val mechanicResult =
             MechanicAnnotations.mechanicAnnotations(
                 events,
                 manaPaidForgeCardIds,
-                idResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
+                idResolver = reallocAwareIdResolver,
                 effectIdAllocator = { leyline.bridge.types.EffectId(bridge.effects.nextEffectId()) },
                 activeStealForgeCardIds = bridge.annotations.activeStealForgeCardIds(),
+                manaAbilityGrpIdResolver = { fid ->
+                    val card = bridge.getGame()?.let { leyline.bridge.findCard(it, fid) }
+                    val grpId =
+                        if (card != null) {
+                            val subtypes = card.type.subtypes.map { it.lowercase() }
+                            leyline.game.data.BasicLandAbilities.BY_SUBTYPE
+                                .firstOrNull { it.first in subtypes }
+                                ?.second ?: 0
+                        } else {
+                            0
+                        }
+                    leyline.bridge.types.GrpId(grpId)
+                },
             )
         // Token entries belong before combat damage: a Mobilize trigger that
         // resolves between attacker declaration and combat damage produces tokens

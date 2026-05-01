@@ -108,7 +108,7 @@ object ZoneTransferDetector {
     private val log = LoggerFactory.getLogger(ZoneTransferDetector::class.java)
 
     /** Offset for mana ability instance IDs (separate from stack abilities at 100_000). */
-    private const val MANA_ABILITY_ID_OFFSET = 200_000
+    internal const val MANA_ABILITY_ID_OFFSET = 200_000
 
     /**
      * Detect zone transfers and plan instanceId reallocations.
