@@ -519,11 +519,16 @@ object StateMapper {
                 ?.map { fid -> bridge.getOrAllocInstanceId(fid).value }
                 ?.toSet()
                 ?: emptySet()
+        val controllerOf: Map<Int, SeatId> =
+            snap.boundCards.values.associate { bound ->
+                bridge.getOrAllocInstanceId(bound.forgeCardId).value to bound.snapshot.controller
+            }
         val frameContext =
             FrameContext(
                 phase = snap.phase.phase,
                 activePlayerSeat = snap.phase.activePlayer,
                 battlefieldIids = battlefieldIids,
+                controllerOf = controllerOf,
             )
         val remaining =
             computeRemainingAnnotations(
@@ -1314,7 +1319,8 @@ object StateMapper {
     /**
      * Scan the stack for spells/abilities with targets and emit TargetSpec pAnns.
      * Each card target gets a separate annotation with 1-based index per target group.
-     * Removed automatically by upsertByType when the spell resolves (leaves stack).
+     * Pruned automatically by the registry-driven upsert pass (TargetSpecKind's
+     * full-replacement semantics) when the spell resolves and leaves the stack.
      */
     private fun buildTargetSpecAnnotations(bridge: GameBridge): List<AnnotationInfo> {
         // Consume targets captured during selectTargetsInteractively.

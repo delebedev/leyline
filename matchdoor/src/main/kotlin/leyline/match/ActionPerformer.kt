@@ -7,6 +7,7 @@ import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
+import leyline.game.mapping.AbilityGrpIdMode
 import leyline.game.mapping.AltGrpIdSource
 import leyline.game.mapping.CastRail
 import leyline.game.mapping.CastRails
@@ -338,16 +339,24 @@ class ActionPerformer(
         val card = findCard(game, cardId) ?: return null
 
         // Universal-149 ("Cast without paying mana cost") routes to rails that
-        // declare AltGrpIdSource.Universal149 (Plot's exile-cast leg). Per-card
-        // alternativeGrpIds resolve via findAbilityInfo and match rails on the
-        // keyword BaseId. When more than one rail shares a BaseId
-        // (Plot/Foretell hand vs exile-cast), iterate getAllCastableAbilities
-        // and pick the SA the rails' saPredicates match — getAllCastableAbilities
-        // only surfaces one flavor at a time per zone so the match is unambiguous.
+        // declare AltGrpIdSource.Universal149 AND whose abilityGrpIdMode
+        // declares the same FixedKeyword baseId the action carries. Today
+        // only Plot's exile-cast leg matches (149 + abilityGrpId=PLOT); the
+        // co-check keeps dispatch unambiguous if a future rail also adopts
+        // Universal149 with a different fixed keyword.
+        //
+        // Per-card alternativeGrpIds resolve via findAbilityInfo and match
+        // rails on the keyword BaseId. When more than one rail shares a
+        // BaseId (Plot/Foretell hand vs exile-cast), iterate
+        // getAllCastableAbilities and pick the SA the rails' saPredicates
+        // match — getAllCastableAbilities only surfaces one flavor at a time
+        // per zone so the match is unambiguous.
         val candidateRails: List<CastRail> =
             if (alternativeGrpId == 149) {
                 CastRails.all.filter { rail ->
-                    rail is ZoneCastRail && rail.altGrpIdSource is AltGrpIdSource.Universal149
+                    rail is ZoneCastRail &&
+                        rail.altGrpIdSource is AltGrpIdSource.Universal149 &&
+                        (rail.abilityGrpIdMode as? AbilityGrpIdMode.FixedKeyword)?.baseId == action.abilityGrpId
                 }
             } else {
                 val info = bridge.cardRepository.findAbilityInfo(alternativeGrpId) ?: return null

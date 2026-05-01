@@ -19,7 +19,7 @@ import leyline.game.event.FrameEventLog
  */
 
 /** Forge cardId ↔ client instanceId translation. Used by nearly every mapper. */
-interface IdMapping : BridgeHandoffOps {
+interface IdMapping {
     /** Allocate or return existing client instanceId for a Forge card ID. */
     fun getOrAllocInstanceId(forgeCardId: ForgeCardId): InstanceId
 

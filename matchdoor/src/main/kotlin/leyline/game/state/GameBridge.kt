@@ -317,17 +317,6 @@ class GameBridge(
 
     override fun reallocInstanceId(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation = ids.realloc(forgeCardId)
 
-    override fun handoffToZone(
-        forgeCardId: ForgeCardId,
-        destinationZoneId: Int,
-        keepsSameInstanceId: Boolean,
-    ): ZoneHandoff =
-        if (keepsSameInstanceId) {
-            ZoneHandoff.keepingSameInstanceId(ids.getOrAlloc(forgeCardId), destinationZoneId)
-        } else {
-            ZoneHandoff.fromRealloc(ids.realloc(forgeCardId), destinationZoneId)
-        }
-
     override fun getForgeCardId(instanceId: InstanceId): ForgeCardId? = ids.getForgeCardId(instanceId)
 
     /** Read-only snapshot of instanceId → forgeCardId (all, including retired). */

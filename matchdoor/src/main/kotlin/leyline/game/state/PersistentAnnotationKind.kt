@@ -20,15 +20,25 @@ data class FrameContext(
     val activePlayerSeat: SeatId,
     /** Instance ids currently on the battlefield zone in `cur` snapshot. */
     val battlefieldIids: Set<Int>,
+    /** Per-iid controller from `cur` snapshot — drives per-controller expiry
+     *  gates. Map omits iids not present in `cur.boundCards` (cards already
+     *  off-objects); EZTT treats unknown-controller as "expire on any Upkeep"
+     *  to prevent stale accumulation. */
+    val controllerOf: Map<Int, SeatId>,
 ) {
     companion object {
-        /** No-op context — phase=null, empty battlefield. No [shouldExpire] row
-         *  fires under it. Used by tests that don't exercise lifecycle expiry. */
+        /** No-op context — phase=null, empty battlefield, empty controller map.
+         *  No [PersistentAnnotationKind.shouldExpire] row fires under it
+         *  (EZTT gates on phase==UPKEEP, ColorProduction on iid-not-in-BF
+         *  which is true for any iid here but only matters when ColorProduction
+         *  rows exist in active). Used by legacy tests that don't exercise
+         *  lifecycle expiry. */
         val INERT: FrameContext =
             FrameContext(
                 phase = null,
                 activePlayerSeat = SeatId(1),
                 battlefieldIids = emptySet(),
+                controllerOf = emptyMap(),
             )
     }
 }
@@ -223,12 +233,14 @@ data object PlottedDesignationKind : PersistentAnnotationKind {
  * Pure-snapshot persistent annotation: card-entered-zone-this-turn marker.
  * Does NOT participate in upsert dispatch — rows arrive via the transfer-
  * originated pipeline (one EZTT per zone transfer landing on Battlefield /
- * Stack). The kind exists for [shouldExpire]: clear at Upkeep so EZTT
- * markers don't accumulate forever.
+ * Stack). The kind exists for [shouldExpire]: clear at the controller's
+ * next Upkeep so EZTT markers don't accumulate forever.
  *
- * Closes leyline-eq9q ("EZTT never expires"): MTG rule expires
- * "entered-this-turn" markers at the start of next turn; our hook is the
- * Upkeep step.
+ * Closes leyline-eq9q ("EZTT never expires"): MTG rule expires "entered
+ * this turn" markers at the start of the controller's next turn; our hook
+ * is the Upkeep step plus a controller match. Cards no longer present in
+ * `frame.controllerOf` (already off-objects) expire on any Upkeep so stale
+ * rows don't pin in the persistent set.
  */
 data object EnteredZoneThisTurnKind : PersistentAnnotationKind {
     override val name = "EnteredZoneThisTurn"
@@ -242,7 +254,17 @@ data object EnteredZoneThisTurnKind : PersistentAnnotationKind {
     override fun shouldExpire(
         ann: AnnotationInfo,
         frame: FrameContext,
-    ): Boolean = frame.phase == PhaseType.UPKEEP
+    ): Boolean {
+        if (frame.phase != PhaseType.UPKEEP) return false
+        val affected = ann.affectedIdsList.firstOrNull() ?: return false
+        val controller = frame.controllerOf[affected]
+        // Known controller: gate on activePlayer == controller (per MTG rule).
+        // Unknown controller (card already off-objects): expire on any Upkeep
+        // — strictly cleaner than the pre-S6.A "never expires" pin, and the
+        // protocol doesn't care about a marker on an iid the client no longer
+        // tracks.
+        return controller == null || controller == frame.activePlayerSeat
+    }
 }
 
 /**

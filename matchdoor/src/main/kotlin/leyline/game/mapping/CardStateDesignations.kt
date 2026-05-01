@@ -105,6 +105,9 @@ internal fun insertStateDesignationTransients(
         val curIds = forgeIdsByRole(cur, spec.readRole)
         val prevIds = forgeIdsByRole(prev, spec.readRole)
         for (fid in curIds - prevIds) emitGain(annotations, spec, resolveInstanceId(fid))
+        // FACE_DOWN_PAIR has no lose path — skip the prev-set scan entirely
+        // rather than iterate just to call a no-op emitter.
+        if (spec.mode == TransientMode.FACE_DOWN_PAIR) continue
         for (fid in prevIds - curIds) emitLose(annotations, spec, resolveInstanceId(fid))
     }
 }

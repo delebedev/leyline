@@ -34,11 +34,14 @@ class PersistentAnnotationKindTest :
         fun frame(
             phase: PhaseType?,
             battlefield: Set<Int> = emptySet(),
+            activeSeat: SeatId = SeatId(1),
+            controllerOf: Map<Int, SeatId> = emptyMap(),
         ): FrameContext =
             FrameContext(
                 phase = phase,
-                activePlayerSeat = SeatId(1),
+                activePlayerSeat = activeSeat,
                 battlefieldIids = battlefield,
+                controllerOf = controllerOf,
             )
 
         fun emptyMechanicResult(): MechanicAnnotationResult =
@@ -247,6 +250,78 @@ class PersistentAnnotationKindTest :
             assertSoftly {
                 result.deletedIds.shouldBeEmpty()
                 result.allAnnotations shouldHaveSize 1
+            }
+        }
+
+        test("EZTT clears only for cards controlled by the active player at Upkeep") {
+            // Two cards, one controlled by each seat. Seat 2 is active; only seat-2's
+            // EZTT should expire. Pre-fix this test would fail (both EZTTs expired).
+            val seat1Eztt =
+                AnnotationBuilder
+                    .enteredZoneThisTurn(zoneId = 28, instanceId = InstanceId(101))
+                    .toBuilder()
+                    .setId(40)
+                    .build()
+            val seat2Eztt =
+                AnnotationBuilder
+                    .enteredZoneThisTurn(zoneId = 28, instanceId = InstanceId(202))
+                    .toBuilder()
+                    .setId(41)
+                    .build()
+            val active = mapOf(40 to seat1Eztt, 41 to seat2Eztt)
+
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = active,
+                    startPersistentId = 100,
+                    frame =
+                        frame(
+                            phase = PhaseType.UPKEEP,
+                            activeSeat = SeatId(2),
+                            controllerOf =
+                                mapOf(
+                                    101 to SeatId(1),
+                                    202 to SeatId(2),
+                                ),
+                        ),
+                    effectPersistent = emptyList(),
+                    effectDiff = emptyEffectDiff,
+                    transferPersistent = emptyList(),
+                    mechanicResult = emptyMechanicResult(),
+                    resolveInstanceId = { InstanceId(it.value) },
+                )
+
+            assertSoftly {
+                result.deletedIds shouldContainExactlyInAnyOrder listOf(41)
+                result.allAnnotations.map { it.id } shouldContain 40
+            }
+        }
+
+        test("EZTT for a card already off-objects expires on any Upkeep — prevents stale accumulation") {
+            val eztt =
+                AnnotationBuilder
+                    .enteredZoneThisTurn(zoneId = 28, instanceId = InstanceId(999))
+                    .toBuilder()
+                    .setId(50)
+                    .build()
+            val active = mapOf(50 to eztt)
+
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = active,
+                    startPersistentId = 100,
+                    // Card 999 is NOT in controllerOf — already off-objects.
+                    frame = frame(phase = PhaseType.UPKEEP, controllerOf = emptyMap()),
+                    effectPersistent = emptyList(),
+                    effectDiff = emptyEffectDiff,
+                    transferPersistent = emptyList(),
+                    mechanicResult = emptyMechanicResult(),
+                    resolveInstanceId = { InstanceId(it.value) },
+                )
+
+            assertSoftly {
+                result.deletedIds shouldContain 50
+                result.allAnnotations.shouldBeEmpty()
             }
         }
 

@@ -1,12 +1,11 @@
 package leyline.game.state
 
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 
 /**
  * Bundled result of a card moving to a new zone — the downstream effects of
  * one realloc, packaged so callers cannot accidentally do three of the four.
- * Replaces the inline `realloc → retire → recordZone → objectIdChanged`
+ * Replaces the inline `realloc → retire → zone-record → objectIdChanged`
  * idiom that recurred at multiple sites in [leyline.game.annotations.ZoneTransferDetector].
  *
  * Continuation of leyline-9d8: that bead lifted the realloc step's mutations
@@ -21,6 +20,11 @@ import leyline.bridge.types.InstanceId
  *    retire / OIC / zone-patch steps.
  *  - [zoneAssignment] — (new iid, destination zone id) pair the caller
  *    folds into [BridgeMutations.zoneRecordings].
+ *
+ * Built via the [Companion] factories — pure-pipeline callers use
+ * [fromRealloc] (with an `idAllocator` lambda); a direct-bridge variant
+ * isn't currently needed because the only realloc site
+ * ([leyline.game.annotations.ZoneTransferDetector]) takes lambdas.
  */
 data class ZoneHandoff(
     val realloc: InstanceIdRegistry.IdReallocation,
@@ -46,10 +50,7 @@ data class ZoneHandoff(
 
         /**
          * Build a handoff from a fresh [InstanceIdRegistry.IdReallocation]
-         * (the result of an `idAllocator(forgeCardId)` call). The pure
-         * pipeline detector path uses this — the bridge variant
-         * ([BridgeHandoffOps.handoffToZone]) is for callers with direct
-         * bridge access.
+         * (the result of an `idAllocator(forgeCardId)` call).
          */
         fun fromRealloc(
             realloc: InstanceIdRegistry.IdReallocation,
@@ -63,25 +64,4 @@ data class ZoneHandoff(
             )
         }
     }
-}
-
-/**
- * Bridge entry point for the handoff pattern. Delegates to
- * [InstanceIdRegistry.realloc] (or the keep-same-iid no-op) and packages the
- * result. Pure-pipeline callers (e.g. [leyline.game.annotations.ZoneTransferDetector])
- * use the lambda-based variant [ZoneHandoff.fromRealloc] to stay free of
- * direct bridge state.
- */
-interface BridgeHandoffOps {
-    /**
-     * Handoff a card to [destinationZoneId]. When [keepsSameInstanceId] is
-     * true (Resolve Stack→Battlefield), returns a no-op handoff with
-     * old==new and `limboRetirement=null`; otherwise allocates a fresh
-     * instanceId and produces a full retire+assign handoff.
-     */
-    fun handoffToZone(
-        forgeCardId: ForgeCardId,
-        destinationZoneId: Int,
-        keepsSameInstanceId: Boolean = false,
-    ): ZoneHandoff
 }
