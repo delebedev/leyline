@@ -147,6 +147,7 @@ class SimClientDriver(
             }
             GREMessageType.SelectTargetsReq_695e -> respondSelectTargets(msg)
             GREMessageType.GroupReq_695e -> respondGroup(msg)
+            GREMessageType.CastingTimeOptionsReq_695e -> respondCastingTimeOptions(msg)
             GREMessageType.IntermissionReq_695e -> harness.passPriority()
             else -> harness.passPriority()
         }
@@ -165,6 +166,24 @@ class SimClientDriver(
             return
         }
         harness.selectTargets(ids.distinct().take(req.targetsList.firstOrNull()?.maxTargets?.coerceAtLeast(1) ?: 1))
+    }
+
+    /**
+     * Greedy CastingTimeOptionsReq response: decline all optional costs
+     * (ctoId=0). Covers kicker / buyback / Bargain / Offspring decline paths.
+     * For modal-required prompts (where the player must pick a mode), this
+     * decline can stall the engine — log and fall through to passPriority so
+     * the iter cap fires deterministically rather than blocking.
+     */
+    private fun respondCastingTimeOptions(msg: GREToClientMessage) {
+        runCatching { harness.respondToOptionalCost(0) }
+            .onFailure {
+                logger.warn(
+                    "respondCastingTimeOptions: decline failed ({}), falling back to passPriority",
+                    it::class.simpleName,
+                )
+                harness.passPriority()
+            }
     }
 
     /** Greedy GroupReq response: leave order as-is (top stays top, no surveil-to-graveyard). */

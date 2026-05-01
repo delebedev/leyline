@@ -123,6 +123,29 @@ object TransferAnnotations {
             )
         }
 
+        // Persistent: CastingTimeOption type=Kicker — spell cast with kicker paid.
+        // castAbilityGrpId points at the card itself; kickerAbilityGrpId points
+        // at the per-card Kicker ability row.
+        if (category == TransferCategory.CastSpell && transfer.kickerAbilityGrpId != 0) {
+            persistent.add(
+                AnnotationBuilder.castingTimeOptionKicker(
+                    stackInstanceId = newId,
+                    kickerAbilityGrpId = GrpId(transfer.kickerAbilityGrpId),
+                    castAbilityGrpId = GrpId(transfer.grpId),
+                ),
+            )
+        }
+
+        // Persistent: CastingTimeOption type=ChooseX — spell cast with X chosen.
+        if (category == TransferCategory.CastSpell && transfer.chosenX != 0) {
+            persistent.add(
+                AnnotationBuilder.castingTimeOptionChooseX(
+                    stackInstanceId = newId,
+                    value = transfer.chosenX,
+                ),
+            )
+        }
+
         // Persistent: ColorProduction for lands entering the battlefield
         if (category == TransferCategory.PlayLand && transfer.colorOrdinals.isNotEmpty()) {
             persistent.add(AnnotationBuilder.colorProduction(newId, transfer.colorOrdinals))

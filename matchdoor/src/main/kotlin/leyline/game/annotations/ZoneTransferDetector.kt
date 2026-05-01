@@ -47,6 +47,10 @@ data class AppliedTransfer(
     /** Non-zero when this CastSpell transfer used an alternate cost (Madness, Flashback,
      *  Warp, Cycling, Impending). Carries the client ability grpId for the alt-cost. */
     val altCostAbilityGrpId: Int = 0,
+    /** Non-zero when the cast paid Kicker. Carries the per-card Kicker ability grpId. */
+    val kickerAbilityGrpId: Int = 0,
+    /** Non-zero when the cast chose an X value. Drives CastingTimeOption type=ChooseX. */
+    val chosenX: Int = 0,
 )
 
 /** A triggered ability that just appeared on the stack (no previousZone entry). */
@@ -311,6 +315,8 @@ object ZoneTransferDetector {
                     } ?: emptyList()
                 val isAdventureCast = spellCastEvent?.isAdventure == true
                 val altCostAbilityGrpId = spellCastEvent?.altCostAbilityGrpId ?: 0
+                val kickerAbilityGrpId = spellCastEvent?.kickerAbilityGrpId ?: 0
+                val chosenX = spellCastEvent?.chosenX ?: 0
 
                 transfers.add(
                     AppliedTransfer(
@@ -327,6 +333,8 @@ object ZoneTransferDetector {
                         manaPayments = manaPayments,
                         isAdventureCast = isAdventureCast,
                         altCostAbilityGrpId = altCostAbilityGrpId,
+                        kickerAbilityGrpId = kickerAbilityGrpId,
+                        chosenX = chosenX,
                     ),
                 )
                 zoneRecordings.add(newId to obj.zoneId)

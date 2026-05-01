@@ -126,6 +126,12 @@ class OptionalCostInteractionTest :
             abilities shouldHaveSize 0
         }
 
+        // TODO(leyline-pbgv) — kicker CastingTimeOption type=3 emit lands once
+        // the frame-local id resolver (leyline-ucbf) closes the pre/post-realloc
+        // window so the persistent annotation's affectorId stays consistent
+        // with frame.stackIids. Today's emission pipeline carries kicker through
+        // AppliedTransfer; lifecycle pruning waits on the resolver.
+
         test("optional cost prompt gates targeting — no SelectTargetsReq before response") {
             startBurst()
 

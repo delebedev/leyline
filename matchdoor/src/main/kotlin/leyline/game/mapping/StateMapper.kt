@@ -533,8 +533,9 @@ object StateMapper {
         // can be the affector of a TriggeringObject. The Ability instance ids
         // are synthetic (sourceCardForgeId + STACK_ABILITY_ID_OFFSET) and don't
         // appear in the snapshot's zone contents; mirror the
-        // [ZoneMapper.addStackAbilitiesFromSnapshot] derivation so the live set
-        // is consistent with what the client sees on the wire.
+        // [ZoneMapper.addStackAbilitiesFromSnapshot] derivation. Pre-realloc
+        // card iids only — see leyline-ucbf for the resolver that would
+        // unify pre/post-realloc views.
         val stackIids: Set<Int> = buildSet {
             val cardIidsInStack = mutableSetOf<Int>()
             snap.zones[ZoneIds.STACK]?.contents?.forEach { fid ->

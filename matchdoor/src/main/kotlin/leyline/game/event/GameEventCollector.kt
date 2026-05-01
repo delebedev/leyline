@@ -208,6 +208,19 @@ class GameEventCollector(
         if (isTrigger && abilityForgeId != 0) {
             pendingTriggers[abilityForgeId] = ForgeCardId(card.id)
         }
+        // CastingTimeOption type=3 (Kicker): the kicker ability grpId lives on
+        // the per-card Abilities row keyed by KICKER base. type=2 (ChooseX):
+        // the value is the chosen X. Both read from the live SA on top of the
+        // stack — same window altCost is read in.
+        val kickerAbilityGrpId =
+            if (topSa != null && topSa.hostCard?.id == card.id && topSa.isKicked) {
+                val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+                if (grpId != 0) bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.KICKER) ?: 0 else 0
+            } else {
+                0
+            }
+        val chosenX =
+            if (topSa != null && topSa.hostCard?.id == card.id) topSa.xManaCostPaid ?: 0 else 0
         frame.add(
             GameEvent.SpellCast(
                 cardId = ForgeCardId(card.id),
@@ -217,10 +230,12 @@ class GameEventCollector(
                 altCostAbilityGrpId = altCostAbilityGrpId,
                 isTrigger = isTrigger,
                 abilityForgeId = abilityForgeId,
+                kickerAbilityGrpId = kickerAbilityGrpId,
+                chosenX = chosenX,
             ),
         )
         log.debug(
-            "event: SpellCast card={} seat={} manaPayments={} adventure={} altCost={} trigger={} abilityForgeId={}",
+            "event: SpellCast card={} seat={} manaPayments={} adventure={} altCost={} trigger={} abilityForgeId={} kicker={} chosenX={}",
             card.name,
             seat,
             payments.size,
@@ -228,6 +243,8 @@ class GameEventCollector(
             altCostAbilityGrpId,
             isTrigger,
             abilityForgeId,
+            kickerAbilityGrpId,
+            chosenX,
         )
     }
 

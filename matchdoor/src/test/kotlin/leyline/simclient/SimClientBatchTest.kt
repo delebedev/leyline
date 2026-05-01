@@ -149,6 +149,15 @@ class SimClientBatchTest : FunSpec({
                 "24 Plains\n4 Reigning Victor\n4 Dalkovan Packbeasts\n" +
                 "4 Furious Forebear\n4 Stormchaser's Talent\n" +
                 "12 Savannah Lions\n4 Wall of Omens\n4 Soul Warden",
+            // Kicker density — drives CastingTimeOption type=Kicker emission.
+            // Greedy responder declines kicker (ctoId=0) but the engine still
+            // resolves the cast at the base rate; type=Kicker only emits when
+            // kicker IS paid, so any density signal here depends on the AI on
+            // the opposite seat happening to kick. Keep the deck cheap so the
+            // simclient seat at least casts the cards.
+            "kicker" to
+                "24 Forest\n4 Burning-Tree Vandal\n4 Ferocious Charge\n" +
+                "4 Llanowar Elves\n12 Grizzly Bears\n12 Centaur Courser",
         )
 
     /** Resolve a deck name → (name, list). Built-in first, then `data/decks/<name>`. */

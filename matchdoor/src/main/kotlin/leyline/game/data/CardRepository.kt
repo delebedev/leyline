@@ -207,6 +207,7 @@ object KeywordAbilityIds {
     const val PROWESS = 137
 
     // BaseId roots — each printing has its own ability row chaining to this.
+    const val KICKER = 34
     const val FLASHBACK = 35
     const val MADNESS = 36
     const val ESCAPE = 199

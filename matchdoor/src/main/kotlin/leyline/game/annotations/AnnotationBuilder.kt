@@ -207,6 +207,37 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.CAST_ABILITY_GRP_ID, castAbilityGrpId.value))
             .build()
 
+    /** CastingTimeOption type=3 (Kicker) — spell cast with kicker paid.
+     *  kickerAbilityGrpId carries the per-card Kicker ability grpId. */
+    fun castingTimeOptionKicker(
+        stackInstanceId: InstanceId,
+        kickerAbilityGrpId: GrpId,
+        castAbilityGrpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.CastingTimeOption)
+            .setAffectorId(stackInstanceId.value)
+            .addAffectedIds(stackInstanceId.value)
+            .addDetails(int32Detail(DetailKeys.TYPE, CastingTimeOptionType.Kicker.number))
+            .addDetails(int32Detail(DetailKeys.KICKER_ABILITY_GRP_ID, kickerAbilityGrpId.value))
+            .addDetails(int32Detail(DetailKeys.CAST_ABILITY_GRP_ID, castAbilityGrpId.value))
+            .build()
+
+    /** CastingTimeOption type=2 (ChooseX_a7b4) — spell cast with chosen X value. */
+    fun castingTimeOptionChooseX(
+        stackInstanceId: InstanceId,
+        value: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.CastingTimeOption)
+            .setAffectorId(stackInstanceId.value)
+            .addAffectedIds(stackInstanceId.value)
+            .addDetails(int32Detail(DetailKeys.TYPE, CastingTimeOptionType.ChooseX_a7b4.number))
+            .addDetails(int32Detail(DetailKeys.VALUE, value))
+            .build()
+
     /**
      * Mana was spent to pay for a spell/ability.
      * [spellInstanceId] = the spell/ability instance that consumed the mana (affectedIds).
