@@ -47,10 +47,11 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  *   - Exile source left play (DisplayCardUnderCard matched by reverse forgeCardId lookup)
  *   - Controller reverted (ControllerChanged+LayeredEffect matched by affectedIds)
  *
- * **Drain:** [drainDeletions] returns IDs deleted since last drain, for the
- * GSM's `diffDeletedPersistentAnnotationIds` field. Called once per GSM in
- * [leyline.game.mapping.StateMapper.buildDiff]. The drain-then-clear pattern means each
- * deletion ID appears in exactly one GSM.
+ * **Drain:** [BatchResult.deletedIds] is the canonical source for the GSM's
+ * `diffDeletedPersistentAnnotationIds` field — read directly at build time in
+ * [leyline.game.mapping.StateMapper.buildDiff]. Each deletion ID appears in exactly one
+ * Diff GSM. Full GSMs carry the post-batch active set directly; deletions are
+ * implicit (the absent IDs).
  *
  * ## ID allocation
  *
@@ -475,28 +476,11 @@ class PersistentAnnotationStore {
     // --- Persistent annotation store ---
 
     private val active = mutableMapOf<Int, AnnotationInfo>()
-    private val pendingDeletions = mutableListOf<Int>()
 
     /** Add (or replace) a persistent annotation. */
     fun add(ann: AnnotationInfo) {
         active[ann.id] = ann
     }
-
-    /** Remove a persistent annotation — queues its ID for [drainDeletions]. */
-    fun remove(id: Int) {
-        active.remove(id)
-        pendingDeletions.add(id)
-    }
-
-    /**
-     * Drain and return IDs deleted since last drain (for diffDeletedPersistentAnnotationIds).
-     *
-     * Called once per Diff GSM in [leyline.game.mapping.StateMapper.buildDiff]. Each deletion
-     * ID appears in exactly one GSM — calling twice without intervening mutations
-     * returns empty. For Full GSMs, deletions are embedded via [computeBatch]'s
-     * [BatchResult.deletedIds] instead.
-     */
-    fun drainDeletions(): List<Int> = pendingDeletions.toList().also { pendingDeletions.clear() }
 
     /** All currently active persistent annotations. */
     fun getAll(): List<AnnotationInfo> = active.values.toList()
@@ -545,13 +529,14 @@ class PersistentAnnotationStore {
         active.clear()
         active.putAll(result.allAnnotations.associateBy { it.id })
         nextPersistentAnnotationId = result.nextPersistentId
-        for (id in result.deletedIds) pendingDeletions.add(id)
+        // result.deletedIds are drained directly into the GSM at build time
+        // (see StateMapper.buildDiff). Full GSMs carry the post-batch active
+        // set; deletions are implicit (the absent IDs).
     }
 
-    /** Clear all state — persistent annotations, pending deletions, and ID counters. */
+    /** Clear all state — persistent annotations, steal tracking, and ID counters. */
     fun resetAll() {
         active.clear()
-        pendingDeletions.clear()
         activeSteals.clear()
         nextAnnotationId = INITIAL_ANNOTATION_ID
         nextPersistentAnnotationId = INITIAL_PERSISTENT_ANNOTATION_ID

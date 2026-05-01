@@ -1,0 +1,18 @@
+[metadata]
+Name:Raid Rigging Runner
+Goal:Demo
+Turns:5
+Difficulty:Easy
+Description:Attack with Grizzly Bears, then cast Rigging Runner. Raid trigger should grant +1/+1 counter; AbilityWordActive(Raid) on the source after combat.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=10
+removesummoningsickness=true
+
+humanbattlefield=Grizzly Bears;Mountain;Mountain
+humanhand=Rigging Runner
+ailibrary=Forest
+humanlibrary=Mountain

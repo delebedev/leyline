@@ -1,10 +1,7 @@
 name: "Rat"
-grpId: 87031
+grpId: 100658
 titleId: 998
-abilities:
-  - id: 1663
-    textId: 887441
-    category: 3
+abilities: []
 isToken: true
 isPrimaryCard: false
 power: "1"

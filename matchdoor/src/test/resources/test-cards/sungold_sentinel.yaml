@@ -1,0 +1,12 @@
+name: "Sungold Sentinel"
+grpId: 78366
+titleId: 529820
+abilities:
+  - id: 145184
+    textId: 954299
+    category: 2
+  - id: 145185
+    textId: 954300
+    category: 1
+    mana: "o1oW"
+expansionCode: "MID"

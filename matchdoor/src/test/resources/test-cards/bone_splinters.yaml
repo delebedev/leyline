@@ -1,0 +1,11 @@
+name: "Bone Splinters"
+grpId: 82135
+titleId: 8005
+abilities:
+  - id: 1275
+    textId: 229526
+    category: 5
+  - id: 26818
+    textId: 764
+    category: 4
+expansionCode: "DMU"

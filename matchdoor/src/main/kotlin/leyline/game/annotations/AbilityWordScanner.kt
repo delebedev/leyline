@@ -44,10 +44,24 @@ object AbilityWordScanner {
         val booleanOnly: Boolean = false,
     )
 
-    /** Maps Forge Condition$ name → Arena wire shape. Key doubles as AbilityWordName. */
+    /**
+     * Maps Forge `Condition$` name → emission shape for the ability-word badge. Key
+     * doubles as the `AbilityWordName` detail value on the emitted annotation.
+     *
+     * VERIFIED entries are exercised by a puzzle fixture under `puzzles/` plus a
+     * `ConformanceTag` test asserting the annotation contents. UNVERIFIED entries
+     * have a Forge contract but no fixture asserting the emission contents; their
+     * value/threshold/perPlayer shape is inferred from the Threshold/Morbid pattern
+     * and may need adjustment when a fixture exercises one.
+     *
+     * Trigger-pattern ability words without a `Condition$` row (Flurry, Infusion,
+     * Raid, Coven, …) are handled by [AbilityWordTriggerRecognizers] instead.
+     */
     private val CONDITIONS =
         mapOf(
+            // VERIFIED.
             "Threshold" to ConditionSpec(threshold = 7, value = { p, _ -> p.getZone(ZoneType.Graveyard).size() }),
+            // UNVERIFIED.
             "Metalcraft" to
                 ConditionSpec(threshold = 3, value = {
                     p,
@@ -55,6 +69,7 @@ object AbilityWordScanner {
                     ->
                     p.getCardsIn(ZoneType.Battlefield).toList().count { it.isArtifact }
                 }),
+            // VERIFIED.
             "Delirium" to
                 ConditionSpec(threshold = 4, value = {
                     p,
@@ -62,10 +77,12 @@ object AbilityWordScanner {
                     ->
                     AbilityUtils.countCardTypesFromList(p.getCardsIn(ZoneType.Graveyard), false)
                 }),
+            // UNVERIFIED.
             "Ferocious" to ConditionSpec(),
             "Hellbent" to ConditionSpec(),
             "Desert" to ConditionSpec(),
             "Blessing" to ConditionSpec(),
+            // VERIFIED.
             "Morbid" to
                 ConditionSpec(
                     perPlayer = true,
@@ -80,12 +97,18 @@ object AbilityWordScanner {
     private val NAMED_PARAM_CONDITIONS = CONDITIONS.keys
 
     /**
-     * Scan battlefield permanents for ability word conditions.
+     * Scan battlefield permanents and (optionally) hand cards for ability word conditions.
      *
-     * Scans all cards regardless of controller — each card's value is computed
-     * relative to its controller's game state (GY count, artifact count, etc.).
+     * Each card's value is computed relative to its controller's game state. The
+     * `CONDITIONS` map covers Forge `Condition$`-driven ability words on resident
+     * permanents (Threshold, Morbid, etc.). Hand-zone scanning is delegated to
+     * [AbilityWordTriggerRecognizers] for ETB-conditional ability words (Raid,
+     * Infusion-on-ETB) — those badges show on the hand card pre-cast so the
+     * player can see the bonus is active before paying.
      *
      * @param battlefieldCards cards currently on the battlefield (all players)
+     * @param handCards cards in any player's hand (default empty for callers that
+     *   only need battlefield-resident gates)
      * @param instanceIdResolver ForgeCardId → InstanceId
      * @param registryResolver Card → AbilityRegistry? (for abilityGrpId)
      */
@@ -94,6 +117,7 @@ object AbilityWordScanner {
         battlefieldCards: List<Card>,
         instanceIdResolver: (ForgeCardId) -> InstanceId,
         registryResolver: (Card) -> AbilityRegistry?,
+        handCards: List<Card> = emptyList(),
     ): List<AbilityWordEntry> {
         val results = mutableListOf<AbilityWordEntry>()
         val seen = mutableSetOf<Pair<Int, String>>() // (forgeCardId, conditionName) dedup
@@ -196,6 +220,16 @@ object AbilityWordScanner {
                 )
             }
         }
+
+        // Phase 4: trigger-pattern ability words (Flurry, Infusion, Raid, Coven, …)
+        results.addAll(
+            AbilityWordTriggerRecognizers.scan(
+                battlefieldCards = battlefieldCards,
+                handCards = handCards,
+                instanceIdResolver = instanceIdResolver,
+                registryResolver = registryResolver,
+            ),
+        )
 
         return results
     }

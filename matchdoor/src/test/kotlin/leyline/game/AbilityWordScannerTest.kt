@@ -159,4 +159,337 @@ class AbilityWordScannerTest :
 
             results.shouldBeEmpty()
         }
+
+        test("Raid card without attack this turn emits no AbilityWordActive") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Rigging Runner", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+            results.filter { it.abilityWordName == "Raid" }.shouldBeEmpty()
+        }
+
+        test("Flurry card with 0 spells cast emits value=0 threshold=2") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Jeskai Devotee", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val devotee =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Jeskai Devotee" }
+            val devoteeIid = b.getOrAllocInstanceId(ForgeCardId(devotee.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+
+            val flurry = results.firstOrNull { it.abilityWordName == "Flurry" }
+            assertSoftly {
+                flurry.shouldNotBeNull()
+                flurry.value shouldBe 0
+                flurry.threshold shouldBe 2
+                flurry.affectorId shouldBe 1
+                flurry.affectedIds shouldContain devoteeIid
+            }
+        }
+
+        test("Flurry card with 2 spells cast this turn emits value=2") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Jeskai Devotee", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            human.addSpellCastThisTurn()
+            human.addSpellCastThisTurn()
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+            val flurry = results.firstOrNull { it.abilityWordName == "Flurry" }
+            assertSoftly {
+                flurry.shouldNotBeNull()
+                flurry.value shouldBe 2
+                flurry.threshold shouldBe 2
+            }
+        }
+
+        test("Coven active when controller has 3 different-power creatures emits per-controller entry") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Sungold Sentinel", human, ZoneType.Battlefield) // 3/2
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield) // 2/2
+                    base.addCard("Savannah Lions", human, ZoneType.Battlefield) // 2/1, but power=2 same as Bears
+                    // Need a third distinct power — add a 1-power creature.
+                    base.addCard("Soul Warden", human, ZoneType.Battlefield) // 1/1
+                }
+            val human = game.humanPlayer
+            val sentinel =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Sungold Sentinel" }
+            val sentinelIid = b.getOrAllocInstanceId(ForgeCardId(sentinel.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+
+            val coven = results.firstOrNull { it.abilityWordName == "Coven" }
+            assertSoftly {
+                coven.shouldNotBeNull()
+                coven.affectorId shouldBe 1
+                coven.affectedIds shouldContain sentinelIid
+                coven.value shouldBe null
+                coven.threshold shouldBe null
+            }
+        }
+
+        test("Coven inactive when only 2 different powers emits no entry") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Sungold Sentinel", human, ZoneType.Battlefield)
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+            results.filter { it.abilityWordName == "Coven" }.shouldBeEmpty()
+        }
+
+        test("Disappear active after a permanent leaves controller battlefield this turn") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Rat King, Verminister", human, ZoneType.Battlefield)
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val rat =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Rat King, Verminister" }
+            val ratIid = b.getOrAllocInstanceId(ForgeCardId(rat.id)).value
+
+            // Move Bears to graveyard to satisfy Revolt (permanent left battlefield this turn).
+            val bears = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            game.action.moveToGraveyard(bears, null)
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+
+            val disappear = results.firstOrNull { it.abilityWordName == "Disappear" }
+            assertSoftly {
+                disappear.shouldNotBeNull()
+                disappear.affectorId shouldBe 1
+                disappear.affectedIds shouldContain ratIid
+            }
+        }
+
+        test("Disappear inactive when no permanent left battlefield this turn") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Rat King, Verminister", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+            results.filter { it.abilityWordName == "Disappear" }.shouldBeEmpty()
+        }
+
+        test("Infusion source with life gained emits Infusion marker + LifeGainedThisTurn helper") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Poisoner's Apprentice", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            human.lifeGainedThisTurn = 3
+            val pois =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Poisoner's Apprentice" }
+            val poisIid = b.getOrAllocInstanceId(ForgeCardId(pois.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { card ->
+                        val grpId = b.cardRepository.findGrpIdByName(card.name) ?: 0
+                        b.abilityRegistryFor(card, b.cardRepository.findByGrpId(grpId))
+                    },
+                )
+
+            val marker = results.firstOrNull { it.abilityWordName == "Infusion" }
+            val helper = results.firstOrNull { it.abilityWordName == "LifeGainedThisTurn" }
+            assertSoftly {
+                marker.shouldNotBeNull()
+                marker.affectorId shouldBe 1
+                marker.affectedIds shouldContain poisIid
+                marker.value shouldBe null
+                helper.shouldNotBeNull()
+                helper.value shouldBe 3
+                helper.affectedIds shouldContain poisIid
+            }
+        }
+
+        test("Infusion source without life gain emits no Infusion marker and no LifeGainedThisTurn helper") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Poisoner's Apprentice", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            // lifeGainedThisTurn defaults to 0 — Infusion condition not active, marker omitted.
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+            results.filter { it.abilityWordName == "Infusion" }.shouldBeEmpty()
+            results.filter { it.abilityWordName == "LifeGainedThisTurn" }.shouldBeEmpty()
+        }
+
+        test("Raid card in hand after declaring an attacker emits keyword-only AbilityWordActive on the hand iid") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Rigging Runner", human, ZoneType.Hand)
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val ai = game.registeredPlayers.first { it != human }
+            val attacker =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Grizzly Bears" }
+            human.addCreaturesAttackedThisTurn(attacker, ai)
+
+            val runner =
+                human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.name == "Rigging Runner" }
+            val runnerIid = b.getOrAllocInstanceId(ForgeCardId(runner.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    handCards = human.getZone(ZoneType.Hand).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+
+            val raid = results.firstOrNull { it.abilityWordName == "Raid" }
+            assertSoftly {
+                raid.shouldNotBeNull()
+                raid.affectorId shouldBe 1
+                raid.affectedIds shouldContain runnerIid
+            }
+        }
+
+        test("Infusion card in hand with life gained emits Infusion marker + LifeGainedThisTurn helper on hand iid") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Poisoner's Apprentice", human, ZoneType.Hand)
+                }
+            val human = game.humanPlayer
+            human.lifeGainedThisTurn = 4
+            val pois =
+                human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.name == "Poisoner's Apprentice" }
+            val poisIid = b.getOrAllocInstanceId(ForgeCardId(pois.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = emptyList(),
+                    handCards = human.getZone(ZoneType.Hand).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { card ->
+                        val grpId = b.cardRepository.findGrpIdByName(card.name) ?: 0
+                        b.abilityRegistryFor(card, b.cardRepository.findByGrpId(grpId))
+                    },
+                )
+
+            val marker = results.firstOrNull { it.abilityWordName == "Infusion" }
+            val helper = results.firstOrNull { it.abilityWordName == "LifeGainedThisTurn" }
+            assertSoftly {
+                marker.shouldNotBeNull()
+                marker.affectedIds shouldContain poisIid
+                helper.shouldNotBeNull()
+                helper.value shouldBe 4
+                helper.affectedIds shouldContain poisIid
+            }
+        }
+
+        test("Raid card after declaring an attacker emits keyword-only AbilityWordActive") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Rigging Runner", human, ZoneType.Battlefield)
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val ai = game.registeredPlayers.first { it != human }
+            val attacker =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Grizzly Bears" }
+            human.addCreaturesAttackedThisTurn(attacker, ai)
+
+            val runner =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Rigging Runner" }
+            val runnerIid = b.getOrAllocInstanceId(ForgeCardId(runner.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+
+            val raid = results.firstOrNull { it.abilityWordName == "Raid" }
+            assertSoftly {
+                raid.shouldNotBeNull()
+                raid.affectorId shouldBe 1
+                raid.affectedIds shouldContain runnerIid
+                raid.value shouldBe null
+                raid.threshold shouldBe null
+            }
+        }
     })

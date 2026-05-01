@@ -1,0 +1,19 @@
+[metadata]
+Name:Disappear Rat King
+Goal:Demo
+Turns:5
+Difficulty:Easy
+Description:Sacrifice a creature to enable Revolt, then Rat King's Disappear end-step trigger fires (token + counter). AbilityWordActive(Disappear) on Rat King while Revolt holds.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Rat King, Verminister;Grizzly Bears;Swamp;Swamp;Swamp
+humanhand=Bone Splinters
+aibattlefield=Grizzly Bears
+ailibrary=Forest
+humanlibrary=Swamp

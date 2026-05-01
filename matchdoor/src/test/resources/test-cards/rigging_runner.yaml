@@ -1,0 +1,11 @@
+name: "Rigging Runner"
+grpId: 66279
+titleId: 173842
+abilities:
+  - id: 6
+    textId: 158
+    category: 3
+  - id: 138834
+    textId: 823415
+    category: 3
+expansionCode: "XLN"

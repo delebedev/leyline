@@ -1,0 +1,13 @@
+name: "Rat King, Verminister"
+grpId: 100528
+titleId: 1104541
+abilities:
+  - id: 203121
+    textId: 1104544
+    category: 2
+  - id: 203122
+    textId: 1104545
+    category: 1
+expansionCode: "TMT"
+tokens:
+  "203121": 100658

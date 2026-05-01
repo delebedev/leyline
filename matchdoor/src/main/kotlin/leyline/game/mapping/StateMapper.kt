@@ -804,7 +804,12 @@ object StateMapper {
                 // computeBatch ran), not prev's — prev predates the last apply.
                 .addAllPersistentAnnotations(
                     current.persistentAnnotationsList.filter { it.id !in cur.persistentAnnotationState.activeAnnotations.keys },
-                ).addAllDiffDeletedPersistentAnnotationIds(bridge.annotations.drainDeletions())
+                )
+                // Drain THIS frame's deletions directly from the just-computed batch.
+                // Reading from a queue populated by the prior frame's applyMutations
+                // would lag deletes by one frame; end-of-stream value transitions
+                // could then orphan their delete entirely.
+                .addAllDiffDeletedPersistentAnnotationIds(fullResult.mutations.persistentBatch.deletedIds)
                 .addAllTimers(PlayerMapper.buildTimers())
                 .setUpdate(updateType)
                 .setPrevGameStateId(prev.gameStateId)
