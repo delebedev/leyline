@@ -28,6 +28,7 @@ import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PreparedRole
 import leyline.game.state.BridgeMutations
 import leyline.game.state.EffectTracker
+import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
 import leyline.game.state.HolderRecord
 import leyline.game.state.PersistentAnnotationStore
@@ -512,6 +513,18 @@ object StateMapper {
         }
 
         // Stages 4-5 + persistent computation
+        val battlefieldIids: Set<Int> =
+            snap.zones[ZoneIds.BATTLEFIELD]
+                ?.contents
+                ?.map { fid -> bridge.getOrAllocInstanceId(fid).value }
+                ?.toSet()
+                ?: emptySet()
+        val frameContext =
+            FrameContext(
+                phase = snap.phase.phase,
+                activePlayerSeat = snap.phase.activePlayer,
+                battlefieldIids = battlefieldIids,
+            )
         val remaining =
             computeRemainingAnnotations(
                 eventsMutable,
@@ -523,6 +536,7 @@ object StateMapper {
                 startPersistentId,
                 startAnnotationId,
                 bridge,
+                frameContext,
                 keywordDiff,
                 combatResult,
                 qualificationPersistentFromSnap = qualificationPersistentFromSnap,
@@ -892,6 +906,7 @@ object StateMapper {
         startPersistentId: Int,
         startAnnotationId: Int,
         bridge: GameBridge,
+        frameContext: FrameContext,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
         qualificationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
@@ -1007,6 +1022,7 @@ object StateMapper {
             PersistentAnnotationStore.Companion.computeBatch(
                 currentActive = persistSnapshot,
                 startPersistentId = startPersistentId,
+                frame = frameContext,
                 effectPersistent = effectPersistent,
                 effectDiff = effectDiff,
                 transferPersistent = transferPersistent,

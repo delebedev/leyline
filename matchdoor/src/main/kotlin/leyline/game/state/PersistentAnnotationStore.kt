@@ -90,25 +90,40 @@ class PersistentAnnotationStore {
          * Pure batch computation — operates on an immutable snapshot and
          * returns the result. Caller applies via [applyBatchResult].
          *
-         * **Ordering invariant:** Steps 1-6 execute in fixed order. Effects (1)
-         * before transfers (2) before mechanics (3) because a counter upsert in
-         * step 3 must not collide with a LayeredEffect ID allocated in step 1.
-         * Cleanup steps (4-6) run last so they see the full set of newly added
-         * pAnns — e.g. step 4 (detach) can remove an Attachment just created
-         * in step 3 if the aura was simultaneously destroyed.
+         * **Ordering invariant:** Steps 0-6 execute in fixed order. Lifecycle
+         * expiry (0) runs before transfers (2) so newly arrived rows in the
+         * same frame survive. Effects (1) before transfers (2) before mechanic
+         * upserts (3) because a counter upsert must not collide with a
+         * LayeredEffect ID allocated in step 1. Cleanup (4-6) runs last so it
+         * sees the full set of newly added pAnns — e.g. step 4 (detach) can
+         * remove an Attachment just created in step 3 if the aura was
+         * simultaneously destroyed.
          *
-         * **Snapshot timing:** [currentActive] must be a snapshot taken *before*
-         * the annotation pipeline runs. [leyline.game.mapping.StateMapper.buildFromSnapshot] captures it
-         * in the GATHER phase so the COMPUTE phase (which calls this) is pure.
+         * Per-kind upsert behavior (identity, stale-prune, collision strategy,
+         * lifecycle expiry) lives on [PersistentAnnotationKind] rows in
+         * [PersistentAnnotationKinds.upsertable] / `lifecycleOnly`. Adding a
+         * new kind is now one row, not a parallel branch through the body
+         * here.
          *
+         * **Snapshot timing:** [currentActive] must be a value-snapshot taken
+         * *before* the annotation pipeline runs.
+         * [leyline.game.mapping.StateMapper.buildFromSnapshot] reads it in the
+         * GATHER phase so the COMPUTE phase (which calls this) is pure.
+         *
+         * @param frame phase / active-player / battlefield-iids; drives
+         *   [PersistentAnnotationKind.shouldExpire] (EZTT clears at Upkeep,
+         *   ColorProduction clears when source iid leaves the battlefield).
          * @param resolveForgeCardId reverse-resolves instanceId → forgeCardId.
          *   Used by step 5 to match DisplayCardUnderCard annotations whose
-         *   affectorId may have been reallocated by a zone transfer. The registry
-         *   retains mappings for retired iids, so this works even after reallocation.
+         *   affectorId may have been reallocated by a zone transfer. The
+         *   registry retains mappings for retired iids, so this works even
+         *   after reallocation.
          */
+        @Suppress("LongParameterList", "LongMethod")
         fun computeBatch(
             currentActive: Map<Int, AnnotationInfo>,
             startPersistentId: Int,
+            frame: FrameContext = FrameContext.INERT,
             effectPersistent: List<AnnotationInfo>,
             effectDiff: EffectTracker.DiffResult,
             transferPersistent: List<AnnotationInfo>,
@@ -120,6 +135,20 @@ class PersistentAnnotationStore {
             val active = currentActive.toMutableMap()
             val deletions = mutableListOf<Int>()
             var nextId = startPersistentId
+
+            // 0. Lifecycle expiry — drop rows whose shouldExpire fires this frame.
+            //    Closes leyline-eq9q: EZTT clears at Upkeep, ColorProduction
+            //    clears when its source iid leaves the battlefield.
+            for (kind in PersistentAnnotationKinds.all) {
+                val expiredIds =
+                    active.entries
+                        .filter { (_, ann) -> kind.matches(ann) && kind.shouldExpire(ann, frame) }
+                        .map { it.key }
+                for (id in expiredIds) {
+                    active.remove(id)
+                    deletions.add(id)
+                }
+            }
 
             // 1. Effect lifecycle
             for (ann in effectPersistent) {
@@ -134,25 +163,28 @@ class PersistentAnnotationStore {
                 }
             }
 
-            // 2. Transfer-originated
+            // 2. Transfer-originated (EZTT, ColorProduction, CastingTimeOption)
             for (ann in transferPersistent) {
                 val numbered = ann.toBuilder().setId(nextId++).build()
                 active[numbered.id] = numbered
             }
 
-            // 3. Mechanic-originated (counters with upsert)
+            // 3a. Mechanic-originated mixed list (Counter + Attachment +
+            //     DisplayCardUnderCard + ControllerChangedEffect). Counter
+            //     rows go through CounterKind's REPLACE_ALWAYS collision
+            //     handling; non-Counter rows pure-append since their lifecycle
+            //     is cleanup-driven (steps 4-6).
             for (ann in mechanicResult.persistent) {
-                if (ann.typeList.any { it == AnnotationType.Counter_803b }) {
-                    val iid = ann.affectedIdsList.firstOrNull()
-                    val ctype =
-                        ann.detailsList
-                            .firstOrNull { it.key == DetailKeys.COUNTER_TYPE }
-                            ?.let { if (it.valueInt32Count > 0) it.getValueInt32(0) else null }
-                    if (iid != null && ctype != null) {
-                        val oldId = findCounter(active, iid, ctype)
-                        if (oldId != null) {
-                            active.remove(oldId)
-                            deletions.add(oldId)
+                if (CounterKind.matches(ann)) {
+                    val key = CounterKind.identityKey(ann)
+                    if (key != null) {
+                        val existingId =
+                            active.entries
+                                .firstOrNull { (_, e) -> CounterKind.matches(e) && CounterKind.identityKey(e) == key }
+                                ?.key
+                        if (existingId != null) {
+                            active.remove(existingId)
+                            deletions.add(existingId)
                         }
                     }
                 }
@@ -160,106 +192,27 @@ class PersistentAnnotationStore {
                 active[numbered.id] = numbered
             }
 
-            // 3b. AbilityWordActive — full-replacement upsert
-            nextId =
-                upsertAbilityWords(
-                    active,
-                    deletions,
-                    nextId,
-                    mechanicResult.abilityWordPersistent,
+            // 3b-3j. Other registry-driven kinds — full upsert dispatch via
+            //        identity + collision strategy declared on each row.
+            val perKindIncoming: Map<PersistentAnnotationKind, List<AnnotationInfo>> =
+                mapOf(
+                    AbilityWordActiveKind to mechanicResult.abilityWordPersistent,
+                    QualificationKind to mechanicResult.qualificationPersistent,
+                    CrewedThisTurnKind to mechanicResult.crewedThisTurnPersistent,
+                    ModifiedTypeForCrewKind to mechanicResult.crewTypeChangePersistent,
+                    TemporaryPermanentKind to mechanicResult.temporaryPermanentPersistent,
+                    DelayedTriggerAffecteesKind to mechanicResult.delayedTriggerAffecteesPersistent,
+                    TargetSpecKind to mechanicResult.targetSpecPersistent,
+                    PreparedDesignationKind to mechanicResult.preparedDesignationPersistent,
+                    PlottedDesignationKind to mechanicResult.plottedDesignationPersistent,
                 )
+            for (kind in PersistentAnnotationKinds.upsertable) {
+                if (kind === CounterKind) continue // Counter handled above with mechanicResult.persistent.
+                nextId = upsertByKind(active, deletions, nextId, kind, perKindIncoming[kind] ?: emptyList())
+            }
 
-            // 3c. Qualification — full-replacement for adventure-exiled cards
-            nextId = upsertQualifications(active, deletions, nextId, mechanicResult.qualificationPersistent)
-
-            // 3d. CrewedThisTurn — full-replacement upsert (keyed by vehicle affectorId)
-            nextId =
-                upsertByType(
-                    active,
-                    deletions,
-                    nextId,
-                    AnnotationType.CrewedThisTurn,
-                    mechanicResult.crewedThisTurnPersistent,
-                    { it.affectorId },
-                    detectChanges = true,
-                )
-
-            // 3e. ModifiedType+LayeredEffect for crew type changes — full-replacement upsert
-            nextId =
-                upsertByType(
-                    active,
-                    deletions,
-                    nextId,
-                    AnnotationType.ModifiedType,
-                    mechanicResult.crewTypeChangePersistent,
-                    { it.affectedIdsList.firstOrNull() ?: 0 },
-                )
-
-            // 3f. TemporaryPermanent — full-replacement upsert keyed by the
-            // affected token instanceId. Affector is the trigger-holder (shared
-            // by all tokens spawned by a single Mobilize fire); keying on the
-            // affected token gives each warrior its own annotation row, matching
-            // the canonical "one TemporaryPermanent per token" shape.
-            nextId =
-                upsertByType(
-                    active,
-                    deletions,
-                    nextId,
-                    AnnotationType.TemporaryPermanent,
-                    mechanicResult.temporaryPermanentPersistent,
-                    { it.affectedIdsList.firstOrNull() ?: it.affectorId },
-                )
-
-            // 3f-bis. DelayedTriggerAffectees — full-replacement upsert (keyed by trigger holder)
-            nextId =
-                upsertByType(
-                    active,
-                    deletions,
-                    nextId,
-                    AnnotationType.DelayedTriggerAffectees,
-                    mechanicResult.delayedTriggerAffecteesPersistent,
-                    { it.affectorId },
-                )
-
-            // 3g. TargetSpec — full-replacement upsert (keyed by target instanceId + index)
-            nextId =
-                upsertByType(
-                    active,
-                    deletions,
-                    nextId,
-                    AnnotationType.TargetSpec,
-                    mechanicResult.targetSpecPersistent,
-                    { ann ->
-                        val iid = ann.affectedIdsList.firstOrNull() ?: 0
-                        val idx =
-                            ann.detailsList
-                                .firstOrNull { it.key == DetailKeys.INDEX && it.valueInt32Count > 0 }
-                                ?.getValueInt32(0) ?: 0
-                        iid to idx
-                    },
-                )
-
-            // 3i. Prepared Designation — full-replacement upsert keyed by source-card iid.
-            // Filters by `DesignationType=24` so it doesn't clobber seat-scoped Designations.
-            nextId =
-                upsertPreparedDesignations(
-                    active,
-                    deletions,
-                    nextId,
-                    mechanicResult.preparedDesignationPersistent,
-                )
-
-            // 3j. Plotted Designation — full-replacement upsert keyed by plotted-card iid.
-            // Filters by `DesignationType=18` so it doesn't clobber seat-scoped or other-card Designations.
-            nextId =
-                upsertPlottedDesignations(
-                    active,
-                    deletions,
-                    nextId,
-                    mechanicResult.plottedDesignationPersistent,
-                )
-
-            // 3h. DamagedThisTurn — grow-in-place within a turn, clear at Upkeep
+            // 3h. DamagedThisTurn — grow-in-place / clear (single annotation,
+            //     not a per-iid upsert; can't fold into the registry).
             nextId =
                 updateDamagedThisTurn(
                     active,
@@ -280,6 +233,80 @@ class PersistentAnnotationStore {
                 )
 
             return BatchResult(active.values.toList(), deletions, nextId, cleanupReverts)
+        }
+
+        /**
+         * Generic identity-keyed upsert dispatch driven by a [PersistentAnnotationKind].
+         *
+         * Stale-prune: when [PersistentAnnotationKind.pruneStale] is true,
+         * active rows of this kind whose identity isn't in the incoming set
+         * get removed (full-replacement semantics — AbilityWord, Designation
+         * rails, etc.).
+         *
+         * Collision: per [PersistentAnnotationKind.collisionStrategy], decide
+         * whether to keep the existing row, replace if details differ, or
+         * always replace (Counter — fresh id every collision; Counter is
+         * dispatched separately by [computeBatch] to preserve legacy
+         * id-allocation order and let non-Counter mechanicResult.persistent
+         * rows interleave).
+         */
+        private fun upsertByKind(
+            active: MutableMap<Int, AnnotationInfo>,
+            deletions: MutableList<Int>,
+            startId: Int,
+            kind: PersistentAnnotationKind,
+            incoming: List<AnnotationInfo>,
+        ): Int {
+            var nextId = startId
+            val incomingByKey = mutableMapOf<Any, AnnotationInfo>()
+            for (ann in incoming) {
+                val key = kind.identityKey(ann) ?: continue
+                incomingByKey[key] = ann
+            }
+
+            if (kind.pruneStale) {
+                val staleIds =
+                    active.entries
+                        .filter { (_, ann) ->
+                            kind.matches(ann) &&
+                                (kind.identityKey(ann)?.let { it !in incomingByKey.keys } ?: false)
+                        }.map { it.key }
+                for (id in staleIds) {
+                    active.remove(id)
+                    deletions.add(id)
+                }
+            }
+
+            for ((key, ann) in incomingByKey) {
+                val existingEntry =
+                    active.entries.firstOrNull { (_, e) ->
+                        kind.matches(e) && kind.identityKey(e) == key
+                    }
+                if (existingEntry == null) {
+                    val numbered = ann.toBuilder().setId(nextId++).build()
+                    active[numbered.id] = numbered
+                    continue
+                }
+                when (kind.collisionStrategy) {
+                    CollisionStrategy.KEEP_EXISTING -> Unit
+                    CollisionStrategy.REPLACE_IF_CHANGED -> {
+                        if (existingEntry.value.detailsList != ann.detailsList) {
+                            active.remove(existingEntry.key)
+                            deletions.add(existingEntry.key)
+                            val numbered = ann.toBuilder().setId(nextId++).build()
+                            active[numbered.id] = numbered
+                        }
+                    }
+                    CollisionStrategy.REPLACE_ALWAYS -> {
+                        active.remove(existingEntry.key)
+                        deletions.add(existingEntry.key)
+                        val numbered = ann.toBuilder().setId(nextId++).build()
+                        active[numbered.id] = numbered
+                    }
+                }
+            }
+
+            return nextId
         }
 
         /** Steps 4-6: remove pAnns for detached auras, exile sources leaving play, controller reverts. */
@@ -401,20 +428,6 @@ class PersistentAnnotationStore {
                         }
                 }?.key
 
-        private fun findCounter(
-            active: Map<Int, AnnotationInfo>,
-            instanceId: Int,
-            counterType: Int,
-        ): Int? =
-            active.entries
-                .firstOrNull { (_, ann) ->
-                    ann.typeList.any { it == AnnotationType.Counter_803b } &&
-                        ann.affectedIdsList.contains(instanceId) &&
-                        ann.detailsList.any {
-                            it.key == DetailKeys.COUNTER_TYPE && it.valueInt32Count > 0 && it.getValueInt32(0) == counterType
-                        }
-                }?.key
-
         private fun findControllerChanged(
             active: Map<Int, AnnotationInfo>,
             cardIid: Int,
@@ -425,206 +438,6 @@ class PersistentAnnotationStore {
                         ann.typeList.any { it == AnnotationType.LayeredEffect } &&
                         ann.affectedIdsList.contains(cardIid)
                 }?.key
-
-        private fun abilityWordKey(ann: AnnotationInfo): Pair<Int, String> {
-            val iid = ann.affectedIdsList.firstOrNull() ?: 0
-            val name =
-                ann.detailsList
-                    .firstOrNull { it.key == DetailKeys.ABILITY_WORD_NAME }
-                    ?.let { if (it.valueStringCount > 0) it.getValueString(0) else null }
-                    .orEmpty()
-            return iid to name
-        }
-
-        /**
-         * Generic full-replacement upsert for snapshot-based persistent annotations.
-         *
-         * Removes stale annotations of [type] not in [newAnnotations], adds new ones.
-         * When [detectChanges] is true, replaces existing annotations whose details differ
-         * (e.g. AbilityWordActive value updates). When false, skips if key already exists
-         * (e.g. Qualification with constant details).
-         *
-         * Perf: O(N×M) where N = new annotations, M = total active pAnns. Fine for
-         * typical battlefield sizes (~20 permanents).
-         *
-         * @param keyFn extracts the dedup key from an annotation
-         */
-        private fun <K> upsertByType(
-            active: MutableMap<Int, AnnotationInfo>,
-            deletions: MutableList<Int>,
-            startId: Int,
-            type: AnnotationType,
-            newAnnotations: List<AnnotationInfo>,
-            keyFn: (AnnotationInfo) -> K,
-            detectChanges: Boolean = false,
-        ): Int {
-            var nextId = startId
-            val newByKey = newAnnotations.associateBy { keyFn(it) }
-            // Remove stale
-            val staleIds =
-                active.entries
-                    .filter { (_, ann) ->
-                        ann.typeList.any { it == type } && keyFn(ann) !in newByKey
-                    }.map { it.key }
-            for (id in staleIds) {
-                active.remove(id)
-                deletions.add(id)
-            }
-            // Upsert new/changed
-            for ((key, ann) in newByKey) {
-                val existing =
-                    active.entries.firstOrNull { (_, e) ->
-                        e.typeList.any { it == type } && keyFn(e) == key
-                    }
-                if (existing != null) {
-                    if (detectChanges && existing.value.detailsList != ann.detailsList) {
-                        active.remove(existing.key)
-                        deletions.add(existing.key)
-                        val numbered = ann.toBuilder().setId(nextId++).build()
-                        active[numbered.id] = numbered
-                    }
-                } else {
-                    val numbered = ann.toBuilder().setId(nextId++).build()
-                    active[numbered.id] = numbered
-                }
-            }
-            return nextId
-        }
-
-        private fun upsertAbilityWords(
-            active: MutableMap<Int, AnnotationInfo>,
-            deletions: MutableList<Int>,
-            startId: Int,
-            newAnnotations: List<AnnotationInfo>,
-        ): Int =
-            upsertByType(
-                active,
-                deletions,
-                startId,
-                AnnotationType.AbilityWordActive,
-                newAnnotations,
-                ::abilityWordKey,
-                detectChanges = true,
-            )
-
-        private fun upsertQualifications(
-            active: MutableMap<Int, AnnotationInfo>,
-            deletions: MutableList<Int>,
-            startId: Int,
-            newAnnotations: List<AnnotationInfo>,
-        ): Int =
-            upsertByType(
-                active,
-                deletions,
-                startId,
-                AnnotationType.Qualification,
-                newAnnotations,
-                { it.affectedIdsList.firstOrNull() ?: 0 },
-            )
-
-        /**
-         * Full-replacement upsert for `Prepared` `Designation` pAnns. Keyed by the affected
-         * card iid; filters by `DesignationType` detail so it only touches Prepared rows
-         * and leaves seat-scoped Designation pAnns (Monarch, Initiative, City's Blessing) alone.
-         * Detects detail changes so a swap of `PreparedCopyZcid` (re-prepare with new copy)
-         * triggers a replace.
-         */
-        private fun upsertPreparedDesignations(
-            active: MutableMap<Int, AnnotationInfo>,
-            deletions: MutableList<Int>,
-            startId: Int,
-            newAnnotations: List<AnnotationInfo>,
-        ): Int {
-            var nextId = startId
-            val newByKey = newAnnotations.associateBy { it.affectedIdsList.firstOrNull() ?: 0 }
-            val staleIds =
-                active.entries
-                    .filter { (_, ann) ->
-                        ann.typeList.any { it == AnnotationType.Designation } &&
-                            isPreparedDesignation(ann) &&
-                            (ann.affectedIdsList.firstOrNull() ?: 0) !in newByKey.keys
-                    }.map { it.key }
-            for (id in staleIds) {
-                active.remove(id)
-                deletions.add(id)
-            }
-            for ((key, ann) in newByKey) {
-                val existingEntry =
-                    active.entries.firstOrNull { (_, e) ->
-                        e.typeList.any { it == AnnotationType.Designation } &&
-                            isPreparedDesignation(e) &&
-                            (e.affectedIdsList.firstOrNull() ?: 0) == key
-                    }
-                if (existingEntry == null) {
-                    val numbered = ann.toBuilder().setId(nextId++).build()
-                    active[numbered.id] = numbered
-                } else if (existingEntry.value.detailsList != ann.detailsList) {
-                    active.remove(existingEntry.key)
-                    deletions.add(existingEntry.key)
-                    val numbered = ann.toBuilder().setId(nextId++).build()
-                    active[numbered.id] = numbered
-                }
-            }
-            return nextId
-        }
-
-        private fun isPreparedDesignation(ann: AnnotationInfo): Boolean =
-            ann.detailsList.any {
-                it.key == DetailKeys.DESIGNATION_TYPE &&
-                    it.valueInt32Count > 0 &&
-                    it.getValueInt32(0) == leyline.game.annotations.AnnotationConstants.DESIGNATION_TYPE_PREPARED
-            }
-
-        /**
-         * Full-replacement upsert for `Plotted` `Designation` pAnns. Keyed by the affected
-         * card iid; filters by `DesignationType=18` detail so it only touches Plotted rows
-         * and leaves seat-scoped or other-card Designation pAnns alone.
-         */
-        private fun upsertPlottedDesignations(
-            active: MutableMap<Int, AnnotationInfo>,
-            deletions: MutableList<Int>,
-            startId: Int,
-            newAnnotations: List<AnnotationInfo>,
-        ): Int {
-            var nextId = startId
-            val newByKey = newAnnotations.associateBy { it.affectedIdsList.firstOrNull() ?: 0 }
-            val staleIds =
-                active.entries
-                    .filter { (_, ann) ->
-                        ann.typeList.any { it == AnnotationType.Designation } &&
-                            isPlottedDesignation(ann) &&
-                            (ann.affectedIdsList.firstOrNull() ?: 0) !in newByKey.keys
-                    }.map { it.key }
-            for (id in staleIds) {
-                active.remove(id)
-                deletions.add(id)
-            }
-            for ((key, ann) in newByKey) {
-                val existingEntry =
-                    active.entries.firstOrNull { (_, e) ->
-                        e.typeList.any { it == AnnotationType.Designation } &&
-                            isPlottedDesignation(e) &&
-                            (e.affectedIdsList.firstOrNull() ?: 0) == key
-                    }
-                if (existingEntry == null) {
-                    val numbered = ann.toBuilder().setId(nextId++).build()
-                    active[numbered.id] = numbered
-                } else if (existingEntry.value.detailsList != ann.detailsList) {
-                    active.remove(existingEntry.key)
-                    deletions.add(existingEntry.key)
-                    val numbered = ann.toBuilder().setId(nextId++).build()
-                    active[numbered.id] = numbered
-                }
-            }
-            return nextId
-        }
-
-        private fun isPlottedDesignation(ann: AnnotationInfo): Boolean =
-            ann.detailsList.any {
-                it.key == DetailKeys.DESIGNATION_TYPE &&
-                    it.valueInt32Count > 0 &&
-                    it.getValueInt32(0) == leyline.game.annotations.AnnotationConstants.DESIGNATION_TYPE_PLOTTED
-            }
 
         private fun findByAura(
             active: Map<Int, AnnotationInfo>,
