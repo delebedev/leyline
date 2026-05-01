@@ -67,8 +67,13 @@ class TargetingHandler(
         val resp = greMsg.selectTargetsResp
         val pendingPrompt =
             seatBridge.prompt.getPendingPrompt() ?: run {
-                log.warn("TargetingHandler: SelectTargetsResp but no pending prompt")
-                DevCheck.fail { "SelectTargetsResp but no pending prompt" }
+                // Race: bridge prompt timed out and was cleared, then the late
+                // client response arrives. Pre-fix this crashed the match in
+                // strict mode (`MTGA Waiting for the Server` overlay). Downgraded
+                // to failOnAutoPass — caught in tests with strict_pass=true,
+                // soft-dropped in dev. See leyline-xejz for the proper fix.
+                log.warn("TargetingHandler: SelectTargetsResp but no pending prompt (likely timeout race)")
+                DevCheck.failOnAutoPass { "SelectTargetsResp but no pending prompt" }
                 return
             }
 
@@ -131,8 +136,8 @@ class TargetingHandler(
         val bridge = ctx.bridge
         val pending = pendingInteraction as? PendingClientInteraction.TargetSelection
         if (pending == null) {
-            log.warn("TargetingHandler: SubmitTargetsReq but no pending target selection")
-            DevCheck.fail { "SubmitTargetsReq but no pending target selection" }
+            log.warn("TargetingHandler: SubmitTargetsReq but no pending target selection (likely timeout race)")
+            DevCheck.failOnAutoPass { "SubmitTargetsReq but no pending target selection" }
             return
         }
         pendingInteraction = null
@@ -164,8 +169,8 @@ class TargetingHandler(
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt =
             seatBridge.prompt.getPendingPrompt() ?: run {
-                log.warn("TargetingHandler: SelectNResp but no pending prompt")
-                DevCheck.fail { "SelectNResp but no pending prompt" }
+                log.warn("TargetingHandler: SelectNResp but no pending prompt (likely timeout race)")
+                DevCheck.failOnAutoPass { "SelectNResp but no pending prompt" }
                 return
             }
 
@@ -186,8 +191,8 @@ class TargetingHandler(
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt =
             seatBridge.prompt.getPendingPrompt() ?: run {
-                log.warn("TargetingHandler: EffectCostResp but no pending prompt")
-                DevCheck.fail { "EffectCostResp but no pending prompt" }
+                log.warn("TargetingHandler: EffectCostResp but no pending prompt (likely timeout race)")
+                DevCheck.failOnAutoPass { "EffectCostResp but no pending prompt" }
                 return
             }
 
@@ -390,8 +395,8 @@ class TargetingHandler(
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt =
             seatBridge.prompt.getPendingPrompt() ?: run {
-                log.warn("TargetingHandler: GroupResp but no pending prompt")
-                DevCheck.fail { "GroupResp but no pending prompt" }
+                log.warn("TargetingHandler: GroupResp but no pending prompt (likely timeout race)")
+                DevCheck.failOnAutoPass { "GroupResp but no pending prompt" }
                 return
             }
 
@@ -453,8 +458,8 @@ class TargetingHandler(
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt()
         if (pendingPrompt == null) {
-            log.warn("TargetingHandler: CancelActionReq but no pending prompt")
-            DevCheck.fail { "CancelActionReq but no pending prompt" }
+            log.warn("TargetingHandler: CancelActionReq but no pending prompt (likely timeout race)")
+            DevCheck.failOnAutoPass { "CancelActionReq but no pending prompt" }
             return
         }
 
@@ -479,8 +484,8 @@ class TargetingHandler(
         val bridge = ctx.bridge
         val pending =
             pendingInteraction as? PendingClientInteraction.Search ?: run {
-                log.warn("SearchResp received but no search pending")
-                DevCheck.fail { "SearchResp but no search pending" }
+                log.warn("SearchResp received but no search pending (likely timeout race)")
+                DevCheck.failOnAutoPass { "SearchResp but no search pending" }
                 return
             }
         pendingInteraction = null
@@ -721,8 +726,8 @@ class TargetingHandler(
             }
 
             else -> {
-                log.warn("TargetingHandler: CastingTimeOptionsResp but no pending modal or optional cost")
-                DevCheck.fail { "CastingTimeOptionsResp but no pending modal or optional cost" }
+                log.warn("TargetingHandler: CastingTimeOptionsResp but no pending modal or optional cost (likely timeout race)")
+                DevCheck.failOnAutoPass { "CastingTimeOptionsResp but no pending modal or optional cost" }
             }
         }
     }
@@ -902,8 +907,8 @@ class TargetingHandler(
             bridge.awaitPriority()
             autoPass()
         } else {
-            log.warn("TargetingHandler: optional cost response but no pending engine action")
-            DevCheck.fail { "optional cost response but no pending engine action" }
+            log.warn("TargetingHandler: optional cost response but no pending engine action (likely timeout race)")
+            DevCheck.failOnAutoPass { "optional cost response but no pending engine action" }
         }
     }
 
@@ -932,8 +937,8 @@ class TargetingHandler(
             bridge.awaitPriority()
             autoPass()
         } else {
-            log.warn("TargetingHandler: alternate cost choice response but no pending engine action")
-            DevCheck.fail { "alternate cost choice response but no pending engine action" }
+            log.warn("TargetingHandler: alternate cost choice response but no pending engine action (likely timeout race)")
+            DevCheck.failOnAutoPass { "alternate cost choice response but no pending engine action" }
         }
     }
 
