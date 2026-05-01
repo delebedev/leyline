@@ -240,7 +240,6 @@ class BundleBuilderTest :
             }
         }
 
-
         test("buildModalCastingTimeOptionsReq — modalCosts shorter than childGrpIds drops late costs") {
             // Documents the parallel-list invariant: caller is expected to pass
             // a modalCosts of equal length to childGrpIds; shorter silently drops.

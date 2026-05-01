@@ -1,0 +1,19 @@
+[metadata]
+Name:Ward Tax
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Cast Lightning Bolt at a Ward {2} creature; pay or decline the tax.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Lightning Bolt
+humanbattlefield=Mountain;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+
+aibattlefield=Sovereign Okinec Ahau
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest

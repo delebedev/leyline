@@ -1,0 +1,11 @@
+name: "Sovereign Okinec Ahau"
+grpId: 87402
+titleId: 737953
+abilities:
+  - id: 141939
+    textId: 488336
+    category: 2
+  - id: 169734
+    textId: 737957
+    category: 2
+expansionCode: "LCI"

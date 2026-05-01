@@ -200,14 +200,14 @@ class CostPaymentCoordinator(
     }
 
     /**
-     * Ward {N} mana tax. Yes/No via [OptionalActionGate]; on accept,
-     * drain mana via [ComputerUtilMana.payManaCost] (auto-tap solver).
-     * Decline on timeout — the spell counters, the safe outcome for the
-     * warded permanent's controller.
+     * Ward {N} mana tax. Yes/No via [OptionalActionGate]; on accept, drain
+     * mana via [ComputerUtilMana.payManaCost] (auto-tap solver). Decline on
+     * timeout — the spell counters, the safe outcome for the warded
+     * permanent's controller.
      *
      * Payer is `[player]` (the controller whose [PlayerController] Forge
-     * dispatches `payCostToPreventEffect` on), NOT `sa.activatingPlayer`
-     * — Forge sets the latter to the warded permanent's controller (the
+     * dispatches `payCostToPreventEffect` on), NOT `sa.activatingPlayer` —
+     * Forge sets the latter to the warded permanent's controller (the
      * trigger's "you"), which is the wrong seat for paying the tax.
      */
     fun payWardManaTax(
