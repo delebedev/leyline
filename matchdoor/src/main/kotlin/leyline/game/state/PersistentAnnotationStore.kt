@@ -195,21 +195,16 @@ class PersistentAnnotationStore {
 
             // 3b-3j. Other registry-driven kinds — full upsert dispatch via
             //        identity + collision strategy declared on each row.
-            val perKindIncoming: Map<PersistentAnnotationKind, List<AnnotationInfo>> =
-                mapOf(
-                    AbilityWordActiveKind to mechanicResult.abilityWordPersistent,
-                    QualificationKind to mechanicResult.qualificationPersistent,
-                    CrewedThisTurnKind to mechanicResult.crewedThisTurnPersistent,
-                    ModifiedTypeForCrewKind to mechanicResult.crewTypeChangePersistent,
-                    TemporaryPermanentKind to mechanicResult.temporaryPermanentPersistent,
-                    DelayedTriggerAffecteesKind to mechanicResult.delayedTriggerAffecteesPersistent,
-                    TargetSpecKind to mechanicResult.targetSpecPersistent,
-                    PreparedDesignationKind to mechanicResult.preparedDesignationPersistent,
-                    PlottedDesignationKind to mechanicResult.plottedDesignationPersistent,
-                )
             for (kind in PersistentAnnotationKinds.upsertable) {
                 if (kind === CounterKind) continue // Counter handled above with mechanicResult.persistent.
-                nextId = upsertByKind(active, deletions, nextId, kind, perKindIncoming[kind] ?: emptyList())
+                nextId =
+                    upsertByKind(
+                        active,
+                        deletions,
+                        nextId,
+                        kind,
+                        mechanicResult.perKindPersistent[kind] ?: emptyList(),
+                    )
             }
 
             // 3h. DamagedThisTurn — grow-in-place / clear (single annotation,

@@ -10,17 +10,36 @@ import leyline.game.codes.KeywordQualifications
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.state.EffectTracker
+import leyline.game.state.PersistentAnnotationKind
+import leyline.game.state.QualificationKind
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import kotlin.collections.iterator
 
 /**
  * Result of mechanic annotation generation.
- * Separates transient (numbered per-GSM) from persistent (stable IDs) annotations.
+ *
+ * Three persistent slots:
+ *  - [persistent]: mixed-kind list (Counter + Attachment + DisplayCardUnderCard +
+ *    ControllerChangedEffect) in event order. Kept as a flat list because
+ *    [leyline.game.state.CounterKind] rows and the cleanup-tracked rows must
+ *    interleave through step 3a's id allocator in
+ *    [leyline.game.state.PersistentAnnotationStore.Companion.computeBatch].
+ *  - [perKindPersistent]: per-registry-kind full-replacement set, keyed on
+ *    [PersistentAnnotationKind]. Producers populate one entry per kind they emit;
+ *    `computeBatch` dispatches via [leyline.game.state.PersistentAnnotationKinds.upsertable].
+ *    Adding a new persistent kind is one row in the registry plus the producer
+ *    wiring — no new field here.
+ *  - Cross-kind cleanup signals ([detachedForgeCardIds], [exileSourceLeftPlayForgeCardIds],
+ *    [controllerRevertedForgeCardIds]) drive steps 4-6 and don't fit either slot.
  */
 data class MechanicAnnotationResult(
     val transient: List<AnnotationInfo>,
     val persistent: List<AnnotationInfo>,
+    /** Per-registry-kind persistent annotations — full-replacement set this GSM, keyed
+     *  by [PersistentAnnotationKind]. Consumed by
+     *  [leyline.game.state.PersistentAnnotationStore.Companion.computeBatch]. */
+    val perKindPersistent: Map<PersistentAnnotationKind, List<AnnotationInfo>> = emptyMap(),
     /** Forge card IDs of auras/equipment that were detached this GSM. */
     val detachedForgeCardIds: List<ForgeCardId> = emptyList(),
     /** Forge card IDs of permanents that left the battlefield this GSM.
@@ -31,24 +50,6 @@ data class MechanicAnnotationResult(
     val controllerChangedEffects: List<ControllerChangedEffect> = emptyList(),
     /** Forge card IDs of permanents whose control reverted this GSM. */
     val controllerRevertedForgeCardIds: List<ForgeCardId> = emptyList(),
-    /** AbilityWordActive annotations from scanner — full replacement set for this GSM. */
-    val abilityWordPersistent: List<AnnotationInfo> = emptyList(),
-    /** Qualification annotations for adventure-exiled cards — full replacement set for this GSM. */
-    val qualificationPersistent: List<AnnotationInfo> = emptyList(),
-    /** CrewedThisTurn persistent annotations — full replacement set for this GSM. */
-    val crewedThisTurnPersistent: List<AnnotationInfo> = emptyList(),
-    /** ModifiedType+LayeredEffect persistent annotations for crew type changes — full replacement set. */
-    val crewTypeChangePersistent: List<AnnotationInfo> = emptyList(),
-    /** TemporaryPermanent pAnns for copy tokens with EOT-sacrifice — full replacement set. */
-    val temporaryPermanentPersistent: List<AnnotationInfo> = emptyList(),
-    /** DelayedTriggerAffectees pAnns grouping EOT-sacrifice tokens — full replacement set. */
-    val delayedTriggerAffecteesPersistent: List<AnnotationInfo> = emptyList(),
-    /** TargetSpec pAnns for spells/abilities on stack with targets — full replacement set. */
-    val targetSpecPersistent: List<AnnotationInfo> = emptyList(),
-    /** Prepared `Designation` pAnns for cards with `Card.isPrepared` — full replacement set. */
-    val preparedDesignationPersistent: List<AnnotationInfo> = emptyList(),
-    /** Plotted `Designation` pAnns for cards with `Card.isPlotted` in exile — full replacement set. */
-    val plottedDesignationPersistent: List<AnnotationInfo> = emptyList(),
 ) {
     /** Tracks an active controller-change effect for persistent annotation lifecycle. */
     data class ControllerChangedEffect(
@@ -294,13 +295,18 @@ object MechanicAnnotations {
             }
         }
         return MechanicAnnotationResult(
-            annotations,
-            persistent,
-            detachedForgeCardIds,
-            exileSourceLeftPlayForgeCardIds,
-            controllerChangedEffects,
-            controllerRevertedForgeCardIds,
-            qualificationPersistent = qualificationPersistent,
+            transient = annotations,
+            persistent = persistent,
+            perKindPersistent =
+                if (qualificationPersistent.isNotEmpty()) {
+                    mapOf(QualificationKind to qualificationPersistent.toList())
+                } else {
+                    emptyMap()
+                },
+            detachedForgeCardIds = detachedForgeCardIds,
+            exileSourceLeftPlayForgeCardIds = exileSourceLeftPlayForgeCardIds,
+            controllerChangedEffects = controllerChangedEffects,
+            controllerRevertedForgeCardIds = controllerRevertedForgeCardIds,
         )
     }
 

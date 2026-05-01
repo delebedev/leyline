@@ -26,12 +26,22 @@ import leyline.game.event.SnapDeltaSynthesizer
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PreparedRole
+import leyline.game.state.AbilityWordActiveKind
 import leyline.game.state.BridgeMutations
+import leyline.game.state.CrewedThisTurnKind
+import leyline.game.state.DelayedTriggerAffecteesKind
 import leyline.game.state.EffectTracker
 import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
 import leyline.game.state.HolderRecord
+import leyline.game.state.ModifiedTypeForCrewKind
+import leyline.game.state.PersistentAnnotationKind
 import leyline.game.state.PersistentAnnotationStore
+import leyline.game.state.PlottedDesignationKind
+import leyline.game.state.PreparedDesignationKind
+import leyline.game.state.QualificationKind
+import leyline.game.state.TargetSpecKind
+import leyline.game.state.TemporaryPermanentKind
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -1013,15 +1023,22 @@ object StateMapper {
 
         val enrichedMechanicResult =
             mechanicResult.copy(
-                abilityWordPersistent = abilityWordPersistent,
-                qualificationPersistent = qualificationPersistent + mechanicResult.qualificationPersistent,
-                crewedThisTurnPersistent = crewedThisTurnPersistent,
-                crewTypeChangePersistent = crewTypeChangePersistent,
-                temporaryPermanentPersistent = temporaryPermanentPersistent,
-                delayedTriggerAffecteesPersistent = delayedTriggerAffecteesPersistent,
-                targetSpecPersistent = targetSpecPersistent,
-                preparedDesignationPersistent = preparedDesignationPersistentFromSnap,
-                plottedDesignationPersistent = plottedDesignationPersistentFromSnap,
+                perKindPersistent =
+                    buildMap<PersistentAnnotationKind, List<AnnotationInfo>> {
+                        put(AbilityWordActiveKind, abilityWordPersistent)
+                        put(
+                            QualificationKind,
+                            qualificationPersistent +
+                                mechanicResult.perKindPersistent[QualificationKind].orEmpty(),
+                        )
+                        put(CrewedThisTurnKind, crewedThisTurnPersistent)
+                        put(ModifiedTypeForCrewKind, crewTypeChangePersistent)
+                        put(TemporaryPermanentKind, temporaryPermanentPersistent)
+                        put(DelayedTriggerAffecteesKind, delayedTriggerAffecteesPersistent)
+                        put(TargetSpecKind, targetSpecPersistent)
+                        put(PreparedDesignationKind, preparedDesignationPersistentFromSnap)
+                        put(PlottedDesignationKind, plottedDesignationPersistentFromSnap)
+                    },
             )
         val batch =
             PersistentAnnotationStore.Companion.computeBatch(

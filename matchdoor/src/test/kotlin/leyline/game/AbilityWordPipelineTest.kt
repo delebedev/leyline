@@ -15,8 +15,10 @@ import leyline.conformance.detailString
 import leyline.conformance.detailUint
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.MechanicAnnotationResult
+import leyline.game.state.AbilityWordActiveKind
 import leyline.game.state.EffectTracker
 import leyline.game.state.PersistentAnnotationStore
+import leyline.game.state.QualificationKind
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class AbilityWordPipelineTest :
@@ -32,8 +34,11 @@ class AbilityWordPipelineTest :
         ) = MechanicAnnotationResult(
             transient = emptyList(),
             persistent = emptyList(),
-            abilityWordPersistent = abilityWordPersistent,
-            qualificationPersistent = qualificationPersistent,
+            perKindPersistent =
+                mapOf(
+                    AbilityWordActiveKind to abilityWordPersistent,
+                    QualificationKind to qualificationPersistent,
+                ),
         )
 
         test("AbilityWordActive created in first batch") {
