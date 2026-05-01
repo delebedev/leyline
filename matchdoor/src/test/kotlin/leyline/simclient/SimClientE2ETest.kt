@@ -1,7 +1,8 @@
 package leyline.simclient
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.shouldBe
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.string.shouldContain
 import leyline.SimClientTag
 import leyline.conformance.MatchFlowHarness
@@ -51,9 +52,11 @@ class SimClientE2ETest :
         test("mono-Forest mirror — pipeline smoke") {
             val log = runOneGame(deck = "60 Forest", seed = 42L, tag = "forest")
             val contents = log.readText()
-            (contents.length > 0) shouldBe true
-            contents shouldContain "[UnityCrossThreadLogger]"
-            contents shouldContain "greToClientEvent"
+            assertSoftly {
+                contents.length shouldBeGreaterThan 0
+                contents shouldContain "[UnityCrossThreadLogger]"
+                contents shouldContain "greToClientEvent"
+            }
         }
 
         test("vanilla-creatures mirror — exercises combat") {
@@ -64,8 +67,10 @@ class SimClientE2ETest :
                 """.trimIndent()
             val log = runOneGame(deck = deck, seed = 42L, tag = "bears", maxTurns = 20)
             val contents = log.readText()
-            (contents.length > 0) shouldBe true
-            // Combat prompts should fire when both seats run creatures.
-            contents shouldContain "DeclareAttackersReq"
+            assertSoftly {
+                contents.length shouldBeGreaterThan 0
+                // Combat prompts should fire when both seats run creatures.
+                contents shouldContain "DeclareAttackersReq"
+            }
         }
     })

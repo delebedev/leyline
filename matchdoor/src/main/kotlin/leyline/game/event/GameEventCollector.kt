@@ -208,19 +208,7 @@ class GameEventCollector(
         if (isTrigger && abilityForgeId != 0) {
             pendingTriggers[abilityForgeId] = ForgeCardId(card.id)
         }
-        // CastingTimeOption type=3 (Kicker): the kicker ability grpId lives on
-        // the per-card Abilities row keyed by KICKER base. type=2 (ChooseX):
-        // the value is the chosen X. Both read from the live SA on top of the
-        // stack — same window altCost is read in.
-        val kickerAbilityGrpId =
-            if (topSa != null && topSa.hostCard?.id == card.id && topSa.isKicked) {
-                val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
-                if (grpId != 0) bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.KICKER) ?: 0 else 0
-            } else {
-                0
-            }
-        val chosenX =
-            if (topSa != null && topSa.hostCard?.id == card.id) topSa.xManaCostPaid ?: 0 else 0
+        val (kickerAbilityGrpId, chosenX) = readCastingTimeOptionState(topSa, card)
         frame.add(
             GameEvent.SpellCast(
                 cardId = ForgeCardId(card.id),
@@ -246,6 +234,29 @@ class GameEventCollector(
             kickerAbilityGrpId,
             chosenX,
         )
+    }
+
+    /** CastingTimeOption type=3 (Kicker) and type=2 (ChooseX) state, read from
+     *  the live SA on top of the stack — same window altCost is read in.
+     *  Returns `(kickerAbilityGrpId, chosenX)`; either is 0 when not applicable. */
+    private fun readCastingTimeOptionState(
+        topSa: forge.game.spellability.SpellAbility?,
+        card: forge.game.card.CardView,
+    ): Pair<Int, Int> {
+        if (topSa == null || topSa.hostCard?.id != card.id) return 0 to 0
+        val kicker =
+            if (topSa.isKicked) {
+                val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+                if (grpId != 0) {
+                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.KICKER) ?: 0
+                } else {
+                    0
+                }
+            } else {
+                0
+            }
+        val x = topSa.xManaCostPaid ?: 0
+        return kicker to x
     }
 
     override fun visit(ev: GameEventSpellMovedToStack) {

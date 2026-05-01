@@ -110,41 +110,12 @@ object TransferAnnotations {
             persistent.add(AnnotationBuilder.enteredZoneThisTurn(destZone, newId))
         }
 
-        // Persistent: CastingTimeOption for alt-cost casts (Madness, Flashback,
-        // Warp, Cycling, Impending). Attached to the staged stack object; deleted via
-        // diffDeletedPersistentAnnotationIds when the spell resolves or leaves the stack.
-        if (category == TransferCategory.CastSpell && altCostGrpId.value != 0) {
-            persistent.add(
-                AnnotationBuilder.castingTimeOption(
-                    stackInstanceId = newId,
-                    type = CastingTimeOptionType.CastThroughAbility,
-                    alternateCostGrpId = altCostGrpId,
-                ),
-            )
-        }
-
-        // Persistent: CastingTimeOption type=Kicker — spell cast with kicker paid.
-        // castAbilityGrpId points at the card itself; kickerAbilityGrpId points
-        // at the per-card Kicker ability row.
-        if (category == TransferCategory.CastSpell && transfer.kickerAbilityGrpId != 0) {
-            persistent.add(
-                AnnotationBuilder.castingTimeOptionKicker(
-                    stackInstanceId = newId,
-                    kickerAbilityGrpId = GrpId(transfer.kickerAbilityGrpId),
-                    castAbilityGrpId = GrpId(transfer.grpId),
-                ),
-            )
-        }
-
-        // Persistent: CastingTimeOption type=ChooseX — spell cast with X chosen.
-        if (category == TransferCategory.CastSpell && transfer.chosenX != 0) {
-            persistent.add(
-                AnnotationBuilder.castingTimeOptionChooseX(
-                    stackInstanceId = newId,
-                    value = transfer.chosenX,
-                ),
-            )
-        }
+        // Persistent: CastingTimeOption variants (alt-cost / kicker / chooseX)
+        // for the just-cast spell. Attached to the staged stack object;
+        // deleted via diffDeletedPersistentAnnotationIds when the spell
+        // leaves the stack — see leyline-ucbf for the resolver that lets a
+        // PersistentAnnotationKind close the lifecycle cleanly.
+        emitCastingTimeOptions(persistent, transfer, category, newId, altCostGrpId)
 
         // Persistent: ColorProduction for lands entering the battlefield
         if (category == TransferCategory.PlayLand && transfer.colorOrdinals.isNotEmpty()) {
@@ -171,6 +142,46 @@ object TransferAnnotations {
      * permanent produces mana (e.g. Phyrexian Tower). No such call site exists today; if
      * one appears, use `InstanceId(mp.landInstanceId)` here.
      */
+
+    /** Emit CastingTimeOption rows on a CastSpell transfer per the cast mode
+     *  signals carried on [AppliedTransfer]. No-op for non-CastSpell transfers
+     *  and for casts without any of the mode flags set. */
+    private fun emitCastingTimeOptions(
+        persistent: MutableList<AnnotationInfo>,
+        transfer: AppliedTransfer,
+        category: TransferCategory,
+        newId: InstanceId,
+        altCostGrpId: GrpId,
+    ) {
+        if (category != TransferCategory.CastSpell) return
+        if (altCostGrpId.value != 0) {
+            persistent.add(
+                AnnotationBuilder.castingTimeOption(
+                    stackInstanceId = newId,
+                    type = CastingTimeOptionType.CastThroughAbility,
+                    alternateCostGrpId = altCostGrpId,
+                ),
+            )
+        }
+        if (transfer.kickerAbilityGrpId != 0) {
+            persistent.add(
+                AnnotationBuilder.castingTimeOptionKicker(
+                    stackInstanceId = newId,
+                    kickerAbilityGrpId = GrpId(transfer.kickerAbilityGrpId),
+                    castAbilityGrpId = GrpId(transfer.grpId),
+                ),
+            )
+        }
+        if (transfer.chosenX != 0) {
+            persistent.add(
+                AnnotationBuilder.castingTimeOptionChooseX(
+                    stackInstanceId = newId,
+                    value = transfer.chosenX,
+                ),
+            )
+        }
+    }
+
     private fun emitManaSacrificeBracket(
         annotations: MutableList<AnnotationInfo>,
         transfer: AppliedTransfer,

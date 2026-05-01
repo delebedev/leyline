@@ -147,7 +147,7 @@ class SimClientDriver(
             }
             GREMessageType.SelectTargetsReq_695e -> respondSelectTargets(msg)
             GREMessageType.GroupReq_695e -> respondGroup(msg)
-            GREMessageType.CastingTimeOptionsReq_695e -> respondCastingTimeOptions(msg)
+            GREMessageType.CastingTimeOptionsReq_695e -> respondCastingTimeOptions()
             GREMessageType.IntermissionReq_695e -> harness.passPriority()
             else -> harness.passPriority()
         }
@@ -183,7 +183,7 @@ class SimClientDriver(
      * decline can stall the engine — log and fall through to passPriority so
      * the iter cap fires deterministically rather than blocking.
      */
-    private fun respondCastingTimeOptions(msg: GREToClientMessage) {
+    private fun respondCastingTimeOptions() {
         runCatching { harness.respondToOptionalCost(0) }
             .onFailure {
                 logger.warn(
