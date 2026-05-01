@@ -137,8 +137,9 @@ class PersistentAnnotationStore {
             var nextId = startPersistentId
 
             // 0. Lifecycle expiry — drop rows whose shouldExpire fires this frame.
-            //    Closes leyline-eq9q: EZTT clears at Upkeep, ColorProduction
-            //    clears when its source iid leaves the battlefield.
+            //    EZTT clears at the controller's Upkeep; ColorProduction clears
+            //    when its source iid leaves the battlefield. See per-kind
+            //    [PersistentAnnotationKind.shouldExpire] for the rule.
             for (kind in PersistentAnnotationKinds.all) {
                 val expiredIds =
                     active.entries

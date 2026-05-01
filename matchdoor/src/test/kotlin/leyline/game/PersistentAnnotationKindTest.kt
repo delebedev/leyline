@@ -19,13 +19,13 @@ import leyline.game.state.FrameContext
 import leyline.game.state.PersistentAnnotationStore
 
 /**
- * Unit pins for the [leyline.game.state.PersistentAnnotationKind] registry —
- * lifecycle expiry behavior (EZTT clears at Upkeep, ColorProduction clears
- * when source leaves the battlefield) and registry-driven upsert dispatch.
+ * Unit pins for the [leyline.game.state.PersistentAnnotationKind] registry.
+ * Covers lifecycle expiry behavior — EZTT clears at the controller's
+ * Upkeep, ColorProduction clears when the source iid leaves the
+ * battlefield — and registry-driven upsert dispatch.
  *
- * Closes leyline-eq9q ("EZTT never expires"): the conformance harness
- * exercises the expiry path end-to-end, but these unit pins keep the rule
- * legible and fast-failing.
+ * The conformance harness exercises the expiry path end-to-end; these
+ * unit pins keep the rule legible and fast-failing in isolation.
  */
 class PersistentAnnotationKindTest :
     FunSpec({

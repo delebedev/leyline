@@ -4,14 +4,13 @@ import leyline.bridge.types.InstanceId
 
 /**
  * Bundled result of a card moving to a new zone — the downstream effects of
- * one realloc, packaged so callers cannot accidentally do three of the four.
- * Replaces the inline `realloc → retire → zone-record → objectIdChanged`
- * idiom that recurred at multiple sites in [leyline.game.annotations.ZoneTransferDetector].
+ * one realloc (id swap, limbo retire, new-zone assignment) packaged so a
+ * caller can't accidentally do two of the three. Reads as one structured
+ * value at each transfer site instead of three separate writes plus an
+ * `if (origId != newId)` guard around each.
  *
- * Continuation of leyline-9d8: that bead lifted the realloc step's mutations
- * into [BridgeMutations] as data; this bead lifts the *call shape* — callers
- * receive one structured value instead of computing four separate ops at
- * each transfer site.
+ * Mutations are folded into [BridgeMutations] downstream of construction —
+ * pure compute → data → caller-applied via [GameBridge.applyMutations].
  *
  *  - [realloc] — old → new instanceId. Both equal when the transfer keeps
  *    the same iid (Resolve, no-op handoff).
@@ -21,10 +20,11 @@ import leyline.bridge.types.InstanceId
  *  - [zoneAssignment] — (new iid, destination zone id) pair the caller
  *    folds into [BridgeMutations.zoneRecordings].
  *
- * Built via the [Companion] factories — pure-pipeline callers use
- * [fromRealloc] (with an `idAllocator` lambda); a direct-bridge variant
- * isn't currently needed because the only realloc site
- * ([leyline.game.annotations.ZoneTransferDetector]) takes lambdas.
+ * Built via the [Companion] factories. Pure-pipeline callers use
+ * [fromRealloc] with an `idAllocator` lambda; a direct-bridge entry point
+ * is omitted because the only realloc site
+ * ([leyline.game.annotations.ZoneTransferDetector]) is itself
+ * lambda-driven. Add one if a second realloc site appears.
  */
 data class ZoneHandoff(
     val realloc: InstanceIdRegistry.IdReallocation,

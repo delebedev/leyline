@@ -233,14 +233,13 @@ data object PlottedDesignationKind : PersistentAnnotationKind {
  * Pure-snapshot persistent annotation: card-entered-zone-this-turn marker.
  * Does NOT participate in upsert dispatch — rows arrive via the transfer-
  * originated pipeline (one EZTT per zone transfer landing on Battlefield /
- * Stack). The kind exists for [shouldExpire]: clear at the controller's
- * next Upkeep so EZTT markers don't accumulate forever.
+ * Stack).
  *
- * Closes leyline-eq9q ("EZTT never expires"): MTG rule expires "entered
- * this turn" markers at the start of the controller's next turn; our hook
- * is the Upkeep step plus a controller match. Cards no longer present in
- * `frame.controllerOf` (already off-objects) expire on any Upkeep so stale
- * rows don't pin in the persistent set.
+ * MTG rule: "entered this turn" markers expire at the start of the
+ * controller's next turn. Our hook is the Upkeep step plus a controller
+ * match — `controllerOf[iid] == activePlayerSeat` at `phase == UPKEEP`.
+ * Cards no longer present in `frame.controllerOf` (already off-objects)
+ * expire on any Upkeep so stale rows don't pin in the persistent set.
  */
 data object EnteredZoneThisTurnKind : PersistentAnnotationKind {
     override val name = "EnteredZoneThisTurn"
@@ -258,18 +257,18 @@ data object EnteredZoneThisTurnKind : PersistentAnnotationKind {
         if (frame.phase != PhaseType.UPKEEP) return false
         val affected = ann.affectedIdsList.firstOrNull() ?: return false
         val controller = frame.controllerOf[affected]
-        // Known controller: gate on activePlayer == controller (per MTG rule).
-        // Unknown controller (card already off-objects): expire on any Upkeep
-        // — strictly cleaner than the pre-S6.A "never expires" pin, and the
-        // protocol doesn't care about a marker on an iid the client no longer
-        // tracks.
+        // Known controller: gate on activePlayer == controller. Unknown
+        // controller (card already off-objects): expire on any Upkeep — the
+        // protocol doesn't care about a marker on an iid the client no
+        // longer tracks, and leaving it pinned grows the persistent set.
         return controller == null || controller == frame.activePlayerSeat
     }
 }
 
 /**
  * Land's color-production marker. Removed when the source card leaves the
- * battlefield. Closes the second half of leyline-eq9q.
+ * battlefield — the client has nothing to render the badge against once
+ * the source is no longer present.
  */
 data object ColorProductionKind : PersistentAnnotationKind {
     override val name = "ColorProduction"
