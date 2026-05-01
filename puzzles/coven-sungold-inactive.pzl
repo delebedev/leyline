@@ -1,0 +1,17 @@
+[metadata]
+Name:Coven Sungold inactive
+Goal:Demo
+Turns:5
+Difficulty:Easy
+Description:Only two creatures with different powers (3, 1). Coven NOT active. Sungold Sentinel's hexproof ability should be unavailable; no AbilityWordActive(Coven) on the wire.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Sungold Sentinel;Soul Warden;Plains;Plains
+ailibrary=Forest
+humanlibrary=Plains

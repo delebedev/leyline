@@ -545,7 +545,9 @@ class PersistentAnnotationStore {
         active.clear()
         active.putAll(result.allAnnotations.associateBy { it.id })
         nextPersistentAnnotationId = result.nextPersistentId
-        for (id in result.deletedIds) pendingDeletions.add(id)
+        // result.deletedIds are drained directly into the GSM at build time (see
+        // StateMapper.buildDiff and Full GSM build). Queueing them here would
+        // re-emit the same IDs on the next Diff GSM via drainDeletions().
     }
 
     /** Clear all state — persistent annotations, pending deletions, and ID counters. */
