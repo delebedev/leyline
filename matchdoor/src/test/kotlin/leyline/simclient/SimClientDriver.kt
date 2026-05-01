@@ -1,6 +1,5 @@
 package leyline.simclient
 
-import leyline.bridge.types.ForgeCardId
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.performAction
 import org.slf4j.LoggerFactory
@@ -120,10 +119,11 @@ class SimClientDriver(
 
     /** Pick one action based on the current pending prompt. */
     private fun takeOneStep() {
-        val (msg, type) = lastPromptMessage() ?: run {
-            harness.passPriority()
-            return
-        }
+        val (msg, type) =
+            lastPromptMessage() ?: run {
+                harness.passPriority()
+                return
+            }
         when (type) {
             GREMessageType.DeclareAttackersReq_695e -> {
                 // Two-phase: iterative auto-declare, then submit. Without the
@@ -157,15 +157,23 @@ class SimClientDriver(
     private fun respondSelectTargets(msg: GREToClientMessage) {
         val req = msg.selectTargetsReq
         val ids =
-            req.targetsList.flatMap { sel ->
-                sel.targetsList.take(sel.maxTargets.coerceAtLeast(1)).map { it.targetInstanceId }
-            }.filter { it != 0 }
+            req.targetsList
+                .flatMap { sel ->
+                    sel.targetsList.take(sel.maxTargets.coerceAtLeast(1)).map { it.targetInstanceId }
+                }.filter { it != 0 }
         if (ids.isEmpty()) {
             // Pick fewest legal — engine may accept zero-targets if minTargets==0.
             harness.cancelAction()
             return
         }
-        harness.selectTargets(ids.distinct().take(req.targetsList.firstOrNull()?.maxTargets?.coerceAtLeast(1) ?: 1))
+        harness.selectTargets(
+            ids.distinct().take(
+                req.targetsList
+                    .firstOrNull()
+                    ?.maxTargets
+                    ?.coerceAtLeast(1) ?: 1,
+            ),
+        )
     }
 
     /**
