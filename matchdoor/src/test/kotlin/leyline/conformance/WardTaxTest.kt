@@ -1,8 +1,10 @@
 package leyline.conformance
 
 import forge.game.zone.ZoneType
-import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 
@@ -45,24 +47,21 @@ class WardTaxTest :
             selectTargets(listOf(targetIid))
 
             // Both Forests tapped for the {2} Ward tax + Mountain tapped for
-            // Bolt's {R} = 3 lands tapped total.
+            // Bolt's {R} = 3 lands tapped total. The decline test below pins
+            // the Forest-untapped case to confirm the accept path actually
+            // drained mana.
             val tapped =
                 human
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .filter { it.isTapped }
                     .map { it.name }
-            tapped.contains("Mountain").shouldBeTrue()
-            tapped.count { it == "Forest" } shouldBe 2
-
-            // Bolt left the stack — either to graveyard via resolution or via
-            // the Counter SA. The decline test below pins the Forest-untapped
-            // case to confirm the accept path actually drained mana.
-            human
-                .getZone(ZoneType.Graveyard)
-                .cards
-                .any { it.name == "Lightning Bolt" }
-                .shouldBeTrue()
+            val gy = human.getZone(ZoneType.Graveyard).cards.map { it.name }
+            assertSoftly {
+                tapped shouldContain "Mountain"
+                tapped.count { it == "Forest" } shouldBe 2
+                gy shouldContain "Lightning Bolt"
+            }
         }
 
         test("decline — Counter SA proceeds, Forests stay untapped") {
@@ -78,26 +77,21 @@ class WardTaxTest :
             harness.declineNextOptionalAction()
             selectTargets(listOf(targetIid))
 
-            // Sovereign Okinec Ahau intact, undamaged — Bolt was countered.
             val sovereign = ai.getZone(ZoneType.Battlefield).cards.firstOrNull { it.name == "Sovereign Okinec Ahau" }
-            sovereign?.damage shouldBe 0
-
-            // Bolt landed in graveyard via the Counter SA, not via resolution.
-            human
-                .getZone(ZoneType.Graveyard)
-                .cards
-                .any { it.name == "Lightning Bolt" }
-                .shouldBeTrue()
-
-            // Bolt's {R} tapped Mountain; Forests stay untapped because
-            // Ward was declined and the {2} tax was never paid.
+            val gy = human.getZone(ZoneType.Graveyard).cards.map { it.name }
+            // Bolt's {R} tapped Mountain; Forests stay untapped because Ward
+            // was declined and the {2} tax was never paid.
             val tapped =
                 human
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .filter { it.isTapped }
                     .map { it.name }
-            tapped.contains("Mountain").shouldBeTrue()
-            tapped.contains("Forest").shouldBeFalse()
+            assertSoftly {
+                sovereign?.damage shouldBe 0
+                gy shouldContain "Lightning Bolt"
+                tapped shouldContain "Mountain"
+                tapped shouldNotContain "Forest"
+            }
         }
     })
