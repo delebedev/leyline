@@ -120,6 +120,10 @@ class BundleBuilder(
         @Suppress("UnusedPrivateProperty")
         val split: Triple<GameStateMessage, GameStateMessage, GameStateMessage>? = null
 
+        // Post-content echo — an empty GSM with matching updateType follows
+        // every content frame in the canonical envelope. Drives client-side
+        // animation pacing and is part of the role/lane classifier signal
+        // for the post-action lane (see leyline-uh9 follow-on).
         val messages =
             if (split != null) {
                 val (queued1, queued2, main) = split
@@ -137,6 +141,7 @@ class BundleBuilder(
                         it.actionsAvailableReq = actions
                         it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                     },
+                    buildEchoDiffGsm(counter, main.update),
                 )
             } else {
                 listOf(
@@ -147,6 +152,7 @@ class BundleBuilder(
                         it.actionsAvailableReq = actions
                         it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                     },
+                    buildEchoDiffGsm(counter, gs.update),
                 )
             }
 
@@ -188,6 +194,7 @@ class BundleBuilder(
         @Suppress("UnusedPrivateProperty")
         val split: Triple<GameStateMessage, GameStateMessage, GameStateMessage>? = null
 
+        // Post-content echo — same envelope as postAction; see comment there.
         val messages =
             if (split != null) {
                 val (queued1, queued2, main) = split
@@ -201,12 +208,14 @@ class BundleBuilder(
                     makeGRE(GREMessageType.GameStateMessage_695e, main.gameStateId, counter.nextMsgId()) {
                         it.gameStateMessage = main
                     },
+                    buildEchoDiffGsm(counter, main.update),
                 )
             } else {
                 listOf(
                     makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                         it.gameStateMessage = gs
                     },
+                    buildEchoDiffGsm(counter, gs.update),
                 )
             }
 

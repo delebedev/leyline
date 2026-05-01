@@ -43,11 +43,12 @@ class PerformActionRecoveryTest :
 
             session.onPerformAction(performAction { actionType = wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass })
 
-            // postAction emits exactly one GSM + one AAR (plus optional timer start).
-            // autoPassAndAdvance would iterate phases, emitting multiple GSM/AAR pairs.
+            // postAction emits one content GSM + one AAR + one trailing echo
+            // GSM (the post-content empty-diff frame). autoPassAndAdvance
+            // would iterate phases, emitting multiple GSM/AAR pairs.
             val gsmCount = sink.messages.count { it.hasGameStateMessage() }
             val aarCount = sink.messages.count { it.hasActionsAvailableReq() }
-            gsmCount shouldBe 1
+            gsmCount shouldBe 2
             aarCount shouldBe 1
         }
     })
