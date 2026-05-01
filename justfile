@@ -240,6 +240,47 @@ docs filter="":
 seed-db: (_require classpath) check-java
     @{{_cli}} leyline.cli.SeedDb
 
+# --- Sim-client (synthetic GRE log generation) ---
+
+# Run simclient batch with optional matrix overrides + ingest results into ~/.scry/games/.
+#
+# Args:
+#   decks  — comma-separated deck names; built-ins or `<name>` for data/decks/<name>.txt.
+#            Default: forest-only,bears,mono-g-curve,mono-r-burn
+#   seeds  — comma-separated longs OR `start..end` range (inclusive).
+#            Default: 7,13,42,99,314
+#
+# Examples:
+#   just simclient
+#   just simclient mono-r-burn 1..20
+#   just simclient "Auras,Black aggro" "1,2,3"
+#
+# Output: matchdoor/build/simclient/*.log + .meta.json (source: simclient).
+# Logs are copied into ~/.scry/games/ so scry-ts (with --source simclient) can
+# read them alongside other saved games.
+[group('simclient')]
+simclient decks="" seeds="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{project_dir}}"
+    if [ -n "{{decks}}" ]; then export SIMCLIENT_DECKS="{{decks}}"; fi
+    if [ -n "{{seeds}}" ]; then export SIMCLIENT_SEEDS="{{seeds}}"; fi
+    src="matchdoor/build/simclient"
+    # Clear prior outputs so the ingest step only picks up the current run.
+    if [ -d "$src" ]; then trash "$src" 2>/dev/null || rm -rf "$src"; fi
+    ./gradlew :matchdoor:simclient
+    out="${HOME}/.scry/games"
+    mkdir -p "$out"
+    n=0
+    for f in "$src"/*.log; do
+        [ -e "$f" ] || continue
+        base=$(basename "$f" .log)
+        cp "$f" "$out/${base}.log"
+        cp "${src}/${base}.meta.json" "$out/${base}.meta.json" 2>/dev/null || true
+        n=$((n+1))
+    done
+    echo "Sim-client: $n game(s) ingested into $out (source: simclient)"
+
 # --- Serve ---
 
 # default dev mode: local FD + local MD

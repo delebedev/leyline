@@ -260,6 +260,43 @@ class ScryETBFlowTest :
             libCards.shouldNotBeEmpty()
         }
 
+        test("ETB trigger emits TriggeringObject persistent annotation, deleted on resolve") {
+            val h = setup()
+            h.playLand().shouldBeTrue()
+            val req = h.castSpellUntilGroupReq("Wall of Runes")
+
+            // Auto-pass defers the resolution bundle until after the scry
+            // GroupReq completes. The ETB trigger ability is created AND
+            // resolved in that same bundle, so TriggeringObject lands in
+            // persistentAnnotations and its id appears in
+            // diffDeletedPersistentAnnotationIds within the same flush.
+            val resolveSnap = h.messageSnapshot()
+            h.respondToScry(bottomInstanceIds = req.instanceIdsList, allInstanceIds = req.instanceIdsList)
+            val resolveMessages = h.messagesSince(resolveSnap)
+
+            val triggering =
+                resolveMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
+                    .firstOrNull { ann -> AnnotationType.TriggeringObject in ann.typeList }
+            triggering.shouldNotBeNull()
+            assertSoftly {
+                triggering.affectedIdsList.shouldNotBeEmpty()
+                // Wall of Runes' ETB triggers from the battlefield — assert the
+                // value, not just presence, so the snap-diff path's accurate
+                // sourceZoneId doesn't silently regress to the event-path
+                // BATTLEFIELD-fallback (leyline-w9ij).
+                triggering.detailInt("source_zone") shouldBe leyline.game.mapping.ZoneIds.BATTLEFIELD
+            }
+
+            val deletedIds =
+                resolveMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.diffDeletedPersistentAnnotationIdsList }
+                    .toSet()
+            (triggering.id in deletedIds).shouldBeTrue()
+        }
+
         test("full scry flow state validity") {
             val h = setup()
             h.playLand().shouldBeTrue()

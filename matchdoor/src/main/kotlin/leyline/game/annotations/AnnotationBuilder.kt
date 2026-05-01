@@ -207,6 +207,37 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.CAST_ABILITY_GRP_ID, castAbilityGrpId.value))
             .build()
 
+    /** CastingTimeOption type=3 (Kicker) — spell cast with kicker paid.
+     *  kickerAbilityGrpId carries the per-card Kicker ability grpId. */
+    fun castingTimeOptionKicker(
+        stackInstanceId: InstanceId,
+        kickerAbilityGrpId: GrpId,
+        castAbilityGrpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.CastingTimeOption)
+            .setAffectorId(stackInstanceId.value)
+            .addAffectedIds(stackInstanceId.value)
+            .addDetails(int32Detail(DetailKeys.TYPE, CastingTimeOptionType.Kicker.number))
+            .addDetails(int32Detail(DetailKeys.KICKER_ABILITY_GRP_ID, kickerAbilityGrpId.value))
+            .addDetails(int32Detail(DetailKeys.CAST_ABILITY_GRP_ID, castAbilityGrpId.value))
+            .build()
+
+    /** CastingTimeOption type=2 (ChooseX_a7b4) — spell cast with chosen X value. */
+    fun castingTimeOptionChooseX(
+        stackInstanceId: InstanceId,
+        value: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.CastingTimeOption)
+            .setAffectorId(stackInstanceId.value)
+            .addAffectedIds(stackInstanceId.value)
+            .addDetails(int32Detail(DetailKeys.TYPE, CastingTimeOptionType.ChooseX_a7b4.number))
+            .addDetails(int32Detail(DetailKeys.VALUE, value))
+            .build()
+
     /**
      * Mana was spent to pay for a spell/ability.
      * [spellInstanceId] = the spell/ability instance that consumed the mana (affectedIds).
@@ -1013,19 +1044,29 @@ object AnnotationBuilder {
             .addAffectedIds(effectId.value)
             .build()
 
-    /** Player is selecting targets for a spell/ability. client type 92. */
-    fun playerSelectingTargets(instanceId: InstanceId): AnnotationInfo =
+    /** Player is selecting targets for a spell/ability. client type 92.
+     *  affectorId = caster seatId; affectedIds = [spellInstanceIdOnStack]. */
+    fun playerSelectingTargets(
+        instanceId: InstanceId,
+        casterSeatId: SeatId,
+    ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.PlayerSelectingTargets)
+            .setAffectorId(casterSeatId.value)
             .addAffectedIds(instanceId.value)
             .build()
 
-    /** Player submitted target selections. client type 93. */
-    fun playerSubmittedTargets(instanceId: InstanceId): AnnotationInfo =
+    /** Player submitted target selections. client type 93.
+     *  affectorId = caster seatId; affectedIds = [spellInstanceIdOnStack]. */
+    fun playerSubmittedTargets(
+        instanceId: InstanceId,
+        casterSeatId: SeatId,
+    ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.PlayerSubmittedTargets)
+            .setAffectorId(casterSeatId.value)
             .addAffectedIds(instanceId.value)
             .build()
 

@@ -91,6 +91,13 @@ sealed interface GameEvent {
         val isTrigger: Boolean = false,
         /** Forge SpellAbility id when [isTrigger] — used to mint the stack-ability instanceId. */
         val abilityForgeId: Int = 0,
+        /** Non-zero when the cast paid Kicker. The per-card kicker ability grpId
+         *  (looked up via cardRepository.findKeywordAbilityGrpId on KICKER base).
+         *  Drives the persistent CastingTimeOption type=Kicker annotation. */
+        val kickerAbilityGrpId: Int = 0,
+        /** Non-zero when the cast chose an X value. Drives the persistent
+         *  CastingTimeOption type=ChooseX_a7b4 annotation with this value. */
+        val chosenX: Int = 0,
     ) : GameEvent
 
     /** A spell was placed on the stack before costs were paid.

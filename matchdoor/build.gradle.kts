@@ -123,11 +123,34 @@ val profileTest by tasks.registering(Test::class) {
 
 val testGate by tasks.registering(Test::class) {
     configureTestDefaults()
-    systemProperty("kotest.tags", "UnitTag | ConformanceTag")
+    // Exclude SimClientTag — those are slow log-generation runs, opt-in via
+    // the dedicated `:simclient` task.
+    systemProperty("kotest.tags", "(UnitTag | ConformanceTag) & !SimClientTag")
     systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "8"))
     // Kotest spec-level parallelism: 136 small suites, JVM-fork overhead
     // would dominate. In-JVM concurrency at 8 = ~25-27s (was ~33s serial).
     // Forge's static MyRandom race guarded by ConformanceTestBase.RNG_LOCK.
+}
+
+// Sim-client log generation. Drives full games via real MatchSession + bridge,
+// emits scry-ts-shaped Player.log lines under build/simclient/, with sidecars
+// tagging source: simclient. Slow — not part of the regular gate.
+//
+// Configure the matrix via env vars:
+//   SIMCLIENT_DECKS=mono-r-burn       (default: forest-only,bears,mono-g-curve,mono-r-burn)
+//   SIMCLIENT_SEEDS=1..50             (default: 7,13,42,99,314)
+val simclient by tasks.registering(Test::class) {
+    configureTestDefaults()
+    systemProperty("kotest.tags", "SimClientTag")
+    // Forge's static MyRandom forces serial execution.
+    maxParallelForks = 1
+    listOf("SIMCLIENT_DECKS", "SIMCLIENT_SEEDS", "LEYLINE_CARD_DB").forEach { name ->
+        environment(name, System.getenv(name) ?: "")
+    }
+    // Always re-execute — the matrix is env-driven, not source-driven, so
+    // gradle's input fingerprint can't tell when we want a different run.
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
 }
 
 powerAssert {

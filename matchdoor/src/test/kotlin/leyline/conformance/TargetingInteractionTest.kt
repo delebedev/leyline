@@ -230,6 +230,57 @@ class TargetingInteractionTest :
             (preBoltAiLife - ai.life) shouldBe 3
         }
 
+        // ─── PST / PSuT lifecycle annotations ──────────────────────────────────
+
+        test("Lightning Bolt — PST on cast frame, PSuT on submit frame") {
+            startPuzzleFile("puzzles/bolt-face.pzl")
+
+            val castSnap = messageSnapshot()
+            castSpellByName("Lightning Bolt").shouldBeTrue()
+            val castMessages = messagesSince(castSnap)
+
+            val selectTargetsReq = castMessages.firstOrNull { it.hasSelectTargetsReq() }
+            selectTargetsReq.shouldNotBeNull()
+            val stackIid = selectTargetsReq.selectTargetsReq.sourceId
+
+            // PST rides on the GSM that pairs with SelectTargetsReq — same gsId,
+            // affectorId = caster seat, affectedIds = [stackIid].
+            val pstFrame =
+                castMessages
+                    .filter { it.hasGameStateMessage() && it.gameStateId == selectTargetsReq.gameStateId }
+                    .map { it.gameStateMessage }
+                    .firstOrNull { gsm ->
+                        gsm.annotationsList.any { AnnotationType.PlayerSelectingTargets in it.typeList }
+                    }
+            pstFrame.shouldNotBeNull()
+            val pst = pstFrame.annotationsList.first { AnnotationType.PlayerSelectingTargets in it.typeList }
+            assertSoftly {
+                pst.affectorId shouldBe HUMAN_SEAT
+                pst.affectedIdsList shouldContain stackIid
+                pst.detailsCount shouldBe 0
+            }
+
+            // Submit + drive the engine to the next frame; PSuT lands on the
+            // GSM following SubmitTargetsReq with the same shape as PST.
+            val submitSnap = messageSnapshot()
+            selectTargets(listOf(OPPONENT_SEAT))
+            val submitMessages = messagesSince(submitSnap)
+            val psutFrame =
+                submitMessages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .firstOrNull { gsm ->
+                        gsm.annotationsList.any { AnnotationType.PlayerSubmittedTargets in it.typeList }
+                    }
+            psutFrame.shouldNotBeNull()
+            val psut = psutFrame.annotationsList.first { AnnotationType.PlayerSubmittedTargets in it.typeList }
+            assertSoftly {
+                psut.affectorId shouldBe HUMAN_SEAT
+                psut.affectedIdsList shouldContain stackIid
+                psut.detailsCount shouldBe 0
+            }
+        }
+
         // ─── Two-phase targeting protocol ──────────────────────────────────────
 
         val twoPhaseBoltState =

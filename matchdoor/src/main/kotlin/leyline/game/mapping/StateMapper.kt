@@ -529,6 +529,32 @@ object StateMapper {
                 ?.map { fid -> bridge.getOrAllocInstanceId(fid).value }
                 ?.toSet()
                 ?: emptySet()
+        // Stack contents (cards) plus stack-resident Ability gameObjects — both
+        // can be the affector of a TriggeringObject. The Ability instance ids
+        // are synthetic (sourceCardForgeId + STACK_ABILITY_ID_OFFSET) and don't
+        // appear in the snapshot's zone contents; mirror the
+        // [ZoneMapper.addStackAbilitiesFromSnapshot] derivation. Pre-realloc
+        // card iids only — see leyline-ucbf for the resolver that would
+        // unify pre/post-realloc views.
+        val stackIids: Set<Int> =
+            buildSet {
+                val cardIidsInStack = mutableSetOf<Int>()
+                snap.zones[ZoneIds.STACK]?.contents?.forEach { fid ->
+                    val iid = bridge.getOrAllocInstanceId(fid).value
+                    cardIidsInStack += iid
+                    add(iid)
+                }
+                for (entry in snap.stack.entries) {
+                    val cardIid = bridge.getOrAllocInstanceId(entry.forgeCardId).value
+                    if (cardIid in cardIidsInStack) continue
+                    val abilityIid =
+                        bridge
+                            .getOrAllocInstanceId(
+                                ForgeCardId(entry.forgeCardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET),
+                            ).value
+                    add(abilityIid)
+                }
+            }
         val controllerOf: Map<Int, SeatId> =
             snap.boundCards.values.associate { bound ->
                 bridge.getOrAllocInstanceId(bound.forgeCardId).value to bound.snapshot.controller
@@ -539,6 +565,7 @@ object StateMapper {
                 activePlayerSeat = snap.phase.activePlayer,
                 battlefieldIids = battlefieldIids,
                 controllerOf = controllerOf,
+                stackIids = stackIids,
             )
         val remaining =
             computeRemainingAnnotations(
@@ -1119,6 +1146,13 @@ object StateMapper {
                     a.sourceZoneId,
                 ),
             )
+            transferPersistent.add(
+                AnnotationBuilder.triggeringObject(
+                    abilityInstanceId = InstanceId(a.abilityInstanceId),
+                    sourceCardInstanceId = InstanceId(a.sourceCardInstanceId),
+                    sourceZone = a.sourceZoneId,
+                ),
+            )
         }
         val snapshotDisappearanceIids = transferResult.stackAbilityDisappearances.map { it.abilityInstanceId }.toSet()
         // Event-driven trigger lifecycle. With auto-pass on the local turn the
@@ -1184,15 +1218,14 @@ object StateMapper {
                     ).value
             val sourceZone = currentSourceZoneId(cast.cardId, bridge)
 
-            if (sourceCardIid !in snapshotSourceIids) {
-                annotations.add(
-                    AnnotationBuilder.abilityInstanceCreated(
-                        InstanceId(abilityIid),
-                        InstanceId(sourceCardIid),
-                        sourceZone,
-                    ),
-                )
-            }
+            if (sourceCardIid in snapshotSourceIids) continue
+            annotations.add(
+                AnnotationBuilder.abilityInstanceCreated(
+                    InstanceId(abilityIid),
+                    InstanceId(sourceCardIid),
+                    sourceZone,
+                ),
+            )
             transferPersistent.add(
                 AnnotationBuilder.triggeringObject(
                     abilityInstanceId = InstanceId(abilityIid),
