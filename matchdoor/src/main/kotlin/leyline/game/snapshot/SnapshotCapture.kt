@@ -652,8 +652,13 @@ object SnapshotCapture {
             game.registeredPlayers.flatMap {
                 it.getZone(ForgeZoneType.Battlefield).cards.toList()
             }
+        val handCards =
+            game.registeredPlayers.flatMap {
+                it.getZone(ForgeZoneType.Hand).cards.toList()
+            }
         return AbilityWordScanner.scan(
             battlefieldCards = bfCards,
+            handCards = handCards,
             instanceIdResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
             registryResolver = { card ->
                 val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0

@@ -380,6 +380,80 @@ class AbilityWordScannerTest :
             results.filter { it.abilityWordName == "LifeGainedThisTurn" }.shouldBeEmpty()
         }
 
+        test("Raid card in hand after declaring an attacker emits keyword-only AbilityWordActive on the hand iid") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Rigging Runner", human, ZoneType.Hand)
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val ai = game.registeredPlayers.first { it != human }
+            val attacker =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Grizzly Bears" }
+            human.addCreaturesAttackedThisTurn(attacker, ai)
+
+            val runner =
+                human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.name == "Rigging Runner" }
+            val runnerIid = b.getOrAllocInstanceId(ForgeCardId(runner.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    handCards = human.getZone(ZoneType.Hand).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+
+            val raid = results.firstOrNull { it.abilityWordName == "Raid" }
+            assertSoftly {
+                raid.shouldNotBeNull()
+                raid.affectorId shouldBe 1
+                raid.affectedIds shouldContain runnerIid
+            }
+        }
+
+        test("Infusion card in hand with life gained emits Infusion marker + LifeGainedThisTurn helper on hand iid") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Poisoner's Apprentice", human, ZoneType.Hand)
+                }
+            val human = game.humanPlayer
+            human.lifeGainedThisTurn = 4
+            val pois =
+                human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.name == "Poisoner's Apprentice" }
+            val poisIid = b.getOrAllocInstanceId(ForgeCardId(pois.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = emptyList(),
+                    handCards = human.getZone(ZoneType.Hand).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { card ->
+                        val grpId = b.cardRepository.findGrpIdByName(card.name) ?: 0
+                        b.abilityRegistryFor(card, b.cardRepository.findByGrpId(grpId))
+                    },
+                )
+
+            val marker = results.firstOrNull { it.abilityWordName == "Infusion" }
+            val helper = results.firstOrNull { it.abilityWordName == "LifeGainedThisTurn" }
+            assertSoftly {
+                marker.shouldNotBeNull()
+                marker.affectedIds shouldContain poisIid
+                helper.shouldNotBeNull()
+                helper.value shouldBe 4
+                helper.affectedIds shouldContain poisIid
+            }
+        }
+
         test("Raid card after declaring an attacker emits keyword-only AbilityWordActive") {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->

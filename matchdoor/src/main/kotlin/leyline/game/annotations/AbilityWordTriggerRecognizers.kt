@@ -9,22 +9,31 @@ import leyline.game.state.AbilityRegistry
 /**
  * Text-pattern recognizers for ability-word families that don't surface as Forge
  * `Condition$` rows. Detection is by `<AbilityWord> —` (em dash, U+2014) prefix on
- * a card's `TriggerDescription$` / `Description$` / keyword text, since the
- * ability-word label is the canonical handle in Forge card text.
+ * a card's `TriggerDescription$` / `Description$` / `SpellDescription$` /
+ * `PrecostDesc$` / keyword text / printed body text, since the ability-word label
+ * is the canonical handle in Forge card text.
  *
- * Per-word evaluators register through [register] and decide whether to emit an
- * [AbilityWordScanner.AbilityWordEntry] given the card, its controller, and a
- * computed instance id + seat index. Each evaluator owns its own gating
- * (e.g. attacked-this-turn for Raid, life-gained-this-turn for Infusion).
+ * Three registration shapes:
+ *
+ * - [register] — per-card emission on battlefield only. Each matching source emits
+ *   its own annotation. Use when one annotation per source is the right shape
+ *   (Flurry: count tracker on the battlefield permanent).
+ * - [registerPerController] — per-controller-aggregated emission on battlefield only.
+ *   One annotation per controller with all matching battlefield sources in
+ *   `affectedIds`. Use for activated-ability or end-step ability words on resident
+ *   permanents (Coven, Disappear).
+ * - [registerAcrossZones] — per-controller-aggregated across hand + battlefield, plus
+ *   optional per-source helper entries. Use for ETB-conditional ability words where
+ *   the badge shows on the hand card pre-cast (Raid, Infusion).
  *
  * Same fixture-evidence rule as [AbilityWordScanner.CONDITIONS]: only register
  * recognizers whose emission contents are exercised by a puzzle fixture plus a
- * `ConformanceTag` test asserting the expected annotation shape.
+ * `ConformanceTag` test asserting the expected annotation contents.
  */
 object AbilityWordTriggerRecognizers {
     private const val EM_DASH = '—'
 
-    /** Per-word evaluator. Returns zero or more entries to emit for the given card. */
+    /** Per-card evaluator. Returns zero or more entries to emit for the given card. */
     fun interface Recognizer {
         fun evaluate(
             card: Card,
@@ -44,8 +53,33 @@ object AbilityWordTriggerRecognizers {
         fun isActive(controller: Player): Boolean
     }
 
+    /**
+     * Across-zones evaluator: per-controller-aggregated keyword-only marker (gated by
+     * [shouldEmitMarker]) plus optional per-source helper entries (emitted regardless
+     * of marker gate, but only for sources matching the ability word). Sources are
+     * collected from both hand and battlefield.
+     */
+    interface AcrossZonesEvaluator {
+        /** Whether the per-controller keyword-only marker should be emitted. */
+        fun shouldEmitMarker(controller: Player): Boolean = true
+
+        /**
+         * Per-source extra entries to emit (e.g. quantitative helper annotations).
+         * Default: none. Override for words like Infusion that emit a `LifeGainedThisTurn`
+         * helper alongside the marker.
+         */
+        fun perSourceEntries(
+            card: Card,
+            controller: Player,
+            iid: Int,
+            seatIdx: Int,
+            registry: AbilityRegistry?,
+        ): List<AbilityWordScanner.AbilityWordEntry> = emptyList()
+    }
+
     private val recognizers = mutableMapOf<String, Recognizer>()
     private val controllerGates = mutableMapOf<String, ControllerGate>()
+    private val acrossZonesEvaluators = mutableMapOf<String, AcrossZonesEvaluator>()
 
     /** Test whether `<word> —` appears in any trigger / static / activated / keyword description. */
     fun cardHasAbilityWordPrefix(
@@ -72,6 +106,11 @@ object AbilityWordTriggerRecognizers {
         for (kw in card.keywords ?: emptyList()) {
             if (kw.toString().contains(needle)) return true
         }
+        // Card-text fallback covers ability words encoded on keywords whose runtime
+        // representation doesn't survive zone transitions (e.g. etbCounter after ETB)
+        // and any other body-text-only carriers.
+        val text = card.oracleText
+        if (text != null && text.contains(needle)) return true
         return false
     }
 
@@ -79,11 +118,14 @@ object AbilityWordTriggerRecognizers {
         battlefieldCards: List<Card>,
         instanceIdResolver: (ForgeCardId) -> InstanceId,
         registryResolver: (Card) -> AbilityRegistry?,
+        handCards: List<Card> = emptyList(),
     ): List<AbilityWordScanner.AbilityWordEntry> {
-        if (recognizers.isEmpty() && controllerGates.isEmpty()) return emptyList()
+        if (recognizers.isEmpty() && controllerGates.isEmpty() && acrossZonesEvaluators.isEmpty()) {
+            return emptyList()
+        }
         val results = mutableListOf<AbilityWordScanner.AbilityWordEntry>()
 
-        // Per-card recognizers.
+        // Per-card recognizers (battlefield only).
         for (card in battlefieldCards) {
             val controller = card.controller ?: continue
             val iid = instanceIdResolver(ForgeCardId(card.id)).value
@@ -95,7 +137,7 @@ object AbilityWordTriggerRecognizers {
             }
         }
 
-        // Per-controller gates: aggregate sources per controller, emit once when active.
+        // Per-controller gates (battlefield only): aggregate sources, emit once when gate is active.
         if (controllerGates.isNotEmpty()) {
             for ((word, gate) in controllerGates) {
                 val sourcesBySeat = mutableMapOf<Int, MutableList<Int>>()
@@ -124,6 +166,52 @@ object AbilityWordTriggerRecognizers {
             }
         }
 
+        // Across-zones evaluators (hand + battlefield): aggregate sources per controller for the
+        // marker, then collect per-source helper entries.
+        if (acrossZonesEvaluators.isNotEmpty()) {
+            data class Source(
+                val card: Card,
+                val iid: Int,
+                val controller: Player,
+                val seatIdx: Int,
+            )
+
+            for ((word, evaluator) in acrossZonesEvaluators) {
+                val sourcesBySeat = mutableMapOf<Int, MutableList<Source>>()
+                val collect: (Card) -> Unit = collect@{ card ->
+                    if (!cardHasAbilityWordPrefix(card, word)) return@collect
+                    val controller = card.controller ?: return@collect
+                    val seatIdx = controller.game.registeredPlayers.indexOf(controller) + 1
+                    val iid = instanceIdResolver(ForgeCardId(card.id)).value
+                    sourcesBySeat
+                        .getOrPut(seatIdx) { mutableListOf() }
+                        .add(Source(card, iid, controller, seatIdx))
+                }
+                battlefieldCards.forEach(collect)
+                handCards.forEach(collect)
+
+                for ((seatIdx, sources) in sourcesBySeat) {
+                    val controller = sources.first().controller
+                    if (evaluator.shouldEmitMarker(controller)) {
+                        results.add(
+                            AbilityWordScanner.AbilityWordEntry(
+                                instanceId = seatIdx,
+                                abilityWordName = word,
+                                affectorId = seatIdx,
+                                affectedIds = sources.map { it.iid },
+                            ),
+                        )
+                    }
+                    for (s in sources) {
+                        val registry = registryResolver(s.card)
+                        results.addAll(
+                            evaluator.perSourceEntries(s.card, s.controller, s.iid, s.seatIdx, registry),
+                        )
+                    }
+                }
+            }
+        }
+
         return results
     }
 
@@ -141,24 +229,25 @@ object AbilityWordTriggerRecognizers {
         controllerGates[word] = gate
     }
 
-    init {
-        // Raid — keyword-only marker. Active while controller has attacked with a creature this turn.
-        register("Raid") { _, controller, iid, seatIdx, _ ->
-            if (controller.creaturesAttackedThisTurn.isEmpty()) {
-                emptyList()
-            } else {
-                listOf(
-                    AbilityWordScanner.AbilityWordEntry(
-                        instanceId = iid,
-                        abilityWordName = "Raid",
-                        affectorId = seatIdx,
-                        affectedIds = listOf(iid),
-                    ),
-                )
-            }
-        }
+    internal fun registerAcrossZones(
+        word: String,
+        evaluator: AcrossZonesEvaluator,
+    ) {
+        acrossZonesEvaluators[word] = evaluator
+    }
 
-        // Flurry — quantitative spell-count marker. Always emitted while a Flurry source is in play.
+    init {
+        // Raid — per-controller keyword-only marker across hand + battlefield.
+        // Active while controller has attacked with a creature this turn. The badge
+        // shows on hand cards pre-cast so the player can see the bonus is active.
+        registerAcrossZones(
+            "Raid",
+            object : AcrossZonesEvaluator {
+                override fun shouldEmitMarker(controller: Player): Boolean = controller.creaturesAttackedThisTurn.isNotEmpty()
+            },
+        )
+
+        // Flurry — quantitative spell-count marker on the battlefield-resident source.
         // value = spells cast this turn by controller; threshold = 2 (the trigger fires on second spell).
         register("Flurry") { _, controller, iid, seatIdx, _ ->
             listOf(
@@ -187,40 +276,42 @@ object AbilityWordTriggerRecognizers {
             controller.hasRevolt()
         }
 
-        // Infusion — keyword marker plus a LifeGainedThisTurn quantitative helper.
-        // The marker is always-on while a source is in play. The helper rides the Infusion
+        // Infusion — per-controller marker across hand + battlefield (always-on while sources exist),
+        // plus a per-source LifeGainedThisTurn quantitative helper. The helper rides the Infusion
         // ability id (looked up via registry from the trigger whose description carries the
         // 'Infusion —' prefix) and is omitted when no life has been gained this turn.
-        register("Infusion") { card, controller, iid, seatIdx, registry ->
-            val out = mutableListOf<AbilityWordScanner.AbilityWordEntry>()
-            out.add(
-                AbilityWordScanner.AbilityWordEntry(
-                    instanceId = iid,
-                    abilityWordName = "Infusion",
-                    affectorId = seatIdx,
-                    affectedIds = listOf(iid),
-                ),
-            )
-            val lifeGained = controller.lifeGainedThisTurn
-            if (lifeGained > 0) {
-                val infusionTrigger =
-                    card.triggers?.firstOrNull { t ->
-                        val desc = t.getParam("TriggerDescription") ?: return@firstOrNull false
-                        desc.startsWith("Infusion $EM_DASH")
-                    }
-                val abilityGrpId = infusionTrigger?.let { registry?.forTrigger(it.id)?.takeIf { id -> id > 0 } }
-                out.add(
-                    AbilityWordScanner.AbilityWordEntry(
-                        instanceId = iid,
-                        abilityWordName = "LifeGainedThisTurn",
-                        value = lifeGained,
-                        abilityGrpId = abilityGrpId,
-                        affectorId = seatIdx,
-                        affectedIds = listOf(iid),
-                    ),
-                )
-            }
-            out
-        }
+        registerAcrossZones(
+            "Infusion",
+            object : AcrossZonesEvaluator {
+                override fun shouldEmitMarker(controller: Player): Boolean = true
+
+                override fun perSourceEntries(
+                    card: Card,
+                    controller: Player,
+                    iid: Int,
+                    seatIdx: Int,
+                    registry: AbilityRegistry?,
+                ): List<AbilityWordScanner.AbilityWordEntry> {
+                    val lifeGained = controller.lifeGainedThisTurn
+                    if (lifeGained <= 0) return emptyList()
+                    val infusionTrigger =
+                        card.triggers?.firstOrNull { t ->
+                            val desc = t.getParam("TriggerDescription") ?: return@firstOrNull false
+                            desc.startsWith("Infusion $EM_DASH")
+                        }
+                    val abilityGrpId = infusionTrigger?.let { registry?.forTrigger(it.id)?.takeIf { id -> id > 0 } }
+                    return listOf(
+                        AbilityWordScanner.AbilityWordEntry(
+                            instanceId = iid,
+                            abilityWordName = "LifeGainedThisTurn",
+                            value = lifeGained,
+                            abilityGrpId = abilityGrpId,
+                            affectorId = seatIdx,
+                            affectedIds = listOf(iid),
+                        ),
+                    )
+                }
+            },
+        )
     }
 }
