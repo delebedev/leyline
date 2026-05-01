@@ -24,8 +24,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  *
  * The persistent-side Designation annotations (carried across GSMs) live in
  * [leyline.game.state.PersistentAnnotationStore] and are NOT part of this
- * table — per-kind persistent emit + identity rules belong to the kind
- * registry (S6.A, leyline-ju0e).
+ * table — per-kind persistent emit + identity rules live on
+ * [leyline.game.state.PreparedDesignationKind] /
+ * [leyline.game.state.PlottedDesignationKind] in the kind registry.
  */
 
 enum class DesignationKind {
