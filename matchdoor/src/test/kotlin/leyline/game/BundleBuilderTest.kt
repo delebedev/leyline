@@ -176,6 +176,8 @@ class BundleBuilderTest :
                 pureBB().buildOptionalCostCastingTimeOptionsReq(
                     instanceId = 240,
                     optionalCosts = listOf(Messages.CastingTimeOptionType.AdditionalCost to 173850),
+                    playerIdToPrompt = 1,
+                    baseManaCost = listOf(Messages.ManaColor.Blue_afc9 to 1),
                 )
 
             ids shouldBe listOf(1)
@@ -185,6 +187,7 @@ class BundleBuilderTest :
                 opt.ctoId shouldBe 1
                 opt.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.AdditionalCost
                 opt.grpId shouldBe 173850
+                opt.playerIdToPrompt shouldBe 1
                 opt.affectedId shouldBe 240
                 opt.affectorId shouldBe 240
                 req.getCastingTimeOptionReq(1).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Done
@@ -205,6 +208,8 @@ class BundleBuilderTest :
                             Messages.CastingTimeOptionType.Bargain to 303,
                             Messages.CastingTimeOptionType.AdditionalCost to 173931,
                         ),
+                    playerIdToPrompt = 1,
+                    baseManaCost = listOf(Messages.ManaColor.Generic to 1, Messages.ManaColor.Blue_afc9 to 1),
                 )
 
             assertSoftly {
@@ -225,6 +230,8 @@ class BundleBuilderTest :
                 pureBB().buildOptionalCostCastingTimeOptionsReq(
                     instanceId = 100,
                     optionalCosts = emptyList(),
+                    playerIdToPrompt = 1,
+                    baseManaCost = emptyList(),
                 )
             assertSoftly {
                 ids shouldBe emptyList<Int>()
@@ -232,6 +239,7 @@ class BundleBuilderTest :
                 req.getCastingTimeOptionReq(0).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Done
             }
         }
+
 
         test("buildModalCastingTimeOptionsReq — modalCosts shorter than childGrpIds drops late costs") {
             // Documents the parallel-list invariant: caller is expected to pass
