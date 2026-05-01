@@ -755,9 +755,21 @@ class TargetingHandler(
                 ?: return false
         sa.setActivatingPlayer(player)
         val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
-        if (optionalCosts.isEmpty()) return false
+        // Keyword-with-cost keywords (Offspring, Replicate, …) ride a separate
+        // Forge dispatch path (`addKeywordCost` → `chooseNumberForKeywordCost`)
+        // but the player-facing surface is identical to OptionalCost — pre-cast
+        // yes/no on an extra mana cost. Surface them through the same CTO emit
+        // here so MTGA renders one combined modal; pull decisions back out of
+        // the journal in CostPaymentCoordinator when Forge prompts.
+        val keywordCostEntries = collectKeywordCostEntries(card)
+        if (optionalCosts.isEmpty() && keywordCostEntries.isEmpty()) return false
 
-        log.info("TargetingHandler: card '{}' has {} optional costs — sending prompt", card.name, optionalCosts.size)
+        log.info(
+            "TargetingHandler: card '{}' has {} optional costs and {} keyword costs — sending prompt",
+            card.name,
+            optionalCosts.size,
+            keywordCostEntries.size,
+        )
 
         // Map each optional cost to (CastingTimeOptionType, abilityGrpId)
         val cardData = bridge.cardRepository.findByGrpId(action.grpId)
@@ -770,7 +782,7 @@ class TargetingHandler(
             } else {
                 0
             }
-        val costEntries =
+        val optionalCostEntries =
             optionalCosts.mapIndexed { i, cost ->
                 val ctoType =
                     when (cost.type) {
@@ -797,18 +809,42 @@ class TargetingHandler(
                 Pair(ctoType, abilityGrpId)
             }
 
+        // Resolve per-keyword ability grpId from cardData. Keyword slots come
+        // first in abilityIds; we look up by keyword name → slot index.
+        val keywordEntries =
+            keywordCostEntries.mapNotNull { kw ->
+                val slot = findKeywordSlot(card, kw.name) ?: return@mapNotNull null
+                val abilityGrpId = cardData?.abilityIds?.getOrNull(slot)?.first ?: 0
+                Triple(CastingTimeOptionType.AdditionalCost, abilityGrpId, kw.name)
+            }
+
+        val combinedCostEntries =
+            optionalCostEntries + keywordEntries.map { (ctoType, gid, _) -> ctoType to gid }
+
         val (ctoReq, costCtoIds) =
             bundles.bundleBuilder.buildOptionalCostCastingTimeOptionsReq(
                 instanceId = action.instanceId,
-                optionalCosts = costEntries,
+                optionalCosts = combinedCostEntries,
             )
 
-        // Stash the Cast action for replay after response
+        // Stash the Cast action for replay after response. Map the trailing
+        // ctoIds (the keyword-cost ones) back to their keyword names so the
+        // response handler knows where to journal each decision.
+        val keywordCtoIdMap =
+            keywordEntries
+                .mapIndexed { idx, (_, _, kwName) ->
+                    val ctoIdx = optionalCostEntries.size + idx
+                    val ctoId = costCtoIds.getOrNull(ctoIdx) ?: return@mapIndexed null
+                    ctoId to kwName
+                }.filterNotNull()
+                .toMap()
+
         pendingInteraction =
             PendingClientInteraction.OptionalCost(
                 pendingActionId = pendingActionId,
                 action = PlayerAction.CastSpell(cardId, castAbilityIndex),
                 costCtoIds = costCtoIds,
+                keywordCostsByCtoId = keywordCtoIdMap,
             )
 
         // Send prompt
@@ -898,6 +934,22 @@ class TargetingHandler(
         // Stash decision for PlayerController.chooseOptionalCosts to read
         val seatBridge = bridge.seat(counters.seatId)
         stashOptionalCostIndices(seatBridge.prompt, acceptedIndices)
+
+        // For keyword-cost entries (Offspring, Replicate, …) record a per-keyword
+        // decision so CostPaymentCoordinator.chooseKeywordCostBinary can answer
+        // when Forge calls addKeywordCost during cost prep. Every known keyword
+        // gets an entry — false (decline) for unselected, true (pay) for the
+        // chosen ctoId.
+        if (pending.keywordCostsByCtoId.isNotEmpty()) {
+            val decisions =
+                pending.keywordCostsByCtoId.values
+                    .associateWith { kwName ->
+                        val kwCtoId = pending.keywordCostsByCtoId.entries.firstOrNull { it.value == kwName }?.key
+                        chosenCtoId == kwCtoId
+                    }
+            seatBridge.prompt.journal.record(PromptSideEffect.KeywordCostStash(decisions))
+            log.info("TargetingHandler: keyword cost decisions stashed: {}", decisions)
+        }
 
         // Now submit the Cast action to the engine
         val actionBridge = seatBridge.action
@@ -1042,6 +1094,51 @@ class TargetingHandler(
         val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
         Tap.outboundTemplate("PayCostsReq(exile-from-grave) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
+    }
+
+    /**
+     * KeywordWithCost entries that surface as pre-cast optional costs in
+     * Forge's keyword-cost dispatch path (`addKeywordCost`), distinct from
+     * the OptionalCostValue enum path. Each entry maps to one
+     * `CastingTimeOptionType_AdditionalCost` CTO option in the combined
+     * cost prompt the client sees at cast time.
+     */
+    private data class KeywordCostEntry(
+        val name: String,
+    )
+
+    private fun collectKeywordCostEntries(card: forge.game.card.Card): List<KeywordCostEntry> {
+        val out = mutableListOf<KeywordCostEntry>()
+        for (ki in card.keywords) {
+            if (ki !is forge.game.keyword.KeywordWithCost) continue
+            val keyword = ki.keyword ?: continue
+            // Whitelist for now: Offspring is the immediate driver. Other
+            // KeywordWithCost variants (Bestow, Disturb, Madness, …) ride
+            // separate cast/alt-cost paths and shouldn't surface as
+            // pre-cast optional cost prompts.
+            if (keyword == forge.game.keyword.Keyword.OFFSPRING) {
+                out += KeywordCostEntry(keyword.toString())
+            }
+        }
+        return out
+    }
+
+    private fun findKeywordSlot(
+        card: forge.game.card.Card,
+        keywordName: String,
+    ): Int? {
+        // Walk card.keywords in iteration order (which matches Forge's slot
+        // layout). Find the index of the named keyword. If the cardData
+        // SlotLayout's `keywordCount` rejects this index, the registry was
+        // built in a different order — treat as missing and let the caller
+        // fall back (entry is dropped from the CTO emit).
+        var i = 0
+        for (ki in card.keywords) {
+            val name = ki.keyword?.toString()
+            if (name == keywordName) return i
+            i++
+        }
+        return null
     }
 
     /**

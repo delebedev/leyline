@@ -777,7 +777,7 @@ class PlayerController(
     ): Int =
         when {
             max <= 0 -> 0
-            max == 1 -> costPaymentCoordinator.chooseKeywordCostBinary(prompt)
+            max == 1 -> costPaymentCoordinator.chooseKeywordCostBinary(prompt, keyword.keyword?.toString())
             // max > 1: getGui().getInteger() is bridged through ClientGuiGame, safe to inherit.
             else -> super.chooseNumberForKeywordCost(sa, cost, keyword, prompt, max)
         }

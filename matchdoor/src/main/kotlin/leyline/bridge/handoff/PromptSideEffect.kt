@@ -34,4 +34,15 @@ sealed interface PromptSideEffect {
     data class OptionalCostStash(
         val indices: List<Int>,
     ) : PromptSideEffect
+
+    /**
+     * Stashed keyword-cost decisions (Offspring, Replicate, etc.) keyed by
+     * canonical keyword name (`KeywordInterface.getKeyword().toString()`).
+     * `true` = pay it, `false` = decline. Consumed by
+     * `CostPaymentCoordinator.chooseKeywordCostBinary` when Forge calls
+     * `addKeywordCost` post-action-submit.
+     */
+    data class KeywordCostStash(
+        val decisionsByKeyword: Map<String, Boolean>,
+    ) : PromptSideEffect
 }

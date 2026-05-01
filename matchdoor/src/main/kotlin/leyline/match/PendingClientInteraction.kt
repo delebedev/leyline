@@ -31,6 +31,14 @@ sealed interface PendingClientInteraction {
         val pendingActionId: String,
         val action: PlayerAction.CastSpell,
         val costCtoIds: List<Int>,
+        /**
+         * Subset of [costCtoIds] that correspond to keyword-cost keywords
+         * (Offspring, Replicate). Maps `ctoId → keyword name` so the
+         * response handler can stash a per-keyword decision for
+         * `CostPaymentCoordinator.chooseKeywordCostBinary` to consume
+         * later when Forge calls `addKeywordCost` during cost prep.
+         */
+        val keywordCostsByCtoId: Map<Int, String> = emptyMap(),
     ) : PendingClientInteraction
 
     data class AlternateCostChoice(

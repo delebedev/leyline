@@ -111,11 +111,27 @@ class CostPaymentCoordinator(
     }
 
     /**
-     * Binary keyword-cost prompt (max == 1, e.g. a single-point strive choice).
-     * For max > 1 the caller keeps `super.chooseNumberForKeywordCost` which
-     * routes through `ClientGuiGame.getInteger`.
+     * Binary keyword-cost prompt (max == 1, e.g. Offspring's "pay the
+     * additional cost?"). When [keywordName] is supplied and a CTO-side
+     * decision is already stashed (set by `TargetingHandler.checkOptionalCosts`
+     * when the player picked from the cost modal), use it — that's the path
+     * that lets MTGA render a proper CastingTimeOptionsReq instead of a bare
+     * confirm prompt. Fall back to the confirm prompt only when no CTO was
+     * sent for this keyword (legacy / dev-harness paths). For max > 1 the
+     * caller keeps `super.chooseNumberForKeywordCost` which routes through
+     * `ClientGuiGame.getInteger`.
      */
-    fun chooseKeywordCostBinary(prompt: String): Int {
+    fun chooseKeywordCostBinary(
+        prompt: String,
+        keywordName: String? = null,
+    ): Int {
+        if (keywordName != null) {
+            val cached = bridge.journal.peekKeywordCostDecision(keywordName)
+            if (cached != null) {
+                log.info("chooseKeywordCostBinary: using stashed decision for keyword={} → {}", keywordName, cached)
+                return if (cached) 1 else 0
+            }
+        }
         val request =
             PromptRequest(
                 promptType = "confirm",
