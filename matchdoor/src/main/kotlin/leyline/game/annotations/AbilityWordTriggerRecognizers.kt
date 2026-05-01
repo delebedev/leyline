@@ -83,4 +83,22 @@ object AbilityWordTriggerRecognizers {
     ) {
         recognizers[word] = recognizer
     }
+
+    init {
+        // Raid — keyword-only marker. Active while controller has attacked with a creature this turn.
+        register("Raid") { _, controller, iid, seatIdx, _ ->
+            if (controller.creaturesAttackedThisTurn.isEmpty()) {
+                emptyList()
+            } else {
+                listOf(
+                    AbilityWordScanner.AbilityWordEntry(
+                        instanceId = iid,
+                        abilityWordName = "Raid",
+                        affectorId = seatIdx,
+                        affectedIds = listOf(iid),
+                    ),
+                )
+            }
+        }
+    }
 }

@@ -159,4 +159,58 @@ class AbilityWordScannerTest :
 
             results.shouldBeEmpty()
         }
+
+        test("Raid card without attack this turn emits no AbilityWordActive") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Rigging Runner", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+            results.filter { it.abilityWordName == "Raid" }.shouldBeEmpty()
+        }
+
+        test("Raid card after declaring an attacker emits keyword-only AbilityWordActive") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Rigging Runner", human, ZoneType.Battlefield)
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val ai = game.registeredPlayers.first { it != human }
+            val attacker =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Grizzly Bears" }
+            human.addCreaturesAttackedThisTurn(attacker, ai)
+
+            val runner =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Rigging Runner" }
+            val runnerIid = b.getOrAllocInstanceId(ForgeCardId(runner.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+
+            val raid = results.firstOrNull { it.abilityWordName == "Raid" }
+            assertSoftly {
+                raid.shouldNotBeNull()
+                raid.affectorId shouldBe 1
+                raid.affectedIds shouldContain runnerIid
+                raid.value shouldBe null
+                raid.threshold shouldBe null
+            }
+        }
     })
