@@ -111,8 +111,10 @@ class BundleBuilder(
         // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
         // in StateMapper Stage 2b — no injection needed here.
 
-        // Re-embed stripped actions into the GSM
-        val gs = GsmBuilder.embedActions(result.gsm, actions, frame, recipientSeatId = seatId)
+        // Re-embed stripped actions into the GSM, then drain any pending
+        // PlayerSubmittedTargets so it lands on the first post-submit frame.
+        val gsWithActions = GsmBuilder.embedActions(result.gsm, actions, frame, recipientSeatId = seatId)
+        val gs = appendPendingPlayerSubmittedTargets(gsWithActions)
 
         // QueuedGSM split disabled: the caster always gets regular GameStateMessage.
         @Suppress("UnusedPrivateProperty")
@@ -180,6 +182,7 @@ class BundleBuilder(
             )
         bridge.applyMutations(result.mutations)
         bridge.diffListener?.invoke(previousSnap, snap, events.events, nextGs, result.gsm)
+        val gs = appendPendingPlayerSubmittedTargets(result.gsm)
 
         // QueuedGSM split disabled (see postAction comment above).
         @Suppress("UnusedPrivateProperty")
@@ -202,7 +205,7 @@ class BundleBuilder(
             } else {
                 listOf(
                     makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                        it.gameStateMessage = result.gsm
+                        it.gameStateMessage = gs
                     },
                 )
             }
@@ -269,19 +272,20 @@ class BundleBuilder(
             }
 
         // Embed actions WITHOUT pendingMessageCount (no follow-up message expected)
-        val gs = gsWithAnnotations.toBuilder()
+        val gsBuilder = gsWithAnnotations.toBuilder()
         for (action in actions.actionsList) {
-            gs.addActions(
+            gsBuilder.addActions(
                 ActionInfo
                     .newBuilder()
                     .setSeatId(seatId)
                     .setAction(ActionMapper.stripActionForGsm(action)),
             )
         }
+        val gs = appendPendingPlayerSubmittedTargets(gsBuilder.build())
 
         val content =
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                it.gameStateMessage = gs.build()
+                it.gameStateMessage = gs
             }
         val echo = buildEchoDiffGsm(counter, GameStateUpdate.SendHiFi)
 
@@ -747,7 +751,7 @@ class BundleBuilder(
             )
         bridge.applyMutations(targetsResult.mutations)
         bridge.diffListener?.invoke(previousSnap, snap, events.events, nextGs, targetsResult.gsm)
-        val gs = targetsResult.gsm
+        val gs = appendPlayerSelectingTargets(targetsResult.gsm, prompt)
         val msg1 =
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                 it.gameStateMessage = gs
@@ -1683,6 +1687,43 @@ class BundleBuilder(
     }
 
     /** Build a single GRE message. */
+    /**
+     * Append PlayerSelectingTargets to the GSM that pairs with SelectTargetsReq.
+     * No-op if the prompt has no source entity (defensive — should not happen
+     * for a real targeting prompt). Source iid resolution mirrors
+     * [RequestBuilder.buildSelectTargetsReq].
+     */
+    private fun appendPlayerSelectingTargets(
+        gsm: GameStateMessage,
+        prompt: InteractivePromptBridge.PendingPrompt,
+    ): GameStateMessage {
+        val sourceEntityId = prompt.request.sourceEntityId ?: return gsm
+        val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId))
+        val annotation =
+            AnnotationBuilder
+                .playerSelectingTargets(sourceIid, SeatId(seatId))
+                .toBuilder()
+                .setId(bridge.nextAnnotationId())
+                .build()
+        return gsm.toBuilder().addAnnotations(annotation).build()
+    }
+
+    /**
+     * Drain a queued PlayerSubmittedTargets and append to the GSM. Bundle methods
+     * that build a diff call this after `buildDiff` so PSuT lands as the first
+     * annotation on the post-submit frame, matching the canonical slot ordering.
+     */
+    private fun appendPendingPlayerSubmittedTargets(gsm: GameStateMessage): GameStateMessage {
+        val pending = cursor.drainPSuT() ?: return gsm
+        val annotation =
+            AnnotationBuilder
+                .playerSubmittedTargets(pending.spellInstanceId, pending.casterSeatId)
+                .toBuilder()
+                .setId(bridge.nextAnnotationId())
+                .build()
+        return gsm.toBuilder().addAnnotations(annotation).build()
+    }
+
     private fun makeGRE(
         type: GREMessageType,
         gsId: Int,

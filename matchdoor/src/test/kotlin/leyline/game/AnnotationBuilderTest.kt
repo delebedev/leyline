@@ -842,18 +842,20 @@ class AnnotationBuilderTest :
         }
 
         test("playerSelectingTargetsFields") {
-            val ann = AnnotationBuilder.playerSelectingTargets(instanceId = 303.iid)
+            val ann = AnnotationBuilder.playerSelectingTargets(instanceId = 303.iid, casterSeatId = 2.sid)
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.PlayerSelectingTargets
+                ann.affectorId shouldBe 2
                 ann.affectedIdsList shouldContain 303
                 ann.detailsCount shouldBe 0
             }
         }
 
         test("playerSubmittedTargetsFields") {
-            val ann = AnnotationBuilder.playerSubmittedTargets(instanceId = 303.iid)
+            val ann = AnnotationBuilder.playerSubmittedTargets(instanceId = 303.iid, casterSeatId = 2.sid)
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.PlayerSubmittedTargets
+                ann.affectorId shouldBe 2
                 ann.affectedIdsList shouldContain 303
                 ann.detailsCount shouldBe 0
             }

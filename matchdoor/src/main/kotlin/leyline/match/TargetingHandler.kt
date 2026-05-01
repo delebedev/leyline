@@ -145,6 +145,16 @@ class TargetingHandler(
 
         log.info("TargetingHandler: SubmitTargetsReq — submitting indices={}", pending.selectedIndices)
 
+        // Read the spell iid before submitResponse releases the engine — it is
+        // the affectedId on the PlayerSubmittedTargets annotation that the next
+        // outgoing GSM will carry.
+        val pendingPrompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
+        val sourceEntityId = pendingPrompt?.request?.sourceEntityId
+        if (sourceEntityId != null) {
+            val spellIid = bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId))
+            bundles.bundleBuilder.cursor.queuePSuT(spellIid, counters.seatId)
+        }
+
         sink.sendBundledGRE(
             listOf(
                 sink.makeGRE(GREMessageType.SubmitTargetsResp_695e, counters.counter.currentGsId(), counters.counter.nextMsgId()) {

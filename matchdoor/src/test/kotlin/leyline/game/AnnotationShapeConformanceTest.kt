@@ -196,8 +196,8 @@ class AnnotationShapeConformanceTest :
                 detailKeys(AnnotationBuilder.revealedCardCreated(1.iid)) shouldBe emptySet()
                 detailKeys(AnnotationBuilder.revealedCardDeleted(1.iid)) shouldBe emptySet()
                 detailKeys(AnnotationBuilder.layeredEffectDestroyed(1.eid)) shouldBe emptySet()
-                detailKeys(AnnotationBuilder.playerSelectingTargets(1.iid)) shouldBe emptySet()
-                detailKeys(AnnotationBuilder.playerSubmittedTargets(1.iid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.playerSelectingTargets(1.iid, 1.sid)) shouldBe emptySet()
+                detailKeys(AnnotationBuilder.playerSubmittedTargets(1.iid, 1.sid)) shouldBe emptySet()
                 detailKeys(AnnotationBuilder.damagedThisTurn(listOf(1.iid))) shouldBe emptySet()
                 detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1.iid)) shouldBe emptySet()
             }
@@ -304,8 +304,8 @@ class AnnotationShapeConformanceTest :
                 "Designation" to detailKeys(AnnotationBuilder.designation(1.sid, 19)),
                 "LayeredEffect" to detailKeys(AnnotationBuilder.layeredEffect(1.iid, 7004.eid)),
                 "LayeredEffectDestroyed" to detailKeys(AnnotationBuilder.layeredEffectDestroyed(1.eid)),
-                "PlayerSelectingTargets" to detailKeys(AnnotationBuilder.playerSelectingTargets(1.iid)),
-                "PlayerSubmittedTargets" to detailKeys(AnnotationBuilder.playerSubmittedTargets(1.iid)),
+                "PlayerSelectingTargets" to detailKeys(AnnotationBuilder.playerSelectingTargets(1.iid, 1.sid)),
+                "PlayerSubmittedTargets" to detailKeys(AnnotationBuilder.playerSubmittedTargets(1.iid, 1.sid)),
                 "DamagedThisTurn" to detailKeys(AnnotationBuilder.damagedThisTurn(listOf(1.iid))),
                 "InstanceRevealedToOpponent" to detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1.iid)),
                 "ColorProduction" to detailKeys(AnnotationBuilder.colorProduction(1.iid, listOf(1))),

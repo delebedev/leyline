@@ -1013,19 +1013,29 @@ object AnnotationBuilder {
             .addAffectedIds(effectId.value)
             .build()
 
-    /** Player is selecting targets for a spell/ability. client type 92. */
-    fun playerSelectingTargets(instanceId: InstanceId): AnnotationInfo =
+    /** Player is selecting targets for a spell/ability. client type 92.
+     *  affectorId = caster seatId; affectedIds = [spellInstanceIdOnStack]. */
+    fun playerSelectingTargets(
+        instanceId: InstanceId,
+        casterSeatId: SeatId,
+    ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.PlayerSelectingTargets)
+            .setAffectorId(casterSeatId.value)
             .addAffectedIds(instanceId.value)
             .build()
 
-    /** Player submitted target selections. client type 93. */
-    fun playerSubmittedTargets(instanceId: InstanceId): AnnotationInfo =
+    /** Player submitted target selections. client type 93.
+     *  affectorId = caster seatId; affectedIds = [spellInstanceIdOnStack]. */
+    fun playerSubmittedTargets(
+        instanceId: InstanceId,
+        casterSeatId: SeatId,
+    ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.PlayerSubmittedTargets)
+            .setAffectorId(casterSeatId.value)
             .addAffectedIds(instanceId.value)
             .build()
 

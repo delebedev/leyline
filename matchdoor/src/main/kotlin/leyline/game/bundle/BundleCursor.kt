@@ -1,5 +1,7 @@
 package leyline.game.bundle
 
+import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
 import leyline.game.snapshot.GsmSnapshot
 
 /**
@@ -19,6 +21,8 @@ import leyline.game.snapshot.GsmSnapshot
 class BundleCursor {
     var lastSent: GsmSnapshot? = null
 
+    private var pendingPSuT: PSuTPending? = null
+
     /**
      * Drop the diff baseline so the next bundle rebuilds as a Full GSM.
      *
@@ -32,4 +36,30 @@ class BundleCursor {
     fun invalidate() {
         lastSent = null
     }
+
+    /**
+     * Queue a PlayerSubmittedTargets annotation to be appended to the next
+     * outgoing GSM. Set by [leyline.match.TargetingHandler.onSubmitTargets]
+     * once the engine has accepted the chosen targets; consumed by the next
+     * [BundleBuilder] method that builds a diff. One-shot — only the first
+     * subsequent bundle picks it up.
+     */
+    fun queuePSuT(
+        spellInstanceId: InstanceId,
+        casterSeatId: SeatId,
+    ) {
+        pendingPSuT = PSuTPending(spellInstanceId, casterSeatId)
+    }
+
+    /** Consume the queued PSuT, if any. Returns null if the queue is empty. */
+    fun drainPSuT(): PSuTPending? {
+        val r = pendingPSuT
+        pendingPSuT = null
+        return r
+    }
+
+    data class PSuTPending(
+        val spellInstanceId: InstanceId,
+        val casterSeatId: SeatId,
+    )
 }
