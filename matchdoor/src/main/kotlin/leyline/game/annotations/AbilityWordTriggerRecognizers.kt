@@ -81,12 +81,30 @@ object AbilityWordTriggerRecognizers {
     private val controllerGates = mutableMapOf<String, ControllerGate>()
     private val acrossZonesEvaluators = mutableMapOf<String, AcrossZonesEvaluator>()
 
+    /** The em-dash-suffixed prefix matched against trigger / static / activated / keyword text. */
+    private fun needle(word: String): String = "$word $EM_DASH"
+
+    /**
+     * Find a trigger on [card] whose `TriggerDescription` starts with `<word> —`.
+     * Returns null if no such trigger exists.
+     */
+    fun triggerWithAbilityWordPrefix(
+        card: Card,
+        word: String,
+    ): forge.game.trigger.Trigger? {
+        val needle = needle(word)
+        return card.triggers?.firstOrNull { t ->
+            val desc = t.getParam("TriggerDescription") ?: return@firstOrNull false
+            desc.startsWith(needle)
+        }
+    }
+
     /** Test whether `<word> —` appears in any trigger / static / activated / keyword description. */
     fun cardHasAbilityWordPrefix(
         card: Card,
         word: String,
     ): Boolean {
-        val needle = "$word $EM_DASH"
+        val needle = needle(word)
         for (trigger in card.triggers ?: emptyList()) {
             val desc = trigger.getParam("TriggerDescription") ?: continue
             if (desc.startsWith(needle)) return true
@@ -192,7 +210,7 @@ object AbilityWordTriggerRecognizers {
                 handCards.forEach(collect)
 
                 for ((seatIdx, sources) in sourcesBySeat) {
-                    val controller = sources.first().controller
+                    val controller = sources.firstOrNull()?.controller ?: continue
                     if (evaluator.shouldEmitMarker(controller)) {
                         results.add(
                             AbilityWordScanner.AbilityWordEntry(
@@ -216,21 +234,21 @@ object AbilityWordTriggerRecognizers {
         return results
     }
 
-    internal fun register(
+    private fun register(
         word: String,
         recognizer: Recognizer,
     ) {
         recognizers[word] = recognizer
     }
 
-    internal fun registerPerController(
+    private fun registerPerController(
         word: String,
         gate: ControllerGate,
     ) {
         controllerGates[word] = gate
     }
 
-    internal fun registerAcrossZones(
+    private fun registerAcrossZones(
         word: String,
         evaluator: AcrossZonesEvaluator,
     ) {
@@ -296,12 +314,9 @@ object AbilityWordTriggerRecognizers {
                 ): List<AbilityWordScanner.AbilityWordEntry> {
                     val lifeGained = controller.lifeGainedThisTurn
                     if (lifeGained <= 0) return emptyList()
-                    val infusionTrigger =
-                        card.triggers?.firstOrNull { t ->
-                            val desc = t.getParam("TriggerDescription") ?: return@firstOrNull false
-                            desc.startsWith("Infusion $EM_DASH")
-                        }
-                    val abilityGrpId = infusionTrigger?.let { registry?.forTrigger(it.id)?.takeIf { id -> id > 0 } }
+                    val abilityGrpId =
+                        triggerWithAbilityWordPrefix(card, "Infusion")
+                            ?.let { registry?.forTrigger(it.id)?.takeIf { id -> id > 0 } }
                     return listOf(
                         AbilityWordScanner.AbilityWordEntry(
                             instanceId = iid,

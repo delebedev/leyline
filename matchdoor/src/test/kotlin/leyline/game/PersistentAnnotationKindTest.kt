@@ -8,6 +8,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -322,6 +323,61 @@ class PersistentAnnotationKindTest :
             assertSoftly {
                 result.deletedIds shouldContain 50
                 result.allAnnotations.shouldBeEmpty()
+            }
+        }
+
+        test("AbilityWordActive value transition emits delete-old + add-new in the same BatchResult") {
+            // Regression guard for leyline-ety5: the deletion ID flows through
+            // BatchResult.deletedIds and is drained directly into the GSM at
+            // build time. If a refactor reintroduces the old "queue, drain
+            // next frame" plumbing, the deletion would shift to the next
+            // batch's result and this test would fail.
+            val oldAnn =
+                AnnotationBuilder
+                    .abilityWordActive(
+                        instanceId = InstanceId(101),
+                        abilityWordName = "Threshold",
+                        value = 6,
+                        threshold = 7,
+                    ).toBuilder()
+                    .setId(42)
+                    .build()
+            val active = mapOf(42 to oldAnn)
+
+            val incoming =
+                AnnotationBuilder.abilityWordActive(
+                    instanceId = InstanceId(101),
+                    abilityWordName = "Threshold",
+                    value = 7,
+                    threshold = 7,
+                )
+            val mechanicResult =
+                MechanicAnnotationResult(
+                    transient = emptyList(),
+                    persistent = emptyList(),
+                    perKindPersistent =
+                        mapOf(leyline.game.state.AbilityWordActiveKind to listOf(incoming)),
+                )
+
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = active,
+                    startPersistentId = 100,
+                    frame = frame(PhaseType.MAIN1),
+                    effectPersistent = emptyList(),
+                    effectDiff = emptyEffectDiff,
+                    transferPersistent = emptyList(),
+                    mechanicResult = mechanicResult,
+                    resolveInstanceId = { InstanceId(it.value) },
+                )
+
+            assertSoftly {
+                // Old annotation id was deleted in the same batch.
+                result.deletedIds shouldContain 42
+                // A new annotation with the updated value is in the active set.
+                val newAnn = result.allAnnotations.firstOrNull { it.id != 42 }
+                newAnn shouldNotBe null
+                newAnn!!.detailsList.any { it.key == "value" && it.valueInt32List.firstOrNull() == 7 } shouldBe true
             }
         }
 
