@@ -145,7 +145,7 @@ in `PlayerLogWriter.translateToScryFormat`:
 1. Pick cards that have YAML fixtures in `matchdoor/src/test/resources/test-cards/`
    — `TestCardRegistry.ensureDeckRegistered` will fail loudly if a card isn't
    there. Run `just card-grp "<name>"` to verify card name → grpId mapping.
-2. Add an entry to `BUILTIN_DECKS` in `SimClientBatchTest.kt`:
+2. Add an entry to `builtinDecks` in `SimClientBatchTest.kt`:
    `"my-deck" to "20 Mountain\n4 Lightning Bolt\n..."`.
 3. Run `just simclient my-deck 1..5` to verify games complete with
    `gameOver=true` and reasonable iteration counts.

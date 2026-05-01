@@ -894,8 +894,11 @@ class MatchFlowHarness(
                 .filter { !sectionHeader.matches(it) }
                 .map { it.replaceFirst(Regex("^\\d+\\s+"), "") }
                 .distinct()
-        val db = forge.model.FModel.getMagicDb()?.commonCards
-            ?: error("Forge card DB not initialised — call GameBootstrap.initializeCardDatabase first")
+        val db =
+            forge.model.FModel
+                .getMagicDb()
+                ?.commonCards
+                ?: error("Forge card DB not initialised — call GameBootstrap.initializeCardDatabase first")
         val missing = mutableListOf<String>()
         synchronized(forge.StaticData.instance()) {
             for (name in names) {

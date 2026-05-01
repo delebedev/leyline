@@ -128,7 +128,7 @@ class SimClientBatchTest :
         }
 
         /** Built-in deck table — names map to deck-list bodies. */
-        val BUILTIN_DECKS: Map<String, String> =
+        val builtinDecks: Map<String, String> =
             mapOf(
                 "forest-only" to "60 Forest",
                 "bears" to "24 Forest\n36 Grizzly Bears",
@@ -162,7 +162,7 @@ class SimClientBatchTest :
 
         /** Resolve a deck name → (name, list). Built-in first, then `data/decks/<name>`. */
         fun resolveDeck(name: String): Pair<String, String> {
-            BUILTIN_DECKS[name]?.let { return name to it }
+            builtinDecks[name]?.let { return name to it }
             return name.removeSuffix(".txt") to readDeck(if (name.endsWith(".txt")) name else "$name.txt")
         }
 
