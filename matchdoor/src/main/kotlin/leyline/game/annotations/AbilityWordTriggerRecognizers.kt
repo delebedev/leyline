@@ -35,9 +35,19 @@ object AbilityWordTriggerRecognizers {
         ): List<AbilityWordScanner.AbilityWordEntry>
     }
 
-    private val recognizers = mutableMapOf<String, Recognizer>()
+    /**
+     * Per-controller gate. Emits a single keyword-only entry per controller, with all
+     * the controller's matching sources in `affectedIds`. Use for Coven-shape ability
+     * words where the annotation aggregates across the controller's permanents.
+     */
+    fun interface ControllerGate {
+        fun isActive(controller: Player): Boolean
+    }
 
-    /** Test whether `<word> —` appears in any trigger / static / keyword description. */
+    private val recognizers = mutableMapOf<String, Recognizer>()
+    private val controllerGates = mutableMapOf<String, ControllerGate>()
+
+    /** Test whether `<word> —` appears in any trigger / static / activated / keyword description. */
     fun cardHasAbilityWordPrefix(
         card: Card,
         word: String,
@@ -51,6 +61,14 @@ object AbilityWordTriggerRecognizers {
             val desc = sa.getParam("Description") ?: continue
             if (desc.startsWith(needle)) return true
         }
+        for (sa in card.spellAbilities ?: emptyList()) {
+            // Forge expresses ability-word labels on activated abilities via `PrecostDesc$`,
+            // and via `SpellDescription$` / the rendered description on spells / others.
+            val precost = sa.getParam("PrecostDesc")
+            if (precost != null && precost.startsWith(needle)) return true
+            val desc = sa.getParam("SpellDescription") ?: sa.description ?: continue
+            if (desc.startsWith(needle)) return true
+        }
         for (kw in card.keywords ?: emptyList()) {
             if (kw.toString().contains(needle)) return true
         }
@@ -62,8 +80,10 @@ object AbilityWordTriggerRecognizers {
         instanceIdResolver: (ForgeCardId) -> InstanceId,
         registryResolver: (Card) -> AbilityRegistry?,
     ): List<AbilityWordScanner.AbilityWordEntry> {
-        if (recognizers.isEmpty()) return emptyList()
+        if (recognizers.isEmpty() && controllerGates.isEmpty()) return emptyList()
         val results = mutableListOf<AbilityWordScanner.AbilityWordEntry>()
+
+        // Per-card recognizers.
         for (card in battlefieldCards) {
             val controller = card.controller ?: continue
             val iid = instanceIdResolver(ForgeCardId(card.id)).value
@@ -74,6 +94,35 @@ object AbilityWordTriggerRecognizers {
                 results.addAll(recognizer.evaluate(card, controller, iid, seatIdx, registry))
             }
         }
+
+        // Per-controller gates: aggregate sources per controller, emit once when active.
+        if (controllerGates.isNotEmpty()) {
+            for ((word, gate) in controllerGates) {
+                val sourcesBySeat = mutableMapOf<Int, MutableList<Int>>()
+                val controllerBySeat = mutableMapOf<Int, Player>()
+                for (card in battlefieldCards) {
+                    if (!cardHasAbilityWordPrefix(card, word)) continue
+                    val controller = card.controller ?: continue
+                    val seatIdx = controller.game.registeredPlayers.indexOf(controller) + 1
+                    sourcesBySeat.getOrPut(seatIdx) { mutableListOf() }
+                        .add(instanceIdResolver(ForgeCardId(card.id)).value)
+                    controllerBySeat.putIfAbsent(seatIdx, controller)
+                }
+                for ((seatIdx, iids) in sourcesBySeat) {
+                    val controller = controllerBySeat[seatIdx] ?: continue
+                    if (!gate.isActive(controller)) continue
+                    results.add(
+                        AbilityWordScanner.AbilityWordEntry(
+                            instanceId = seatIdx,
+                            abilityWordName = word,
+                            affectorId = seatIdx,
+                            affectedIds = iids,
+                        ),
+                    )
+                }
+            }
+        }
+
         return results
     }
 
@@ -82,6 +131,13 @@ object AbilityWordTriggerRecognizers {
         recognizer: Recognizer,
     ) {
         recognizers[word] = recognizer
+    }
+
+    internal fun registerPerController(
+        word: String,
+        gate: ControllerGate,
+    ) {
+        controllerGates[word] = gate
     }
 
     init {
@@ -114,6 +170,19 @@ object AbilityWordTriggerRecognizers {
                     affectedIds = listOf(iid),
                 ),
             )
+        }
+
+        // Coven — per-controller, active when controller has 3+ creatures with different powers.
+        registerPerController("Coven") { controller ->
+            val powers = controller.creaturesInPlay
+                .map { it.netPower }
+                .toSet()
+            powers.size >= 3
+        }
+
+        // Disappear — per-controller, active when a permanent left the battlefield under controller this turn (Forge Revolt).
+        registerPerController("Disappear") { controller ->
+            controller.hasRevolt()
         }
 
         // Infusion — keyword marker plus a LifeGainedThisTurn quantitative helper.

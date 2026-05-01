@@ -1,0 +1,8 @@
+name: "Soul Warden"
+grpId: 92404
+titleId: 3236
+abilities:
+  - id: 2639
+    textId: 872061
+    category: 2
+expansionCode: "SPG"

@@ -228,6 +228,104 @@ class AbilityWordScannerTest :
             }
         }
 
+        test("Coven active when controller has 3 different-power creatures emits per-controller entry") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Sungold Sentinel", human, ZoneType.Battlefield) // 3/2
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield) // 2/2
+                    base.addCard("Savannah Lions", human, ZoneType.Battlefield) // 2/1, but power=2 same as Bears
+                    // Need a third distinct power — add a 1-power creature.
+                    base.addCard("Soul Warden", human, ZoneType.Battlefield) // 1/1
+                }
+            val human = game.humanPlayer
+            val sentinel =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Sungold Sentinel" }
+            val sentinelIid = b.getOrAllocInstanceId(ForgeCardId(sentinel.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+
+            val coven = results.firstOrNull { it.abilityWordName == "Coven" }
+            assertSoftly {
+                coven.shouldNotBeNull()
+                coven.affectorId shouldBe 1
+                coven.affectedIds shouldContain sentinelIid
+                coven.value shouldBe null
+                coven.threshold shouldBe null
+            }
+        }
+
+        test("Coven inactive when only 2 different powers emits no entry") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Sungold Sentinel", human, ZoneType.Battlefield)
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+            results.filter { it.abilityWordName == "Coven" }.shouldBeEmpty()
+        }
+
+        test("Disappear active after a permanent leaves controller battlefield this turn") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Rat King, Verminister", human, ZoneType.Battlefield)
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val rat =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Rat King, Verminister" }
+            val ratIid = b.getOrAllocInstanceId(ForgeCardId(rat.id)).value
+
+            // Move Bears to graveyard to satisfy Revolt (permanent left battlefield this turn).
+            val bears = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            game.action.moveToGraveyard(bears, null)
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+
+            val disappear = results.firstOrNull { it.abilityWordName == "Disappear" }
+            assertSoftly {
+                disappear.shouldNotBeNull()
+                disappear.affectorId shouldBe 1
+                disappear.affectedIds shouldContain ratIid
+            }
+        }
+
+        test("Disappear inactive when no permanent left battlefield this turn") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Rat King, Verminister", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { _ -> null },
+                )
+            results.filter { it.abilityWordName == "Disappear" }.shouldBeEmpty()
+        }
+
         test("Infusion source with life gained emits Infusion marker + LifeGainedThisTurn helper") {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
