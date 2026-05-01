@@ -144,7 +144,7 @@ val simclient by tasks.registering(Test::class) {
     systemProperty("kotest.tags", "SimClientTag")
     // Forge's static MyRandom forces serial execution.
     maxParallelForks = 1
-    listOf("SIMCLIENT_DECKS", "SIMCLIENT_SEEDS").forEach { name ->
+    listOf("SIMCLIENT_DECKS", "SIMCLIENT_SEEDS", "LEYLINE_CARD_DB").forEach { name ->
         environment(name, System.getenv(name) ?: "")
     }
     // Always re-execute — the matrix is env-driven, not source-driven, so

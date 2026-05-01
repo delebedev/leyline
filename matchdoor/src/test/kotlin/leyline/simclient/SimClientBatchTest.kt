@@ -3,6 +3,9 @@ package leyline.simclient
 import io.kotest.core.spec.style.FunSpec
 import leyline.SimClientTag
 import leyline.conformance.MatchFlowHarness
+import leyline.game.data.CardRepository
+import leyline.game.data.ExposedCardRepository
+import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -22,6 +25,27 @@ import kotlin.time.Duration.Companion.minutes
 class SimClientBatchTest : FunSpec({
     tags(SimClientTag)
     val outDir = File("build/simclient").also { it.mkdirs() }
+
+    // SQLite-backed card repo, built lazily on first test execution —
+    // bypasses the YAML fixture path so any deck of installed cards runs
+    // without a fixture emit step. The simclient policy is fail-fast:
+    // LEYLINE_CARD_DB must be set explicitly, no autodetect. The same env
+    // var the production server honours. Lazy keeps spec instantiation
+    // cheap on testGate runs that filter SimClientTag out and never invoke
+    // the body.
+    val cardRepo: CardRepository by lazy {
+        val cardDbPath =
+            requireNotNull(System.getenv("LEYLINE_CARD_DB")) {
+                "LEYLINE_CARD_DB is not set. Point it at a Raw_CardDatabase_*.sqlite file (the same path the production server uses)."
+            }
+        require(File(cardDbPath).exists()) { "Card database not found at: $cardDbPath" }
+        ExposedCardRepository(
+            Database.connect(
+                "jdbc:sqlite:${File(cardDbPath).absolutePath}",
+                "org.sqlite.JDBC",
+            ),
+        )
+    }
 
     /**
      * Configurable matrix via env vars / system properties.
@@ -68,7 +92,13 @@ class SimClientBatchTest : FunSpec({
         maxTurns: Int,
         maxIterations: Int = 3_000,
     ): GameStats {
-        val harness = MatchFlowHarness(seed = seed, deckList = deckList, validating = false)
+        val harness =
+            MatchFlowHarness(
+                seed = seed,
+                deckList = deckList,
+                validating = false,
+                cardRepositoryOverride = cardRepo,
+            )
         val tag = "$deckName-s$seed"
         val logFile = File(outDir, "$tag.log")
         var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
@@ -110,6 +140,15 @@ class SimClientBatchTest : FunSpec({
                 "20 Mountain\n4 Lightning Bolt\n4 Shock\n4 Burst Lightning\n" +
                 "4 Fiery Temper\n4 Lava Axe\n4 Raging Goblin\n4 Goblin Fireslinger\n" +
                 "4 Hurloon Minotaur\n4 Crackling Cyclops\n4 Monastery Swiftspear",
+            // ETB-trigger density. All four creatures sit on simple ETB
+            // triggers (cataloged notable instances) so the greedy responder
+            // doesn't need to handle modal / alt-cost prompts. Shuffled with
+            // 24 Plains + 12 vanilla creatures to keep games progressing
+            // when triggers stall waiting on follow-up prompts.
+            "etb-triggers" to
+                "24 Plains\n4 Reigning Victor\n4 Dalkovan Packbeasts\n" +
+                "4 Furious Forebear\n4 Stormchaser's Talent\n" +
+                "12 Savannah Lions\n4 Wall of Omens\n4 Soul Warden",
         )
 
     /** Resolve a deck name → (name, list). Built-in first, then `data/decks/<name>`. */

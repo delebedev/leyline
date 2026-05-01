@@ -46,6 +46,17 @@ class MatchFlowHarness(
                 ),
         ),
     private val variant: String? = null,
+    /**
+     * Bypass the YAML-fixture-backed [TestCardRegistry] when set. The harness
+     * walks the deck list, asks Forge to load each card by name (failing
+     * loudly if any card is unknown), and uses the supplied repository for
+     * card-identity lookups instead of the fixture-derived in-memory store.
+     *
+     * Default null preserves the existing fixture-pinned behavior the
+     * conformance suite relies on. SimClient passes a SQLite-backed repo so
+     * arbitrary decks work without per-card fixtures.
+     */
+    private val cardRepositoryOverride: leyline.game.data.CardRepository? = null,
 ) {
     private val matchId = "test-match"
     private val seatId = SeatId(1)
@@ -78,15 +89,22 @@ class MatchFlowHarness(
     /** Start game, keep hand, advance to first real-action phase via MatchSession. */
     fun connectAndKeep(aiScript: List<ScriptedAction>? = null) {
         GameBootstrap.initializeCardDatabase(quiet = true)
-        TestCardRegistry.ensureRegistered()
-        if (deckList != null) TestCardRegistry.ensureDeckRegistered(deckList)
+        val repo: leyline.game.data.CardRepository =
+            if (cardRepositoryOverride != null) {
+                ensureForgeKnowsDeck(deckList)
+                cardRepositoryOverride
+            } else {
+                TestCardRegistry.ensureRegistered()
+                if (deckList != null) TestCardRegistry.ensureDeckRegistered(deckList)
+                TestCardRegistry.repo
+            }
 
         bridge =
             GameBridge(
                 bridgeTimeoutMs = 5_000L,
                 matchConfig = matchConfig,
                 messageCounter = MessageCounter(),
-                cardRepository = TestCardRegistry.repo,
+                cardRepository = repo,
             )
         bridge.priorityWaitMs = 2_000L
         bridge.start(seed = seed, deckList = deckList, variant = variant)
@@ -844,6 +862,45 @@ class MatchFlowHarness(
     fun game(): Game = bridge.getGame()!!
 
     fun shutdown() = bridge.shutdown()
+
+    /**
+     * Walk a deck list and ask Forge's static data to load every unique card
+     * by name. Required when [cardRepositoryOverride] is in play — without
+     * the YAML-fixture path, nothing else routes through
+     * [forge.StaticData.attemptToLoadCard], and the engine fails opaquely
+     * when a deck contains a card it has never seen.
+     *
+     * Fails loudly with the offending card name when Forge cannot resolve it,
+     * matching the simclient policy: a deck either runs end-to-end or it
+     * doesn't run at all.
+     */
+    private fun ensureForgeKnowsDeck(deckList: String?) {
+        val list = deckList ?: return
+        val sectionHeader = Regex("""^\[.+]$|^(Deck|Sideboard|Maybeboard|Commander|Companion)\s*$""", RegexOption.IGNORE_CASE)
+        val names =
+            list
+                .trim()
+                .lines()
+                .filter { it.isNotBlank() }
+                .map { it.trim() }
+                .filter { !sectionHeader.matches(it) }
+                .map { it.replaceFirst(Regex("^\\d+\\s+"), "") }
+                .distinct()
+        val db = forge.model.FModel.getMagicDb()?.commonCards
+            ?: error("Forge card DB not initialised — call GameBootstrap.initializeCardDatabase first")
+        val missing = mutableListOf<String>()
+        synchronized(forge.StaticData.instance()) {
+            for (name in names) {
+                if (db.getCard(name) != null) continue
+                forge.StaticData.instance().attemptToLoadCard(name)
+                if (db.getCard(name) == null) missing.add(name)
+            }
+        }
+        check(missing.isEmpty()) {
+            "Forge cannot resolve cards in deck list: ${missing.joinToString()}. " +
+                "Either the names are mistyped or Forge's card DB does not include them."
+        }
+    }
 
     internal fun drainSink() {
         allMessages.addAll(sink.messages)
