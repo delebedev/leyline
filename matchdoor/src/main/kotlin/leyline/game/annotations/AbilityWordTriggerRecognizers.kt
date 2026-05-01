@@ -104,7 +104,8 @@ object AbilityWordTriggerRecognizers {
                     if (!cardHasAbilityWordPrefix(card, word)) continue
                     val controller = card.controller ?: continue
                     val seatIdx = controller.game.registeredPlayers.indexOf(controller) + 1
-                    sourcesBySeat.getOrPut(seatIdx) { mutableListOf() }
+                    sourcesBySeat
+                        .getOrPut(seatIdx) { mutableListOf() }
                         .add(instanceIdResolver(ForgeCardId(card.id)).value)
                     controllerBySeat.putIfAbsent(seatIdx, controller)
                 }
@@ -174,9 +175,10 @@ object AbilityWordTriggerRecognizers {
 
         // Coven — per-controller, active when controller has 3+ creatures with different powers.
         registerPerController("Coven") { controller ->
-            val powers = controller.creaturesInPlay
-                .map { it.netPower }
-                .toSet()
+            val powers =
+                controller.creaturesInPlay
+                    .map { it.netPower }
+                    .toSet()
             powers.size >= 3
         }
 
@@ -201,10 +203,11 @@ object AbilityWordTriggerRecognizers {
             )
             val lifeGained = controller.lifeGainedThisTurn
             if (lifeGained > 0) {
-                val infusionTrigger = card.triggers?.firstOrNull { t ->
-                    val desc = t.getParam("TriggerDescription") ?: return@firstOrNull false
-                    desc.startsWith("Infusion $EM_DASH")
-                }
+                val infusionTrigger =
+                    card.triggers?.firstOrNull { t ->
+                        val desc = t.getParam("TriggerDescription") ?: return@firstOrNull false
+                        desc.startsWith("Infusion $EM_DASH")
+                    }
                 val abilityGrpId = infusionTrigger?.let { registry?.forTrigger(it.id)?.takeIf { id -> id > 0 } }
                 out.add(
                     AbilityWordScanner.AbilityWordEntry(
