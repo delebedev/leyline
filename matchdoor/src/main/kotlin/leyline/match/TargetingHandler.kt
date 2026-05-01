@@ -114,7 +114,12 @@ class TargetingHandler(
         )
 
         pendingInteraction =
-            PendingClientInteraction.TargetSelection(pendingPrompt.promptId, selectedIndices, selectedInstanceIds)
+            PendingClientInteraction.TargetSelection(
+                promptId = pendingPrompt.promptId,
+                selectedIndices = selectedIndices,
+                selectedInstanceIds = selectedInstanceIds,
+                sourceEntityId = pendingPrompt.request.sourceEntityId ?: 0,
+            )
 
         // Echo-back: actions-only GSM diff + re-prompt with selection reflected
         val echoDiff = bundles.bundleBuilder.buildEchoDiffGsm(counters.counter)
@@ -145,13 +150,13 @@ class TargetingHandler(
 
         log.info("TargetingHandler: SubmitTargetsReq — submitting indices={}", pending.selectedIndices)
 
-        // Read the spell iid before submitResponse releases the engine — it is
-        // the affectedId on the PlayerSubmittedTargets annotation that the next
-        // outgoing GSM will carry.
-        val pendingPrompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
-        val sourceEntityId = pendingPrompt?.request?.sourceEntityId
-        if (sourceEntityId != null) {
-            val spellIid = bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId))
+        // Source iid for PSuT comes from the pending interaction (stashed at
+        // SelectTargetsResp time), not from the bridge prompt — the bridge
+        // prompt may have cleared between SelectTargetsResp and SubmitTargetsReq
+        // (timeout / shutdown race) and reading null here would silently drop
+        // PSuT from the wire while the engine still receives the response.
+        if (pending.sourceEntityId != 0) {
+            val spellIid = bridge.getOrAllocInstanceId(ForgeCardId(pending.sourceEntityId))
             bundles.bundleBuilder.cursor.queuePSuT(spellIid, counters.seatId)
         }
 

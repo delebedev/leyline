@@ -25,6 +25,15 @@ sealed interface PendingClientInteraction {
          * re-prompt so the client sees both already-picked and still-legal candidates.
          */
         val selectedInstanceIds: List<Int> = emptyList(),
+        /**
+         * Forge entity id of the spell on the stack — read from
+         * `prompt.request.sourceEntityId` at SelectTargetsResp time so PSuT
+         * emission at SubmitTargetsReq time can resolve the same iid PST used,
+         * even if the bridge prompt has cleared (timeout / shutdown race).
+         * Zero when the prompt did not carry a source (defensive — should not
+         * happen for a real targeting prompt).
+         */
+        val sourceEntityId: Int = 0,
     ) : PendingClientInteraction
 
     data class OptionalCost(

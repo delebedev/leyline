@@ -282,7 +282,11 @@ class ScryETBFlowTest :
             triggering.shouldNotBeNull()
             assertSoftly {
                 triggering.affectedIdsList.shouldNotBeEmpty()
-                triggering.detail("source_zone").shouldNotBeNull()
+                // Wall of Runes' ETB triggers from the battlefield — assert the
+                // value, not just presence, so the snap-diff path's accurate
+                // sourceZoneId doesn't silently regress to the event-path
+                // BATTLEFIELD-fallback (leyline-w9ij).
+                triggering.detailInt("source_zone") shouldBe leyline.game.mapping.ZoneIds.BATTLEFIELD
             }
 
             val deletedIds =
