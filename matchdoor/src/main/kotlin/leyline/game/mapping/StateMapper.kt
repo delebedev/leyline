@@ -531,11 +531,11 @@ object StateMapper {
                 ?: emptySet()
         // Stack contents (cards) plus stack-resident Ability gameObjects — both
         // can be the affector of a TriggeringObject. The Ability instance ids
-        // are synthetic (sourceCardForgeId + STACK_ABILITY_ID_OFFSET) and don't
-        // appear in the snapshot's zone contents; mirror the
+        // are synthesised against [FrameIdResolver.stackAbilityForgeId] and
+        // don't appear in the snapshot's zone contents; mirror the
         // [ZoneMapper.addStackAbilitiesFromSnapshot] derivation. Pre-realloc
-        // card iids only — see leyline-ucbf for the resolver that would
-        // unify pre/post-realloc views.
+        // card iids here — Phase 3 of leyline-ucbf threads a realloc-aware
+        // resolver into this construction.
         val stackIids: Set<Int> =
             buildSet {
                 val cardIidsInStack = mutableSetOf<Int>()
@@ -548,10 +548,7 @@ object StateMapper {
                     val cardIid = bridge.getOrAllocInstanceId(entry.forgeCardId).value
                     if (cardIid in cardIidsInStack) continue
                     val abilityIid =
-                        bridge
-                            .getOrAllocInstanceId(
-                                ForgeCardId(entry.forgeCardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET),
-                            ).value
+                        bridge.getOrAllocInstanceId(FrameIdResolver.stackAbilityForgeId(entry.forgeCardId)).value
                     add(abilityIid)
                 }
             }
@@ -1245,10 +1242,7 @@ object StateMapper {
         for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }) {
             val sourceCardIid = bridge.getOrAllocInstanceId(cast.cardId).value
             val abilityIid =
-                bridge
-                    .getOrAllocInstanceId(
-                        ForgeCardId(cast.cardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET),
-                    ).value
+                bridge.getOrAllocInstanceId(FrameIdResolver.stackAbilityForgeId(cast.cardId)).value
             val sourceZone = currentSourceZoneId(cast.cardId, bridge)
 
             if (sourceCardIid in snapshotSourceIids) continue
@@ -1274,10 +1268,7 @@ object StateMapper {
         for (resolved in events.filterIsInstance<GameEvent.SpellResolved>().filter { it.isTrigger }) {
             val sourceCardIid = bridge.getOrAllocInstanceId(resolved.cardId).value
             val abilityIid =
-                bridge
-                    .getOrAllocInstanceId(
-                        ForgeCardId(resolved.cardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET),
-                    ).value
+                bridge.getOrAllocInstanceId(FrameIdResolver.stackAbilityForgeId(resolved.cardId)).value
             val abilityGrpId = abilityGrpIdForSource(resolved.cardId, snap)
 
             annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
@@ -1420,7 +1411,7 @@ object StateMapper {
             // Triggered abilities: affector is the synthesized stack-ability iid.
             val affectorForgeId =
                 if (spec.isTriggeredAbility) {
-                    ForgeCardId(spec.spellForgeCardId + ObjectMapper.STACK_ABILITY_ID_OFFSET)
+                    FrameIdResolver.stackAbilityForgeId(ForgeCardId(spec.spellForgeCardId))
                 } else {
                     ForgeCardId(spec.spellForgeCardId)
                 }

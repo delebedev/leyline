@@ -19,9 +19,6 @@ import forge.card.CardType.CoreType as ForgeCoreType
  * sickness, damage, loyalty, combat state, and attachment info.
  */
 object ObjectMapper {
-    /** Offset added to source card IDs for stack ability instance IDs. */
-    internal const val STACK_ABILITY_ID_OFFSET = 100_000
-
     /**
      * Build a [GameObjectInfo] for an ability on the stack.
      */

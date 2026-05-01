@@ -5,6 +5,7 @@ import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.event.GameEvent
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -273,8 +274,7 @@ object TransferAnnotations {
         val spellIid = idResolver(ev.cardId)
         for ((i, mp) in ev.manaPayments.withIndex()) {
             val landIid = idResolver(mp.sourceCardId)
-            val manaAbilityIid =
-                idResolver(ForgeCardId(mp.sourceCardId.value + ZoneTransferDetector.MANA_ABILITY_ID_OFFSET))
+            val manaAbilityIid = idResolver(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId))
             emitManaTap(annotations, manaAbilityIid, landIid, ZoneIds.BATTLEFIELD)
             annotations.add(
                 AnnotationBuilder.userActionTaken(

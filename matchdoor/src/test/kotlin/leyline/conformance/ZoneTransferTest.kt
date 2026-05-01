@@ -11,7 +11,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
-import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -127,7 +127,7 @@ class ZoneTransferTest :
                     .cards
                     .first { it.name == "Wary Thespian" }
             // Pre-register the source card's ability instanceId (normally done when ability goes on stack)
-            val abilityForgeId = ForgeCardId(source.id + ObjectMapper.STACK_ABILITY_ID_OFFSET)
+            val abilityForgeId = FrameIdResolver.stackAbilityForgeId(ForgeCardId(source.id))
             b.getOrAllocInstanceId(abilityForgeId)
 
             val (gsm, newId) =

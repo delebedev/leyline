@@ -7,7 +7,7 @@ import leyline.bridge.types.InstanceId
 import leyline.game.data.BasicLandAbilities
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
-import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.Foretell
 import leyline.game.state.GameBridge
@@ -107,8 +107,6 @@ data class TransferResult(
 object ZoneTransferDetector {
     private val log = LoggerFactory.getLogger(ZoneTransferDetector::class.java)
 
-    /** Offset for mana ability instance IDs (separate from stack abilities at 100_000). */
-    internal const val MANA_ABILITY_ID_OFFSET = 200_000
 
     /**
      * Detect zone transfers and plan instanceId reallocations.
@@ -266,12 +264,13 @@ object ZoneTransferDetector {
                 applyHandoffToPatchSet(handoff, patchedObjects, i, patchedZones, obj.zoneId, retiredIds)
                 // Resolve affectorId: the ability instance that caused this transfer.
                 // For surveil (and future mechanics), the source card's ability on the
-                // stack has instanceId = getOrAlloc(sourceCardId + STACK_ABILITY_ID_OFFSET).
+                // stack has instanceId allocated against the stack-ability surrogate
+                // — see [FrameIdResolver.stackAbilityForgeId].
                 val affectorId =
                     if (forgeCardId != null && events.isNotEmpty()) {
                         val sourceCardId = TransferCategoryResolver.affectorSourceFromEvents(forgeCardId, events)
                         if (sourceCardId != null) {
-                            idLookup(ForgeCardId(sourceCardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET)).value
+                            idLookup(FrameIdResolver.stackAbilityForgeId(sourceCardId)).value
                         } else {
                             0
                         }
@@ -303,7 +302,7 @@ object ZoneTransferDetector {
                 val manaPayments =
                     spellCastEvent?.manaPayments?.map { mp ->
                         val landIid = idLookup(mp.sourceCardId).value
-                        val manaAbilityIid = idLookup(ForgeCardId(mp.sourceCardId.value + MANA_ABILITY_ID_OFFSET)).value
+                        val manaAbilityIid = idLookup(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId)).value
                         val abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId).value
                         ManaPaymentRecord(
                             landInstanceId = landIid,
@@ -487,7 +486,7 @@ object ZoneTransferDetector {
             val abilityForgeId = forgeIdLookup(InstanceId(obj.instanceId))
             val sourceCardForgeId =
                 if (abilityForgeId != null) {
-                    ForgeCardId(abilityForgeId.value - ObjectMapper.STACK_ABILITY_ID_OFFSET)
+                    FrameIdResolver.stackAbilitySourceForgeId(abilityForgeId)
                 } else {
                     null
                 }
@@ -532,11 +531,11 @@ object ZoneTransferDetector {
             if (instanceId in currentInstanceIds) continue
             if (instanceId in mainLoopIds) continue
 
-            // Only match ability objects (forge ID in the STACK_ABILITY_ID_OFFSET range).
+            // Only match ability objects (forge ID in the stack-ability surrogate range).
             val abilityForgeId = forgeIdLookup(InstanceId(instanceId)) ?: continue
-            if (abilityForgeId.value < ObjectMapper.STACK_ABILITY_ID_OFFSET) continue
+            if (!FrameIdResolver.isStackAbilityForgeId(abilityForgeId)) continue
 
-            val sourceCardForgeId = ForgeCardId(abilityForgeId.value - ObjectMapper.STACK_ABILITY_ID_OFFSET)
+            val sourceCardForgeId = FrameIdResolver.stackAbilitySourceForgeId(abilityForgeId)
             val sourceCardIid = idLookup(sourceCardForgeId).value
             val grpId = grpIdResolver(sourceCardForgeId).value
 
@@ -798,7 +797,7 @@ object ZoneTransferDetector {
         return listOf(
             ManaPaymentRecord(
                 landInstanceId = origId,
-                manaAbilityInstanceId = idLookup(ForgeCardId(forgeCardId.value + MANA_ABILITY_ID_OFFSET)).value,
+                manaAbilityInstanceId = idLookup(FrameIdResolver.manaAbilityForgeId(forgeCardId)).value,
                 color = mp.color,
                 abilityGrpId = manaAbilityGrpIdResolver(forgeCardId).value,
                 spellInstanceId = idLookup(castEv.cardId).value,

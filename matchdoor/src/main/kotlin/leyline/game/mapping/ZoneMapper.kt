@@ -22,9 +22,6 @@ import forge.game.zone.ZoneType as ForgeZoneType
 object ZoneMapper {
     private val log = LoggerFactory.getLogger(ZoneMapper::class.java)
 
-    /** Offset added to source card IDs for stack ability instance IDs. */
-    private val STACK_ABILITY_ID_OFFSET = ObjectMapper.STACK_ABILITY_ID_OFFSET
-
     // --- Snapshot-based player zones ---
 
     /**
@@ -196,7 +193,7 @@ object ZoneMapper {
      * Add [GameObjectType.Ability] entries for stack items not already represented
      * as cards in the stack zone. Reads from [snap.stack] — no live Forge reference needed.
      *
-     * Uses the source card's ID + [STACK_ABILITY_ID_OFFSET] for stable instance IDs
+     * Uses [FrameIdResolver.stackAbilityForgeId] for stable instance IDs
      * (same scheme as the legacy game-based variant).
      */
     internal fun addStackAbilitiesFromSnapshot(
@@ -220,10 +217,7 @@ object ZoneMapper {
 
             // Use a separate instance ID for the ability on the stack
             val abilityInstanceId =
-                bridge
-                    .getOrAllocInstanceId(
-                        ForgeCardId(entry.forgeCardId.value + STACK_ABILITY_ID_OFFSET),
-                    ).value
+                bridge.getOrAllocInstanceId(FrameIdResolver.stackAbilityForgeId(entry.forgeCardId)).value
             val grpId = entry.grpId.takeIf { it != 0 } ?: GameBridge.FALLBACK_GRPID
 
             zoneBuilder.addObjectInstanceIds(abilityInstanceId)

@@ -11,7 +11,7 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.FrameIdResolver
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -138,8 +138,8 @@ class ModalETBFlowTest :
             option.grpId shouldBe princeAbilityGrpId
 
             // Protocol: affectedId/affectorId reference the ability on the stack,
-            // not the card. The ability instanceId is derived from the source card's
-            // forge ID + STACK_ABILITY_ID_OFFSET.
+            // not the card. The ability instanceId is allocated against
+            // FrameIdResolver.stackAbilityForgeId(sourceCard).
             val princeCard =
                 h.bridge
                     .getPlayer(SeatId(1))!!
@@ -148,9 +148,8 @@ class ModalETBFlowTest :
                     .first { it.name == "Charming Prince" }
             val abilityInstanceId =
                 h.bridge
-                    .getOrAllocInstanceId(
-                        ForgeCardId(princeCard.id + ObjectMapper.STACK_ABILITY_ID_OFFSET),
-                    ).value
+                    .getOrAllocInstanceId(FrameIdResolver.stackAbilityForgeId(ForgeCardId(princeCard.id)))
+                    .value
 
             option.affectedId shouldBe abilityInstanceId
             option.affectorId shouldBe abilityInstanceId
