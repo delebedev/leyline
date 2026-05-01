@@ -25,20 +25,26 @@ data class FrameContext(
      *  off-objects); EZTT treats unknown-controller as "expire on any Upkeep"
      *  to prevent stale accumulation. */
     val controllerOf: Map<Int, SeatId>,
+    /** Instance ids currently on the stack — drives TriggeringObject expiry
+     *  (the row sticks while its ability is on the stack and prunes when the
+     *  ability iid is no longer present). Includes both card spells and
+     *  Ability gameObjects in zone 27. */
+    val stackIids: Set<Int> = emptySet(),
 ) {
     companion object {
-        /** No-op context — phase=null, empty battlefield, empty controller map.
-         *  No [PersistentAnnotationKind.shouldExpire] row fires under it
-         *  (EZTT gates on phase==UPKEEP, ColorProduction on iid-not-in-BF
-         *  which is true for any iid here but only matters when ColorProduction
-         *  rows exist in active). Used by legacy tests that don't exercise
-         *  lifecycle expiry. */
+        /** No-op context — phase=null, empty battlefield, empty stack, empty
+         *  controller map. No [PersistentAnnotationKind.shouldExpire] row fires
+         *  under it (EZTT gates on phase==UPKEEP, ColorProduction on
+         *  iid-not-in-BF, TriggeringObject on iid-not-in-Stack — all of which
+         *  are true here, but only matter when their rows exist in active).
+         *  Used by legacy tests that don't exercise lifecycle expiry. */
         val INERT: FrameContext =
             FrameContext(
                 phase = null,
                 activePlayerSeat = SeatId(1),
                 battlefieldIids = emptySet(),
                 controllerOf = emptyMap(),
+                stackIids = emptySet(),
             )
     }
 }
@@ -288,6 +294,31 @@ data object ColorProductionKind : PersistentAnnotationKind {
     }
 }
 
+/**
+ * Pure-snapshot persistent annotation: the "trigger ↔ source" link drawn by
+ * the client as a glowing arrow. One row per ability instance on the stack,
+ * carrying the source permanent (or stack object, for cascade/copy) the
+ * ability triggered from.
+ *
+ * Lifecycle: emitted once when the ability appears on the stack (snap-diff
+ * or event-driven path), expires when the ability iid is no longer in the
+ * stack zone — same hook the client uses to drop the rendered arrow.
+ */
+data object TriggeringObjectKind : PersistentAnnotationKind {
+    override val name = "TriggeringObject"
+    override val pruneStale = false
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.TriggeringObject in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any? = null
+
+    override fun shouldExpire(
+        ann: AnnotationInfo,
+        frame: FrameContext,
+    ): Boolean = ann.affectorId !in frame.stackIids
+}
+
 object PersistentAnnotationKinds {
     /**
      * Upsert-path kinds — rows are identity-keyed, dispatched by
@@ -315,6 +346,7 @@ object PersistentAnnotationKinds {
         listOf(
             EnteredZoneThisTurnKind,
             ColorProductionKind,
+            TriggeringObjectKind,
         )
 
     /** All kinds — iterated by the lifecycle expiry pass at the top of computeBatch. */
