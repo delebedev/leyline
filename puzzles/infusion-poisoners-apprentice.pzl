@@ -3,7 +3,7 @@ Name:Infusion Poisoner's Apprentice
 Goal:Demo
 Turns:5
 Difficulty:Easy
-Description:Cast Healing Salve to gain life, then cast Poisoner's Apprentice. Infusion trigger fires (target opp creature gets -4/-4). AbilityWordActive(Infusion) marker plus AbilityWordActive(LifeGainedThisTurn, value=N) helper visible after the life gain.
+Description:Cast Savannah Lions; Soul Warden triggers +1 life. Then cast Poisoner's Apprentice — Infusion fires (target opp creature gets -4/-4). AbilityWordActive(Infusion) marker plus AbilityWordActive(LifeGainedThisTurn, value=N) helper visible while in hand and after cast.
 
 [state]
 ActivePlayer=Human
@@ -12,8 +12,8 @@ HumanLife=20
 AILife=20
 removesummoningsickness=true
 
-humanbattlefield=Plains;Plains;Swamp;Swamp;Swamp
+humanbattlefield=Soul Warden;Plains;Plains;Swamp;Swamp;Swamp
 aibattlefield=Grizzly Bears
-humanhand=Healing Salve;Poisoner's Apprentice
+humanhand=Savannah Lions;Poisoner's Apprentice
 ailibrary=Forest
 humanlibrary=Plains

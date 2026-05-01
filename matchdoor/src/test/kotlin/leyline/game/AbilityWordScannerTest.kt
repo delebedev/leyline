@@ -363,20 +363,20 @@ class AbilityWordScannerTest :
             }
         }
 
-        test("Infusion source without life gain emits marker only — no LifeGainedThisTurn helper") {
+        test("Infusion source without life gain emits no Infusion marker and no LifeGainedThisTurn helper") {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Poisoner's Apprentice", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
-            // lifeGainedThisTurn defaults to 0
+            // lifeGainedThisTurn defaults to 0 — Infusion condition not active, marker omitted.
             val results =
                 AbilityWordScanner.scan(
                     battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
                     instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
                     registryResolver = { _ -> null },
                 )
-            results.firstOrNull { it.abilityWordName == "Infusion" }.shouldNotBeNull()
+            results.filter { it.abilityWordName == "Infusion" }.shouldBeEmpty()
             results.filter { it.abilityWordName == "LifeGainedThisTurn" }.shouldBeEmpty()
         }
 

@@ -276,14 +276,15 @@ object AbilityWordTriggerRecognizers {
             controller.hasRevolt()
         }
 
-        // Infusion — per-controller marker across hand + battlefield (always-on while sources exist),
-        // plus a per-source LifeGainedThisTurn quantitative helper. The helper rides the Infusion
-        // ability id (looked up via registry from the trigger whose description carries the
-        // 'Infusion —' prefix) and is omitted when no life has been gained this turn.
+        // Infusion — per-controller marker across hand + battlefield, gated on life gained
+        // this turn (the Infusion condition); plus a per-source LifeGainedThisTurn quantitative
+        // helper. The helper rides the Infusion ability id (looked up via registry from the
+        // trigger whose description carries the 'Infusion —' prefix). Both omit when no life
+        // has been gained this turn.
         registerAcrossZones(
             "Infusion",
             object : AcrossZonesEvaluator {
-                override fun shouldEmitMarker(controller: Player): Boolean = true
+                override fun shouldEmitMarker(controller: Player): Boolean = controller.lifeGainedThisTurn > 0
 
                 override fun perSourceEntries(
                     card: Card,
