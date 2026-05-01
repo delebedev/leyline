@@ -536,24 +536,25 @@ object StateMapper {
         // [ZoneMapper.addStackAbilitiesFromSnapshot] derivation. Pre-realloc
         // card iids only — see leyline-ucbf for the resolver that would
         // unify pre/post-realloc views.
-        val stackIids: Set<Int> = buildSet {
-            val cardIidsInStack = mutableSetOf<Int>()
-            snap.zones[ZoneIds.STACK]?.contents?.forEach { fid ->
-                val iid = bridge.getOrAllocInstanceId(fid).value
-                cardIidsInStack += iid
-                add(iid)
+        val stackIids: Set<Int> =
+            buildSet {
+                val cardIidsInStack = mutableSetOf<Int>()
+                snap.zones[ZoneIds.STACK]?.contents?.forEach { fid ->
+                    val iid = bridge.getOrAllocInstanceId(fid).value
+                    cardIidsInStack += iid
+                    add(iid)
+                }
+                for (entry in snap.stack.entries) {
+                    val cardIid = bridge.getOrAllocInstanceId(entry.forgeCardId).value
+                    if (cardIid in cardIidsInStack) continue
+                    val abilityIid =
+                        bridge
+                            .getOrAllocInstanceId(
+                                ForgeCardId(entry.forgeCardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET),
+                            ).value
+                    add(abilityIid)
+                }
             }
-            for (entry in snap.stack.entries) {
-                val cardIid = bridge.getOrAllocInstanceId(entry.forgeCardId).value
-                if (cardIid in cardIidsInStack) continue
-                val abilityIid =
-                    bridge
-                        .getOrAllocInstanceId(
-                            ForgeCardId(entry.forgeCardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET),
-                        ).value
-                add(abilityIid)
-            }
-        }
         val controllerOf: Map<Int, SeatId> =
             snap.boundCards.values.associate { bound ->
                 bridge.getOrAllocInstanceId(bound.forgeCardId).value to bound.snapshot.controller
