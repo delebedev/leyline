@@ -1,0 +1,11 @@
+name: "Bloodbraid Elf"
+grpId: 93301
+titleId: 1360
+abilities:
+  - id: 9
+    textId: 101
+    category: 3
+  - id: 86
+    textId: 27
+    category: 2
+expansionCode: "J25"

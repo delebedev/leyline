@@ -1,6 +1,7 @@
 package leyline.game.snapshot
 
 import forge.game.Game
+import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.spellability.SpellAbilityStackInstance
@@ -8,6 +9,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AbilityWordScanner
 import leyline.game.data.CardRepository
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
@@ -200,7 +202,8 @@ object SnapshotCapture {
             val controller = entry.activatingPlayer
             val ownerSeat = SeatId(if (sourceCard.owner == human) 1 else 2)
             val controllerSeat = SeatId(if (controller == human) 1 else 2)
-            val grpId = resolveEntryGrpId(entry, sourceCard, bridge)
+            val sourceCardGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: 0
+            val grpId = resolveEntryAbilityGrpId(entry, sourceCard, sourceCardGrpId, bridge)
             val targets = entry.targetChoices?.targetCards?.map { ForgeCardId(it.id) } ?: emptyList()
             entries.add(
                 StackEntry(
@@ -208,6 +211,8 @@ object SnapshotCapture {
                     controller = controllerSeat,
                     owner = ownerSeat,
                     grpId = grpId,
+                    sourceCardGrpId = sourceCardGrpId,
+                    isSpell = entry.isSpell,
                     targets = targets,
                 ),
             )
@@ -216,16 +221,45 @@ object SnapshotCapture {
     }
 
     /**
-     * Resolve grpId for a stack entry: try saga-chapter lookup first, then card name.
-     * Returns 0 on failure — callers apply [GameBridge.FALLBACK_GRPID].
+     * Resolve the **ability** grpId for a stack entry — the row in the Arena
+     * `Abilities` table that describes this trigger / activated SA. Resolution
+     * order:
+     *  1. Saga chapter (per-chapter ability id from [CardData.chapterAbilityGrpIds]).
+     *  2. Cascade keyword on the source card → fixed [KeywordAbilityIds.CASCADE] (86).
+     *  3. Default fallback → [sourceCardGrpId]. Preserves pre-fix behavior for SAs
+     *     whose ability id we don't yet resolve. Once a card-walk resolver lands
+     *     for ETB / activated / per-card abilities, the fallback shrinks to the
+     *     "no Arena printing" edge case.
+     *
+     * Returns 0 only when [sourceCardGrpId] is itself 0 (no Arena printing for
+     * the source card); callers apply [GameBridge.FALLBACK_GRPID].
      */
-    private fun resolveEntryGrpId(
+    @VisibleForTesting
+    internal fun resolveEntryAbilityGrpId(
         entry: SpellAbilityStackInstance,
         sourceCard: forge.game.card.Card,
+        sourceCardGrpId: Int,
         bridge: GameBridge,
     ): Int {
         resolveChapterGrpId(entry, sourceCard, bridge)?.let { return it }
-        return bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: 0
+        if (entry.isTrigger && sourceCard.hasKeyword("Cascade")) {
+            return KeywordAbilityIds.CASCADE
+        }
+        // Discover (Forge `DB$ Discover | Num$ N`): per-card Arena ability row.
+        // Pick the first Triggered ability on the source card; for cards with a
+        // single triggered ability (Etali's Favor, Geological Appraiser, Trumpeting
+        // Carnosaur) this resolves correctly. Multi-triggered cards (Hidden
+        // Courtyard activated, Daring Discovery) need a per-card disambiguation
+        // pass — deferred.
+        if (entry.isTrigger && entry.spellAbility?.api == ApiType.Discover && sourceCardGrpId != 0) {
+            val cardData = bridge.cardRepository.findByGrpId(sourceCardGrpId)
+            val triggeredAbility =
+                cardData?.abilityIds?.firstOrNull { (id, _) ->
+                    bridge.cardRepository.findAbilityInfo(id)?.category == 2
+                }
+            triggeredAbility?.first?.let { return it }
+        }
+        return sourceCardGrpId
     }
 
     /**

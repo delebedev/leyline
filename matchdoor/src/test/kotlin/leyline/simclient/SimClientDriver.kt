@@ -151,6 +151,10 @@ class SimClientDriver(
             GREMessageType.CastingTimeOptionsReq_695e -> respondCastingTimeOptions()
             GREMessageType.NumericInputReq_695e -> harness.respondToNumericInput(0)
             GREMessageType.IntermissionReq_695e -> harness.passPriority()
+            // OptionalActionMessage is handled by [MatchFlowHarness.drainSink]'s
+            // autoRespondToOptionalAction (defaults to AllowYes). No driver-side
+            // response needed — and re-responding here would warn-and-noop in
+            // [OptionalActionHandler] since pendingOptionalAction is already null.
             else -> harness.passPriority()
         }
     }

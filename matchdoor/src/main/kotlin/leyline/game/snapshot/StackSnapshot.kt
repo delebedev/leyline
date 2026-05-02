@@ -8,11 +8,16 @@ data class StackSnapshot(
 )
 
 /**
- * Immutable capture of a single stack item for the [addStackAbilitiesFromSnapshot] path.
+ * Immutable snapshot of a single stack item for the [addStackAbilitiesFromSnapshot] path.
  *
- * [grpId] is resolved during capture (saga chapter lookup + card name lookup) so the
- * mapper never needs a live Forge reference.  A value of 0 means the grpId could not
- * be resolved; [leyline.game.state.GameBridge.FALLBACK_GRPID] is applied at render time.
+ * Protocol convention for an `Ability` GameObject in zone Stack:
+ * - `grpId` = the **ability row id** (e.g. 86 for Cascade, 169776 for Hidden
+ *   Courtyard's activated Discover, 188945 for Reigning Victor's ETB-buff).
+ * - `objectSourceGrpId` = the **source card's grpId** (the permanent the ability
+ *   lives on).
+ * The two are not equal; collapsing them is a long-standing leyline gap.
+ * [grpId] and [sourceCardGrpId] mirror that split. A value of 0 means resolution
+ * failed; callers fall back to [leyline.game.state.GameBridge.FALLBACK_GRPID].
  */
 data class StackEntry(
     /** Forge card ID of the source card (host of the ability). */
@@ -22,10 +27,25 @@ data class StackEntry(
     /** Owner of the source card (used to set ownerSeatId on the ability object). */
     val owner: SeatId,
     /**
-     * Resolved grpId for the ability object.  0 when resolution failed; callers
-     * fall back to [leyline.game.state.GameBridge.FALLBACK_GRPID].
+     * Resolved grpId for the **ability** projected onto the stack — the row in the
+     * Arena `Abilities` table that describes this trigger / activated SA. Defaults
+     * to [sourceCardGrpId] when the resolver doesn't recognize the SA (preserves
+     * pre-fix behavior for unknown shapes).
      */
     val grpId: Int,
+    /**
+     * grpId of the source permanent (the card the ability lives on). Sets
+     * `objectSourceGrpId` on the projected ability object. Always populated when
+     * the source card has an Arena printing; 0 otherwise.
+     */
+    val sourceCardGrpId: Int,
+    /**
+     * `true` when this stack entry is a spell-cast (`SpellPermanent`,
+     * `SpellApiBased`). Spells get projected as `Card`-typed objects in the
+     * Stack zone via [addSharedZoneCardsFromSnapshot]; the `Ability` projection
+     * path skips them. Triggered + activated SAs are `false`.
+     */
+    val isSpell: Boolean,
     /** Card targets chosen for this stack item (may be empty). */
     val targets: List<ForgeCardId>,
 )

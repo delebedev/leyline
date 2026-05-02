@@ -1,0 +1,8 @@
+name: "Geological Appraiser"
+grpId: 87301
+titleId: 737615
+abilities:
+  - id: 169621
+    textId: 967192
+    category: 2
+expansionCode: "LCI"
