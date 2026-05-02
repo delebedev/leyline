@@ -879,20 +879,43 @@ class MatchFlowHarness(
 
     // --- Real-client gsId reflection ---
     //
-    // A real client reflects the gsId of the latest prompt-bearing GRE on
-    // every response it sends. The harness used to leave `gameStateId` at
-    // proto default 0, which short-circuited the production staleness check
-    // (`clientGsId != 0 && ...`) and meant no testGate test exercised it.
+    // A real client reflects the gsId of the latest prompt-bearing GRE it
+    // has received on every response it sends. The harness used to leave
+    // `gameStateId` at proto default 0, which short-circuited the production
+    // staleness check (`clientGsId != 0 && ...`) and meant no testGate test
+    // exercised it.
     //
-    // [submitWithGsId] fills the field from the bridge's prompt horizon —
-    // the same atomic-int the staleness predicate compares against — so
-    // every harness-driven submit now travels the real-client path.
+    // [submitWithGsId] fills the field by scanning [allMessages] — the
+    // drained record of what the harness has *seen*, mirroring a real
+    // client's TCP receive view. Reading from `bridge.messageCounter.
+    // lastPromptGsId()` directly would race against the engine thread:
+    // the engine can emit a new prompt between the harness's read and the
+    // session's processing of the response, leaving the response stamped
+    // with an old gsId that the staleness predicate then rejects (observed
+    // on CI under load, never reproduces locally because the engine drains
+    // synchronously fast enough to hide the race).
+    //
     // Tests that need to send an explicit (or stale) gsId can pass a
     // non-zero `gameStateId` on the inbound message; the wrapper leaves
     // those untouched.
 
-    /** gsId of the most recent prompt-bearing GRE the bridge emitted. 0 pre-handshake. */
-    fun latestPromptGsId(): Int = bridge.messageCounter.lastPromptGsId()
+    /**
+     * gsId of the most recent prompt-bearing GRE the harness has drained.
+     * 0 pre-handshake or before any prompt has been received.
+     *
+     * Walks [allMessages] in reverse — that's the harness's view of what
+     * the "client" has seen. Deliberately does not consult
+     * `bridge.messageCounter.lastPromptGsId()`: the bridge counter is
+     * shared mutable state advanced from the engine thread, so reading it
+     * races against in-flight emissions.
+     */
+    fun latestPromptGsId(): Int {
+        for (i in allMessages.indices.reversed()) {
+            val m = allMessages[i]
+            if (m.type in leyline.game.bundle.PROMPT_GRE_TYPES) return m.gameStateId
+        }
+        return 0
+    }
 
     /**
      * Reflect the latest prompt gsId onto a client message before it enters
