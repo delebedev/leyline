@@ -15,6 +15,7 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.game.InMemoryCardRepository
 import leyline.game.state.GameBridge
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
@@ -208,6 +209,58 @@ class MatchFlowHarnessTest :
             // After fix: only combat/stack resolution paths send AAR (legitimate prompts,
             // typically 1-2). Allow up to 3 for edge cases.
             aars.size shouldBeLessThanOrEqualTo 3
+        }
+
+        test("stale PerformActionResp is rejected; fresh one is accepted") {
+            val h = MatchFlowHarness(seed = 42L)
+            harness = h
+            h.connectAndKeep()
+
+            // After connectAndKeep we're at human MAIN1 with an AAR pending.
+            // The prompt horizon should have advanced past 0.
+            h.latestPromptGsId() shouldBeGreaterThan 0
+
+            // Build a Pass action at a clearly-stale gsId (5 below the
+            // current prompt). The hotfix's "currentGsId() - 1" predicate
+            // would also have rejected this — the test pins the same
+            // production behaviour for the lastPromptGsId() predicate so a
+            // future regression that swaps the comparison surfaces here.
+            val stalePass =
+                performAction { actionType = ActionType.Pass }
+                    .toBuilder()
+                    .setGameStateId(h.latestPromptGsId() - 5)
+                    .build()
+
+            val turnBefore = h.turn()
+            val phaseBefore = h.phase()
+            val msgCountBefore = h.messageSnapshot()
+
+            h.session.onPerformAction(stalePass)
+            h.drainSink()
+
+            // Stale action ignored — no state change, no further messages.
+            h.turn() shouldBe turnBefore
+            h.phase() shouldBe phaseBefore
+            h.messagesSince(msgCountBefore).shouldBeEmpty()
+
+            // Now submit a fresh Pass at the current horizon — this time
+            // the engine accepts it and advances state.
+            val freshPass =
+                performAction { actionType = ActionType.Pass }
+                    .toBuilder()
+                    .setGameStateId(h.latestPromptGsId())
+                    .build()
+
+            h.session.onPerformAction(freshPass)
+            h.drainSink()
+
+            // Either we changed phase/turn or the engine produced bundles
+            // — anything but a no-op proves the action wasn't dropped.
+            val advanced =
+                h.turn() != turnBefore ||
+                    h.phase() != phaseBefore ||
+                    h.messagesSince(msgCountBefore).isNotEmpty()
+            advanced.shouldBeTrue()
         }
 
         test("AI turn produces Diff messages") {
