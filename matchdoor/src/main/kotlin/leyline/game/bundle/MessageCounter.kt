@@ -91,6 +91,5 @@ class MessageCounter(
         msgId.set(value)
     }
 
-    override fun toString(): String =
-        "MessageCounter(gsId=${gsId.get()}, msgId=${msgId.get()}, lastPromptGsId=${lastPromptGsId.get()})"
+    override fun toString(): String = "MessageCounter(gsId=${gsId.get()}, msgId=${msgId.get()}, lastPromptGsId=${lastPromptGsId.get()})"
 }

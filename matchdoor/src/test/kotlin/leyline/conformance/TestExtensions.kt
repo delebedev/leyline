@@ -23,7 +23,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 
 /** Last GSM from a list of GREs that satisfies [predicate], or null. */
 fun List<GREToClientMessage>.lastGsmMatching(predicate: (GameStateMessage) -> Boolean): GameStateMessage? =
-    this.asReversed()
+    this
+        .asReversed()
         .firstOrNull { it.hasGameStateMessage() && predicate(it.gameStateMessage) }
         ?.gameStateMessage
 
