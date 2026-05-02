@@ -168,6 +168,83 @@ class TransferAnnotationPipelineTest :
             annotations.none { it.typeList.contains(AnnotationType.UserActionTaken) } shouldBe true
         }
 
+        // --- castSpellEventAnnotations: ability gating ---
+
+        test("castSpellEventAnnotations skips activated abilities") {
+            // Activated abilities (e.g. Goblin Fireslinger's tap-to-ping) hit the
+            // same Forge GameEventSpellAbilityCast path as real spells, but the
+            // source card stays on the battlefield — emitting a `Cast` UAT
+            // against its battlefield iid would mis-classify the interaction.
+            // The gate is `isAbility`, which Forge's StackItemView sets true
+            // for both triggered and activated abilities.
+            val ev =
+                leyline.game.event.GameEvent.SpellCast(
+                    cardId = leyline.bridge.types.ForgeCardId(42),
+                    seatId = 1.sid,
+                    manaPayments =
+                        listOf(
+                            leyline.game.event.GameEvent.ManaPayment(
+                                sourceCardId = leyline.bridge.types.ForgeCardId(43),
+                                color = 4,
+                            ),
+                        ),
+                    isAbility = true,
+                    isTrigger = false,
+                )
+            val annotations =
+                TransferAnnotations.castSpellEventAnnotations(
+                    ev,
+                    idResolver = { leyline.bridge.types.InstanceId(it.value) },
+                    manaAbilityGrpIdResolver = { leyline.bridge.types.GrpId(0) },
+                )
+            annotations.shouldBeEmpty()
+        }
+
+        test("castSpellEventAnnotations skips triggered abilities") {
+            val ev =
+                leyline.game.event.GameEvent.SpellCast(
+                    cardId = leyline.bridge.types.ForgeCardId(42),
+                    seatId = 1.sid,
+                    manaPayments = emptyList(),
+                    isAbility = true,
+                    isTrigger = true,
+                )
+            val annotations =
+                TransferAnnotations.castSpellEventAnnotations(
+                    ev,
+                    idResolver = { leyline.bridge.types.InstanceId(it.value) },
+                    manaAbilityGrpIdResolver = { leyline.bridge.types.GrpId(0) },
+                )
+            annotations.shouldBeEmpty()
+        }
+
+        test("castSpellEventAnnotations emits cast UAT + mana block on plain spells") {
+            val ev =
+                leyline.game.event.GameEvent.SpellCast(
+                    cardId = leyline.bridge.types.ForgeCardId(100),
+                    seatId = 1.sid,
+                    manaPayments =
+                        listOf(
+                            leyline.game.event.GameEvent.ManaPayment(
+                                sourceCardId = leyline.bridge.types.ForgeCardId(43),
+                                color = 4,
+                            ),
+                        ),
+                    isAbility = false,
+                    isTrigger = false,
+                )
+            val annotations =
+                TransferAnnotations.castSpellEventAnnotations(
+                    ev,
+                    idResolver = { leyline.bridge.types.InstanceId(it.value) },
+                    manaAbilityGrpIdResolver = { leyline.bridge.types.GrpId(0) },
+                )
+            // 5 per-payment annotations (AIC, TUP, UAT-mana, MP, AID) + 1 cast UAT.
+            annotations.size shouldBe 6
+            annotations.last().typeList shouldContain AnnotationType.UserActionTaken
+            annotations.last().detailInt("actionType") shouldBe 1 // Cast
+        }
+
         // --- annotationsForTransfer: Resolve ---
 
         test("resolveProducesThreeAnnotations") {

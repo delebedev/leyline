@@ -55,16 +55,15 @@ class FrameIdResolver(
      * for triggered abilities; its iid is allocated against the
      * [stackAbilityForgeId] surrogate so it doesn't collide with the source
      * card's iid.
+     *
+     * Synthesised forge IDs are never realloc-targets, so this lookup
+     * doesn't consult [postReallocIids] — kept as an instance method only
+     * so the resolver provides a single id-resolution surface.
      */
     fun stackAbilityIid(sourceForgeId: ForgeCardId): InstanceId =
         bridge.getOrAllocInstanceId(stackAbilityForgeId(sourceForgeId))
 
-    /**
-     * Iid for the synthesised per-payment mana Ability gameObject — one per
-     * land tap during cost payment. Distinct from [stackAbilityIid] because a
-     * single source card can produce both kinds of Ability gameObjects in the
-     * same frame.
-     */
+    /** Iid for a per-payment mana Ability gameObject — see [stackAbilityIid] for the surrogate-vs-realloc note. */
     fun manaAbilityIid(sourceForgeId: ForgeCardId): InstanceId =
         bridge.getOrAllocInstanceId(manaAbilityForgeId(sourceForgeId))
 

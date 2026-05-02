@@ -1,9 +1,9 @@
 [metadata]
 Name:Bolt Face
-Goal:Cast a targeted spell, observe full bracket
+Goal:Cast Lightning Bolt at opponent. The spell resolves and the game continues.
 Turns:2
 Difficulty:Easy
-Description:Cast Lightning Bolt at opponent. AILife=20 so the spell resolves and the game continues — the post-target-submit GSM bundle (TARGETS_CONFIRMED + RESOLVE content) is the whole point, and it gets short-circuited by autoPass.sendGameOver when the cast is lethal. Keep AILife high enough that the trace runs through all the cast-bracket frames.
+Description:Mountain on the battlefield, Lightning Bolt in hand. Target the opponent. Opponent starts at 20 so the spell resolves and the game continues — at low life the engine ends the game before the resolution trace finishes, which defeats the purpose of using this puzzle as a fixture for end-to-end cast scenarios.
 
 [state]
 ActivePlayer=Human

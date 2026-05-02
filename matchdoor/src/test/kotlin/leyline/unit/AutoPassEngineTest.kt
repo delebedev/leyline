@@ -478,6 +478,14 @@ class AutoPassEngineTest :
                 bundle[0].hasActionsAvailableReq() shouldBe false
                 bundle[1].hasGameStateMessage() shouldBe true
                 bundle[1].hasActionsAvailableReq() shouldBe false
+                // Trailing echo invariant: matching updateType, no content fields.
+                val content = bundle[0].gameStateMessage
+                val echo = bundle[1].gameStateMessage
+                echo.update shouldBe content.update
+                echo.annotationsCount shouldBe 0
+                echo.persistentAnnotationsCount shouldBe 0
+                echo.zonesCount shouldBe 0
+                echo.gameObjectsCount shouldBe 0
             }
         }
     })

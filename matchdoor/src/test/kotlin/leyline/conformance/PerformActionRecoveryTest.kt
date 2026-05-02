@@ -46,9 +46,17 @@ class PerformActionRecoveryTest :
             // postAction emits one content GSM + one AAR + one trailing echo
             // GSM (the post-content empty-diff frame). autoPassAndAdvance
             // would iterate phases, emitting multiple GSM/AAR pairs.
-            val gsmCount = sink.messages.count { it.hasGameStateMessage() }
+            val gsms = sink.messages.filter { it.hasGameStateMessage() }
             val aarCount = sink.messages.count { it.hasActionsAvailableReq() }
-            gsmCount shouldBe 2
+            gsms.size shouldBe 2
             aarCount shouldBe 1
+            // Trailing echo invariant: matching updateType, no content fields.
+            val content = gsms[0].gameStateMessage
+            val echo = gsms[1].gameStateMessage
+            echo.update shouldBe content.update
+            echo.annotationsCount shouldBe 0
+            echo.persistentAnnotationsCount shouldBe 0
+            echo.zonesCount shouldBe 0
+            echo.gameObjectsCount shouldBe 0
         }
     })

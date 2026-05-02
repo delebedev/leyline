@@ -261,15 +261,22 @@ object TransferAnnotations {
      *   (TARGETS_CONFIRMED), separate from the announce GSM (CAST_TARGETED)
      *   which carries only OIC + ZT + persistent.
      *
-     * Triggered abilities are skipped — they ride a separate path in
-     * [MechanicAnnotations] (TriggeringObject + AbilityInstance lifecycle).
+     * Ability gameObjects (triggered OR activated) are skipped — they ride
+     * separate paths. Triggers go through [MechanicAnnotations]
+     * (TriggeringObject + AbilityInstance lifecycle); activated abilities
+     * don't currently emit a per-payment block from this function (pre-uh9
+     * they got nothing here either, since they have no Hand→Stack zone
+     * change). If activated-ability mana brackets need to be emitted in
+     * the future, factor a separate event handler — don't reuse this one,
+     * because the cast-action UAT keyed on the spell card's iid would land
+     * against a battlefield-resident card and confuse the classifier.
      */
     internal fun castSpellEventAnnotations(
         ev: GameEvent.SpellCast,
         idResolver: (ForgeCardId) -> InstanceId,
         manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
     ): List<AnnotationInfo> {
-        if (ev.isTrigger) return emptyList()
+        if (ev.isAbility) return emptyList()
         val annotations = mutableListOf<AnnotationInfo>()
         val spellIid = idResolver(ev.cardId)
         for ((i, mp) in ev.manaPayments.withIndex()) {

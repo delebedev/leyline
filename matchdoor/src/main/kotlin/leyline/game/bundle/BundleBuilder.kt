@@ -1589,8 +1589,23 @@ class BundleBuilder(
 
     /**
      * Build a bare echo diff GSM (empty Diff with just gsId chain + update type).
-     * Used for select-targets echo-back before re-prompt and for remote-action
-     * animation commit frames.
+     *
+     * **Where echoes fire.** Every content-bearing emission from
+     * [postAction], [stateOnlyDiff], and [remoteActionDiff] appends one of
+     * these. Same applies to the `selectTargets` re-prompt cycle in
+     * `TargetingHandler.onSelectTargets`. The empirical pattern is "one
+     * empty echo per content GSM, same updateType."
+     *
+     * **Where echoes do not fire (yet).** Prompt-bearing bundles —
+     * [selectTargetsBundle], [selectNBundle], [castingTimeOptionsBundle],
+     * [payCostsBundle], [declareAttackersBundle], [declareBlockersBundle] —
+     * ship `[GSM, Request]` without a trailing echo. The bundles for
+     * these interactions don't have a clean "post-content echo" pattern
+     * yet documented; their canonical envelopes carry the echo on the
+     * frame paired with the re-prompt (handled in `TargetingHandler`)
+     * rather than as a trailing tag-along on the request bundle. Revisit
+     * if a future interaction-class diff against the client trace shows
+     * a missing echo signature.
      */
     fun buildEchoDiffGsm(
         counter: MessageCounter,
