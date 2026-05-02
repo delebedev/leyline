@@ -240,9 +240,11 @@ class MatchFlowHarnessTest :
                 h.drainSink()
 
                 // Stale action ignored — no state change, no further messages.
-                h.turn() shouldBe turnBefore
-                h.phase() shouldBe phaseBefore
-                h.messagesSince(msgCountBefore).shouldBeEmpty()
+                assertSoftly {
+                    h.turn() shouldBe turnBefore
+                    h.phase() shouldBe phaseBefore
+                    h.messagesSince(msgCountBefore).shouldBeEmpty()
+                }
             }
 
             // Now submit a fresh Pass at the current horizon — this time
