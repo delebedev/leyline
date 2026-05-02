@@ -41,6 +41,47 @@ object GrpIdResolver {
     private val log = LoggerFactory.getLogger(GrpIdResolver::class.java)
 
     /**
+     * Names already reported as missing from the client card DB. Snapshots run
+     * 100s of times per game and `card.name` is stable across them, so without
+     * dedup a single missing card emits an error per tick (observed: 1631
+     * errors / 71s game when a Forge-only card name is in the deck).
+     *
+     * **Scope: JVM-static (per resolver-singleton lifetime).** In a multi-game
+     * batch (e.g. simclient batch run) the same missing card name only logs
+     * ERROR once across the whole batch — downstream telemetry that counts
+     * per-game ERROR events will under-report missing cards in games 2..N.
+     * This is intentional: a missing card is a deck/DB drift problem, not a
+     * per-game one, and a single ERROR suffices to surface it.
+     *
+     * Tests that need fresh dedup state across runs can call
+     * [resetReportedMissingCardNamesForTest].
+     *
+     * Soft cap [MAX_REPORTED_MISSING] bounds memory if a runaway deck contains
+     * many missing names; further misses past the cap go unreported.
+     */
+    private val reportedMissingCardNames: MutableSet<String> =
+        java.util.concurrent.ConcurrentHashMap
+            .newKeySet()
+    private const val MAX_REPORTED_MISSING = 256
+
+    /** Test-only: clear the dedup set so a new batch starts fresh. */
+    @Suppress("unused")
+    fun resetReportedMissingCardNamesForTest() {
+        reportedMissingCardNames.clear()
+    }
+
+    private fun reportMissingOnce(
+        kind: String,
+        name: String,
+        forgeId: Int,
+    ) {
+        if (reportedMissingCardNames.size >= MAX_REPORTED_MISSING) return
+        if (reportedMissingCardNames.add(name)) {
+            log.error("$kind grpId=0 for card '{}' (forgeId={}): not in client card DB", name, forgeId)
+        }
+    }
+
+    /**
      * Resolve grpId for [card]. See class KDoc for the chain.
      *
      * @param instanceId client instanceId for [TokenIdentityRegistry] cache lookups.
@@ -85,7 +126,7 @@ object GrpIdResolver {
                 val sourceGrpId =
                     cards.findGrpIdByNameAnyFace(copiedPermanent.name)
                         ?: run {
-                            log.error("copy token grpId=0: source '{}' not in card DB", copiedPermanent.name)
+                            reportMissingOnce("copy token", copiedPermanent.name, card.id)
                             return GameBridge.FALLBACK_GRPID
                         }
                 if (instanceId != 0) tokenRegistry.register(instanceId, sourceGrpId)
@@ -98,7 +139,7 @@ object GrpIdResolver {
                 if (instanceId != 0) tokenRegistry.register(instanceId, tokenGrpId)
                 return tokenGrpId
             }
-            log.error("token grpId=0 for '{}' (forgeId={})", card.name, card.id)
+            reportMissingOnce("token", card.name, card.id)
             DevCheck.fail { "token grpId=0 for '${card.name}' (forgeId=${card.id})" }
             return GameBridge.FALLBACK_GRPID
         }
@@ -120,7 +161,7 @@ object GrpIdResolver {
         return cards.findGrpIdByName(card.name)
             ?: cards.findGrpIdByNameAnyFace(card.name)
             ?: run {
-                log.error("grpId=0 for card '{}' (forgeId={}): not in client card DB", card.name, card.id)
+                reportMissingOnce("standard", card.name, card.id)
                 DevCheck.fail { "grpId=0 for '${card.name}' (forgeId=${card.id}): not in client card DB" }
                 GameBridge.FALLBACK_GRPID
             }
