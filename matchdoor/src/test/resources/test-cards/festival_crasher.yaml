@@ -1,0 +1,8 @@
+name: "Festival Crasher"
+grpId: 78488
+titleId: 530219
+abilities:
+  - id: 91866
+    textId: 937822
+    category: 2
+expansionCode: "MID"

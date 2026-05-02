@@ -271,8 +271,26 @@ class ClientGuiGame(
         referenceCard: CardView?,
         sideboardingMode: Boolean,
     ): List<T> {
+        // Trigger-order auto-resolve. Forge's `PCHuman.orderSimultaneousSa`
+        // routes through here with `SpellAbilityView` choices for simultaneous
+        // triggers. The protocol does not surface a stepper for that decision —
+        // the engine resolves with APNAP / first-controller-orders default. Any
+        // bridge round-trip we tried to emit here would land as a `choose_one`
+        // request the client doesn't render and would time out, by which point
+        // the session has often torn down. Short-circuit: return the engine's
+        // already-ordered list (preselect = dest; first-time = source) and
+        // let resolution proceed.
+        //
+        // PCHuman currently passes exactly one non-empty list; if a future
+        // partial-preselect mode ever populates both, prefer dest (the
+        // preselected order is the load-bearing input).
+        val payload = if (sourceChoices.isNotEmpty()) sourceChoices else destChoices
+        if (payload.firstOrNull { it != null } is SpellAbilityView) {
+            return payload.toList()
+        }
+
         if (sourceChoices.size <= 1) return sourceChoices.toList()
-        // Simplified: present as repeated "pick next" via choose_one
+        // Library / graveyard / search ordering: present as repeated "pick next" via choose_one.
         val remaining = sourceChoices.toMutableList()
         val result = mutableListOf<T>()
         while (remaining.size > 1) {
