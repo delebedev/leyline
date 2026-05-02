@@ -27,6 +27,13 @@ data class GameStats(
     val totalMessages: Int,
     val promptHistogram: Map<GREMessageType, Int>,
     val hitIterCap: Boolean,
+    val durationMs: Long = 0,
+    val aiConsulted: Int = 0,
+    val aiChose: Int = 0,
+    val aiConsultedByPrompt: Map<String, Int> = emptyMap(),
+    val aiChoseByPrompt: Map<String, Int> = emptyMap(),
+    val warnsByLogger: Map<String, Int> = emptyMap(),
+    val errorsByType: Map<String, Int> = emptyMap(),
 )
 
 class SimClientDriver(
@@ -35,11 +42,44 @@ class SimClientDriver(
     private val maxTurns: Int = 50,
     private val maxIterations: Int = 2_000,
     private val connect: () -> Unit = { harness.connectAndKeep() },
+    /**
+     * When non-null, the driver consults this advisor for `ActionsAvailableReq`
+     * decisions before falling back to greedy heuristics. Iteration 1 covers
+     * priority-window action picking only; other prompt types stay greedy.
+     */
+    private val forgeAi: ForgeAiPolicy? = null,
 ) {
     private val logger = LoggerFactory.getLogger(SimClientDriver::class.java)
     private var lastFlushedSize = 0
 
+    private companion object {
+        const val TURN_STALL_THRESHOLD = 200
+
+        /**
+         * Cap for greedy NumericInput responses. ChooseX prompts use
+         * `req.maxValue = Int.MAX_VALUE`; submitting that value makes the
+         * cost engine try to pay 2³¹−1 mana and refuse the cast. A small
+         * positive value (paying X = 3) exercises the X-cost emission paths
+         * without burning real games on un-payable casts.
+         */
+        const val NUMERIC_INPUT_DEFAULT_MAX = 3
+    }
+
+    /** Per-prompt-type counts of how often the AI advisor was consulted vs. yielded a usable choice. */
+    private val aiConsultedByPrompt = mutableMapOf<String, Int>()
+    private val aiChoseByPrompt = mutableMapOf<String, Int>()
+
+    private fun bumpConsulted(prompt: String) {
+        aiConsultedByPrompt.merge(prompt, 1) { a, b -> a + b }
+    }
+
+    private fun bumpChose(prompt: String) {
+        aiChoseByPrompt.merge(prompt, 1) { a, b -> a + b }
+    }
+
     fun runOneGame(): GameStats {
+        val tap = GameLogCapture().apply { start() }
+        val t0 = System.nanoTime()
         connect()
         flushNewMessagesToLog()
 
@@ -58,15 +98,18 @@ class SimClientDriver(
             }
             iter++
             val before = harness.allMessages.size
-            takeOneStep()
+            val acted = takeOneStep()
             flushNewMessagesToLog()
-            if (harness.allMessages.size == before) {
+            // Only count "no-progress" iterations when we actually tried to
+            // submit something. Race-guard skips (no pending action) leave the
+            // engine async — give it room before declaring a stall.
+            if (acted && harness.allMessages.size == before) {
                 stuckAtPriority++
                 if (stuckAtPriority >= 3) {
                     logger.warn("SimClientDriver: no progress after iter $iter, breaking")
                     break
                 }
-            } else {
+            } else if (acted) {
                 stuckAtPriority = 0
             }
             // Detect "turn-stall" — too many iterations on the same turn means
@@ -76,17 +119,9 @@ class SimClientDriver(
             if (cur != lastTurn) {
                 lastTurn = cur
                 lastTurnIter = iter
-            } else if (iter - lastTurnIter > 200) {
-                logger.warn("SimClientDriver: turn $cur stalled for >200 iters, conceding")
-                try {
-                    harness.session.onConcede()
-                    // Concede emits via sink directly; need a drain to pull
-                    // those bytes into allMessages so the log writer sees them.
-                    harness.drainSink()
-                    flushNewMessagesToLog()
-                } catch (t: Throwable) {
-                    logger.error("SimClientDriver: concede failed: ${t::class.simpleName}: ${t.message}", t)
-                }
+            } else if (iter - lastTurnIter > TURN_STALL_THRESHOLD) {
+                logger.warn("SimClientDriver: turn $cur stalled for >$TURN_STALL_THRESHOLD iters, conceding")
+                concedeAndFlush(reason = "stall", logFailureAtError = true)
                 break
             }
         }
@@ -94,13 +129,7 @@ class SimClientDriver(
         // no-progress break, or iter cap), concede so the game produces a proper
         // game-over sequence and gameOver=true in stats.
         if (!harness.isGameOver()) {
-            try {
-                harness.session.onConcede()
-                harness.drainSink()
-                flushNewMessagesToLog()
-            } catch (t: Throwable) {
-                logger.warn("SimClientDriver: cleanup concede failed: ${t::class.simpleName}: ${t.message}")
-            }
+            concedeAndFlush(reason = "cleanup", logFailureAtError = false)
         }
         log.flush()
         val histogram =
@@ -108,6 +137,8 @@ class SimClientDriver(
                 .filter { isPrompt(it) }
                 .groupingBy { it.type }
                 .eachCount()
+        val durationMs = (System.nanoTime() - t0) / 1_000_000
+        val (warns, errors) = tap.stopAndDrain()
         return GameStats(
             turn = currentTurnOrNull() ?: lastTurn,
             gameOver = harness.isGameOver(),
@@ -115,15 +146,52 @@ class SimClientDriver(
             totalMessages = harness.allMessages.size,
             promptHistogram = histogram,
             hitIterCap = hitIterCap,
+            durationMs = durationMs,
+            aiConsulted = aiConsultedByPrompt.values.sum(),
+            aiChose = aiChoseByPrompt.values.sum(),
+            aiConsultedByPrompt = aiConsultedByPrompt.toMap(),
+            aiChoseByPrompt = aiChoseByPrompt.toMap(),
+            warnsByLogger = warns,
+            errorsByType = errors,
         )
     }
 
-    /** Pick one action based on the current pending prompt. */
-    private fun takeOneStep() {
+    private fun concedeAndFlush(
+        reason: String,
+        logFailureAtError: Boolean,
+    ) {
+        try {
+            harness.session.onConcede()
+            // Concede emits via sink directly; drain pulls those bytes into
+            // allMessages so the log writer sees them.
+            harness.drainSink()
+            flushNewMessagesToLog()
+        } catch (t: Throwable) {
+            val msg = "SimClientDriver: $reason concede failed: ${t::class.simpleName}: ${t.message}"
+            if (logFailureAtError) logger.error(msg, t) else logger.warn(msg)
+        }
+    }
+
+    /**
+     * Returns true if a real action / response was submitted; false if we
+     * skipped due to no pending action (engine is async and not yet ready —
+     * the caller should NOT count this toward the no-progress safety).
+     */
+    private fun takeOneStep(): Boolean {
+        // Race guard: if no action is currently pending, the engine has already
+        // auto-passed past whatever priority window produced our last observed
+        // prompt. Submitting now triggers
+        // `WARN ActionPerformer: PerformActionResp but no pending action`.
+        // Drain instead so the auto-pass loop's outbound messages flush and we
+        // pick up the next real prompt on the next iteration.
+        if (!harness.hasPendingAction()) {
+            harness.drainSink()
+            return false
+        }
         val (msg, type) =
             lastPromptMessage() ?: run {
                 harness.passPriority()
-                return
+                return true
             }
         when (type) {
             GREMessageType.DeclareAttackersReq_695e -> {
@@ -133,23 +201,30 @@ class SimClientDriver(
                 harness.declareAllAttackers()
                 harness.submitAttackers()
             }
-            GREMessageType.DeclareBlockersReq_695e -> harness.declareNoBlockers()
+            GREMessageType.DeclareBlockersReq_695e -> {
+                if (!consultForgeAiForBlockers()) harness.declareNoBlockers()
+            }
             GREMessageType.ActionsAvailableReq_695e -> {
-                // Order: play land, cast any spell from the AAR's active list, pass.
-                // Density: cast non-creature spells too (burn, pump, removal). The
-                // simclient uses the AAR's Cast actions directly — each carries
-                // instanceId+grpId already, so we don't need to walk the hand.
+                // Race mitigation: skip the AI consultation entirely when the AAR
+                // exposes nothing castable. Forge AI's search adds tens of ms;
+                // during that window leyline's auto-pass loop frequently consumes
+                // the priority window, and our subsequent `passPriority()` lands
+                // when nothing is pending → ActionPerformer "no pending action"
+                // warn + spurious resync. Pass-only AARs need no thinking.
+                if (hasCastableActionsInAar() && consultForgeAiForAar()) return true
+                // Greedy fallback (or AI declined / no castable). Order: play
+                // land, cast any spell from the AAR's active list, pass.
                 if (canPlayLand()) {
                     harness.playLand()
-                    return
+                    return true
                 }
-                if (castFirstAvailableSpell()) return
+                if (castFirstAvailableSpell()) return true
                 harness.passPriority()
             }
             GREMessageType.SelectTargetsReq_695e -> respondSelectTargets(msg)
             GREMessageType.GroupReq_695e -> respondGroup(msg)
             GREMessageType.CastingTimeOptionsReq_695e -> respondCastingTimeOptions()
-            GREMessageType.NumericInputReq_695e -> harness.respondToNumericInput(0)
+            GREMessageType.NumericInputReq_695e -> respondNumericInput()
             GREMessageType.IntermissionReq_695e -> harness.passPriority()
             // OptionalActionMessage is handled by [MatchFlowHarness.drainSink]'s
             // autoRespondToOptionalAction (defaults to AllowYes). No driver-side
@@ -157,6 +232,7 @@ class SimClientDriver(
             // [OptionalActionHandler] since pendingOptionalAction is already null.
             else -> harness.passPriority()
         }
+        return true
     }
 
     /** Pick first legal target across all selection slots. */
@@ -183,21 +259,56 @@ class SimClientDriver(
     }
 
     /**
-     * Greedy CastingTimeOptionsReq response: decline all optional costs
-     * (ctoId=0). Covers kicker / buyback / Bargain / Offspring decline paths.
-     * For modal-required prompts (where the player must pick a mode), this
-     * decline can stall the engine — log and fall through to passPriority so
-     * the iter cap fires deterministically rather than blocking.
+     * Greedy CastingTimeOptionsReq response: accept the first non-zero option
+     * when present (ctoId > 0 = a specific cost like Kicker / Bargain / etc.);
+     * otherwise decline (ctoId = 0). Picking the first non-zero option exercises
+     * the kicker / Bargain / Offspring acceptance path that pure-decline never
+     * reaches, surfacing the downstream prompts those costs trigger (NumericInput
+     * for {X}-style kickers, additional CTO rounds for stacked options).
+     *
+     * If a modal-required prompt rejects our choice, fall through to passPriority
+     * so the iter cap fires deterministically rather than blocking.
      */
     private fun respondCastingTimeOptions() {
-        runCatching { harness.respondToOptionalCost(0) }
+        val msg = harness.allMessages.lastOrNull { it.hasCastingTimeOptionsReq() }
+        val ctoId =
+            msg
+                ?.castingTimeOptionsReq
+                ?.castingTimeOptionReqList
+                ?.firstOrNull { it.ctoId != 0 }
+                ?.ctoId
+                ?: 0
+        runCatching { harness.respondToOptionalCost(ctoId) }
             .onFailure {
                 logger.warn(
-                    "respondCastingTimeOptions: decline failed ({}), falling back to passPriority",
+                    "respondCastingTimeOptions: ctoId={} failed ({}), falling back to passPriority",
+                    ctoId,
                     it::class.simpleName,
                 )
                 harness.passPriority()
             }
+    }
+
+    /**
+     * NumericInputReq response: pick a small positive value rather than 0.
+     * Most NumericInput prompts in practice are X-cost choices (ChooseX) —
+     * submitting 0 makes the spell do nothing, which is greedy-cheap but
+     * useless for exercising X-cost emission paths.
+     *
+     * `req.maxValue` for ChooseX is `Int.MAX_VALUE` (see
+     * `NumericInputHandler.sendNumericInputReq`), so we cap at a small
+     * realistic value the cost engine can actually pay. The lower bound from
+     * `req.minValue` wins when set (defensive — engine sends min=0 by default).
+     */
+    private fun respondNumericInput() {
+        val req = harness.allMessages.lastOrNull { it.hasNumericInputReq() }?.numericInputReq
+        val choice =
+            if (req == null) {
+                0
+            } else {
+                req.minValue.coerceAtLeast(NUMERIC_INPUT_DEFAULT_MAX.coerceAtMost(req.maxValue))
+            }
+        harness.respondToNumericInput(choice)
     }
 
     /** Greedy GroupReq response: leave order as-is (top stays top, no surveil-to-graveyard). */
@@ -211,6 +322,55 @@ class SimClientDriver(
     private fun canPlayLand(): Boolean {
         val actions = harness.accumulator.actions ?: return false
         return actions.actionsList.any { it.actionType == ActionType.Play_add3 }
+    }
+
+    /**
+     * Consult the Forge-AI advisor for a priority-window decision. Returns
+     * true if a choice was submitted (engine will advance), false if no AI was
+     * configured or the AI declined / produced no actionable match.
+     */
+    private fun consultForgeAiForAar(): Boolean {
+        val ai = forgeAi ?: return false
+        bumpConsulted("ActionsAvailableReq")
+        val choice = ai.chooseAarAction() ?: return false
+        bumpChose("ActionsAvailableReq")
+        val msg =
+            performAction {
+                actionType = choice.actionType
+                instanceId = choice.instanceId
+                grpId = choice.grpId
+            }
+        harness.session.onPerformAction(harness.submitWithGsId(msg))
+        harness.drainSink()
+        return true
+    }
+
+    /**
+     * Consult the Forge-AI advisor for a `DeclareBlockersReq` decision. Returns
+     * true when blocks were submitted, false when no AI / no blocks chosen
+     * (caller falls back to `declareNoBlockers`).
+     */
+    private fun consultForgeAiForBlockers(): Boolean {
+        val ai = forgeAi ?: return false
+        bumpConsulted("DeclareBlockersReq")
+        val assignments = ai.chooseBlockers() ?: return false
+        bumpChose("DeclareBlockersReq")
+        harness.declareBlockers(assignments)
+        return true
+    }
+
+    /**
+     * Cheap predicate — does the current AAR offer any non-Pass action? Used
+     * to skip the AI advisor on cleanup-step priority windows where the engine
+     * just wants Pass and AI search would only burn CPU + invite races.
+     */
+    private fun hasCastableActionsInAar(): Boolean {
+        val actions = harness.accumulator.actions ?: return false
+        return actions.actionsList.any {
+            it.actionType == ActionType.Cast ||
+                it.actionType == ActionType.Play_add3 ||
+                it.actionType == ActionType.Activate_add3
+        }
     }
 
     /**
