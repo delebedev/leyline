@@ -875,6 +875,17 @@ class MatchFlowHarness(
 
     fun game(): Game = bridge.getGame()!!
 
+    /**
+     * True when the seat's [GameActionBridge] has a pending action awaiting
+     * the client's response. False means the engine isn't blocked on us — any
+     * submit we make will trigger
+     * `WARN ActionPerformer: PerformActionResp but no pending action` and a
+     * spurious state resync. Use as a guard before `session.onPerformAction`
+     * in long-running drivers (simclient) where the auto-pass loop frequently
+     * advances past priority windows between observe and submit.
+     */
+    fun hasPendingAction(seat: SeatId = seatId): Boolean = bridge.actionBridge(seat).getPending() != null
+
     fun shutdown() = bridge.shutdown()
 
     // --- Real-client gsId reflection ---
@@ -963,8 +974,17 @@ class MatchFlowHarness(
                 .filter { it.isNotBlank() }
                 .map { it.trim() }
                 .filter { !sectionHeader.matches(it) }
-                .map { it.replaceFirst(Regex("^\\d+\\s+"), "") }
-                .distinct()
+                // Strip leading `<count> ` and trailing Arena-export suffix
+                // ` (SET) NNN` (e.g. `4 Diregraf Ghoul (FDN) 171` → `Diregraf Ghoul`).
+                // Mirrors `DeckLoader.parseDeckList` — without this, the
+                // validator looks up `Diregraf Ghoul (FDN) 171` verbatim and
+                // every Arena-export deck spuriously fails to resolve.
+                .map {
+                    it
+                        .replaceFirst(Regex("^\\d+\\s+"), "")
+                        .replace(Regex("""\s*\([A-Z0-9]+\)\s*\d*\s*$"""), "")
+                        .trim()
+                }.distinct()
         val db =
             forge.model.FModel
                 .getMagicDb()
