@@ -207,21 +207,48 @@ object ZoneMapper {
         val zoneBuilder = zones.find { it.zoneId == ZoneIds.STACK }?.toBuilder() ?: return
         zones.removeIf { it.zoneId == ZoneIds.STACK }
 
-        // Track which source cards are already in the zone (from addSharedZoneCardsFromSnapshot)
-        val existingIds = zoneBuilder.objectInstanceIdsList.toSet()
-
         for (entry in snap.stack.entries) {
-            val cardInstanceId = bridge.getOrAllocInstanceId(entry.forgeCardId).value
-            // Skip if the source card is already represented in the stack zone
-            if (cardInstanceId in existingIds) continue
+            // Skip spell casts — those are projected as Cards in the stack zone via
+            // [addSharedZoneCardsFromSnapshot]. The Ability projection path is for
+            // triggered + activated SAs (Cascade trigger, Discover trigger, etc.).
+            // Without this, late-snapshot timing where Forge has already removed the
+            // spell from the stack zone but the entry lingers leaks an Ability with
+            // grpId == sourceCardGrpId, masking the real triggered-ability projection.
+            // Triggered abilities firing off a spell-on-stack (Cascade, source_zone=27)
+            // need to project even when their source spell is still in the stack zone.
+            if (entry.isSpell) continue
 
             // Use a separate instance ID for the ability on the stack
             val abilityInstanceId =
                 bridge.getOrAllocInstanceId(FrameIdResolver.stackAbilityForgeId(entry.forgeCardId)).value
             val grpId = entry.grpId.takeIf { it != 0 } ?: GameBridge.FALLBACK_GRPID
+            // Degraded fallback: when [SnapshotCapture] couldn't resolve the source
+            // card's Arena printing (synthetic test card, unrecognized token), reuse
+            // the ability grpId rather than emit 0. This re-collapses grpId ==
+            // objectSourceGrpId — the exact bug the field split was introduced to
+            // fix — so warn loudly so a debug session knows to look here, not at
+            // the resolver.
+            val sourceCardGrpId =
+                entry.sourceCardGrpId.takeIf { it != 0 } ?: run {
+                    log.warn(
+                        "stack ability sourceCardGrpId=0 for forgeCardId={}; " +
+                            "falling back to ability grpId={} — collapsing the field split",
+                        entry.forgeCardId,
+                        grpId,
+                    )
+                    grpId
+                }
 
             zoneBuilder.addObjectInstanceIds(abilityInstanceId)
-            gameObjects.add(ObjectMapper.buildAbilityObject(grpId, abilityInstanceId, entry.owner.value, bridge.cardProto))
+            gameObjects.add(
+                ObjectMapper.buildAbilityObject(
+                    grpId = grpId,
+                    sourceCardGrpId = sourceCardGrpId,
+                    instanceId = abilityInstanceId,
+                    ownerSeatId = entry.owner.value,
+                    cardProto = bridge.cardProto,
+                ),
+            )
         }
         zones.add(zoneBuilder.build())
     }

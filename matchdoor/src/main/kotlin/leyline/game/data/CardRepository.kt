@@ -218,6 +218,9 @@ object KeywordAbilityIds {
     const val WARP = 371
     const val SNEAK = 394
 
+    // Single-row shared keyword ability ids (BaseId=0, every card references the same Id).
+    const val CASCADE = 86
+
     /**
      * Resolve a Forge `AlternativeCost.name` (uppercase enum name like
      * `"WARP"`, `"FORETOLD"`, `"PLOTTED"`) to the keyword's ability id.

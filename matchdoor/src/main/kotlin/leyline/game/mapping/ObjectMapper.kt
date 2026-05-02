@@ -21,22 +21,30 @@ import forge.card.CardType.CoreType as ForgeCoreType
 object ObjectMapper {
     /**
      * Build a [GameObjectInfo] for an ability on the stack.
+     *
+     * [grpId] and [sourceCardGrpId] are independent: [grpId] is the ability row id
+     * (e.g. 86 for Cascade), [sourceCardGrpId] is the host permanent's grpId.
+     * `cardProto.buildObjectInfo(sourceCardGrpId)` carries the printed card type /
+     * color / supertype context the client uses to render the stack tile; the
+     * ability's identity rides on the top-level [grpId] field.
      */
     fun buildAbilityObject(
         grpId: Int,
+        sourceCardGrpId: Int,
         instanceId: Int,
         ownerSeatId: Int,
         cardProto: CardProtoBuilder,
     ): GameObjectInfo =
         cardProto
-            .buildObjectInfo(grpId)
+            .buildObjectInfo(sourceCardGrpId)
+            .setGrpId(grpId)
             .setInstanceId(instanceId)
             .setType(GameObjectType.Ability)
             .setZoneId(ZoneIds.STACK)
             .setVisibility(Visibility.Public)
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(ownerSeatId)
-            .setObjectSourceGrpId(grpId)
+            .setObjectSourceGrpId(sourceCardGrpId)
             .build()
 
     /**

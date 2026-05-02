@@ -1,0 +1,18 @@
+[metadata]
+Name:Cascade Bloodbraid Elf
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast Bloodbraid Elf to trigger Cascade. Library top first nonland is Llanowar Elves (MV 1) — accept the may-cast and it enters battlefield for free without needing a target.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=4
+
+humanhand=Bloodbraid Elf
+humanbattlefield=Mountain;Mountain;Mountain;Forest;Forest
+humanlibrary=Llanowar Elves;Forest;Forest;Mountain;Mountain;Forest;Mountain
+aibattlefield=Grizzly Bears
+ailibrary=Forest;Forest;Forest;Forest;Forest
