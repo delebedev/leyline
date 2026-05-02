@@ -222,7 +222,12 @@ class SimClientDriver(
                 instanceId = cast.instanceId
                 grpId = cast.grpId
             }
-        harness.session.onPerformAction(msg)
+        // Route through the harness wrapper so the cast carries a
+        // realistic gsId (matches real-client reflection). Direct
+        // session.onPerformAction would short-circuit the staleness
+        // predicate via `clientGsId != 0` and reduce simclient's
+        // coverage of the production path.
+        harness.session.onPerformAction(harness.submitWithGsId(msg))
         harness.drainSink()
         return true
     }

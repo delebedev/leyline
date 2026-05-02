@@ -220,28 +220,30 @@ class MatchFlowHarnessTest :
             // The prompt horizon should have advanced past 0.
             h.latestPromptGsId() shouldBeGreaterThan 0
 
-            // Build a Pass action at a clearly-stale gsId (5 below the
-            // current prompt). The hotfix's "currentGsId() - 1" predicate
-            // would also have rejected this — the test pins the same
-            // production behaviour for the lastPromptGsId() predicate so a
-            // future regression that swaps the comparison surfaces here.
-            val stalePass =
-                performAction { actionType = ActionType.Pass }
-                    .toBuilder()
-                    .setGameStateId(h.latestPromptGsId() - 5)
-                    .build()
-
             val turnBefore = h.turn()
             val phaseBefore = h.phase()
             val msgCountBefore = h.messageSnapshot()
 
-            h.session.onPerformAction(stalePass)
-            h.drainSink()
+            // Submit at horizon - 1 (the boundary case the original
+            // off-by-one hotfix bumped against; we explicitly pin the
+            // closed boundary "strictly less than" so a regression that
+            // loosens the predicate by one is caught) and at horizon - 5
+            // (a clearly-stale margin that catches a regression that
+            // loosens the predicate by an arbitrary offset).
+            for (delta in listOf(1, 5)) {
+                val stalePass =
+                    performAction { actionType = ActionType.Pass }
+                        .toBuilder()
+                        .setGameStateId(h.latestPromptGsId() - delta)
+                        .build()
+                h.session.onPerformAction(stalePass)
+                h.drainSink()
 
-            // Stale action ignored — no state change, no further messages.
-            h.turn() shouldBe turnBefore
-            h.phase() shouldBe phaseBefore
-            h.messagesSince(msgCountBefore).shouldBeEmpty()
+                // Stale action ignored — no state change, no further messages.
+                h.turn() shouldBe turnBefore
+                h.phase() shouldBe phaseBefore
+                h.messagesSince(msgCountBefore).shouldBeEmpty()
+            }
 
             // Now submit a fresh Pass at the current horizon — this time
             // the engine accepts it and advances state.

@@ -899,8 +899,12 @@ class MatchFlowHarness(
      * the session, mirroring real-client behaviour. Pass-through when the
      * message already carries an explicit non-zero gsId (used by tests that
      * need to drive a stale or pre-handshake submission deliberately).
+     *
+     * `internal` so cross-package drivers in the same module (notably
+     * [leyline.simclient.SimClientDriver]) can route their direct
+     * `session.on*` calls through it instead of bypassing reflection.
      */
-    private fun submitWithGsId(msg: ClientToGREMessage): ClientToGREMessage =
+    internal fun submitWithGsId(msg: ClientToGREMessage): ClientToGREMessage =
         if (msg.gameStateId == 0) {
             msg.toBuilder().setGameStateId(latestPromptGsId()).build()
         } else {

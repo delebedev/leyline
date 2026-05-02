@@ -21,6 +21,11 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
  *   not a staleness-checked handler)
  * - `EdictalMessage`, `TimerStateMessage`, `UIMessage`, `MatchCompletedEvent`
  *   (informational; no awaited response)
+ * - `MulliganReq_aa0d`, `ChooseStartingPlayerReq_695e` — these *do* solicit
+ *   a response, but [leyline.match.MulliganHandler] doesn't run the staleness
+ *   predicate against them (the mulligan / coin-flip flow has its own
+ *   sequencing). If a future change adds a staleness check to those
+ *   handlers, add the types to this set then.
  */
 val PROMPT_GRE_TYPES: Set<GREMessageType> =
     setOf(
