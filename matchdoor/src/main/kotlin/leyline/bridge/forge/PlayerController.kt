@@ -509,9 +509,21 @@ class PlayerController(
 
     private fun announceXIfPresent(wrapper: WrappedAbility) {
         val cost = wrapper.payCosts ?: return
-        val needsX = cost.hasXInAnyCostPart() || wrapper.hasSVar("X")
-        if (!needsX) return
         if (wrapper.xManaCostPaid != null) return
+
+        // Forge's own X-announce gate (PlaySpellAbility:773) checks
+        // `cost.hasXInAnyCostPart()`, but for wrapped triggered SAs that
+        // accessor returns false even when `Cost$ X` is set (the wrapper
+        // strips the cost into a separate accessor path). So we additionally
+        // accept `SVar:X = Count$xPaid` — Forge's own canonical marker for
+        // "this ability's X is the amount paid as X mana" — which is set on
+        // every `Cost$ X` trigger we've observed (Wildborn Preserver and the
+        // mechanic-mirror cards in `forge/forge-gui/res/cardsfolder`). Other
+        // SVar:X values (Count$Domain, PT$X, etc.) reference X for some other
+        // computation and must not fire a NumericInputReq.
+        val sVar = wrapper.getSVar("X")
+        val needsX = cost.hasXInAnyCostPart() || sVar == "Count\$xPaid"
+        if (!needsX) return
 
         val maxX = cost.getMaxForNonManaX(wrapper, player, false) ?: Int.MAX_VALUE
         val x =
@@ -849,29 +861,44 @@ class PlayerController(
     // real `NumericInputReq` (ChooseX). The list-of-values overload is rarer
     // and a different shape; throw to surface the call site if it ever fires.
 
-    override fun chooseNumber(sa: SpellAbility, title: String, min: Int, max: Int): Int =
-        numericInputGate.await(
+    override fun chooseNumber(sa: SpellAbility, title: String, min: Int, max: Int): Int {
+        // PCHuman short-circuits when the range is degenerate; preserve that
+        // invariant so we don't ship a NumericInputReq with maxValue == minValue
+        // (or worse, max < min) and wait for a pointless client roundtrip.
+        if (min >= max) return min
+        return numericInputGate.await(
             sourceCard = sa.hostCard,
             min = min,
             max = max,
             defaultOnTimeout = min,
             logContext = "chooseNumber",
         )
+    }
 
+    /**
+     * Params overload: currently ignores `params` by design — the no-params
+     * overload above is sufficient for every site we've observed. If Forge
+     * ever passes a meaningful flag here (e.g. an "is counter amount" hint
+     * that should change emission semantics), thread it through
+     * `NumericInputGate` via a new optional field rather than silently
+     * dropping.
+     */
     override fun chooseNumber(
         sa: SpellAbility,
         string: String,
         min: Int,
         max: Int,
         params: MutableMap<String, Any>?,
-    ): Int =
-        numericInputGate.await(
+    ): Int {
+        if (min >= max) return min
+        return numericInputGate.await(
             sourceCard = sa.hostCard,
             min = min,
             max = max,
             defaultOnTimeout = min,
             logContext = "chooseNumber(params)",
         )
+    }
 
     override fun chooseNumber(
         sa: SpellAbility,
