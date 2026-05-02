@@ -56,7 +56,10 @@ class SimClientNumericInputTest :
             val numericReqs =
                 harness.allMessages
                     .filter { it.type == GREMessageType.NumericInputReq_695e }
-            println("SimClientNumericInputTest: log=${tempLog.absolutePath} (${tempLog.length()} bytes), NumericInputReq count=${numericReqs.size}")
+            println(
+                "SimClientNumericInputTest: log=${tempLog.absolutePath} " +
+                    "(${tempLog.length()} bytes), NumericInputReq count=${numericReqs.size}",
+            )
 
             assertSoftly {
                 numericReqs.size shouldBeGreaterThan 0

@@ -176,6 +176,7 @@ import java.util.function.Predicate
  *
  * See `docs/bridge-threading.md` for the full two-thread contract.
  */
+@Suppress("LargeClass") // Forge dispatches via single inheritance; the override surface lives on this class.
 class PlayerController(
     game: Game,
     player: Player,
@@ -861,7 +862,12 @@ class PlayerController(
     // real `NumericInputReq` (ChooseX). The list-of-values overload is rarer
     // and a different shape; throw to surface the call site if it ever fires.
 
-    override fun chooseNumber(sa: SpellAbility, title: String, min: Int, max: Int): Int {
+    override fun chooseNumber(
+        sa: SpellAbility,
+        title: String,
+        min: Int,
+        max: Int,
+    ): Int {
         // PCHuman short-circuits when the range is degenerate; preserve that
         // invariant so we don't ship a NumericInputReq with maxValue == minValue
         // (or worse, max < min) and wait for a pointless client roundtrip.
@@ -906,9 +912,9 @@ class PlayerController(
         values: MutableList<Int>,
         relatedPlayer: Player?,
     ): Int =
-        throw NotImplementedError(
+        error(
             "chooseNumber(sa, title, values, relatedPlayer) not yet implemented for headless bridge — " +
-                "list-of-values shape needs separate wire surface (likely SelectN-of-1). See leyline-yt8x. " +
+                "list-of-values shape needs a separate emit path (likely SelectN-of-1). See leyline-yt8x. " +
                 "sa.hostCard=${sa.hostCard?.name}, values=$values",
         )
 
@@ -933,7 +939,8 @@ class PlayerController(
 
         if ("X" == announce && cost != null) {
             val costX = cost.getMaxForNonManaX(ability, player, false)
-            if (costX != null && !player.controller.isFullControl(forge.game.player.PlayerController.FullControlFlag.AllowPaymentStartWithMissingResources)) {
+            val flag = forge.game.player.PlayerController.FullControlFlag.AllowPaymentStartWithMissingResources
+            if (costX != null && !player.controller.isFullControl(flag)) {
                 effectiveMax = minOf(effectiveMax, costX)
             }
         }

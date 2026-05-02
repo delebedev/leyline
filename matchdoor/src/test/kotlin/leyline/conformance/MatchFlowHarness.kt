@@ -28,6 +28,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * @param validating when true (default), wraps the sink in [ValidatingMessageSink]
  *                   to get automatic invariant checking on every message
  */
+@Suppress("LargeClass") // Test harness grows linearly with prompt-type coverage; refactor is its own task.
 class MatchFlowHarness(
     private val seed: Long = 42L,
     private val deckList: String? = null,

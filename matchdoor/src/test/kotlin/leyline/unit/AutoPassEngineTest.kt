@@ -126,6 +126,7 @@ class AutoPassEngineTest :
             ops.hasTrace(MatchEventType.AUTO_PASS) shouldBe true
         }
 
+        @Suppress("WeakAssertionOnly") // Type check is the contract; Grant has no other observable state.
         test("checkHumanActions — client autoPass + real actions → Grant") {
             val (bridge, game, counter) =
                 base.startWithBoard { _, human, _ ->
