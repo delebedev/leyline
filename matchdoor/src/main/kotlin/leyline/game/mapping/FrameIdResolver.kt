@@ -46,8 +46,7 @@ class FrameIdResolver(
      * `buildDiff` returns). For everything else, falls back to the bridge's
      * current iid (which is the post-realloc iid for un-transferred cards).
      */
-    fun cardIid(forgeId: ForgeCardId): InstanceId =
-        postReallocIids[forgeId] ?: bridge.getOrAllocInstanceId(forgeId)
+    fun cardIid(forgeId: ForgeCardId): InstanceId = postReallocIids[forgeId] ?: bridge.getOrAllocInstanceId(forgeId)
 
     /**
      * Iid for the synthesised stack-resident Ability gameObject sourced from
@@ -60,12 +59,10 @@ class FrameIdResolver(
      * doesn't consult [postReallocIids] — kept as an instance method only
      * so the resolver provides a single id-resolution surface.
      */
-    fun stackAbilityIid(sourceForgeId: ForgeCardId): InstanceId =
-        bridge.getOrAllocInstanceId(stackAbilityForgeId(sourceForgeId))
+    fun stackAbilityIid(sourceForgeId: ForgeCardId): InstanceId = bridge.getOrAllocInstanceId(stackAbilityForgeId(sourceForgeId))
 
     /** Iid for a per-payment mana Ability gameObject — see [stackAbilityIid] for the surrogate-vs-realloc note. */
-    fun manaAbilityIid(sourceForgeId: ForgeCardId): InstanceId =
-        bridge.getOrAllocInstanceId(manaAbilityForgeId(sourceForgeId))
+    fun manaAbilityIid(sourceForgeId: ForgeCardId): InstanceId = bridge.getOrAllocInstanceId(manaAbilityForgeId(sourceForgeId))
 
     /**
      * Every iid alive on the stack at the end of this frame — both card spells
@@ -91,7 +88,11 @@ class FrameIdResolver(
 
     /** All iids on the battlefield at the end of this frame. */
     fun battlefieldInstanceIds(snap: GsmSnapshot): Set<Int> =
-        snap.zones[ZoneIds.BATTLEFIELD]?.contents?.map { cardIid(it).value }?.toSet().orEmpty()
+        snap.zones[ZoneIds.BATTLEFIELD]
+            ?.contents
+            ?.map { cardIid(it).value }
+            ?.toSet()
+            .orEmpty()
 
     companion object {
         /** Offset added to source card forge IDs for stack-resident Ability gameObjects. */
@@ -105,16 +106,13 @@ class FrameIdResolver(
          * the key into [GameBridge.getOrAllocInstanceId] so the Ability's iid
          * doesn't collide with the source card's.
          */
-        fun stackAbilityForgeId(sourceForgeId: ForgeCardId): ForgeCardId =
-            ForgeCardId(sourceForgeId.value + STACK_ABILITY_ID_OFFSET)
+        fun stackAbilityForgeId(sourceForgeId: ForgeCardId): ForgeCardId = ForgeCardId(sourceForgeId.value + STACK_ABILITY_ID_OFFSET)
 
         /** Surrogate forge ID for a per-payment mana Ability gameObject. */
-        fun manaAbilityForgeId(sourceForgeId: ForgeCardId): ForgeCardId =
-            ForgeCardId(sourceForgeId.value + MANA_ABILITY_ID_OFFSET)
+        fun manaAbilityForgeId(sourceForgeId: ForgeCardId): ForgeCardId = ForgeCardId(sourceForgeId.value + MANA_ABILITY_ID_OFFSET)
 
         /** True if [forgeId] falls in the stack-ability surrogate range. */
-        fun isStackAbilityForgeId(forgeId: ForgeCardId): Boolean =
-            forgeId.value in STACK_ABILITY_ID_OFFSET until MANA_ABILITY_ID_OFFSET
+        fun isStackAbilityForgeId(forgeId: ForgeCardId): Boolean = forgeId.value in STACK_ABILITY_ID_OFFSET until MANA_ABILITY_ID_OFFSET
 
         /** Inverse of [stackAbilityForgeId] — recover the source card's forge ID. */
         fun stackAbilitySourceForgeId(abilityForgeId: ForgeCardId): ForgeCardId =

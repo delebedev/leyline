@@ -107,7 +107,6 @@ data class TransferResult(
 object ZoneTransferDetector {
     private val log = LoggerFactory.getLogger(ZoneTransferDetector::class.java)
 
-
     /**
      * Detect zone transfers and plan instanceId reallocations.
      *

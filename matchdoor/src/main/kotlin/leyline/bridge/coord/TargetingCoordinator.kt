@@ -448,8 +448,11 @@ class TargetingCoordinator(
                 is Card -> target.id to null
                 is forge.game.player.Player -> {
                     val seat =
-                        if (target.lobbyPlayer is forge.ai.LobbyPlayerAi) seating.familiarSeat
-                        else seating.humanSeat
+                        if (target.lobbyPlayer is forge.ai.LobbyPlayerAi) {
+                            seating.familiarSeat
+                        } else {
+                            seating.humanSeat
+                        }
                     null to seat.value
                 }
                 else -> return
