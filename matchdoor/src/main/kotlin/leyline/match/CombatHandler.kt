@@ -102,9 +102,12 @@ open class CombatHandler(
         // The echo-back advances the counter, so a Submit from the slower channel
         // arrives with an outdated gsId. Only applies to Submit (type-only signal);
         // iterative DeclareAttackersResp always carries fresh data.
+        // The trailing post-content echo (matches Arena's canonical envelope)
+        // also advances the counter past the prompt's gsId by 1; allow that
+        // offset before declaring stale.
         if (isSubmit) {
             val clientGsId = greMsg.gameStateId
-            if (clientGsId != 0 && clientGsId < counters.counter.currentGsId()) {
+            if (clientGsId != 0 && clientGsId < counters.counter.currentGsId() - 1) {
                 log.debug(
                     "CombatHandler: stale SubmitAttackersReq gsId={} (current={}), ignoring",
                     clientGsId,
@@ -259,7 +262,7 @@ open class CombatHandler(
         // Reject stale Submit — same pattern as attackers (see onDeclareAttackers).
         if (isSubmit) {
             val clientGsId = greMsg.gameStateId
-            if (clientGsId != 0 && clientGsId < counters.counter.currentGsId()) {
+            if (clientGsId != 0 && clientGsId < counters.counter.currentGsId() - 1) {
                 log.debug(
                     "CombatHandler: stale SubmitBlockersReq gsId={} (current={}), ignoring",
                     clientGsId,

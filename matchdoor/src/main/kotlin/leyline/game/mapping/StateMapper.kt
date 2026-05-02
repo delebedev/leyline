@@ -1379,10 +1379,14 @@ object StateMapper {
         //  prompt-type mapping. Both require deeper card-DB plumbing. Falls
         //  back to card grpId and 0 until wired.
         return pending.mapNotNull { spec ->
-            // Spells: affector is the spell card's iid (post-realloc on stack).
-            // Triggered abilities: affector is the synthesised stack-ability iid.
+            // Use the iid recorded at target-pick time — see PendingTarget
+            // KDoc for the multi-target-spell rationale. Falls back to live
+            // resolution only if the resolver wasn't wired (defensive; should
+            // never fire in production).
             val affectorIid =
-                if (spec.isTriggeredAbility) {
+                if (spec.affectorInstanceIdAtRecord != 0) {
+                    InstanceId(spec.affectorInstanceIdAtRecord)
+                } else if (spec.isTriggeredAbility) {
                     frameIds.stackAbilityIid(ForgeCardId(spec.spellForgeCardId))
                 } else {
                     frameIds.cardIid(ForgeCardId(spec.spellForgeCardId))

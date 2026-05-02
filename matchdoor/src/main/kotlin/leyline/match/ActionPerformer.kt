@@ -49,9 +49,15 @@ class ActionPerformer(
         val seatBridge = bridge.seat(counters.seatId)
         log.info("ActionPerformer: perform enter gsId={} (current={})", greMsg.gameStateId, counters.counter.currentGsId())
 
-        // Reject stale actions — client may resend with outdated gameStateId
+        // Reject stale actions — client may resend with outdated gameStateId.
+        // Allow the trailing post-content echo offset: every AAR-bearing
+        // bundle now ends with an empty echo GSM (matches Arena's canonical
+        // envelope), which advances `currentGsId` one past the AAR. A
+        // legitimate response targets the AAR's gsId, so it lands at
+        // `currentGsId - 1`. Anything more than one behind is genuinely
+        // stale (newer prompt has been emitted since).
         val clientGsId = greMsg.gameStateId
-        if (clientGsId != 0 && clientGsId < counters.counter.currentGsId()) {
+        if (clientGsId != 0 && clientGsId < counters.counter.currentGsId() - 1) {
             log.warn("ActionPerformer: stale PerformActionResp gsId={} (current={}), ignoring", clientGsId, counters.counter.currentGsId())
             return
         }

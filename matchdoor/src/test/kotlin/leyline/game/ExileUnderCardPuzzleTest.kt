@@ -91,13 +91,17 @@ class ExileUnderCardPuzzleTest :
                 .any { it.name == "Grizzly Bears" }
                 .shouldBeTrue()
 
-            // Check persistent annotations for DisplayCardUnderCard
+            // Check persistent annotations for DisplayCardUnderCard.
+            // Pick the latest GSM that actually carries the persistent
+            // annotation — the trailing post-content echo GSM has no
+            // persistent annotations, so `gsms.last()` would hit the empty
+            // echo and report 0.
             val gsms = h.gameStateMessagesSince(snap1)
             gsms.size shouldBeGreaterThan 0
 
-            val lastGsm = gsms.last()
             val underCardAnns =
-                lastGsm.persistentAnnotationsList
+                gsms
+                    .flatMap { it.persistentAnnotationsList }
                     .filter { it.typeList.any { t -> t == AnnotationType.DisplayCardUnderCard } }
 
             underCardAnns.size shouldBe 1

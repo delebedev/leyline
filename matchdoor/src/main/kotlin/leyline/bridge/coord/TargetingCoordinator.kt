@@ -457,11 +457,27 @@ class TargetingCoordinator(
                 }
                 else -> return
             }
+        // Resolve the spell card's iid here, while the spell is still on the
+        // stack. Re-deriving from the live bridge at TargetSpec emission time
+        // is unsafe for multi-target spells: per-group TargetSpecs are emitted
+        // across multiple GSM drains, and the spell's iid changes when it
+        // leaves the stack (e.g. Stack→Graveyard at resolve), which would
+        // split the per-group entries onto two iids. Triggered abilities use
+        // a stack-ability surrogate iid that's stable across drains, so they
+        // can defer resolution to emission time
+        // (FrameIdResolver.stackAbilityIid in StateMapper).
+        val affectorIid =
+            if (isTrigger) {
+                0
+            } else {
+                bridge.forgeIidResolver?.invoke(ForgeCardId(spellCard.id))?.value ?: 0
+            }
         bridge.addPendingTargetSpec(
             InteractivePromptBridge.PendingTarget(
                 spellForgeCardId = spellCard.id,
                 spellName = spellCard.name,
                 index = bridge.nextTargetSpecIndex(),
+                affectorInstanceIdAtRecord = affectorIid,
                 targetForgeCardId = targetCardId,
                 targetSeatId = targetSeatId,
                 isTriggeredAbility = isTrigger,

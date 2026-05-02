@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.detailInt
@@ -59,6 +60,7 @@ class TargetSpecAnnotationTest :
                     spellName = spell.name,
                     targetForgeCardId = creature.id,
                     index = 1,
+                    affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
                 ),
             )
 
@@ -117,6 +119,7 @@ class TargetSpecAnnotationTest :
                     spellName = spell.name,
                     targetForgeCardId = creature.id,
                     index = 1,
+                    affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
                 ),
             )
 
