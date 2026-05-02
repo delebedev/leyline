@@ -247,6 +247,15 @@ class ModalETBFlowTest :
             // The next GSM after modal resolve should either:
             // - have an empty stack zone, or
             // - include diffDeletedInstanceIds for the ability
+            //
+            // TODO(leyline-sxpo follow-up): this assertion currently
+            // passes through the `stackZone == null` branch — empty-echo
+            // GSMs satisfy it trivially, and the engine doesn't actually
+            // emit an explicit stack-zone cleanup diff after modal
+            // resolution (the accumulator still lists the ability iid in
+            // the Stack zone post-respond). File a focused bead for the
+            // missing cleanup signal; tightening this predicate without
+            // fixing the underlying gap would be a bare regression here.
             val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
             gsms.shouldNotBeEmpty()
 
@@ -254,7 +263,6 @@ class ModalETBFlowTest :
             val stackZone = lastGsm.zonesList.find { it.type == ZoneType.Stack }
             val stackEmpty = stackZone == null || stackZone.objectInstanceIdsList.isEmpty()
             val abilityDeleted = lastGsm.diffDeletedInstanceIdsList.isNotEmpty()
-            // One of these must be true — ability must not linger
             (stackEmpty || abilityDeleted) shouldBe true
         }
 
