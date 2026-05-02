@@ -122,11 +122,10 @@ class TransferAnnotationPipelineTest :
                 annotations.size shouldBe 2
                 annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
                 annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+                // Stack gets EnteredZoneThisTurn (reference confirms)
+                persistent.size shouldBe 1
+                persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
             }
-
-            // Stack gets EnteredZoneThisTurn (reference confirms)
-            persistent.size shouldBe 1
-            persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
         }
 
         test("castSpell announce produces 2 annotations regardless of manaPayments") {
@@ -240,9 +239,11 @@ class TransferAnnotationPipelineTest :
                     manaAbilityGrpIdResolver = { leyline.bridge.types.GrpId(0) },
                 )
             // 5 per-payment annotations (AIC, TUP, UAT-mana, MP, AID) + 1 cast UAT.
-            annotations.size shouldBe 6
-            annotations.last().typeList shouldContain AnnotationType.UserActionTaken
-            annotations.last().detailInt("actionType") shouldBe 1 // Cast
+            assertSoftly {
+                annotations.size shouldBe 6
+                annotations.last().typeList shouldContain AnnotationType.UserActionTaken
+                annotations.last().detailInt("actionType") shouldBe 1 // Cast
+            }
         }
 
         // --- annotationsForTransfer: Resolve ---
