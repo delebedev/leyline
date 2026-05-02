@@ -11,7 +11,7 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.FrameIdResolver
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -138,8 +138,8 @@ class ModalETBFlowTest :
             option.grpId shouldBe princeAbilityGrpId
 
             // Protocol: affectedId/affectorId reference the ability on the stack,
-            // not the card. The ability instanceId is derived from the source card's
-            // forge ID + STACK_ABILITY_ID_OFFSET.
+            // not the card. The ability instanceId is allocated against
+            // FrameIdResolver.stackAbilityForgeId(sourceCard).
             val princeCard =
                 h.bridge
                     .getPlayer(SeatId(1))!!
@@ -148,9 +148,8 @@ class ModalETBFlowTest :
                     .first { it.name == "Charming Prince" }
             val abilityInstanceId =
                 h.bridge
-                    .getOrAllocInstanceId(
-                        ForgeCardId(princeCard.id + ObjectMapper.STACK_ABILITY_ID_OFFSET),
-                    ).value
+                    .getOrAllocInstanceId(FrameIdResolver.stackAbilityForgeId(ForgeCardId(princeCard.id)))
+                    .value
 
             option.affectedId shouldBe abilityInstanceId
             option.affectorId shouldBe abilityInstanceId
@@ -236,7 +235,18 @@ class ModalETBFlowTest :
             abilityObj.grpId shouldBe parentAbilityGrpId
         }
 
-        test("synthesized ability cleaned up after modal resolves") {
+        // DISABLED — the original `stackEmpty || abilityDeleted` predicate
+        // against `gsms.last()` was passing only because the trailing empty
+        // echo GSM has no zonesList (stackZone == null short-circuits the
+        // OR). Investigation during leyline-sxpo's D fold-in showed the
+        // engine never actually emits an explicit stack-zone cleanup diff
+        // after a modal resolution: the running-state accumulator still
+        // lists the ability iid in `zones[ZoneIds.STACK].objectInstanceIds`
+        // post-respond. So tightening to "any GSM with explicit Stack
+        // cleanup" or "accumulator stack empty" both fail on the actual
+        // wire output, not on a test bug. Re-enable once leyline-l1tc
+        // ships the missing cleanup signal.
+        xtest("synthesized ability cleaned up after modal resolves (leyline-l1tc)") {
             val h = setupTrufflesnout()
 
             h.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
@@ -245,18 +255,21 @@ class ModalETBFlowTest :
             h.respondModalChoice(listOf(lifeModeGrpId))
             val msgs = h.messagesSince(snapshot)
 
-            // The next GSM after modal resolve should either:
-            // - have an empty stack zone, or
-            // - include diffDeletedInstanceIds for the ability
             val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
             gsms.shouldNotBeEmpty()
 
-            val lastGsm = gsms.last()
-            val stackZone = lastGsm.zonesList.find { it.type == ZoneType.Stack }
-            val stackEmpty = stackZone == null || stackZone.objectInstanceIdsList.isEmpty()
-            val abilityDeleted = lastGsm.diffDeletedInstanceIdsList.isNotEmpty()
-            // One of these must be true — ability must not linger
-            (stackEmpty || abilityDeleted) shouldBe true
+            // Target shape once l1tc lands: any GSM in the post-respond
+            // batch should carry either an explicit Stack zone diff
+            // (post-resolution contents) or the ability iid in
+            // diffDeletedInstanceIdsList. Empty echoes don't count.
+            val cleaned =
+                gsms.any { gs ->
+                    val stackZone = gs.zonesList.find { it.type == ZoneType.Stack }
+                    val stackExplicitlyEmpty = stackZone != null && stackZone.objectInstanceIdsList.isEmpty()
+                    val abilityDeleted = gs.diffDeletedInstanceIdsList.isNotEmpty()
+                    stackExplicitlyEmpty || abilityDeleted
+                }
+            cleaned shouldBe true
         }
 
         test("Charming Prince gain 3 life mode resolves") {

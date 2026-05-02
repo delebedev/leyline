@@ -1,8 +1,11 @@
 package leyline.game.annotations
 
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.game.event.GameEvent
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -50,28 +53,16 @@ object TransferAnnotations {
                 annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = ActionType.Play_add3))
             }
             TransferCategory.CastSpell -> {
+                // Cast-time content split: OIC + ZT ride the announcement frame
+                // (which is the targeting prompt frame for targeted spells, or the
+                // full cast frame for untargeted ones). The mana-payment block and
+                // the cast-action UAT are emitted from the GameEvent.SpellCast
+                // handler in MechanicAnnotations — that handler runs on whichever
+                // drain Forge produces the populated SpellCast event in (same drain
+                // as the zone-change for untargeted spells; the post-target-submit
+                // drain for targeted spells, when Forge has actually paid mana).
                 annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
-                // Per-land mana payment block (repeats for each land tapped)
-                for ((i, mp) in transfer.manaPayments.withIndex()) {
-                    val manaAbilityIid = InstanceId(mp.manaAbilityInstanceId)
-                    val landIid = InstanceId(mp.landInstanceId)
-                    emitManaTap(annotations, manaAbilityIid, landIid, ZoneIds.BATTLEFIELD)
-                    emitManaConsume(annotations, i, mp, spellIid = newId, landIid = landIid, actingSeat = actingSeat)
-                }
-                val castActionType = if (transfer.isAdventureCast) ActionType.CastAdventure else ActionType.Cast
-                annotations.add(
-                    AnnotationBuilder.userActionTaken(
-                        instanceId = newId,
-                        seatId = actingSeat,
-                        actionType = castActionType,
-                        // Alt-cost casts (Madness, Flashback, Warp, Cycling, Impending)
-                        // carry the alt-cost ability grpId on both abilityGrpId and
-                        // alternativeGrpId, matching the client-visible wire shape.
-                        abilityGrpId = altCostGrpId,
-                        alternativeGrpId = altCostGrpId,
-                    ),
-                )
             }
             TransferCategory.Resolve -> {
                 annotations.add(AnnotationBuilder.resolutionStart(newId, grpId))
@@ -254,5 +245,75 @@ object TransferAnnotations {
             ),
         )
         annotations.add(AnnotationBuilder.abilityInstanceDeleted(manaAbilityIid, landIid))
+    }
+
+    /**
+     * Cast-event annotations: per-payment mana bracket plus the cast-action UAT.
+     *
+     * Driven by [GameEvent.SpellCast] rather than [AppliedTransfer] so the bracket
+     * lands on whichever drain Forge produces the populated event in:
+     *
+     * - Untargeted cast: SpellCast and the Hand→Stack ZoneChanged arrive in the
+     *   same drain, so OIC + ZT (from [annotationsForTransfer]) and this bracket
+     *   share one GSM.
+     * - Targeted cast: SpellCast fires only after target submission and cost
+     *   payment, so this bracket lands on the post-submit GSM
+     *   (TARGETS_CONFIRMED), separate from the announce GSM (CAST_TARGETED)
+     *   which carries only OIC + ZT + persistent.
+     *
+     * Ability gameObjects (triggered OR activated) are skipped — they ride
+     * separate paths. Triggers go through [MechanicAnnotations]
+     * (TriggeringObject + AbilityInstance lifecycle); activated abilities
+     * don't currently emit a per-payment block from this function (pre-uh9
+     * they got nothing here either, since they have no Hand→Stack zone
+     * change). If activated-ability mana brackets need to be emitted in
+     * the future, factor a separate event handler — don't reuse this one,
+     * because the cast-action UAT keyed on the spell card's iid would land
+     * against a battlefield-resident card and confuse the classifier.
+     */
+    internal fun castSpellEventAnnotations(
+        ev: GameEvent.SpellCast,
+        idResolver: (ForgeCardId) -> InstanceId,
+        manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
+    ): List<AnnotationInfo> {
+        if (ev.isAbility) return emptyList()
+        val annotations = mutableListOf<AnnotationInfo>()
+        val spellIid = idResolver(ev.cardId)
+        for ((i, mp) in ev.manaPayments.withIndex()) {
+            val landIid = idResolver(mp.sourceCardId)
+            val manaAbilityIid = idResolver(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId))
+            emitManaTap(annotations, manaAbilityIid, landIid, ZoneIds.BATTLEFIELD)
+            annotations.add(
+                AnnotationBuilder.userActionTaken(
+                    instanceId = manaAbilityIid,
+                    seatId = ev.seatId,
+                    actionType = ActionType.ActivateMana,
+                    abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId),
+                ),
+            )
+            annotations.add(
+                AnnotationBuilder.manaPaid(
+                    spellInstanceId = spellIid,
+                    landInstanceId = landIid,
+                    manaId = i + MANA_ID_BASE,
+                    color = mp.color,
+                ),
+            )
+            annotations.add(AnnotationBuilder.abilityInstanceDeleted(manaAbilityIid, landIid))
+        }
+        val castActionType = if (ev.isAdventure) ActionType.CastAdventure else ActionType.Cast
+        val altCostGrpId = GrpId(ev.altCostAbilityGrpId)
+        annotations.add(
+            AnnotationBuilder.userActionTaken(
+                instanceId = spellIid,
+                seatId = ev.seatId,
+                actionType = castActionType,
+                // Alt-cost casts (Madness, Flashback, Warp, Cycling, Impending)
+                // populate both fields with the alt-cost ability grpId.
+                abilityGrpId = altCostGrpId,
+                alternativeGrpId = altCostGrpId,
+            ),
+        )
+        return annotations
     }
 }

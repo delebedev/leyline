@@ -9,6 +9,41 @@ import io.kotest.matchers.shouldNotBe
 import leyline.game.bundle.BundleBuilder
 import wotc.mtgo.gre.external.messaging.Messages.*
 
+// ----- Tier 0: Content-addressed GSM lookup -----
+//
+// Bundles can end with a trailing post-content echo (an empty GSM that
+// carries no annotations / objects / persistent annotations). Ordinal
+// `gsms.last()` and `last { hasGameStateMessage() }` then pick the empty
+// echo and assertions against "the GSM we just produced" silently start
+// matching against nothing — false-pass for absence checks, throws for
+// presence checks. Use the helpers below to address GSMs by their
+// content (the persistent annotation, the gameObject, an arbitrary
+// predicate) instead of position. See leyline-sxpo for the pattern
+// these replace.
+
+/** Last GSM from a list of GREs that satisfies [predicate], or null. */
+fun List<GREToClientMessage>.lastGsmMatching(predicate: (GameStateMessage) -> Boolean): GameStateMessage? =
+    this
+        .asReversed()
+        .firstOrNull { it.hasGameStateMessage() && predicate(it.gameStateMessage) }
+        ?.gameStateMessage
+
+/** Last GSM in the list that satisfies [predicate], or null. */
+fun List<GameStateMessage>.lastMatching(predicate: (GameStateMessage) -> Boolean): GameStateMessage? =
+    this.asReversed().firstOrNull(predicate)
+
+/** Last GSM that carries a persistent annotation of the given type, or null. */
+fun List<GameStateMessage>.lastWithPersistentAnnotation(type: AnnotationType): GameStateMessage? =
+    this.asReversed().firstOrNull { gs ->
+        gs.persistentAnnotationsList.any { type in it.typeList }
+    }
+
+/** Last GSM whose `gameObjects` contains the given instanceId, or null. */
+fun List<GameStateMessage>.lastWithGameObject(instanceId: Int): GameStateMessage? =
+    this.asReversed().firstOrNull { gs ->
+        gs.gameObjectsList.any { it.instanceId == instanceId }
+    }
+
 // ----- Tier 1: BundleResult extraction -----
 
 /** Extract the first GameStateMessage from a bundle result. */

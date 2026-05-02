@@ -87,6 +87,14 @@ sealed interface GameEvent {
         val manaPayments: List<ManaPayment> = emptyList(),
         val isAdventure: Boolean = false,
         val altCostAbilityGrpId: Int = 0,
+        /**
+         * True when the stack item is an Ability gameObject (triggered OR
+         * activated), not a player-cast spell. The SpellCast-driven
+         * cast-action UAT and per-payment mana bracket emission gates on
+         * `!isAbility` so activated abilities don't pick up a `Cast` UAT
+         * against the source card's battlefield iid.
+         */
+        val isAbility: Boolean = false,
         /** True if this is a triggered ability landing on the stack, not a player-cast spell. */
         val isTrigger: Boolean = false,
         /** Forge SpellAbility id when [isTrigger] — used to mint the stack-ability instanceId. */

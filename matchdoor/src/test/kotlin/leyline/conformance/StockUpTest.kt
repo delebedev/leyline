@@ -93,11 +93,18 @@ class StockUpTest :
             // gameObjects for every candidate iid with viewers=[seat],
             // visibility=Private, in the chooser's library zone. Without
             // these the client can't render the panel.
-            val gsm =
-                allMessages
-                    .last { it.hasGameStateMessage() }
-                    .gameStateMessage
+            //
+            // Address by content (a GSM carrying any of the candidate iids)
+            // rather than ordinal `last { hasGameStateMessage() }` — the
+            // latter would pick a trailing post-content echo if the SelectN
+            // bundle ever grows one.
             val candidateIds = req.idsList.toSet()
+            val gsm =
+                checkNotNull(
+                    allMessages.lastGsmMatching { gs ->
+                        gs.gameObjectsList.any { it.instanceId in candidateIds }
+                    },
+                ) { "No GSM carries any of the SelectN candidate iids" }
             val candidateObjs = gsm.gameObjectsList.filter { it.instanceId in candidateIds }
             candidateObjs shouldHaveSize 5
             assertSoftly {

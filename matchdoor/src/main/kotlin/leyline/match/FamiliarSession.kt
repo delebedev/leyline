@@ -4,6 +4,7 @@ import forge.game.Game
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.markIfPrompt
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -25,6 +26,7 @@ class FamiliarSession(
     override var counter: MessageCounter = MessageCounter(),
 ) : SessionOps {
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
+        for (m in messages) markIfPrompt(counter, m.type, m.gameStateId)
         sink.send(messages)
     }
 

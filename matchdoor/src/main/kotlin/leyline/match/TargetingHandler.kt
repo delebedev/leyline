@@ -10,7 +10,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.RequestBuilder
-import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import org.slf4j.LoggerFactory
@@ -610,7 +610,7 @@ class TargetingHandler(
             sourceInstanceId =
                 bridge
                     .getOrAllocInstanceId(
-                        ForgeCardId(req.sourceEntityId + ObjectMapper.STACK_ABILITY_ID_OFFSET),
+                        FrameIdResolver.stackAbilityForgeId(ForgeCardId(req.sourceEntityId)),
                     ).value
             ctoGrpId = modalInfo.parentGrpId
             ctoId = 2

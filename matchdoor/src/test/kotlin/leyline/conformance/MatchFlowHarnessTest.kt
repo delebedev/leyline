@@ -15,6 +15,7 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.game.InMemoryCardRepository
 import leyline.game.state.GameBridge
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
@@ -208,6 +209,62 @@ class MatchFlowHarnessTest :
             // After fix: only combat/stack resolution paths send AAR (legitimate prompts,
             // typically 1-2). Allow up to 3 for edge cases.
             aars.size shouldBeLessThanOrEqualTo 3
+        }
+
+        test("stale PerformActionResp is rejected; fresh one is accepted") {
+            val h = MatchFlowHarness(seed = 42L)
+            harness = h
+            h.connectAndKeep()
+
+            // After connectAndKeep we're at human MAIN1 with an AAR pending.
+            // The prompt horizon should have advanced past 0.
+            h.latestPromptGsId() shouldBeGreaterThan 0
+
+            val turnBefore = h.turn()
+            val phaseBefore = h.phase()
+            val msgCountBefore = h.messageSnapshot()
+
+            // Submit at horizon - 1 (the boundary case the original
+            // off-by-one hotfix bumped against; we explicitly pin the
+            // closed boundary "strictly less than" so a regression that
+            // loosens the predicate by one is caught) and at horizon - 5
+            // (a clearly-stale margin that catches a regression that
+            // loosens the predicate by an arbitrary offset).
+            for (delta in listOf(1, 5)) {
+                val stalePass =
+                    performAction { actionType = ActionType.Pass }
+                        .toBuilder()
+                        .setGameStateId(h.latestPromptGsId() - delta)
+                        .build()
+                h.session.onPerformAction(stalePass)
+                h.drainSink()
+
+                // Stale action ignored — no state change, no further messages.
+                assertSoftly {
+                    h.turn() shouldBe turnBefore
+                    h.phase() shouldBe phaseBefore
+                    h.messagesSince(msgCountBefore).shouldBeEmpty()
+                }
+            }
+
+            // Now submit a fresh Pass at the current horizon — this time
+            // the engine accepts it and advances state.
+            val freshPass =
+                performAction { actionType = ActionType.Pass }
+                    .toBuilder()
+                    .setGameStateId(h.latestPromptGsId())
+                    .build()
+
+            h.session.onPerformAction(freshPass)
+            h.drainSink()
+
+            // Either we changed phase/turn or the engine produced bundles
+            // — anything but a no-op proves the action wasn't dropped.
+            val advanced =
+                h.turn() != turnBefore ||
+                    h.phase() != phaseBefore ||
+                    h.messagesSince(msgCountBefore).isNotEmpty()
+            advanced.shouldBeTrue()
         }
 
         test("AI turn produces Diff messages") {

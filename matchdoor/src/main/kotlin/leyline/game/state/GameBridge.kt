@@ -117,7 +117,10 @@ class GameBridge(
     init {
         // Seed seat-1 bridges (human seat) — matches previous singleton behaviour.
         actionBridges[1] = GameActionBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
-        promptBridges[1] = InteractivePromptBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
+        promptBridges[1] =
+            InteractivePromptBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal).also {
+                it.forgeIidResolver = ::getOrAllocInstanceId
+            }
         mulliganBridges[1] =
             MulliganBridge(
                 autoKeep = matchConfig.game.skipMulligan,
@@ -173,7 +176,10 @@ class GameBridge(
      */
     fun configureSyntheticSeat(seatId: SeatId) {
         actionBridges[seatId.value] = GameActionBridge(timeoutMs = 0, prioritySignal = prioritySignal)
-        promptBridges[seatId.value] = InteractivePromptBridge(timeoutMs = 0, prioritySignal = prioritySignal)
+        promptBridges[seatId.value] =
+            InteractivePromptBridge(timeoutMs = 0, prioritySignal = prioritySignal).also {
+                it.forgeIidResolver = ::getOrAllocInstanceId
+            }
         mulliganBridges[seatId.value] = MulliganBridge(autoKeep = true, timeoutMs = 0)
         log.info("GameBridge: seat {} configured as synthetic (auto-pass)", seatId.value)
     }

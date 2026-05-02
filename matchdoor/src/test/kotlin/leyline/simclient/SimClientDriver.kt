@@ -34,12 +34,13 @@ class SimClientDriver(
     private val log: PlayerLogWriter,
     private val maxTurns: Int = 50,
     private val maxIterations: Int = 2_000,
+    private val connect: () -> Unit = { harness.connectAndKeep() },
 ) {
     private val logger = LoggerFactory.getLogger(SimClientDriver::class.java)
     private var lastFlushedSize = 0
 
     fun runOneGame(): GameStats {
-        harness.connectAndKeep()
+        connect()
         flushNewMessagesToLog()
 
         var iter = 0
@@ -221,7 +222,12 @@ class SimClientDriver(
                 instanceId = cast.instanceId
                 grpId = cast.grpId
             }
-        harness.session.onPerformAction(msg)
+        // Route through the harness wrapper so the cast carries a
+        // realistic gsId (matches real-client reflection). Direct
+        // session.onPerformAction would short-circuit the staleness
+        // predicate via `clientGsId != 0` and reduce simclient's
+        // coverage of the production path.
+        harness.session.onPerformAction(harness.submitWithGsId(msg))
         harness.drainSink()
         return true
     }

@@ -281,6 +281,37 @@ simclient decks="" seeds="":
     done
     echo "Sim-client: $n game(s) ingested into $out (source: simclient)"
 
+# Run simclient against one or more `.pzl` puzzles instead of shuffled decks.
+# Same SIMCLIENT_SEEDS semantics; logs land tagged `puzzle:<basename>` so scry
+# filters them distinctly from deck-shuffle runs.
+#
+# Examples:
+#   just simclient-puzzle bolt-face.pzl
+#   just simclient-puzzle bolt-face.pzl 1..5
+#   just simclient-puzzle "bolt-face.pzl,kicker-burst.pzl" "7,13,42"
+[group('simclient')]
+simclient-puzzle puzzles seeds="42":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{project_dir}}"
+    export SIMCLIENT_PUZZLE="{{puzzles}}"
+    export SIMCLIENT_SEEDS="{{seeds}}"
+    src="matchdoor/build/simclient"
+    if [ -d "$src" ]; then trash "$src" 2>/dev/null || rm -rf "$src"; fi
+    # The matrix tests gate on SIMCLIENT_PUZZLE so deck tests no-op cleanly.
+    ./gradlew :matchdoor:simclient
+    out="${HOME}/.scry/games"
+    mkdir -p "$out"
+    n=0
+    for f in "$src"/*.log; do
+        [ -e "$f" ] || continue
+        base=$(basename "$f" .log)
+        cp "$f" "$out/${base}.log"
+        cp "${src}/${base}.meta.json" "$out/${base}.meta.json" 2>/dev/null || true
+        n=$((n+1))
+    done
+    echo "Sim-client puzzle: $n game(s) ingested into $out (source: simclient)"
+
 # --- Serve ---
 
 # default dev mode: local FD + local MD

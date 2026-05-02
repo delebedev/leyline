@@ -9,6 +9,7 @@ import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.markIfPrompt
 import leyline.game.mapping.StopTypeMapping
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -631,8 +632,17 @@ class MatchSession(
         return gre.build()
     }
 
-    /** Send multiple GRE messages bundled in one GreToClientEvent + mirror to peer. */
+    /**
+     * Send multiple GRE messages bundled in one GreToClientEvent + mirror to peer.
+     *
+     * Sink-boundary auto-mark: every outgoing prompt-bearing GRE bumps
+     * [MessageCounter.lastPromptGsId] before leaving so staleness predicates
+     * pick up the new horizon automatically. Direct-builder bypasses
+     * (handshake messages, MulliganReq, GroupReq from GsmBuilder) get the
+     * same treatment as bundle-built messages — the funnel guarantees it.
+     */
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
+        for (m in messages) markIfPrompt(counter, m.type, m.gameStateId)
         recorder?.recordOutbound(messages)
         sink.send(messages)
         mirrorToFamiliar(messages)

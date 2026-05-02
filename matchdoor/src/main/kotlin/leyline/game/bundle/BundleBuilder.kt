@@ -120,6 +120,10 @@ class BundleBuilder(
         @Suppress("UnusedPrivateProperty")
         val split: Triple<GameStateMessage, GameStateMessage, GameStateMessage>? = null
 
+        // Post-content echo — an empty GSM with matching updateType follows
+        // every content frame in the canonical envelope. Drives client-side
+        // animation pacing and is part of the role/lane classifier signal
+        // for the post-action lane (see leyline-uh9 follow-on).
         val messages =
             if (split != null) {
                 val (queued1, queued2, main) = split
@@ -137,6 +141,7 @@ class BundleBuilder(
                         it.actionsAvailableReq = actions
                         it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                     },
+                    buildEchoDiffGsm(counter, main.update),
                 )
             } else {
                 listOf(
@@ -147,6 +152,7 @@ class BundleBuilder(
                         it.actionsAvailableReq = actions
                         it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                     },
+                    buildEchoDiffGsm(counter, gs.update),
                 )
             }
 
@@ -188,6 +194,7 @@ class BundleBuilder(
         @Suppress("UnusedPrivateProperty")
         val split: Triple<GameStateMessage, GameStateMessage, GameStateMessage>? = null
 
+        // Post-content echo — same envelope as postAction; see comment there.
         val messages =
             if (split != null) {
                 val (queued1, queued2, main) = split
@@ -201,12 +208,14 @@ class BundleBuilder(
                     makeGRE(GREMessageType.GameStateMessage_695e, main.gameStateId, counter.nextMsgId()) {
                         it.gameStateMessage = main
                     },
+                    buildEchoDiffGsm(counter, main.update),
                 )
             } else {
                 listOf(
                     makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                         it.gameStateMessage = gs
                     },
+                    buildEchoDiffGsm(counter, gs.update),
                 )
             }
 
@@ -1580,8 +1589,23 @@ class BundleBuilder(
 
     /**
      * Build a bare echo diff GSM (empty Diff with just gsId chain + update type).
-     * Used for select-targets echo-back before re-prompt and for remote-action
-     * animation commit frames.
+     *
+     * **Where echoes fire.** Every content-bearing emission from
+     * [postAction], [stateOnlyDiff], and [remoteActionDiff] appends one of
+     * these. Same applies to the `selectTargets` re-prompt cycle in
+     * `TargetingHandler.onSelectTargets`. The empirical pattern is "one
+     * empty echo per content GSM, same updateType."
+     *
+     * **Where echoes do not fire (yet).** Prompt-bearing bundles —
+     * [selectTargetsBundle], [selectNBundle], [castingTimeOptionsBundle],
+     * [payCostsBundle], [declareAttackersBundle], [declareBlockersBundle] —
+     * ship `[GSM, Request]` without a trailing echo. The bundles for
+     * these interactions don't have a clean "post-content echo" pattern
+     * yet documented; their canonical envelopes carry the echo on the
+     * frame paired with the re-prompt (handled in `TargetingHandler`)
+     * rather than as a trailing tag-along on the request bundle. Revisit
+     * if a future interaction-class diff against the client trace shows
+     * a missing echo signature.
      */
     fun buildEchoDiffGsm(
         counter: MessageCounter,

@@ -307,12 +307,15 @@ class HonorboundPagePrepareTest :
             castSpellByName("Honorbound Page")
             passUntilResolved()
 
+            // Find the latest GSM that carries the exile-copy gameObject —
+            // the trailing post-content echo GSM has zero gameObjects, so
+            // `last { hasGameStateMessage() }` would hit the empty echo and
+            // fail to locate the projection.
+            val copyIid = instanceIdOf("Forum's Favor", human, ZoneType.Exile)
             val gsm =
                 allMessages
-                    .last { it.hasGameStateMessage() }
+                    .last { it.hasGameStateMessage() && it.gameStateMessage.gameObjectsList.any { o -> o.instanceId == copyIid } }
                     .gameStateMessage
-
-            val copyIid = instanceIdOf("Forum's Favor", human, ZoneType.Exile)
             val copyObj = gsm.gameObjectsList.first { it.instanceId == copyIid }
 
             // Resolve expected ids from the bridge's CardRepository (synthetic in

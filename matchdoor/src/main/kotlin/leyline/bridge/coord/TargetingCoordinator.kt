@@ -374,7 +374,7 @@ class TargetingCoordinator(
         if (allCandidates.size == 1 && mandatory && minTargets >= 1) {
             val target = allCandidates[0]
             sa.targets.add(target)
-            if (target is Card) recordPendingTargetSpec(sa, target)
+            recordPendingTargetSpec(sa, target)
             return TargetSelectionResult(true, true)
         }
 
@@ -426,7 +426,7 @@ class TargetingCoordinator(
                 sa.addDividedAllocation(entity, sa.stillToDivide / (stillNeeded - indices.indexOf(idx)).coerceAtLeast(1))
             }
             sa.targets.add(entity)
-            if (entity is Card) recordPendingTargetSpec(sa, entity)
+            recordPendingTargetSpec(sa, entity)
         }
 
         val totalTargeted = sa.targets.size
@@ -439,15 +439,48 @@ class TargetingCoordinator(
 
     private fun recordPendingTargetSpec(
         sa: SpellAbility,
-        target: Card,
+        target: forge.game.GameEntity,
     ) {
         val spellCard = sa.hostCard ?: return
+        val isTrigger = sa.isTrigger
+        val (targetCardId, targetSeatId) =
+            when (target) {
+                is Card -> target.id to null
+                is forge.game.player.Player -> {
+                    val seat =
+                        if (target.lobbyPlayer is forge.ai.LobbyPlayerAi) {
+                            seating.familiarSeat
+                        } else {
+                            seating.humanSeat
+                        }
+                    null to seat.value
+                }
+                else -> return
+            }
+        // Resolve the spell card's iid here, while the spell is still on the
+        // stack. Re-deriving from the live bridge at TargetSpec emission time
+        // is unsafe for multi-target spells: per-group TargetSpecs are emitted
+        // across multiple GSM drains, and the spell's iid changes when it
+        // leaves the stack (e.g. Stack→Graveyard at resolve), which would
+        // split the per-group entries onto two iids. Triggered abilities use
+        // a stack-ability surrogate iid that's stable across drains, so they
+        // can defer resolution to emission time
+        // (FrameIdResolver.stackAbilityIid in StateMapper).
+        val affectorIid =
+            if (isTrigger) {
+                0
+            } else {
+                bridge.forgeIidResolver?.invoke(ForgeCardId(spellCard.id))?.value ?: 0
+            }
         bridge.addPendingTargetSpec(
             InteractivePromptBridge.PendingTarget(
                 spellForgeCardId = spellCard.id,
                 spellName = spellCard.name,
-                targetForgeCardId = target.id,
                 index = bridge.nextTargetSpecIndex(),
+                affectorInstanceIdAtRecord = affectorIid,
+                targetForgeCardId = targetCardId,
+                targetSeatId = targetSeatId,
+                isTriggeredAbility = isTrigger,
             ),
         )
     }

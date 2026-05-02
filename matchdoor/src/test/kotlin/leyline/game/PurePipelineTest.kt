@@ -22,7 +22,7 @@ import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
 import leyline.game.annotations.ZoneTransferDetector
 import leyline.game.event.GameEvent
-import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
@@ -523,7 +523,7 @@ class PurePipelineTest :
         // Source card forgeId=42, ability forgeId=42+100_000=100_042.
         // Source card instanceId=300, ability instanceId=500.
         val sourceForgeId = ForgeCardId(42)
-        val abilityForgeId = ForgeCardId(42 + ObjectMapper.STACK_ABILITY_ID_OFFSET)
+        val abilityForgeId = FrameIdResolver.stackAbilityForgeId(sourceForgeId)
         val sourceCardIid = 300
         val abilityIid = 500
         val cardGrpId = 12345

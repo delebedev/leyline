@@ -202,8 +202,11 @@ class GameEventCollector(
             } else {
                 0
             }
-        // Trigger detection: StackItemView carries isTrigger; SpellAbilityView does not.
+        // Trigger / ability detection: StackItemView distinguishes spells from
+        // Ability gameObjects (triggered or activated). SpellAbilityView does
+        // not expose either flag.
         val isTrigger = ev.si()?.isTrigger ?: false
+        val isAbility = ev.si()?.isAbility ?: false
         val abilityForgeId = if (isTrigger) ev.sa()?.id ?: 0 else 0
         if (isTrigger && abilityForgeId != 0) {
             pendingTriggers[abilityForgeId] = ForgeCardId(card.id)
@@ -216,6 +219,7 @@ class GameEventCollector(
                 manaPayments = payments,
                 isAdventure = isAdventure,
                 altCostAbilityGrpId = altCostAbilityGrpId,
+                isAbility = isAbility,
                 isTrigger = isTrigger,
                 abilityForgeId = abilityForgeId,
                 kickerAbilityGrpId = kickerAbilityGrpId,

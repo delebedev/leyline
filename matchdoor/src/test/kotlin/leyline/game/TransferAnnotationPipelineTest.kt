@@ -93,7 +93,7 @@ class TransferAnnotationPipelineTest :
 
         // --- annotationsForTransfer: CastSpell ---
 
-        test("castSpell with one mana payment produces 8 annotations") {
+        test("castSpell announce produces 2 annotations (mana block + cast UAT moved to SpellCast event handler)") {
             val transfer =
                 AppliedTransfer(
                     origId = 100,
@@ -103,6 +103,9 @@ class TransferAnnotationPipelineTest :
                     destZoneId = ZoneIds.STACK,
                     grpId = 67890,
                     ownerSeatId = 1,
+                    // manaPayments populated here are intentionally ignored — the
+                    // mana bracket is now driven by GameEvent.SpellCast in
+                    // MechanicAnnotations, not by AppliedTransfer.
                     manaPayments =
                         listOf(
                             ManaPaymentRecord(
@@ -116,56 +119,16 @@ class TransferAnnotationPipelineTest :
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             assertSoftly {
-                annotations.size shouldBe 8
+                annotations.size shouldBe 2
                 annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
                 annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-                annotations[2].typeList.first() shouldBe AnnotationType.AbilityInstanceCreated
-                annotations[3].typeList.first() shouldBe AnnotationType.TappedUntappedPermanent
-                annotations[4].typeList.first() shouldBe AnnotationType.UserActionTaken
-                annotations[5].typeList.first() shouldBe AnnotationType.ManaPaid
-                annotations[6].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted
-                annotations[7].typeList.first() shouldBe AnnotationType.UserActionTaken
+                // Stack gets EnteredZoneThisTurn (reference confirms)
+                persistent.size shouldBe 1
+                persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
             }
-
-            // AIC details
-            assertSoftly {
-                annotations[2].affectorId shouldBe 300
-                annotations[2].affectedIdsList shouldContain 400
-                annotations[2].detailInt("source_zone") shouldBe ZoneIds.BATTLEFIELD
-            }
-
-            // TUP
-            annotations[3].affectorId shouldBe 400
-            annotations[3].affectedIdsList shouldContain 300
-
-            // UAT mana
-            assertSoftly {
-                annotations[4].detailInt("actionType") shouldBe 4
-                annotations[4].detailInt("abilityGrpId") shouldBe 1002
-                annotations[4].affectedIdsList shouldContain 400
-            }
-
-            // ManaPaid
-            assertSoftly {
-                annotations[5].affectorId shouldBe 300
-                annotations[5].affectedIdsList shouldContain 200
-                annotations[5].detailInt("color") shouldBe 2
-            }
-
-            // AID
-            annotations[6].affectorId shouldBe 300
-            annotations[6].affectedIdsList shouldContain 400
-
-            // UAT cast
-            annotations[7].detailInt("actionType") shouldBe 1
-            annotations[7].affectedIdsList shouldContain 200
-
-            // Stack gets EnteredZoneThisTurn (reference confirms)
-            persistent.size shouldBe 1
-            persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
         }
 
-        test("castSpell with zero mana payments produces 3 annotations") {
+        test("castSpell announce produces 2 annotations regardless of manaPayments") {
             val transfer =
                 AppliedTransfer(
                     origId = 100,
@@ -180,17 +143,15 @@ class TransferAnnotationPipelineTest :
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             assertSoftly {
-                annotations.size shouldBe 3
+                annotations.size shouldBe 2
                 annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
                 annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-                annotations[2].typeList.first() shouldBe AnnotationType.UserActionTaken
-                annotations[2].detailInt("actionType") shouldBe 1
             }
 
             persistent.size shouldBe 1
         }
 
-        test("castSpellUserActionIsCast") {
+        test("castSpell announce no longer emits UAT (deferred to SpellCast event handler)") {
             val transfer =
                 AppliedTransfer(
                     origId = 100,
@@ -203,7 +164,86 @@ class TransferAnnotationPipelineTest :
                 )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
-            annotations.last().detailInt("actionType") shouldBe 1
+            annotations.none { it.typeList.contains(AnnotationType.UserActionTaken) } shouldBe true
+        }
+
+        // --- castSpellEventAnnotations: ability gating ---
+
+        test("castSpellEventAnnotations skips activated abilities") {
+            // Activated abilities (e.g. Goblin Fireslinger's tap-to-ping) hit the
+            // same Forge GameEventSpellAbilityCast path as real spells, but the
+            // source card stays on the battlefield — emitting a `Cast` UAT
+            // against its battlefield iid would mis-classify the interaction.
+            // The gate is `isAbility`, which Forge's StackItemView sets true
+            // for both triggered and activated abilities.
+            val ev =
+                leyline.game.event.GameEvent.SpellCast(
+                    cardId = leyline.bridge.types.ForgeCardId(42),
+                    seatId = 1.sid,
+                    manaPayments =
+                        listOf(
+                            leyline.game.event.GameEvent.ManaPayment(
+                                sourceCardId = leyline.bridge.types.ForgeCardId(43),
+                                color = 4,
+                            ),
+                        ),
+                    isAbility = true,
+                    isTrigger = false,
+                )
+            val annotations =
+                TransferAnnotations.castSpellEventAnnotations(
+                    ev,
+                    idResolver = { leyline.bridge.types.InstanceId(it.value) },
+                    manaAbilityGrpIdResolver = { leyline.bridge.types.GrpId(0) },
+                )
+            annotations.shouldBeEmpty()
+        }
+
+        test("castSpellEventAnnotations skips triggered abilities") {
+            val ev =
+                leyline.game.event.GameEvent.SpellCast(
+                    cardId = leyline.bridge.types.ForgeCardId(42),
+                    seatId = 1.sid,
+                    manaPayments = emptyList(),
+                    isAbility = true,
+                    isTrigger = true,
+                )
+            val annotations =
+                TransferAnnotations.castSpellEventAnnotations(
+                    ev,
+                    idResolver = { leyline.bridge.types.InstanceId(it.value) },
+                    manaAbilityGrpIdResolver = { leyline.bridge.types.GrpId(0) },
+                )
+            annotations.shouldBeEmpty()
+        }
+
+        test("castSpellEventAnnotations emits cast UAT + mana block on plain spells") {
+            val ev =
+                leyline.game.event.GameEvent.SpellCast(
+                    cardId = leyline.bridge.types.ForgeCardId(100),
+                    seatId = 1.sid,
+                    manaPayments =
+                        listOf(
+                            leyline.game.event.GameEvent.ManaPayment(
+                                sourceCardId = leyline.bridge.types.ForgeCardId(43),
+                                color = 4,
+                            ),
+                        ),
+                    isAbility = false,
+                    isTrigger = false,
+                )
+            val annotations =
+                TransferAnnotations.castSpellEventAnnotations(
+                    ev,
+                    idResolver = { leyline.bridge.types.InstanceId(it.value) },
+                    manaAbilityGrpIdResolver = { leyline.bridge.types.GrpId(0) },
+                )
+            // 5 per-payment annotations (AIC, TUP, UAT-mana, MP, AID) + 1 cast UAT.
+            assertSoftly {
+                annotations.size shouldBe 6
+                annotations.last().typeList shouldContain AnnotationType.UserActionTaken
+                annotations.last().detailInt("actionType") shouldBe 1 // Cast
+            }
         }
 
         // --- annotationsForTransfer: Resolve ---

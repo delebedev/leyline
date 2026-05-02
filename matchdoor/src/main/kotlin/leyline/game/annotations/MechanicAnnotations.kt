@@ -89,6 +89,7 @@ object MechanicAnnotations {
         idResolver: (ForgeCardId) -> InstanceId,
         effectIdAllocator: () -> EffectId = { EffectId(0) },
         activeStealForgeCardIds: Set<ForgeCardId> = emptySet(),
+        manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
@@ -138,6 +139,19 @@ object MechanicAnnotations {
                     val instanceId = idResolver(ev.cardId)
                     annotations.add(AnnotationBuilder.tokenDeleted(instanceId))
                     log.debug("mechanic: tokenDeleted iid={}", instanceId.value)
+                }
+                is GameEvent.SpellCast -> {
+                    annotations.addAll(
+                        TransferAnnotations.castSpellEventAnnotations(ev, idResolver, manaAbilityGrpIdResolver),
+                    )
+                    log.debug(
+                        "mechanic: spellCast iid={} payments={} adventure={} altCost={} trigger={}",
+                        idResolver(ev.cardId).value,
+                        ev.manaPayments.size,
+                        ev.isAdventure,
+                        ev.altCostAbilityGrpId,
+                        ev.isTrigger,
+                    )
                 }
                 is GameEvent.CardTapped -> {
                     if (ev.cardId in manaPaidForgeCardIds) {

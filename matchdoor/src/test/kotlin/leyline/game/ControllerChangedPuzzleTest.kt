@@ -10,6 +10,7 @@ import leyline.IntegrationTag
 import leyline.bridge.types.ForgeCardId
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.detailInt
+import leyline.conformance.lastWithPersistentAnnotation
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -99,8 +100,14 @@ class ControllerChangedPuzzleTest :
                     .filter { it.typeList.any { t -> t == AnnotationType.LayeredEffectCreated } }
             lecTransient.size shouldBeGreaterThan 0
 
-            // Check persistent ControllerChanged+LayeredEffect
-            val lastGsm = gsms.last()
+            // Check persistent ControllerChanged+LayeredEffect — address by
+            // content, not ordinal `last()`. Trailing post-content echoes
+            // carry no persistentAnnotations, so a positional lookup would
+            // silently miss the steal.
+            val lastGsm =
+                checkNotNull(gsms.lastWithPersistentAnnotation(AnnotationType.ControllerChanged)) {
+                    "No GSM carries a ControllerChanged persistent annotation"
+                }
             val ccPersistent =
                 lastGsm.persistentAnnotationsList
                     .filter {

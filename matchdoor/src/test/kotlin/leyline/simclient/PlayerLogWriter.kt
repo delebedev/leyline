@@ -22,9 +22,10 @@ import java.time.format.DateTimeFormatter
 fun writeSimClientSidecar(
     logFile: File,
     matchId: String,
-    deckTag: String,
+    runLabel: String,
     seed: Long,
     generatedAt: LocalDateTime,
+    runKind: String = "deck",
 ) {
     val sidecar = File(logFile.parentFile, logFile.nameWithoutExtension + ".meta.json")
     val ts = generatedAt.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
@@ -32,13 +33,13 @@ fun writeSimClientSidecar(
         """
         {
           "cards": [],
-          "tags": ["simclient", "deck:$deckTag", "seed:$seed"],
+          "tags": ["simclient", "$runKind:$runLabel", "seed:$seed"],
           "notes": [],
           "provenance": {
             "source": "simclient",
             "confidence": "explicit",
             "matchId": "$matchId",
-            "eventName": "simclient-$deckTag",
+            "eventName": "simclient-$runLabel",
             "recordedAt": "$ts"
           }
         }

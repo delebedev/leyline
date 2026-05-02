@@ -6,6 +6,7 @@ import leyline.DevCheck
 import leyline.bridge.BridgeTimeoutDiagnostic
 import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
 import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.PromptChoiceDto
@@ -35,6 +36,16 @@ class InteractivePromptBridge(
     private val prioritySignal: PrioritySignal? = null,
 ) {
     /**
+     * Forge-id → leyline iid lookup. Set by [leyline.game.state.GameBridge]
+     * after construction (the bridge is created before its owning GameBridge
+     * is fully initialised, so a setter is the lowest-coupling way to wire
+     * this). Used for record-time iid resolution of pending TargetSpec
+     * entries — see [PendingTarget.affectorInstanceIdAtRecord].
+     */
+    @Volatile
+    var forgeIidResolver: ((ForgeCardId) -> InstanceId)? = null
+
+    /**
      * Typed per-seat journal of prompt side-effects. Coordinators record
      * [PromptSideEffect] entries on the engine thread; consumers
      * ([GameEventCollector], [StateMapper], [leyline.bridge.coord.CostPaymentCoordinator]) drain
@@ -44,12 +55,30 @@ class InteractivePromptBridge(
 
     // --- Pending TargetSpec data (captured during selectTargetsInteractively) ---
 
-    /** Captured target: spell card ID + name, target card ID, 1-based group index. */
+    /**
+     * Pending target record: spell/ability source ID + name, the targeted entity, 1-based group index.
+     *
+     * Exactly one of [targetForgeCardId] (card target) or [targetSeatId] (player target) is non-null.
+     * [isTriggeredAbility] flips the affector iid from the spell card's iid to the synthesised
+     * stack-resident-ability iid via [leyline.game.mapping.FrameIdResolver.stackAbilityForgeId].
+     *
+     * [affectorInstanceIdAtRecord] is the spell/ability iid as it stood at
+     * record time (when the player picked targets and the spell was on the
+     * stack). Multi-target spells (e.g. Bite Down) emit one TargetSpec per
+     * group across multiple GSM drains; the spell's live iid changes when it
+     * resolves Stack→Graveyard, so re-deriving the affector iid at emission
+     * time would split the per-group TargetSpecs across two iids. Freezing
+     * the iid here keeps every group of the same cast pointing at the same
+     * stack-resident affector.
+     */
     data class PendingTarget(
         val spellForgeCardId: Int,
         val spellName: String,
-        val targetForgeCardId: Int,
         val index: Int,
+        val affectorInstanceIdAtRecord: Int,
+        val targetForgeCardId: Int? = null,
+        val targetSeatId: Int? = null,
+        val isTriggeredAbility: Boolean = false,
     )
 
     private val pendingTargetSpecs = ConcurrentLinkedQueue<PendingTarget>()

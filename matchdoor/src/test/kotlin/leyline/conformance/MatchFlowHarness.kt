@@ -180,18 +180,30 @@ class MatchFlowHarness(
         aiScript: List<ScriptedAction>?,
     ) {
         GameBootstrap.initializeCardDatabase(quiet = true)
-        TestCardRegistry.ensureRegistered()
+        val repo: leyline.game.data.CardRepository =
+            if (cardRepositoryOverride != null) {
+                cardRepositoryOverride
+            } else {
+                TestCardRegistry.ensureRegistered()
+                TestCardRegistry.repo
+            }
 
         bridge =
             GameBridge(
                 bridgeTimeoutMs = 5_000L,
                 matchConfig = matchConfig,
                 messageCounter = MessageCounter(),
-                cardRepository = TestCardRegistry.repo,
+                cardRepository = repo,
             )
         bridge.priorityWaitMs = 2_000L
         bridge.startPuzzle(puzzle)
-        TestCardRegistry.registerPuzzleCards(bridge.getGame()!!)
+        // Fixture path: hydrate per-card YAML identity into the in-memory repo.
+        // SQLite-override path: card identity comes from the supplied repository;
+        // Forge's lazy script loader already pulled in every card the puzzle
+        // parser referenced.
+        if (cardRepositoryOverride == null) {
+            TestCardRegistry.registerPuzzleCards(bridge.getGame()!!)
+        }
 
         // Install scripted AI BEFORE onPuzzleStart — auto-pass will advance
         // through the human turn into the AI turn, where the script takes over.
@@ -256,7 +268,7 @@ class MatchFlowHarness(
                 grpId = bridge.cardRepository.findGrpIdByName(land.name) ?: 0
             }
 
-        session.onPerformAction(msg)
+        session.onPerformAction(submitWithGsId(msg))
         drainSink()
         return true
     }
@@ -277,14 +289,14 @@ class MatchFlowHarness(
                 grpId = bridge.cardRepository.findGrpIdByName(creature.name) ?: 0
             }
 
-        session.onPerformAction(msg)
+        session.onPerformAction(submitWithGsId(msg))
         drainSink()
         return true
     }
 
     /** Pass priority — sends a real Pass action through MatchSession. */
     fun passPriority() {
-        session.onPerformAction(performAction { actionType = ActionType.Pass })
+        session.onPerformAction(submitWithGsId(performAction { actionType = ActionType.Pass }))
         drainSink()
     }
 
@@ -407,10 +419,10 @@ class MatchFlowHarness(
      * 2. Send [SubmitAttackersReq] to finalize (the "Done" button)
      */
     fun declareAttackers(attackerInstanceIds: List<Int>) {
-        session.onDeclareAttackers(declareAttackersResp(attackers = attackerInstanceIds))
+        session.onDeclareAttackers(submitWithGsId(declareAttackersResp(attackers = attackerInstanceIds)))
         drainSink()
 
-        session.onDeclareAttackers(submitAttackersReq(seatId.value))
+        session.onDeclareAttackers(submitWithGsId(submitAttackersReq(seatId.value)))
         drainSink()
     }
 
@@ -425,7 +437,7 @@ class MatchFlowHarness(
      */
     fun toggleAttackers(attackerInstanceIds: List<Int>): List<GREToClientMessage> {
         val snap = messageSnapshot()
-        session.onDeclareAttackers(declareAttackersResp(attackers = attackerInstanceIds))
+        session.onDeclareAttackers(submitWithGsId(declareAttackersResp(attackers = attackerInstanceIds)))
         drainSink()
         return messagesSince(snap)
     }
@@ -439,7 +451,7 @@ class MatchFlowHarness(
      * no payload**. The server must use the last known selection.
      */
     fun submitAttackers() {
-        session.onDeclareAttackers(submitAttackersReq(seatId.value))
+        session.onDeclareAttackers(submitWithGsId(submitAttackersReq(seatId.value)))
         drainSink()
     }
 
@@ -450,7 +462,7 @@ class MatchFlowHarness(
      * targeting the specified damage recipient. Should be followed by [submitAttackers].
      */
     fun declareAllAttackers() {
-        session.onDeclareAttackers(declareAttackersResp(autoDeclare = true, autoDeclareTarget = 2))
+        session.onDeclareAttackers(submitWithGsId(declareAttackersResp(autoDeclare = true, autoDeclareTarget = 2)))
         drainSink()
     }
 
@@ -462,16 +474,16 @@ class MatchFlowHarness(
      * Each entry means "this blocker blocks that attacker."
      */
     fun declareBlockers(assignments: Map<Int, Int>) {
-        session.onDeclareBlockers(declareBlockersResp(assignments))
+        session.onDeclareBlockers(submitWithGsId(declareBlockersResp(assignments)))
         drainSink()
 
-        session.onDeclareBlockers(submitBlockersReq(seatId.value))
+        session.onDeclareBlockers(submitWithGsId(submitBlockersReq(seatId.value)))
         drainSink()
     }
 
     /** Declare no blockers (let all attackers through). Sends SubmitBlockersReq directly. */
     fun declareNoBlockers() {
-        session.onDeclareBlockers(submitBlockersReq(seatId.value))
+        session.onDeclareBlockers(submitWithGsId(submitBlockersReq(seatId.value)))
         drainSink()
     }
 
@@ -481,7 +493,7 @@ class MatchFlowHarness(
      */
     fun toggleBlockers(assignments: Map<Int, Int>): List<GREToClientMessage> {
         val snap = messageSnapshot()
-        session.onDeclareBlockers(declareBlockersResp(assignments))
+        session.onDeclareBlockers(submitWithGsId(declareBlockersResp(assignments)))
         drainSink()
         return messagesSince(snap)
     }
@@ -492,7 +504,7 @@ class MatchFlowHarness(
      */
     fun deselectBlocker(blockerInstanceId: Int): List<GREToClientMessage> {
         val snap = messageSnapshot()
-        session.onDeclareBlockers(declareBlockersRespDeselect(blockerInstanceId))
+        session.onDeclareBlockers(submitWithGsId(declareBlockersRespDeselect(blockerInstanceId)))
         drainSink()
         return messagesSince(snap)
     }
@@ -501,7 +513,7 @@ class MatchFlowHarness(
      * Send SubmitBlockersReq (type-only, no payload) — the reference client's "Done" button.
      */
     fun submitBlockers() {
-        session.onDeclareBlockers(submitBlockersReq(seatId.value))
+        session.onDeclareBlockers(submitWithGsId(submitBlockersReq(seatId.value)))
         drainSink()
     }
 
@@ -514,7 +526,7 @@ class MatchFlowHarness(
      *                  is a list of (blockerOrDefenderInstanceId, damage)
      */
     fun assignDamage(assigners: List<Pair<Int, List<Pair<Int, Int>>>>) {
-        session.onAssignDamage(assignDamageResp(assigners))
+        session.onAssignDamage(submitWithGsId(assignDamageResp(assigners)))
         drainSink()
     }
 
@@ -527,9 +539,9 @@ class MatchFlowHarness(
      * Use [selectTargetsIterative] + [submitTargets] for phase-by-phase control.
      */
     fun selectTargets(targetInstanceIds: List<Int>) {
-        session.onSelectTargets(selectTargetsResp(targets = targetInstanceIds))
+        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds)))
         drainSink()
-        session.onSubmitTargets(submitTargetsReq())
+        session.onSubmitTargets(submitWithGsId(submitTargetsReq()))
         drainSink()
     }
 
@@ -538,19 +550,19 @@ class MatchFlowHarness(
      * Use to inspect the echo-back re-prompt before confirming.
      */
     fun selectTargetsIterative(targetInstanceIds: List<Int>) {
-        session.onSelectTargets(selectTargetsResp(targets = targetInstanceIds))
+        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds)))
         drainSink()
     }
 
     /** Phase 2: send SubmitTargetsReq — the client's "Done" button. */
     fun submitTargets() {
-        session.onSubmitTargets(submitTargetsReq())
+        session.onSubmitTargets(submitWithGsId(submitTargetsReq()))
         drainSink()
     }
 
     /** Cancel a pending targeting action (backs out of spell cast). */
     fun cancelAction() {
-        session.onCancelAction(cancelActionReq())
+        session.onCancelAction(submitWithGsId(cancelActionReq()))
         drainSink()
     }
 
@@ -587,7 +599,7 @@ class MatchFlowHarness(
                                 .setSubZoneType(SubZoneType.None_a455),
                         ).setGroupType(GroupType.Ordered),
                 ).build()
-        session.onGroupResp(msg)
+        session.onGroupResp(submitWithGsId(msg))
         drainSink()
     }
 
@@ -621,7 +633,7 @@ class MatchFlowHarness(
                                 .setSubZoneType(SubZoneType.Bottom),
                         ).setGroupType(GroupType.Ordered),
                 ).build()
-        session.onGroupResp(msg)
+        session.onGroupResp(submitWithGsId(msg))
         drainSink()
     }
 
@@ -650,7 +662,7 @@ class MatchFlowHarness(
                 if (alternativeGrpId != 0) this.alternativeGrpId = alternativeGrpId
             }
 
-        session.onPerformAction(msg)
+        session.onPerformAction(submitWithGsId(msg))
         drainSink()
         return true
     }
@@ -776,7 +788,7 @@ class MatchFlowHarness(
                 this.grpId = grpId
                 this.abilityGrpId = abilityGrpId
             }
-        session.onPerformAction(msg)
+        session.onPerformAction(submitWithGsId(msg))
         drainSink()
         return true
     }
@@ -789,12 +801,12 @@ class MatchFlowHarness(
      * @param selectedInstanceIds the instanceIds the player chose (e.g. the legendary to keep)
      */
     fun respondToSelectN(selectedInstanceIds: List<Int>) {
-        session.onSelectN(selectNResp(ids = selectedInstanceIds))
+        session.onSelectN(submitWithGsId(selectNResp(ids = selectedInstanceIds)))
         drainSink()
     }
 
     fun respondToEffectCost(selectedInstanceIds: List<Int>) {
-        session.onEffectCost(effectCostResp(selectedInstanceIds))
+        session.onEffectCost(submitWithGsId(effectCostResp(selectedInstanceIds)))
         drainSink()
     }
 
@@ -802,7 +814,7 @@ class MatchFlowHarness(
 
     /** Respond to a CastingTimeOptionsReq (modal choice) with selected grpIds. */
     fun respondModalChoice(selectedGrpIds: List<Int>) {
-        session.onCastingTimeOptions(castingTimeOptionsResp(selectedGrpIds = selectedGrpIds))
+        session.onCastingTimeOptions(submitWithGsId(castingTimeOptionsResp(selectedGrpIds = selectedGrpIds)))
         drainSink()
     }
 
@@ -810,7 +822,7 @@ class MatchFlowHarness(
 
     /** Respond to a CastingTimeOptionsReq with the given ctoId (kicker, buyback). */
     fun respondToOptionalCost(ctoId: Int) {
-        session.onCastingTimeOptions(optionalCostResp(ctoId))
+        session.onCastingTimeOptions(submitWithGsId(optionalCostResp(ctoId)))
         drainSink()
     }
     // --- Message inspection ---
@@ -864,6 +876,63 @@ class MatchFlowHarness(
     fun game(): Game = bridge.getGame()!!
 
     fun shutdown() = bridge.shutdown()
+
+    // --- Real-client gsId reflection ---
+    //
+    // A real client reflects the gsId of the latest prompt-bearing GRE it
+    // has received on every response it sends. The harness used to leave
+    // `gameStateId` at proto default 0, which short-circuited the production
+    // staleness check (`clientGsId != 0 && ...`) and meant no testGate test
+    // exercised it.
+    //
+    // [submitWithGsId] fills the field by scanning [allMessages] — the
+    // drained record of what the harness has *seen*, mirroring a real
+    // client's TCP receive view. Reading from `bridge.messageCounter.
+    // lastPromptGsId()` directly would race against the engine thread:
+    // the engine can emit a new prompt between the harness's read and the
+    // session's processing of the response, leaving the response stamped
+    // with an old gsId that the staleness predicate then rejects (observed
+    // on CI under load, never reproduces locally because the engine drains
+    // synchronously fast enough to hide the race).
+    //
+    // Tests that need to send an explicit (or stale) gsId can pass a
+    // non-zero `gameStateId` on the inbound message; the wrapper leaves
+    // those untouched.
+
+    /**
+     * gsId of the most recent prompt-bearing GRE the harness has drained.
+     * 0 pre-handshake or before any prompt has been received.
+     *
+     * Walks [allMessages] in reverse — that's the harness's view of what
+     * the "client" has seen. Deliberately does not consult
+     * `bridge.messageCounter.lastPromptGsId()`: the bridge counter is
+     * shared mutable state advanced from the engine thread, so reading it
+     * races against in-flight emissions.
+     */
+    fun latestPromptGsId(): Int {
+        for (i in allMessages.indices.reversed()) {
+            val m = allMessages[i]
+            if (m.type in leyline.game.bundle.PROMPT_GRE_TYPES) return m.gameStateId
+        }
+        return 0
+    }
+
+    /**
+     * Reflect the latest prompt gsId onto a client message before it enters
+     * the session, mirroring real-client behaviour. Pass-through when the
+     * message already carries an explicit non-zero gsId (used by tests that
+     * need to drive a stale or pre-handshake submission deliberately).
+     *
+     * `internal` so cross-package drivers in the same module (notably
+     * [leyline.simclient.SimClientDriver]) can route their direct
+     * `session.on*` calls through it instead of bypassing reflection.
+     */
+    internal fun submitWithGsId(msg: ClientToGREMessage): ClientToGREMessage =
+        if (msg.gameStateId == 0) {
+            msg.toBuilder().setGameStateId(latestPromptGsId()).build()
+        } else {
+            msg
+        }
 
     /**
      * Walk a deck list and ask Forge's static data to load every unique card
