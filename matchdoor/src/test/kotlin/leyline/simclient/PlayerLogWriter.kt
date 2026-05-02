@@ -154,6 +154,7 @@ class PlayerLogWriter(
                 "OptionalActionMessage",
                 "AssignDamageReq",
                 "CastingTimeOptionsReq",
+                "NumericInputReq",
                 "SearchReq",
                 "SelectNReq",
                 "PromptReq",

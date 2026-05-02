@@ -26,6 +26,7 @@ class AutoPassEngine(
     private val combatHandler: CombatHandler,
     private val targetingHandler: TargetingHandler,
     private val optionalActionHandler: OptionalActionHandler,
+    private val numericInputHandler: NumericInputHandler,
     private val ctx: SessionContext,
     private val autoPassState: ClientAutoPassState = ClientAutoPassState(),
 ) {
@@ -147,6 +148,9 @@ class AutoPassEngine(
 
             // Optional action prompt — "you may" trigger (dedicated future)
             if (optionalActionHandler.checkPendingOptionalAction()) return
+
+            // Numeric input prompt — Cost$ X, Announce$ X, etc. (dedicated future)
+            if (numericInputHandler.checkPendingNumericInput()) return
 
             // Interactive prompt (targeting, sacrifice, discard, etc.)
             when (targetingHandler.checkPendingPrompt()) {

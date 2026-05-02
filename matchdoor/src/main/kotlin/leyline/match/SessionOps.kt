@@ -106,6 +106,8 @@ interface ActionReceiver {
 
     fun onOptionalActionResp(greMsg: ClientToGREMessage) {}
 
+    fun onNumericInputResp(greMsg: ClientToGREMessage) {}
+
     fun onConcede() {}
 
     fun onSettings(greMsg: ClientToGREMessage) {}

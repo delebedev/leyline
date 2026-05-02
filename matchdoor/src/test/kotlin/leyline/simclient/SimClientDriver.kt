@@ -148,6 +148,7 @@ class SimClientDriver(
             GREMessageType.SelectTargetsReq_695e -> respondSelectTargets(msg)
             GREMessageType.GroupReq_695e -> respondGroup(msg)
             GREMessageType.CastingTimeOptionsReq_695e -> respondCastingTimeOptions()
+            GREMessageType.NumericInputReq_695e -> harness.respondToNumericInput(0)
             GREMessageType.IntermissionReq_695e -> harness.passPriority()
             else -> harness.passPriority()
         }
@@ -248,7 +249,8 @@ class SimClientDriver(
             msg.hasMulliganReq() ||
             msg.hasIntermissionReq() ||
             msg.hasOptionalActionMessage() ||
-            msg.hasCastingTimeOptionsReq()
+            msg.hasCastingTimeOptionsReq() ||
+            msg.hasNumericInputReq()
 
     private fun flushNewMessagesToLog() {
         val total = harness.allMessages.size

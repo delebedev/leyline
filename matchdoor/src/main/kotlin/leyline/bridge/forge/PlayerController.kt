@@ -43,6 +43,7 @@ import leyline.bridge.coord.TargetingCoordinator
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
+import leyline.bridge.handoff.NumericInputGate
 import leyline.bridge.handoff.OptionalActionGate
 import leyline.bridge.handoff.OwnerContext
 import leyline.bridge.handoff.PromptRequest
@@ -175,6 +176,7 @@ import java.util.function.Predicate
  *
  * See `docs/bridge-threading.md` for the full two-thread contract.
  */
+@Suppress("LargeClass") // Forge dispatches via single inheritance; the override surface lives on this class.
 class PlayerController(
     game: Game,
     player: Player,
@@ -218,6 +220,16 @@ class PlayerController(
      */
     @Volatile override var pendingOptionalAction: OptionalActionPrompt? = null
 
+    /**
+     * Pending numeric-input prompt. Set by [NumericInputGate] when Forge calls one of
+     * the [chooseNumber] overloads with a `Cost$ X` / `Announce$ X` / similar request.
+     * Detected by `NumericInputHandler` in the auto-pass loop, which emits
+     * `NumericInputReq` to the client and completes the future on `NumericInputResp`.
+     *
+     * Same dedicated-future pattern as [pendingOptionalAction] / [pendingDamageAssignment].
+     */
+    @Volatile override var pendingNumericInput: NumericInputPrompt? = null
+
     /** Cache for batched responses — subsequent attackers in Forge's per-attacker loop. */
     override val damageAssignCache: MutableMap<ForgeCardId, MutableMap<Card?, Int>> = mutableMapOf()
 
@@ -244,12 +256,21 @@ class PlayerController(
         val forceSnapshotBeforePrompt: Boolean = false,
     )
 
+    data class NumericInputPrompt(
+        /** The card whose ability is asking for the number. Drives `sourceId` resolution in the handler. */
+        val sourceCard: Card?,
+        val min: Int,
+        val max: Int,
+        val future: CompletableFuture<Int>,
+    )
+
     /** Set client auto-pass state (called by MatchSession after bridge connection). */
     fun setAutoPassState(state: ClientAutoPassState) {
         autoPassState = state
     }
 
     private val optionalActionGate = OptionalActionGate(this, actionBridge)
+    private val numericInputGate = NumericInputGate(this, actionBridge)
     private val spellExecutor = SpellExecutor(game, player, bridge)
     private val targetingCoordinator = TargetingCoordinator(bridge, seating)
     private val costPaymentCoordinator = CostPaymentCoordinator(bridge, player, optionalActionGate)
@@ -468,12 +489,53 @@ class PlayerController(
         if (wrapper.isMandatory) return true
         // Route through OptionalActionGate → pendingOptionalAction → OptionalActionMessage
         // (GRE type 45). Auto-accept on timeout is safe: the ability resolves normally.
-        return optionalActionGate.await(
-            wrapper = wrapper,
-            hostCard = wrapper.hostCard,
-            defaultOnTimeout = true,
-            logContext = "confirmTrigger",
-        )
+        val accepted =
+            optionalActionGate.await(
+                wrapper = wrapper,
+                hostCard = wrapper.hostCard,
+                defaultOnTimeout = true,
+                logContext = "confirmTrigger",
+            )
+        if (!accepted) return false
+
+        // Announce X for triggered abilities with `Cost$ X`. Forge's standard
+        // X-announce path (`PlaySpellAbility.announceValuesLikeX`) early-exits
+        // for wrapped triggered abilities, so X stays unset and the trigger
+        // resolves with X=0 unless we set it here. The protocol surface for a
+        // "may pay {X}" trigger pairs the optional accept with a follow-up
+        // NumericInputReq (ChooseX) — emitted by routing through the gate.
+        announceXIfPresent(wrapper)
+        return true
+    }
+
+    private fun announceXIfPresent(wrapper: WrappedAbility) {
+        val cost = wrapper.payCosts ?: return
+        if (wrapper.xManaCostPaid != null) return
+
+        // Forge's own X-announce gate (PlaySpellAbility:773) checks
+        // `cost.hasXInAnyCostPart()`, but for wrapped triggered SAs that
+        // accessor returns false even when `Cost$ X` is set (the wrapper
+        // strips the cost into a separate accessor path). So we additionally
+        // accept `SVar:X = Count$xPaid` — Forge's own canonical marker for
+        // "this ability's X is the amount paid as X mana" — which is set on
+        // every `Cost$ X` trigger we've observed (Wildborn Preserver and the
+        // mechanic-mirror cards in `forge/forge-gui/res/cardsfolder`). Other
+        // SVar:X values (Count$Domain, PT$X, etc.) reference X for some other
+        // computation and must not fire a NumericInputReq.
+        val sVar = wrapper.getSVar("X")
+        val needsX = cost.hasXInAnyCostPart() || sVar == "Count\$xPaid"
+        if (!needsX) return
+
+        val maxX = cost.getMaxForNonManaX(wrapper, player, false) ?: Int.MAX_VALUE
+        val x =
+            numericInputGate.await(
+                sourceCard = wrapper.hostCard,
+                min = 0,
+                max = maxX,
+                defaultOnTimeout = 0,
+                logContext = "confirmTrigger-X",
+            )
+        wrapper.setXManaCostPaid(x)
     }
 
     /**
@@ -791,6 +853,109 @@ class PlayerController(
         chosenSa: SpellAbility,
         optionalCosts: MutableList<OptionalCostValue>,
     ): MutableList<OptionalCostValue> = costPaymentCoordinator.chooseOptionalCosts(chosenSa, optionalCosts)
+
+    // -- Seam 6: chooseNumber (NumericInputReq) ------------------------------
+    // PCHuman routes all three overloads through Swing-backed `getGui()` calls
+    // (`ClientGuiGame.getInteger` / `.one`), which silently auto-respond in
+    // headless mode and don't emit a wire prompt. Override the two range-style
+    // overloads to route through the numeric-input gate so the client gets a
+    // real `NumericInputReq` (ChooseX). The list-of-values overload is rarer
+    // and a different shape; throw to surface the call site if it ever fires.
+
+    override fun chooseNumber(
+        sa: SpellAbility,
+        title: String,
+        min: Int,
+        max: Int,
+    ): Int {
+        // PCHuman short-circuits when the range is degenerate; preserve that
+        // invariant so we don't ship a NumericInputReq with maxValue == minValue
+        // (or worse, max < min) and wait for a pointless client roundtrip.
+        if (min >= max) return min
+        return numericInputGate.await(
+            sourceCard = sa.hostCard,
+            min = min,
+            max = max,
+            defaultOnTimeout = min,
+            logContext = "chooseNumber",
+        )
+    }
+
+    /**
+     * Params overload: currently ignores `params` by design — the no-params
+     * overload above is sufficient for every site we've observed. If Forge
+     * ever passes a meaningful flag here (e.g. an "is counter amount" hint
+     * that should change emission semantics), thread it through
+     * `NumericInputGate` via a new optional field rather than silently
+     * dropping.
+     */
+    override fun chooseNumber(
+        sa: SpellAbility,
+        string: String,
+        min: Int,
+        max: Int,
+        params: MutableMap<String, Any>?,
+    ): Int {
+        if (min >= max) return min
+        return numericInputGate.await(
+            sourceCard = sa.hostCard,
+            min = min,
+            max = max,
+            defaultOnTimeout = min,
+            logContext = "chooseNumber(params)",
+        )
+    }
+
+    override fun chooseNumber(
+        sa: SpellAbility,
+        title: String,
+        values: MutableList<Int>,
+        relatedPlayer: Player?,
+    ): Int =
+        error(
+            "chooseNumber(sa, title, values, relatedPlayer) not yet implemented for headless bridge — " +
+                "list-of-values shape needs a separate emit path (likely SelectN-of-1). See leyline-yt8x. " +
+                "sa.hostCard=${sa.hostCard?.name}, values=$values",
+        )
+
+    /**
+     * Forge's `PCHuman.announceRequirements` only routes through `chooseNumber` when
+     * the cost is mandatory; the optional-X branch goes straight to
+     * `getGui().getInteger`, which the headless `ClientGuiGame` shim resolves to a
+     * silent `0` (the choose_one path never lands a `NumericInputReq` on the wire).
+     *
+     * Override redirects both branches through `chooseNumber` so the gate fires
+     * for "you may pay {X}" triggers (e.g. Wildborn Preserver's ImmediateTrigger).
+     */
+    override fun announceRequirements(
+        ability: SpellAbility,
+        min: Int,
+        max: Int,
+        announce: String,
+    ): Int? {
+        val host = ability.hostCard
+        val cost: Cost? = ability.payCosts
+        var effectiveMax = max
+
+        if ("X" == announce && cost != null) {
+            val costX = cost.getMaxForNonManaX(ability, player, false)
+            val flag = forge.game.player.PlayerController.FullControlFlag.AllowPaymentStartWithMissingResources
+            if (costX != null && !player.controller.isFullControl(flag)) {
+                effectiveMax = minOf(effectiveMax, costX)
+            }
+        }
+
+        if (min > effectiveMax) return null
+
+        val announceTitle =
+            if ("X" == announce) {
+                ability.getParamOrDefault("XAnnounceTitle", announce)
+            } else {
+                ability.getParamOrDefault("AnnounceTitle", announce)
+            }
+        val title = "Choose $announceTitle for ${host?.translatedName ?: "spell"}"
+        return chooseNumber(ability, title, min, effectiveMax)
+    }
 
     // -- Play spell --------------------------------------------------------
     // PCHuman uses HumanPlay + HumanPlaySpellAbility (desktop Input classes)

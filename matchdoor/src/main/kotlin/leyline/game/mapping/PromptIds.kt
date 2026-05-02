@@ -62,4 +62,7 @@ object PromptIds {
 
     /** sourceId on SelectNReq for legend rule. */
     const val SELECT_N_LEGEND_RULE_SOURCE = 15168
+
+    /** Numeric input — "Choose X" / pay X stepper. Single observed loc key for X-cost prompts. */
+    const val NUMERIC_INPUT = 51
 }

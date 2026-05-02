@@ -19,9 +19,10 @@ class PlayerControllerStructureTest :
 
         tags(UnitTag)
 
-        // The current set of 42 PCHuman overrides. Alphabetical for review stability.
+        // The current set of 44 PCHuman overrides. Alphabetical for review stability.
         val expectedOverrides =
             setOf(
+                "announceRequirements",
                 "applyManaToCost",
                 "arrangeForScry",
                 "arrangeForSurveil",
@@ -37,6 +38,7 @@ class PlayerControllerStructureTest :
                 "chooseColor",
                 "chooseEntitiesForEffect",
                 "chooseModeForAbility",
+                "chooseNumber",
                 "chooseNumberForKeywordCost",
                 "chooseOptionalCosts",
                 "choosePermanentsToDestroy",
@@ -66,8 +68,8 @@ class PlayerControllerStructureTest :
                 "willPutCardOnTop",
             )
 
-        test("override count is pinned at 42") {
-            expectedOverrides.size shouldBe 42
+        test("override count is pinned at 44") {
+            expectedOverrides.size shouldBe 44
         }
 
         test("PlayerController declares exactly the expected overrides") {
@@ -90,7 +92,9 @@ class PlayerControllerStructureTest :
                     .toList()
 
             overridingMethods.map { it.name }.toSet() shouldBe expectedOverrides
-            overridingMethods.size shouldBe expectedOverrides.size
+            // chooseNumber has three overloads (range, range+params, list-of-values),
+            // so the (name, paramTypes) count exceeds the unique-name count by 2.
+            overridingMethods.size shouldBe expectedOverrides.size + 2
         }
     })
 

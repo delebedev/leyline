@@ -28,6 +28,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * @param validating when true (default), wraps the sink in [ValidatingMessageSink]
  *                   to get automatic invariant checking on every message
  */
+@Suppress("LargeClass") // Test harness grows linearly with prompt-type coverage; refactor is its own task.
 class MatchFlowHarness(
     private val seed: Long = 42L,
     private val deckList: String? = null,
@@ -80,6 +81,7 @@ class MatchFlowHarness(
     /** When set, the next auto-accepted optional-action prompt declines instead.
      *  Use [declineNextOptionalAction] to set this. Cleared after one use. */
     private var nextOptionalResponse: OptionResponse? = null
+    private var nextNumericInputValue: Int? = null
 
     lateinit var session: MatchSession
         private set
@@ -919,16 +921,20 @@ class MatchFlowHarness(
         accumulator.processAll(sink.messages)
         sink.clear()
 
-        // Auto-accept "you may" triggers so the engine can continue.
-        // Without this, confirmTrigger blocks on its future and the test
-        // never reaches the next prompt (e.g. SearchReq after optional ETB).
-        autoRespondToOptionalAction()
+        // Auto-respond to engine-initiated prompts so the engine can continue.
+        // Loops because chained prompts (e.g. Wildborn Preserver: optional
+        // accept → numeric input → potentially another optional on the next
+        // resolution step) need every step responded to within one drain.
+        // Each helper returns whether it actually fired; loop while any did.
+        do {
+            val acted = autoRespondToOptionalAction() || autoRespondToNumericInput()
+        } while (acted)
     }
 
-    private fun autoRespondToOptionalAction() {
-        val wpc = bridge.humanController ?: return
-        wpc.pendingOptionalAction ?: return
-        val msg = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e } ?: return
+    private fun autoRespondToOptionalAction(): Boolean {
+        val wpc = bridge.humanController ?: return false
+        wpc.pendingOptionalAction ?: return false
+        val msg = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e } ?: return false
 
         // If a test pre-seeded a one-shot response via [declineNextOptionalAction],
         // use it and clear the slot. Otherwise default to AllowYes to keep existing
@@ -954,6 +960,7 @@ class MatchFlowHarness(
         allRawMessages.addAll(sink.rawMessages)
         accumulator.processAll(sink.messages)
         sink.clear()
+        return true
     }
 
     /**
@@ -963,6 +970,66 @@ class MatchFlowHarness(
      */
     fun declineNextOptionalAction() {
         nextOptionalResponse = OptionResponse.CancelNo
+    }
+
+    private fun autoRespondToNumericInput(): Boolean {
+        val wpc = bridge.humanController ?: return false
+        wpc.pendingNumericInput ?: return false
+        val msg = allMessages.lastOrNull { it.type == GREMessageType.NumericInputReq_695e } ?: return false
+
+        val value = nextNumericInputValue ?: 0
+        nextNumericInputValue = null
+
+        val greMsg =
+            ClientToGREMessage
+                .newBuilder()
+                .setType(ClientMessageType.NumericInputResp_097b)
+                .setGameStateId(msg.gameStateId)
+                .setRespId(msg.msgId)
+                .setNumericInputResp(
+                    NumericInputResp
+                        .newBuilder()
+                        .setNumericInputValue(value),
+                ).build()
+        session.onNumericInputResp(greMsg)
+
+        allMessages.addAll(sink.messages)
+        allRawMessages.addAll(sink.rawMessages)
+        accumulator.processAll(sink.messages)
+        sink.clear()
+        return true
+    }
+
+    /**
+     * Pre-seed the next auto-responded NumericInputReq with [value].
+     * One-shot; cleared after the next response. Default (no pre-seed) is `0`.
+     */
+    fun nextNumericInput(value: Int) {
+        nextNumericInputValue = value
+    }
+
+    /**
+     * Respond to a NumericInputReq with [value] explicitly.
+     * For tests that need direct control over the numeric pick.
+     */
+    fun respondToNumericInput(value: Int) {
+        val msg = allMessages.lastOrNull { it.type == GREMessageType.NumericInputReq_695e }
+        val greMsg =
+            ClientToGREMessage
+                .newBuilder()
+                .setType(ClientMessageType.NumericInputResp_097b)
+                .setGameStateId(msg?.gameStateId ?: 0)
+                .setRespId(msg?.msgId ?: 0)
+                .setNumericInputResp(
+                    NumericInputResp
+                        .newBuilder()
+                        .setNumericInputValue(value),
+                ).build()
+        session.onNumericInputResp(greMsg)
+        allMessages.addAll(sink.messages)
+        allRawMessages.addAll(sink.rawMessages)
+        accumulator.processAll(sink.messages)
+        sink.clear()
     }
 
     /**
