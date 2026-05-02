@@ -673,7 +673,8 @@ class GameBridge(
         actionBridges.values.any { it.getPending() != null } ||
             promptBridges.values.any { it.getPendingPrompt() != null } ||
             humanController?.pendingDamageAssignment != null ||
-            humanController?.pendingOptionalAction != null
+            humanController?.pendingOptionalAction != null ||
+            humanController?.pendingNumericInput != null
 
     /**
      * Spin until the message counter advances past [entryGsId], proving engine output.

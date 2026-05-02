@@ -103,6 +103,12 @@ class MatchSession(
             counters = this,
             ctx = ctx,
         )
+    val numericInputHandler =
+        NumericInputHandler(
+            sink = this,
+            counters = this,
+            ctx = ctx,
+        )
     val autoPassEngine =
         AutoPassEngine(
             sink = this,
@@ -113,6 +119,7 @@ class MatchSession(
             combatHandler = combatHandler,
             targetingHandler = targetingHandler,
             optionalActionHandler = optionalActionHandler,
+            numericInputHandler = numericInputHandler,
             ctx = ctx,
             autoPassState = autoPassState,
         )
@@ -267,6 +274,12 @@ class MatchSession(
     override fun onOptionalActionResp(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
             optionalActionHandler.onOptionalActionResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+        }
+
+    /** Handle NumericInputResp — delegates to [NumericInputHandler]. */
+    override fun onNumericInputResp(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            numericInputHandler.onNumericInputResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */

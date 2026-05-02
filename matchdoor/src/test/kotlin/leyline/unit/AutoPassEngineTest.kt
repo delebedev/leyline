@@ -15,6 +15,7 @@ import leyline.conformance.settingsMessage
 import leyline.match.AutoPassEngine
 import leyline.match.CombatHandler
 import leyline.match.MatchEventType
+import leyline.match.NumericInputHandler
 import leyline.match.OptionalActionHandler
 import leyline.match.TargetingHandler
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
@@ -57,6 +58,7 @@ class AutoPassEngineTest :
                     combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                 )
 
@@ -83,6 +85,7 @@ class AutoPassEngineTest :
                     combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                     autoPassState = autoPassState,
                 )
@@ -111,6 +114,7 @@ class AutoPassEngineTest :
                     combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                     autoPassState = autoPassState,
                 )
@@ -142,6 +146,7 @@ class AutoPassEngineTest :
                     combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                     autoPassState = autoPassState,
                 )
@@ -166,6 +171,7 @@ class AutoPassEngineTest :
                     combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                 )
 
@@ -193,6 +199,7 @@ class AutoPassEngineTest :
                     combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                 )
 
@@ -219,6 +226,7 @@ class AutoPassEngineTest :
                     combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                 )
 
@@ -245,6 +253,7 @@ class AutoPassEngineTest :
                     combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                 )
 
@@ -268,6 +277,7 @@ class AutoPassEngineTest :
                     combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                 )
 
@@ -298,6 +308,7 @@ class AutoPassEngineTest :
                     combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                 )
 
@@ -322,6 +333,7 @@ class AutoPassEngineTest :
                     combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                     autoPassState = autoPassState,
                 )
@@ -365,6 +377,7 @@ class AutoPassEngineTest :
                     combatHandler = stubCombat,
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                 )
             engine.autoPassAndAdvance()
@@ -408,6 +421,7 @@ class AutoPassEngineTest :
                     combatHandler = stubCombat,
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                 )
             engine.autoPassAndAdvance()
@@ -447,6 +461,7 @@ class AutoPassEngineTest :
                     combatHandler = stubCombat,
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
                 )
             engine.autoPassAndAdvance()

@@ -80,6 +80,7 @@ class MatchFlowHarness(
     /** When set, the next auto-accepted optional-action prompt declines instead.
      *  Use [declineNextOptionalAction] to set this. Cleared after one use. */
     private var nextOptionalResponse: OptionResponse? = null
+    private var nextNumericInputValue: Int? = null
 
     lateinit var session: MatchSession
         private set
@@ -923,6 +924,10 @@ class MatchFlowHarness(
         // Without this, confirmTrigger blocks on its future and the test
         // never reaches the next prompt (e.g. SearchReq after optional ETB).
         autoRespondToOptionalAction()
+
+        // Auto-respond to NumericInputReq so chooseNumber unblocks and
+        // resolution proceeds. Default 0 (decline / pay-X-zero).
+        autoRespondToNumericInput()
     }
 
     private fun autoRespondToOptionalAction() {
@@ -963,6 +968,65 @@ class MatchFlowHarness(
      */
     fun declineNextOptionalAction() {
         nextOptionalResponse = OptionResponse.CancelNo
+    }
+
+    private fun autoRespondToNumericInput() {
+        val wpc = bridge.humanController ?: return
+        wpc.pendingNumericInput ?: return
+        val msg = allMessages.lastOrNull { it.type == GREMessageType.NumericInputReq_695e } ?: return
+
+        val value = nextNumericInputValue ?: 0
+        nextNumericInputValue = null
+
+        val greMsg =
+            ClientToGREMessage
+                .newBuilder()
+                .setType(ClientMessageType.NumericInputResp_097b)
+                .setGameStateId(msg.gameStateId)
+                .setRespId(msg.msgId)
+                .setNumericInputResp(
+                    NumericInputResp
+                        .newBuilder()
+                        .setNumericInputValue(value),
+                ).build()
+        session.onNumericInputResp(greMsg)
+
+        allMessages.addAll(sink.messages)
+        allRawMessages.addAll(sink.rawMessages)
+        accumulator.processAll(sink.messages)
+        sink.clear()
+    }
+
+    /**
+     * Pre-seed the next auto-responded NumericInputReq with [value].
+     * One-shot; cleared after the next response. Default (no pre-seed) is `0`.
+     */
+    fun nextNumericInput(value: Int) {
+        nextNumericInputValue = value
+    }
+
+    /**
+     * Respond to a NumericInputReq with [value] explicitly.
+     * For tests that need direct control over the numeric pick.
+     */
+    fun respondToNumericInput(value: Int) {
+        val msg = allMessages.lastOrNull { it.type == GREMessageType.NumericInputReq_695e }
+        val greMsg =
+            ClientToGREMessage
+                .newBuilder()
+                .setType(ClientMessageType.NumericInputResp_097b)
+                .setGameStateId(msg?.gameStateId ?: 0)
+                .setRespId(msg?.msgId ?: 0)
+                .setNumericInputResp(
+                    NumericInputResp
+                        .newBuilder()
+                        .setNumericInputValue(value),
+                ).build()
+        session.onNumericInputResp(greMsg)
+        allMessages.addAll(sink.messages)
+        allRawMessages.addAll(sink.rawMessages)
+        accumulator.processAll(sink.messages)
+        sink.clear()
     }
 
     /**

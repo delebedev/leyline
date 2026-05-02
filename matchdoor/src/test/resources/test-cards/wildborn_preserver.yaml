@@ -1,0 +1,14 @@
+name: "Wildborn Preserver"
+grpId: 94078
+titleId: 414206
+abilities:
+  - id: 7
+    textId: 43
+    category: 3
+  - id: 13
+    textId: 143
+    category: 3
+  - id: 136114
+    textId: 898021
+    category: 2
+expansionCode: "FDN"

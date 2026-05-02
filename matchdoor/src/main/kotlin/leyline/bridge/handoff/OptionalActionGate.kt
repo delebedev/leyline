@@ -30,6 +30,9 @@ interface OwnerContext {
     /** Pending optional-action prompt (set by [OptionalActionGate], read by session handlers). */
     var pendingOptionalAction: PlayerController.OptionalActionPrompt?
 
+    /** Pending numeric-input prompt (set by [NumericInputGate], read by `NumericInputHandler`). */
+    var pendingNumericInput: PlayerController.NumericInputPrompt?
+
     /** Pending manual combat-damage assignment (set by [leyline.bridge.coord.PriorityLoopCoordinator], read by `CombatHandler`). */
     var pendingDamageAssignment: PlayerController.DamageAssignmentPrompt?
 
