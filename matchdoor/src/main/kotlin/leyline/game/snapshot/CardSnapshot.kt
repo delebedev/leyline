@@ -20,6 +20,8 @@ data class CardSnapshot(
     val isLand: Boolean = false,
     /** True when this is an adventure card (has a Secondary state with its own spell ability). */
     val isAdventureCard: Boolean = false,
+    /** True when this is an Omen card (Secondary state with subtype "Omen"). */
+    val isOmenCard: Boolean = false,
     /** True when the card has the `Room` subtype (split-room enchantment with two doors). */
     val isRoom: Boolean = false,
     /** True when the card has at least one mana ability (used for ActivateMana action shape). */

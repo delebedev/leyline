@@ -1,0 +1,17 @@
+[metadata]
+Name:Omen — Riling Dawnbreaker
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast either face of Riling Dawnbreaker. Main face — 3/4 Dragon with Flying/Vigilance for {4}{W}. Omen face Signaling Roar — {1}{W} sorcery creates a 2/2 white Soldier token, then shuffles back into library.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=4
+
+humanhand=Riling Dawnbreaker
+humanbattlefield=Plains;Plains;Plains;Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains
+ailibrary=Plains;Plains;Plains;Plains

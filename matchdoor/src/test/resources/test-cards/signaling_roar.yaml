@@ -1,0 +1,13 @@
+name: "Signaling Roar"
+grpId: 95537
+titleId: 926734
+abilities:
+  - id: 188714
+    textId: 926735
+    category: 4
+expansionCode: "TDM"
+tokens:
+  "188714": 95824
+linkedFaces:
+  - 95536
+isPrimaryCard: false

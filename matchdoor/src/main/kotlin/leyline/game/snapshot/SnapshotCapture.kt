@@ -457,6 +457,9 @@ object SnapshotCapture {
         // ActionMapper shape flags — read once here, not in the mapper.
         val isLand = type.isLand
         val isAdventureCard = card.isAdventureCard
+        val isOmenCard =
+            card.hasState(forge.card.CardStateName.Secondary) &&
+                card.getState(forge.card.CardStateName.Secondary).type.hasSubtype("Omen")
         val isRoom = card.isRoom
         val hasManaAbilities = card.manaAbilities.isNotEmpty()
         val hasNonManaActivatedAbilities =
@@ -472,6 +475,7 @@ object SnapshotCapture {
             controller = controllerSeat,
             isLand = isLand,
             isAdventureCard = isAdventureCard,
+            isOmenCard = isOmenCard,
             isRoom = isRoom,
             hasManaAbilities = hasManaAbilities,
             hasNonManaActivatedAbilities = hasNonManaActivatedAbilities,

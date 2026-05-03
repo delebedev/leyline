@@ -269,6 +269,26 @@ object ActionMapper {
                     altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
                     builder = builder,
                 )
+                // Adventure / Omen offers are independent of the main face's
+                // payability — emit them even when the main cast is unaffordable.
+                if (cardSnap.isAdventureCard) {
+                    val advAction = buildAdventureAction(forgeCard, player, instanceId, grpId, checkLegality = true)
+                    if (advAction != null) {
+                        builder.addActions(advAction)
+                    } else {
+                        buildInactiveAdventureAction(forgeCard, player, instanceId, grpId)
+                            ?.let { builder.addInactiveActions(it) }
+                    }
+                }
+                if (cardSnap.isOmenCard) {
+                    val omenAction = buildOmenAction(forgeCard, player, instanceId, checkLegality = true)
+                    if (omenAction != null) {
+                        builder.addActions(omenAction)
+                    } else {
+                        buildInactiveOmenAction(forgeCard, player, instanceId)
+                            ?.let { builder.addInactiveActions(it) }
+                    }
+                }
                 continue
             }
 
@@ -320,6 +340,16 @@ object ActionMapper {
                     builder.addActions(advAction)
                 } else {
                     buildInactiveAdventureAction(forgeCard, player, instanceId, grpId)
+                        ?.let { builder.addInactiveActions(it) }
+                }
+            }
+
+            if (cardSnap.isOmenCard) {
+                val omenAction = buildOmenAction(forgeCard, player, instanceId, checkLegality = true)
+                if (omenAction != null) {
+                    builder.addActions(omenAction)
+                } else {
+                    buildInactiveOmenAction(forgeCard, player, instanceId)
                         ?.let { builder.addInactiveActions(it) }
                 }
             }
@@ -1095,6 +1125,69 @@ object ActionMapper {
         } else {
             null
         }
+
+    /**
+     * Build a CastOmen action for an Omen-capable card, or null if not castable.
+     * Mirrors [buildAdventureAction] but emits the minimal envelope —
+     * `actionType + instanceId + manaCost` only. No grpId / facetId. The Omen
+     * face is encoded by `actionType` alone (sibling: CastLeftRoom).
+     */
+    private fun buildOmenAction(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        checkLegality: Boolean,
+    ): Action? {
+        val omenState = card.getState(CardStateName.Secondary) ?: return null
+        val omenSa = omenState.nonManaAbilities?.firstOrNull() ?: return null
+
+        if (checkLegality) {
+            omenSa.setActivatingPlayer(player)
+            val canCast =
+                try {
+                    omenSa.canPlay() && ComputerUtilMana.canPayManaCost(omenSa, player, 0, false)
+                } catch (_: Exception) {
+                    false
+                }
+            if (!canCast) return null
+        }
+
+        val builder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.CastOmen)
+                .setInstanceId(instanceId)
+                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastOmen))
+        val effective = computeEffectiveCost(omenSa, player)
+        val manaCost = effective?.takeIf { !it.isNoCost } ?: omenSa.payCosts?.totalMana?.takeIf { !it.isNoCost }
+        if (manaCost != null) {
+            addManaCostFromForge(manaCost, builder)
+        }
+        return builder.build()
+    }
+
+    /** Build an inactive CastOmen action (unaffordable), or null if card has no Omen state. */
+    private fun buildInactiveOmenAction(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+    ): Action? {
+        val omenState = card.getState(CardStateName.Secondary) ?: return null
+        val omenSa = omenState.nonManaAbilities?.firstOrNull() ?: return null
+        omenSa.setActivatingPlayer(player)
+        if (!omenSa.canPlay()) return null
+        val builder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.CastOmen)
+                .setInstanceId(instanceId)
+        val effective = computeEffectiveCost(omenSa, player)
+        val manaCost = effective?.takeIf { !it.isNoCost } ?: omenSa.payCosts?.totalMana?.takeIf { !it.isNoCost }
+        if (manaCost != null) {
+            addManaCostFromForge(manaCost, builder)
+        }
+        return builder.build()
+    }
 
     /** Build an inactive CastAdventure action (unaffordable), or null if card has no adventure state. */
     private fun buildInactiveAdventureAction(

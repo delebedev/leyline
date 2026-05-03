@@ -36,12 +36,12 @@ class CardProtoBuilder(
      * the client renders a Room as a plain enchantment and skips the side-by-side
      * door display.
      */
-    private val ROOM_DOOR_ABILITY_GRPIDS = listOf(347, 348)
+    private val roomDoorAbilityGrpIds = listOf(347, 348)
 
     /** SubType ordinal for `Room` (matchdoor proto Messages.SubType.Room = 438). */
-    private val ROOM_SUBTYPE = SubType.Room.number
+    private val roomSubtype = SubType.Room.number
 
-    private fun isRoomCard(subtypes: List<Int>): Boolean = subtypes.contains(ROOM_SUBTYPE)
+    private fun isRoomCard(subtypes: List<Int>): Boolean = subtypes.contains(roomSubtype)
 
     /** Build a [GameObjectInfo] from DB data, no template — for the buildFromSnapshot path. */
     fun buildObjectInfo(
@@ -63,7 +63,7 @@ class CardProtoBuilder(
         if (card.toughness.isNotEmpty()) builder.setToughness(Int32Value.newBuilder().setValue(card.toughness.toIntOrNull() ?: 0))
         var abilitySeqId = 50
         if (isRoomCard(card.subtypes)) {
-            for (doorGrpId in ROOM_DOOR_ABILITY_GRPIDS) {
+            for (doorGrpId in roomDoorAbilityGrpIds) {
                 builder.addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(doorGrpId))
             }
         }
@@ -126,7 +126,7 @@ class CardProtoBuilder(
         builder.clearUniqueAbilities()
         var abilitySeqId = template.uniqueAbilitiesList.firstOrNull()?.id ?: 50
         if (isRoomCard(card.subtypes)) {
-            for (doorGrpId in ROOM_DOOR_ABILITY_GRPIDS) {
+            for (doorGrpId in roomDoorAbilityGrpIds) {
                 builder.addUniqueAbilities(
                     UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(doorGrpId),
                 )

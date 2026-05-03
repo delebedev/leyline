@@ -102,7 +102,8 @@ class ActionPerformer(
                 action.actionType == ActionType.Activate_add3 ||
                 action.actionType == ActionType.CastAdventure ||
                 action.actionType == ActionType.CastLeftRoom ||
-                action.actionType == ActionType.CastRightRoom
+                action.actionType == ActionType.CastRightRoom ||
+                action.actionType == ActionType.CastOmen
         val game = ctx.game
         val stackWasNonEmpty = !game.stack.isEmpty
         val actionName = action.actionType.name.removeSuffix("_add3")
@@ -205,6 +206,32 @@ class ActionPerformer(
                         seatBridge.action.submitAction(
                             pending.actionId,
                             PlayerAction.CastSpell(cardId, adventureIndex),
+                        )
+                    } else {
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
+                    }
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
+            }
+            ActionType.CastOmen -> {
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val submitted =
+                    if (cardId != null) {
+                        val card = findCard(game, cardId)
+                        val player = bridge.getPlayer(counters.seatId)
+                        val omenIndex =
+                            if (card != null && player != null) {
+                                getAllCastableAbilities(card, player)
+                                    .indexOfFirst { it.isOmen }
+                                    .takeIf { it >= 0 }
+                            } else {
+                                null
+                            }
+                        if (omenIndex == null) {
+                            log.warn("CastOmen: no Omen SA found for card={} iid={}", card?.name, action.instanceId)
+                        }
+                        seatBridge.action.submitAction(
+                            pending.actionId,
+                            PlayerAction.CastSpell(cardId, omenIndex),
                         )
                     } else {
                         seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
