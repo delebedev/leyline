@@ -271,24 +271,7 @@ object ActionMapper {
                 )
                 // Adventure / Omen offers are independent of the main face's
                 // payability — emit them even when the main cast is unaffordable.
-                if (cardSnap.isAdventureCard) {
-                    val advAction = buildAdventureAction(forgeCard, player, instanceId, grpId, checkLegality = true)
-                    if (advAction != null) {
-                        builder.addActions(advAction)
-                    } else {
-                        buildInactiveAdventureAction(forgeCard, player, instanceId, grpId)
-                            ?.let { builder.addInactiveActions(it) }
-                    }
-                }
-                if (cardSnap.isOmenCard) {
-                    val omenAction = buildOmenAction(forgeCard, player, instanceId, checkLegality = true)
-                    if (omenAction != null) {
-                        builder.addActions(omenAction)
-                    } else {
-                        buildInactiveOmenAction(forgeCard, player, instanceId)
-                            ?.let { builder.addInactiveActions(it) }
-                    }
-                }
+                addSecondaryFaceCastActions(forgeCard, player, instanceId, grpId, cardSnap, builder)
                 continue
             }
 
@@ -334,25 +317,7 @@ object ActionMapper {
                 builder = builder,
             )
 
-            if (cardSnap.isAdventureCard) {
-                val advAction = buildAdventureAction(forgeCard, player, instanceId, grpId, checkLegality = true)
-                if (advAction != null) {
-                    builder.addActions(advAction)
-                } else {
-                    buildInactiveAdventureAction(forgeCard, player, instanceId, grpId)
-                        ?.let { builder.addInactiveActions(it) }
-                }
-            }
-
-            if (cardSnap.isOmenCard) {
-                val omenAction = buildOmenAction(forgeCard, player, instanceId, checkLegality = true)
-                if (omenAction != null) {
-                    builder.addActions(omenAction)
-                } else {
-                    buildInactiveOmenAction(forgeCard, player, instanceId)
-                        ?.let { builder.addInactiveActions(it) }
-                }
-            }
+            addSecondaryFaceCastActions(forgeCard, player, instanceId, grpId, cardSnap, builder)
         }
 
         // --- Hand: non-battlefield activated abilities (Channel, Ninjutsu, etc.) ---
@@ -1014,6 +979,45 @@ object ActionMapper {
         return actionBuilder.build()
     }
 
+    /**
+     * Emit Adventure / Omen offers for a hand card. Both ride a Secondary
+     * state (subtype "Adventure" or "Omen") and are independent of the main
+     * face's payability. Called from both the affordable and unaffordable
+     * main-cast branches so the secondary face surfaces regardless.
+     *
+     * Per-action-type field divergence: CastAdventure carries `grpId =
+     * creature face` (the client rejects unknown grpIds on IsPrimaryCard=0
+     * Adventure faces); CastOmen and CastLeftRoom/CastRightRoom omit
+     * `grpId`. That asymmetry is intentional, not an oversight.
+     */
+    private fun addSecondaryFaceCastActions(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        grpId: Int,
+        cardSnap: leyline.game.snapshot.CardSnapshot,
+        builder: ActionsAvailableReq.Builder,
+    ) {
+        if (cardSnap.isAdventureCard) {
+            val advAction = buildAdventureAction(card, player, instanceId, grpId, checkLegality = true)
+            if (advAction != null) {
+                builder.addActions(advAction)
+            } else {
+                buildInactiveAdventureAction(card, player, instanceId, grpId)
+                    ?.let { builder.addInactiveActions(it) }
+            }
+        }
+        if (cardSnap.isOmenCard) {
+            val omenAction = buildOmenAction(card, player, instanceId, checkLegality = true)
+            if (omenAction != null) {
+                builder.addActions(omenAction)
+            } else {
+                buildInactiveOmenAction(card, player, instanceId)
+                    ?.let { builder.addInactiveActions(it) }
+            }
+        }
+    }
+
     /** Build a CastAdventure action for an adventure card, or null if not castable. */
     private fun buildAdventureAction(
         card: Card,
@@ -1073,7 +1077,7 @@ object ActionMapper {
     ) {
         for (state in card.lockedRooms) {
             val actionType = roomDoorActionType(state) ?: continue
-            val sa = pickRoomDoorSa(card, state) ?: continue
+            val sa = leyline.bridge.pickRoomDoorSa(card, state) ?: continue
             sa.setActivatingPlayer(player)
             val canPay =
                 if (checkLegality) {
@@ -1102,17 +1106,6 @@ object ActionMapper {
                 builder.addInactiveActions(actionBuilder)
             }
         }
-    }
-
-    /** Pick the door SA for [state]: from hand, the split-spell SA in
-     *  `card.getSpells()`; otherwise the unlock SA from `getUnlockAbility`. */
-    private fun pickRoomDoorSa(
-        card: Card,
-        state: CardStateName,
-    ): SpellAbility? {
-        val splitSa = card.getSpells()?.firstOrNull { it.cardStateName == state }
-        if (splitSa != null) return splitSa
-        return card.getUnlockAbility(state)
     }
 
     /** Map a Room door's [CardStateName] to its `ActionType`. Returns null for

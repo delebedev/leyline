@@ -4,7 +4,9 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
@@ -175,6 +177,74 @@ class RoomsTest :
 
             roomOffersForIid(actions.actionsList, iid).shouldBeEmpty()
             roomOffersForIid(actions.inactiveActionsList, iid).shouldBeEmpty()
+        }
+
+        test("pickRoomDoorSa from hand returns the per-door SpellPermanent SA") {
+            // Regression: ActionPerformer's CastRightRoom accept arm originally
+            // looked up `card.getUnlockAbility(state)` and matched by reference
+            // in `getAllCastableAbilities`. From hand the unlock SA's canPlay
+            // returns false (zone restriction), so the filter dropped it,
+            // indexOfFirst returned -1, abilityIndex was null, and PlayerAction
+            // .CastSpell(cardId, null) fell through to candidates.first() —
+            // always the LeftSplit SpellPermanent. CastRightRoom silently cast
+            // the LEFT door. pickRoomDoorSa now picks the per-door SpellPermanent
+            // from getSpells() so the offer side and accept side agree.
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    repeat(5) { base.addCard("Plains", human, ZoneType.Battlefield) }
+                    base.addCard("Surgical Suite", human, ZoneType.Hand)
+                }
+            val human = game.humanPlayer
+            val card = human.getZone(ZoneType.Hand).cards.first { it.isRoom }
+
+            val leftSa = leyline.bridge.pickRoomDoorSa(card, forge.card.CardStateName.LeftSplit)
+            val rightSa = leyline.bridge.pickRoomDoorSa(card, forge.card.CardStateName.RightSplit)
+            val castable = leyline.bridge.getAllCastableAbilities(card, human)
+            assertSoftly {
+                leftSa shouldNotBe null
+                rightSa shouldNotBe null
+                leftSa!!.cardStateName shouldBe forge.card.CardStateName.LeftSplit
+                rightSa!!.cardStateName shouldBe forge.card.CardStateName.RightSplit
+                // Both must be reachable in getAllCastableAbilities so the
+                // ActionPerformer accept arm's `===` lookup succeeds.
+                castable.any { it === leftSa } shouldBe true
+                castable.any { it === rightSa } shouldBe true
+            }
+            // Just to keep the unused warning quiet.
+            b.toString()
+        }
+
+        test("StateMapper emits LeftUnlocked Designation pAnn for bf room with left door open") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Plains", human, ZoneType.Battlefield)
+                    base.addCard("Surgical Suite", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val card = human.getZone(ZoneType.Battlefield).cards.first { it.isRoom }
+            card.unlockRoom(human, forge.card.CardStateName.LeftSplit)
+            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+
+            val snap = SnapshotCapture.run(game, b, "test", 0)
+            val result =
+                leyline.game.mapping.StateMapper
+                    .buildFromSnapshot(snap, 0, "test", b)
+
+            val designations =
+                result.gsm.persistentAnnotationsList.filter { ann ->
+                    wotc.mtgo.gre.external.messaging.Messages.AnnotationType.Designation in ann.typeList &&
+                        ann.affectedIdsList.contains(iid)
+                }
+            val designationTypes =
+                designations.flatMap { ann ->
+                    ann.detailsList
+                        .filter { it.key == "DesignationType" && it.valueInt32Count > 0 }
+                        .map { it.getValueInt32(0) }
+                }
+            assertSoftly {
+                designationTypes shouldContain 19 // LeftUnlocked
+                designationTypes shouldNotContain 20 // Right not unlocked
+            }
         }
 
         test("snapshot exposes door state for battlefield room") {

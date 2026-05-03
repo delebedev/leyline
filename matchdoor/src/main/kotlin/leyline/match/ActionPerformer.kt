@@ -250,18 +250,24 @@ class ActionPerformer(
                             } else {
                                 forge.card.CardStateName.RightSplit
                             }
-                        val unlockSa = card?.getUnlockAbility(targetState)
+                        // Hand: the split-spell SA from card.getSpells() is the
+                        // correct cast SA (the activated unlock SA is filtered out
+                        // by canPlay's zone gate from hand). Battlefield: the
+                        // unlock SA is the only castable. pickRoomDoorSa handles
+                        // both — the SA the offer-side emitted and the SA the
+                        // accept-side expects must match by reference.
+                        val doorSa = if (card != null) leyline.bridge.pickRoomDoorSa(card, targetState) else null
                         val abilityIndex =
-                            if (card != null && player != null && unlockSa != null) {
+                            if (card != null && player != null && doorSa != null) {
                                 getAllCastableAbilities(card, player)
-                                    .indexOfFirst { it === unlockSa }
+                                    .indexOfFirst { it === doorSa }
                                     .takeIf { it >= 0 }
                             } else {
                                 null
                             }
                         if (abilityIndex == null) {
                             log.warn(
-                                "{}: no unlock SA matched for card={} iid={}",
+                                "{}: no door SA matched for card={} iid={}",
                                 action.actionType,
                                 card?.name,
                                 action.instanceId,
