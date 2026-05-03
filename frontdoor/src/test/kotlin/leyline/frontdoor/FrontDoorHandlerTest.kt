@@ -119,7 +119,7 @@ class FrontDoorHandlerTest :
                             CourseService(InMemoryCourseRepository()) { _ ->
                                 GeneratedPool(emptyList(), emptyList(), 0)
                             },
-                        draftService = DraftService(InMemoryDraftSessionRepository()) { _ -> emptyList() },
+                        draftService = DraftService(InMemoryDraftSessionRepository(), stubDraftDriver(emptyList())),
                         writer = writer,
                         bootstrapData = bootstrapData,
                     ),
@@ -191,9 +191,12 @@ class FrontDoorHandlerTest :
             }
             val courseService = CourseService(InMemoryCourseRepository(), poolGen)
             val draftService =
-                DraftService(InMemoryDraftSessionRepository()) { _ ->
-                    (0 until 3).map { pack -> (1..13).map { card -> 90000 + pack * 100 + card } }
-                }
+                DraftService(
+                    InMemoryDraftSessionRepository(),
+                    stubDraftDriver(
+                        (0 until 3).map { pack -> (1..13).map { card -> 90000 + pack * 100 + card } },
+                    ),
+                )
             val ch =
                 EmbeddedChannel(
                     FrontDoorHandler(
@@ -318,7 +321,7 @@ class FrontDoorHandlerTest :
                             CourseService(InMemoryCourseRepository()) { _ ->
                                 GeneratedPool(emptyList(), emptyList(), 0)
                             },
-                        draftService = DraftService(InMemoryDraftSessionRepository()) { _ -> emptyList() },
+                        draftService = DraftService(InMemoryDraftSessionRepository(), stubDraftDriver(emptyList())),
                         writer = writer,
                         bootstrapData = bootstrapData,
                     ),
@@ -659,7 +662,7 @@ class FrontDoorHandlerTest :
 
         test("CmdType 600 - Event_Join draft creates course with BotDraft module") {
             val ch = fdChannelWithCourseService()
-            val obj = sendJson(600, """{"EventName":"QuickDraft_ECL_20260223"}""", ch)
+            val obj = sendJson(600, """{"EventName":"QuickDraft_FDN_20260223"}""", ch)
             val course = obj["Course"]?.jsonObject
             assertSoftly {
                 course.shouldNotBeNull()
@@ -672,10 +675,10 @@ class FrontDoorHandlerTest :
         test("CmdType 1800 - BotDraft_StartDraft returns draft response with first pack") {
             val ch = fdChannelWithCourseService()
             // Join first
-            ch.writeCmd(600, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.writeCmd(600, """{"EventName":"QuickDraft_FDN_20260223"}""")
             ch.readOutbound<ByteBuf>()!!.release()
 
-            val obj = sendJson(1800, """{"EventName":"QuickDraft_ECL_20260223"}""", ch)
+            val obj = sendJson(1800, """{"EventName":"QuickDraft_FDN_20260223"}""", ch)
             obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "BotDraft"
             val payloadStr = obj["Payload"]?.jsonPrimitive?.content
             payloadStr.shouldNotBeNull()
@@ -692,17 +695,17 @@ class FrontDoorHandlerTest :
 
         test("CmdType 1801 - BotDraft_DraftPick advances pick and returns updated state") {
             val ch = fdChannelWithCourseService()
-            ch.writeCmd(600, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.writeCmd(600, """{"EventName":"QuickDraft_FDN_20260223"}""")
             ch.readOutbound<ByteBuf>()!!.release()
 
             // Start draft to get first pack
-            val startObj = sendJson(1800, """{"EventName":"QuickDraft_ECL_20260223"}""", ch)
+            val startObj = sendJson(1800, """{"EventName":"QuickDraft_FDN_20260223"}""", ch)
             val startPayload = json.parseToJsonElement(startObj["Payload"]!!.jsonPrimitive.content).jsonObject
             val firstCard = startPayload["DraftPack"]!!.jsonArray[0].jsonPrimitive.content
 
             // Pick first card
             val pickPayload =
-                """{"EventName":"QuickDraft_ECL_20260223","PickInfo":{"CardIds":["$firstCard"],"PackNumber":0,"PickNumber":0}}"""
+                """{"EventName":"QuickDraft_FDN_20260223","PickInfo":{"CardIds":["$firstCard"],"PackNumber":0,"PickNumber":0}}"""
             val pickObj = sendJson(1801, pickPayload, ch)
             pickObj["CurrentModule"]?.jsonPrimitive?.content shouldBe "BotDraft"
             val payload = json.parseToJsonElement(pickObj["Payload"]!!.jsonPrimitive.content).jsonObject
@@ -715,12 +718,12 @@ class FrontDoorHandlerTest :
 
         test("CmdType 1802 - BotDraft_DraftStatus returns current session") {
             val ch = fdChannelWithCourseService()
-            ch.writeCmd(600, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.writeCmd(600, """{"EventName":"QuickDraft_FDN_20260223"}""")
             ch.readOutbound<ByteBuf>()!!.release()
-            ch.writeCmd(1800, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.writeCmd(1800, """{"EventName":"QuickDraft_FDN_20260223"}""")
             ch.readOutbound<ByteBuf>()!!.release()
 
-            val obj = sendJson(1802, """{"EventName":"QuickDraft_ECL_20260223"}""", ch)
+            val obj = sendJson(1802, """{"EventName":"QuickDraft_FDN_20260223"}""", ch)
             obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "BotDraft"
             val payload = json.parseToJsonElement(obj["Payload"]!!.jsonPrimitive.content).jsonObject
             payload["DraftStatus"]?.jsonPrimitive?.content shouldBe "PickNext"
@@ -729,11 +732,11 @@ class FrontDoorHandlerTest :
 
         test("CmdType 1801 - completing all picks transitions to DeckSelect with card pool") {
             val ch = fdChannelWithCourseService()
-            ch.writeCmd(600, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.writeCmd(600, """{"EventName":"QuickDraft_FDN_20260223"}""")
             ch.readOutbound<ByteBuf>()!!.release()
 
             // Start draft
-            ch.writeCmd(1800, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.writeCmd(1800, """{"EventName":"QuickDraft_FDN_20260223"}""")
             var resp = ch.readOutbound<ByteBuf>()!!
             var msg = decodeResponse(resp)
             var outer = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
@@ -745,7 +748,7 @@ class FrontDoorHandlerTest :
                 val packNum = payload["PackNumber"]!!.jsonPrimitive.int
                 val pickNum = payload["PickNumber"]!!.jsonPrimitive.int
                 val pickReq =
-                    """{"EventName":"QuickDraft_ECL_20260223","PickInfo":{"CardIds":["$card"],"PackNumber":$packNum,"PickNumber":$pickNum}}"""
+                    """{"EventName":"QuickDraft_FDN_20260223","PickInfo":{"CardIds":["$card"],"PackNumber":$packNum,"PickNumber":$pickNum}}"""
                 ch.writeCmd(1801, pickReq)
                 resp = ch.readOutbound<ByteBuf>()!!
                 msg = decodeResponse(resp)
@@ -768,7 +771,7 @@ class FrontDoorHandlerTest :
             val courses = coursesObj["Courses"]!!.jsonArray
             val draftCourse =
                 courses.firstOrNull {
-                    it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "QuickDraft_ECL_20260223"
+                    it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "QuickDraft_FDN_20260223"
                 }
             assertSoftly {
                 draftCourse.shouldNotBeNull()
@@ -779,23 +782,62 @@ class FrontDoorHandlerTest :
 
         test("CmdType 609 - Event_Resign drops draft course and session") {
             val ch = fdChannelWithCourseService()
-            ch.writeCmd(600, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.writeCmd(600, """{"EventName":"QuickDraft_FDN_20260223"}""")
             ch.readOutbound<ByteBuf>()!!.release()
-            ch.writeCmd(1800, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.writeCmd(1800, """{"EventName":"QuickDraft_FDN_20260223"}""")
             ch.readOutbound<ByteBuf>()!!.release()
 
             // Resign
-            val obj = sendJson(609, """{"EventName":"QuickDraft_ECL_20260223"}""", ch)
+            val obj = sendJson(609, """{"EventName":"QuickDraft_FDN_20260223"}""", ch)
             obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "Complete"
 
             // Draft status should return empty (session was dropped)
-            ch.writeCmd(1802, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.writeCmd(1802, """{"EventName":"QuickDraft_FDN_20260223"}""")
             val resp = ch.readOutbound<ByteBuf>()!!
             val msg = decodeResponse(resp)
             // No session → empty response (no JSON payload)
             msg.transactionId.shouldNotBeNull()
         }
     })
+
+/**
+ * Minimal [DraftService.Driver] for tests that don't actually exercise pack-and-pass.
+ * Hands out the pre-baked packs in declaration order; bot decks come back empty.
+ */
+private fun stubDraftDriver(packs: List<List<Int>>): DraftService.Driver =
+    object : DraftService.Driver {
+        private val remaining = packs.map { it.toMutableList() }.toMutableList()
+        private var idx = 0
+        private var pickN = 0
+
+        override fun start(
+            sessionKey: String,
+            setCode: String,
+        ): List<Int> = remaining.getOrNull(idx)?.toList() ?: emptyList()
+
+        override fun pick(
+            sessionKey: String,
+            grpId: Int,
+        ): DraftService.PickOutcome {
+            require(idx < remaining.size) { "no pack to pick from" }
+            require(remaining[idx].remove(grpId)) { "card $grpId not in current pack" }
+            pickN++
+            if (remaining[idx].isEmpty()) {
+                idx++
+                pickN = 0
+            }
+            val complete = idx >= remaining.size
+            return DraftService.PickOutcome(
+                packNumber = if (complete) idx - 1 else idx,
+                pickNumber = pickN,
+                nextPack = if (complete) emptyList() else remaining[idx].toList(),
+                complete = complete,
+            )
+        }
+
+        override fun complete(sessionKey: String): DraftService.PodOutcome =
+            DraftService.PodOutcome(playerPool = emptyList(), botDecks = List(7) { emptyList() })
+    }
 
 /** Load a reference JSON shape from classpath. */
 private fun loadReferenceShape(resource: String): JsonObject {

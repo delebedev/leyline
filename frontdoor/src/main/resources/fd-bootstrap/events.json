@@ -61,8 +61,8 @@
     "editableDeck": true
   },
   {
-    "internalName": "QuickDraft_ECL_20260223",
-    "publicName": "ECL_Quick_Draft",
+    "internalName": "QuickDraft_FDN_20260223",
+    "publicName": "FDN_Quick_Draft",
     "deckSelectFormat": "Draft",
     "formatType": "Draft",
     "displayPriority": 61,
@@ -75,8 +75,8 @@
       "QuickDraft",
       "Limited"
     ],
-    "titleLocKey": "Events/Event_Title_ECL_Quick_Draft",
-    "descLocKey": "Events/Event_Desc_ECL_Quick_Draft",
+    "titleLocKey": "Events/Event_Title_FDN_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_FDN_Quick_Draft",
     "maxWins": 7,
     "maxLosses": 3,
     "isBotDraft": true,

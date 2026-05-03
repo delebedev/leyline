@@ -23,6 +23,8 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.SchemaUtils
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -87,9 +89,15 @@ class SqlitePlayerStore(
         val packNumber = integer("pack_number").default(0)
         val pickNumber = integer("pick_number").default(0)
         val draftPack = text("draft_pack").default("[]")
-        val packs = text("packs").default("[]")
         val pickedCards = text("picked_cards").default("[]")
         override val primaryKey = PrimaryKey(id)
+    }
+
+    private object DraftPodResults : Table("draft_pod_results") {
+        val sessionId = text("session_id")
+        val seatIndex = integer("seat_index")
+        val mainJson = text("main_json")
+        override val primaryKey = PrimaryKey(sessionId, seatIndex)
     }
 
     // ---------- JSON wire format for the cards column ----------
@@ -134,7 +142,9 @@ class SqlitePlayerStore(
     // ---------- Schema bootstrap ----------
 
     fun createTables() {
-        transaction(database) { SchemaUtils.create(Players, Decks, Courses, DraftSessions) }
+        transaction(database) {
+            SchemaUtils.create(Players, Decks, Courses, DraftSessions, DraftPodResults)
+        }
     }
 
     // ---------- DeckRepository ----------
@@ -364,7 +374,6 @@ class SqlitePlayerStore(
 
     fun saveDraft(session: DraftSession): Unit =
         transaction(database) {
-            val packsJson = json.encodeToString<List<List<Int>>>(session.packs)
             val draftPackJson = json.encodeToString<List<Int>>(session.draftPack)
             val pickedJson = json.encodeToString<List<Int>>(session.pickedCards)
 
@@ -379,7 +388,6 @@ class SqlitePlayerStore(
                     it[packNumber] = session.packNumber
                     it[pickNumber] = session.pickNumber
                     it[draftPack] = draftPackJson
-                    it[packs] = packsJson
                     it[pickedCards] = pickedJson
                 }
             } else {
@@ -391,7 +399,6 @@ class SqlitePlayerStore(
                     it[this.packNumber] = session.packNumber
                     it[this.pickNumber] = session.pickNumber
                     it[this.draftPack] = draftPackJson
-                    it[this.packs] = packsJson
                     it[this.pickedCards] = pickedJson
                 }
             }
@@ -399,7 +406,45 @@ class SqlitePlayerStore(
 
     fun deleteDraft(id: DraftSessionId): Unit =
         transaction(database) {
+            DraftPodResults.deleteWhere { sessionId eq id.value }
             DraftSessions.deleteWhere { DraftSessions.id eq id.value }
+        }
+
+    fun deleteIncompleteDrafts(): Unit =
+        transaction(database) {
+            val incompleteIds =
+                DraftSessions
+                    .selectAll()
+                    .where { DraftSessions.status neq DraftStatus.Completed.name }
+                    .map { it[DraftSessions.id] }
+            if (incompleteIds.isNotEmpty()) {
+                DraftPodResults.deleteWhere { sessionId inList incompleteIds }
+                DraftSessions.deleteWhere { DraftSessions.id inList incompleteIds }
+            }
+        }
+
+    fun savePodResults(
+        sessionId: DraftSessionId,
+        botDecks: List<List<Int>>,
+    ): Unit =
+        transaction(database) {
+            DraftPodResults.deleteWhere { DraftPodResults.sessionId eq sessionId.value }
+            botDecks.forEachIndexed { idx, deck ->
+                DraftPodResults.insert {
+                    it[DraftPodResults.sessionId] = sessionId.value
+                    it[seatIndex] = idx
+                    it[mainJson] = json.encodeToString<List<Int>>(deck)
+                }
+            }
+        }
+
+    fun findPodResults(sessionId: DraftSessionId): List<List<Int>> =
+        transaction(database) {
+            DraftPodResults
+                .selectAll()
+                .where { DraftPodResults.sessionId eq sessionId.value }
+                .orderBy(DraftPodResults.seatIndex)
+                .map { json.decodeFromString<List<Int>>(it[DraftPodResults.mainJson]) }
         }
 
     private fun ResultRow.toDraftSession(): DraftSession =
@@ -411,7 +456,6 @@ class SqlitePlayerStore(
             packNumber = this[DraftSessions.packNumber],
             pickNumber = this[DraftSessions.pickNumber],
             draftPack = json.decodeFromString<List<Int>>(this[DraftSessions.draftPack]),
-            packs = json.decodeFromString<List<List<Int>>>(this[DraftSessions.packs]),
             pickedCards = json.decodeFromString<List<Int>>(this[DraftSessions.pickedCards]),
         )
 
@@ -427,6 +471,15 @@ class SqlitePlayerStore(
             override fun save(session: DraftSession) = saveDraft(session)
 
             override fun delete(id: DraftSessionId) = deleteDraft(id)
+
+            override fun deleteIncomplete() = deleteIncompleteDrafts()
+
+            override fun savePodResults(
+                sessionId: DraftSessionId,
+                botDecks: List<List<Int>>,
+            ) = this@SqlitePlayerStore.savePodResults(sessionId, botDecks)
+
+            override fun findPodResults(sessionId: DraftSessionId) = this@SqlitePlayerStore.findPodResults(sessionId)
         }
 
     // ---------- Mapping helpers ----------

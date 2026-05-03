@@ -83,21 +83,46 @@ class CourseServiceTest :
             course.losses shouldBe 1
         }
 
+        test("recordMatchResult lands on ClaimPrize at maxLosses (QuickDraft maxLosses=3)") {
+            val freshPlayer = PlayerId("claim-player-A")
+            service.join(freshPlayer, "QuickDraft_FDN_20260223")
+            service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = false)
+            service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = false)
+            val third = service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = false)
+            assertSoftly {
+                third.losses shouldBe 3
+                third.module shouldBe CourseModule.ClaimPrize
+            }
+        }
+
+        test("claimPrize flips ClaimPrize to Complete (wins/losses preserved)") {
+            val freshPlayer = PlayerId("claim-player-B")
+            service.join(freshPlayer, "QuickDraft_FDN_20260223")
+            service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = false)
+            service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = false)
+            service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = false)
+            val claimed = service.claimPrize(freshPlayer, "QuickDraft_FDN_20260223")
+            assertSoftly {
+                claimed.module shouldBe CourseModule.Complete
+                claimed.losses shouldBe 3
+            }
+        }
+
         test("drop transitions to Complete") {
             val course = service.drop(playerId, "Sealed_FDN_20260307")
             course.module shouldBe CourseModule.Complete
         }
 
         test("join for draft event creates course with BotDraft module and empty pool") {
-            val course = service.join(playerId, "QuickDraft_ECL_20260223")
+            val course = service.join(playerId, "QuickDraft_FDN_20260223")
             course.module shouldBe CourseModule.BotDraft
             course.cardPool shouldBe emptyList()
         }
 
         test("completeDraft transitions course to DeckSelect with card pool and collation ID") {
-            service.join(playerId, "QuickDraft_ECL_20260223")
+            service.join(playerId, "QuickDraft_FDN_20260223")
             val pickedCards = listOf(98353, 98519, 98350)
-            val course = service.completeDraft(playerId, "QuickDraft_ECL_20260223", pickedCards, collationId = 100058)
+            val course = service.completeDraft(playerId, "QuickDraft_FDN_20260223", pickedCards, collationId = 100058)
             assertSoftly {
                 course.module shouldBe CourseModule.DeckSelect
                 course.cardPool shouldBe pickedCards

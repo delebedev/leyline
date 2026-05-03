@@ -4,11 +4,12 @@ package leyline.frontdoor.domain
  * Draft session state — tracks pick-by-pick progress through 3 packs.
  *
  * Quick Draft lifecycle: `PickNext -> ... -> Completed`.
- * Each pick removes a card from [draftPack] and adds it to [pickedCards].
- * When all 39 picks are made (3 packs x 13 picks), status becomes Completed.
+ * Pack contents come from a `BoosterDraftDriver` one pack at a time; the session
+ * only carries the pack the player is currently choosing from. The driver
+ * internally drives 7 bot picks between human picks.
  *
- * **Wire format:** BotDraft responses are Course-wrapped double-encoded JSON:
- * `{"CurrentModule":"BotDraft","Payload":"{\"Result\":\"Success\",...}"}`
+ * BotDraft responses are Course-wrapped double-encoded JSON:
+ * `{"CurrentModule":"BotDraft","Payload":"{\"Result\":\"Success\",...}"}`.
  * The Payload is a JSON string containing the draft state fields.
  */
 
@@ -33,8 +34,6 @@ data class DraftSession(
     val pickNumber: Int = 0,
     /** Cards available in the current pack for picking. */
     val draftPack: List<Int> = emptyList(),
-    /** All packs for the draft session (3 packs, pre-generated). */
-    val packs: List<List<Int>> = emptyList(),
     /** Cards picked so far (cumulative). */
     val pickedCards: List<Int> = emptyList(),
 )

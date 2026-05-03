@@ -39,6 +39,16 @@ interface MatchCoordinator {
     /** Resolve the first available deck (fallback when client doesn't send deckId). */
     fun resolveFirstDeck(): String? = null
 
+    /**
+     * Resolve a pod-bot opponent deck for the given event. Returns null if the
+     * event has no completed draft pod (caller should fall back to other paths).
+     *
+     * Quick Draft uses this so the match opponent is one of the 7 bots that drafted
+     * alongside the player. Bot selection rotates per match in the course so a
+     * second match faces a different bot than the first.
+     */
+    fun resolveOpponentDeckJson(eventName: String): String? = null
+
     // --- MD writes back (match result) ---
 
     /** Record match outcome. Called from MatchSession when game ends. */
@@ -58,6 +68,8 @@ interface MatchCoordinator {
                 override fun resolveDeckJson(deckId: String): String? = null
 
                 override fun resolveDeckJsonByName(name: String): String? = null
+
+                override fun resolveOpponentDeckJson(eventName: String): String? = null
 
                 override fun reportMatchResult(won: Boolean) {}
             }

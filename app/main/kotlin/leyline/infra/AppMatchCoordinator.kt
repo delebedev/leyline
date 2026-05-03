@@ -4,7 +4,9 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
+import leyline.frontdoor.domain.DraftStatus
 import leyline.frontdoor.domain.PlayerId
+import leyline.frontdoor.repo.DraftSessionRepository
 import leyline.frontdoor.service.CourseService
 import leyline.frontdoor.service.DeckService
 import leyline.frontdoor.service.MatchCoordinator
@@ -21,6 +23,7 @@ class AppMatchCoordinator(
     private val playerId: PlayerId,
     private val deckService: DeckService,
     private val courseService: CourseService,
+    private val draftRepo: DraftSessionRepository,
 ) : MatchCoordinator {
     private val log = LoggerFactory.getLogger(AppMatchCoordinator::class.java)
 
@@ -61,6 +64,30 @@ class AppMatchCoordinator(
     override fun resolveDeckJsonByName(name: String): String? {
         val deck = deckService.getByName(name) ?: return null
         return cardsToJson(deck.mainDeck, deck.sideboard, deck.commandZone)
+    }
+
+    override fun resolveOpponentDeckJson(eventName: String): String? {
+        val session = draftRepo.findByPlayerAndEvent(playerId, eventName) ?: return null
+        if (session.status != DraftStatus.Completed) return null
+        val pod = draftRepo.findPodResults(session.id)
+        if (pod.isEmpty()) return null
+
+        val course = courseService.getCourse(playerId, eventName)
+        val rotation = (course?.let { it.wins + it.losses } ?: 0) % pod.size
+        val botDeck = pod[rotation]
+        log.info(
+            "Pod-bot opponent: event={} seat={} cards={}",
+            eventName,
+            rotation + 1,
+            botDeck.size,
+        )
+
+        val mainDeck =
+            botDeck
+                .groupingBy { it }
+                .eachCount()
+                .map { DeckCard(it.key, it.value) }
+        return cardsToJson(mainDeck, sideboard = emptyList())
     }
 
     override fun reportMatchResult(won: Boolean) {

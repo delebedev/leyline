@@ -8,6 +8,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import leyline.frontdoor.domain.Course
+import leyline.frontdoor.domain.CourseModule
 import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.service.AiBotMatchDef
 import leyline.frontdoor.service.EventDef
@@ -99,8 +100,13 @@ object EventWireBuilder {
     ) = buildJsonObject {
         put("CourseId", course.id.value)
         put("InternalEventName", course.eventName)
-        put("CurrentModule", course.module.wireName())
-        put("ModulePayload", "")
+        put("CurrentModule", currentModuleWire(course))
+        // ClaimPrize state expects ModulePayload="{}" so the client surfaces the
+        // claim button; other modules use the empty string.
+        put(
+            "ModulePayload",
+            if (course.module == CourseModule.ClaimPrize) "{}" else "",
+        )
         putJsonObject("CourseDeckSummary") {
             val s = course.deckSummary
             put("DeckId", s?.deckId?.value ?: "00000000-0000-0000-0000-000000000000")
@@ -130,8 +136,10 @@ object EventWireBuilder {
                 putJsonArray("CardSkins") {}
             }
         }
-        if (course.wins > 0) put("CurrentWins", course.wins)
-        if (course.losses > 0) put("CurrentLosses", course.losses)
+        // Always emit so the lobby UI's "X-Y" record badge has both halves;
+        // omitting `CurrentWins` when 0 leaves the tile reading "0-?".
+        put("CurrentWins", course.wins)
+        put("CurrentLosses", course.losses)
         putJsonArray("CardPool") {
             course.cardPool.forEach { add(JsonPrimitive(it)) }
         }
@@ -156,9 +164,27 @@ object EventWireBuilder {
             putStubInventoryInfo()
         }.toString()
 
+    /**
+     * `Event_ClaimPrize` (607) response — Course + InventoryInfo with empty change-set.
+     * Real client receives reward grants here; we stub them out (no real economy).
+     */
+    fun buildClaimPrizeResponse(course: Course): String =
+        buildJsonObject {
+            put("Course", buildCourseJson(course, includeDeck = false))
+            putStubInventoryInfo()
+        }.toString()
+
+    /**
+     * Wire spelling for the current course module. Arena 58-0-1 clients expect
+     * `ClaimPrizeV2` for the post-match prize state — the V1 string still
+     * round-trips on older builds but the lobby UI ignores it.
+     */
+    private fun currentModuleWire(course: Course): String =
+        if (course.module == CourseModule.ClaimPrize) "ClaimPrizeV2" else course.module.wireName()
+
     fun buildMatchResultReport(course: Course): String =
         buildJsonObject {
-            put("CurrentModule", course.module.wireName())
+            put("CurrentModule", currentModuleWire(course))
             put("FoundMatch", true)
             putStubInventoryInfo()
             putJsonArray("questUpdates") {}
@@ -218,6 +244,12 @@ object EventWireBuilder {
                 }
                 putJsonArray("FactionSealedUXInfo") {}
                 put("DeckSelectFormat", e.deckSelectFormat)
+                // Schema: `Dictionary<Int32, Guid>` — keys 0..maxWins, values are
+                // reward UUIDs the client looks up against its content. Empty for now;
+                // a populated map with zero-UUIDs renders the prize wall but breaks the
+                // Claim Prize click flow because the client tries to grant a content
+                // entry that doesn't exist. Wire real cosmetic UUIDs per tier when we
+                // actually need the claim path (tracked in a follow-up bead).
                 putJsonObject("Prizes") {}
                 putJsonObject("EventComponentData") {
                     putJsonObject("DescriptionText") {

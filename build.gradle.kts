@@ -8,7 +8,7 @@ plugins {
     alias(libs.plugins.ktlint) apply false
     alias(libs.plugins.detekt)
     alias(libs.plugins.versions)
-    jacoco
+    id("leyline.test-conventions")
     application
 }
 

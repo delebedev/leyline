@@ -22,12 +22,11 @@ class DraftWireBuilderTest :
             DraftSession(
                 id = DraftSessionId("test-id"),
                 playerId = PlayerId("test-player"),
-                eventName = "QuickDraft_ECL_20260223",
+                eventName = "QuickDraft_FDN_20260223",
                 status = DraftStatus.PickNext,
                 packNumber = 0,
                 pickNumber = 0,
                 draftPack = listOf(98353, 98519, 98532),
-                packs = emptyList(),
                 pickedCards = emptyList(),
             )
 
@@ -42,7 +41,7 @@ class DraftWireBuilderTest :
 
             assertSoftly {
                 inner["Result"]?.jsonPrimitive?.content shouldBe "Success"
-                inner["EventName"]?.jsonPrimitive?.content shouldBe "QuickDraft_ECL_20260223"
+                inner["EventName"]?.jsonPrimitive?.content shouldBe "QuickDraft_FDN_20260223"
                 inner["DraftStatus"]?.jsonPrimitive?.content shouldBe "PickNext"
             }
         }
