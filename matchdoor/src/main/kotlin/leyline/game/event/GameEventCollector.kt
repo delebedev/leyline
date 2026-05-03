@@ -15,10 +15,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.codes.ManaColorMapping
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PlayerMapper
-import leyline.game.mapping.ZoneIds
-import leyline.game.state.AbilityWireIdentity
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
@@ -213,31 +210,6 @@ class GameEventCollector(
         val abilityForgeId = if (isTrigger) ev.sa()?.id ?: 0 else 0
         if (isTrigger && abilityForgeId != 0) {
             pendingTriggers[abilityForgeId] = ForgeCardId(card.id)
-        }
-        // Lineage record: covers both triggered (already keyed in pendingTriggers
-        // above) and activated abilities. The id is read from the SpellAbilityView
-        // independently because the existing abilityForgeId local gates on
-        // isTrigger only and downstream GameEvent.SpellCast carries the same.
-        val lineageAbilityForgeId = if (isAbility) ev.sa()?.id ?: 0 else 0
-        if (isAbility && lineageAbilityForgeId > 0) {
-            val sourceForgeId = ForgeCardId(card.id)
-            val sourceIid = bridge.getOrAllocInstanceId(sourceForgeId)
-            val abilityIid = FrameIdResolver(bridge).triggerStackAbilityIid(lineageAbilityForgeId)
-            val sourceZone = currentSourceZoneId(sourceForgeId)
-            // Only triggered abilities resolve to a per-keyword grpId today
-            // (StateMapper.abilityGrpIdForSource); activated abilities store 0
-            // and the consumer falls back to the source-card grpId.
-            val abilityGrpId = 0
-            bridge.abilityLineage.record(
-                AbilityWireIdentity(
-                    abilityForgeId = lineageAbilityForgeId,
-                    abilityIid = abilityIid,
-                    sourceForgeId = sourceForgeId,
-                    sourceIidAtCreate = sourceIid,
-                    sourceZoneAtCreate = sourceZone,
-                    abilityGrpId = abilityGrpId,
-                ),
-            )
         }
         val (kickerAbilityGrpId, chosenX) = readCastingTimeOptionState(topSa, card)
         frame.add(
@@ -644,33 +616,6 @@ class GameEventCollector(
         return keywords.any { kw ->
             val u = kw.uppercase()
             u.startsWith("MADNESS") || u.startsWith("MAYHEM")
-        }
-    }
-
-    /**
-     * Best-effort source-zone lookup for a stack-ability host card at cast time.
-     * Inline mirror of [leyline.game.mapping.StateMapper.currentSourceZoneId];
-     * kept local to avoid widening the StateMapper helper to internal/public
-     * just for this collector. Falls back to [ZoneIds.BATTLEFIELD] for
-     * unmapped/null zones — the dominant case for combat / state-change
-     * triggers and for activated abilities of permanents.
-     */
-    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
-    private fun currentSourceZoneId(cardId: ForgeCardId): Int {
-        val card = bridge.findCard(cardId) ?: return ZoneIds.BATTLEFIELD
-        val ownerSeat =
-            card.owner?.let { owner ->
-                if (owner.lobbyPlayer is LobbyPlayerAi) bridge.seating.familiarSeat.value else bridge.seating.humanSeat.value
-            } ?: 1
-        return when (card.zone?.zoneType) {
-            ZoneType.Battlefield -> ZoneIds.BATTLEFIELD
-            ZoneType.Stack -> ZoneIds.STACK
-            ZoneType.Graveyard -> ZoneIds.graveyardOf(ownerSeat)
-            ZoneType.Exile -> ZoneIds.EXILE
-            ZoneType.Hand -> ZoneIds.handOf(ownerSeat)
-            ZoneType.Library -> ZoneIds.libraryOf(ownerSeat)
-            ZoneType.Command -> ZoneIds.COMMAND
-            else -> ZoneIds.BATTLEFIELD
         }
     }
 }

@@ -26,6 +26,7 @@ import leyline.game.event.SnapDeltaSynthesizer
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PreparedRole
+import leyline.game.state.AbilityWireIdentity
 import leyline.game.state.AbilityWordActiveKind
 import leyline.game.state.BridgeMutations
 import leyline.game.state.CrewedThisTurnKind
@@ -1211,13 +1212,35 @@ object StateMapper {
         frameIds: FrameIdResolver,
     ) {
         // Cast half: AbilityInstanceCreated (when snap-diff missed it) + persistent TriggeringObject.
-        // Lineage lookup pins source iid + ability iid to the cast-time identity so
-        // a host card mutating during resolution doesn't drift the affector reference.
+        // Identity is derived from the post-realloc frameIds so it agrees with the snapshot
+        // path (which seeds snapshotSourceIids) — the snap-diff path is the dedup gate, and
+        // both paths must hash to the same source iid for the gate to fire.
+        //
+        // Lineage entry is taken here (not at event-collection time): the bridge's iid
+        // realloc lands in StateMapper.applyMutations after the engine event fires, so an
+        // entry taken at event time would pin to the pre-realloc source iid and drift away
+        // from frameIds. Storing in this loop pins the lineage to the same iids the
+        // cast-half emits, so the resolve half can replay them after a host mutation.
         for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }) {
-            val lineage = if (cast.abilityForgeId > 0) bridge.abilityLineage.lookup(cast.abilityForgeId) else null
-            val sourceCardIid = lineage?.sourceIidAtCreate?.value ?: frameIds.cardIid(cast.cardId).value
-            val abilityIid = lineage?.abilityIid?.value ?: frameIds.stackAbilityIid(cast.cardId).value
-            val sourceZone = lineage?.sourceZoneAtCreate ?: currentSourceZoneId(cast.cardId, bridge)
+            val sourceCardIid = frameIds.cardIid(cast.cardId).value
+            val abilityIid = frameIds.stackAbilityIid(cast.cardId).value
+            val sourceZone = currentSourceZoneId(cast.cardId, bridge)
+
+            if (cast.abilityForgeId > 0 && bridge.abilityLineage.lookup(cast.abilityForgeId) == null) {
+                bridge.abilityLineage.record(
+                    AbilityWireIdentity(
+                        abilityForgeId = cast.abilityForgeId,
+                        abilityIid = InstanceId(abilityIid),
+                        sourceForgeId = cast.cardId,
+                        sourceIidAtCreate = InstanceId(sourceCardIid),
+                        sourceZoneAtCreate = sourceZone,
+                        // abilityGrpId arrives via the SpellCast event when the
+                        // trigger-bracket plumbing lands; resolve falls back to
+                        // abilityGrpIdForSource(snap) when this is 0.
+                        abilityGrpId = 0,
+                    ),
+                )
+            }
 
             if (sourceCardIid in snapshotSourceIids) continue
             annotations.add(
@@ -1239,8 +1262,10 @@ object StateMapper {
         // Resolve half: ResolutionStart/Complete (always — snap-diff doesn't emit
         // these for stack-only abilities) + AbilityInstanceDeleted (when snap-diff
         // missed it). Consume the lineage entry — the ability is finished after
-        // this emission. Falls through to source-card-keyed lookup when no
-        // lineage record exists (e.g. synthesised triggers from the
+        // this emission. The lineage carries the cast-time iids so AID's affector
+        // closes against the pre-mutation source identity even when the host card
+        // transformed during resolution. Falls through to source-card-keyed lookup
+        // when no lineage entry exists (e.g. synthesised triggers from the
         // trigger-source targeting path).
         for (resolved in events.filterIsInstance<GameEvent.SpellResolved>().filter { it.isTrigger }) {
             val lineage = if (resolved.abilityForgeId > 0) bridge.abilityLineage.consume(resolved.abilityForgeId) else null

@@ -8,7 +8,6 @@ import io.kotest.matchers.shouldNotBe
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
-import leyline.conformance.detailInt
 import leyline.conformance.detailUint
 import leyline.game.InMemoryCardRepository
 import leyline.game.codes.DetailKeys
@@ -20,11 +19,12 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
- * Phase 2.5 — adoption of [GameBridge.abilityLineage] inside
- * [StateMapper.emitTriggerLifecycleAnnotationsForTest]. Cast looks up the
- * cast-time identity (entry left in place); resolve consumes the entry
- * (ability finished). When no lineage exists the emission falls through to
- * [FrameIdResolver]/snap-derived ids.
+ * Adoption of [GameBridge.abilityLineage] inside
+ * [StateMapper.emitTriggerLifecycleAnnotationsForTest]. Cast emits using
+ * frameIds-derived iids and writes a lineage entry when none exists. Resolve
+ * consumes the entry to close AID against the cast-time source identity even
+ * when the host card mutated during resolution. When no lineage entry exists
+ * the emission falls through to [FrameIdResolver]/snap-derived ids.
  */
 class EmitTriggerLifecycleAnnotationsTest :
     FunSpec({
@@ -160,28 +160,18 @@ class EmitTriggerLifecycleAnnotationsTest :
             }
         }
 
-        test("cast with lineage record uses lineage abilityIid + sourceIidAtCreate (entry not consumed)") {
+        test("cast emits AIC + persistent TriggeringObject from frameIds and records lineage when absent") {
             val bridge = stubBridge()
             val sourceForge = ForgeCardId(13)
             val abilityForgeId = 77
 
-            val preTransformIid = bridge.getOrAllocInstanceId(sourceForge).value
-            val recordedAbilityIid = InstanceId(100_077)
-            val recordedSourceZone = ZoneIds.BATTLEFIELD
-            bridge.abilityLineage.record(
-                AbilityWireIdentity(
-                    abilityForgeId = abilityForgeId,
-                    abilityIid = recordedAbilityIid,
-                    sourceForgeId = sourceForge,
-                    sourceIidAtCreate = InstanceId(preTransformIid),
-                    sourceZoneAtCreate = recordedSourceZone,
-                    abilityGrpId = 0,
-                ),
-            )
+            val sourceIid = bridge.getOrAllocInstanceId(sourceForge).value
+            val expectedAbilityIid = FrameIdResolver(bridge).stackAbilityIid(sourceForge).value
 
-            // Mutate bridge state after lineage was recorded — different post-cast iid.
-            val realloc = bridge.reallocInstanceId(sourceForge)
-            realloc.new.value shouldNotBe preTransformIid
+            // No pre-existing lineage entry — the cast-half records one using
+            // frameIds-derived iids so the resolve-half can close against the
+            // cast-time identity.
+            bridge.abilityLineage.lookup(abilityForgeId) shouldBe null
 
             val (annotations, transferPersistent) =
                 emit(
@@ -203,18 +193,64 @@ class EmitTriggerLifecycleAnnotationsTest :
 
                 val aic = annotations[0]
                 aic.typeList shouldBe listOf(AnnotationType.AbilityInstanceCreated)
-                aic.affectorId shouldBe preTransformIid
-                aic.affectedIdsList shouldBe listOf(recordedAbilityIid.value)
-                aic.detailInt(DetailKeys.SOURCE_ZONE) shouldBe recordedSourceZone
+                aic.affectorId shouldBe sourceIid
+                aic.affectedIdsList shouldBe listOf(expectedAbilityIid)
 
                 val triggering = transferPersistent[0]
                 triggering.typeList shouldBe listOf(AnnotationType.TriggeringObject)
-                triggering.affectorId shouldBe recordedAbilityIid.value
-                triggering.affectedIdsList shouldBe listOf(preTransformIid)
-                triggering.detailInt(DetailKeys.SOURCE_ZONE) shouldBe recordedSourceZone
+                triggering.affectorId shouldBe expectedAbilityIid
+                triggering.affectedIdsList shouldBe listOf(sourceIid)
 
-                // Cast uses lookup, not consume — entry must remain for the upcoming resolve.
-                bridge.abilityLineage.lookup(abilityForgeId) shouldNotBe null
+                // Lineage entry written by cast-half — abilityGrpId is 0 here
+                // because GameEvent.SpellCast on this branch doesn't carry it
+                // (the field arrives via a follow-up branch); resolve falls
+                // back to abilityGrpIdForSource(snap) when this is 0.
+                val recorded = bridge.abilityLineage.lookup(abilityForgeId)
+                recorded shouldNotBe null
+                recorded!!.sourceIidAtCreate.value shouldBe sourceIid
+                recorded.abilityIid.value shouldBe expectedAbilityIid
+                recorded.abilityGrpId shouldBe 0
+            }
+        }
+
+        test("cast does not overwrite an existing lineage entry") {
+            val bridge = stubBridge()
+            val sourceForge = ForgeCardId(21)
+            val abilityForgeId = 99
+            val preexistingAbilityIid = InstanceId(100_099)
+            val preexistingSourceIid = InstanceId(42)
+            val preexistingGrpId = 8_888
+
+            bridge.abilityLineage.record(
+                AbilityWireIdentity(
+                    abilityForgeId = abilityForgeId,
+                    abilityIid = preexistingAbilityIid,
+                    sourceForgeId = sourceForge,
+                    sourceIidAtCreate = preexistingSourceIid,
+                    sourceZoneAtCreate = ZoneIds.BATTLEFIELD,
+                    abilityGrpId = preexistingGrpId,
+                ),
+            )
+
+            emit(
+                bridge = bridge,
+                events =
+                    listOf(
+                        GameEvent.SpellCast(
+                            cardId = sourceForge,
+                            seatId = leyline.bridge.types.SeatId(1),
+                            isTrigger = true,
+                            abilityForgeId = abilityForgeId,
+                        ),
+                    ),
+            )
+
+            val recorded = bridge.abilityLineage.lookup(abilityForgeId)
+            assertSoftly {
+                recorded shouldNotBe null
+                recorded!!.abilityIid shouldBe preexistingAbilityIid
+                recorded.sourceIidAtCreate shouldBe preexistingSourceIid
+                recorded.abilityGrpId shouldBe preexistingGrpId
             }
         }
     })
