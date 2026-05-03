@@ -1,5 +1,6 @@
 package leyline.game.mapping
 
+import leyline.DevCheck
 import leyline.bridge.coord.TargetingCoordinator
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.EffectId
@@ -1396,10 +1397,12 @@ object StateMapper {
         //  prompt-type mapping. Both require deeper card-DB plumbing. Falls
         //  back to card grpId and 0 until wired.
         return pending.mapNotNull { spec ->
-            // Use the iid recorded at target-pick time — see PendingTarget
-            // KDoc for the multi-target-spell rationale. Falls back to live
-            // resolution only if the resolver wasn't wired (defensive; should
-            // never fire in production).
+            // Use the iid recorded at target-pick time for non-triggers (see
+            // PendingTarget KDoc for the multi-target-spell rationale).
+            // Triggers defer to emission-time resolution via the SA id —
+            // TargetingCoordinator always populates spec.forgeAbilityId when
+            // spec.isTriggeredAbility=true, so that branch's fallback is
+            // structurally unreachable and crashes under DevCheck.strict.
             val affectorIid =
                 if (spec.affectorInstanceIdAtRecord != 0) {
                     InstanceId(spec.affectorInstanceIdAtRecord)
@@ -1407,7 +1410,17 @@ object StateMapper {
                     if (spec.forgeAbilityId != 0) {
                         frameIds.triggerStackAbilityIid(spec.forgeAbilityId)
                     } else {
-                        frameIds.stackAbilityIid(ForgeCardId(spec.spellForgeCardId))
+                        DevCheck.fail {
+                            "PendingTarget for ${spec.spellName} marked isTriggeredAbility but missing forgeAbilityId; " +
+                                "every triggered-ability target spec must carry the SA id since stack-ability iids " +
+                                "are SA-id-keyed"
+                        }
+                        // Emit 0 rather than the source-card-keyed iid — that
+                        // would point at a non-existent stack object since
+                        // ZoneMapper now mints via the SA-id-keyed surrogate.
+                        // 0 surfaces visibly in invariant checks rather than
+                        // routing the TargetSpec to a stale iid.
+                        InstanceId(0)
                     }
                 } else {
                     frameIds.cardIid(ForgeCardId(spec.spellForgeCardId))
