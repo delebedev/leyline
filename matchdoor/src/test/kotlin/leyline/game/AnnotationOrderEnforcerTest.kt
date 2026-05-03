@@ -414,4 +414,150 @@ class AnnotationOrderEnforcerTest :
 
             result shouldBe input
         }
+
+        // ===== Rule 6: DamageBeforeDeath =====
+
+        test("Rule 6: reorders DamageDealt before OIC and lethal ZT for the victim iid") {
+            // Pre-rule (wrong): [OIC{100→101}, ZT(SBA_Damage, affected=101), DamageDealt(victim=100)]
+            // Post: DamageDealt must precede both OIC and ZT.
+            val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 101.iid)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 101.iid,
+                    srcZoneId = 28,
+                    destZoneId = 29,
+                    category = "SBA_Damage",
+                )
+            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 50.iid, targetId = 100.wid, amount = 3)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(oic, zt, damage))
+
+            val damageIdx = result.indexOfFirst { AnnotationType.DamageDealt_af5a in it.typeList }
+            val oicIdx = result.indexOfFirst { AnnotationType.ObjectIdChanged in it.typeList }
+            val ztIdx = result.indexOfFirst { AnnotationType.ZoneTransfer_af5a in it.typeList }
+
+            damageIdx shouldBeLessThan oicIdx
+            damageIdx shouldBeLessThan ztIdx
+        }
+
+        test("Rule 6: no-op when ZT is not in a lethal category") {
+            // ZT is for a different iid (200/201) and category Resolve — not lethal for victim 100.
+            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 50.iid, targetId = 100.wid, amount = 3)
+            val oic = AnnotationBuilder.objectIdChanged(origId = 200.iid, newId = 201.iid)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 201.iid,
+                    srcZoneId = 27,
+                    destZoneId = 28,
+                    category = "Resolve",
+                )
+
+            val input = listOf(damage, oic, zt)
+            val result = AnnotationOrderEnforcer.enforce(input)
+
+            result shouldBe input
+        }
+
+        test("Rule 6: no-op when lethal ZT is for a different iid") {
+            // DamageDealt victim is 100; lethal ZT is for iid 201 (unrelated). No edge.
+            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 50.iid, targetId = 100.wid, amount = 3)
+            val oic = AnnotationBuilder.objectIdChanged(origId = 200.iid, newId = 201.iid)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 201.iid,
+                    srcZoneId = 28,
+                    destZoneId = 29,
+                    category = "SBA_Damage",
+                )
+
+            val input = listOf(damage, oic, zt)
+            val result = AnnotationOrderEnforcer.enforce(input)
+
+            result shouldBe input
+        }
+
+        // ===== Rule 7: CombatDamageBlock =====
+
+        test("Rule 7: reorders combat damage block per ladder") {
+            // Pre-rule (wrong): [ZT(SBA_Damage), OIC, DamageDealt, PoSM(combat,CombatDamage), ModifiedLife]
+            // PhaseFirst rule pulls PoSM to index 0.
+            // Rule 7 enforces ladder DamageDealt → ModifiedLife → OIC → ZT for CombatDamage GSMs.
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 101.iid,
+                    srcZoneId = 28,
+                    destZoneId = 29,
+                    category = "SBA_Damage",
+                )
+            val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 101.iid)
+            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 50.iid, targetId = 100.wid, amount = 3)
+            val posm =
+                AnnotationBuilder.phaseOrStepModified(
+                    activeSeat = 1.sid,
+                    phase = 3, // Phase.Combat_a549.number
+                    step = 7, // Step.CombatDamage_a2cb.number
+                )
+            val life = AnnotationBuilder.modifiedLife(playerSeatId = 2.sid, lifeDelta = -3)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(zt, oic, damage, posm, life))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.PhaseOrStepModified,
+                    AnnotationType.DamageDealt_af5a,
+                    AnnotationType.ModifiedLife,
+                    AnnotationType.ObjectIdChanged,
+                    AnnotationType.ZoneTransfer_af5a,
+                )
+        }
+
+        test("Rule 7: no-op outside CombatDamage step") {
+            // PoSM present but not Combat/CombatDamage — Rule 7 emits no edges.
+            // Rule 1 would still fire, but here the OIC is already before ZT for the same iid.
+            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 50.iid, targetId = 100.wid, amount = 3)
+            val oic = AnnotationBuilder.objectIdChanged(origId = 200.iid, newId = 201.iid)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 201.iid,
+                    srcZoneId = 27,
+                    destZoneId = 28,
+                    category = "Resolve",
+                )
+
+            // No PoSM at all → Rule 7 does not fire.
+            val input = listOf(oic, damage, zt)
+            val result = AnnotationOrderEnforcer.enforce(input)
+
+            result shouldBe input
+        }
+
+        test("Rule 7: gap-tolerant — handles missing intermediate ladder types") {
+            // Combat damage GSM with only DamageDealt and ZT (no DamagedThisTurn, no
+            // SyntheticEvent, no ModifiedLife, no LayeredEffectDestroyed, no OIC, no AID).
+            // Rule 7 emits a direct DamageDealt → ZT edge so the ladder still holds.
+            val posm =
+                AnnotationBuilder.phaseOrStepModified(
+                    activeSeat = 1.sid,
+                    phase = 3,
+                    step = 7,
+                )
+            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 50.iid, targetId = 100.wid, amount = 3)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 100.iid,
+                    srcZoneId = 28,
+                    destZoneId = 29,
+                    category = "SBA_Damage",
+                )
+
+            // Wrong order: ZT before DamageDealt.
+            val result = AnnotationOrderEnforcer.enforce(listOf(posm, zt, damage))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.PhaseOrStepModified,
+                    AnnotationType.DamageDealt_af5a,
+                    AnnotationType.ZoneTransfer_af5a,
+                )
+        }
     })

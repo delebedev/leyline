@@ -37,6 +37,8 @@ object OrderRules {
             TokenCreatedFirstRule,
             PhaseOrStepFirstRule,
             ResolutionSandwichRule,
+            DamageBeforeDeathRule,
+            CombatDamageBlockRule,
         )
 }
 
@@ -313,6 +315,142 @@ data object ResolutionSandwichRule : OrderRule {
             d.key == DetailKeys.CATEGORY &&
                 d.valueStringList.firstOrNull() == TransferCategory.Resolve.label
         }
+}
+
+/**
+ * Rule 6: DamageDealt precedes the OIC and lethal ZT for the damaged iid.
+ *
+ * Within one GSM, when a creature dies from damage, the annotations describe
+ * three things about the same victim: the hit (DamageDealt), the identity
+ * change as it leaves the battlefield (ObjectIdChanged), and the zone move to
+ * graveyard (ZoneTransfer with a lethal category). Without an explicit edge
+ * the visual sequence collapses — the creature animates dying before the hit
+ * registers.
+ *
+ * Lethal categories: SBA_Damage (state-based action damage), Destroy
+ * (effect-driven destroy), SBA_LegendRule (legend rule death).
+ *
+ * For each DamageDealt with a victim iid, emit edges to:
+ *  - any same-GSM ObjectIdChanged whose `orig_id == victim`
+ *  - any same-GSM ZoneTransfer whose `affected[0] == victim` AND category is
+ *    in the lethal set
+ */
+data object DamageBeforeDeathRule : OrderRule {
+    override val name: String = "damage_before_death"
+
+    private val lethalCategories: Set<String> =
+        setOf(
+            "SBA_Damage",
+            TransferCategory.Destroy.label,
+            TransferCategory.SbaLegendRule.label,
+        )
+
+    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
+        val edges = mutableListOf<Pair<Int, Int>>()
+        for ((dmgIdx, dmg) in annotations.withIndex()) {
+            if (AnnotationType.DamageDealt_af5a !in dmg.typeList) continue
+            val victimIid = dmg.affectedIdsList.firstOrNull() ?: continue
+            if (victimIid == 0) continue
+            for ((idx, ann) in annotations.withIndex()) {
+                if (idx == dmgIdx) continue
+                val isOicForVictim =
+                    AnnotationType.ObjectIdChanged in ann.typeList &&
+                        ann.detailInt(DetailKeys.ORIG_ID) == victimIid
+                val isLethalZtForVictim =
+                    AnnotationType.ZoneTransfer_af5a in ann.typeList &&
+                        ann.affectedIdsList.firstOrNull() == victimIid &&
+                        isLethalCategory(ann)
+                if (isOicForVictim || isLethalZtForVictim) {
+                    edges.add(dmgIdx to idx)
+                }
+            }
+        }
+        return edges
+    }
+
+    private fun isLethalCategory(zt: AnnotationInfo): Boolean {
+        val category =
+            zt.detailsList
+                .firstOrNull { it.key == DetailKeys.CATEGORY }
+                ?.valueStringList
+                ?.firstOrNull() ?: return false
+        return category in lethalCategories
+    }
+}
+
+/**
+ * Rule 7: Combat-damage step GSMs follow a precedence ladder.
+ *
+ * Trigger: a PhaseOrStepModified with phase=Combat (3) AND step=CombatDamage
+ * (7) is present in the GSM.
+ *
+ * Ladder (annotations not present don't get edges):
+ *
+ * ```
+ * DamageDealt → DamagedThisTurn → SyntheticEvent → ModifiedLife
+ *   → LayeredEffectDestroyed → ObjectIdChanged → ZoneTransfer
+ *   → AbilityInstanceDeleted
+ * ```
+ *
+ * Implementation is quadratic over the 8-type ladder: for every pair (i, j)
+ * with j > i, emit edges from every instance of `ladder[i]` to every instance
+ * of `ladder[j]` if both types are present. This is gap-tolerant — missing
+ * intermediate types don't break the chain because the topo sort is fed direct
+ * edges between every present pair.
+ *
+ * PhaseOrStepFirstRule already pulls PoSM to the front; this rule starts at
+ * DamageDealt and lets PhaseFirst handle the lead.
+ */
+data object CombatDamageBlockRule : OrderRule {
+    override val name: String = "combat_damage_block"
+
+    private val ladder: List<AnnotationType> =
+        listOf(
+            AnnotationType.DamageDealt_af5a,
+            AnnotationType.DamagedThisTurn,
+            AnnotationType.SyntheticEvent,
+            AnnotationType.ModifiedLife,
+            AnnotationType.LayeredEffectDestroyed,
+            AnnotationType.ObjectIdChanged,
+            AnnotationType.ZoneTransfer_af5a,
+            AnnotationType.AbilityInstanceDeleted,
+        )
+
+    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
+        if (!isCombatDamageGsm(annotations)) return emptyList()
+        val byType: Map<AnnotationType, List<Int>> =
+            ladder.associateWith { type ->
+                annotations.indices.filter { type in annotations[it].typeList }
+            }
+        val edges = mutableListOf<Pair<Int, Int>>()
+        for (i in ladder.indices) {
+            val earlier = byType[ladder[i]] ?: continue
+            if (earlier.isEmpty()) continue
+            for (j in i + 1 until ladder.size) {
+                val later = byType[ladder[j]] ?: continue
+                if (later.isEmpty()) continue
+                for (e in earlier) {
+                    for (l in later) {
+                        if (e != l) edges.add(e to l)
+                    }
+                }
+            }
+        }
+        return edges
+    }
+
+    private fun isCombatDamageGsm(annotations: List<AnnotationInfo>): Boolean =
+        annotations.any { ann ->
+            AnnotationType.PhaseOrStepModified in ann.typeList &&
+                ann.detailInt(DetailKeys.PHASE) == COMBAT_PHASE &&
+                ann.detailInt(DetailKeys.STEP) == COMBAT_DAMAGE_STEP
+        }
+
+    /** Phase.Combat_a549 enum value (3). */
+    private const val COMBAT_PHASE: Int = 3
+
+    /** Step.CombatDamage_a2cb enum value (7). */
+    private const val COMBAT_DAMAGE_STEP: Int = 7
 }
 
 // ---- Helpers shared across rules ----------------------------------------
