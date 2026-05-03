@@ -1,0 +1,11 @@
+name: "Surgical Suite"
+grpId: 92095
+titleId: 812367
+abilities:
+  - id: 174302
+    textId: 812366
+    category: 2
+expansionCode: "DSK"
+linkedFaces:
+  - 92094
+isPrimaryCard: false

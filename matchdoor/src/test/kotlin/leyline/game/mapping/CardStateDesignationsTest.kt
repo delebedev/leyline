@@ -174,9 +174,15 @@ class CardStateDesignationsTest :
             loseAnnotations.shouldBeEmpty()
         }
 
-        test("Table inventory pins the three current rows in order") {
+        test("Table inventory pins the current rows in order") {
             CardStateDesignations.all.map { it.kind } shouldContainExactly
-                listOf(DesignationKind.PREPARED, DesignationKind.PLOTTED, DesignationKind.FORETOLD)
+                listOf(
+                    DesignationKind.PREPARED,
+                    DesignationKind.PLOTTED,
+                    DesignationKind.FORETOLD,
+                    DesignationKind.LEFT_UNLOCKED,
+                    DesignationKind.RIGHT_UNLOCKED,
+                )
         }
 
         test("Each row's designationType matches the AnnotationConstants pin") {
@@ -184,6 +190,8 @@ class CardStateDesignationsTest :
                 CardStateDesignations.Prepared.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_PREPARED
                 CardStateDesignations.Plotted.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_PLOTTED
                 CardStateDesignations.Foretold.designationType shouldBe null
+                CardStateDesignations.LeftUnlocked.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_LEFT_UNLOCKED
+                CardStateDesignations.RightUnlocked.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_RIGHT_UNLOCKED
             }
         }
     })

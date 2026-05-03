@@ -73,15 +73,13 @@ internal fun getAllCastableAbilities(
         } else {
             card.getSpells()
         }
-    if (baseAbilities.isEmpty()) return emptyList()
 
+    val expanded = mutableListOf<SpellAbility>()
     val withAddCosts = mutableListOf<SpellAbility>()
     for (sa in baseAbilities) {
         sa.setActivatingPlayer(player)
         withAddCosts.addAll(GameActionUtil.getAdditionalCostSpell(sa))
     }
-
-    val expanded = mutableListOf<SpellAbility>()
     for (sa in withAddCosts) {
         sa.setActivatingPlayer(player)
         val altCosts = GameActionUtil.getAlternativeCosts(sa, player, false)
@@ -105,6 +103,19 @@ internal fun getAllCastableAbilities(
     // SpellExecutor.castSpell).
     val keywordHandSAs = card.spellAbilities.filter { it.isPlotting || it.isForetelling }
     expanded.addAll(keywordHandSAs)
+
+    // Room door-unlock SAs aren't in card.getSpells() — Forge stores them on
+    // Card.unlockAbilities[CardStateName] keyed by LeftSplit / RightSplit. Append
+    // each locked door's unlock SA so CastLeftRoom / CastRightRoom share the
+    // same index space as the regular cast pathway. From hand both doors are
+    // locked; from battlefield only the side(s) not yet unlocked surface here.
+    if (card.isRoom) {
+        for (lockedState in card.lockedRooms) {
+            val unlockSa = card.getUnlockAbility(lockedState) ?: continue
+            unlockSa.setActivatingPlayer(player)
+            expanded.add(unlockSa)
+        }
+    }
 
     return expanded.filter { it.canPlay() && it.canCastTiming(player) }
 }

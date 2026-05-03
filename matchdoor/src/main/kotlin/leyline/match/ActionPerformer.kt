@@ -100,7 +100,9 @@ class ActionPerformer(
         val isCastOrActivate =
             action.actionType == ActionType.Cast ||
                 action.actionType == ActionType.Activate_add3 ||
-                action.actionType == ActionType.CastAdventure
+                action.actionType == ActionType.CastAdventure ||
+                action.actionType == ActionType.CastLeftRoom ||
+                action.actionType == ActionType.CastRightRoom
         val game = ctx.game
         val stackWasNonEmpty = !game.stack.isEmpty
         val actionName = action.actionType.name.removeSuffix("_add3")
@@ -203,6 +205,44 @@ class ActionPerformer(
                         seatBridge.action.submitAction(
                             pending.actionId,
                             PlayerAction.CastSpell(cardId, adventureIndex),
+                        )
+                    } else {
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
+                    }
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
+            }
+            ActionType.CastLeftRoom, ActionType.CastRightRoom -> {
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val submitted =
+                    if (cardId != null) {
+                        val card = findCard(game, cardId)
+                        val player = bridge.getPlayer(counters.seatId)
+                        val targetState =
+                            if (action.actionType == ActionType.CastLeftRoom) {
+                                forge.card.CardStateName.LeftSplit
+                            } else {
+                                forge.card.CardStateName.RightSplit
+                            }
+                        val unlockSa = card?.getUnlockAbility(targetState)
+                        val abilityIndex =
+                            if (card != null && player != null && unlockSa != null) {
+                                getAllCastableAbilities(card, player)
+                                    .indexOfFirst { it === unlockSa }
+                                    .takeIf { it >= 0 }
+                            } else {
+                                null
+                            }
+                        if (abilityIndex == null) {
+                            log.warn(
+                                "{}: no unlock SA matched for card={} iid={}",
+                                action.actionType,
+                                card?.name,
+                                action.instanceId,
+                            )
+                        }
+                        seatBridge.action.submitAction(
+                            pending.actionId,
+                            PlayerAction.CastSpell(cardId, abilityIndex),
                         )
                     } else {
                         seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)

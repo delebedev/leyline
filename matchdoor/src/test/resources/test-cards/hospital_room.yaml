@@ -1,0 +1,11 @@
+name: "Hospital Room"
+grpId: 92096
+titleId: 812368
+abilities:
+  - id: 143859
+    textId: 499061
+    category: 2
+expansionCode: "DSK"
+linkedFaces:
+  - 92094
+isPrimaryCard: false

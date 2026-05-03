@@ -35,12 +35,14 @@ import leyline.game.state.EffectTracker
 import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
 import leyline.game.state.HolderRecord
+import leyline.game.state.LeftUnlockedDesignationKind
 import leyline.game.state.ModifiedTypeForCrewKind
 import leyline.game.state.PersistentAnnotationKind
 import leyline.game.state.PersistentAnnotationStore
 import leyline.game.state.PlottedDesignationKind
 import leyline.game.state.PreparedDesignationKind
 import leyline.game.state.QualificationKind
+import leyline.game.state.RightUnlockedDesignationKind
 import leyline.game.state.TargetSpecKind
 import leyline.game.state.TemporaryPermanentKind
 import org.slf4j.LoggerFactory
@@ -513,6 +515,26 @@ object StateMapper {
                     )
                 }
 
+        // LeftUnlocked / RightUnlocked: persistent Designation (DesignationType=19/20)
+        // for every battlefield Room card with the matching door open. Snapshot
+        // pass filtered to `onBf && card.isRoom`, so no zone guard needed here.
+        val leftUnlockedDesignationPersistentFromSnap =
+            snap.boundCards.values
+                .mapNotNull { bound ->
+                    if (!bound.designations.isLeftDoorUnlocked) return@mapNotNull null
+                    AnnotationBuilder.leftUnlockedDesignation(
+                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
+                    )
+                }
+        val rightUnlockedDesignationPersistentFromSnap =
+            snap.boundCards.values
+                .mapNotNull { bound ->
+                    if (!bound.designations.isRightDoorUnlocked) return@mapNotNull null
+                    AnnotationBuilder.rightUnlockedDesignation(
+                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
+                    )
+                }
+
         // Transient gain/lose Designation annotations — diff prev vs cur on the
         // `Source on battlefield with isPrepared` set. Gains insert before the
         // Stack→Battlefield Resolve ZoneTransfer for the same source iid to match
@@ -567,6 +589,8 @@ object StateMapper {
                 abilityWordPersistentFromSnap = abilityWordPersistentFromSnap,
                 preparedDesignationPersistentFromSnap = preparedDesignationPersistentFromSnap,
                 plottedDesignationPersistentFromSnap = plottedDesignationPersistentFromSnap,
+                leftUnlockedDesignationPersistentFromSnap = leftUnlockedDesignationPersistentFromSnap,
+                rightUnlockedDesignationPersistentFromSnap = rightUnlockedDesignationPersistentFromSnap,
             )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
@@ -943,6 +967,8 @@ object StateMapper {
         abilityWordPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         preparedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         plottedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        leftUnlockedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        rightUnlockedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds =
             events
@@ -1064,6 +1090,8 @@ object StateMapper {
                         put(TargetSpecKind, targetSpecPersistent)
                         put(PreparedDesignationKind, preparedDesignationPersistentFromSnap)
                         put(PlottedDesignationKind, plottedDesignationPersistentFromSnap)
+                        put(LeftUnlockedDesignationKind, leftUnlockedDesignationPersistentFromSnap)
+                        put(RightUnlockedDesignationKind, rightUnlockedDesignationPersistentFromSnap)
                     },
             )
         val batch =

@@ -179,6 +179,8 @@ data class DesignationSet(
     val prepared: PreparedRole = PreparedRole.None,
     val plotted: PlottedRole = PlottedRole.None,
     val foretold: Boolean = false,
+    val isLeftDoorUnlocked: Boolean = false,
+    val isRightDoorUnlocked: Boolean = false,
 ) {
     val isPreparedSource: Boolean get() = prepared is PreparedRole.Source
     val isPreparedCopy: Boolean get() = prepared is PreparedRole.Copy

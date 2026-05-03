@@ -29,6 +29,20 @@ class CardProtoBuilder(
     /** Returns the implicit mana ability grpId for a basic land, or null. */
     private fun basicLandAbility(subtypes: List<Int>): Int? = subtypes.firstNotNullOfOrNull { basicLandAbilities[it] }
 
+    /**
+     * Door-state ability grpIds prefixed on every Room enchantment's
+     * `uniqueAbilities` list (left door, right door). Constant across all rooms;
+     * surfaces the locked/unlocked indicators the client renders. Without these
+     * the client renders a Room as a plain enchantment and skips the side-by-side
+     * door display.
+     */
+    private val ROOM_DOOR_ABILITY_GRPIDS = listOf(347, 348)
+
+    /** SubType ordinal for `Room` (matchdoor proto Messages.SubType.Room = 438). */
+    private val ROOM_SUBTYPE = SubType.Room.number
+
+    private fun isRoomCard(subtypes: List<Int>): Boolean = subtypes.contains(ROOM_SUBTYPE)
+
     /** Build a [GameObjectInfo] from DB data, no template — for the buildFromSnapshot path. */
     fun buildObjectInfo(
         grpId: Int,
@@ -48,6 +62,11 @@ class CardProtoBuilder(
         if (card.power.isNotEmpty()) builder.setPower(Int32Value.newBuilder().setValue(card.power.toIntOrNull() ?: 0))
         if (card.toughness.isNotEmpty()) builder.setToughness(Int32Value.newBuilder().setValue(card.toughness.toIntOrNull() ?: 0))
         var abilitySeqId = 50
+        if (isRoomCard(card.subtypes)) {
+            for (doorGrpId in ROOM_DOOR_ABILITY_GRPIDS) {
+                builder.addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(doorGrpId))
+            }
+        }
         val abilities =
             card.abilityIds.ifEmpty {
                 basicLandAbility(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()
@@ -106,6 +125,13 @@ class CardProtoBuilder(
 
         builder.clearUniqueAbilities()
         var abilitySeqId = template.uniqueAbilitiesList.firstOrNull()?.id ?: 50
+        if (isRoomCard(card.subtypes)) {
+            for (doorGrpId in ROOM_DOOR_ABILITY_GRPIDS) {
+                builder.addUniqueAbilities(
+                    UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(doorGrpId),
+                )
+            }
+        }
         val abilities =
             card.abilityIds.ifEmpty {
                 basicLandAbility(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()

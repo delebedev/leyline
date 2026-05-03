@@ -155,6 +155,21 @@ object GrpIdResolver {
                 ?: GameBridge.FALLBACK_GRPID
         }
 
+        // Rooms (split enchantments with two doors) carry the parent grpId
+        // everywhere except on the stack — Forge's active state flips to
+        // LeftSplit / RightSplit when a door unlocks, but the projected card
+        // identity must remain the parent (Original) so the client renders the
+        // full room with both door names + abilities. Look up via Original
+        // state's name when off-stack; let the stack branch fall through to
+        // the active-state name for the per-door face grpId.
+        if (card.isRoom && !card.isInZone(forge.game.zone.ZoneType.Stack)) {
+            val originalName =
+                card.getOriginalState(forge.card.CardStateName.Original)?.name?.takeIf { it.isNotEmpty() }
+                    ?: card.name
+            cards.findGrpIdByName(originalName)?.let { return it }
+            cards.findGrpIdByNameAnyFace(originalName)?.let { return it }
+        }
+
         // Primary-face lookup, falling back to any-face for DFC back faces
         // (e.g. saga transforms to Echo of Death's Wail — the back face lives in
         // the Arena DB under a non-primary flag; findGrpIdByName misses it).

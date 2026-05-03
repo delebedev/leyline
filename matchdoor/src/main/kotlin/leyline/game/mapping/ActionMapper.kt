@@ -171,6 +171,23 @@ object ActionMapper {
             }
         }
 
+        // --- Battlefield: room door casts (for the unlocked-door's locked sibling) ---
+        // A bf Room with one door already unlocked still offers CastLeftRoom /
+        // CastRightRoom for the still-locked door. Stack/resolve runs the same
+        // way as a hand cast — the cast emits a new stack iid that resolves
+        // back onto the same bf room. Once both doors are unlocked
+        // `getLockedRooms()` returns empty and no offer fires.
+        for (fid in battlefield) {
+            val cardSnap = snap.objects[fid] ?: continue
+            if (cardSnap.controller.value != seatId) continue
+            if (!cardSnap.isRoom) continue
+            val player = bridge.getPlayer(SeatId(seatId)) ?: continue
+            val forgeCard = bridge.findCard(fid) ?: continue
+            if (forgeCard.lockedRooms.isEmpty()) continue
+            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            addRoomCastActions(forgeCard, player, instanceId, builder, checkLegality = true)
+        }
+
         // --- Hand: lands ---
         for (fid in hand) {
             val card = snap.objects[fid] ?: continue
@@ -206,6 +223,15 @@ object ActionMapper {
             if (cardSnap.isLand) continue
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
+            // Rooms ride a dedicated CastLeftRoom / CastRightRoom rail handled
+            // below — they have no plain `Cast` offer. The unlock SAs are part
+            // of `getAllCastableAbilities` (so cast index resolution works),
+            // but the hand-cast emit must skip them.
+            if (cardSnap.isRoom) {
+                val instanceId = bridge.getOrAllocInstanceId(fid).value
+                addRoomCastActions(forgeCard, player, instanceId, builder, checkLegality = true)
+                continue
+            }
             val sa = chooseCastAbility(forgeCard, player) ?: continue
             if (hasUnmetTargeting(sa)) {
                 log.trace("ActionMapper.buildFromSnapshot: skipping {} — no legal targets", cardSnap.name)
@@ -997,6 +1023,78 @@ object ActionMapper {
         }
         return builder.build()
     }
+
+    /**
+     * Emit one CastLeftRoom and/or CastRightRoom action per locked door whose
+     * SA is castable. Each emit carries `actionType + instanceId + manaCost`
+     * only — door identity is encoded by `actionType` alone (no grpId,
+     * facetId, abilityGrpId, alternativeGrpId).
+     *
+     * From hand, Forge surfaces door SAs via `card.getSpells()` (the split-cast
+     * shape — `cardStateName=LeftSplit/RightSplit`). From battlefield, the
+     * locked door's SA comes from `card.getUnlockAbility(state)`.
+     */
+    private fun addRoomCastActions(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        builder: ActionsAvailableReq.Builder,
+        checkLegality: Boolean,
+    ) {
+        for (state in card.lockedRooms) {
+            val actionType = roomDoorActionType(state) ?: continue
+            val sa = pickRoomDoorSa(card, state) ?: continue
+            sa.setActivatingPlayer(player)
+            val canPay =
+                if (checkLegality) {
+                    try {
+                        sa.canPlay() && ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+                    } catch (_: Exception) {
+                        false
+                    }
+                } else {
+                    true
+                }
+            val actionBuilder =
+                Action
+                    .newBuilder()
+                    .setActionType(actionType)
+                    .setInstanceId(instanceId)
+                    .setShouldStop(ShouldStopEvaluator.shouldStop(actionType))
+            val effective = computeEffectiveCost(sa, player)
+            val manaCost = effective?.takeIf { !it.isNoCost } ?: sa.payCosts?.totalMana?.takeIf { !it.isNoCost }
+            if (manaCost != null) {
+                addManaCostFromForge(manaCost, actionBuilder)
+            }
+            if (canPay) {
+                builder.addActions(actionBuilder)
+            } else {
+                builder.addInactiveActions(actionBuilder)
+            }
+        }
+    }
+
+    /** Pick the door SA for [state]: from hand, the split-spell SA in
+     *  `card.getSpells()`; otherwise the unlock SA from `getUnlockAbility`. */
+    private fun pickRoomDoorSa(
+        card: Card,
+        state: CardStateName,
+    ): SpellAbility? {
+        val splitSa = card.getSpells()?.firstOrNull { it.cardStateName == state }
+        if (splitSa != null) return splitSa
+        return card.getUnlockAbility(state)
+    }
+
+    /** Map a Room door's [CardStateName] to its `ActionType`. Returns null for
+     *  any [CardStateName] that isn't a room door (LeftSplit / RightSplit). */
+    private fun roomDoorActionType(state: CardStateName): ActionType? =
+        if (state == CardStateName.LeftSplit) {
+            ActionType.CastLeftRoom
+        } else if (state == CardStateName.RightSplit) {
+            ActionType.CastRightRoom
+        } else {
+            null
+        }
 
     /** Build an inactive CastAdventure action (unaffordable), or null if card has no adventure state. */
     private fun buildInactiveAdventureAction(

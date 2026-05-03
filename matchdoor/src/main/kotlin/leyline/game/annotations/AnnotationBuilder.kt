@@ -813,6 +813,28 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_PLOTTED))
             .build()
 
+    /** Persistent `Designation` for the `LeftUnlocked` Room-door state (DesignationType=19).
+     *  affector / affectedIds both = the Room card's battlefield instance id. */
+    fun leftUnlockedDesignation(instanceId: InstanceId): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_LEFT_UNLOCKED))
+            .build()
+
+    /** Persistent `Designation` for the `RightUnlocked` Room-door state (DesignationType=20).
+     *  affector / affectedIds both = the Room card's battlefield instance id. */
+    fun rightUnlockedDesignation(instanceId: InstanceId): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_RIGHT_UNLOCKED))
+            .build()
+
     /** LoseDesignation transient on a card. Fires when a card-state designation
      *  ends (e.g. prepared spell cast → source creature unprepared). */
     fun loseDesignation(
