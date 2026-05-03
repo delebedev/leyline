@@ -1,64 +1,27 @@
 package leyline.game.annotations
 
-import leyline.game.codes.DetailKeys
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import java.util.PriorityQueue
-import kotlin.collections.iterator
 
 /**
  * Enforces annotation partial-ordering constraints before numbering.
  *
  * The client processes annotations sequentially, accumulating state changes.
  * Each annotation handler sees the output of all prior handlers. This makes
- * ordering load-bearing for two reasons:
+ * ordering load-bearing — see individual [OrderRule] implementations for the
+ * specific constraints.
  *
- * **Rule 1 — ObjectIdChanged first:** Must precede any annotation referencing
- * the new instanceId. The ObjectIdChanged handler populates the identity map;
- * downstream handlers expect the mapping to exist when they encounter the new ID.
- *
- * **Rule 2 — Same-card incremental chaining:** When two annotation handlers
- * both modify the same card via incremental entity updates, the second builds
- * on the first's output via a reverse scan. Wrong order = stale entity state.
- *
- * Ordering rules derived from corpus analysis (29 sessions, 7676 messages).
  * The pipeline already builds annotations in correct order by construction.
- * This enforcer is a safety net against regressions.
+ * This enforcer is a safety net against regressions, exercised by puzzle
+ * fixtures under `puzzles/` and the unit suite in
+ * `matchdoor/src/test/kotlin/leyline/game/`.
+ *
+ * Adding a new rule: implement [OrderRule] as a `data object` and add it to
+ * [OrderRules.all]. The enforcer body never changes.
  */
 object AnnotationOrderEnforcer {
     private val log = LoggerFactory.getLogger(AnnotationOrderEnforcer::class.java)
-
-    /**
-     * Incremental entity annotation metadata for same-card chaining (Rule 2).
-     *
-     * Lower precedence = must come first when two types affect the same card.
-     * [cardIdFromAffected] = true if the card ID is in affectedIds (most types),
-     * false if it's in affectorId (LayeredEffectCreated, AttachmentCreated).
-     */
-    private data class IncrementalSpec(
-        val precedence: Int,
-        val cardIdFromAffected: Boolean = true,
-    )
-
-    /**
-     * Precedence table validated against 29 game sessions (7676 messages).
-     *
-     * Observed server ordering:
-     * - LayeredEffectCreated BEFORE AttachmentCreated (10 instances)
-     * - ControllerChanged BEFORE TappedUntapped (2 instances)
-     */
-    private val INCREMENTAL_SPECS: Map<AnnotationType, IncrementalSpec> =
-        mapOf(
-            AnnotationType.ControllerChanged to IncrementalSpec(0),
-            AnnotationType.TappedUntappedPermanent to IncrementalSpec(1),
-            AnnotationType.DamageDealt_af5a to IncrementalSpec(2),
-            AnnotationType.CounterAdded to IncrementalSpec(3),
-            AnnotationType.CounterRemoved to IncrementalSpec(3),
-            AnnotationType.PowerToughnessModCreated to IncrementalSpec(4),
-            AnnotationType.LayeredEffectCreated to IncrementalSpec(5, cardIdFromAffected = false),
-            AnnotationType.AttachmentCreated to IncrementalSpec(6, cardIdFromAffected = false),
-        )
 
     /**
      * Enforce partial ordering. Returns a reordered list if violations exist,
@@ -67,144 +30,13 @@ object AnnotationOrderEnforcer {
      * O(n) for the common case (no violations).
      */
     fun enforce(annotations: List<AnnotationInfo>): List<AnnotationInfo> {
-        val rule1Edges = buildRule1Edges(annotations)
-        val rule2Edges = buildRule2Edges(annotations)
-        val rule3Edges = buildTokenCreatedEdges(annotations)
-
-        if (rule1Edges.isEmpty() && rule2Edges.isEmpty() && rule3Edges.isEmpty()) return annotations
-
-        val allEdges = rule1Edges + rule2Edges + rule3Edges
+        val allEdges = OrderRules.all.flatMap { it.edges(annotations) }
+        if (allEdges.isEmpty()) return annotations
         val hasViolation = allEdges.any { (from, to) -> from > to }
-
         if (!hasViolation) return annotations
-
         logViolations(annotations, allEdges)
         return topologicalSort(annotations, allEdges)
     }
-
-    /**
-     * Rule 3: TokenCreated must precede any annotation referencing the new token's
-     * instanceId as affector or affected.
-     *
-     * Defense-in-depth — when [leyline.game.GamePlayback.shouldSplitOnLocalTurn]
-     * doesn't kick in (opponent's turn, or a non-Mobilize keyword that
-     * bundles into one GSM), this rule keeps token references after their
-     * TokenCreated within a single GSM. When GSM-split fires, the trigger
-     * lifecycle and combat damage land in separate GSMs and this rule is a
-     * no-op. The primary mechanism for ordering tokens-before-damage is the
-     * GSM-split; this enforcer is a safety net.
-     *
-     * The token's iid only enters the client identity map when TokenCreated is
-     * processed; downstream annotations (DamageDealt from a Mobilize warrior,
-     * TappedUntappedPermanent, etc.) need
-     * that mapping in place or the client renders the damage before the token
-     * appears on the battlefield.
-     */
-    private fun buildTokenCreatedEdges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
-        val tokenIidToTcIndex = mutableMapOf<Int, Int>()
-        for ((i, ann) in annotations.withIndex()) {
-            if (AnnotationType.TokenCreated in ann.typeList) {
-                for (iid in ann.affectedIdsList) {
-                    if (iid != 0) tokenIidToTcIndex.putIfAbsent(iid, i)
-                }
-            }
-        }
-        if (tokenIidToTcIndex.isEmpty()) return emptyList()
-
-        val edges = mutableListOf<Pair<Int, Int>>()
-        for ((i, ann) in annotations.withIndex()) {
-            if (AnnotationType.TokenCreated in ann.typeList) continue
-            for (refId in referencedIds(ann)) {
-                val tcIndex = tokenIidToTcIndex[refId] ?: continue
-                if (tcIndex == i) continue
-                edges.add(tcIndex to i)
-            }
-        }
-        return edges
-    }
-
-    /**
-     * Rule 1: ObjectIdChanged must precede any annotation referencing its new_id.
-     * Returns edges as (fromIndex, toIndex) pairs.
-     */
-    private fun buildRule1Edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
-        val newIdToOicIndex = mutableMapOf<Int, Int>()
-        for ((i, ann) in annotations.withIndex()) {
-            if (AnnotationType.ObjectIdChanged in ann.typeList) {
-                val newId = ann.detailInt(DetailKeys.NEW_ID)
-                if (newId != 0) newIdToOicIndex[newId] = i
-            }
-        }
-        if (newIdToOicIndex.isEmpty()) return emptyList()
-
-        val edges = mutableListOf<Pair<Int, Int>>()
-        for ((i, ann) in annotations.withIndex()) {
-            if (AnnotationType.ObjectIdChanged in ann.typeList) continue
-            val refs = referencedIds(ann)
-            for (refId in refs) {
-                val oicIndex = newIdToOicIndex[refId] ?: continue
-                edges.add(oicIndex to i) // OIC must come before this annotation
-            }
-        }
-        return edges
-    }
-
-    /**
-     * Rule 2: Same-card incremental annotations must follow precedence order.
-     * Returns edges as (fromIndex, toIndex) pairs.
-     */
-    private fun buildRule2Edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
-        val cardToAnnotations = mutableMapOf<Int, MutableList<Int>>()
-        for ((i, ann) in annotations.withIndex()) {
-            val spec = annotationSpec(ann) ?: continue
-            for (cardId in cardIdsFor(ann, spec)) {
-                if (cardId != 0) {
-                    cardToAnnotations.getOrPut(cardId) { mutableListOf() }.add(i)
-                }
-            }
-        }
-
-        val edges = mutableListOf<Pair<Int, Int>>()
-        for ((_, indices) in cardToAnnotations) {
-            if (indices.size < 2) continue
-            for (a in indices.indices) {
-                for (b in a + 1 until indices.size) {
-                    val idxA = indices[a]
-                    val idxB = indices[b]
-                    val precA = annotationSpec(annotations[idxA])?.precedence ?: continue
-                    val precB = annotationSpec(annotations[idxB])?.precedence ?: continue
-                    if (precA == precB) continue
-                    if (precA < precB) {
-                        edges.add(idxA to idxB)
-                    } else {
-                        edges.add(idxB to idxA)
-                    }
-                }
-            }
-        }
-        return edges
-    }
-
-    /** Get the incremental spec for an annotation, or null if not applicable. */
-    private fun annotationSpec(ann: AnnotationInfo): IncrementalSpec? = ann.typeList.firstNotNullOfOrNull { INCREMENTAL_SPECS[it] }
-
-    /** Extract card IDs from an annotation based on its spec. */
-    private fun cardIdsFor(
-        ann: AnnotationInfo,
-        spec: IncrementalSpec,
-    ): List<Int> =
-        if (spec.cardIdFromAffected) {
-            ann.affectedIdsList.toList()
-        } else {
-            if (ann.affectorId != 0) listOf(ann.affectorId) else emptyList()
-        }
-
-    /** All IDs referenced by an annotation (affectedIds + affectorId). */
-    private fun referencedIds(ann: AnnotationInfo): Set<Int> =
-        buildSet {
-            addAll(ann.affectedIdsList)
-            if (ann.affectorId != 0) add(ann.affectorId)
-        }
 
     /**
      * Topological sort respecting edge constraints. Preserves original order
@@ -270,10 +102,4 @@ object AnnotationOrderEnforcer {
             }
         }
     }
-
-    /** Extract int32 detail value by key, returns 0 if not found. */
-    private fun AnnotationInfo.detailInt(key: String): Int =
-        detailsList.firstOrNull { it.key == key }?.let {
-            if (it.valueInt32Count > 0) it.getValueInt32(0) else 0
-        } ?: 0
 }
