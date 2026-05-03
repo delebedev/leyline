@@ -35,19 +35,19 @@
     }
   },
   "MilestoneStates": {
-    "OpenSparkyDeckDuel": false,
-    "CloseSparkyDeckDuel": false,
-    "CompletedDualColorPreconEvent": false,
-    "OpenSparkQueue": false,
-    "OpenAlchemyPlayQueue": false,
-    "SkippedSparkRank": false,
-    "NPE_Completed": false,
-    "SkippedNPEV2FromNPEV1Migration": false,
-    "OpenQuickDraftAndSealedEvents": false,
-    "OpenHistoricBrawlQueue": false,
-    "OpenAlchemyRankQueue": false,
-    "GrantHistoricBrawlStarterDeck1": false,
-    "GrantHistoricBrawlStarterDeck2": false,
-    "NPEv4_Landing": false
+    "OpenSparkyDeckDuel": true,
+    "CloseSparkyDeckDuel": true,
+    "CompletedDualColorPreconEvent": true,
+    "OpenSparkQueue": true,
+    "OpenAlchemyPlayQueue": true,
+    "SkippedSparkRank": true,
+    "NPE_Completed": true,
+    "SkippedNPEV2FromNPEV1Migration": true,
+    "OpenQuickDraftAndSealedEvents": true,
+    "OpenHistoricBrawlQueue": true,
+    "OpenAlchemyRankQueue": true,
+    "GrantHistoricBrawlStarterDeck1": true,
+    "GrantHistoricBrawlStarterDeck2": true,
+    "NPEv4_Landing": true
   }
 }

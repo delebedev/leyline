@@ -432,11 +432,24 @@ class MatchHandler(
     }
 
     /**
-     * Resolve seat 2 (AI) deck: look up by name from player.db.
-     * Falls back to seat 1's deck (mirror match) if AI deck not found.
+     * Resolve seat 2 (AI) deck.
+     *
+     * Priority:
+     *   1. Pod-bot deck for the active event (Quick Draft → one of the 7 bots that
+     *      drafted alongside the player). Falls through if the event has no pod.
+     *   2. AI deck name from `matchConfig.game.aiDeck` looked up in player.db.
+     *   3. Mirror seat 1's deck.
      */
     private fun resolveSeat2Deck(): String {
-        // Try AI deck from config (name-based lookup)
+        val event = coordinator?.selectedEventName
+        if (event != null) {
+            val podJson = coordinator.resolveOpponentDeckJson(event)
+            if (podJson != null) {
+                log.info("Match Door: seat 2 deck from draft pod event={}", event)
+                return convertArenaCardsToDeckText(podJson)
+            }
+        }
+
         val aiDeckName = matchConfig.game.aiDeck
         if (aiDeckName != null && coordinator != null) {
             val cardsJson = coordinator.resolveDeckJsonByName(aiDeckName)
@@ -446,7 +459,6 @@ class MatchHandler(
             }
             log.warn("Match Door: AI deck '{}' not in DB, mirroring seat 1", aiDeckName)
         }
-        // Default: mirror seat 1
         return resolveSeat1Deck()
     }
 

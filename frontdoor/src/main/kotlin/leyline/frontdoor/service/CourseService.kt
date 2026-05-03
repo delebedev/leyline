@@ -136,12 +136,32 @@ class CourseService(
             } else {
                 course.copy(losses = course.losses + 1)
             }
-        val complete =
+        val gateReached =
             (event?.maxWins != null && updated.wins >= event.maxWins) ||
                 (event?.maxLosses != null && updated.losses >= event.maxLosses)
-        val result = if (complete) updated.copy(module = CourseModule.Complete) else updated
+        // Reach max wins or losses → ClaimPrize. Client polls EventGetCoursesV2,
+        // sees the new module, and shows the "Claim Prize" button. Player clicks
+        // it → Event_ClaimPrize (607) → [claimPrize] flips ClaimPrize → Complete.
+        val result =
+            if (gateReached) updated.copy(module = CourseModule.ClaimPrize) else updated
         repo.save(result)
         return result
+    }
+
+    /**
+     * Player clicked "Claim Prize" — finalize the course. Returns the saved course
+     * (module flipped to [CourseModule.Complete]) so the wire builder can echo it.
+     */
+    fun claimPrize(
+        playerId: PlayerId,
+        eventName: String,
+    ): Course {
+        val course =
+            repo.findByPlayerAndEvent(playerId, eventName)
+                ?: throw IllegalArgumentException("No course for $eventName")
+        val updated = course.copy(module = CourseModule.Complete)
+        repo.save(updated)
+        return updated
     }
 
     fun completeDraft(

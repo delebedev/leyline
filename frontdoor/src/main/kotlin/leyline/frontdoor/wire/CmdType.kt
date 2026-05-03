@@ -46,6 +46,7 @@ value class CmdType(
         val EVENT_SET_DECK_V2 = CmdType(622)
         val EVENT_GET_COURSES_V2 = CmdType(623)
         val EVENT_GET_ACTIVE_EVENTS_V2 = CmdType(624)
+        val EVENT_SET_COURSE_DECK = CmdType(627)
 
         // --- Draft ---
         val EVENT_PLAYER_DRAFT_CONFIRM_CARD_POOL_GRANT = CmdType(621)
@@ -139,6 +140,7 @@ value class CmdType(
                 624 to "Event_GetActiveEventsV2",
                 625 to "Event_PlayerDraftReserveCard",
                 626 to "Event_PlayerDraftClearReservedCard",
+                627 to "Event_SetCourseDeck",
                 1800 to "BotDraft_StartDraft",
                 1801 to "BotDraft_DraftPick",
                 1802 to "BotDraft_DraftStatus",

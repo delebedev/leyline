@@ -35,7 +35,7 @@ import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.FdResponseWriter
 import leyline.game.data.CardRepository
-import leyline.game.generator.DraftPackGenerator
+import leyline.game.generator.ForgeBoosterDraftDriver
 import leyline.game.generator.SealedPoolGenerator
 import leyline.match.MatchHandler
 import leyline.protocol.ClientFrameDecoder
@@ -161,11 +161,39 @@ class LeylineServer(
                 )
             }
         val draftRepo = store.asDraftSessionRepository()
-        val draftPackGen = DraftPackGenerator(cardRepo)
+        val forgeDriver = ForgeBoosterDraftDriver(cardRepo)
         val draftService =
-            DraftService(draftRepo) { setCode ->
-                draftPackGen.generate(setCode)
-            }
+            DraftService(
+                draftRepo,
+                object : DraftService.Driver {
+                    override fun start(
+                        sessionKey: String,
+                        setCode: String,
+                    ): List<Int> = forgeDriver.start(sessionKey, setCode)
+
+                    override fun pick(
+                        sessionKey: String,
+                        grpId: Int,
+                    ): DraftService.PickOutcome {
+                        val r = forgeDriver.pick(sessionKey, grpId)
+                        return DraftService.PickOutcome(
+                            packNumber = r.packNumber,
+                            pickNumber = r.pickNumber,
+                            nextPack = r.nextPack,
+                            complete = r.complete,
+                        )
+                    }
+
+                    override fun complete(sessionKey: String): DraftService.PodOutcome {
+                        val r = forgeDriver.complete(sessionKey)
+                        return DraftService.PodOutcome(
+                            playerPool = r.playerPool,
+                            botDecks = r.botDecks,
+                        )
+                    }
+                },
+            )
+        draftService.discardIncompleteSessions()
         val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)
         val matchmakingService =
             MatchmakingService(
@@ -183,6 +211,7 @@ class LeylineServer(
                 playerId = pid,
                 deckService = deckService,
                 courseService = courseService,
+                draftRepo = draftRepo,
             )
 
         frontDoorChannel =

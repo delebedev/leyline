@@ -49,9 +49,9 @@ class EventWireBuilderTest :
                 format = "Limited",
             )
 
-        test("buildCourseJson omits CurrentWins when zero") {
+        test("buildCourseJson always emits CurrentWins (zero included)") {
             val obj = EventWireBuilder.buildCourseJson(sealedCourse(wins = 0))
-            obj["CurrentWins"].shouldBeNull()
+            obj["CurrentWins"]?.jsonPrimitive?.int shouldBe 0
         }
 
         test("buildCourseJson includes CurrentWins when non-zero") {
@@ -59,9 +59,9 @@ class EventWireBuilderTest :
             obj["CurrentWins"]?.jsonPrimitive?.int shouldBe 2
         }
 
-        test("buildCourseJson omits CurrentLosses when zero") {
+        test("buildCourseJson always emits CurrentLosses (zero included)") {
             val obj = EventWireBuilder.buildCourseJson(sealedCourse(losses = 0))
-            obj["CurrentLosses"].shouldBeNull()
+            obj["CurrentLosses"]?.jsonPrimitive?.int shouldBe 0
         }
 
         test("buildCourseJson includes CurrentLosses when non-zero") {

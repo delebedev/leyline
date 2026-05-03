@@ -114,14 +114,17 @@ object FdRequests {
     fun parseSetDeck(json: String?): SetDeck? =
         parse(json) { obj ->
             val summary = obj["Summary"]?.jsonObject
+            // 622 nests MainDeck/Sideboard under "Deck"; 627 (Arena 58-0-1) puts them at the top level.
             val deck = obj["Deck"]?.jsonObject
+            val mainElement = obj["MainDeck"] ?: deck?.get("MainDeck")
+            val sideElement = obj["Sideboard"] ?: deck?.get("Sideboard")
             SetDeck(
                 eventName = obj["EventName"]?.jsonPrimitive?.content ?: return@parse null,
                 deckId = summary?.get("DeckId")?.jsonPrimitive?.content,
                 deckName = summary?.get("Name")?.jsonPrimitive?.content,
                 tileId = summary?.get("DeckTileId")?.jsonPrimitive?.int,
-                mainDeck = parseDeckCards(deck?.get("MainDeck")),
-                sideboard = parseDeckCards(deck?.get("Sideboard")),
+                mainDeck = parseDeckCards(mainElement),
+                sideboard = parseDeckCards(sideElement),
             )
         }
 

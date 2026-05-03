@@ -89,15 +89,15 @@ class CourseServiceTest :
         }
 
         test("join for draft event creates course with BotDraft module and empty pool") {
-            val course = service.join(playerId, "QuickDraft_ECL_20260223")
+            val course = service.join(playerId, "QuickDraft_FDN_20260223")
             course.module shouldBe CourseModule.BotDraft
             course.cardPool shouldBe emptyList()
         }
 
         test("completeDraft transitions course to DeckSelect with card pool and collation ID") {
-            service.join(playerId, "QuickDraft_ECL_20260223")
+            service.join(playerId, "QuickDraft_FDN_20260223")
             val pickedCards = listOf(98353, 98519, 98350)
-            val course = service.completeDraft(playerId, "QuickDraft_ECL_20260223", pickedCards, collationId = 100058)
+            val course = service.completeDraft(playerId, "QuickDraft_FDN_20260223", pickedCards, collationId = 100058)
             assertSoftly {
                 course.module shouldBe CourseModule.DeckSelect
                 course.cardPool shouldBe pickedCards

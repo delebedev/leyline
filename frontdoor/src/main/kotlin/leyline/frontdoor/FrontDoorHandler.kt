@@ -421,6 +421,23 @@ class FrontDoorHandler(
                 }
             }
 
+            CmdType.EVENT_CLAIM_PRIZE.value -> {
+                val req = FdRequests.parseEventName(json)
+                val eventName = req?.eventName
+                log.info("Front Door: Event_ClaimPrize event={}", eventName)
+                if (eventName != null) {
+                    try {
+                        val course = courseService.claimPrize(playerId, eventName)
+                        writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildClaimPrizeResponse(course)))
+                    } catch (e: IllegalArgumentException) {
+                        log.debug("Front Door: Event_ClaimPrize failed: {}", e.message)
+                        writer.send(ctx, txId, FdResponse.Empty)
+                    }
+                } else {
+                    writer.send(ctx, txId, FdResponse.Empty)
+                }
+            }
+
             CmdType.EVENT_GET_MATCH_RESULT.value -> {
                 val req = FdRequests.parseMatchResult(json)
                 log.info("Front Door: Event_GetMatchResultReport event={}", req?.eventName)
@@ -490,12 +507,16 @@ class FrontDoorHandler(
                 writer.send(ctx, txId, FdResponse.Empty)
             }
 
-            CmdType.EVENT_SET_DECK_V2.value -> {
+            CmdType.EVENT_SET_DECK_V2.value, CmdType.EVENT_SET_COURSE_DECK.value -> {
+                // 622 = legacy `Event_SetDeckV2`; 627 = Arena 58-0-1 `Event_SetCourseDeck`.
+                // Same model: attach a deck to the course; differ only in JSON envelope shape
+                // (`Deck.{MainDeck,Sideboard}` for 622, `MainDeck`/`Sideboard` at top for 627).
                 val req = FdRequests.parseSetDeck(json)
                 if (req != null && req.deckId != null) {
                     selectedDeckByEvent[req.eventName] = req.deckId
                 }
-                log.info("Front Door: Event_SetDeckV2 event={} deck={}", req?.eventName, req?.deckId)
+                val cmdName = if (cmdType == CmdType.EVENT_SET_COURSE_DECK.value) "Event_SetCourseDeck" else "Event_SetDeckV2"
+                log.info("Front Door: {} event={} deck={}", cmdName, req?.eventName, req?.deckId)
                 if (req != null) {
                     try {
                         val resolvedDeckId = DeckId(req.deckId ?: UUID.randomUUID().toString())
@@ -508,14 +529,14 @@ class FrontDoorHandler(
                         val summary =
                             CourseDeckSummary(
                                 deckId = resolvedDeckId,
-                                name = req.deckName ?: "Sealed Deck",
+                                name = req.deckName ?: "Draft Deck",
                                 tileId = req.tileId ?: 0,
                                 format = "Limited",
                             )
                         val course = courseService.setDeck(playerId, req.eventName, deck, summary)
                         writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
                     } catch (e: IllegalArgumentException) {
-                        log.warn("Front Door: Event_SetDeckV2 failed: {}", e.message)
+                        log.warn("Front Door: {} failed: {}", cmdName, e.message)
                         writer.send(ctx, txId, FdResponse.Empty)
                     }
                 } else {
