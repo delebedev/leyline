@@ -1195,9 +1195,11 @@ object StateMapper {
      * AbilityInstanceDeleted for triggered abilities that surfaced via the event
      * stream but were missed by snapshot-diff (auto-resolved between snapshots).
      *
-     * The stack ability instanceId is synthesized as `sourceCardForgeId + OFFSET`,
-     * matching ZoneMapper.addStackAbilitiesFromSnapshot so a later snapshot that
-     * does see the trigger reuses the same id.
+     * The stack ability instanceId comes from
+     * [FrameIdResolver.triggerStackAbilityIid] keyed on the event's
+     * `abilityForgeId` so back-to-back triggers from one source card mint
+     * distinct iids; falls back to source-card-keyed surrogate when the
+     * collector didn't surface the SA id (legacy paths, defensive 0).
      */
     private fun emitTriggerLifecycleAnnotations(
         events: List<GameEvent>,
@@ -1212,7 +1214,7 @@ object StateMapper {
         // Cast half: AbilityInstanceCreated (when snap-diff missed it) + persistent TriggeringObject.
         for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }) {
             val sourceCardIid = frameIds.cardIid(cast.cardId).value
-            val abilityIid = frameIds.stackAbilityIid(cast.cardId).value
+            val abilityIid = stackAbilityIidFor(cast.abilityForgeId, cast.cardId, frameIds)
             val sourceZone = currentSourceZoneId(cast.cardId, bridge)
 
             if (sourceCardIid in snapshotSourceIids) continue
@@ -1237,7 +1239,7 @@ object StateMapper {
         // missed it).
         for (resolved in events.filterIsInstance<GameEvent.SpellResolved>().filter { it.isTrigger }) {
             val sourceCardIid = frameIds.cardIid(resolved.cardId).value
-            val abilityIid = frameIds.stackAbilityIid(resolved.cardId).value
+            val abilityIid = stackAbilityIidFor(resolved.abilityForgeId, resolved.cardId, frameIds)
             val abilityGrpId = abilityGrpIdForSource(resolved.cardId, snap)
 
             annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
@@ -1252,6 +1254,21 @@ object StateMapper {
             }
         }
     }
+
+    /**
+     * SA-id-keyed surrogate iid for a stack-resident trigger, with source-card
+     * fallback when the collector didn't surface the SA id (defensive 0).
+     */
+    private fun stackAbilityIidFor(
+        forgeAbilityId: Int,
+        sourceForgeId: ForgeCardId,
+        frameIds: FrameIdResolver,
+    ): Int =
+        if (forgeAbilityId != 0) {
+            frameIds.triggerStackAbilityIid(forgeAbilityId).value
+        } else {
+            frameIds.stackAbilityIid(sourceForgeId).value
+        }
 
     /** Best-effort source-zone lookup for an event-derived trigger. Falls back
      *  to Battlefield (28) — the dominant case for combat / state-change triggers.
@@ -1387,7 +1404,11 @@ object StateMapper {
                 if (spec.affectorInstanceIdAtRecord != 0) {
                     InstanceId(spec.affectorInstanceIdAtRecord)
                 } else if (spec.isTriggeredAbility) {
-                    frameIds.stackAbilityIid(ForgeCardId(spec.spellForgeCardId))
+                    if (spec.forgeAbilityId != 0) {
+                        frameIds.triggerStackAbilityIid(spec.forgeAbilityId)
+                    } else {
+                        frameIds.stackAbilityIid(ForgeCardId(spec.spellForgeCardId))
+                    }
                 } else {
                     frameIds.cardIid(ForgeCardId(spec.spellForgeCardId))
                 }

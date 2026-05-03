@@ -79,6 +79,14 @@ class InteractivePromptBridge(
         val targetForgeCardId: Int? = null,
         val targetSeatId: Int? = null,
         val isTriggeredAbility: Boolean = false,
+        /**
+         * Forge `SpellAbility.id` for triggered abilities. Drives SA-id-keyed
+         * surrogate iid resolution at TargetSpec emission time when
+         * [affectorInstanceIdAtRecord] is the deferred-resolution sentinel `0`.
+         * Zero for non-triggered casts (the affector iid is the card's own iid,
+         * recorded directly).
+         */
+        val forgeAbilityId: Int = 0,
     )
 
     private val pendingTargetSpecs = ConcurrentLinkedQueue<PendingTarget>()

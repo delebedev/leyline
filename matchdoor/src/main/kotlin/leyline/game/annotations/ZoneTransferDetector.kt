@@ -263,13 +263,25 @@ object ZoneTransferDetector {
                 applyHandoffToPatchSet(handoff, patchedObjects, i, patchedZones, obj.zoneId, retiredIds)
                 // Resolve affectorId: the ability instance that caused this transfer.
                 // For surveil (and future mechanics), the source card's ability on the
-                // stack has instanceId allocated against the stack-ability surrogate
-                // — see [FrameIdResolver.stackAbilityForgeId].
+                // stack has instanceId allocated against the SA-id-keyed surrogate
+                // — see [FrameIdResolver.triggerStackAbilityForgeId]. Falls back to
+                // source-card-keyed when no in-window SpellCast carries the SA id.
                 val affectorId =
                     if (forgeCardId != null && events.isNotEmpty()) {
                         val sourceCardId = TransferCategoryResolver.affectorSourceFromEvents(forgeCardId, events)
                         if (sourceCardId != null) {
-                            idLookup(FrameIdResolver.stackAbilityForgeId(sourceCardId)).value
+                            val abilityForgeId =
+                                events
+                                    .filterIsInstance<GameEvent.SpellCast>()
+                                    .firstOrNull { it.cardId == sourceCardId && it.abilityForgeId != 0 }
+                                    ?.abilityForgeId
+                            val surrogate =
+                                if (abilityForgeId != null) {
+                                    FrameIdResolver.triggerStackAbilityForgeId(abilityForgeId)
+                                } else {
+                                    FrameIdResolver.stackAbilityForgeId(sourceCardId)
+                                }
+                            idLookup(surrogate).value
                         } else {
                             0
                         }
@@ -381,6 +393,7 @@ object ZoneTransferDetector {
                 mainLoopIds,
                 forgeIdLookup,
                 idLookup,
+                events,
             )
         val (disappearances, disappearedRetiredIds) =
             detectStackAbilityDisappearances(
@@ -461,6 +474,51 @@ object ZoneTransferDetector {
             else -> TransferCategory.ZoneTransfer
         }
 
+    /**
+     * Recover the source card forge id for a stack-ability surrogate.
+     *
+     * The surrogate inverse `abilityForgeId.value - STACK_ABILITY_ID_OFFSET`
+     * yields different things under the two surrogate schemes:
+     *   - SA-id-keyed surrogate → the Forge SpellAbility id
+     *   - source-card-keyed surrogate (legacy fallback) → the source card forge id
+     *
+     * Use in-window `SpellCast` / `SpellResolved` events to disambiguate: when
+     * an event with matching `abilityForgeId` is present, its `cardId` is the
+     * source card; otherwise treat the inverse as the source card forge id
+     * directly (the legacy path).
+     */
+    private fun resolveStackAbilitySourceCard(
+        abilityForgeId: ForgeCardId,
+        events: List<GameEvent>,
+        eventFilter: (GameEvent) -> Boolean,
+    ): ForgeCardId? {
+        if (!FrameIdResolver.isStackAbilityForgeId(abilityForgeId)) return null
+        val inverseValue = FrameIdResolver.stackAbilitySourceForgeId(abilityForgeId).value
+        for (ev in events) {
+            if (!eventFilter(ev)) continue
+            val saId = abilityForgeIdOf(ev) ?: continue
+            if (saId != inverseValue) continue
+            return cardIdOf(ev)
+        }
+        return ForgeCardId(inverseValue)
+    }
+
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+    private fun abilityForgeIdOf(ev: GameEvent): Int? =
+        when (ev) {
+            is GameEvent.SpellCast -> ev.abilityForgeId.takeIf { it != 0 }
+            is GameEvent.SpellResolved -> ev.abilityForgeId.takeIf { it != 0 }
+            else -> null
+        }
+
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+    private fun cardIdOf(ev: GameEvent): ForgeCardId? =
+        when (ev) {
+            is GameEvent.SpellCast -> ev.cardId
+            is GameEvent.SpellResolved -> ev.cardId
+            else -> null
+        }
+
     // --- private helpers ---
 
     /**
@@ -473,6 +531,7 @@ object ZoneTransferDetector {
         mainLoopIds: Set<Int>,
         forgeIdLookup: (InstanceId) -> ForgeCardId?,
         idLookup: (ForgeCardId) -> InstanceId,
+        events: List<GameEvent>,
     ): List<StackAbilityAppearance> {
         val appearances = mutableListOf<StackAbilityAppearance>()
         for (obj in patchedObjects) {
@@ -481,14 +540,9 @@ object ZoneTransferDetector {
             if (obj.instanceId in mainLoopIds) continue
             if (previousZones.containsKey(obj.instanceId)) continue
 
-            // Derive source card from forge ID: ability forgeId = sourceCard.id + OFFSET.
             val abilityForgeId = forgeIdLookup(InstanceId(obj.instanceId))
             val sourceCardForgeId =
-                if (abilityForgeId != null) {
-                    FrameIdResolver.stackAbilitySourceForgeId(abilityForgeId)
-                } else {
-                    null
-                }
+                abilityForgeId?.let { resolveStackAbilitySourceCard(it, events) { ev -> ev is GameEvent.SpellCast } }
             val sourceCardIid = sourceCardForgeId?.let { idLookup(it).value } ?: 0
             val sourceZoneId = if (sourceCardIid > 0) previousZones[sourceCardIid] ?: 0 else 0
 
@@ -534,7 +588,9 @@ object ZoneTransferDetector {
             val abilityForgeId = forgeIdLookup(InstanceId(instanceId)) ?: continue
             if (!FrameIdResolver.isStackAbilityForgeId(abilityForgeId)) continue
 
-            val sourceCardForgeId = FrameIdResolver.stackAbilitySourceForgeId(abilityForgeId)
+            val sourceCardForgeId =
+                resolveStackAbilitySourceCard(abilityForgeId, events) { ev -> ev is GameEvent.SpellResolved }
+                    ?: continue
             val sourceCardIid = idLookup(sourceCardForgeId).value
             val grpId = grpIdResolver(sourceCardForgeId).value
 

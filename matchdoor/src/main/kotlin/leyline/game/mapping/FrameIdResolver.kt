@@ -49,15 +49,33 @@ class FrameIdResolver(
     fun cardIid(forgeId: ForgeCardId): InstanceId = postReallocIids[forgeId] ?: bridge.getOrAllocInstanceId(forgeId)
 
     /**
-     * Iid for the synthesised stack-resident Ability gameObject sourced from
-     * [sourceForgeId]. The Ability lives in zone 27 alongside the source card
-     * for triggered abilities; its iid is allocated against the
-     * [stackAbilityForgeId] surrogate so it doesn't collide with the source
-     * card's iid.
+     * Iid for the synthesised stack-resident Ability gameObject keyed by
+     * **Forge SpellAbility id** ([forgeAbilityId]).
+     *
+     * Canonical surrogate for triggered + activated abilities on the stack.
+     * Each `SpellAbility.id` Forge mints gets its own iid, so back-to-back
+     * triggers from one source card (saga chapter ticks, multi-trigger ETBs,
+     * cascade) resolve to distinct iids. The source-card-keyed
+     * [stackAbilityIid] reused the same iid across logically distinct
+     * triggers, producing spurious `ObjectIdChanged` rename pairs inside
+     * chapter-tick GSMs.
      *
      * Synthesised forge IDs are never realloc-targets, so this lookup
-     * doesn't consult [postReallocIids] — kept as an instance method only
-     * so the resolver provides a single id-resolution surface.
+     * doesn't consult [postReallocIids].
+     */
+    fun triggerStackAbilityIid(forgeAbilityId: Int): InstanceId = bridge.getOrAllocInstanceId(triggerStackAbilityForgeId(forgeAbilityId))
+
+    /**
+     * Iid for the synthesised stack-resident Ability gameObject sourced from
+     * [sourceForgeId]. Retained as the fallback for callers that don't yet
+     * have a `forgeAbilityId` in scope.
+     *
+     * **Prefer [triggerStackAbilityIid] for triggered + activated abilities.**
+     * This source-card-keyed surrogate reuses the same iid across back-to-back
+     * triggers from one source card.
+     *
+     * Synthesised forge IDs are never realloc-targets, so this lookup
+     * doesn't consult [postReallocIids].
      */
     fun stackAbilityIid(sourceForgeId: ForgeCardId): InstanceId = bridge.getOrAllocInstanceId(stackAbilityForgeId(sourceForgeId))
 
@@ -82,7 +100,13 @@ class FrameIdResolver(
             for (entry in snap.stack.entries) {
                 val cIid = cardIid(entry.forgeCardId).value
                 if (cIid in cardIids) continue
-                add(stackAbilityIid(entry.forgeCardId).value)
+                val abilityIid =
+                    if (entry.forgeAbilityId != 0) {
+                        triggerStackAbilityIid(entry.forgeAbilityId).value
+                    } else {
+                        stackAbilityIid(entry.forgeCardId).value
+                    }
+                add(abilityIid)
             }
         }
 
@@ -107,6 +131,15 @@ class FrameIdResolver(
          * doesn't collide with the source card's.
          */
         fun stackAbilityForgeId(sourceForgeId: ForgeCardId): ForgeCardId = ForgeCardId(sourceForgeId.value + STACK_ABILITY_ID_OFFSET)
+
+        /**
+         * Surrogate forge ID for a stack-resident Ability gameObject keyed by
+         * **Forge SpellAbility id**. Distinguishes back-to-back triggers from
+         * one source card. Forge mints SA ids per-game starting low, so
+         * `forgeAbilityId + STACK_ABILITY_ID_OFFSET` lands in the same
+         * [isStackAbilityForgeId] range as the source-card-keyed scheme.
+         */
+        fun triggerStackAbilityForgeId(forgeAbilityId: Int): ForgeCardId = ForgeCardId(forgeAbilityId + STACK_ABILITY_ID_OFFSET)
 
         /** Surrogate forge ID for a per-payment mana Ability gameObject. */
         fun manaAbilityForgeId(sourceForgeId: ForgeCardId): ForgeCardId = ForgeCardId(sourceForgeId.value + MANA_ABILITY_ID_OFFSET)

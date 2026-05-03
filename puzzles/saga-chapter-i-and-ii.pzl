@@ -1,0 +1,34 @@
+# Saga two-chapter puzzle — Tribute to Horobi, Ch I + Ch II only.
+#
+# Cuts the saga off before Ch III (which is the exile-return transform). Both
+# chapter ticks fire from the same source card; their ability gameObjects on
+# the stack must get distinct instance ids and emit a clean
+# [PhaseOrStepModified, CounterAdded, AbilityInstanceCreated] each tick.
+#
+# With human→AI→human turn rotation, Forge's precombat-Main1 "add lore
+# counter" fires for our saga on:
+#   turn 1 — ETB lore counter — Ch I trigger (creates 1/1 rat)
+#   turn 3 — Ch II trigger    (creates 1/1 rat)
+# Turns:4 stops before turn 5's Ch III, so transform is never reached.
+#
+# Used by StackAbilityIidGoldenTest as the headline acceptance fixture for
+# the SA-id-keyed surrogate migration (leyline-nd6.1).
+
+[metadata]
+Name:Saga Two-Chapter — Tribute to Horobi (no transform)
+Goal:Survive
+Turns:4
+Difficulty:Easy
+Description:Cast Tribute to Horobi, tick through chapters I and II, stop before chapter III.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Tribute to Horobi
+humanbattlefield=Swamp;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain

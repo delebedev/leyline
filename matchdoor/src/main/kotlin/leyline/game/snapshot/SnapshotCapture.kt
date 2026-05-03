@@ -214,6 +214,7 @@ object SnapshotCapture {
                     sourceCardGrpId = sourceCardGrpId,
                     isSpell = entry.isSpell,
                     targets = targets,
+                    forgeAbilityId = entry.spellAbility?.id ?: 0,
                 ),
             )
         }
