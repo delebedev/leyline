@@ -51,6 +51,7 @@ class InvariantChecker {
             checkNoSelfReferentialGsId(gsm)
             checkAnnotationIdSequentiality(gsm)
             checkAnnotationOrdering(gsm)
+            checkPhaseFirst(gsm)
             checkPendingMessageCountContract(gsm)
         }
 
@@ -255,6 +256,21 @@ class InvariantChecker {
                 }
             }
         }
+    }
+
+    /**
+     * When PhaseOrStepModified appears in a GSM, it must be at index 0.
+     * Detection only — the matching enforcer rule lands in a follow-up.
+     */
+    private fun checkPhaseFirst(gsm: GameStateMessage) {
+        val annotations = gsm.annotationsList
+        val firstPosIdx = annotations.indexOfFirst { AnnotationType.PhaseOrStepModified in it.typeList }
+        if (firstPosIdx <= 0) return
+        record(
+            gsm.gameStateId,
+            "phase_first",
+            "PhaseOrStepModified at index $firstPosIdx, expected 0 (gsId=${gsm.gameStateId})",
+        )
     }
 
     private fun checkPendingMessageCountContract(gsm: GameStateMessage) {
