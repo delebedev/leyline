@@ -61,6 +61,25 @@ class FrameIdResolver(
      */
     fun stackAbilityIid(sourceForgeId: ForgeCardId): InstanceId = bridge.getOrAllocInstanceId(stackAbilityForgeId(sourceForgeId))
 
+    /**
+     * Iid for the stack-resident Ability gameObject of a triggered SpellAbility,
+     * keyed on the [forgeAbilityId] (the engine SA id) rather than the source
+     * card's forge id. Used by trigger-bracket emission so multiple in-flight
+     * triggered abilities sharing one source card resolve to distinct ids.
+     *
+     * Mints `STACK_ABILITY_ID_OFFSET + forgeAbilityId` against the bridge's
+     * iid allocator, matching the surrogate offset scheme that
+     * [stackAbilityIid] uses for source-card-keyed Ability gameObjects.
+     *
+     * Throws [IllegalStateException] when [forgeAbilityId] is not strictly
+     * positive — a zero/negative SA id would alias the source card's iid range
+     * and silently corrupt stack-ability identity.
+     */
+    fun triggerStackAbilityIid(forgeAbilityId: Int): InstanceId {
+        check(forgeAbilityId > 0) { "forgeAbilityId must be > 0 for trigger iid resolution" }
+        return bridge.getOrAllocInstanceId(ForgeCardId(STACK_ABILITY_ID_OFFSET + forgeAbilityId))
+    }
+
     /** Iid for a per-payment mana Ability gameObject — see [stackAbilityIid] for the surrogate-vs-realloc note. */
     fun manaAbilityIid(sourceForgeId: ForgeCardId): InstanceId = bridge.getOrAllocInstanceId(manaAbilityForgeId(sourceForgeId))
 
