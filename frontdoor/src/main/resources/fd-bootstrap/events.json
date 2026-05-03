@@ -91,9 +91,117 @@
       }
     ],
     "dynamicFilterTagIds": [
-      "ECL Limited"
+      "FDN Limited"
     ],
     "editableDeck": true,
     "collationId": 100058
+  },
+  {
+    "internalName": "QuickDraft_TDM_20250408",
+    "publicName": "TDM_Quick_Draft",
+    "deckSelectFormat": "Draft",
+    "formatType": "Draft",
+    "displayPriority": 62,
+    "flags": [
+      "IsArenaPlayModeEvent",
+      "Ranked"
+    ],
+    "bladeBehavior": null,
+    "eventTags": [
+      "QuickDraft",
+      "Limited"
+    ],
+    "titleLocKey": "Events/Event_Title_TDM_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_TDM_Quick_Draft",
+    "maxWins": 7,
+    "maxLosses": 3,
+    "isBotDraft": true,
+    "entryFees": [
+      {
+        "currencyType": "Gold",
+        "quantity": 5000
+      },
+      {
+        "currencyType": "Gem",
+        "quantity": 750
+      }
+    ],
+    "dynamicFilterTagIds": [
+      "TDM Limited"
+    ],
+    "editableDeck": true,
+    "collationId": 100061
+  },
+  {
+    "internalName": "QuickDraft_FIN_20250624",
+    "publicName": "FIN_Quick_Draft",
+    "deckSelectFormat": "Draft",
+    "formatType": "Draft",
+    "displayPriority": 63,
+    "flags": [
+      "IsArenaPlayModeEvent",
+      "Ranked"
+    ],
+    "bladeBehavior": null,
+    "eventTags": [
+      "QuickDraft",
+      "Limited"
+    ],
+    "titleLocKey": "Events/Event_Title_FIN_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_FIN_Quick_Draft",
+    "maxWins": 7,
+    "maxLosses": 3,
+    "isBotDraft": true,
+    "entryFees": [
+      {
+        "currencyType": "Gold",
+        "quantity": 5000
+      },
+      {
+        "currencyType": "Gem",
+        "quantity": 750
+      }
+    ],
+    "dynamicFilterTagIds": [
+      "FIN Limited"
+    ],
+    "editableDeck": true,
+    "collationId": 100062
+  },
+  {
+    "internalName": "QuickDraft_EOE_20250804",
+    "publicName": "EOE_Quick_Draft",
+    "deckSelectFormat": "Draft",
+    "formatType": "Draft",
+    "displayPriority": 64,
+    "flags": [
+      "IsArenaPlayModeEvent",
+      "Ranked"
+    ],
+    "bladeBehavior": null,
+    "eventTags": [
+      "QuickDraft",
+      "Limited"
+    ],
+    "titleLocKey": "Events/Event_Title_EOE_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_EOE_Quick_Draft",
+    "maxWins": 7,
+    "maxLosses": 3,
+    "isBotDraft": true,
+    "entryFees": [
+      {
+        "currencyType": "Gold",
+        "quantity": 5000
+      },
+      {
+        "currencyType": "Gem",
+        "quantity": 750
+      }
+    ],
+    "dynamicFilterTagIds": [
+      "EOE Limited"
+    ],
+    "editableDeck": true,
+    "collationId": 100063
   }
 ]
