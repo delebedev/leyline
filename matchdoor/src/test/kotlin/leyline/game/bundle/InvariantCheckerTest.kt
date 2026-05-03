@@ -1,9 +1,11 @@
 package leyline.game.bundle
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import leyline.UnitTag
 import leyline.game.codes.DetailKeys
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -61,6 +63,32 @@ class InvariantCheckerTest :
                         .addValueString(category)
                         .build(),
                 ).build()
+
+        fun aicAnnotation(
+            id: Int,
+            abilityIid: Int,
+            affectorId: Int,
+        ): AnnotationInfo =
+            AnnotationInfo
+                .newBuilder()
+                .setId(id)
+                .addType(AnnotationType.AbilityInstanceCreated)
+                .setAffectorId(affectorId)
+                .addAffectedIds(abilityIid)
+                .build()
+
+        fun aidAnnotation(
+            id: Int,
+            abilityIid: Int,
+            affectorId: Int,
+        ): AnnotationInfo =
+            AnnotationInfo
+                .newBuilder()
+                .setId(id)
+                .addType(AnnotationType.AbilityInstanceDeleted)
+                .setAffectorId(affectorId)
+                .addAffectedIds(abilityIid)
+                .build()
 
         fun gsm(
             gsId: Int,
@@ -290,5 +318,134 @@ class InvariantCheckerTest :
             checker.process(greMessage(msgId = 1, gsm = g))
 
             checker.violations.filter { it.check == "resolution_sandwich" }.shouldBeEmpty()
+        }
+
+        // --- aid_affector tests ---
+
+        test("aid_affector violation when AID affectorId differs from prior AIC affectorId across GSMs") {
+            val checker = InvariantChecker()
+            val g1 = gsm(gsId = 1, annotations = listOf(aicAnnotation(id = 1, abilityIid = 416, affectorId = 372)))
+            val g2 = gsm(gsId = 2, annotations = listOf(aidAnnotation(id = 1, abilityIid = 416, affectorId = 418)))
+
+            checker.process(greMessage(msgId = 1, gsm = g1))
+            checker.process(greMessage(msgId = 2, gsm = g2))
+
+            val mismatches = checker.violations.filter { it.check == "aid_affector" }
+            assertSoftly {
+                mismatches.size shouldBe 1
+                mismatches[0].gsId shouldBe 2
+                mismatches[0].message shouldContain "372"
+                mismatches[0].message shouldContain "418"
+            }
+        }
+
+        test("no aid_affector violation when AID affectorId matches prior AIC across GSMs") {
+            val checker = InvariantChecker()
+            val g1 = gsm(gsId = 1, annotations = listOf(aicAnnotation(id = 1, abilityIid = 416, affectorId = 372)))
+            val g2 = gsm(gsId = 2, annotations = listOf(aidAnnotation(id = 1, abilityIid = 416, affectorId = 372)))
+
+            checker.process(greMessage(msgId = 1, gsm = g1))
+            checker.process(greMessage(msgId = 2, gsm = g2))
+
+            checker.violations.filter { it.check == "aid_affector" }.shouldBeEmpty()
+        }
+
+        test("no aid_affector violation when AID has no prior AIC for this ability iid") {
+            val checker = InvariantChecker()
+            val g = gsm(gsId = 1, annotations = listOf(aidAnnotation(id = 1, abilityIid = 416, affectorId = 999)))
+
+            checker.process(greMessage(msgId = 1, gsm = g))
+
+            checker.violations.filter { it.check == "aid_affector" }.shouldBeEmpty()
+        }
+
+        test("no aid_affector violation for same-GSM AIC+AID pair (mana bracket)") {
+            val checker = InvariantChecker()
+            val g =
+                gsm(
+                    gsId = 1,
+                    annotations =
+                        listOf(
+                            aicAnnotation(id = 1, abilityIid = 100, affectorId = 200),
+                            aidAnnotation(id = 2, abilityIid = 100, affectorId = 200),
+                        ),
+                )
+
+            checker.process(greMessage(msgId = 1, gsm = g))
+
+            checker.violations.filter { it.check == "aid_affector" }.shouldBeEmpty()
+        }
+
+        test("aid_affector tracks multiple ability iids independently") {
+            val checker = InvariantChecker()
+            val g1 =
+                gsm(
+                    gsId = 1,
+                    annotations =
+                        listOf(
+                            aicAnnotation(id = 1, abilityIid = 10, affectorId = 20),
+                            aicAnnotation(id = 2, abilityIid = 30, affectorId = 40),
+                        ),
+                )
+            val g2 =
+                gsm(
+                    gsId = 2,
+                    annotations =
+                        listOf(
+                            aidAnnotation(id = 1, abilityIid = 10, affectorId = 999),
+                            aidAnnotation(id = 2, abilityIid = 30, affectorId = 40),
+                        ),
+                )
+
+            checker.process(greMessage(msgId = 1, gsm = g1))
+            checker.process(greMessage(msgId = 2, gsm = g2))
+
+            val mismatches = checker.violations.filter { it.check == "aid_affector" }
+            assertSoftly {
+                mismatches.size shouldBe 1
+                mismatches[0].message shouldContain "ability=10"
+            }
+        }
+
+        test("aid_affector entry is pruned after AID fires") {
+            val checker = InvariantChecker()
+            val g1 = gsm(gsId = 1, annotations = listOf(aicAnnotation(id = 1, abilityIid = 50, affectorId = 60)))
+            val g2 = gsm(gsId = 2, annotations = listOf(aidAnnotation(id = 1, abilityIid = 50, affectorId = 60)))
+            val g3 = gsm(gsId = 3, annotations = listOf(aidAnnotation(id = 1, abilityIid = 50, affectorId = 999)))
+
+            checker.process(greMessage(msgId = 1, gsm = g1))
+            checker.process(greMessage(msgId = 2, gsm = g2))
+            checker.process(greMessage(msgId = 3, gsm = g3))
+
+            checker.violations.filter { it.check == "aid_affector" }.shouldBeEmpty()
+        }
+
+        test("aid_affector — same-GSM AIC+AID does not leak entry into history") {
+            val checker = InvariantChecker()
+            // GSM 1: AIC and AID for ability 100 in the same GSM (mana bracket).
+            val g1 =
+                gsm(
+                    gsId = 1,
+                    annotations =
+                        listOf(
+                            aicAnnotation(id = 1, abilityIid = 100, affectorId = 200),
+                            aidAnnotation(id = 2, abilityIid = 100, affectorId = 200),
+                        ),
+                )
+            // GSM 2: standalone AID with wrong affector for ability 100 — should NOT
+            // trip a violation, because the same-GSM AIC was pruned, not stored.
+            val g2 =
+                gsm(
+                    gsId = 2,
+                    annotations =
+                        listOf(
+                            aidAnnotation(id = 1, abilityIid = 100, affectorId = 999),
+                        ),
+                )
+
+            checker.process(greMessage(msgId = 1, gsm = g1))
+            checker.process(greMessage(msgId = 2, gsm = g2))
+
+            checker.violations.filter { it.check == "aid_affector" }.shouldBeEmpty()
         }
     })
