@@ -42,6 +42,7 @@ import leyline.game.state.PreparedDesignationKind
 import leyline.game.state.QualificationKind
 import leyline.game.state.TargetSpecKind
 import leyline.game.state.TemporaryPermanentKind
+import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -1210,10 +1211,13 @@ object StateMapper {
         frameIds: FrameIdResolver,
     ) {
         // Cast half: AbilityInstanceCreated (when snap-diff missed it) + persistent TriggeringObject.
+        // Lineage lookup pins source iid + ability iid to the cast-time identity so
+        // a host card mutating during resolution doesn't drift the affector reference.
         for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }) {
-            val sourceCardIid = frameIds.cardIid(cast.cardId).value
-            val abilityIid = frameIds.stackAbilityIid(cast.cardId).value
-            val sourceZone = currentSourceZoneId(cast.cardId, bridge)
+            val lineage = if (cast.abilityForgeId > 0) bridge.abilityLineage.lookup(cast.abilityForgeId) else null
+            val sourceCardIid = lineage?.sourceIidAtCreate?.value ?: frameIds.cardIid(cast.cardId).value
+            val abilityIid = lineage?.abilityIid?.value ?: frameIds.stackAbilityIid(cast.cardId).value
+            val sourceZone = lineage?.sourceZoneAtCreate ?: currentSourceZoneId(cast.cardId, bridge)
 
             if (sourceCardIid in snapshotSourceIids) continue
             annotations.add(
@@ -1234,11 +1238,15 @@ object StateMapper {
 
         // Resolve half: ResolutionStart/Complete (always — snap-diff doesn't emit
         // these for stack-only abilities) + AbilityInstanceDeleted (when snap-diff
-        // missed it).
+        // missed it). Consume the lineage entry — the ability is finished after
+        // this emission. Falls through to source-card-keyed lookup when no
+        // lineage record exists (e.g. synthesised triggers from the
+        // trigger-source targeting path).
         for (resolved in events.filterIsInstance<GameEvent.SpellResolved>().filter { it.isTrigger }) {
-            val sourceCardIid = frameIds.cardIid(resolved.cardId).value
-            val abilityIid = frameIds.stackAbilityIid(resolved.cardId).value
-            val abilityGrpId = abilityGrpIdForSource(resolved.cardId, snap)
+            val lineage = if (resolved.abilityForgeId > 0) bridge.abilityLineage.consume(resolved.abilityForgeId) else null
+            val sourceCardIid = lineage?.sourceIidAtCreate?.value ?: frameIds.cardIid(resolved.cardId).value
+            val abilityIid = lineage?.abilityIid?.value ?: frameIds.stackAbilityIid(resolved.cardId).value
+            val abilityGrpId = lineage?.abilityGrpId?.takeIf { it != 0 } ?: abilityGrpIdForSource(resolved.cardId, snap)
 
             annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
             annotations.add(AnnotationBuilder.resolutionComplete(InstanceId(abilityIid), GrpId(abilityGrpId)))
@@ -1559,4 +1567,32 @@ object StateMapper {
             )
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }
+
+    /**
+     * Test-only entry point exposing [emitTriggerLifecycleAnnotations] for
+     * unit tests that want to assert lineage adoption (cast/resolve halves
+     * consulting [GameBridge.abilityLineage]) without standing up a full
+     * [buildDiff] / engine pipeline.
+     */
+    @VisibleForTesting
+    @Suppress("LongParameterList")
+    internal fun emitTriggerLifecycleAnnotationsForTest(
+        events: List<GameEvent>,
+        snapshotSourceIids: Set<Int>,
+        snapshotDisappearanceIids: Set<Int>,
+        annotations: MutableList<AnnotationInfo>,
+        transferPersistent: MutableList<AnnotationInfo>,
+        bridge: GameBridge,
+        snap: GsmSnapshot,
+        frameIds: FrameIdResolver,
+    ) = emitTriggerLifecycleAnnotations(
+        events = events,
+        snapshotSourceIids = snapshotSourceIids,
+        snapshotDisappearanceIids = snapshotDisappearanceIids,
+        annotations = annotations,
+        transferPersistent = transferPersistent,
+        bridge = bridge,
+        snap = snap,
+        frameIds = frameIds,
+    )
 }
