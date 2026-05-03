@@ -14,7 +14,9 @@ import kotlin.text.get
  * (post-hoc diagnostics).
  *
  * Checks: gsId monotonicity, prevGsId validity, annotation sequentiality,
- * action instanceId consistency, zone-object consistency, msgId monotonicity.
+ * annotation ordering, phase_first, resolution_sandwich, aid_affector
+ * consistency, action instanceId consistency, zone-object consistency,
+ * msgId monotonicity.
  */
 class InvariantChecker {
     @Serializable
@@ -33,6 +35,7 @@ class InvariantChecker {
     private var highWaterMsgId = 0
     private var pendingCountdown = 0
     private var messageIndex = 0
+    private val aicAffectorByAbilityIid = mutableMapOf<Int, Int>()
 
     private val _violations = mutableListOf<Violation>()
     val violations: List<Violation> get() = _violations
@@ -55,6 +58,8 @@ class InvariantChecker {
             checkAnnotationOrdering(gsm)
             checkPhaseFirst(gsm)
             checkResolutionSandwich(gsm)
+            val aidIids = checkAidAffectorConsistency(gsm)
+            recordAicAffectorHistory(gsm, aidIids)
             checkPendingMessageCountContract(gsm)
         }
 
@@ -312,6 +317,73 @@ class InvariantChecker {
                         "outside RS=$rsIdx..RC=$rcIdx (gsId=$gsId)",
                 )
             }
+        }
+    }
+
+    /**
+     * Verify that an [AnnotationType.AbilityInstanceDeleted]'s `affectorId`
+     * matches the `affectorId` of the earlier [AnnotationType.AbilityInstanceCreated]
+     * for the same ability instance id (the AID/AIC's `affectedIds[0]`).
+     *
+     * Catches identity drift such as the saga T5 chapter-III + transform
+     * regression, where AID emits with the post-transform source iid even
+     * though AIC was emitted with the pre-transform source iid.
+     *
+     * Detection only — the matching producer-side fix lands when ability
+     * lineage tracking lands.
+     *
+     * Wired in [process] BEFORE [recordAicAffectorHistory] so an AID in
+     * GSM N is only checked against AICs from GSM 1..N-1; same-GSM AIC+AID
+     * pairs (mana brackets) do not interact through this map.
+     *
+     * The AIC entry is pruned after the AID check fires so it does not leak
+     * across re-emissions.
+     *
+     * Returns the set of ability iids that were AID'd in this GSM, so
+     * [recordAicAffectorHistory] can skip storing AICs whose ability was
+     * already closed in the same GSM (otherwise same-GSM AIC+AID pairs
+     * would leak the AIC entry into the map indefinitely).
+     */
+    private fun checkAidAffectorConsistency(gsm: GameStateMessage): Set<Int> {
+        val aidIids = mutableSetOf<Int>()
+        for (ann in gsm.annotationsList) {
+            if (AnnotationType.AbilityInstanceDeleted !in ann.typeList) continue
+            val abilityIid = ann.affectedIdsList.firstOrNull() ?: continue
+            aidIids.add(abilityIid)
+            val expected = aicAffectorByAbilityIid[abilityIid] ?: continue
+            if (ann.affectorId != expected) {
+                record(
+                    gsm.gameStateId,
+                    "aid_affector",
+                    "AID affectorId=${ann.affectorId} for ability=$abilityIid does not match " +
+                        "earlier AIC affectorId=$expected (gsId=${gsm.gameStateId})",
+                )
+            }
+            aicAffectorByAbilityIid.remove(abilityIid)
+        }
+        return aidIids
+    }
+
+    /**
+     * Store each [AnnotationType.AbilityInstanceCreated] in this GSM in
+     * the [aicAffectorByAbilityIid] map so that a future AID for the same
+     * ability iid can be checked against it.
+     *
+     * Wired in [process] AFTER [checkAidAffectorConsistency] so same-GSM
+     * AIC+AID pairs do not check against themselves. Same-GSM AIC entries
+     * are skipped via [aidIidsThisGsm] — storing them would leak the
+     * entry indefinitely because no future AID will arrive to prune it
+     * (mana brackets fire many times per match).
+     */
+    private fun recordAicAffectorHistory(
+        gsm: GameStateMessage,
+        aidIidsThisGsm: Set<Int>,
+    ) {
+        for (ann in gsm.annotationsList) {
+            if (AnnotationType.AbilityInstanceCreated !in ann.typeList) continue
+            val abilityIid = ann.affectedIdsList.firstOrNull() ?: continue
+            if (abilityIid in aidIidsThisGsm) continue
+            aicAffectorByAbilityIid[abilityIid] = ann.affectorId
         }
     }
 
