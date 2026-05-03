@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
@@ -77,10 +78,15 @@ class StackAbilityIidGoldenTest :
                                 gsm.annotationsList.any { AnnotationType.CounterAdded in it.typeList }
                         }.toList()
 
+                // `>= 2` not `== 2`: harness GSM batching can surface extra
+                // GSMs that incidentally carry both AIC and CounterAdded
+                // (priority-pass at the same step, future engine churn). The
+                // load-bearing claim is "the first two chapter ticks mint
+                // distinct iids without rename", checked below.
                 io.kotest.assertions.withClue(
                     "expected at least two chapter-tick GSMs (Ch I + Ch II), got ${chapterTicks.size}",
                 ) {
-                    chapterTicks.size shouldBe 2
+                    chapterTicks.size shouldBeGreaterThanOrEqual 2
                 }
 
                 val ch1 = chapterTicks[0]

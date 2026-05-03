@@ -391,6 +391,13 @@ data class PromptRequest(
     /** True when modal originates from a triggered ability (ETB), not spell-time. */
     val isTriggeredAbility: Boolean = false,
     /**
+     * Forge `SpellAbility.id` for triggered modal prompts. Drives SA-id-keyed
+     * surrogate iid resolution for the modal CTO request's `sourceInstanceId`,
+     * matching the iid the StateMapper emits on the matching
+     * AbilityInstanceCreated. Zero when the prompt isn't a triggered modal.
+     */
+    val forgeAbilityId: Int = 0,
+    /**
      * All revealed cards (unfiltered) for reveal-choose prompts.
      * Maps to `unfilteredIds` in SelectNReq — shows the full hand even when
      * only a subset is selectable (e.g., noncreature nonland for Duress).

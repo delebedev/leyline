@@ -178,6 +178,9 @@ object ZoneTransferDetector {
                 isForetoldLookup = { fid ->
                     bridge.getGame()?.let { findCard(it, fid) }?.let { Foretell.isForetold(it) } ?: false
                 },
+                forgeCardKnown = { fid ->
+                    bridge.getGame()?.let { findCard(it, fid) } != null
+                },
             )
         return result.copy(idReallocations = plannedReallocs.toList())
     }
@@ -217,6 +220,11 @@ object ZoneTransferDetector {
          *  foretell-action transfer (Forge fires no dedicated GameEvent we can dispatch on
          *  — `GameEventCardForetold` carries only the activating player). */
         isForetoldLookup: (ForgeCardId) -> Boolean = { false },
+        /** True when a Forge card with this id exists. Used by the stack-ability surrogate
+         *  inverse-mapping fallback to reject SA ids that happen to numerically collide with
+         *  unrelated card ids when no in-window event disambiguates. Defaults to `true` for
+         *  the legacy callers that don't know the difference. */
+        forgeCardKnown: (ForgeCardId) -> Boolean = { true },
     ): TransferResult {
         val patchedObjects = gameObjects.toMutableList()
         val patchedZones = zones.toMutableList()
@@ -394,6 +402,7 @@ object ZoneTransferDetector {
                 forgeIdLookup,
                 idLookup,
                 events,
+                forgeCardKnown,
             )
         val (disappearances, disappearedRetiredIds) =
             detectStackAbilityDisappearances(
@@ -404,6 +413,7 @@ object ZoneTransferDetector {
                 forgeIdLookup,
                 idLookup,
                 grpIdResolver,
+                forgeCardKnown,
             )
         // Retire disappeared ability instanceIds to Limbo so annotation
         // references (affectedIds) remain resolvable by the validating sink.
@@ -482,15 +492,20 @@ object ZoneTransferDetector {
      *   - SA-id-keyed surrogate → the Forge SpellAbility id
      *   - source-card-keyed surrogate (legacy fallback) → the source card forge id
      *
-     * Use in-window `SpellCast` / `SpellResolved` events to disambiguate: when
-     * an event with matching `abilityForgeId` is present, its `cardId` is the
-     * source card; otherwise treat the inverse as the source card forge id
-     * directly (the legacy path).
+     * Disambiguation: when an in-window `SpellCast` / `SpellResolved` event
+     * with matching `abilityForgeId` is present, its `cardId` is the source
+     * card. Otherwise the inverse value is only safe to treat as a source-card
+     * forge id when [forgeCardKnown] confirms a card with that id exists; SA
+     * ids and card ids share the same numeric range so an unguarded fallback
+     * can resolve to the wrong card and silently mis-emit grpId / sourceIid.
+     * Returns `null` when no event disambiguates and the inverse isn't a
+     * known card — the caller drops the appearance/disappearance.
      */
     private fun resolveStackAbilitySourceCard(
         abilityForgeId: ForgeCardId,
         events: List<GameEvent>,
         eventFilter: (GameEvent) -> Boolean,
+        forgeCardKnown: (ForgeCardId) -> Boolean,
     ): ForgeCardId? {
         if (!FrameIdResolver.isStackAbilityForgeId(abilityForgeId)) return null
         val inverseValue = FrameIdResolver.stackAbilitySourceForgeId(abilityForgeId).value
@@ -500,7 +515,17 @@ object ZoneTransferDetector {
             if (saId != inverseValue) continue
             return cardIdOf(ev)
         }
-        return ForgeCardId(inverseValue)
+        val candidate = ForgeCardId(inverseValue)
+        return if (forgeCardKnown(candidate)) {
+            candidate
+        } else {
+            log.debug(
+                "stack ability surrogate {} could not disambiguate source card via events; inverse {} not a known card forge id",
+                abilityForgeId.value,
+                inverseValue,
+            )
+            null
+        }
     }
 
     @Suppress("ElseCaseInsteadOfExhaustiveWhen")
@@ -525,6 +550,7 @@ object ZoneTransferDetector {
      * Detect triggered abilities that just appeared on the stack.
      * These are [GameObjectType.Ability] objects in the stack zone with no [previousZones] entry.
      */
+    @Suppress("LongParameterList")
     private fun detectStackAbilityAppearances(
         patchedObjects: List<GameObjectInfo>,
         previousZones: Map<Int, Int>,
@@ -532,6 +558,7 @@ object ZoneTransferDetector {
         forgeIdLookup: (InstanceId) -> ForgeCardId?,
         idLookup: (ForgeCardId) -> InstanceId,
         events: List<GameEvent>,
+        forgeCardKnown: (ForgeCardId) -> Boolean,
     ): List<StackAbilityAppearance> {
         val appearances = mutableListOf<StackAbilityAppearance>()
         for (obj in patchedObjects) {
@@ -540,10 +567,15 @@ object ZoneTransferDetector {
             if (obj.instanceId in mainLoopIds) continue
             if (previousZones.containsKey(obj.instanceId)) continue
 
-            val abilityForgeId = forgeIdLookup(InstanceId(obj.instanceId))
+            val abilityForgeId = forgeIdLookup(InstanceId(obj.instanceId)) ?: continue
             val sourceCardForgeId =
-                abilityForgeId?.let { resolveStackAbilitySourceCard(it, events) { ev -> ev is GameEvent.SpellCast } }
-            val sourceCardIid = sourceCardForgeId?.let { idLookup(it).value } ?: 0
+                resolveStackAbilitySourceCard(
+                    abilityForgeId,
+                    events,
+                    eventFilter = { ev -> ev is GameEvent.SpellCast },
+                    forgeCardKnown = forgeCardKnown,
+                ) ?: continue
+            val sourceCardIid = idLookup(sourceCardForgeId).value
             val sourceZoneId = if (sourceCardIid > 0) previousZones[sourceCardIid] ?: 0 else 0
 
             appearances.add(
@@ -566,6 +598,7 @@ object ZoneTransferDetector {
      * Returns (disappearances, retiredInstanceIds). Caller folds retired IDs into
      * [TransferResult] and appends them to Limbo — keeps this function pure.
      */
+    @Suppress("LongParameterList")
     private fun detectStackAbilityDisappearances(
         events: List<GameEvent>,
         previousZones: Map<Int, Int>,
@@ -574,6 +607,7 @@ object ZoneTransferDetector {
         forgeIdLookup: (InstanceId) -> ForgeCardId?,
         idLookup: (ForgeCardId) -> InstanceId,
         grpIdResolver: (ForgeCardId) -> GrpId,
+        forgeCardKnown: (ForgeCardId) -> Boolean,
     ): Pair<List<StackAbilityDisappearance>, List<Int>> {
         val resolvedEvents = events.filterIsInstance<GameEvent.SpellResolved>()
         val disappearances = mutableListOf<StackAbilityDisappearance>()
@@ -589,8 +623,12 @@ object ZoneTransferDetector {
             if (!FrameIdResolver.isStackAbilityForgeId(abilityForgeId)) continue
 
             val sourceCardForgeId =
-                resolveStackAbilitySourceCard(abilityForgeId, events) { ev -> ev is GameEvent.SpellResolved }
-                    ?: continue
+                resolveStackAbilitySourceCard(
+                    abilityForgeId,
+                    events,
+                    eventFilter = { ev -> ev is GameEvent.SpellResolved },
+                    forgeCardKnown = forgeCardKnown,
+                ) ?: continue
             val sourceCardIid = idLookup(sourceCardForgeId).value
             val grpId = grpIdResolver(sourceCardForgeId).value
 

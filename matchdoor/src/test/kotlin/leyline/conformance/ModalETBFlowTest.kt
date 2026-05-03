@@ -8,10 +8,10 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.mapping.FrameIdResolver
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -137,28 +137,33 @@ class ModalETBFlowTest :
             // Protocol: grpId is the ability grpId (136341), not the card grpId
             option.grpId shouldBe princeAbilityGrpId
 
-            // Protocol: affectedId/affectorId reference the ability on the stack,
-            // not the card. The ability instanceId is allocated against
-            // FrameIdResolver.stackAbilityForgeId(sourceCard).
+            // Protocol: affectedId/affectorId reference the ability on the
+            // stack, not the card. The ability instanceId is allocated against
+            // [FrameIdResolver.triggerStackAbilityForgeId] keyed on the
+            // trigger SA id and lives in the stack-ability surrogate range —
+            // [FrameIdResolver.isStackAbilityForgeId] guards iids vs source
+            // card iids on the same battlefield. Asserting an exact iid here
+            // is brittle: the SA id Forge assigns depends on internal
+            // allocation order, and the SA isn't on the stack at CTO emission
+            // time (still in the cost-prep phase).
             val princeCard =
                 h.bridge
                     .getPlayer(SeatId(1))!!
                     .getZone(forge.game.zone.ZoneType.Battlefield)
                     .cards
                     .first { it.name == "Charming Prince" }
-            val abilityInstanceId =
-                h.bridge
-                    .getOrAllocInstanceId(FrameIdResolver.stackAbilityForgeId(ForgeCardId(princeCard.id)))
-                    .value
+            val princeCardIid =
+                h.bridge.getOrAllocInstanceId(ForgeCardId(princeCard.id)).value
 
-            option.affectedId shouldBe abilityInstanceId
-            option.affectorId shouldBe abilityInstanceId
-
-            // Protocol: ctoId=2 for both spell-time and ETB modals
-            option.ctoId shouldBe 2
-
-            // Protocol: playerIdToPrompt is set
-            option.playerIdToPrompt shouldBe 1
+            assertSoftly {
+                option.affectedId shouldNotBe princeCardIid
+                option.affectorId shouldNotBe princeCardIid
+                option.affectedId shouldBe option.affectorId
+                // Protocol: ctoId=2 for both spell-time and ETB modals
+                option.ctoId shouldBe 2
+                // Protocol: playerIdToPrompt is set
+                option.playerIdToPrompt shouldBe 1
+            }
 
             // Modal options should be correct. Charming Prince has 3 ETB modes;
             // the third mode (Exile another creature you own) is legality-filtered

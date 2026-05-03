@@ -12,7 +12,7 @@
 # Turns:4 stops before turn 5's Ch III, so transform is never reached.
 #
 # Used by StackAbilityIidGoldenTest as the headline acceptance fixture for
-# the SA-id-keyed surrogate migration (leyline-nd6.1).
+# the SA-id-keyed surrogate migration.
 
 [metadata]
 Name:Saga Two-Chapter — Tribute to Horobi (no transform)

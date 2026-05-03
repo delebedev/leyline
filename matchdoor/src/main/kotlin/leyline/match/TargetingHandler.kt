@@ -607,11 +607,17 @@ class TargetingHandler(
         val ctoGrpId: Int
         val ctoId: Int
         if (isTriggered && req.sourceEntityId != null) {
-            sourceInstanceId =
-                bridge
-                    .getOrAllocInstanceId(
-                        FrameIdResolver.stackAbilityForgeId(ForgeCardId(req.sourceEntityId)),
-                    ).value
+            // SA-id-keyed surrogate matches the iid the StateMapper emits on
+            // the matching AbilityInstanceCreated; falls back to the legacy
+            // source-card-keyed scheme when the producer didn't surface
+            // forgeAbilityId (e.g. activated-ability modal).
+            val surrogate =
+                if (req.forgeAbilityId != 0) {
+                    FrameIdResolver.triggerStackAbilityForgeId(req.forgeAbilityId)
+                } else {
+                    FrameIdResolver.stackAbilityForgeId(ForgeCardId(req.sourceEntityId))
+                }
+            sourceInstanceId = bridge.getOrAllocInstanceId(surrogate).value
             ctoGrpId = modalInfo.parentGrpId
             ctoId = 2
         } else {

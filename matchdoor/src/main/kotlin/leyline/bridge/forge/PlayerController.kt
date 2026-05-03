@@ -1058,6 +1058,7 @@ class PlayerController(
                 modalSourceCardName = sa.hostCard.name,
                 sourceEntityId = sa.hostCard.id,
                 isTriggeredAbility = sa.isTrigger,
+                forgeAbilityId = if (sa.isTrigger) sa.id else 0,
                 modalChoicePossibleFullIndices = shape.possibleFullIndices,
                 modalCosts = shape.modalCosts,
                 excludedModalFullIndices = shape.excludedFullIndices,
