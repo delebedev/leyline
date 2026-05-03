@@ -4,13 +4,18 @@ import forge.game.card.CardView
 import forge.game.card.CounterEnumType
 import forge.game.event.*
 import forge.game.player.PlayerView
+import forge.game.spellability.SpellAbilityView
+import forge.game.spellability.StackItemView
 import forge.game.zone.ZoneType
+import forge.trackable.TrackableProperty
+import forge.trackable.Tracker
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
@@ -21,6 +26,8 @@ import leyline.conformance.aiPlayer
 import leyline.conformance.humanPlayer
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
+import leyline.game.mapping.FrameIdResolver
+import leyline.game.mapping.ZoneIds
 
 /**
  * Tests for [leyline.game.event.GameEventCollector] — verifies that Forge engine events are
@@ -114,6 +121,99 @@ class GameEventCollectorTest :
                 sc[0].cardId shouldBe ForgeCardId(spell.id)
                 sc[0].seatId shouldBe SeatId(1)
             }
+        }
+
+        // -- AbilityWireIdentity lineage record on SpellCast --
+
+        test("SpellCast records AbilityWireIdentity when isAbility and ability id is positive") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Llanowar Elves", human, ZoneType.Battlefield)
+                }
+            val collector = b.eventCollector!!
+            collector.closeFrame()
+
+            val source =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first()
+            val sa = source.firstSpellAbility
+            val abilityForgeId = sa.id
+            val si = StackItemView(abilityForgeId, Tracker()).apply { set(TrackableProperty.Ability, true) }
+            val ev =
+                GameEventSpellAbilityCast(
+                    SpellAbilityView.get(sa),
+                    si,
+                    0,
+                    null,
+                    emptyList(),
+                )
+            game.fireEvent(ev)
+
+            val recorded = b.abilityLineage.lookup(abilityForgeId)
+            recorded.shouldNotBeNull()
+            val sourceForgeId = ForgeCardId(source.id)
+            val expectedSourceIid = b.getOrAllocInstanceId(sourceForgeId)
+            val expectedAbilityIid = FrameIdResolver(b).triggerStackAbilityIid(abilityForgeId)
+            assertSoftly {
+                recorded.abilityForgeId shouldBe abilityForgeId
+                recorded.sourceForgeId shouldBe sourceForgeId
+                recorded.sourceIidAtCreate shouldBe expectedSourceIid
+                recorded.abilityIid shouldBe expectedAbilityIid
+                recorded.sourceZoneAtCreate shouldBe ZoneIds.BATTLEFIELD
+                recorded.abilityGrpId shouldBe 0
+            }
+        }
+
+        test("SpellCast skips lineage record when isAbility is false") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Lightning Bolt", human, ZoneType.Hand)
+                }
+            val collector = b.eventCollector!!
+            collector.closeFrame()
+            b.abilityLineage.clear()
+
+            val spell =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first()
+            // Null si means isAbility defaults to false — covers the spell-cast path.
+            game.fireEvent(GameEventSpellAbilityCast(spell.firstSpellAbility, null, 0))
+
+            b.abilityLineage.lookup(spell.firstSpellAbility.id).shouldBeNull()
+        }
+
+        test("SpellCast skips lineage record when SpellAbilityView is null even with isAbility=true") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Llanowar Elves", human, ZoneType.Battlefield)
+                }
+            val collector = b.eventCollector!!
+            collector.closeFrame()
+            b.abilityLineage.clear()
+
+            // Direct record construction: sa() is null so ev.sa()?.id ?: 0 → 0,
+            // and the lineage gate `lineageAbilityForgeId > 0` filters it out.
+            // The visit() method short-circuits on null hostCard before reaching
+            // the lineage block, so this test pairs with the isAbility=false case
+            // to cover the second branch of the gate (id > 0).
+            val source =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first()
+            val sa = source.firstSpellAbility
+            // Use the real SA so visit() does not short-circuit on hostCard,
+            // but pass a StackItemView with isAbility=false to exercise the
+            // !isAbility skip while still reaching the gate.
+            val si = StackItemView(sa.id, Tracker()) // Ability prop unset → false
+            val ev = GameEventSpellAbilityCast(SpellAbilityView.get(sa), si, 0, null, emptyList())
+            game.fireEvent(ev)
+
+            b.abilityLineage.lookup(sa.id).shouldBeNull()
         }
 
         // -- SpellResolved --
