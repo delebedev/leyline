@@ -1,5 +1,6 @@
 package leyline.game.mapping
 
+import leyline.DevCheck
 import leyline.bridge.coord.TargetingCoordinator
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.EffectId
@@ -1195,9 +1196,11 @@ object StateMapper {
      * AbilityInstanceDeleted for triggered abilities that surfaced via the event
      * stream but were missed by snapshot-diff (auto-resolved between snapshots).
      *
-     * The stack ability instanceId is synthesized as `sourceCardForgeId + OFFSET`,
-     * matching ZoneMapper.addStackAbilitiesFromSnapshot so a later snapshot that
-     * does see the trigger reuses the same id.
+     * The stack ability instanceId comes from
+     * [FrameIdResolver.triggerStackAbilityIid] keyed on the event's
+     * `abilityForgeId` so back-to-back triggers from one source card mint
+     * distinct iids; falls back to source-card-keyed surrogate when the
+     * collector didn't surface the SA id (legacy paths, defensive 0).
      */
     private fun emitTriggerLifecycleAnnotations(
         events: List<GameEvent>,
@@ -1212,7 +1215,7 @@ object StateMapper {
         // Cast half: AbilityInstanceCreated (when snap-diff missed it) + persistent TriggeringObject.
         for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }) {
             val sourceCardIid = frameIds.cardIid(cast.cardId).value
-            val abilityIid = frameIds.stackAbilityIid(cast.cardId).value
+            val abilityIid = stackAbilityIidFor(cast.abilityForgeId, cast.cardId, frameIds)
             val sourceZone = currentSourceZoneId(cast.cardId, bridge)
 
             if (sourceCardIid in snapshotSourceIids) continue
@@ -1237,7 +1240,7 @@ object StateMapper {
         // missed it).
         for (resolved in events.filterIsInstance<GameEvent.SpellResolved>().filter { it.isTrigger }) {
             val sourceCardIid = frameIds.cardIid(resolved.cardId).value
-            val abilityIid = frameIds.stackAbilityIid(resolved.cardId).value
+            val abilityIid = stackAbilityIidFor(resolved.abilityForgeId, resolved.cardId, frameIds)
             val abilityGrpId = abilityGrpIdForSource(resolved.cardId, snap)
 
             annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
@@ -1252,6 +1255,21 @@ object StateMapper {
             }
         }
     }
+
+    /**
+     * SA-id-keyed surrogate iid for a stack-resident trigger, with source-card
+     * fallback when the collector didn't surface the SA id (defensive 0).
+     */
+    private fun stackAbilityIidFor(
+        forgeAbilityId: Int,
+        sourceForgeId: ForgeCardId,
+        frameIds: FrameIdResolver,
+    ): Int =
+        if (forgeAbilityId != 0) {
+            frameIds.triggerStackAbilityIid(forgeAbilityId).value
+        } else {
+            frameIds.stackAbilityIid(sourceForgeId).value
+        }
 
     /** Best-effort source-zone lookup for an event-derived trigger. Falls back
      *  to Battlefield (28) — the dominant case for combat / state-change triggers.
@@ -1379,15 +1397,31 @@ object StateMapper {
         //  prompt-type mapping. Both require deeper card-DB plumbing. Falls
         //  back to card grpId and 0 until wired.
         return pending.mapNotNull { spec ->
-            // Use the iid recorded at target-pick time — see PendingTarget
-            // KDoc for the multi-target-spell rationale. Falls back to live
-            // resolution only if the resolver wasn't wired (defensive; should
-            // never fire in production).
+            // Use the iid recorded at target-pick time for non-triggers (see
+            // PendingTarget KDoc for the multi-target-spell rationale).
+            // Triggers defer to emission-time resolution via the SA id —
+            // TargetingCoordinator always populates spec.forgeAbilityId when
+            // spec.isTriggeredAbility=true, so that branch's fallback is
+            // structurally unreachable and crashes under DevCheck.strict.
             val affectorIid =
                 if (spec.affectorInstanceIdAtRecord != 0) {
                     InstanceId(spec.affectorInstanceIdAtRecord)
                 } else if (spec.isTriggeredAbility) {
-                    frameIds.stackAbilityIid(ForgeCardId(spec.spellForgeCardId))
+                    if (spec.forgeAbilityId != 0) {
+                        frameIds.triggerStackAbilityIid(spec.forgeAbilityId)
+                    } else {
+                        DevCheck.fail {
+                            "PendingTarget for ${spec.spellName} marked isTriggeredAbility but missing forgeAbilityId; " +
+                                "every triggered-ability target spec must carry the SA id since stack-ability iids " +
+                                "are SA-id-keyed"
+                        }
+                        // Emit 0 rather than the source-card-keyed iid — that
+                        // would point at a non-existent stack object since
+                        // ZoneMapper now mints via the SA-id-keyed surrogate.
+                        // 0 surfaces visibly in invariant checks rather than
+                        // routing the TargetSpec to a stale iid.
+                        InstanceId(0)
+                    }
                 } else {
                     frameIds.cardIid(ForgeCardId(spec.spellForgeCardId))
                 }

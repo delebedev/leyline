@@ -48,4 +48,13 @@ data class StackEntry(
     val isSpell: Boolean,
     /** Card targets chosen for this stack item (may be empty). */
     val targets: List<ForgeCardId>,
+    /**
+     * Forge `SpellAbility.id` for this stack item. Drives SA-id-keyed
+     * surrogate iid allocation via
+     * [leyline.game.mapping.FrameIdResolver.triggerStackAbilityIid] so
+     * back-to-back triggers from the same source card mint distinct iids.
+     * `0` falls back to source-card-keyed surrogate (synthetic test entries,
+     * paths where the SA id is not surfaced).
+     */
+    val forgeAbilityId: Int = 0,
 )

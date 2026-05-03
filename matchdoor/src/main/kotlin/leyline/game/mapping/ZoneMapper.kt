@@ -193,8 +193,10 @@ object ZoneMapper {
      * Add [GameObjectType.Ability] entries for stack items not already represented
      * as cards in the stack zone. Reads from [snap.stack] — no live Forge reference needed.
      *
-     * Uses [FrameIdResolver.stackAbilityForgeId] for stable instance IDs
-     * (same scheme as the legacy game-based variant).
+     * Mints iids via [FrameIdResolver.triggerStackAbilityForgeId] (SA-id-keyed
+     * surrogate) so back-to-back triggers from one source card mint distinct
+     * iids. Falls back to source-card-keyed surrogate when `entry.forgeAbilityId == 0`
+     * — the synthetic-test path where the SA id isn't surfaced.
      */
     internal fun addStackAbilitiesFromSnapshot(
         snap: GsmSnapshot,
@@ -218,9 +220,13 @@ object ZoneMapper {
             // need to project even when their source spell is still in the stack zone.
             if (entry.isSpell) continue
 
-            // Use a separate instance ID for the ability on the stack
-            val abilityInstanceId =
-                bridge.getOrAllocInstanceId(FrameIdResolver.stackAbilityForgeId(entry.forgeCardId)).value
+            val abilitySurrogate =
+                if (entry.forgeAbilityId != 0) {
+                    FrameIdResolver.triggerStackAbilityForgeId(entry.forgeAbilityId)
+                } else {
+                    FrameIdResolver.stackAbilityForgeId(entry.forgeCardId)
+                }
+            val abilityInstanceId = bridge.getOrAllocInstanceId(abilitySurrogate).value
             val grpId = entry.grpId.takeIf { it != 0 } ?: GameBridge.FALLBACK_GRPID
             // Degraded fallback: when [SnapshotCapture] couldn't resolve the source
             // card's Arena printing (synthetic test card, unrecognized token), reuse

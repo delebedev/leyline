@@ -79,6 +79,14 @@ class InteractivePromptBridge(
         val targetForgeCardId: Int? = null,
         val targetSeatId: Int? = null,
         val isTriggeredAbility: Boolean = false,
+        /**
+         * Forge `SpellAbility.id` for triggered abilities. Drives SA-id-keyed
+         * surrogate iid resolution at TargetSpec emission time when
+         * [affectorInstanceIdAtRecord] is the deferred-resolution sentinel `0`.
+         * Zero for non-triggered casts (the affector iid is the card's own iid,
+         * recorded directly).
+         */
+        val forgeAbilityId: Int = 0,
     )
 
     private val pendingTargetSpecs = ConcurrentLinkedQueue<PendingTarget>()
@@ -382,6 +390,13 @@ data class PromptRequest(
     val modalSourceCardName: String? = null,
     /** True when modal originates from a triggered ability (ETB), not spell-time. */
     val isTriggeredAbility: Boolean = false,
+    /**
+     * Forge `SpellAbility.id` for triggered modal prompts. Drives SA-id-keyed
+     * surrogate iid resolution for the modal CTO request's `sourceInstanceId`,
+     * matching the iid the StateMapper emits on the matching
+     * AbilityInstanceCreated. Zero when the prompt isn't a triggered modal.
+     */
+    val forgeAbilityId: Int = 0,
     /**
      * All revealed cards (unfiltered) for reveal-choose prompts.
      * Maps to `unfilteredIds` in SelectNReq — shows the full hand even when

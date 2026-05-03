@@ -463,9 +463,8 @@ class TargetingCoordinator(
         // across multiple GSM drains, and the spell's iid changes when it
         // leaves the stack (e.g. Stack→Graveyard at resolve), which would
         // split the per-group entries onto two iids. Triggered abilities use
-        // a stack-ability surrogate iid that's stable across drains, so they
-        // can defer resolution to emission time
-        // (FrameIdResolver.stackAbilityIid in StateMapper).
+        // a stack-ability surrogate iid that's stable across drains, resolved
+        // at emission time from `forgeAbilityId` (see StateMapper).
         val affectorIid =
             if (isTrigger) {
                 0
@@ -481,6 +480,7 @@ class TargetingCoordinator(
                 targetForgeCardId = targetCardId,
                 targetSeatId = targetSeatId,
                 isTriggeredAbility = isTrigger,
+                forgeAbilityId = if (isTrigger) sa.id else 0,
             ),
         )
     }
