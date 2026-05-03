@@ -282,4 +282,58 @@ class AnnotationOrderEnforcerTest :
                     AnnotationType.ZoneTransfer_af5a,
                 )
         }
+
+        // ===== Rule 4: PhaseOrStepFirst =====
+
+        test("Rule 4: reorders so PhaseOrStepModified leads") {
+            val aic = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 900.iid, sourceZoneId = 31)
+            val counter = AnnotationBuilder.counterAdded(instanceId = 500.iid, counterType = "+1/+1", amount = 1)
+            val posm = AnnotationBuilder.phaseOrStepModified(activeSeat = 1.sid, phase = 3, step = 0)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(aic, counter, posm))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.PhaseOrStepModified,
+                    AnnotationType.AbilityInstanceCreated,
+                    AnnotationType.CounterAdded,
+                )
+        }
+
+        test("Rule 4: no-op when PhaseOrStepModified already first") {
+            val posm = AnnotationBuilder.phaseOrStepModified(activeSeat = 1.sid, phase = 3, step = 0)
+            val aic = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 900.iid, sourceZoneId = 31)
+
+            val input = listOf(posm, aic)
+            val result = AnnotationOrderEnforcer.enforce(input)
+
+            result shouldBe input
+        }
+
+        test("Rule 4: no-op when PhaseOrStepModified absent") {
+            val aic = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 900.iid, sourceZoneId = 31)
+            val counter = AnnotationBuilder.counterAdded(instanceId = 500.iid, counterType = "+1/+1", amount = 1)
+
+            val input = listOf(aic, counter)
+            val result = AnnotationOrderEnforcer.enforce(input)
+
+            result shouldBe input
+        }
+
+        test("Rule 4: multiple PhaseOrStepModified preserve relative order") {
+            val aic = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 900.iid, sourceZoneId = 31)
+            val posmA = AnnotationBuilder.phaseOrStepModified(activeSeat = 1.sid, phase = 3, step = 0)
+            val posmB = AnnotationBuilder.phaseOrStepModified(activeSeat = 1.sid, phase = 4, step = 0)
+
+            // Wrong order: AIC before both PoSMs; PoSMs in (a, b) order
+            val result = AnnotationOrderEnforcer.enforce(listOf(aic, posmA, posmB))
+
+            // Both PoSMs lead, preserving (a, b) order; AIC trails.
+            result.map { it.typeList.first() to it.detailsList.firstOrNull { d -> d.key == "phase" }?.getValueInt32(0) } shouldBe
+                listOf(
+                    AnnotationType.PhaseOrStepModified to 3,
+                    AnnotationType.PhaseOrStepModified to 4,
+                    AnnotationType.AbilityInstanceCreated to null,
+                )
+        }
     })
