@@ -2,6 +2,8 @@ package leyline.game.bundle
 
 import kotlinx.serialization.Serializable
 import leyline.game.annotations.AnnotationOrderEnforcer
+import leyline.game.annotations.TransferCategory
+import leyline.game.codes.DetailKeys
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
 import kotlin.text.get
@@ -52,6 +54,7 @@ class InvariantChecker {
             checkAnnotationIdSequentiality(gsm)
             checkAnnotationOrdering(gsm)
             checkPhaseFirst(gsm)
+            checkResolutionSandwich(gsm)
             checkPendingMessageCountContract(gsm)
         }
 
@@ -271,6 +274,45 @@ class InvariantChecker {
             "phase_first",
             "PhaseOrStepModified at index $firstPosIdx, expected 0 (gsId=${gsm.gameStateId})",
         )
+    }
+
+    /**
+     * In any GSM that contains both [AnnotationType.ResolutionStart] and
+     * [AnnotationType.ResolutionComplete], every Resolve-category
+     * [AnnotationType.ZoneTransfer_af5a] must sit at an index strictly
+     * between the first ResolutionStart and the last ResolutionComplete.
+     *
+     * Resolution content (the zone change a resolving spell or ability
+     * causes) belongs inside the RS/RC bracket; if it lands outside, the
+     * client receives a zone event without its surrounding resolution
+     * wrapper.
+     *
+     * Detection only — the matching enforcer rule lands in a follow-up.
+     */
+    private fun checkResolutionSandwich(gsm: GameStateMessage) {
+        val annotations = gsm.annotationsList
+        val rsIdx = annotations.indexOfFirst { AnnotationType.ResolutionStart in it.typeList }
+        val rcIdx = annotations.indexOfLast { AnnotationType.ResolutionComplete in it.typeList }
+        if (rsIdx < 0 || rcIdx < 0) return
+        val gsId = gsm.gameStateId
+        annotations.forEachIndexed { idx, ann ->
+            if (AnnotationType.ZoneTransfer_af5a !in ann.typeList) return@forEachIndexed
+            val isResolve =
+                ann.detailsList.any { detail ->
+                    detail.key == DetailKeys.CATEGORY &&
+                        detail.valueStringList.firstOrNull() == TransferCategory.Resolve.label
+                }
+            if (!isResolve) return@forEachIndexed
+            if (idx < rsIdx || idx > rcIdx) {
+                val affected = ann.affectedIdsList.firstOrNull() ?: 0
+                record(
+                    gsId,
+                    "resolution_sandwich",
+                    "Resolve-category ZoneTransfer affected=$affected at index $idx " +
+                        "outside RS=$rsIdx..RC=$rcIdx (gsId=$gsId)",
+                )
+            }
+        }
     }
 
     private fun checkPendingMessageCountContract(gsm: GameStateMessage) {
