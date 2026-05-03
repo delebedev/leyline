@@ -83,6 +83,31 @@ class CourseServiceTest :
             course.losses shouldBe 1
         }
 
+        test("recordMatchResult lands on ClaimPrize at maxLosses (QuickDraft maxLosses=3)") {
+            val freshPlayer = PlayerId("claim-player-A")
+            service.join(freshPlayer, "QuickDraft_FDN_20260223")
+            service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = false)
+            service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = false)
+            val third = service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = false)
+            assertSoftly {
+                third.losses shouldBe 3
+                third.module shouldBe CourseModule.ClaimPrize
+            }
+        }
+
+        test("claimPrize flips ClaimPrize to Complete (wins/losses preserved)") {
+            val freshPlayer = PlayerId("claim-player-B")
+            service.join(freshPlayer, "QuickDraft_FDN_20260223")
+            service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = false)
+            service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = false)
+            service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = false)
+            val claimed = service.claimPrize(freshPlayer, "QuickDraft_FDN_20260223")
+            assertSoftly {
+                claimed.module shouldBe CourseModule.Complete
+                claimed.losses shouldBe 3
+            }
+        }
+
         test("drop transitions to Complete") {
             val course = service.drop(playerId, "Sealed_FDN_20260307")
             course.module shouldBe CourseModule.Complete

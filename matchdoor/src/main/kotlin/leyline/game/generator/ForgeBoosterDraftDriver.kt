@@ -1,54 +1,84 @@
 package leyline.game.generator
 
 import forge.deck.DeckSection
+import forge.gamemodes.limited.IBoosterDraft
 import forge.item.PaperCard
 import forge.model.FModel
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.data.CardRepository
 import org.slf4j.LoggerFactory
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * [BoosterDraftDriver] backed by Forge's `BoosterDraft` engine.
  *
- * Holds one [HeadlessBoosterDraft] per active session in memory. Translates
- * between Forge `PaperCard` and Arena `grpId` via [CardRepository].
+ * Holds one [HeadlessBoosterDraft] per active session. Translates between
+ * Forge `PaperCard` and Arena `grpId` via [CardRepository].
  *
  * Falls back to FDN when [start] is given a set with no Forge booster template
  * (matches the pre-existing `DraftPackGenerator` behaviour so QuickDraft keeps
  * working for sets we haven't templated yet).
+ *
+ * **Concurrency:**
+ * - Public methods are `@Synchronized` because Netty FD handlers run on event-loop
+ *   threads — the same player's quick re-entry, or two separate accounts in
+ *   simultaneous drafts, would otherwise race the session map.
+ * - [HeadlessBoosterDraft.init] writes `IBoosterDraft.LAND_SET_CODE[0]` — a
+ *   process-global static array. [start] guards the write with a single-flight
+ *   check that errors if a different set is already in flight; same-set
+ *   re-init (different player, same QuickDraft event) is allowed.
  */
 class ForgeBoosterDraftDriver(
     private val cards: CardRepository,
 ) : BoosterDraftDriver {
     private val log = LoggerFactory.getLogger(ForgeBoosterDraftDriver::class.java)
 
+    init {
+        // Forge's card DB is process-global and idempotent on subsequent calls.
+        // Initialize once at driver construction so the FD path doesn't re-enter
+        // the (cheap-but-non-trivial) initializer per `start()`.
+        GameBootstrap.initializeCardDatabase()
+    }
+
     private data class Active(
         val draft: HeadlessBoosterDraft,
+        val setCode: String,
         var packIndex: Int,
         var pickIndex: Int,
     )
 
-    private val sessions = mutableMapOf<String, Active>()
+    private val sessions = ConcurrentHashMap<String, Active>()
 
+    @Synchronized
     override fun start(
         sessionKey: String,
         setCode: String,
     ): List<Int> {
-        GameBootstrap.initializeCardDatabase()
-        check(sessionKey !in sessions) { "Draft session $sessionKey already started" }
+        check(!sessions.containsKey(sessionKey)) { "Draft session $sessionKey already started" }
 
         val effectiveSet = resolveSet(setCode)
+        // LAND_SET_CODE[0] is shared global state — refuse to clobber if another
+        // active session is using a different set.
+        val mismatched = sessions.values.firstOrNull { it.setCode != effectiveSet }
+        check(mismatched == null) {
+            "Cannot start draft for $effectiveSet — concurrent session ${mismatched!!.setCode} in flight " +
+                "(LAND_SET_CODE[0] is process-global)"
+        }
         val draft = HeadlessBoosterDraft(effectiveSet)
-        sessions[sessionKey] = Active(draft, packIndex = 0, pickIndex = 0)
+        sessions[sessionKey] = Active(draft, effectiveSet, packIndex = 0, pickIndex = 0)
         return packToGrpIds(draft.currentPackPaperCards())
     }
 
+    @Synchronized
     override fun pick(
         sessionKey: String,
         grpId: Int,
     ): PickResult {
         val active = sessions[sessionKey] ?: error("No active draft session: $sessionKey")
         val draft = active.draft
+        // Other concurrent sessions may have rewritten LAND_SET_CODE[0] since this
+        // session started. Restore ours before any pack-and-pass logic that hits it.
+        IBoosterDraft.LAND_SET_CODE[0] = FModel.getMagicDb().getEditions().get(active.setCode)
 
         val pack = draft.currentPackPaperCards()
         val card =
@@ -84,9 +114,11 @@ class ForgeBoosterDraftDriver(
         )
     }
 
+    @Synchronized
     override fun complete(sessionKey: String): PodResult {
         val active = sessions[sessionKey] ?: error("No active draft session: $sessionKey")
         val draft = active.draft
+        IBoosterDraft.LAND_SET_CODE[0] = FModel.getMagicDb().getEditions().get(active.setCode)
         val playerPool = packToGrpIds(draft.localPlayerPool())
         val botDecks =
             draft.computerDeckMains().map { deck ->
@@ -106,6 +138,7 @@ class ForgeBoosterDraftDriver(
         return PodResult(playerPool = playerPool, botDecks = botDecks)
     }
 
+    @Synchronized
     override fun discardAll() {
         sessions.clear()
     }

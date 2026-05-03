@@ -245,17 +245,12 @@ object EventWireBuilder {
                 putJsonArray("FactionSealedUXInfo") {}
                 put("DeckSelectFormat", e.deckSelectFormat)
                 // Schema: `Dictionary<Int32, Guid>` — keys 0..maxWins, values are
-                // reward UUIDs the client looks up against its content. We stub each
-                // tier with a zero-UUID so the client renders the prize wall and
-                // surfaces the Claim Prize button when the course reaches ClaimPrizeV2.
-                putJsonObject("Prizes") {
-                    val maxW = e.maxWins ?: 0
-                    if (maxW > 0) {
-                        for (winCount in 0..maxW) {
-                            put(winCount.toString(), "00000000-0000-0000-0000-000000000000")
-                        }
-                    }
-                }
+                // reward UUIDs the client looks up against its content. Empty for now;
+                // a populated map with zero-UUIDs renders the prize wall but breaks the
+                // Claim Prize click flow because the client tries to grant a content
+                // entry that doesn't exist. Wire real cosmetic UUIDs per tier when we
+                // actually need the claim path (tracked in a follow-up bead).
+                putJsonObject("Prizes") {}
                 putJsonObject("EventComponentData") {
                     putJsonObject("DescriptionText") {
                         put("LocKey", e.descLocKey)

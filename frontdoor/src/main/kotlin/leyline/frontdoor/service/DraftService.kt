@@ -129,7 +129,16 @@ class DraftService(
         repo.delete(session.id)
     }
 
-    /** Boot-time cleanup: drop any session whose driver state is gone (in-memory). */
+    /**
+     * Boot-time cleanup. The current [Driver] keeps per-session state only in
+     * memory, so any [DraftStatus.PickNext] row in the DB at boot has lost its
+     * driver counterpart and is unrecoverable. Drop those rows so the player
+     * isn't offered a "Resume" tile that would error on the first pick.
+     *
+     * If a future driver persists checkpoints, this method's contract changes:
+     * either drop only sessions whose driver state actually went missing (and
+     * keep the rest), or move the call site behind a flag.
+     */
     fun discardIncompleteSessions() {
         repo.deleteIncomplete()
     }
