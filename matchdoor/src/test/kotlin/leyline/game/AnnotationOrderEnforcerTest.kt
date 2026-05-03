@@ -331,4 +331,87 @@ class AnnotationOrderEnforcerTest :
                     AnnotationType.AbilityInstanceCreated to null,
                 )
         }
+
+        // ===== Rule 5: ResolutionSandwich (saga chapter-III + transform) =====
+
+        test("Rule 5: nests transform OIC/ZT pairs inside RS/RC bracket") {
+            // Saga chapter-III + transform shape. Pre-rule:
+            //   [OIC{372→417}, ZT{Exile, affected=417}, OIC{417→418}, ZT{Return, affected=418},
+            //    RS{affector=416}, RC{affector=416}, AID{affected=416, affector=372}]
+            // Target:
+            //   [RS, OIC, ZT(Exile), OIC, ZT(Return), RC, AID]
+            val oicExile = AnnotationBuilder.objectIdChanged(origId = 372.iid, newId = 417.iid)
+            val ztExile =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 417.iid,
+                    srcZoneId = 28,
+                    destZoneId = 29,
+                    category = "Exile",
+                )
+            val oicReturn = AnnotationBuilder.objectIdChanged(origId = 417.iid, newId = 418.iid)
+            val ztReturn =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 418.iid,
+                    srcZoneId = 29,
+                    destZoneId = 28,
+                    category = "Return",
+                )
+            val rs = AnnotationBuilder.resolutionStart(instanceId = 416.iid, grpId = 12345.grp)
+            val rc = AnnotationBuilder.resolutionComplete(instanceId = 416.iid, grpId = 12345.grp)
+            val aid = AnnotationBuilder.abilityInstanceDeleted(abilityInstanceId = 416.iid, affectorId = 372.iid)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(oicExile, ztExile, oicReturn, ztReturn, rs, rc, aid))
+
+            // Final shape: [RS, OIC(372→417), ZT(Exile), OIC(417→418), ZT(Return), RC, AID]
+            val types = result.map { it.typeList.first() }
+            types shouldBe
+                listOf(
+                    AnnotationType.ResolutionStart,
+                    AnnotationType.ObjectIdChanged,
+                    AnnotationType.ZoneTransfer_af5a,
+                    AnnotationType.ObjectIdChanged,
+                    AnnotationType.ZoneTransfer_af5a,
+                    AnnotationType.ResolutionComplete,
+                    AnnotationType.AbilityInstanceDeleted,
+                )
+        }
+
+        test("Rule 5: no-op when no transforms (simple resolve)") {
+            // Simple no-transform resolve. Already in correct order, nothing for the rule to do.
+            val rs = AnnotationBuilder.resolutionStart(instanceId = 416.iid, grpId = 12345.grp)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 416.iid,
+                    srcZoneId = 27,
+                    destZoneId = 28,
+                    category = "Resolve",
+                )
+            val rc = AnnotationBuilder.resolutionComplete(instanceId = 416.iid, grpId = 12345.grp)
+            val aid = AnnotationBuilder.abilityInstanceDeleted(abilityInstanceId = 416.iid, affectorId = 372.iid)
+
+            val input = listOf(rs, zt, rc, aid)
+            val result = AnnotationOrderEnforcer.enforce(input)
+
+            result shouldBe input
+        }
+
+        test("Rule 5: no-op when no AID (cannot identify bracket source)") {
+            // Without an AID matching the RS, the rule has no source iid lineage start.
+            val rs = AnnotationBuilder.resolutionStart(instanceId = 416.iid, grpId = 12345.grp)
+            val rc = AnnotationBuilder.resolutionComplete(instanceId = 416.iid, grpId = 12345.grp)
+            val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 200.iid,
+                    srcZoneId = 28,
+                    destZoneId = 29,
+                    category = "Exile",
+                )
+
+            // Already in valid (rule-1) order: OIC before ZT; RS/RC at front.
+            val input = listOf(rs, rc, oic, zt)
+            val result = AnnotationOrderEnforcer.enforce(input)
+
+            result shouldBe input
+        }
     })

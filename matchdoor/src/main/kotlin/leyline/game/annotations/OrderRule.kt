@@ -36,6 +36,7 @@ object OrderRules {
             SameCardIncrementalRule,
             TokenCreatedFirstRule,
             PhaseOrStepFirstRule,
+            ResolutionSandwichRule,
         )
 }
 
@@ -187,6 +188,131 @@ data object PhaseOrStepFirstRule : OrderRule {
         }
         return edges
     }
+}
+
+/**
+ * Rule 5: Transform OIC/ZT pairs nest inside the RS/RC resolution bracket.
+ *
+ * Saga chapter-III + transform emits a flat sequence:
+ * `[OIC{372→417}, ZT(Exile, 417), OIC{417→418}, ZT(Return, 418), RS, RC, AID]`
+ *
+ * The client expects the transform's identity-shuffle annotations to land
+ * inside the resolution bracket so the visual sequence (start resolve →
+ * transform animation → finish resolve) plays correctly. Target shape:
+ * `[RS, OIC, ZT(Exile), OIC, ZT(Return), RC, AID]`.
+ *
+ * AID's affector carries the pre-transform source iid (the start of the OIC
+ * lineage chain), set by [leyline.game.bridge.AbilityLineageRegistry]. The
+ * AID's affected[0] is the ability iid — the bracket key shared with RS/RC's
+ * affectorId.
+ *
+ * For each AID in the GSM whose affected[0] matches a same-GSM RS/RC pair:
+ * 1. Walk the OIC chain starting at `srcIid = AID.affector`. Each OIC whose
+ *    `orig_id` is in the chain extends it with its `new_id`.
+ * 2. An OIC is in-bracket if its `new_id` is in the chain.
+ * 3. A ZT is in-bracket if its `affected[0]` is in the chain, OR if it is the
+ *    Resolve-category ZT for the ability iid itself.
+ * 4. Emit edges so RS precedes every in-bracket annotation, every in-bracket
+ *    annotation precedes RC, and AID follows RC.
+ *
+ * Without an AID matching an in-GSM RS, the bracket can't be identified and
+ * the rule emits no edges for that bracket — cross-GSM split-resolve cases
+ * (where AID lands in a follow-up GSM) need a different mechanism.
+ */
+data object ResolutionSandwichRule : OrderRule {
+    override val name: String = "resolution_sandwich"
+
+    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
+        val edges = mutableListOf<Pair<Int, Int>>()
+        for ((aidIdx, aid) in annotations.withIndex()) {
+            if (AnnotationType.AbilityInstanceDeleted !in aid.typeList) continue
+            edges.addAll(bracketEdges(annotations, aidIdx, aid))
+        }
+        return edges
+    }
+
+    private fun bracketEdges(
+        annotations: List<AnnotationInfo>,
+        aidIdx: Int,
+        aid: AnnotationInfo,
+    ): List<Pair<Int, Int>> {
+        val abilityIid = aid.affectedIdsList.firstOrNull() ?: return emptyList()
+        if (abilityIid == 0) return emptyList()
+        val srcIid = aid.affectorId
+        if (srcIid == 0) return emptyList()
+
+        val rsIdx =
+            annotations.indexOfFirst {
+                AnnotationType.ResolutionStart in it.typeList && it.affectorId == abilityIid
+            }
+        val rcIdx =
+            annotations.indexOfLast {
+                AnnotationType.ResolutionComplete in it.typeList && it.affectorId == abilityIid
+            }
+        if (rsIdx < 0 || rcIdx < 0) return emptyList()
+
+        val chain = walkOicChain(annotations, srcIid)
+        val edges = mutableListOf<Pair<Int, Int>>()
+        for ((idx, ann) in annotations.withIndex()) {
+            if (idx == rsIdx || idx == rcIdx || idx == aidIdx) continue
+            if (isInBracket(ann, chain, abilityIid)) {
+                edges.add(rsIdx to idx)
+                edges.add(idx to rcIdx)
+            }
+        }
+        // RS precedes RC defensively (covers the no-in-bracket-annotations case).
+        edges.add(rsIdx to rcIdx)
+        // AID trails RC.
+        edges.add(rcIdx to aidIdx)
+        return edges
+    }
+
+    /**
+     * Walk the OIC chain starting at [seed]. Each iteration looks for an OIC
+     * whose orig_id is already in the chain and adds its new_id, until no
+     * more extensions are possible.
+     */
+    private fun walkOicChain(
+        annotations: List<AnnotationInfo>,
+        seed: Int,
+    ): Set<Int> {
+        val chain = mutableSetOf(seed)
+        var added = true
+        while (added) {
+            added = false
+            for (ann in annotations) {
+                if (AnnotationType.ObjectIdChanged !in ann.typeList) continue
+                val origId = ann.detailInt(DetailKeys.ORIG_ID)
+                val newId = ann.detailInt(DetailKeys.NEW_ID)
+                if (origId in chain && newId != 0 && newId !in chain) {
+                    chain.add(newId)
+                    added = true
+                }
+            }
+        }
+        return chain
+    }
+
+    private fun isInBracket(
+        ann: AnnotationInfo,
+        chain: Set<Int>,
+        abilityIid: Int,
+    ): Boolean =
+        when {
+            AnnotationType.ObjectIdChanged in ann.typeList ->
+                ann.detailInt(DetailKeys.NEW_ID) in chain
+            AnnotationType.ZoneTransfer_af5a in ann.typeList -> {
+                val affected = ann.affectedIdsList.firstOrNull() ?: 0
+                affected in chain || (isResolveCategory(ann) && affected == abilityIid)
+            }
+            else -> false
+        }
+
+    private fun isResolveCategory(ann: AnnotationInfo): Boolean =
+        ann.detailsList.any { d ->
+            d.key == DetailKeys.CATEGORY &&
+                d.valueStringList.firstOrNull() == TransferCategory.Resolve.label
+        }
 }
 
 // ---- Helpers shared across rules ----------------------------------------
