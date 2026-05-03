@@ -294,6 +294,15 @@ class GameBridge(
     val delayedTriggerHolders = DelayedTriggerHolderTracker()
 
     /**
+     * Cast-time identity for stack abilities, keyed by ability forgeId. Producer
+     * is [GameEventCollector] on `SpellCast(isAbility=true)`; consumer is
+     * [leyline.game.mapping.StateMapper] when emitting trigger lifecycle
+     * annotations so source iid + grpId stay pinned to the cast-time host even
+     * when the host card mutates during resolution. See [AbilityLineageRegistry].
+     */
+    val abilityLineage: AbilityLineageRegistry = AbilityLineageRegistry()
+
+    /**
      * Active crew type-change effects: forgeCardId → effectId.
      * Allocated when a vehicle is crewed (type changes to creature),
      * removed when the crew effect expires (end of turn, vehicle reverts).
@@ -905,6 +914,7 @@ class GameBridge(
         effects.resetAll()
         annotations.resetAll()
         delayedTriggerHolders.resetAll()
+        abilityLineage.clear()
         activeCrewEffects.clear()
         abilityRegistries.clear()
         tokenRegistry.clear()
