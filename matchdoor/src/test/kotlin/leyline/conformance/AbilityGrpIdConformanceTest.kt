@@ -5,7 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -17,12 +17,12 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  */
 class AbilityGrpIdConformanceTest :
     FunSpec({
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
         test("planeswalker Activate actions have distinct abilityGrpIds")
-            .config(tags = setOf(ConformanceTag)) {
+            .config(tags = setOf(BoardTag)) {
                 val cardName = "Chandra, Torch of Defiance"
                 val (b, game, _) = base.startWithBoard { _, _, _ -> }
 

@@ -6,10 +6,10 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.ConformanceTestBase
+import leyline.conformance.BoardTestBase
 import leyline.conformance.haveManaCost
 import leyline.conformance.humanPlayer
 import leyline.game.mapping.ActionMapper
@@ -20,9 +20,9 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 class AdventureCastActionTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

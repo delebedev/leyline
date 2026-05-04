@@ -3,7 +3,7 @@ package leyline.conformance
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
@@ -15,9 +15,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 class AnnotationOrderingTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

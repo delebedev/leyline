@@ -26,7 +26,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * For CastSpell/Resolve/Countered (Hand→Stack, Stack→BF/GY), see StackCastResolveTest.
  */
 class ZoneTransferTest :
-    SubsystemTest({
+    BoardTest({
 
         // ===================================================================
         // Battlefield exits

@@ -28,11 +28,11 @@ import wotc.mtgo.gre.external.messaging.Messages.Phase
  * message properties (puzzle-based for determinism), and AI land-play diff
  * discipline (scripted AI).
  *
- * AiTurnConformanceTest (bridge-tier, ConformanceTag) is NOT absorbed here —
- * it runs below MatchSession. Tracked separately for SubsystemTest migration.
+ * AiTurnConformanceTest (bridge-tier, BoardTag) is NOT absorbed here —
+ * it runs below MatchSession. Tracked separately for BoardTest migration.
  */
 class AiTurnInteractionTest :
-    InteractionTest({
+    SessionTest({
 
         // ─── Boot wire conformance (seed-based, real game start) ────────────────
 

@@ -8,9 +8,9 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.ConformanceTestBase
+import leyline.conformance.BoardTestBase
 import leyline.conformance.detail
 import leyline.conformance.detailInt
 import leyline.conformance.detailString
@@ -27,9 +27,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 class AbilityWordPuzzleTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

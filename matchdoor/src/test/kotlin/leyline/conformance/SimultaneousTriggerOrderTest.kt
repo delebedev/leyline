@@ -27,7 +27,7 @@ import kotlin.time.Duration.Companion.seconds
  * developing the fix; instrumentation has been removed).
  */
 class SimultaneousTriggerOrderTest :
-    InteractionTest({
+    SessionTest({
 
         timeout = 30.seconds.inWholeMilliseconds
 

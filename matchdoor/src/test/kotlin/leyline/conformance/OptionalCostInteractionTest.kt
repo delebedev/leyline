@@ -17,7 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Card: Burst Lightning ({R}, kicker {4} — deals 2 damage, or 4 if kicked).
  */
 class OptionalCostInteractionTest :
-    InteractionTest({
+    SessionTest({
 
         val burstState =
             """

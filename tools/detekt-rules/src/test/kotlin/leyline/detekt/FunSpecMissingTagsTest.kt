@@ -86,7 +86,7 @@ class FunSpecMissingTagsTest : FunSpec({
                 fun afterEach(body: () -> Unit) {}
             }
             object IntegrationTag
-            abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
+            abstract class SessionTest(body: SessionTest.() -> Unit) : FunSpec() {
                 init {
                     tags(IntegrationTag)
                     afterEach { }
@@ -105,9 +105,9 @@ class FunSpecMissingTagsTest : FunSpec({
             class TestBuilder {
                 fun config(tags: Set<Any>, body: () -> Unit) {}
             }
-            object ConformanceTag
+            object BoardTag
             class MyTest : FunSpec({
-                test("scenario").config(tags = setOf(ConformanceTag)) { }
+                test("scenario").config(tags = setOf(BoardTag)) { }
             })
         """.trimIndent()
         rule.lint(code).shouldBeEmpty()
@@ -132,10 +132,10 @@ class FunSpecMissingTagsTest : FunSpec({
         val code = """
             open class FunSpec { fun tags(vararg t: Any) {} }
             object IntegrationTag
-            abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
+            abstract class SessionTest(body: SessionTest.() -> Unit) : FunSpec() {
                 init { tags(IntegrationTag); body() }
             }
-            class FooInteractionTest : InteractionTest({ })
+            class FooSessionTest : SessionTest({ })
         """.trimIndent()
         rule.lint(code).shouldBeEmpty()
     }

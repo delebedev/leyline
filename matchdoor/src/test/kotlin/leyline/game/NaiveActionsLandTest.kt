@@ -4,8 +4,8 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import leyline.ConformanceTag
-import leyline.conformance.ConformanceTestBase
+import leyline.BoardTag
+import leyline.conformance.BoardTestBase
 import leyline.game.mapping.ActionMapper
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
@@ -16,9 +16,9 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 class NaiveActionsLandTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

@@ -7,9 +7,9 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.types.GrpId
-import leyline.conformance.ConformanceTestBase
+import leyline.conformance.BoardTestBase
 import leyline.conformance.haveManaCost
 import leyline.conformance.humanPlayer
 import leyline.conformance.mana
@@ -19,7 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 /**
  * Pure tests for [ActionMapper.buildActionList] — the overload with function params.
  *
- * Uses [ConformanceTestBase.startWithBoard] to set up board state without a full
+ * Uses [BoardTestBase.startWithBoard] to set up board state without a full
  * game loop. The key point: [ActionMapper.buildActionList] itself holds no
  * [leyline.game.state.GameBridge] reference — the bridge only provides the lambdas.
  */
@@ -27,9 +27,9 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class ActionMapperPureTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

@@ -2,7 +2,7 @@ package leyline.conformance
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.game.mapping.ShouldStopEvaluator
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
@@ -15,7 +15,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 class ShouldStopConformanceTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
         // ActionType -> expected shouldStop from reference client behavior
         val expectedShouldStop =

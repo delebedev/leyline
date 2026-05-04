@@ -15,7 +15,7 @@ class FixtureCardLoaderTest :
 
         tags(UnitTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
 
         test("registers adventure secondary face alongside primary") {

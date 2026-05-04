@@ -37,7 +37,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
  * consolidation file — see the TODO near the test.
  */
 class TargetingInteractionTest :
-    InteractionTest({
+    SessionTest({
 
         // ─── Giant Growth: single-target creature buff ─────────────────────────
 

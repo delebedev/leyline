@@ -4,7 +4,7 @@ import io.kotest.core.Tag
 
 object UnitTag : Tag()
 
-object ConformanceTag : Tag()
+object BoardTag : Tag()
 
 object IntegrationTag : Tag()
 

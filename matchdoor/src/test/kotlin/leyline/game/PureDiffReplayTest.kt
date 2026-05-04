@@ -3,10 +3,10 @@ package leyline.game
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
-import leyline.conformance.ConformanceTestBase
+import leyline.conformance.BoardTestBase
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.mapping.StateMapper
@@ -41,9 +41,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 class PureDiffReplayTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
@@ -87,7 +87,7 @@ class PureDiffReplayTest :
                             cur = step.cur,
                             events = FrameEventLog(step.events),
                             gameStateId = step.gameStateId,
-                            matchId = ConformanceTestBase.TEST_MATCH_ID,
+                            matchId = BoardTestBase.TEST_MATCH_ID,
                             bridge = replayBridge,
                             updateType = updateType,
                             viewingSeatId = SEAT_ID,
@@ -129,7 +129,7 @@ class PureDiffReplayTest :
                             cur = step.cur,
                             events = FrameEventLog(step.events),
                             gameStateId = step.gameStateId,
-                            matchId = ConformanceTestBase.TEST_MATCH_ID,
+                            matchId = BoardTestBase.TEST_MATCH_ID,
                             bridge = replayBridge,
                             updateType = updateType,
                             viewingSeatId = SEAT_ID,
@@ -170,7 +170,7 @@ class PureDiffReplayTest :
                         cur = step.cur,
                         events = FrameEventLog(step.events),
                         gameStateId = step.gameStateId,
-                        matchId = ConformanceTestBase.TEST_MATCH_ID,
+                        matchId = BoardTestBase.TEST_MATCH_ID,
                         bridge = replayBridge,
                         updateType = step.diff.update,
                         viewingSeatId = SEAT_ID,

@@ -6,7 +6,7 @@ import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.MessageCounter
@@ -14,13 +14,13 @@ import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
- * Base class for subsystem tests (land/mana, combat, stack, etc.).
+ * Base class for board-tier tests (land/mana, combat, stack, etc.).
  *
- * Extends FunSpec — no `val base =` boilerplate. All ConformanceTestBase
+ * Extends FunSpec — no `val base =` boilerplate. All BoardTestBase
  * helpers available directly. Wires initCardDatabase/tearDown automatically.
  *
  * ```
- * class LandManaTest : SubsystemTest({
+ * class LandManaTest : BoardTest({
  *     test("Forest — ColorProduction [5]") {
  *         val (b, game, counter) = startWithBoard { _, human, _ ->
  *             addCard("Forest", human, ZoneType.Hand)
@@ -33,15 +33,15 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 // `abstract` keeps Kotest's auto-discovery from trying to instantiate the base
 // class directly (no zero-arg constructor — only the `body` lambda variant).
 @Suppress("UnnecessaryAbstractClass")
-abstract class SubsystemTest(
-    body: SubsystemTest.() -> Unit,
+abstract class BoardTest(
+    body: BoardTest.() -> Unit,
 ) : FunSpec() {
-    private val base = ConformanceTestBase()
+    private val base = BoardTestBase()
 
     val humanSeat = SeatId(1)
 
     init {
-        tags(ConformanceTag)
+        tags(BoardTag)
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
         body()
@@ -190,6 +190,6 @@ abstract class SubsystemTest(
     fun resolveAndCapture() = base.resolveAndCapture()
 
     companion object {
-        const val SEAT_ID = ConformanceTestBase.SEAT_ID
+        const val SEAT_ID = BoardTestBase.SEAT_ID
     }
 }

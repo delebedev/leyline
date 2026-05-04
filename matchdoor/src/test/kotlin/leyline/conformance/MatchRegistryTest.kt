@@ -31,7 +31,7 @@ class MatchRegistryTest :
 
         // Wrap a fresh in-process Game without calling bridge.start() — avoids
         // racing the MyRandom static RNG with conformance tests that depend on
-        // a stable seed-shuffle window (see ConformanceTestBase.startGameAtMain1
+        // a stable seed-shuffle window (see BoardTestBase.startGameAtMain1
         // for the lock that MatchRegistryTest can't share).
         fun stubBridge(): GameBridge =
             GameBridge(cardRepository = InMemoryCardRepository()).also {

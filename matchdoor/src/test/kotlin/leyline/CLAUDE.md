@@ -8,13 +8,13 @@ Three tiers, each with a base class. **Never mix in one file.** A detekt rule (`
 
 | Tier | Base | When | Cost |
 |---|---|---|---|
-| Subsystem | `SubsystemTest` (in `conformance/`) | Test the bridge or annotation pipeline directly. `bundleBuilder(b).buildActions()`, `StateMapper.buildFromGame()`, `AnnotationBuilder` calls. | <0.1s/test |
-| Session | `InteractionTest` (in `conformance/`) | Test that requires driving the priority loop — `passUntil`, `selectTargets`, `declareAttackers`, `respondToOptionalCost`. The real `MatchSession` + Forge engine. | 0.7–3s/test |
+| Board | `BoardTest` (in `conformance/`) | Test the bridge or annotation pipeline directly. `bundleBuilder(b).buildActions()`, `StateMapper.buildFromGame()`, `AnnotationBuilder` calls. | <0.1s/test |
+| Session | `SessionTest` (in `conformance/`) | Test that requires driving the priority loop — `passUntil`, `selectTargets`, `declareAttackers`, `respondToOptionalCost`. The real `MatchSession` + Forge engine. | 0.7–3s/test |
 | Pure unit | bare `FunSpec` | Pure-data logic. No engine, no harness. | <10ms/test |
 
-If a Session-tier test never calls a driver (`passPriority`, `passUntil`, `advanceTo*`, `onPerformAction`, `respondTo*`), move it to Subsystem tier — same signal, much cheaper. Suppress `TierPlacementCheck` only with a comment explaining why the loop is essential to the assertion (e.g. `DrawUpdateTypeShapeTest` needs a real turn-boundary draw event from the engine's EventBus).
+If a Session-tier test never calls a driver (`passPriority`, `passUntil`, `advanceTo*`, `onPerformAction`, `respondTo*`), move it to Board tier — same signal, much cheaper. Suppress `TierPlacementCheck` only with a comment explaining why the loop is essential to the assertion (e.g. `DrawUpdateTypeShapeTest` needs a real turn-boundary draw event from the engine's EventBus).
 
-Every Spec subclass must call `tags(UnitTag | ConformanceTag | IntegrationTag)`. `FunSpecMissingTags` enforces it. `InteractionTest` and `SubsystemTest` auto-tag — only standalone `FunSpec` classes need the explicit call.
+Every Spec subclass must call `tags(UnitTag | BoardTag | IntegrationTag)`. `FunSpecMissingTags` enforces it. `SessionTest` and `BoardTest` auto-tag — only standalone `FunSpec` classes need the explicit call.
 
 ## Helpers — where things live
 
@@ -26,9 +26,9 @@ conformance/
 ├── TestExtensions.kt         non-matcher extensions: AnnotationInfo.detail*(), GSM.annotation(type), ActionsAvailableReq.ofType()
 ├── MessageWalk.kt            List<GREToClientMessage> walkers: allAnnotations(), firstGameObjectByIid(), etc.
 ├── ProtoDsl.kt               builder DSL for client→GRE messages (performAction { ... })
-├── ConformanceTestBase.kt    Subsystem-tier setup (initCardDatabase, addCard, startWithBoard)
-├── SubsystemTest.kt          base class — wires ConformanceTestBase
-├── InteractionTest.kt        base class — wires MatchFlowHarness, exposes selectTargets/passUntil/instanceIdOf
+├── BoardTestBase.kt    Board-tier setup (initCardDatabase, addCard, startWithBoard)
+├── BoardTest.kt          base class — wires BoardTestBase
+├── SessionTest.kt        base class — wires MatchFlowHarness, exposes selectTargets/passUntil/instanceIdOf
 ├── MatchFlowHarness.kt       Session-tier harness — owns the game thread, message stream, scripted AI
 ├── ScriptedPlayerController.kt
 ├── ClientAccumulator.kt      replays GSMs against a parallel game-state model — invariant checker
@@ -37,7 +37,7 @@ conformance/
 
 **Picking a layer when you reach for a helper:**
 
-- Need to *find a card iid* in a Session-tier test? Use `instanceIdOf(name, player, zone)` from `InteractionTest`. Don't roll `getZone(...).cards.first { it.name == name }.let { bridge.getOrAllocInstanceId(...) }` inline.
+- Need to *find a card iid* in a Session-tier test? Use `instanceIdOf(name, player, zone)` from `SessionTest`. Don't roll `getZone(...).cards.first { it.name == name }.let { bridge.getOrAllocInstanceId(...) }` inline.
 - Need to *assert a card is in a zone*? Use `ZoneMatchers` (`"X" should beInHandOf(player)` or `... should beInZoneOf(zone, player, count = N)`). The matcher's failure message names card+player+zone; an inline `.cards.any { it.name == ... } shouldBe true` doesn't.
 - Need to *walk the message log*? Use `MessageWalk.kt` extensions on `List<GREToClientMessage>`. Don't add private file-scoped walkers — promote them.
 - Need to *read an annotation detail*? Use `TestExtensions.detail*()`. Don't inline `detailsList.firstOrNull { it.key == ... }`.
@@ -100,7 +100,7 @@ When you do add one:
 ## Cross-cutting reminders
 
 - **Detekt rules are part of the gate.** `:matchdoor:detekt` runs before tests in CI and as a pre-commit hook. A test that compiles but trips a rule will block the merge.
-- **Targeted tests during iteration:** `./gradlew :matchdoor:test --tests "leyline.match.ForetellTest"` for one class, `--tests "leyline.match.*Test"` for a package. `:matchdoor:testGate` (unit + conformance, excludes IntegrationTag) is the focused mid-iteration gate. `:matchdoor:test` is the full run including IntegrationTag — minutes, save for PR boundaries.
+- **Targeted tests during iteration:** `./gradlew :matchdoor:test --tests "leyline.match.ForetellTest"` for one class, `--tests "leyline.match.*Test"` for a package. `:matchdoor:testGate` (unit + board, excludes IntegrationTag) is the focused mid-iteration gate. `:matchdoor:test` is the full run including IntegrationTag — minutes, save for PR boundaries.
 - **Test names** are sentences, not snake_case method names. `test("Foretell offer disappears when the {2} action cost is unpayable")` reads in the failure log as the assertion intent. Avoid `test("test foretell unpayable")` and `test("foretell_unpayable")`.
 - **One puzzle, one test class** is the wrong split. One *behavior surface* per test class — tests within can share setup. `ForetellTest` covers the foretell hand-cast rail; it has 5 tests for 5 different conditions, all on Demon Bolt. That's correct.
 - **Comments name invariants, not the test.** `// Pre-fix: zero SelectTargetsReq emitted, cast silently drops` documents the regression the test guards against. `// This test casts Foretell` does not — the test name and body already say that.

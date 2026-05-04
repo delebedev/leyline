@@ -19,7 +19,7 @@ import io.kotest.matchers.ints.shouldBeLessThanOrEqual
  * step → DeclareBlockersReq auto-fires. No two-turn walkthrough needed.
  */
 class DeclareBlockersDedupeTest :
-    InteractionTest({
+    SessionTest({
 
         test("no duplicate blockers req") {
             startPuzzle(

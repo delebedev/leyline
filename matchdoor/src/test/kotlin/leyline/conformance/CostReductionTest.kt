@@ -13,7 +13,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * With Archmage on battlefield, Cast action should show manaCost = [{U}] (no generic).
  */
 class CostReductionTest :
-    SubsystemTest({
+    BoardTest({
 
         val puzzleText =
             """

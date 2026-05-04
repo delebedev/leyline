@@ -18,11 +18,11 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 /**
  * Base class for session-tier interaction tests (MatchFlowHarness).
  *
- * Parallel to [SubsystemTest] (board/bridge tier). Never mix in one file.
+ * Parallel to [BoardTest] (board/bridge tier). Never mix in one file.
  * Auto-wires IntegrationTag and harness lifecycle (shutdown after each test).
  *
  * ```
- * class FooInteractionTest : InteractionTest({
+ * class FooSessionTest : SessionTest({
  *     test("ability resolves and deals damage") {
  *         startPuzzle("""
  *             [metadata]
@@ -42,8 +42,8 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 // `abstract` keeps Kotest's auto-discovery from trying to instantiate the base
 // class directly (no zero-arg constructor — only the `body` lambda variant).
 @Suppress("UnnecessaryAbstractClass")
-abstract class InteractionTest(
-    body: InteractionTest.() -> Unit,
+abstract class SessionTest(
+    body: SessionTest.() -> Unit,
 ) : FunSpec() {
     companion object {
         /** Seat ID for the human player (tests always use seat 1). */

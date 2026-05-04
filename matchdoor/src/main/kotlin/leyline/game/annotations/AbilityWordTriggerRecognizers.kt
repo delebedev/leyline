@@ -28,7 +28,7 @@ import leyline.game.state.AbilityRegistry
  *
  * Same fixture-evidence rule as [AbilityWordScanner.CONDITIONS]: only register
  * recognizers whose emission contents are exercised by a puzzle fixture plus a
- * `ConformanceTag` test asserting the expected annotation contents.
+ * `BoardTag` test asserting the expected annotation contents.
  */
 object AbilityWordTriggerRecognizers {
     private const val EM_DASH = '—'

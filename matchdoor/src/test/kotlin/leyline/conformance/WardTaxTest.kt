@@ -32,7 +32,7 @@ import leyline.bridge.types.SeatId
  * decline taps only the Mountain.
  */
 class WardTaxTest :
-    InteractionTest({
+    SessionTest({
 
         test("accept — auto-tap consumes the Ward {2} on top of Bolt's {R}") {
             startPuzzleFile("puzzles/ward-tax.pzl")

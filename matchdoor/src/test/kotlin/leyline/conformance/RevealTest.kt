@@ -35,7 +35,7 @@ import java.util.concurrent.CompletableFuture
  * and SelectNReq construction for reveal-choose prompts.
  */
 class RevealTest :
-    SubsystemTest({
+    BoardTest({
 
         // ── Reveal annotations ──────────────────────────────────────────
 

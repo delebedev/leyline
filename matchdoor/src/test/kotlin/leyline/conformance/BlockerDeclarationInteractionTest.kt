@@ -18,7 +18,7 @@ import io.kotest.matchers.shouldBe
 // detekt heuristic just doesn't recognize custom matchers as equality-shape.
 @Suppress("WeakAssertionOnly")
 class BlockerDeclarationInteractionTest :
-    InteractionTest({
+    SessionTest({
 
         /**
          * Returns (humanBlockerIid, aiAttackerIid) at COMBAT_DECLARE_BLOCKERS,

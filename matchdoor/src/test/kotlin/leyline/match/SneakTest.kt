@@ -7,10 +7,10 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.GrpId
-import leyline.conformance.ConformanceTestBase
+import leyline.conformance.BoardTestBase
 import leyline.conformance.humanPlayer
 import leyline.conformance.offerAltCost
 import leyline.game.data.KeywordAbilityIds
@@ -43,9 +43,9 @@ import leyline.game.snapshot.SnapshotCapture
 class SneakTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

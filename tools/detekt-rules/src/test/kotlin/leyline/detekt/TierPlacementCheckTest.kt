@@ -9,10 +9,10 @@ import io.kotest.matchers.collections.shouldHaveSize
 class TierPlacementCheckTest : FunSpec({
     val rule = TierPlacementCheck(Config.empty)
 
-    test("flags InteractionTest subclass using connectAndKeep with no loop driver") {
+    test("flags SessionTest subclass using connectAndKeep with no loop driver") {
         val code = """
-            class InteractionTest
-            class Demo : InteractionTest() {
+            class SessionTest
+            class Demo : SessionTest() {
                 fun run() {
                     val h = Any()
                     h.connectAndKeep()
@@ -25,8 +25,8 @@ class TierPlacementCheckTest : FunSpec({
 
     test("passes when passPriority present") {
         val code = """
-            class InteractionTest
-            class Demo : InteractionTest() {
+            class SessionTest
+            class Demo : SessionTest() {
                 fun run() {
                     val h = Any()
                     h.connectAndKeep()
@@ -57,8 +57,8 @@ class TierPlacementCheckTest : FunSpec({
 
     test("passes when advanceToCombat present") {
         val code = """
-            class InteractionTest
-            class Demo : InteractionTest() {
+            class SessionTest
+            class Demo : SessionTest() {
                 fun run() {
                     val h = Any()
                     h.connectAndKeep()

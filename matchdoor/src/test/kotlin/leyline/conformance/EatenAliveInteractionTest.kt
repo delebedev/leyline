@@ -8,7 +8,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
 class EatenAliveInteractionTest :
-    InteractionTest({
+    SessionTest({
         val eatenAliveState =
             """
             ActivePlayer=Human

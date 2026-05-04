@@ -49,7 +49,7 @@ object AbilityWordScanner {
      * doubles as the `AbilityWordName` detail value on the emitted annotation.
      *
      * VERIFIED entries are exercised by a puzzle fixture under `puzzles/` plus a
-     * `ConformanceTag` test asserting the annotation contents. UNVERIFIED entries
+     * `BoardTag` test asserting the annotation contents. UNVERIFIED entries
      * have a Forge contract but no fixture asserting the emission contents; their
      * value/threshold/perPlayer shape is inferred from the Threshold/Morbid pattern
      * and may need adjustment when a fixture exercises one.

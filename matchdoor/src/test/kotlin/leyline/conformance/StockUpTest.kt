@@ -35,7 +35,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
  * fail the invariant check before any soft assertion fires.
  */
 class StockUpTest :
-    InteractionTest({
+    SessionTest({
 
         test("Stock Up wire shape matches look-and-pick spec (Resolution semantic)") {
             startPuzzleFile("puzzles/stock-up.pzl", validating = true)

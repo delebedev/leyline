@@ -5,7 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 
 /**
  * Verifies the saga chapter resolution shape after the fixture migration.
@@ -22,12 +22,12 @@ import leyline.ConformanceTag
  */
 class SagaChapterAbilityIdTest :
     FunSpec({
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
         test("Tribute to Horobi: 3 distinct chapter ability ids in leading abilityIds positions")
-            .config(tags = setOf(ConformanceTag)) {
+            .config(tags = setOf(BoardTag)) {
                 val cardName = "Tribute to Horobi"
                 val (b, _, _) = base.startWithBoard { _, _, _ -> }
 
@@ -46,7 +46,7 @@ class SagaChapterAbilityIdTest :
             }
 
         test("non-saga card has empty chapterAbilityGrpIds")
-            .config(tags = setOf(ConformanceTag)) {
+            .config(tags = setOf(BoardTag)) {
                 val cardName = "Grizzly Bears"
                 val (b, _, _) = base.startWithBoard { _, _, _ -> }
 

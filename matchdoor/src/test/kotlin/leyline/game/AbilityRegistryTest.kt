@@ -7,9 +7,9 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.conformance.CardDataDeriver
-import leyline.conformance.ConformanceTestBase
+import leyline.conformance.BoardTestBase
 import leyline.conformance.TestCardInjector
 import leyline.game.codes.SlotKind
 import leyline.game.data.CardData
@@ -17,12 +17,12 @@ import leyline.game.state.AbilityRegistry
 
 class AbilityRegistryTest :
     FunSpec({
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
         test("planeswalker loyalty abilities map to distinct abilityGrpId slots")
-            .config(tags = setOf(ConformanceTag)) {
+            .config(tags = setOf(BoardTag)) {
                 val cardName = "Chandra, Torch of Defiance"
                 val (b, game, _) = base.startWithBoard { _, _, _ -> }
 
@@ -71,7 +71,7 @@ class AbilityRegistryTest :
         // before the activated abilities, the registry must skip those slots
         // when assigning Forge activated SAs to abilityGrpIds.
         test("trigger slot interleaved before activated abilities does not shift mapping")
-            .config(tags = setOf(ConformanceTag)) {
+            .config(tags = setOf(BoardTag)) {
                 val cardName = "Kaito, Cunning Infiltrator"
                 val (b, _, _) = base.startWithBoard { _, _, _ -> }
 

@@ -8,7 +8,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.IntegrationTag
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
@@ -19,9 +19,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 class DfcTransformTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

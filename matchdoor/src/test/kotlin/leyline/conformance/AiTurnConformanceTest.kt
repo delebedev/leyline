@@ -20,7 +20,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
  *   - Annotations matching the action type
  */
 class AiTurnConformanceTest :
-    SubsystemTest({
+    BoardTest({
 
         test("AI turn produces per-action diffs via EventBus playback") {
             val (b, game, _) = startGameAtMain1()

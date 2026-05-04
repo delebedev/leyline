@@ -5,10 +5,10 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.maps.shouldNotBeEmpty
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
-import leyline.conformance.ConformanceTestBase
+import leyline.conformance.BoardTestBase
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
@@ -30,9 +30,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateType
  */
 class PersistentAnnotationDiffTest :
     FunSpec({
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

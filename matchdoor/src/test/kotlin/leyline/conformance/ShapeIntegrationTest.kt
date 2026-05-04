@@ -4,7 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.game.InMemoryCardRepository
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
@@ -23,9 +23,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 class ShapeIntegrationTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

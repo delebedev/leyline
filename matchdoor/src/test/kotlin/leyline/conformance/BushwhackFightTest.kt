@@ -22,7 +22,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * The cast silently dropped after the modal pick.
  */
 class BushwhackFightTest :
-    InteractionTest({
+    SessionTest({
 
         test("Bushwhack Fight mode emits SelectTargetsReq for both target groups") {
             startPuzzleFile("puzzles/bushwhack-fight.pzl")

@@ -6,11 +6,11 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PriorityDecision
-import leyline.conformance.ConformanceTestBase
+import leyline.conformance.BoardTestBase
 import leyline.conformance.settingsMessage
 import leyline.match.AutoPassEngine
 import leyline.match.CombatHandler
@@ -26,7 +26,7 @@ import kotlin.time.Duration.Companion.seconds
  * Unit tests for [AutoPassEngine] decision logic.
  *
  * Tests [checkHumanActions] directly (internal visibility) using real Game
- * and BundleBuilder from [ConformanceTestBase.startWithBoard].
+ * and BundleBuilder from [BoardTestBase.startWithBoard].
  *
  * Loop-level [autoPassAndAdvance] tests cover game-over detection and
  * Grant-path exits. Skip-path tests (advanceOrWait) are deferred to
@@ -35,11 +35,11 @@ import kotlin.time.Duration.Companion.seconds
 class AutoPassEngineTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
         timeout = 15.seconds.inWholeMilliseconds
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

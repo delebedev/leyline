@@ -26,7 +26,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * instanceId lifecycle, persistent annotations.
  */
 class StackCastResolveTest :
-    SubsystemTest({
+    BoardTest({
 
         // --- Local helpers ---
 

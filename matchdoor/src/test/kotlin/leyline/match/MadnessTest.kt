@@ -8,7 +8,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
 import leyline.bridge.types.SeatId
-import leyline.conformance.ConformanceTestBase
+import leyline.conformance.BoardTestBase
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.detail
 import leyline.conformance.detailInt
@@ -75,7 +75,7 @@ private val HARDCAST_PUZZLE =
 class MadnessTest :
     FunSpec({
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

@@ -30,15 +30,15 @@ Scope to the modules you changed. Don't run all modules when you touched one.
 
 ## Tags
 
-**Every test class MUST have a tag.** First line inside `FunSpec({` body (or auto-wired by `SubsystemTest`).
+**Every test class MUST have a tag.** First line inside `FunSpec({` body (or auto-wired by `BoardTest`).
 
 | Module | Tag | Notes |
 |---|---|---|
-| `matchdoor` | `UnitTag` / `ConformanceTag` / `IntegrationTag` | Import from `leyline.{UnitTag,ConformanceTag,IntegrationTag}` |
+| `matchdoor` | `UnitTag` / `BoardTag` / `IntegrationTag` | Import from `leyline.{UnitTag,BoardTag,IntegrationTag}` |
 | `frontdoor` | `FdTag` | All tests are unit-level |
 | `account` | `UnitTag` | Import from `leyline.account.UnitTag` |
 
-`testGate` = Unit + Conformance. `testIntegration` = Integration only.
+`testGate` = Unit + Board. `testIntegration` = Integration only.
 
 ## Setup tiers (matchdoor)
 
@@ -51,7 +51,7 @@ Scope to the modules you changed. Don't run all modules when you touched one.
 
 **Bias toward Board.** If the test doesn't call `passPriority()` or need the game loop thread, it belongs at board level.
 
-**Board and Bridge use SubsystemTest. Session uses MatchFlowHarness.** Never mix bases in one file — different speed tiers, different base classes, separate files.
+**Board and Bridge use BoardTest. Session uses MatchFlowHarness.** Never mix bases in one file — different speed tiers, different base classes, separate files.
 
 ### Playing cards in tests
 
@@ -62,10 +62,10 @@ See `forge-seams.md` for full details. Quick reference:
 
 ## Test class shape
 
-**New tests: extend SubsystemTest** (auto-wires tags, initCardDatabase, tearDown):
+**New tests: extend BoardTest** (auto-wires tags, initCardDatabase, tearDown):
 
 ```kotlin
-class FooTest : SubsystemTest({
+class FooTest : BoardTest({
 
     test("some behavior") {
         val (b, game, counter) = startWithBoard { _, human, _ ->
@@ -76,7 +76,7 @@ class FooTest : SubsystemTest({
 })
 ```
 
-Existing tests using `val base = ConformanceTestBase()` pattern still work — migrate to SubsystemTest when touching the file.
+Existing tests using `val base = BoardTestBase()` pattern still work — migrate to BoardTest when touching the file.
 
 ## Style
 
@@ -88,7 +88,7 @@ Existing tests using `val base = ConformanceTestBase()` pattern still work — m
 - **`assertSoftly` for multi-field shape checks.** Hard gates (annotation exists at all) go before the `assertSoftly` block.
 - **One test per distinct board setup.** Different board = different test.
 - **One test file per class under test.** During staged migrations (per-field dual-write + cut-over pairs, per-phase lint fixes) it's tempting to spin up `FooLegendTest`, `FooSearchTest`, `FooRevealTest` — one per step. Don't. If the class under test is the same, it's one file. Extend the existing test rather than fragmenting. Consolidate before the PR lands; reviewers should flag this pattern.
-- **Don't write pin tests that duplicate a downstream helper's public API.** A test that seeds `bridge.journal.record(...)` and asserts `bridge.journal.consumeX(...) shouldBe true` is testing the helper's contract, not the consumer that was supposed to drain it. Those tests read like coverage theatre. If you can't drive the real consumer (e.g., needs a full `GameBridge` + engine), say so — rely on conformance/integration, and don't invent a fake assertion at the seam.
+- **Don't write pin tests that duplicate a downstream helper's public API.** A test that seeds `bridge.journal.record(...)` and asserts `bridge.journal.consumeX(...) shouldBe true` is testing the helper's contract, not the consumer that was supposed to drain it. Those tests read like coverage theatre. If you can't drive the real consumer (e.g., needs a full `GameBridge` + engine), say so — rely on board/session coverage, and don't invent a fake assertion at the seam.
 - **Category assertions mandatory** on zone transfer tests. `zt.shouldNotBeNull()` alone is lax — always check `zt.category shouldBe "..."`.
 - **Bail-out loops need terminal assertions.** Always assert the condition after the loop, or use `passUntil` / `passThroughCombat` which fail on exhaustion.
 - **Use helpers, not raw proto access.** Check `TestExtensions.kt` (assertions) and `ProtoDsl.kt` (proto builders — actions, mana, GRE messages, stops) before writing inline builders. If a pattern appears 2+ times and no helper exists, add one to the appropriate file.
@@ -97,7 +97,7 @@ Existing tests using `val base = ConformanceTestBase()` pattern still work — m
 - **No `when` with `else -> {}`** — silently ignores unknown variants. Filter by type explicitly.
 - **No tautological assertions.** `uint >= 0` is always true. Use `shouldBeGreaterThan 0` if value must be positive.
 - **No fully qualified Forge/proto types inline** — import them.
-- **Wrap Forge actions that take boilerplate params.** `destroy(card, game)` not `game.action.destroy(card, null, false, AbilityKey.newMap())`. SubsystemTest provides `destroy()`, `exile()`, `moveToBattlefield()`. If you need a new one, add it there.
+- **Wrap Forge actions that take boilerplate params.** `destroy(card, game)` not `game.action.destroy(card, null, false, AbilityKey.newMap())`. BoardTest provides `destroy()`, `exile()`, `moveToBattlefield()`. If you need a new one, add it there.
 - **`(a < b).shouldBeTrue()` gives bad failure messages** ("expected true but was false"). Prefer `shouldBe listOf(...)` for type ordering. For non-consecutive ordering, `(a < b)` is acceptable but add a comment.
 
 ## Assertions & helpers
@@ -165,7 +165,7 @@ val newId = b.instanceId(card.id)
 val newId = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
 ```
 
-### Zone transfer helper (SubsystemTest)
+### Zone transfer helper (BoardTest)
 
 ```kotlin
 // transferCard: finds card by name, performs action, returns (gsm, newInstanceId)
@@ -183,7 +183,7 @@ checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "Destroy"
 
 ## Harnesses
 
-### SubsystemTest (preferred)
+### BoardTest (preferred)
 
 Board-level and bridge-level tests. Extends FunSpec, auto-wires tags/setup/teardown. Key methods:
 - `startWithBoard { game, human, ai -> }` — synchronous, no threads

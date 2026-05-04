@@ -8,11 +8,11 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.IntegrationTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.conformance.ConformanceTestBase
+import leyline.conformance.BoardTestBase
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.haveManaCost
 import leyline.conformance.humanPlayer
@@ -44,11 +44,11 @@ private val PUZZLE =
 class FlashbackTest :
     FunSpec({
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("ActionMapper offers Cast for flashback card in GY").config(tags = setOf(ConformanceTag)) {
+        test("ActionMapper offers Cast for flashback card in GY").config(tags = setOf(BoardTag)) {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Island", human, ZoneType.Battlefield)

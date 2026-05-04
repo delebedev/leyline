@@ -12,10 +12,10 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Discard subsystem — both discard-as-cost (spell additional cost)
  * and cleanup discard (hand size enforcement).
  *
- * Board-level discard annotation tests would go in a SubsystemTest file.
+ * Board-level discard annotation tests would go in a BoardTest file.
  */
 class DiscardInteractionTest :
-    InteractionTest({
+    SessionTest({
 
         // --- Discard-as-cost (Mardu Outrider: {1}{B}{B} + discard a card) ---
 

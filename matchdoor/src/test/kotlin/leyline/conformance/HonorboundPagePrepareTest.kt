@@ -52,7 +52,7 @@ private fun List<GREToClientMessage>.preparedDesignations(): List<AnnotationInfo
  *   transition, so detection has to be state-based, not identity-based.
  */
 class HonorboundPagePrepareTest :
-    InteractionTest({
+    SessionTest({
 
         test("Prepared state: persistent Designation + exile copy projection") {
             startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
@@ -196,7 +196,7 @@ class HonorboundPagePrepareTest :
             // the unprepare path runs only once we provide a target.
             castSpellByName("Forum's Favor", zone = ZoneType.Exile)
 
-            // Guard against InteractionTest defaults silently auto-resolving the
+            // Guard against SessionTest defaults silently auto-resolving the
             // cast without a target selection step — if no SelectTargetsReq is
             // emitted between cast submission and target picking, the test would
             // pass vacuously without exercising the SpellCast trigger that fires

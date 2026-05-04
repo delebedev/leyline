@@ -14,10 +14,10 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  *
  * For mana abilities (ActivateMana), see LandManaTest.
  * Session-tier tests (Jade Mage, Fireslinger, Channel) to be added
- * when InteractionTest base class is built.
+ * when SessionTest base class is built.
  */
 class ActivatedAbilityTest :
-    SubsystemTest({
+    BoardTest({
 
         test("Activate action fields — shouldStop, instanceId, grpId, facetId") {
             val (b, game, _) =

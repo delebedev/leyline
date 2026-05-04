@@ -18,7 +18,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * ScryETBFlowTest — they test the annotation pipeline, not scry itself.
  */
 class LibraryOrderInteractionTest :
-    InteractionTest({
+    SessionTest({
 
         // --- Surveil 1 (Wary Thespian: ETB surveil 1) ---
 

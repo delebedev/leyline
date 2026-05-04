@@ -37,7 +37,7 @@ const val COMBAT_DECK = """
 // further fragments them.
 @Suppress("LargeClass")
 class CombatInteractionTest :
-    InteractionTest({
+    SessionTest({
 
         // ─── Setup helpers ────────────────────────────────────────────────────
 

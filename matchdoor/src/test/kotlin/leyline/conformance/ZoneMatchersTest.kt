@@ -6,7 +6,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.string.shouldContain
-import leyline.ConformanceTag
+import leyline.BoardTag
 
 @Suppress(
     // Matcher tests verify failure-message shape via `shouldFail { ... }.message
@@ -18,9 +18,9 @@ import leyline.ConformanceTag
 class ZoneMatchersTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

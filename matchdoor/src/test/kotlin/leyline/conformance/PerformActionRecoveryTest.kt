@@ -3,7 +3,7 @@ package leyline.conformance
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.types.SeatId
 import leyline.infra.ListMessageSink
 import leyline.match.ConnectionState
@@ -19,9 +19,9 @@ import leyline.match.MatchSession
 class PerformActionRecoveryTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

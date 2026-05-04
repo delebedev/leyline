@@ -8,10 +8,10 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.ConformanceTestBase
+import leyline.conformance.BoardTestBase
 import leyline.conformance.humanPlayer
 import leyline.conformance.offerAltCost
 import leyline.game.data.KeywordAbilityIds
@@ -45,9 +45,9 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 class DisturbTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

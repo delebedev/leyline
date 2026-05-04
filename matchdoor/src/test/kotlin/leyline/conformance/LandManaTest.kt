@@ -33,7 +33,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
  * For land ETB choices (shock lands), see ShockLandEtbTest.
  */
 class LandManaTest :
-    SubsystemTest({
+    BoardTest({
 
         // --- Zone transfer & annotation shape ---
 

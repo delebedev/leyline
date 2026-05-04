@@ -7,7 +7,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.mapping.StopTypeMapping
 import wotc.mtgo.gre.external.messaging.Messages.SettingScope
@@ -25,7 +25,7 @@ import wotc.mtgo.gre.external.messaging.Messages.StopType
 class StopTypeMappingTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
         beforeSpec {
             GameBootstrap.initializeCardDatabase(quiet = true)

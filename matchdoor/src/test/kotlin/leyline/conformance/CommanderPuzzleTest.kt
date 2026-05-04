@@ -12,7 +12,7 @@ import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.GameVariant
 
 class CommanderPuzzleTest :
-    SubsystemTest({
+    BoardTest({
 
         test("puzzle with commander applies Brawl variant and places commander in zone 26") {
             val (b, game, _) = startPuzzleAtMain1FromResource("puzzles/commander-visibility.pzl")

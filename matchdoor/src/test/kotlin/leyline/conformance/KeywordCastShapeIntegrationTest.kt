@@ -10,7 +10,7 @@ import leyline.game.data.KeywordAbilityIds
 
 /**
  * End-to-end integration coverage for the keyword-cast-shape mechanics that
- * the per-mechanic ConformanceTag suites cannot reach. Specifically the
+ * the per-mechanic BoardTag suites cannot reach. Specifically the
  * downstream wire fields where we hit regressions during 2026-04-28
  * implementation:
  *
@@ -32,7 +32,7 @@ import leyline.game.data.KeywordAbilityIds
  * Cover that gap when the PerformAction harness gains keyword-SA support.
  */
 class KeywordCastShapeIntegrationTest :
-    InteractionTest({
+    SessionTest({
 
         test("Disturb: DFC card on battlefield emits othersideGrpId pointing at back face") {
             startPuzzleFile("puzzles/disturb-lunarch.pzl", validating = false)

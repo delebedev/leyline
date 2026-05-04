@@ -2,7 +2,7 @@ package leyline.conformance
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.game.bundle.BundleBuilder
 import leyline.game.mapping.ShouldStopEvaluator
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -12,7 +12,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 class PriorityDecisionIntegrationTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
         test("shouldAutoPass=true when only Pass+ActivateMana") {
             BundleBuilder.shouldAutoPass(actionsReq(ActionType.Pass, ActionType.ActivateMana)) shouldBe true

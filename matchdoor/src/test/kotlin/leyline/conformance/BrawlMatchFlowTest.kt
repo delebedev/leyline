@@ -11,7 +11,7 @@ import leyline.bridge.types.SeatId
  * Brawl match init — verifies starting life, hand draw, and commander in command zone.
  */
 class BrawlMatchFlowTest :
-    SubsystemTest({
+    BoardTest({
 
         test("brawl game starts with correct life, hand, and commander in command zone") {
             val brawlDeck =

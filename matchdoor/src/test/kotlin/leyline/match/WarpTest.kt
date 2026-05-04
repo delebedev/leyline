@@ -11,12 +11,12 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.IntegrationTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.SeatId
-import leyline.conformance.ConformanceTestBase
+import leyline.conformance.BoardTestBase
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.beAltCostOffer
 import leyline.conformance.detailInt
@@ -72,11 +72,11 @@ private val WARP_PUZZLE =
 class WarpTest :
     FunSpec({
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("ActionMapper offers alt-cost Cast for warp card in hand when mana available").config(tags = setOf(ConformanceTag)) {
+        test("ActionMapper offers alt-cost Cast for warp card in hand when mana available").config(tags = setOf(BoardTag)) {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Forest", human, ZoneType.Battlefield)
@@ -115,7 +115,7 @@ class WarpTest :
         }
 
         test("ActionMapper emits warp offer when production-shape CardData lacks keywordAbilityGrpIds").config(
-            tags = setOf(ConformanceTag),
+            tags = setOf(BoardTag),
         ) {
             // Regression for leyline-g3zg. ExposedCardRepository does not populate
             // keywordAbilityGrpIds (no column in the Cards table), so CardData arrives
@@ -158,7 +158,7 @@ class WarpTest :
 
         test(
             "resolver picks the warp ability row (BaseId=371 + cost match) and NOT the first abilityIds entry",
-        ).config(tags = setOf(ConformanceTag)) {
+        ).config(tags = setOf(BoardTag)) {
             // Direct regression for leyline-g3zg. Production AbilityIds arrive as
             // `etbTriggerId:textId,warpId:textId` — positional resolution picks the ETB
             // trigger (first slot), which made the client show "Alternate Cost" generic
@@ -216,7 +216,7 @@ class WarpTest :
         }
 
         test("ActionMapper.buildFromSnapshot offers alt-cost Cast for Quantum Riddler (puzzle path)").config(
-            tags = setOf(ConformanceTag),
+            tags = setOf(BoardTag),
         ) {
             // Mirrors the live puzzle (try-warp.pzl): 3 Islands, Quantum Riddler in hand.
             // Base cost 3UU is unpayable (only 3 lands). Warp {1}{U} is payable.
@@ -275,7 +275,7 @@ class WarpTest :
 
         test(
             "ActionMapper.buildFromSnapshot offers alt-cost Cast for warp card in hand when mana available",
-        ).config(tags = setOf(ConformanceTag)) {
+        ).config(tags = setOf(BoardTag)) {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Forest", human, ZoneType.Battlefield)
@@ -523,7 +523,7 @@ class WarpTest :
             }
         }
 
-        test("warp card in hand but insufficient mana → no alt-cost Cast offer").config(tags = setOf(ConformanceTag)) {
+        test("warp card in hand but insufficient mana → no alt-cost Cast offer").config(tags = setOf(BoardTag)) {
             // Only one Forest — can't pay {1}{G}.
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
@@ -549,7 +549,7 @@ class WarpTest :
             actions shouldNot offerAltCost(warpAbilityGrpId)
         }
 
-        test("warp card only in library → no alt-cost Cast offer (no speculative library-top rail)").config(tags = setOf(ConformanceTag)) {
+        test("warp card only in library → no alt-cost Cast offer (no speculative library-top rail)").config(tags = setOf(BoardTag)) {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Forest", human, ZoneType.Battlefield)
@@ -575,7 +575,7 @@ class WarpTest :
             actions shouldNot offerAltCost(warpAbilityGrpId)
         }
 
-        test("warp card in graveyard → no alt-cost Cast offer").config(tags = setOf(ConformanceTag)) {
+        test("warp card in graveyard → no alt-cost Cast offer").config(tags = setOf(BoardTag)) {
             val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Forest", human, ZoneType.Battlefield)

@@ -21,7 +21,7 @@ import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
- * Helper for wire conformance tests.
+ * Helper for board-tier wire-shape tests.
  *
  * Provides helpers to start deterministic games, play actions,
  * and capture outbound GRE messages via BundleBuilder.
@@ -29,14 +29,14 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  * Usage from FunSpec:
  * ```
  * class MyTest : FunSpec({
- *     val base = ConformanceTestBase()
+ *     val base = BoardTestBase()
  *     beforeSpec { base.initCardDatabase() }
  *     afterEach { base.tearDown() }
  *     test("foo") { val (b, game, counter) = base.startWithBoard { ... } }
  * })
  * ```
  */
-open class ConformanceTestBase {
+open class BoardTestBase {
     var bridge: GameBridge? = null
 
     /** Shared counter for the current test. Reset per test via [startGameAtMain1]. */
@@ -276,7 +276,7 @@ open class ConformanceTestBase {
 
     /**
      * Create a [ValidatingMessageSink] seeded with the handshake Full GSM.
-     * Use in conformance tests to get automatic invariant coverage on every message.
+     * Use in board/session tests to get automatic invariant coverage on every message.
      */
     fun validatingSink(
         game: forge.game.Game,

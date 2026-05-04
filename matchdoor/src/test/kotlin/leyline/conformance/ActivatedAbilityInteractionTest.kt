@@ -6,10 +6,10 @@ import io.kotest.matchers.shouldBe
 /**
  * Session-tier activated ability tests — full MatchSession round-trip.
  *
- * Board-level action field tests live in [ActivatedAbilityTest] (SubsystemTest).
+ * Board-level action field tests live in [ActivatedAbilityTest] (BoardTest).
  */
 class ActivatedAbilityInteractionTest :
-    InteractionTest({
+    SessionTest({
 
         test("Goblin Fireslinger tap-to-ping deals damage to opponent") {
             startPuzzle(
