@@ -12,6 +12,7 @@ import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
 import leyline.bridge.chooseCastAbility
 import leyline.bridge.getAllCastableAbilities
+import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
@@ -39,6 +40,26 @@ object ActionMapper {
     private val log = LoggerFactory.getLogger(ActionMapper::class.java)
 
     private const val INITIAL_MANA_ID = 10
+
+    private fun canPayManaCost(
+        sa: SpellAbility,
+        player: Player,
+    ): Boolean =
+        try {
+            ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+        } catch (_: Exception) {
+            false
+        }
+
+    private fun canPlayAndPayManaCost(
+        sa: SpellAbility,
+        player: Player,
+    ): Boolean =
+        try {
+            sa.canPlay() && ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+        } catch (_: Exception) {
+            false
+        }
 
     /**
      * Naive action list: Cast for all non-lands, Play for all lands in hand,
@@ -130,17 +151,9 @@ object ActionMapper {
                 val forgeCard = bridge.findCard(fid) ?: continue
                 val player = bridge.getPlayer(SeatId(seatId)) ?: continue
                 val cardData = snap.boundCards[fid]?.data
-                for (ability in forgeCard.spellAbilities) {
-                    ability.setActivatingPlayer(player)
-                    if (!ability.isActivatedAbility) continue
-                    if (ability.isManaAbility()) continue
+                for (ability in getNonManaActivatedAbilities(forgeCard, player)) {
                     if (!ability.canPlay()) continue
-                    val canPay =
-                        try {
-                            ComputerUtilMana.canPayManaCost(ability, player, 0, false)
-                        } catch (_: Exception) {
-                            false
-                        }
+                    val canPay = canPayManaCost(ability, player)
                     val registry = bridge.abilityRegistryFor(forgeCard, cardData)
                     val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
                     if (canPay) {
@@ -213,12 +226,7 @@ object ActionMapper {
                 log.trace("ActionMapper.buildFromSnapshot: skipping {} — no legal targets", cardSnap.name)
                 continue
             }
-            val canPay =
-                try {
-                    ComputerUtilMana.canPayManaCost(sa, player, 0, false)
-                } catch (_: Exception) {
-                    false
-                }
+            val canPay = canPayManaCost(sa, player)
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             val grpId = cardSnap.grpId
 
@@ -314,17 +322,9 @@ object ActionMapper {
             if (!cardSnap.hasNonManaActivatedAbilities) continue
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
-            for (ability in forgeCard.spellAbilities) {
-                ability.setActivatingPlayer(player)
-                if (!ability.isActivatedAbility) continue
-                if (ability.isManaAbility()) continue
+            for (ability in getNonManaActivatedAbilities(forgeCard, player)) {
                 if (!ability.canPlay()) continue
-                val canPay =
-                    try {
-                        ComputerUtilMana.canPayManaCost(ability, player, 0, false)
-                    } catch (_: Exception) {
-                        false
-                    }
+                val canPay = canPayManaCost(ability, player)
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
                 val grpId = cardSnap.grpId
                 val cardData = snap.boundCards[fid]?.data
@@ -613,17 +613,9 @@ object ActionMapper {
             // Activate — non-mana activated abilities (only with legality checks)
             if (checkLegality) {
                 val cardData = cardDataLookup(GrpId(grpId))
-                for (ability in card.spellAbilities) {
-                    ability.setActivatingPlayer(player)
-                    if (!ability.isActivatedAbility) continue
-                    if (ability.isManaAbility()) continue
+                for (ability in getNonManaActivatedAbilities(card, player)) {
                     if (!ability.canPlay()) continue
-                    val canPay =
-                        try {
-                            ComputerUtilMana.canPayManaCost(ability, player, 0, false)
-                        } catch (_: Exception) {
-                            false
-                        }
+                    val canPay = canPayManaCost(ability, player)
                     val registry = abilityRegistryLookup(card, cardData)
                     val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
                     if (canPay) {
@@ -746,17 +738,9 @@ object ActionMapper {
         // Including grpId causes the client to render card text instead of ability text.
         if (checkLegality) {
             for (card in handCards) {
-                for (ability in card.spellAbilities) {
-                    ability.setActivatingPlayer(player)
-                    if (!ability.isActivatedAbility) continue
-                    if (ability.isManaAbility()) continue
+                for (ability in getNonManaActivatedAbilities(card, player)) {
                     if (!ability.canPlay()) continue // Forge checks ActivationZone restriction
-                    val canPay =
-                        try {
-                            ComputerUtilMana.canPayManaCost(ability, player, 0, false)
-                        } catch (_: Exception) {
-                            false
-                        }
+                    val canPay = canPayManaCost(ability, player)
                     val instanceId = idResolver(ForgeCardId(card.id)).value
                     val grpId = grpIdResolver(card).value
                     val cardData = cardDataLookup(GrpId(grpId))
@@ -857,12 +841,7 @@ object ActionMapper {
                 log.debug("ActionMapper: skipping {} variant — no legal targets", card.name)
                 continue
             }
-            val canPay =
-                try {
-                    ComputerUtilMana.canPayManaCost(sa, player, 0, false)
-                } catch (_: Exception) {
-                    false
-                }
+            val canPay = canPayManaCost(sa, player)
             val action =
                 buildCastAction(
                     sa = sa,
@@ -1014,12 +993,7 @@ object ActionMapper {
 
         if (checkLegality) {
             adventureSa.setActivatingPlayer(player)
-            val canCast =
-                try {
-                    adventureSa.canPlay() && ComputerUtilMana.canPayManaCost(adventureSa, player, 0, false)
-                } catch (_: Exception) {
-                    false
-                }
+            val canCast = canPlayAndPayManaCost(adventureSa, player)
             if (!canCast) return null
         }
 
@@ -1101,12 +1075,7 @@ object ActionMapper {
         val castable = getAllCastableAbilities(card, player)
         for (sa in castable) {
             val rail = CastRails.handWithAltCost.firstOrNull { it.saPredicate(sa) } ?: continue
-            val canPay =
-                try {
-                    ComputerUtilMana.canPayManaCost(sa, player, 0, false)
-                } catch (_: Exception) {
-                    false
-                }
+            val canPay = canPayManaCost(sa, player)
             if (!canPay) continue
 
             val effectiveCost = computeEffectiveCost(sa, player)
