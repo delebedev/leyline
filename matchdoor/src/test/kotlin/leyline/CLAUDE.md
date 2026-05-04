@@ -85,6 +85,7 @@ Detekt rules to know — they shape what idioms are allowed:
 - **`NoThreadSleepInTests`** — `Thread.sleep` is forbidden. Use the harness's pass/await primitives.
 - **`EmptyAssertion`** — at least one assertion per test.
 - **`FunSpecMissingTags`** — every Spec must call `tags(...)`.
+- **`TestLayoutCheck`** — `board/*`, `session/*`, and `mechanics/*` packages must match the lane. It rejects mixed `BoardTag` + `IntegrationTag` in domain files and direct `leyline.mechanics` packages.
 
 `@Suppress("WeakAssertionOnly")` is the right escape hatch when you're asserting structural absence (`hasOffer.shouldBeFalse()` on the result of `actionsList.any { ... } || inactiveActionsList.any { ... }`) — boolean predicates over a list ARE the native idiom for that shape, no equality body to assert. Once an `offerAltCost` matcher exists, prefer `actions shouldNot offerAltCost(altGrpId)` over the suppressed boolean — it's both shorter and self-describing.
 
