@@ -7,11 +7,16 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.UnitTag
+import leyline.bridge.types.ForgeCardId
 import leyline.conformance.ConformanceTestBase
+import leyline.conformance.humanPlayer
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
+import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+
+private fun Action.manaCount(color: ManaColor): Int = manaCostList.filter { color in it.colorList }.sumOf { it.count }
 
 class AdventureCastActionTest :
     FunSpec({
@@ -32,6 +37,12 @@ class AdventureCastActionTest :
             val creatureGrpId =
                 b.cardRepository.findGrpIdByName("Ratcatcher Trainee")
                     ?: error("Ratcatcher Trainee not in card registry")
+            val trainee =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.name == "Ratcatcher Trainee" }
+            val traineeIid = b.getOrAllocInstanceId(ForgeCardId(trainee.id)).value
 
             val actions =
                 ActionMapper.buildFromSnapshot(
@@ -47,10 +58,14 @@ class AdventureCastActionTest :
 
             adventureActions shouldHaveSize 1
             val adv = adventureActions[0]
-            // grpId = creature face (client can't resolve IsPrimaryCard=0 adventure faces)
-            adv.grpId shouldBe creatureGrpId
-            // Pest Problem costs {2}{R}: generic=2 + red=1
-            adv.manaCostCount shouldBe 2
+            assertSoftly {
+                adv.instanceId shouldBe traineeIid
+                // grpId = creature face (client can't resolve IsPrimaryCard=0 adventure faces)
+                adv.grpId shouldBe creatureGrpId
+                // Pest Problem costs {2}{R}.
+                adv.manaCount(ManaColor.Generic) shouldBe 2
+                adv.manaCount(ManaColor.Red_afc9) shouldBe 1
+            }
         }
 
         test("non-adventure card produces no CastAdventure") {
@@ -68,6 +83,7 @@ class AdventureCastActionTest :
                 )
 
             actions.actionsList.filter { it.actionType == ActionType.CastAdventure } shouldHaveSize 0
+            actions.inactiveActionsList.filter { it.actionType == ActionType.CastAdventure } shouldHaveSize 0
         }
     })
 

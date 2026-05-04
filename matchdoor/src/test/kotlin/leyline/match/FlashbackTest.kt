@@ -1,20 +1,28 @@
 package leyline.match
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.IntegrationTag
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.humanPlayer
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
+import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+
+private fun Action.manaCount(color: ManaColor): Int = manaCostList.filter { color in it.colorList }.sumOf { it.count }
 
 private val PUZZLE =
     """
@@ -54,7 +62,12 @@ class FlashbackTest :
             val human = game.humanPlayer
 
             val gyCards = human.getZone(ZoneType.Graveyard).cards
-            gyCards.any { it.name == "Think Twice" }.shouldBeTrue()
+            val thinkTwice = gyCards.firstOrNull { it.name == "Think Twice" }
+            thinkTwice shouldNotBe null
+            val thinkTwiceIid = b.getOrAllocInstanceId(ForgeCardId(thinkTwice!!.id)).value
+            val thinkTwiceGrpId = b.cardRepository.findGrpIdByName("Think Twice")!!
+            val flashbackAbilityGrpId =
+                b.cardRepository.findKeywordAbilityGrpId(thinkTwiceGrpId, KeywordAbilityIds.FLASHBACK)!!
 
             val actions =
                 ActionMapper.buildFromSnapshot(
@@ -63,9 +76,21 @@ class FlashbackTest :
                     bridge = b,
                 )
 
-            val castActions = actions.actionsList.filter { it.actionType == ActionType.Cast }
+            val castActions =
+                actions.actionsList.filter {
+                    it.actionType == ActionType.Cast && it.instanceId == thinkTwiceIid
+                }
             castActions.shouldNotBeEmpty()
-            castActions.first().manaCostCount.shouldBeGreaterThan(0)
+            val flashbackOffer = castActions.firstOrNull { it.abilityGrpId == flashbackAbilityGrpId }
+            flashbackOffer shouldNotBe null
+            assertSoftly {
+                flashbackOffer!!.grpId shouldBe thinkTwiceGrpId
+                flashbackOffer.facetId shouldBe thinkTwiceIid
+                flashbackOffer.manaCostCount.shouldBeGreaterThan(0)
+                // Think Twice flashback costs {2}{U}.
+                flashbackOffer.manaCount(ManaColor.Generic) shouldBe 2
+                flashbackOffer.manaCount(ManaColor.Blue_afc9) shouldBe 1
+            }
         }
 
         test("full lifecycle: hand cast → GY → flashback → exile").config(tags = setOf(IntegrationTag)) {
