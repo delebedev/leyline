@@ -5,10 +5,12 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.types.GrpId
 import leyline.conformance.ConformanceTestBase
+import leyline.conformance.haveManaCost
 import leyline.conformance.humanPlayer
 import leyline.conformance.mana
 import leyline.game.snapshot.GrpIdResolver
@@ -155,7 +157,7 @@ class ActionMapperPureTest :
             actions.actionsList.none { it.actionType == ActionType.Cast }.shouldBeTrue()
             val inactive = actions.inactiveActionsList.filter { it.actionType == ActionType.Cast }
             inactive.size shouldBe 1
-            inactive.first().manaCostCount shouldBe 1
+            inactive.first() should haveManaCost(green = 1)
         }
 
         // -----------------------------------------------------------------------
@@ -272,7 +274,7 @@ class ActionMapperPureTest :
 
             assertSoftly {
                 s.instanceId shouldBe 100
-                s.manaCostCount shouldBe 2
+                s should haveManaCost(generic = 1, green = 1)
                 s.grpId shouldBe 0
                 s.shouldStop shouldBe false
             }
@@ -288,7 +290,7 @@ class ActionMapperPureTest :
 
             assertSoftly {
                 s.instanceId shouldBe 200
-                s.manaCostCount shouldBe 1
+                s should haveManaCost(white = 1)
                 s.grpId shouldBe 0
             }
         }

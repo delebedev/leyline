@@ -1,7 +1,7 @@
 package leyline.conformance
 
-import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -45,11 +45,7 @@ class CostReductionTest :
             castActions shouldHaveSize 1
 
             val cast = castActions.first()
-            assertSoftly {
-                cast.manaCostCount shouldBe 1
-                cast.manaCostList.first().colorList shouldBe listOf(ManaColor.Blue_afc9)
-                cast.manaCostList.first().count shouldBe 1
-            }
+            cast should haveManaCost(blue = 1)
         }
 
         test("autoTap solution taps only 1 island for reduced cost") {

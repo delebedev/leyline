@@ -5,7 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
@@ -14,15 +14,12 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.MatchFlowHarness
+import leyline.conformance.haveManaCost
 import leyline.conformance.humanPlayer
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
-import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
-
-private fun Action.manaCount(color: ManaColor): Int = manaCostList.filter { color in it.colorList }.sumOf { it.count }
 
 private val PUZZLE =
     """
@@ -86,10 +83,7 @@ class FlashbackTest :
             assertSoftly {
                 flashbackOffer!!.grpId shouldBe thinkTwiceGrpId
                 flashbackOffer.facetId shouldBe thinkTwiceIid
-                flashbackOffer.manaCostCount.shouldBeGreaterThan(0)
-                // Think Twice flashback costs {2}{U}.
-                flashbackOffer.manaCount(ManaColor.Generic) shouldBe 2
-                flashbackOffer.manaCount(ManaColor.Blue_afc9) shouldBe 1
+                flashbackOffer should haveManaCost(generic = 2, blue = 1)
             }
         }
 

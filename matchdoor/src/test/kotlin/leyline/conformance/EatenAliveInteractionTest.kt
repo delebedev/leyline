@@ -63,7 +63,7 @@ class EatenAliveInteractionTest :
 
             val casts = latestCastActionsFor("Eaten Alive")
             casts shouldHaveSize 1
-            casts.single().manaCostList.map { req -> req.count } shouldBe listOf(1)
+            casts.single() should haveManaCost(black = 1)
         }
 
         test("sacrifice-mode cast resolves fully after target and sacrifice selection") {

@@ -4,19 +4,18 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
 import leyline.conformance.ConformanceTestBase
+import leyline.conformance.haveManaCost
 import leyline.conformance.humanPlayer
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
-import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
-
-private fun Action.manaCount(color: ManaColor): Int = manaCostList.filter { color in it.colorList }.sumOf { it.count }
 
 class AdventureCastActionTest :
     FunSpec({
@@ -62,9 +61,7 @@ class AdventureCastActionTest :
                 adv.instanceId shouldBe traineeIid
                 // grpId = creature face (client can't resolve IsPrimaryCard=0 adventure faces)
                 adv.grpId shouldBe creatureGrpId
-                // Pest Problem costs {2}{R}.
-                adv.manaCount(ManaColor.Generic) shouldBe 2
-                adv.manaCount(ManaColor.Red_afc9) shouldBe 1
+                adv should haveManaCost(generic = 2, red = 1)
             }
         }
 

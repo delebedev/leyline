@@ -10,6 +10,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
@@ -234,7 +235,7 @@ class LandManaTest :
                 a.shouldStop.shouldBeTrue()
                 a.instanceId shouldNotBe 0
                 a.grpId shouldNotBe 0
-                a.manaCostCount shouldBeGreaterThan 0
+                a should haveManaCost(generic = 1, green = 1)
                 a.hasAutoTapSolution().shouldBeTrue()
                 a.autoTapSolution.autoTapActionsCount shouldBe 2
 

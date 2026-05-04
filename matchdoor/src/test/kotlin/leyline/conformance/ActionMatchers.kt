@@ -4,6 +4,7 @@ import io.kotest.matchers.Matcher
 import io.kotest.matchers.MatcherResult
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
  * Matchers for alt-cost Cast offers (Foretell, Plot, Warp, Sneak, Escape,
@@ -87,3 +88,43 @@ fun offerAltCost(altGrpId: Int): Matcher<ActionsAvailableReq> =
             },
         )
     }
+
+fun haveManaCost(
+    generic: Int = 0,
+    white: Int = 0,
+    blue: Int = 0,
+    black: Int = 0,
+    red: Int = 0,
+    green: Int = 0,
+    colorless: Int = 0,
+): Matcher<Action> =
+    Matcher { action ->
+        val expectedCounts =
+            buildMap {
+                putIfNonZero(ManaColor.Generic, generic)
+                putIfNonZero(ManaColor.White_afc9, white)
+                putIfNonZero(ManaColor.Blue_afc9, blue)
+                putIfNonZero(ManaColor.Black_afc9, black)
+                putIfNonZero(ManaColor.Red_afc9, red)
+                putIfNonZero(ManaColor.Green_afc9, green)
+                putIfNonZero(ManaColor.Colorless_afc9, colorless)
+            }
+        val actualCounts =
+            action.manaCostList
+                .flatMap { req -> req.colorList.map { color -> color to req.count } }
+                .groupingBy { it.first }
+                .fold(0) { total, (_, count) -> total + count }
+                .filterValues { it != 0 }
+        MatcherResult(
+            actualCounts == expectedCounts,
+            { "expected mana cost $expectedCounts, saw $actualCounts from ${action.manaCostList}" },
+            { "mana cost should not be $expectedCounts" },
+        )
+    }
+
+private fun MutableMap<ManaColor, Int>.putIfNonZero(
+    color: ManaColor,
+    count: Int,
+) {
+    if (count != 0) put(color, count)
+}
