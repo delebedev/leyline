@@ -11,7 +11,7 @@ test-one class:
 test-debug class:
     cd "{{project_dir}}" && ./gradlew :matchdoor:test :frontdoor:test :account:test -Pkotest.filter.specs=".*{{class}}" -Pverbose
 
-# pre-commit gate: unit + conformance + fmt check + coverage (all modules)
+# pre-commit gate: unit + board + fmt check + coverage (all modules)
 [group('test')]
 test-gate: docs-lint
     #!/usr/bin/env bash
@@ -62,7 +62,7 @@ slice-verify:
     leyline_sha=$(git rev-parse HEAD)
     forge_sha=$(git -C forge rev-parse HEAD)
     edition_hash=$(shasum forge/forge-gui/res/editions/Secrets\ of\ Strixhaven*.txt forge/forge-gui/res/editions/Special\ Guests.txt 2>/dev/null | shasum | awk '{print $1}')
-    deck_hash=$(grep -A6 'COMBAT_DECK = ' matchdoor/src/test/kotlin/leyline/conformance/CombatInteractionTest.kt | head -8 | shasum | awk '{print $1}')
+    deck_hash=$(grep -A6 'COMBAT_DECK = ' matchdoor/src/test/kotlin/leyline/session/combat/CombatInteractionTest.kt | head -8 | shasum | awk '{print $1}')
     jar_hash=$(shasum forge/.m2-local/forge/forge-gui/2.0.10-SNAPSHOT/forge-gui-2.0.10-SNAPSHOT.jar 2>/dev/null | awk '{print $1}' || echo "missing")
     echo "slice-verify input manifest:"
     echo "  leyline:        $leyline_sha"
@@ -99,4 +99,3 @@ coverage:
 [group('test')]
 detekt:
     cd "{{project_dir}}" && ./gradlew detekt
-

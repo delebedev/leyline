@@ -53,6 +53,40 @@ class TestLayoutCheckTest : FunSpec({
         rule.lint(code).shouldBeEmpty()
     }
 
+    test("ignores lane marker names in comments") {
+        val code = """
+            package leyline.session.turns
+
+            object IntegrationTag
+            class FooTest {
+                fun run() {
+                    // BoardTag coverage lives in the board-tier sibling.
+                    tags(IntegrationTag)
+                }
+            }
+            fun tags(tag: Any) {}
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
+
+    test("ignores lane marker names in KDoc") {
+        val code = """
+            package leyline.session.turns
+
+            object IntegrationTag
+            /**
+             * BoardTag coverage lives in the board-tier sibling.
+             */
+            class FooTest {
+                fun run() {
+                    tags(IntegrationTag)
+                }
+            }
+            fun tags(tag: Any) {}
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
+
     test("flags session domain with BoardTag") {
         val code = """
             package leyline.session.combat

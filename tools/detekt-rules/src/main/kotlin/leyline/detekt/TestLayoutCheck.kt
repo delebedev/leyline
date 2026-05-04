@@ -40,7 +40,7 @@ class TestLayoutCheck(config: Config) : Rule(config) {
         if (packageName.startsWith("leyline.testkit")) return
         if (packageName == "leyline") return
 
-        val text = file.text
+        val text = file.text.withoutComments()
         when {
             packageName == "leyline.board" ->
                 report(file, "Board tests must live under board/<domain>, not board/.")
@@ -60,6 +60,10 @@ class TestLayoutCheck(config: Config) : Rule(config) {
             report(file, "Do not mix BoardTag and IntegrationTag in one domain file. Split action/shape from lifecycle.")
         }
     }
+
+    private fun String.withoutComments(): String =
+        replace(BLOCK_COMMENT, "")
+            .replace(LINE_COMMENT, "")
 
     private fun String.hasSessionMarker(): Boolean =
         contains("IntegrationTag") ||
@@ -84,5 +88,7 @@ class TestLayoutCheck(config: Config) : Rule(config) {
 
     private companion object {
         private const val MECHANIC_PACKAGE_PARTS = 3
+        private val BLOCK_COMMENT = Regex("""/\*[\s\S]*?\*/""")
+        private val LINE_COMMENT = Regex("""//.*""")
     }
 }

@@ -96,6 +96,7 @@ leyline:
     threshold: 3
   FunSpecMissingTags:
     active: true
+    includes: ['**/matchdoor/src/test/**']
   NoGameInMappers:
     active: true
   NoThreadSleepInTests:
@@ -106,6 +107,9 @@ leyline:
     includes: ['**/test/**', '**/*Test.kt', '**/*Tests.kt']
   TierPlacementCheck:
     active: true
+  TestLayoutCheck:
+    active: true
+    includes: ['**/matchdoor/src/test/**']
   WeakAssertionOnly:
     active: true
     includes: ['**/test/**', '**/*Test.kt', '**/*Tests.kt']
