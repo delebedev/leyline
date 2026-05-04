@@ -367,6 +367,19 @@ enum class PromptSemantic {
     SelectNResolution,
 
     /**
+     * Sacrifice selection during effect resolution (edict-style prompts).
+     * Routes to a regular `SelectNReq`, not the cost-payment envelope.
+     */
+    SelectNSacrificeEffect,
+
+    /**
+     * "Sacrifice N permanents" as a cost-payment selection. Routes to
+     * `PayCostsReq` (NonManaPayment / Payment context); resolution sacrifice
+     * effects should use [SelectNSacrificeEffect] instead.
+     */
+    SelectNCostSacrifice,
+
+    /**
      * "Exile N cards from your graveyard" as an additional cost — Escape's
      * `K:Escape:<mana>|Type:Card|N:<n>` cost-payment selection. Routes to
      * `PayCostsReq` (NonManaPayment / Payment context) so the client renders

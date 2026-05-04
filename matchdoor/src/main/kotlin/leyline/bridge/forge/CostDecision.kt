@@ -762,6 +762,7 @@ class CostDecision(
                     1,
                     1,
                     cancelAllowed = !mandatory,
+                    semantic = PromptSemantic.SelectNCostSacrifice,
                 ) ?: return null
             return PaymentDecision.card(selected)
         }
@@ -1200,6 +1201,7 @@ class CostDecision(
                         1,
                         1,
                         cancelAllowed = true,
+                        semantic = PromptSemantic.SelectNCostSacrifice,
                     ) ?: return null
                 val first = selected.first()
                 chosen.add(first)
@@ -1217,6 +1219,7 @@ class CostDecision(
                 c,
                 c,
                 cancelAllowed = !mandatory,
+                semantic = PromptSemantic.SelectNCostSacrifice,
             ) ?: return null
         return PaymentDecision.card(selected)
     }

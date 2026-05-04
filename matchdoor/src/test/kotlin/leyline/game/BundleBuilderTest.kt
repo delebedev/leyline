@@ -648,6 +648,43 @@ class BundleBuilderTest :
             }
         }
 
+        test("generic SelectNReq does not infer cost-payment from sacrifice text") {
+            val (b, _, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Walking Corpse", human, ZoneType.Battlefield)
+                }
+
+            val creature =
+                b
+                    .getPlayer(SeatId(1))!!
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val prompt =
+                InteractivePromptBridge.PendingPrompt(
+                    promptId = "sacrifice-text-test",
+                    request =
+                        PromptRequest(
+                            promptType = "choose_cards",
+                            message = "Sacrifice a creature",
+                            options = listOf(creature.name),
+                            min = 1,
+                            max = 1,
+                            candidateRefs = listOf(PromptCandidateRefDto(0, "card", creature.id, "Battlefield")),
+                        ),
+                    future = java.util.concurrent.CompletableFuture(),
+                )
+
+            val req = RequestBuilder.buildSelectNReq(prompt, b)
+
+            assertSoftly {
+                req.context shouldBe Messages.SelectionContext.Resolution_a163
+                req.listType shouldBe Messages.SelectionListType.Dynamic
+                req.optionContext shouldBe Messages.OptionContext.Resolution_a9d7
+                req.prompt.promptId shouldBe PromptIds.SELECT_N
+            }
+        }
+
         test("payCostsBundle shape") {
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
 
