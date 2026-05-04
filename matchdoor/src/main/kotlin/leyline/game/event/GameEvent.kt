@@ -86,6 +86,7 @@ sealed interface GameEvent {
         val seatId: SeatId,
         val manaPayments: List<ManaPayment> = emptyList(),
         val isAdventure: Boolean = false,
+        val isOmen: Boolean = false,
         val altCostAbilityGrpId: Int = 0,
         /**
          * True when the stack item is an Ability gameObject (triggered OR

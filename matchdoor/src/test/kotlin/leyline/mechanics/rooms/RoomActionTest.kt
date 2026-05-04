@@ -1,4 +1,4 @@
-package leyline.match
+package leyline.mechanics.rooms
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
@@ -9,12 +9,12 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.ConformanceTestBase
-import leyline.conformance.humanPlayer
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.BoardTestBase
+import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
@@ -31,12 +31,12 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * "Surgical Suite" {1}{W}; right door "Hospital Room" {3}{W}.
  */
 @Suppress("WeakAssertionOnly")
-class RoomsTest :
+class RoomActionTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

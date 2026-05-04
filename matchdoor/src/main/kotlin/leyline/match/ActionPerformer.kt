@@ -229,10 +229,7 @@ class ActionPerformer(
                         if (omenIndex == null) {
                             log.warn("CastOmen: no Omen SA found for card={} iid={}", card?.name, action.instanceId)
                         }
-                        seatBridge.action.submitAction(
-                            pending.actionId,
-                            PlayerAction.CastSpell(cardId, omenIndex),
-                        )
+                        seatBridge.action.submitAction(pending.actionId, requiredAbilityCastAction(cardId, omenIndex))
                     } else {
                         seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                     }
@@ -273,10 +270,7 @@ class ActionPerformer(
                                 action.instanceId,
                             )
                         }
-                        seatBridge.action.submitAction(
-                            pending.actionId,
-                            PlayerAction.CastSpell(cardId, abilityIndex),
-                        )
+                        seatBridge.action.submitAction(pending.actionId, requiredAbilityCastAction(cardId, abilityIndex))
                     } else {
                         seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                     }
@@ -454,3 +448,13 @@ class ActionPerformer(
         return null
     }
 }
+
+internal fun requiredAbilityCastAction(
+    cardId: ForgeCardId,
+    abilityIndex: Int?,
+): PlayerAction =
+    if (abilityIndex == null) {
+        PlayerAction.PassPriority
+    } else {
+        PlayerAction.CastSpell(cardId, abilityIndex)
+    }

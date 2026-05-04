@@ -7,13 +7,10 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.game.annotations.AppliedTransfer
-import leyline.game.annotations.ManaPaymentRecord
-import leyline.game.annotations.TransferAnnotations
-import leyline.game.annotations.TransferCategory
 import leyline.game.mapping.ZoneIds
 import leyline.game.sid
 import leyline.testkit.detailInt
+import leyline.testkit.detailString
 import leyline.testkit.detailUint
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -247,6 +244,28 @@ class TransferAnnotationPipelineTest :
             }
         }
 
+        test("castSpellEventAnnotations emits CastOmen UAT for Omen face casts") {
+            val ev =
+                leyline.game.event.GameEvent.SpellCast(
+                    cardId = leyline.bridge.types.ForgeCardId(100),
+                    seatId = 1.sid,
+                    isOmen = true,
+                )
+            val annotations =
+                TransferAnnotations.castSpellEventAnnotations(
+                    ev,
+                    idResolver = { leyline.bridge.types.InstanceId(it.value) },
+                    manaAbilityGrpIdResolver = { leyline.bridge.types.GrpId(0) },
+                )
+
+            assertSoftly {
+                annotations.size shouldBe 1
+                annotations[0].typeList shouldContain AnnotationType.UserActionTaken
+                annotations[0].detailInt("actionType") shouldBe wotc.mtgo.gre.external.messaging.Messages.ActionType.CastOmen.number
+                annotations[0].detailInt("abilityGrpId") shouldBe 0
+            }
+        }
+
         // --- annotationsForTransfer: Resolve ---
 
         test("resolveProducesThreeAnnotations") {
@@ -304,6 +323,39 @@ class TransferAnnotationPipelineTest :
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             annotations[0].detailUint("grpid") shouldBe 67890
+        }
+
+        test("resolve with instanceId reallocation resolves old stack id before moving new id") {
+            val transfer =
+                AppliedTransfer(
+                    origId = 200,
+                    newId = 201,
+                    category = TransferCategory.Resolve,
+                    srcZoneId = ZoneIds.STACK,
+                    destZoneId = ZoneIds.P1_LIBRARY,
+                    grpId = 95537,
+                    ownerSeatId = 1,
+                )
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
+
+            assertSoftly {
+                annotations.map { it.typeList.first() } shouldBe
+                    listOf(
+                        AnnotationType.ResolutionStart,
+                        AnnotationType.ResolutionComplete,
+                        AnnotationType.ObjectIdChanged,
+                        AnnotationType.ZoneTransfer_af5a,
+                    )
+                annotations[0].affectedIdsList shouldContain 200
+                annotations[1].affectedIdsList shouldContain 200
+                annotations[2].detailInt("orig_id") shouldBe 200
+                annotations[2].detailInt("new_id") shouldBe 201
+                annotations[3].affectedIdsList shouldContain 201
+                annotations[3].detailInt("zone_src") shouldBe ZoneIds.STACK
+                annotations[3].detailInt("zone_dest") shouldBe ZoneIds.P1_LIBRARY
+                annotations[3].detailString("category") shouldBe "Resolve"
+                persistent.shouldBeEmpty()
+            }
         }
 
         // --- Edge cases ---

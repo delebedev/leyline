@@ -1,4 +1,4 @@
-package leyline.match
+package leyline.mechanics.omen
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
@@ -6,12 +6,12 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.ConformanceTestBase
-import leyline.conformance.humanPlayer
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.BoardTestBase
+import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
@@ -30,12 +30,12 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * shuffle into library).
  */
 @Suppress("WeakAssertionOnly")
-class OmenTest :
+class OmenActionTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
