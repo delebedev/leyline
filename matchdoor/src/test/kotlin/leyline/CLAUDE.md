@@ -19,17 +19,21 @@ Every Spec subclass must call `tags(UnitTag | BoardTag | IntegrationTag)`. `FunS
 ## Layout — where test files live
 
 ```
+<production packages>/  SUT-shaped tests mirror `src/main/kotlin/leyline/*`.
 board/<domain>/       Board-tier tests: bridge, mapper, bundle, annotations.
 session/<domain>/     Session-tier tests: MatchSession + engine loop behavior.
 mechanics/<keyword>/  Keyword/mechanic suites split action-vs-lifecycle.
-game/                 Pure game pipeline and mapper tests near production package.
 testkit/              Shared bases, harnesses, matchers, proto DSL, fixtures.
 conformance/          Temporary review bucket for mixed, card-specific, or still-ambiguous files.
 ```
 
-Pick the lane first, then the domain. Do not put Board and Session tests in
-the same file. Card-specific tests stay out of generic mechanic/domain folders
-until we can explain the card-specific invariant they cover.
+If a test has a clear production SUT, put it in the package matching that SUT
+(`game.bundle`, `game.mapping`, `bridge.handoff`, `match`, etc.) even when it
+uses the Board harness. Use `board/` and `session/` only for behavior-shaped
+tests where no single production package owns the assertion. Do not put Board
+and Session tests in the same file. Card-specific tests stay out of generic
+mechanic/domain folders until we can explain the card-specific invariant they
+cover.
 
 ## Helpers — where things live
 
