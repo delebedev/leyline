@@ -19,8 +19,6 @@ Key proto fields on `FormatConfigInfo`:
 - Field 12: `MainDeckQuota` (Quota message)
 - Field 13: `SideboardQuota` (Quota message)
 
-Reference: format-data-client-init research (local notes)
-
 ### DeckSelectFormat in ActiveEventsV2 must match format-metadata name
 
 `EventUXInfo.DeckSelectFormat` → `FormatManager.GetSafeFormat(name)`. Mismatch = queue can't filter decks → they silently vanish. Use `"Brawl"` (not `"StandardBrawl"`) for Standard Brawl events.
