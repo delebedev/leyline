@@ -5,10 +5,10 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.BoardTestBase
-import leyline.conformance.TestCardRegistry
-import leyline.conformance.humanPlayer
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.BoardTestBase
+import leyline.testkit.TestCardRegistry
+import leyline.testkit.humanPlayer
 
 class ObjectMapperTest :
     FunSpec({

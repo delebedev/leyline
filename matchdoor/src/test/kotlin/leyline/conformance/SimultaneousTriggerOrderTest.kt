@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import io.kotest.matchers.shouldBe
+import leyline.testkit.SessionTest
 import kotlin.time.Duration.Companion.seconds
 
 /**

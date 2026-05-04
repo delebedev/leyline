@@ -12,13 +12,13 @@ import io.kotest.matchers.shouldNotBe
 import leyline.BoardTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.BoardTestBase
-import leyline.conformance.beAltCostOffer
-import leyline.conformance.humanPlayer
-import leyline.conformance.offerAltCost
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.BoardTestBase
+import leyline.testkit.beAltCostOffer
+import leyline.testkit.humanPlayer
+import leyline.testkit.offerAltCost
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**

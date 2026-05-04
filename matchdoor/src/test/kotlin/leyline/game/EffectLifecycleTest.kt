@@ -13,12 +13,12 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.conformance.TestCardRegistry
 import leyline.game.event.FrameEventLog
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**

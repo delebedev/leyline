@@ -8,6 +8,8 @@ import leyline.BoardTag
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.BoardTestBase
+import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.SuperType

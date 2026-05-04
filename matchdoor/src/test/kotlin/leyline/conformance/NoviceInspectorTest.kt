@@ -9,6 +9,8 @@ import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
+import leyline.testkit.MatchFlowHarness
+import leyline.testkit.TestCardRegistry
 
 /**
  * Novice Inspector — investigate + Clue token + sac-for-draw.

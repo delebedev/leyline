@@ -7,8 +7,8 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.MatchFlowHarness
-import leyline.conformance.performAction
+import leyline.testkit.MatchFlowHarness
+import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**

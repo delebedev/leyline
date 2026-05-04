@@ -7,10 +7,10 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.InstanceId
-import leyline.conformance.detailInt
-import leyline.conformance.detailUint
 import leyline.game.annotations.MechanicAnnotations
 import leyline.game.state.EffectTracker
+import leyline.testkit.detailInt
+import leyline.testkit.detailUint
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**

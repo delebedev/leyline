@@ -1,4 +1,4 @@
-package leyline.conformance
+package leyline.testkit
 
 import forge.ai.LobbyPlayerAi
 import io.kotest.assertions.assertSoftly

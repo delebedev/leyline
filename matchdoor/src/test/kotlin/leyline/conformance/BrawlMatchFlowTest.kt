@@ -6,6 +6,9 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
+import leyline.testkit.BoardTest
+import leyline.testkit.beInCommandOf
+import leyline.testkit.humanPlayer
 
 /**
  * Brawl match init — verifies starting life, hand draw, and commander in command zone.

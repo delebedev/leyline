@@ -7,6 +7,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.SessionTest
+import leyline.testkit.TestCardRegistry
 
 /**
  * End-to-end integration coverage for the keyword-cast-shape mechanics that

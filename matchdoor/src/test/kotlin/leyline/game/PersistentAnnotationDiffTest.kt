@@ -8,8 +8,8 @@ import io.kotest.matchers.maps.shouldNotBeEmpty
 import leyline.BoardTag
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
-import leyline.conformance.BoardTestBase
 import leyline.game.state.GameBridge
+import leyline.testkit.BoardTestBase
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 

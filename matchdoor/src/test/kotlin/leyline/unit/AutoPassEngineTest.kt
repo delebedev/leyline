@@ -10,14 +10,14 @@ import leyline.BoardTag
 import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PriorityDecision
-import leyline.conformance.BoardTestBase
-import leyline.conformance.settingsMessage
 import leyline.match.AutoPassEngine
 import leyline.match.CombatHandler
 import leyline.match.MatchEventType
 import leyline.match.NumericInputHandler
 import leyline.match.OptionalActionHandler
 import leyline.match.TargetingHandler
+import leyline.testkit.BoardTestBase
+import leyline.testkit.settingsMessage
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
 import kotlin.time.Duration.Companion.seconds

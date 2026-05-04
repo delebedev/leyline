@@ -1,4 +1,4 @@
-package leyline.conformance
+package leyline.testkit
 
 import forge.game.card.Card
 import forge.game.zone.ZoneType

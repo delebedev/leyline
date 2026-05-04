@@ -1,4 +1,4 @@
-package leyline.conformance
+package leyline.testkit
 
 import forge.card.CardType.CoreType
 import forge.card.CardType.Supertype

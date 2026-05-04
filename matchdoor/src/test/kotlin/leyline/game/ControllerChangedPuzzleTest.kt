@@ -8,9 +8,9 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.MatchFlowHarness
-import leyline.conformance.detailInt
-import leyline.conformance.lastWithPersistentAnnotation
+import leyline.testkit.MatchFlowHarness
+import leyline.testkit.detailInt
+import leyline.testkit.lastWithPersistentAnnotation
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**

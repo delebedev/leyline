@@ -4,9 +4,9 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.conformance.SessionTest
-import leyline.conformance.detailInt
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.SessionTest
+import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 private val WARP_PUZZLE =

@@ -10,13 +10,13 @@ import io.kotest.matchers.shouldNotBe
 import leyline.BoardTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.GrpId
-import leyline.conformance.BoardTestBase
-import leyline.conformance.humanPlayer
-import leyline.conformance.offerAltCost
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.BoardTestBase
+import leyline.testkit.humanPlayer
+import leyline.testkit.offerAltCost
 
 /**
  * Sneak hand-cast-with-alternate-cost path.

@@ -8,12 +8,12 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
-import leyline.conformance.BoardTestBase
-import leyline.conformance.CardDataDeriver
-import leyline.conformance.TestCardInjector
 import leyline.game.codes.SlotKind
 import leyline.game.data.CardData
 import leyline.game.state.AbilityRegistry
+import leyline.testkit.BoardTestBase
+import leyline.testkit.CardDataDeriver
+import leyline.testkit.TestCardInjector
 
 class AbilityRegistryTest :
     FunSpec({

@@ -11,6 +11,8 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.GsmBuilder
 import leyline.game.mapping.PromptIds
 import leyline.protocol.HandshakeMessages
+import leyline.testkit.BoardTestBase
+import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**

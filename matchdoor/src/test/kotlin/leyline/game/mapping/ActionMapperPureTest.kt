@@ -9,11 +9,11 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.types.GrpId
-import leyline.conformance.BoardTestBase
-import leyline.conformance.haveManaCost
-import leyline.conformance.humanPlayer
-import leyline.conformance.mana
 import leyline.game.snapshot.GrpIdResolver
+import leyline.testkit.BoardTestBase
+import leyline.testkit.haveManaCost
+import leyline.testkit.humanPlayer
+import leyline.testkit.mana
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**

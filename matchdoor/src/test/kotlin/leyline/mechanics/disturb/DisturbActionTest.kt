@@ -11,12 +11,12 @@ import io.kotest.matchers.shouldNotBe
 import leyline.BoardTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.BoardTestBase
-import leyline.conformance.humanPlayer
-import leyline.conformance.offerAltCost
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.BoardTestBase
+import leyline.testkit.humanPlayer
+import leyline.testkit.offerAltCost
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
@@ -156,7 +156,7 @@ class DisturbActionTest :
                     .first { it.name == "Galedrifter" }
             val waildrifterGrpId =
                 b.cardRepository.findGrpIdByName("Waildrifter")
-                    ?: leyline.conformance.TestCardRegistry.ensureCardRegistered("Waildrifter")
+                    ?: leyline.testkit.TestCardRegistry.ensureCardRegistered("Waildrifter")
             val othersideGrpId = SnapshotCapture.resolveOthersideGrpId(card, b.cardRepository)
             othersideGrpId shouldBeGreaterThan 0
             othersideGrpId shouldBe waildrifterGrpId

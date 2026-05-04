@@ -1,4 +1,4 @@
-package leyline.conformance
+package leyline.testkit
 
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message

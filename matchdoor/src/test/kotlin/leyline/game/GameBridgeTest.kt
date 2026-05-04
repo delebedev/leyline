@@ -19,8 +19,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.GameConfig
 import leyline.config.MatchConfig
-import leyline.conformance.TestCardRegistry
-import leyline.conformance.detailString
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.event.FrameEventLog
@@ -29,6 +27,8 @@ import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.testkit.TestCardRegistry
+import leyline.testkit.detailString
 import wotc.mtgo.gre.external.messaging.Messages
 import java.util.Random
 

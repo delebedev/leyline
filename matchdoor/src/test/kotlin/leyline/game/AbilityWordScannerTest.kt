@@ -10,9 +10,9 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.BoardTestBase
-import leyline.conformance.humanPlayer
 import leyline.game.annotations.AbilityWordScanner
+import leyline.testkit.BoardTestBase
+import leyline.testkit.humanPlayer
 
 class AbilityWordScannerTest :
     FunSpec({

@@ -3,6 +3,8 @@ package leyline.conformance
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.testkit.BoardTest
+import leyline.testkit.haveManaCost
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**

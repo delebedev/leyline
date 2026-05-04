@@ -3,9 +3,9 @@ package leyline.unit
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.conformance.settingsMessage
-import leyline.conformance.stop
 import leyline.match.MatchSession
+import leyline.testkit.settingsMessage
+import leyline.testkit.stop
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.SettingScope
 import wotc.mtgo.gre.external.messaging.Messages.SettingStatus

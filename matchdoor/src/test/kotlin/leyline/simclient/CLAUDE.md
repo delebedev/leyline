@@ -180,8 +180,8 @@ If parallel execution ever lands, this approach needs per-thread MDC keying.
 
 ## Dependencies — what we lean on from the test tree
 
-The driver is thin because it leans on `MatchFlowHarness` (siblings under
-`leyline.conformance`) for:
+The driver is thin because it leans on `MatchFlowHarness` from
+`leyline.testkit` for:
 
 - match boot (`connectAndKeep`, `ConnectionState`, `MatchSession` instantiation,
   seed Full GSM via `GsmSnapshot` snapshotting + `StateMapper.buildFromSnapshot`,
@@ -195,7 +195,7 @@ The driver is thin because it leans on `MatchFlowHarness` (siblings under
 - state accessors (`turn()`, `isGameOver()`, `accumulator.actions`)
 
 If the simclient ever moves out of test source, only the essential ~400 lines
-of `MatchFlowHarness` need to come along — the conformance-test ergonomics
+of `MatchFlowHarness` need to come along — the test ergonomics
 (`castSpellUntil` lambdas, `toggleAttackers`, etc.) can stay in tests.
 
 ## Player.log → scry-ts shape gotchas
@@ -235,7 +235,7 @@ hitting the 200-iter same-turn stall), wire a responder:
 1. Add a `when` arm to `SimClientDriver.takeOneStep` matching the
    `GREMessageType` enum.
 2. Build the response via `MatchFlowHarness`'s helpers (most prompts already
-   have a wrapper) or via the proto builders in `leyline.conformance.ProtoDsl`.
+   have a wrapper) or via the proto builders in `leyline.testkit.ProtoDsl`.
 3. Add the message-type string to `PlayerLogWriter.MESSAGE_TYPE_NAMES` if it
    isn't already there — otherwise scry-ts won't recognize it on the
    downstream parse.
@@ -296,8 +296,8 @@ the message text with card / annotation context. Stats sidecar only counts;
 text is in the gradle report.
 
 For the GRE trace itself: `<deck>-s<seed>.log` is Player.log-shaped and
-parseable by anything that reads Player.log (the same classifier the
-conformance suite uses).
+parseable by anything that reads Player.log (the same classifier the test
+suite uses).
 
 ## Known limits
 

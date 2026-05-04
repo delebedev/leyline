@@ -1,4 +1,4 @@
-package leyline.conformance
+package leyline.testkit
 
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.Target as ProtoTarget

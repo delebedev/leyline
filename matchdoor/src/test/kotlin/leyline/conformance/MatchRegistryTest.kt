@@ -23,6 +23,7 @@ import leyline.match.MatchRegistry
 import leyline.match.MatchSession
 import leyline.match.MatchState
 import leyline.match.MatchTeardownReason
+import leyline.testkit.TestCardRegistry
 
 class MatchRegistryTest :
     FunSpec({

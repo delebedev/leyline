@@ -9,6 +9,10 @@ import io.kotest.matchers.shouldBe
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.BoardTest
+import leyline.testkit.beInCommandOf
+import leyline.testkit.gsm
+import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.GameVariant
 
 class CommanderPuzzleTest :

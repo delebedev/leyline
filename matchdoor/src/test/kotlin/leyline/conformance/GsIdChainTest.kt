@@ -7,6 +7,10 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
+import leyline.testkit.BoardTestBase
+import leyline.testkit.ValidatingMessageSink
+import leyline.testkit.gsm
+import leyline.testkit.humanPlayer
 
 /**
  * Validates gsId chain **semantics** beyond structural invariants.

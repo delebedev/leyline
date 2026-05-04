@@ -7,6 +7,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.BoardTest
+import leyline.testkit.ofType
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**

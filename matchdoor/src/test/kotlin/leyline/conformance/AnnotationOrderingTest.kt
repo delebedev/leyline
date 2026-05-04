@@ -4,6 +4,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
+import leyline.testkit.BoardTestBase
+import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**

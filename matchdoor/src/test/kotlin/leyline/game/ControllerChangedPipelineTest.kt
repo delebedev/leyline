@@ -12,13 +12,13 @@ import leyline.bridge.types.EffectId
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.conformance.detailInt
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.MechanicAnnotationResult
 import leyline.game.annotations.MechanicAnnotations
 import leyline.game.event.GameEvent
 import leyline.game.state.EffectTracker
 import leyline.game.state.PersistentAnnotationStore
+import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class ControllerChangedPipelineTest :

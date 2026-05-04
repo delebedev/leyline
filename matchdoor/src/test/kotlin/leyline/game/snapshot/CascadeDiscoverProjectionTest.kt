@@ -4,8 +4,8 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
-import leyline.conformance.SessionTest
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.SessionTest
 
 /**
  * End-to-end coverage for the trigger-ability projection on the Stack zone.

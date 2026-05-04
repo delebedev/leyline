@@ -1,4 +1,4 @@
-package leyline.conformance
+package leyline.testkit
 
 import io.kotest.matchers.Matcher
 import io.kotest.matchers.MatcherResult

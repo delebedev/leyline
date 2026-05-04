@@ -3,6 +3,8 @@ package leyline.conformance
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
+import leyline.testkit.BoardTestBase
+import leyline.testkit.humanPlayer
 
 class ConcealingCurtainsPuzzleTest :
     FunSpec({

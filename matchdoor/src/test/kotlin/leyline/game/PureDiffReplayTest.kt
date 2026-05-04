@@ -6,12 +6,12 @@ import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
-import leyline.conformance.BoardTestBase
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.testkit.BoardTestBase
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**

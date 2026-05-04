@@ -1,4 +1,4 @@
-package leyline.conformance
+package leyline.testkit
 
 import forge.game.Game
 import forge.game.player.Player

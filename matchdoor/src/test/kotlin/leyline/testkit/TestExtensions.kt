@@ -1,4 +1,4 @@
-package leyline.conformance
+package leyline.testkit
 
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty

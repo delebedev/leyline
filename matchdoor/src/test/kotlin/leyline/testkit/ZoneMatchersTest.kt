@@ -1,4 +1,4 @@
-package leyline.conformance
+package leyline.testkit
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.shouldFail

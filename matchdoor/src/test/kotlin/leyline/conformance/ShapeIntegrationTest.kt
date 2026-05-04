@@ -9,6 +9,7 @@ import leyline.game.InMemoryCardRepository
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
+import leyline.testkit.BoardTestBase
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 

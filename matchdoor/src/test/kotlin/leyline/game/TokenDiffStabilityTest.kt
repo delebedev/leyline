@@ -11,11 +11,11 @@ import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.conformance.MatchFlowHarness
-import leyline.conformance.TestCardRegistry
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.MatchFlowHarness
+import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.SubType
 

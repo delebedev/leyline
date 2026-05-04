@@ -6,11 +6,6 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.conformance.detail
-import leyline.conformance.detailInt
-import leyline.conformance.detailString
-import leyline.conformance.detailUint
-import leyline.conformance.hasDetail
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.CounterTypes
@@ -18,6 +13,11 @@ import leyline.game.codes.DetailKeys
 import leyline.game.codes.ManaColorMapping
 import leyline.game.codes.QualificationType
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.detail
+import leyline.testkit.detailInt
+import leyline.testkit.detailString
+import leyline.testkit.detailUint
+import leyline.testkit.hasDetail
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType

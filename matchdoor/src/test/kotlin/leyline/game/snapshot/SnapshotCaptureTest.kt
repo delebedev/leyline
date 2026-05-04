@@ -8,8 +8,8 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.BoardTestBase
-import leyline.conformance.humanPlayer
+import leyline.testkit.BoardTestBase
+import leyline.testkit.humanPlayer
 
 class SnapshotCaptureTest :
     FunSpec({

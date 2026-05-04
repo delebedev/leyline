@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
+import leyline.testkit.MatchFlowHarness
 
 /**
  * Integration test for Channel (hand-zone activated ability).

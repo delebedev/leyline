@@ -9,11 +9,11 @@ import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.BoardTestBase
-import leyline.conformance.haveManaCost
-import leyline.conformance.humanPlayer
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.BoardTestBase
+import leyline.testkit.haveManaCost
+import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 

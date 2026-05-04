@@ -18,9 +18,9 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.forge.CostDecision
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.SeatId
-import leyline.conformance.TestCardRegistry
 import leyline.game.generator.PuzzleSource
 import leyline.game.state.GameBridge
+import leyline.testkit.TestCardRegistry
 
 class CostDecisionTest :
     FunSpec({
@@ -73,7 +73,7 @@ class CostDecisionTest :
                     """.trimIndent(),
                 ),
             )
-            leyline.conformance.TestCardRegistry.registerPuzzleCards(localBridge.getGame()!!)
+            leyline.testkit.TestCardRegistry.registerPuzzleCards(localBridge.getGame()!!)
             val player = localBridge.getPlayer(SeatId(1))!!
             val source = player.getCardsIn(forge.game.zone.ZoneType.Hand).first { it.name == "Lightning Bolt" }
             val ability = source.spellAbilities.first()

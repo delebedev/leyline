@@ -2,6 +2,7 @@ package leyline.conformance
 
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import leyline.testkit.SessionTest
 
 /**
  * Session-tier activated ability tests — full MatchSession round-trip.

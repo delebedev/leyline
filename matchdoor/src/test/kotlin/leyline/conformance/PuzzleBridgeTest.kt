@@ -25,6 +25,8 @@ import leyline.infra.ListMessageSink
 import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
+import leyline.testkit.TestCardRegistry
+import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.GameStage as ProtoGameStage
 
 /**

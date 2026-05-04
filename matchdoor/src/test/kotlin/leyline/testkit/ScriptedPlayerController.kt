@@ -1,4 +1,4 @@
-package leyline.conformance
+package leyline.testkit
 
 import forge.ai.PlayerControllerAi
 import forge.game.Game

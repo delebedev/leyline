@@ -6,7 +6,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import leyline.SimClientTag
-import leyline.conformance.MatchFlowHarness
+import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import java.nio.file.Files
 import java.time.LocalDateTime

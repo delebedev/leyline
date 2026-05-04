@@ -6,6 +6,8 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.BoardTag
+import leyline.testkit.BoardTestBase
+import leyline.testkit.TestCardInjector
 
 /**
  * Verifies the saga chapter resolution shape after the fixture migration.

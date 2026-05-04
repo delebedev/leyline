@@ -8,9 +8,9 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
-import leyline.conformance.detailInt
 import leyline.game.annotations.MechanicAnnotations
 import leyline.game.state.EffectTracker
+import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**

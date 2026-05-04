@@ -5,8 +5,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import leyline.BoardTag
-import leyline.conformance.BoardTestBase
 import leyline.game.mapping.ActionMapper
+import leyline.testkit.BoardTestBase
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**

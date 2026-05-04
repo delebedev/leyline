@@ -12,6 +12,10 @@ import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.game.seedDiffBaseline
+import leyline.testkit.BoardTestBase
+import leyline.testkit.gsm
+import leyline.testkit.gsmOrNull
+import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**

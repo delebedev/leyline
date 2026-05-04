@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
+import leyline.testkit.SessionTest
 
 /**
  * Regression test: DeclareBlockersReq must be sent at most once per

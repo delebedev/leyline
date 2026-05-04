@@ -1,4 +1,4 @@
-package leyline.conformance
+package leyline.testkit
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec

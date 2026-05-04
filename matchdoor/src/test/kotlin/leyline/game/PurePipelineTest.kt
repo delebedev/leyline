@@ -13,7 +13,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.conformance.detailInt
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.annotations.AppliedTransfer
@@ -27,6 +26,7 @@ import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
 import leyline.game.state.InstanceIdRegistry
+import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType

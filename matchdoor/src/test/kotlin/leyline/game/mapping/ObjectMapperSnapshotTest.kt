@@ -8,12 +8,12 @@ import io.kotest.matchers.shouldNotBe
 import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.conformance.BoardTestBase
-import leyline.conformance.TestCardRegistry
-import leyline.conformance.aiPlayer
-import leyline.conformance.humanPlayer
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.BoardTestBase
+import leyline.testkit.TestCardRegistry
+import leyline.testkit.aiPlayer
+import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 /**

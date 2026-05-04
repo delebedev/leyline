@@ -13,8 +13,8 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.BoardTestBase
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.BoardTestBase
 
 /**
  * Pins that BoundCard's per-card bound view agrees with direct

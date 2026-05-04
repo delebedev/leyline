@@ -16,11 +16,11 @@ import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.conformance.BoardTestBase
-import leyline.conformance.aiPlayer
-import leyline.conformance.humanPlayer
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
+import leyline.testkit.BoardTestBase
+import leyline.testkit.aiPlayer
+import leyline.testkit.humanPlayer
 
 /**
  * Tests for [leyline.game.event.GameEventCollector] — verifies that Forge engine events are

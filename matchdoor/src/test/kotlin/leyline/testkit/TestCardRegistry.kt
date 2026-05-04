@@ -1,4 +1,4 @@
-package leyline.conformance
+package leyline.testkit
 
 import leyline.game.InMemoryCardRepository
 

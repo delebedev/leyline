@@ -9,6 +9,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
+import leyline.testkit.MatchFlowHarness
 
 /**
  * Integration test for planeswalker sacrifice puzzle.

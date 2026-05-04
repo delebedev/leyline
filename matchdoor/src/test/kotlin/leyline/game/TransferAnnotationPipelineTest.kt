@@ -7,13 +7,13 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.conformance.detailInt
-import leyline.conformance.detailUint
 import leyline.game.annotations.AppliedTransfer
 import leyline.game.annotations.ManaPaymentRecord
 import leyline.game.annotations.TransferAnnotations
 import leyline.game.annotations.TransferCategory
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.detailInt
+import leyline.testkit.detailUint
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**

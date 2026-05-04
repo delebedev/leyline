@@ -10,11 +10,11 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.BoardTestBase
-import leyline.conformance.detail
-import leyline.conformance.detailInt
-import leyline.conformance.detailString
-import leyline.conformance.humanPlayer
+import leyline.testkit.BoardTestBase
+import leyline.testkit.detail
+import leyline.testkit.detailInt
+import leyline.testkit.detailString
+import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**

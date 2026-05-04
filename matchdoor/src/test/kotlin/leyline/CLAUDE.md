@@ -8,8 +8,8 @@ Three tiers, each with a base class. **Never mix in one file.** A detekt rule (`
 
 | Tier | Base | When | Cost |
 |---|---|---|---|
-| Board | `BoardTest` (in `conformance/`) | Test the bridge or annotation pipeline directly. `bundleBuilder(b).buildActions()`, `StateMapper.buildFromGame()`, `AnnotationBuilder` calls. | <0.1s/test |
-| Session | `SessionTest` (in `conformance/`) | Test that requires driving the priority loop — `passUntil`, `selectTargets`, `declareAttackers`, `respondToOptionalCost`. The real `MatchSession` + Forge engine. | 0.7–3s/test |
+| Board | `BoardTest` (in `testkit/`) | Test the bridge or annotation pipeline directly. `bundleBuilder(b).buildActions()`, `StateMapper.buildFromGame()`, `AnnotationBuilder` calls. | <0.1s/test |
+| Session | `SessionTest` (in `testkit/`) | Test that requires driving the priority loop — `passUntil`, `selectTargets`, `declareAttackers`, `respondToOptionalCost`. The real `MatchSession` + Forge engine. | 0.7–3s/test |
 | Pure unit | bare `FunSpec` | Pure-data logic. No engine, no harness. | <10ms/test |
 
 If a Session-tier test never calls a driver (`passPriority`, `passUntil`, `advanceTo*`, `onPerformAction`, `respondTo*`), move it to Board tier — same signal, much cheaper. Suppress `TierPlacementCheck` only with a comment explaining why the loop is essential to the assertion (e.g. `DrawUpdateTypeShapeTest` needs a real turn-boundary draw event from the engine's EventBus).
@@ -19,16 +19,15 @@ Every Spec subclass must call `tags(UnitTag | BoardTag | IntegrationTag)`. `FunS
 ## Helpers — where things live
 
 ```
-conformance/
+testkit/
 ├── ZoneMatchers.kt           kotest Matcher<String> for zone membership ("X" should beInHandOf(p))
 ├── ActionMatchers.kt         kotest matchers for Action / ActionsAvailableReq (alt-cost offers, etc.)
-├── GameObjectMatchers.kt     kotest matchers for GameObjectInfo (visibility, attackState, copy projection)
 ├── TestExtensions.kt         non-matcher extensions: AnnotationInfo.detail*(), GSM.annotation(type), ActionsAvailableReq.ofType()
 ├── MessageWalk.kt            List<GREToClientMessage> walkers: allAnnotations(), firstGameObjectByIid(), etc.
 ├── ProtoDsl.kt               builder DSL for client→GRE messages (performAction { ... })
-├── BoardTestBase.kt    Board-tier setup (initCardDatabase, addCard, startWithBoard)
-├── BoardTest.kt          base class — wires BoardTestBase
-├── SessionTest.kt        base class — wires MatchFlowHarness, exposes selectTargets/passUntil/instanceIdOf
+├── BoardTestBase.kt          Board-tier setup (initCardDatabase, addCard, startWithBoard)
+├── BoardTest.kt              base class — wires BoardTestBase
+├── SessionTest.kt            base class — wires MatchFlowHarness, exposes selectTargets/passUntil/instanceIdOf
 ├── MatchFlowHarness.kt       Session-tier harness — owns the game thread, message stream, scripted AI
 ├── ScriptedPlayerController.kt
 ├── ClientAccumulator.kt      replays GSMs against a parallel game-state model — invariant checker

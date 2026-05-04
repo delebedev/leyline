@@ -9,6 +9,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
 import leyline.bridge.types.SeatId
+import leyline.testkit.MatchFlowHarness
+import leyline.testkit.beInExileOf
 
 /**
  * Integration test for Immersturm Predator — sacrifice-as-cost activated ability.

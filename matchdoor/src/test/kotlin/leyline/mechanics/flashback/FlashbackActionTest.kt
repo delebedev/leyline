@@ -7,12 +7,12 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.BoardTest
-import leyline.conformance.haveManaCost
-import leyline.conformance.humanPlayer
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.BoardTest
+import leyline.testkit.haveManaCost
+import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 class FlashbackActionTest :

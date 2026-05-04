@@ -9,11 +9,11 @@ import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.conformance.detailInt
-import leyline.conformance.detailString
 import leyline.game.annotations.MechanicAnnotations
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
+import leyline.testkit.detailInt
+import leyline.testkit.detailString
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
