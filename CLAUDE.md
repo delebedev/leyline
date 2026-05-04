@@ -65,7 +65,7 @@ Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.
 
 ## Reference
 
-- **Architecture:** `docs/architecture.md`, `matchdoor/CLAUDE.md` (engine adapter internals).
+- **Architecture:** `docs/architecture.md`, `docs/forge-api-concepts.md`, `matchdoor/CLAUDE.md` (engine adapter internals).
 - **Local setup notes:** `docs/local-client-setup.md`
 
 ## Documentation
