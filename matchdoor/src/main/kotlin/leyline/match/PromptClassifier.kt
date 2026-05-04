@@ -31,6 +31,7 @@ sealed interface ClassifiedPrompt {
             LegendRule,
             Discard,
             Sacrifice,
+            SacrificeEffect,
             RevealChoose,
             Resolution,
             ExileFromGrave,
@@ -72,6 +73,10 @@ object PromptClassifier {
             PromptSemantic.Search -> ClassifiedPrompt.Search(p)
             PromptSemantic.RevealChoose ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.RevealChoose)
+            PromptSemantic.SelectNSacrificeEffect ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.SacrificeEffect)
+            PromptSemantic.SelectNCostSacrifice ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.Sacrifice)
             PromptSemantic.SelectNCostExileFromGrave ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.ExileFromGrave)
             PromptSemantic.SelectNResolution ->
@@ -84,8 +89,6 @@ object PromptClassifier {
         req: PromptRequest,
     ): ClassifiedPrompt =
         when {
-            req.promptType == "choose_cards" && req.message.contains("sacrifice", ignoreCase = true) ->
-                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.Sacrifice)
             req.candidateRefs.isNotEmpty() -> ClassifiedPrompt.Targeting(p)
             else -> ClassifiedPrompt.AutoResolve(p)
         }

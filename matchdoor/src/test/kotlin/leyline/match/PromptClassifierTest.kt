@@ -108,15 +108,39 @@ class PromptClassifierTest :
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.Resolution
         }
 
-        test("generic sacrifice prompt classifies as select-n with Sacrifice reason") {
+        test("sacrifice cost semantic classifies as select-n with Sacrifice reason") {
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "Choose permanents",
+                    semantic = PromptSemantic.SelectNCostSacrifice,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.Sacrifice
+        }
+
+        test("sacrifice effect semantic classifies as select-n without cost-payment reason") {
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "Choose a creature",
+                    semantic = PromptSemantic.SelectNSacrificeEffect,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.SacrificeEffect
+        }
+
+        test("generic choose-cards prompt does not infer sacrifice from message text") {
             val result =
                 classify(
                     promptType = "choose_cards",
                     message = "Sacrifice a creature",
                     candidateRefs = listOf(cardRef),
-                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+                ).shouldBeInstanceOf<ClassifiedPrompt.Targeting>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.Sacrifice
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.Generic
         }
 
         test("candidate refs without a stronger semantic classifies as targeting") {

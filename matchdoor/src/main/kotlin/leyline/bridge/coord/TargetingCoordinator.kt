@@ -197,11 +197,28 @@ class TargetingCoordinator(
     // -- Discard / sacrifice ---------------------------------------------
 
     fun choosePermanentsToSacrifice(
+        sa: SpellAbility?,
         min: Int,
         max: Int,
         validTargets: CardCollectionView,
         message: String?,
-    ): CardCollectionView = chooseCardsViaBridge(validTargets, min, max, message ?: "Choose permanents to sacrifice")
+    ): CardCollectionView {
+        val semantic =
+            if (sa?.isOffering == true || sa?.isEmerge == true) {
+                PromptSemantic.SelectNCostSacrifice
+            } else {
+                PromptSemantic.SelectNSacrificeEffect
+            }
+        return chooseCardsViaBridge(
+            validTargets,
+            min,
+            max,
+            message ?: "Choose permanents to sacrifice",
+            semantic = semantic,
+            candidateRefs = buildCandidateRefs(validTargets),
+            sourceEntityId = sa?.hostCard?.id,
+        )
+    }
 
     fun choosePermanentsToDestroy(
         min: Int,
@@ -574,6 +591,9 @@ class TargetingCoordinator(
         min: Int,
         max: Int,
         message: String,
+        semantic: PromptSemantic = PromptSemantic.Generic,
+        candidateRefs: List<PromptCandidateRefDto> = emptyList(),
+        sourceEntityId: Int? = null,
     ): CardCollection {
         if (cards.isEmpty()) return CardCollection()
         val effectiveMax = max.coerceAtMost(cards.size)
@@ -588,6 +608,9 @@ class TargetingCoordinator(
                 min = effectiveMin,
                 max = effectiveMax,
                 defaultIndex = 0,
+                semantic = semantic,
+                candidateRefs = candidateRefs,
+                sourceEntityId = sourceEntityId,
             )
         val indices = bridge.requestChoice(request)
         val result = CardCollection()

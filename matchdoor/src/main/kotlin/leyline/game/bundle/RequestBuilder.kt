@@ -253,9 +253,6 @@ object RequestBuilder {
         bridge: GameBridge,
     ): SelectNReq {
         val semantic = prompt.request.semantic
-        val isSacrificePrompt =
-            prompt.request.promptType == "choose_cards" &&
-                prompt.request.message.contains("sacrifice", ignoreCase = true)
         val (context, listType, optionContext) =
             when (semantic) {
                 PromptSemantic.SelectNDiscard ->
@@ -274,11 +271,11 @@ object RequestBuilder {
         val builder =
             SelectNReq
                 .newBuilder()
-                .setContext(if (isSacrificePrompt) SelectionContext.Discard_a163 else context)
-                .setListType(if (isSacrificePrompt) SelectionListType.Static else listType)
+                .setContext(context)
+                .setListType(listType)
                 .setIdType(IdType.InstanceId_ab2c)
                 .setValidationType(SelectionValidationType.NonRepeatable)
-                .setOptionContext(if (isSacrificePrompt) OptionContext.Payment else optionContext)
+                .setOptionContext(optionContext)
                 // Always per spec — INT32 extremes (no weight filtering on resolution picks).
                 .setMinWeight(Int.MIN_VALUE)
                 .setMaxWeight(Int.MAX_VALUE)
@@ -345,9 +342,7 @@ object RequestBuilder {
                     builder.setSourceId(sourceInstanceId)
                 }
                 builder.setPrompt(
-                    Prompt.newBuilder().setPromptId(
-                        if (isSacrificePrompt) PromptIds.PAY_COSTS else PromptIds.SELECT_N,
-                    ),
+                    Prompt.newBuilder().setPromptId(PromptIds.SELECT_N),
                 )
             }
         }

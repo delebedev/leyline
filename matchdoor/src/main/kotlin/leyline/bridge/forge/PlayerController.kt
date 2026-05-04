@@ -362,7 +362,7 @@ class PlayerController(
         max: Int,
         validTargets: CardCollectionView,
         message: String?,
-    ): CardCollectionView = targetingCoordinator.choosePermanentsToSacrifice(min, max, validTargets, message)
+    ): CardCollectionView = targetingCoordinator.choosePermanentsToSacrifice(sa, min, max, validTargets, message)
 
     override fun choosePermanentsToDestroy(
         sa: SpellAbility?,
