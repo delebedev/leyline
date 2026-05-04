@@ -18,8 +18,8 @@ import org.jetbrains.kotlin.psi.KtFile
  * - mechanics tests live under mechanics/<mechanic>
  * - mixed BoardTag + IntegrationTag files stay out of domain packages
  *
- * `conformance/` is deliberately skipped: it is the review bucket for old,
- * mixed, or card-specific files that still need a human classification pass.
+ * `conformance/` is retired: old mixed files must be split by tier before
+ * landing in a durable package.
  */
 class TestLayoutCheck(config: Config) : Rule(config) {
     override val issue = Issue(
@@ -33,7 +33,10 @@ class TestLayoutCheck(config: Config) : Rule(config) {
         super.visitKtFile(file)
         val packageName = file.packageFqName.asString()
         if (!packageName.startsWith("leyline.")) return
-        if (packageName.startsWith("leyline.conformance")) return
+        if (packageName.startsWith("leyline.conformance")) {
+            report(file, "conformance/ is retired. Split by tier and move the test to its owning package.")
+            return
+        }
         if (packageName.startsWith("leyline.testkit")) return
         if (packageName == "leyline") return
 

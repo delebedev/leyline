@@ -15,6 +15,7 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTestBase
+import leyline.testkit.TestCardRegistry
 import leyline.testkit.humanPlayer
 import leyline.testkit.offerAltCost
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -156,9 +157,29 @@ class DisturbActionTest :
                     .first { it.name == "Galedrifter" }
             val waildrifterGrpId =
                 b.cardRepository.findGrpIdByName("Waildrifter")
-                    ?: leyline.testkit.TestCardRegistry.ensureCardRegistered("Waildrifter")
+                    ?: TestCardRegistry.ensureCardRegistered("Waildrifter")
             val othersideGrpId = SnapshotCapture.resolveOthersideGrpId(card, b.cardRepository)
             othersideGrpId shouldBeGreaterThan 0
             othersideGrpId shouldBe waildrifterGrpId
+        }
+
+        test("SnapshotCapture.resolveOthersideGrpId falls back to any-face lookup for Lunarch Veteran") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Lunarch Veteran", human, ZoneType.Battlefield)
+                }
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Lunarch Veteran" }
+            val luminousPhantomGrpId =
+                b.cardRepository.findGrpIdByNameAnyFace("Luminous Phantom")
+                    ?: TestCardRegistry.ensureCardRegistered("Luminous Phantom")
+
+            val othersideGrpId = SnapshotCapture.resolveOthersideGrpId(card, b.cardRepository)
+
+            luminousPhantomGrpId shouldBeGreaterThan 0
+            othersideGrpId shouldBe luminousPhantomGrpId
         }
     })

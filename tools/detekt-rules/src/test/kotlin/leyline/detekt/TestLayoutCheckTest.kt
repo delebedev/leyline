@@ -109,7 +109,7 @@ class TestLayoutCheckTest : FunSpec({
         rule.lint(code).shouldBeEmpty()
     }
 
-    test("skips conformance review bucket") {
+    test("flags retired conformance package") {
         val code = """
             package leyline.conformance
 
@@ -123,6 +123,6 @@ class TestLayoutCheckTest : FunSpec({
             }
             fun tags(tag: Any) {}
         """.trimIndent()
-        rule.lint(code).shouldBeEmpty()
+        rule.lint(code) shouldHaveSize 1
     }
 })

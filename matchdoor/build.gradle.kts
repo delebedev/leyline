@@ -112,7 +112,7 @@ val testIntegrationStrict by tasks.registering(Test::class) {
 }
 
 // One-shot profiler task. Usage:
-//   ./gradlew :matchdoor:profileTest --tests "leyline.conformance.DeclareBlockersDedupeTest"
+//   ./gradlew :matchdoor:profileTest --tests "leyline.session.combat.DeclareBlockersDedupeTest"
 // JFR dump: /tmp/matchdoor-profile.jfr — inspect with `jfr summary` or `jfr print`.
 val profileTest by tasks.registering(Test::class) {
     configureTestDefaults()

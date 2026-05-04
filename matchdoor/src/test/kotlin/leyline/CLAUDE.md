@@ -25,7 +25,6 @@ session/<domain>/     Session-tier tests: MatchSession + engine loop behavior.
 mechanics/<keyword>/  Keyword/mechanic suites split action-vs-lifecycle.
 behavior/             Behavior/protocol thesis tests with no single production SUT.
 testkit/              Shared bases, harnesses, matchers, proto DSL, fixtures.
-conformance/          Temporary review bucket for mixed-lane or still-ambiguous files.
 ```
 
 If a test has a clear production SUT, put it in the package matching that SUT
