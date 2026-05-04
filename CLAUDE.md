@@ -4,7 +4,6 @@ Local playtesting server built around a client protocol bridge and Forge (open-s
 
 - **Depends on:** forge (engine submodule — game bridges, bootstrap) — never reverse the dependency
 - **Server mode:** `just serve` (local-only)
-- **Bugs & tasks:** `bd` (beads) for agent work; GitHub Issues for public-facing bugs/features
 
 **Engineering stance:** correctness over speed. The protocol is opaque and the client is unforgiving — shortcuts compound.
 
@@ -22,28 +21,6 @@ Local playtesting server built around a client protocol bridge and Forge (open-s
 - **Elegance balance.** Non-trivial changes: pause and ask "is there a more elegant way?" Skip for simple obvious fixes.
 - **Learn from corrections.** Fold durable corrections into the relevant doc or local workflow note. Don't keep a public catch-all lessons log.
 - **Ralph PRs get labeled.** Add `--label ralph` to `gh pr create` in ralph-loop sessions.
-
-## Task Tracking (beads)
-
-`bd` is the issue tracker. Dolt DB in `.beads/`, synced via `bd dolt push/pull`.
-
-```bash
-bd ready                    # what's unblocked and available
-bd show <id>                # full details + deps
-bd create --title="..." --description="..." --type=task --priority=2  # new issue
-bd update <id> --claim      # claim + mark in-progress
-bd close <id>               # done
-bd dep add <child> <parent> # wire dependencies
-bd search <query>           # title search
-bd query 'description=...'  # full-text search across all fields
-bd remember "insight"       # persistent cross-session memory
-bd prime                    # session context dump (memories, workflow)
-```
-
-- **Priority:** 0–4 (0=critical, 4=backlog). Not words.
-- **Don't use `bd edit`** — opens $EDITOR, blocks agents. Use `bd update <id> --description="..."` inline.
-- **Worktrees:** `bd` doesn't work from worktrees (server discovery bug). Run `bd` from the main repo only.
-- GH issues remain for public bug reports and external contributors.
 
 ## Modules
 
