@@ -9,7 +9,11 @@ import forge.game.zone.ZoneType
 object PlayableActionQuery {
     /**
      * Returns true if [player] has any meaningful (non-mana) action available
-     * in the current game state. Used for smart phase skipping.
+     * in the current game state. Used for engine-side smart phase skipping.
+     *
+     * This checks legal opportunities, not mana affordability. A legal but
+     * currently unaffordable action should keep priority so the session layer can
+     * show the inactive action instead of silently skipping the priority point.
      */
     fun hasPlayableNonManaAction(
         game: Game,

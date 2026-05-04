@@ -9,6 +9,7 @@ import leyline.ConformanceTag
 import leyline.UnitTag
 import leyline.conformance.ConformanceTestBase
 import leyline.game.mapping.ActionMapper
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
@@ -22,7 +23,7 @@ class AdventureCastActionTest :
         afterEach { base.tearDown() }
 
         test("adventure card in hand produces both Cast and CastAdventure actions") {
-            val (b, _, _) =
+            val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Ratcatcher Trainee", human, ZoneType.Hand)
                     repeat(3) { base.addCard("Mountain", human, ZoneType.Battlefield) }
@@ -33,10 +34,10 @@ class AdventureCastActionTest :
                     ?: error("Ratcatcher Trainee not in card registry")
 
             val actions =
-                ActionMapper.buildActionList(
+                ActionMapper.buildFromSnapshot(
                     seatId = 1,
+                    snap = GsmSnapshot.capture(game, b, "test", 0),
                     bridge = b,
-                    checkLegality = true,
                 )
 
             val castActions = actions.actionsList.filter { it.actionType == ActionType.Cast }
@@ -53,17 +54,17 @@ class AdventureCastActionTest :
         }
 
         test("non-adventure card produces no CastAdventure") {
-            val (b, _, _) =
+            val (b, game, _) =
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Grizzly Bears", human, ZoneType.Hand)
                     repeat(2) { base.addCard("Forest", human, ZoneType.Battlefield) }
                 }
 
             val actions =
-                ActionMapper.buildActionList(
+                ActionMapper.buildFromSnapshot(
                     seatId = 1,
+                    snap = GsmSnapshot.capture(game, b, "test", 0),
                     bridge = b,
-                    checkLegality = true,
                 )
 
             actions.actionsList.filter { it.actionType == ActionType.CastAdventure } shouldHaveSize 0

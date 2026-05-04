@@ -36,7 +36,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *
  * Depends on [IdMapping] (instanceId allocation) and [PlayerLookup] (seat → player).
  */
-@Suppress("LargeClass") // buildFromSnapshot mirrors buildActionList — inherent size; split assessed
+@Suppress("LargeClass") // action emission spans multiple zones and wire shapes.
 object ActionMapper {
     private val log = LoggerFactory.getLogger(ActionMapper::class.java)
 
@@ -70,25 +70,12 @@ object ActionMapper {
     fun buildNaiveActions(
         seatId: Int,
         bridge: GameBridge,
-    ): ActionsAvailableReq = buildActionList(seatId, bridge, checkLegality = false)
-
-    /**
-     * Shared action list builder — bridge-backed overload.
-     *
-     * Extracts the function params the pure overload needs from [bridge] and
-     * forwards. Callers that already have the discrete params should prefer
-     * the pure overload directly.
-     */
-    internal fun buildActionList(
-        seatId: Int,
-        bridge: GameBridge,
-        checkLegality: Boolean,
     ): ActionsAvailableReq {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return passOnlyActions()
         return buildActionList(
             player = player,
             seatId = seatId,
-            checkLegality = checkLegality,
+            checkLegality = false,
             idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(forgeCardId) },
             grpIdResolver = { card ->
                 val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
@@ -100,10 +87,6 @@ object ActionMapper {
         )
     }
 
-    // -------------------------------------------------------------------------
-    // Task 8: snapshot-driven overload
-    // -------------------------------------------------------------------------
-
     /**
      * Build [ActionsAvailableReq] from a pre-captured [GsmSnapshot].
      *
@@ -111,10 +94,11 @@ object ActionMapper {
      * race-free). Cost-legality checks route through [legalityFor] which reads
      * the live Forge [Card] via [bridge] — this keeps cost-solver migration
      * out of scope for this task.
-     *
-     * Mirrors [buildActionList] (checkLegality=true) branch by branch.
+     * This is the production action-emission path. The live [buildActionList]
+     * overload remains as a focused test/naive-action helper and does not emit
+     * zone-cast rail shapes.
      */
-    @Suppress("LongMethod", "CyclomaticComplexMethod") // mirrors buildActionList complexity
+    @Suppress("LongMethod", "CyclomaticComplexMethod") // action types × zone-specific wire shapes.
     fun buildFromSnapshot(
         seatId: Int,
         snap: GsmSnapshot,
@@ -569,17 +553,14 @@ object ActionMapper {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // End Task 8
-    // -------------------------------------------------------------------------
-
     /**
      * Shared action list builder — pure overload with function params.
      *
      * @param player Forge player for the seat.
      * @param seatId Arena seat identifier (for logging).
-     * @param checkLegality true → full legality checks (canPlayLand, canPayManaCost,
-     *   activated ability canPlay, autoTapSolution, inactive land actions).
+     * @param checkLegality true → live legality checks for hand/battlefield actions
+     *   (canPlayLand, canPayManaCost, activated ability canPlay, autoTapSolution,
+     *   inactive land actions). Zone-cast actions are snapshot-only.
      *   false → naive mode (everything playable, no autoTap, no Activate abilities).
      * @param idResolver forgeCardId → instanceId.
      * @param grpIdResolver card → grpId (handles both battlefield and hand cards).
