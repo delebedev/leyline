@@ -13,6 +13,7 @@ import forge.game.spellability.SpellAbility
 import leyline.bridge.chooseCastAbility
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
+import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
@@ -1205,9 +1206,7 @@ object ActionMapper {
         val sources = mutableListOf<ManaSource>()
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (card.isTapped) continue
-            for (sa in card.manaAbilities) {
-                sa.setActivatingPlayer(player)
-                if (!sa.canPlay()) continue
+            for (sa in getPlayableManaAbilities(card, player)) {
                 val mana = sa.manaPart ?: continue
                 val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
                 val colors = produced.split(" ").mapNotNull { producedToManaColor(it) }

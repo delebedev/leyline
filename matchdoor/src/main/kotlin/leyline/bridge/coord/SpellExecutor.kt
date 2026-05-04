@@ -10,6 +10,7 @@ import forge.game.spellability.SpellAbility
 import leyline.bridge.findCard
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
+import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.Target
@@ -84,7 +85,7 @@ class SpellExecutor(
      */
     fun activateMana(cardId: ForgeCardId): Boolean {
         val card = findCard(game, cardId) ?: return false
-        val playableAbilities = card.manaAbilities.filter { it.canPlay() }
+        val playableAbilities = getPlayableManaAbilities(card, player)
         if (playableAbilities.isEmpty()) return false
         log.debug("activateMana: {} ({} abilities)", card.name, playableAbilities.size)
 

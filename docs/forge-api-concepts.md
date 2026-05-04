@@ -66,6 +66,8 @@ Use `chooseCastAbility(card, player)` when you only need the best current cast c
 
 Use `CastRails` when an action needs protocol fields for a named cast rail such as plot, foretell, disturb, escape, warp, or sneak. The rail table is the shared source for action emission and action submission.
 
+Use `getNonManaActivatedAbilities(card, player)` and `getPlayableManaAbilities(card, player)` for ability lookup. Both set the activating player before legality-sensitive checks.
+
 ## 5. Legality Versus Affordability
 
 `SpellAbility.canPlay()` answers legality, not mana affordability.
