@@ -21,13 +21,13 @@ import leyline.game.snapshot.SnapshotCapture
 /**
  * Sneak hand-cast-with-alternate-cost path.
  *
- * Structural parity with WarpTest. The positive `canPay → offer appears` case
+ * Structural parity with WarpActionTest. The positive `canPay → offer appears` case
  * for Sneak can't be cheaply exercised here because Sneak's additional cost
  * (Return an unblocked attacker you control) requires a declared-blockers
  * combat state with an unblocked attacker — too much harness ceremony for the
  * tight scope of this change. We verify:
  *  - Forge exposes the Sneak alt-cost SA on the hand card (plumbing ready to
- *    cast once combat predicates are met — same machinery used by WarpTest's
+ *    cast once combat predicates are met — same machinery used by WarpActionTest's
  *    positive case).
  *  - Negative guards: insufficient mana → no alt-cost Cast offer.
  *  - Wrong-zone guards: graveyard / library → no alt-cost Cast offer.

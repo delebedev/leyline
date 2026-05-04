@@ -30,8 +30,6 @@
     <ID>MissingAssertSoftly:DfcTransformTest.kt$DfcTransformTest$curtains.isBackSide shouldBe true</ID>
     <ID>MissingAssertSoftly:DfcTransformTest.kt$DfcTransformTest$pending3.shouldNotBeNull()</ID>
     <ID>MissingAssertSoftly:EffectLifecycleTest.kt$EffectLifecycleTest$effectIdDetail.shouldNotBeNull()</ID>
-    <ID>MissingAssertSoftly:FlashbackTest.kt$FlashbackTest$player.getZone(ZoneType.Hand).size() shouldBe handBefore</ID>
-    <ID>MissingAssertSoftly:FlashbackTest.kt$FlashbackTest$player.getZone(ZoneType.Hand).size() shouldBe handBefore2 + 1</ID>
     <ID>MissingAssertSoftly:GameBridgeApiContractTest.kt$GameBridgeApiContractTest$methodNames.any { it == "seat" || it.startsWith("seat-") }.shouldBeTrue()</ID>
     <ID>MissingAssertSoftly:GameBridgeTest.kt$GameBridgeTest$a.grpId shouldBe 0</ID>
     <ID>MissingAssertSoftly:GameBridgeTest.kt$GameBridgeTest$actionInfo.actionId shouldBe 0</ID>

@@ -208,7 +208,7 @@ class MadnessTest :
             // validating=false: the hardcast resolve path surfaces a pre-existing
             // annotation-affectedId unresolvable violation (iid=119 in ZT at gsId=8)
             // unrelated to Madness wiring. Not introduced by this test. See
-            // FlashbackTest for the same pattern precedent. Re-enable once that
+            // FlashbackLifecycleTest for the same pattern precedent. Re-enable once that
             // gap is closed (separate L1.5 task).
             val h = MatchFlowHarness(validating = false)
             try {

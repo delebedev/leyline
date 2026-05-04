@@ -247,7 +247,12 @@ abstract class SessionTest(
     fun castSpellByName(
         cardName: String,
         zone: ZoneType = ZoneType.Hand,
-    ) = harness.castSpellByName(cardName, zone)
+        alternativeGrpId: Int = 0,
+    ) = harness.castSpellByName(cardName, zone, alternativeGrpId)
+
+    fun castFromGraveyard(cardName: String) = harness.castFromGraveyard(cardName)
+
+    fun castFromExile(cardName: String) = harness.castFromExile(cardName)
 
     fun resolveSpell(cardName: String) = harness.resolveSpell(cardName)
 
