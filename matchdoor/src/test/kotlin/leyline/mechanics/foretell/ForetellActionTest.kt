@@ -1,4 +1,4 @@
-package leyline.match
+package leyline.mechanics.foretell
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
@@ -52,7 +52,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
     // pre-matcher `actionsList.any{}.shouldBeFalse()` either way.
     "WeakAssertionOnly",
 )
-class ForetellTest :
+class ForetellActionTest :
     FunSpec({
 
         tags(BoardTag)

@@ -46,9 +46,9 @@
     <ID>MissingAssertSoftly:LegendRuleTest.kt$LegendRuleTest$h.accumulator.assertConsistent("after legend rule")</ID>
     <ID>MissingAssertSoftly:LibrarySearchConformanceTest.kt$LibrarySearchConformanceTest$assertSoftly { mountain.type shouldBe GameObjectType.Card mountain.visibility shouldBe Visibility.Private mountain.viewersList shouldBe listOf(1) mountain.ownerSeatId shouldBe 1 mountain.controllerSeatId shouldBe 1 mountain.zoneId shouldBe ZoneIds.P1_LIBRARY }</ID>
     <ID>MissingAssertSoftly:LibrarySearchConformanceTest.kt$LibrarySearchConformanceTest$obj.type shouldBe GameObjectType.Card</ID>
-    <ID>MissingAssertSoftly:MadnessTest.kt$MadnessTest$cto shouldNotBe null</ID>
-    <ID>MissingAssertSoftly:MadnessTest.kt$MadnessTest$h .passUntil(maxPasses = 6) { h.bridge .getGame()!! .stack.isEmpty }.shouldBeTrue()</ID>
-    <ID>MissingAssertSoftly:MadnessTest.kt$MadnessTest$madnessAbilityGrpId shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:MadnessLifecycleTest.kt$MadnessLifecycleTest$cto shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:MadnessLifecycleTest.kt$MadnessLifecycleTest$h .passUntil(maxPasses = 6) { h.bridge .getGame()!! .stack.isEmpty }.shouldBeTrue()</ID>
+    <ID>MissingAssertSoftly:MadnessLifecycleTest.kt$MadnessLifecycleTest$madnessAbilityGrpId shouldNotBe null</ID>
     <ID>MissingAssertSoftly:MatchFlowHarnessTest.kt$MatchFlowHarnessTest$h.isGameOver().shouldBeFalse()</ID>
     <ID>MissingAssertSoftly:MatchRegistryTest.kt$MatchRegistryTest$match.state shouldBe MatchState.FINISHED</ID>
     <ID>MissingAssertSoftly:MechanicAnnotationPipelineTest.kt$MechanicAnnotationPipelineTest$annotations.size shouldBe 1</ID>

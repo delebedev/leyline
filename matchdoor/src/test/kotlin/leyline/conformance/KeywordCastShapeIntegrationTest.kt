@@ -19,7 +19,7 @@ import leyline.game.data.KeywordAbilityIds
  *    and the resolver only used `findGrpIdByName`.
  *
  *  - Escape's per-card escape ability id surfacing on the cast offer. The
- *    [EscapeTest] suite already covers the offer shape via the snapshot
+ *    `EscapeActionTest` already covers the offer shape via the snapshot
  *    builder; this test pins it through the harness's GSM emission for
  *    parallel structure with the rest of the file.
  *

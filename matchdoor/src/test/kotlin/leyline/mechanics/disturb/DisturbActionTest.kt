@@ -1,4 +1,4 @@
-package leyline.match
+package leyline.mechanics.disturb
 
 import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
@@ -42,7 +42,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * Card: Galedrifter (front, Creature 3/2 Flying, ManaCost {3}{U}, K:Disturb:4 U).
  * Back face: Waildrifter (Creature 2/2 Flying Spirit, exile-instead-of-graveyard).
  */
-class DisturbTest :
+class DisturbActionTest :
     FunSpec({
 
         tags(BoardTag)

@@ -1,4 +1,4 @@
-package leyline.match
+package leyline.mechanics.sneak
 
 import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
@@ -40,7 +40,7 @@ import leyline.game.snapshot.SnapshotCapture
     // (leyline-2g6d), positive cast tests will carry equality-shape assertions.
     "WeakAssertionOnly",
 )
-class SneakTest :
+class SneakActionTest :
     FunSpec({
 
         tags(BoardTag)

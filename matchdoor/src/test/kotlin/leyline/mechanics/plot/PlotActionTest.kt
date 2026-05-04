@@ -1,4 +1,4 @@
-package leyline.match
+package leyline.mechanics.plot
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
@@ -44,7 +44,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
     // detekt heuristic doesn't recognize custom matchers as equality-shape.
     "WeakAssertionOnly",
 )
-class PlotTest :
+class PlotActionTest :
     FunSpec({
 
         tags(BoardTag)

@@ -1,4 +1,4 @@
-package leyline.match
+package leyline.mechanics.madness
 
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
@@ -72,7 +72,7 @@ private val HARDCAST_PUZZLE =
     ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
     """.trimIndent()
 
-class MadnessTest :
+class MadnessLifecycleTest :
     FunSpec({
 
         val base = BoardTestBase()

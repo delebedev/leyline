@@ -1,4 +1,4 @@
-package leyline.match
+package leyline.mechanics.escape
 
 import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
@@ -44,7 +44,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * Card: Glimpse of Freedom (Instant {U}, "Draw a card.", Escape {2}{U}+exile-5).
  */
 @Suppress("UnnecessaryNotNullOperator")
-class EscapeTest :
+class EscapeActionTest :
     FunSpec({
 
         tags(BoardTag)

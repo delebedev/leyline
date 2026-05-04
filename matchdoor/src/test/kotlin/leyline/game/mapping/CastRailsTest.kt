@@ -13,8 +13,8 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  * Pins for the [CastRails] table. Smoke-level row coverage — verifies each
  * row's [resolveAltGrpId] dispatch agrees with the lookup mode it declares.
  * The richer SA-predicate contract is exercised by the per-keyword
- * conformance tests (KeywordCastShapeIntegrationTest, PlotTest, ForetellTest,
- * DisturbTest, EscapeTest, SneakTest).
+ * conformance tests (KeywordCastShapeIntegrationTest, PlotActionTest,
+ * ForetellActionTest, DisturbActionTest, EscapeActionTest, SneakActionTest).
  */
 class CastRailsTest :
     FunSpec({
