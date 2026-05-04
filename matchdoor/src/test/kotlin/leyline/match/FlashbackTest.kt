@@ -8,13 +8,12 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.IntegrationTag
-import leyline.bridge.types.GrpId
 import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.MatchFlowHarness
 import leyline.conformance.humanPlayer
 import leyline.game.mapping.ActionMapper
-import leyline.game.snapshot.GrpIdResolver
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 private val PUZZLE =
@@ -58,13 +57,10 @@ class FlashbackTest :
             gyCards.any { it.name == "Think Twice" }.shouldBeTrue()
 
             val actions =
-                ActionMapper.buildActionList(
-                    player = human,
+                ActionMapper.buildFromSnapshot(
                     seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
+                    snap = GsmSnapshot.capture(game, b, "test", 0),
+                    bridge = b,
                 )
 
             val castActions = actions.actionsList.filter { it.actionType == ActionType.Cast }

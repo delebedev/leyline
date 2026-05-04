@@ -46,7 +46,4 @@ class Match(
         bridge.shutdown()
         onStateChanged?.invoke(MatchState.FINISHED)
     }
-
-    @Deprecated("Use close() for deterministic lifecycle", replaceWith = ReplaceWith("close()"))
-    fun shutdown() = close()
 }

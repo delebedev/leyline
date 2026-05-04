@@ -776,10 +776,6 @@ object ActionMapper {
             }
         }
 
-        // Zone casts: Graveyard, Exile, Command (flashback, escape, etc.)
-        if (checkLegality) {
-            addZoneCastActions(player, builder, idResolver, grpIdResolver, cardDataLookup, cardRepository)
-        }
         // Pass + FloatMana always available
         builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
         builder.addActions(Action.newBuilder().setActionType(ActionType.FloatMana))
@@ -1098,78 +1094,6 @@ object ActionMapper {
             if (effectiveCost != null && !effectiveCost.isNoCost) {
                 addManaCostFromForge(effectiveCost, actionBuilder, alternativeGrpId)
             }
-            builder.addActions(actionBuilder)
-        }
-    }
-
-    /**
-     * Legacy: live-Forge variant of [addZoneCastActionsFromSnap]. The snapshot
-     * path is canonical for production — only `buildActionList(checkLegality=true)`
-     * still routes through here, and the only callers are tests. Does not include
-     * any of the Plot/Foretell/Disturb/Escape minimal-emit shapes; if a new caller
-     * wires this back into production, the offer shape will be wrong for those
-     * keywords. Delete after the next refactor cycle.
-     */
-    @Deprecated(
-        "snapshot path is canonical — see addZoneCastActionsFromSnap",
-        ReplaceWith("addZoneCastActionsFromSnap"),
-    )
-    private fun addZoneCastActions(
-        player: Player,
-        builder: ActionsAvailableReq.Builder,
-        idResolver: (ForgeCardId) -> InstanceId,
-        grpIdResolver: (Card) -> GrpId,
-        cardDataLookup: (GrpId) -> CardData?,
-        cardRepository: CardRepository?,
-    ) {
-        val game = player.game ?: return
-        val zones = listOf(ForgeZoneType.Graveyard, ForgeZoneType.Exile, ForgeZoneType.Command)
-        for (card in game.getCardsIn(zones)) {
-            val castable = getAllCastableAbilities(card, player)
-            if (castable.isEmpty()) continue
-            val sa = castable.first()
-
-            val instanceId = idResolver(ForgeCardId(card.id)).value
-            val grpId = grpIdResolver(card).value
-            val actionBuilder =
-                Action
-                    .newBuilder()
-                    .setActionType(ActionType.Cast)
-                    .setInstanceId(instanceId)
-                    .setGrpId(grpId)
-                    .setFacetId(instanceId)
-                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
-
-            // Set abilityGrpId from the alternate cost keyword (flashback, escape, etc.)
-            val cardData = cardDataLookup(GrpId(grpId))
-            val altCost = sa.alternativeCost
-            if (altCost != null) {
-                // TODO(leyline-9n6): extend KeywordAbilityIds for Escape/Mayhem/etc.
-                val keywordId = KeywordAbilityIds.fromForgeAltCostName(altCost.name)
-                val abilityGrpId =
-                    if (keywordId != null && cardRepository != null) {
-                        BoundCard
-                            .bindAltCosts(cardData, cardRepository)
-                            .firstOrNull { it.keywordBaseId == keywordId }
-                            ?.abilityGrpId ?: 0
-                    } else {
-                        0
-                    }
-                if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-            }
-
-            // Mana cost: use effective cost (includes commander tax + reductions)
-            val effectiveCost = computeEffectiveCost(sa, player)
-            if (effectiveCost != null && !effectiveCost.isNoCost) {
-                addManaCostFromForge(effectiveCost, actionBuilder)
-            } else if (cardData != null) {
-                for ((color, count) in cardData.manaCost) {
-                    actionBuilder.addManaCost(
-                        ManaRequirement.newBuilder().addColor(color).setCount(count),
-                    )
-                }
-            }
-
             builder.addActions(actionBuilder)
         }
     }
