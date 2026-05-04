@@ -19,9 +19,9 @@ import leyline.UnitTag
  */
 class TestCardFixturesTest :
     FunSpec({
-        val tag = setOf(UnitTag)
+        tags(UnitTag)
 
-        test("slim fixture: identity-only").config(tags = tag) {
+        test("slim fixture: identity-only") {
             val f = TestCardFixtures.findFixture("Grizzly Bears").shouldNotBeNull()
             assertSoftly(f) {
                 it.rules.shouldBeNull()
@@ -35,7 +35,7 @@ class TestCardFixturesTest :
             }
         }
 
-        test("slim fixture: DFC linked faces are bidirectional").config(tags = tag) {
+        test("slim fixture: DFC linked faces are bidirectional") {
             val front = TestCardFixtures.findFixture("Delver of Secrets").shouldNotBeNull()
             front.rules.shouldBeNull()
             front.identity.linkedFaces shouldHaveSize 1
@@ -48,7 +48,7 @@ class TestCardFixturesTest :
             }
         }
 
-        test("slim fixture: token producer references a full token").config(tags = tag) {
+        test("slim fixture: token producer references a full token") {
             val producer = TestCardFixtures.findFixture("Resolute Reinforcements").shouldNotBeNull()
             producer.rules.shouldBeNull()
             producer.identity.tokens.size shouldBe 1
@@ -66,7 +66,7 @@ class TestCardFixturesTest :
             }
         }
 
-        test("saga: 3 chapter abilities, no chapterAbilityGrpIds field needed").config(tags = tag) {
+        test("saga: 3 chapter abilities, no chapterAbilityGrpIds field needed") {
             val f = TestCardFixtures.findFixture("History of Benalia").shouldNotBeNull()
             assertSoftly {
                 f.rules.shouldBeNull()
@@ -77,7 +77,7 @@ class TestCardFixturesTest :
             }
         }
 
-        test("modal card: parent ability has 4 children").config(tags = tag) {
+        test("modal card: parent ability has 4 children") {
             val f = TestCardFixtures.findFixture("Cryptic Command").shouldNotBeNull()
             val parent =
                 f.identity.abilities
@@ -86,13 +86,13 @@ class TestCardFixturesTest :
             parent.modalChildren shouldHaveSize 4
         }
 
-        test("token alias: 'Soldier Token' resolves the same fixture as 'Soldier'").config(tags = tag) {
+        test("token alias: 'Soldier Token' resolves the same fixture as 'Soldier'") {
             val byBareName = TestCardFixtures.findFixture("Soldier").shouldNotBeNull()
             val byTokenSuffix = TestCardFixtures.findFixture("Soldier Token").shouldNotBeNull()
             byTokenSuffix.identity.grpId shouldBe byBareName.identity.grpId
         }
 
-        test("missing card returns null, not error").config(tags = tag) {
+        test("missing card returns null, not error") {
             TestCardFixtures.findFixture("This Card Does Not Exist").shouldBeNull()
         }
     })

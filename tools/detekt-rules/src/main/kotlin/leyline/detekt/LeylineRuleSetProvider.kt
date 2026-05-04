@@ -21,6 +21,7 @@ class LeylineRuleSetProvider : RuleSetProvider {
                 NoThreadSleepInTests(config),
                 NoTimingAssertsInTests(config),
                 TierPlacementCheck(config),
+                TestLayoutCheck(config),
                 WeakAssertionOnly(config),
             ),
         )

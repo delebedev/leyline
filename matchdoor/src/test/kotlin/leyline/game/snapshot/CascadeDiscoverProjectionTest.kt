@@ -3,9 +3,9 @@ package leyline.game.snapshot
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
-import leyline.conformance.InteractionTest
+import leyline.BoardTag
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.SessionTest
 
 /**
  * End-to-end coverage for the trigger-ability projection on the Stack zone.
@@ -30,9 +30,9 @@ import leyline.game.data.KeywordAbilityIds
  * call [SnapshotCapture.resolveEntryAbilityGrpId] directly.
  */
 class CascadeDiscoverProjectionTest :
-    InteractionTest({
+    SessionTest({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
         test("Cascade trigger StackEntry resolves grpId=86 and source-card grpId independently") {
             startPuzzleFile("puzzles/cascade-bloodbraid.pzl")

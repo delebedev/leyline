@@ -14,7 +14,7 @@ import org.jetbrains.kotlin.psi.KtIfExpression
 import org.jetbrains.kotlin.psi.KtParenthesizedExpression
 import org.jetbrains.kotlin.psi.KtPrefixExpression
 import org.jetbrains.kotlin.psi.KtReturnExpression
-import org.jetbrains.kotlin.psi.psiUtil.collectDescendantsOfType
+import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
 
 /**
  * Flags `if (!x.exists()) return@label` — tests that pass silently when a
@@ -36,9 +36,7 @@ class VacuousTestSkip(config: Config) : Rule(config) {
         val condition = expression.condition?.unwrapParens() ?: return
         if (!isNegatedExistsCheck(condition)) return
         val thenBranch = expression.then ?: return
-        val hasLabeledReturn = thenBranch.collectDescendantsOfType<KtReturnExpression>().any {
-            it.getLabelName() != null
-        }
+        val hasLabeledReturn = thenBranch.hasLabeledReturn()
         if (!hasLabeledReturn) return
         report(
             CodeSmell(
@@ -52,6 +50,19 @@ class VacuousTestSkip(config: Config) : Rule(config) {
 
     private fun KtExpression.unwrapParens(): KtExpression =
         if (this is KtParenthesizedExpression) (expression ?: this).unwrapParens() else this
+
+    private fun KtExpression.hasLabeledReturn(): Boolean {
+        var found = false
+        accept(
+            object : KtTreeVisitorVoid() {
+                override fun visitReturnExpression(expression: KtReturnExpression) {
+                    if (expression.getLabelName() != null) found = true
+                    super.visitReturnExpression(expression)
+                }
+            },
+        )
+        return found
+    }
 
     /**
      * Matches `!x.exists()` (prefix-not on an exists call) and `x.exists().not()`

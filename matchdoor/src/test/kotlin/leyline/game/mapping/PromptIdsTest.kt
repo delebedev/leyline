@@ -4,7 +4,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 
 /**
  * Lock down PromptId constants against reference values.
@@ -14,7 +14,7 @@ import leyline.ConformanceTag
  */
 class PromptIdsTest :
     FunSpec({
-        tags(ConformanceTag)
+        tags(BoardTag)
 
         test("verified constants match reference values") {
             assertSoftly {

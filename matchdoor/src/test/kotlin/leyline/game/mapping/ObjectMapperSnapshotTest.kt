@@ -5,28 +5,28 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.conformance.ConformanceTestBase
-import leyline.conformance.TestCardRegistry
-import leyline.conformance.aiPlayer
-import leyline.conformance.humanPlayer
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.BoardTestBase
+import leyline.testkit.TestCardRegistry
+import leyline.testkit.aiPlayer
+import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 /**
  * Verifies that [ObjectMapper.buildFromSnapshot] produces correct [GameObjectInfo] protos.
  *
- * Uses [ConformanceTestBase.startWithBoard] for a synchronous board setup (~0.01s/test).
+ * Uses [BoardTestBase.startWithBoard] for a synchronous board setup (~0.01s/test).
  */
 class ObjectMapperSnapshotTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

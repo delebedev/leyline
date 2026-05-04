@@ -27,8 +27,8 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * Unit pins for the [CardStateDesignations] table — covers each row's mode
  * dispatch (gain emit, lose emit, position relative to Resolve ZT) without
  * needing a Forge boot. Conformance-level coverage of Prepared / Plotted /
- * Foretold lifecycle lives in [HonorboundPagePrepareTest], [PlotTest],
- * [ForetellTest], and [BoundCardParityTest] respectively.
+ * Foretold lifecycle lives in [HonorboundPagePrepareTest], `PlotActionTest`,
+ * `ForetellActionTest`, and [BoundCardParityTest] respectively.
  */
 class CardStateDesignationsTest :
     FunSpec({

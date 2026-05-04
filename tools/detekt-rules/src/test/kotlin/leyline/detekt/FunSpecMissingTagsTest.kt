@@ -10,7 +10,7 @@ class FunSpecMissingTagsTest : FunSpec({
 
     val rule = FunSpecMissingTags(Config.empty)
 
-    test("flags FunSpec with no tags() call") {
+    test("flags FunSpec with no lane tag") {
         val code = """
             open class FunSpec(body: FunSpec.() -> Unit = {}) { fun test(name: String, body: () -> Unit) {} }
             class MyTest : FunSpec({
@@ -33,6 +33,38 @@ class FunSpecMissingTagsTest : FunSpec({
             })
         """.trimIndent()
         rule.lint(code).shouldBeEmpty()
+    }
+
+    test("passes when a semantic tag is added alongside one lane tag") {
+        val code = """
+            open class FunSpec(body: FunSpec.() -> Unit = {}) {
+                fun test(name: String, body: () -> Unit) {}
+                fun tags(vararg t: Any) {}
+            }
+            object UnitTag
+            object WireTag
+            class MyTest : FunSpec({
+                tags(UnitTag, WireTag)
+                test("something") { }
+            })
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
+
+    test("flags when one Spec declares two lane tags") {
+        val code = """
+            open class FunSpec(body: FunSpec.() -> Unit = {}) {
+                fun test(name: String, body: () -> Unit) {}
+                fun tags(vararg t: Any) {}
+            }
+            object BoardTag
+            object IntegrationTag
+            class MyTest : FunSpec({
+                tags(BoardTag, IntegrationTag)
+                test("something") { }
+            })
+        """.trimIndent()
+        rule.lint(code) shouldHaveSize 1
     }
 
     test("passes when tags() is called deep inside the lambda") {
@@ -86,7 +118,7 @@ class FunSpecMissingTagsTest : FunSpec({
                 fun afterEach(body: () -> Unit) {}
             }
             object IntegrationTag
-            abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
+            abstract class SessionTest(body: SessionTest.() -> Unit) : FunSpec() {
                 init {
                     tags(IntegrationTag)
                     afterEach { }
@@ -105,12 +137,50 @@ class FunSpecMissingTagsTest : FunSpec({
             class TestBuilder {
                 fun config(tags: Set<Any>, body: () -> Unit) {}
             }
-            object ConformanceTag
+            object BoardTag
             class MyTest : FunSpec({
-                test("scenario").config(tags = setOf(ConformanceTag)) { }
+                test("scenario").config(tags = setOf(BoardTag)) { }
             })
         """.trimIndent()
         rule.lint(code).shouldBeEmpty()
+    }
+
+    test("flags when per-test config mixes lane tags") {
+        val code = """
+            open class FunSpec(body: FunSpec.() -> Unit = {}) {
+                fun test(name: String): TestBuilder = TestBuilder()
+            }
+            class TestBuilder {
+                fun config(tags: Set<Any>, body: () -> Unit) {}
+            }
+            object BoardTag
+            object IntegrationTag
+            class MyTest : FunSpec({
+                test("board").config(tags = setOf(BoardTag)) { }
+                test("session").config(tags = setOf(IntegrationTag)) { }
+            })
+        """.trimIndent()
+        rule.lint(code) shouldHaveSize 1
+    }
+
+    test("flags when one file mixes direct Spec classes from different lanes") {
+        val code = """
+            open class FunSpec(body: FunSpec.() -> Unit = {}) {
+                fun test(name: String, body: () -> Unit) {}
+                fun tags(vararg t: Any) {}
+            }
+            object BoardTag
+            object UnitTag
+            class BoardShapeTest : FunSpec({
+                tags(BoardTag)
+                test("board") { }
+            })
+            class PureHelperTest : FunSpec({
+                tags(UnitTag)
+                test("unit") { }
+            })
+        """.trimIndent()
+        rule.lint(code) shouldHaveSize 1
     }
 
     test("flags when .config is used without tags= argument") {
@@ -132,17 +202,15 @@ class FunSpecMissingTagsTest : FunSpec({
         val code = """
             open class FunSpec { fun tags(vararg t: Any) {} }
             object IntegrationTag
-            abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
+            abstract class SessionTest(body: SessionTest.() -> Unit) : FunSpec() {
                 init { tags(IntegrationTag); body() }
             }
-            class FooInteractionTest : InteractionTest({ })
+            class FooSessionTest : SessionTest({ })
         """.trimIndent()
         rule.lint(code).shouldBeEmpty()
     }
 
-    test("passes when a helper function named 'tags' is used") {
-        // Liberal: we only check for callee-name "tags". A helper also named
-        // "tags" would pass — acceptable false-negative for simplicity.
+    test("flags when a helper function named 'tags' has no lane tag") {
         val code = """
             open class FunSpec(body: FunSpec.() -> Unit = {}) { fun test(name: String, body: () -> Unit) {} }
             fun tags(x: Any) {}
@@ -151,6 +219,6 @@ class FunSpecMissingTagsTest : FunSpec({
                 test("something") { }
             })
         """.trimIndent()
-        rule.lint(code).shouldBeEmpty()
+        rule.lint(code) shouldHaveSize 1
     }
 })

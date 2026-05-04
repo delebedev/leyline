@@ -7,7 +7,7 @@ import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.conformance.MatchFlowHarness
+import leyline.testkit.MatchFlowHarness
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 

@@ -12,7 +12,7 @@ import leyline.game.state.GameBridge
 /**
  * Shared test helpers for GameBridge-based tests.
  *
- * Extracted from ConformanceTestBase so both conformance and
+ * Extracted from BoardTestBase so both conformance and
  * integration tests use the same race-free implementations.
  */
 

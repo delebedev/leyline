@@ -83,9 +83,9 @@ val testUnit by tasks.registering(Test::class) {
     systemProperty("kotest.framework.parallelism", "8")
 }
 
-val testConformance by tasks.registering(Test::class) {
+val testBoard by tasks.registering(Test::class) {
     configureTestDefaults()
-    systemProperty("kotest.tags", "ConformanceTag")
+    systemProperty("kotest.tags", "BoardTag")
     systemProperty("kotest.framework.parallelism", "8")
 }
 
@@ -112,7 +112,7 @@ val testIntegrationStrict by tasks.registering(Test::class) {
 }
 
 // One-shot profiler task. Usage:
-//   ./gradlew :matchdoor:profileTest --tests "leyline.conformance.DeclareBlockersDedupeTest"
+//   ./gradlew :matchdoor:profileTest --tests "leyline.session.combat.DeclareBlockersDedupeTest"
 // JFR dump: /tmp/matchdoor-profile.jfr — inspect with `jfr summary` or `jfr print`.
 val profileTest by tasks.registering(Test::class) {
     configureTestDefaults()
@@ -125,11 +125,11 @@ val testGate by tasks.registering(Test::class) {
     configureTestDefaults()
     // Exclude SimClientTag — those are slow log-generation runs, opt-in via
     // the dedicated `:simclient` task.
-    systemProperty("kotest.tags", "(UnitTag | ConformanceTag) & !SimClientTag")
+    systemProperty("kotest.tags", "(UnitTag | BoardTag) & !SimClientTag")
     systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "8"))
     // Kotest spec-level parallelism: 136 small suites, JVM-fork overhead
     // would dominate. In-JVM concurrency at 8 = ~25-27s (was ~33s serial).
-    // Forge's static MyRandom race guarded by ConformanceTestBase.RNG_LOCK.
+    // Forge's static MyRandom race guarded by BoardTestBase.RNG_LOCK.
 }
 
 // Sim-client log generation. Drives full games via real MatchSession + bridge,

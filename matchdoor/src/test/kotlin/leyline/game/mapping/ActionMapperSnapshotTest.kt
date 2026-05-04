@@ -5,26 +5,26 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
-import leyline.conformance.ConformanceTestBase
-import leyline.conformance.humanPlayer
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.BoardTestBase
+import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
  * Verifies that [ActionMapper.buildFromSnapshot] produces correct action shapes
  * for representative board states.
  *
- * Uses [ConformanceTestBase.startWithBoard] — synchronous board setup, no game loop.
- * Cost-legality routes through the live Forge bridge, so these are ConformanceTag tests.
+ * Uses [BoardTestBase.startWithBoard] — synchronous board setup, no game loop.
+ * Cost-legality routes through the live Forge bridge, so these are BoardTag tests.
  */
 class ActionMapperSnapshotTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(BoardTag)
 
-        val base = ConformanceTestBase()
+        val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 

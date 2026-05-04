@@ -8,27 +8,53 @@ Three tiers, each with a base class. **Never mix in one file.** A detekt rule (`
 
 | Tier | Base | When | Cost |
 |---|---|---|---|
-| Subsystem | `SubsystemTest` (in `conformance/`) | Test the bridge or annotation pipeline directly. `bundleBuilder(b).buildActions()`, `StateMapper.buildFromGame()`, `AnnotationBuilder` calls. | <0.1s/test |
-| Session | `InteractionTest` (in `conformance/`) | Test that requires driving the priority loop — `passUntil`, `selectTargets`, `declareAttackers`, `respondToOptionalCost`. The real `MatchSession` + Forge engine. | 0.7–3s/test |
+| Board | `BoardTest` (in `testkit/`) | Test the bridge or annotation pipeline directly. `bundleBuilder(b).buildActions()`, `StateMapper.buildFromGame()`, `AnnotationBuilder` calls. | <0.1s/test |
+| Session | `SessionTest` (in `testkit/`) | Test that requires driving the priority loop — `passUntil`, `selectTargets`, `declareAttackers`, `respondToOptionalCost`. The real `MatchSession` + Forge engine. | 0.7–3s/test |
 | Pure unit | bare `FunSpec` | Pure-data logic. No engine, no harness. | <10ms/test |
 
-If a Session-tier test never calls a driver (`passPriority`, `passUntil`, `advanceTo*`, `onPerformAction`, `respondTo*`), move it to Subsystem tier — same signal, much cheaper. Suppress `TierPlacementCheck` only with a comment explaining why the loop is essential to the assertion (e.g. `DrawUpdateTypeShapeTest` needs a real turn-boundary draw event from the engine's EventBus).
+If a Session-tier test never calls a driver (`passPriority`, `passUntil`, `advanceTo*`, `onPerformAction`, `respondTo*`), move it to Board tier — same signal, much cheaper. Suppress `TierPlacementCheck` only with a comment explaining why the loop is essential to the assertion (e.g. `DrawUpdateTypeShapeTest` needs a real turn-boundary draw event from the engine's EventBus).
 
-Every Spec subclass must call `tags(UnitTag | ConformanceTag | IntegrationTag)`. `FunSpecMissingTags` enforces it. `InteractionTest` and `SubsystemTest` auto-tag — only standalone `FunSpec` classes need the explicit call.
+Every direct Spec subclass/file must declare exactly one lane tag: `UnitTag`,
+`BoardTag`, `IntegrationTag`, or `SimClientTag`. Semantic tags are additive, but
+never add a second lane tag. `FunSpecMissingTags` enforces this. `SessionTest`
+and `BoardTest` auto-tag — only standalone `FunSpec` classes need the explicit
+call.
+
+## Layout — where test files live
+
+```
+<production packages>/  SUT-shaped tests mirror `src/main/kotlin/leyline/*`.
+board/<domain>/       Board-tier tests: bridge, mapper, bundle, annotations.
+session/<domain>/     Session-tier tests: MatchSession + engine loop behavior.
+mechanics/<keyword>/  Keyword/mechanic suites split action-vs-lifecycle.
+behavior/             Behavior/protocol thesis tests with no single production SUT.
+testkit/              Shared bases, harnesses, matchers, proto DSL, fixtures.
+```
+
+If a test has a clear production SUT, put it in the package matching that SUT
+(`game.bundle`, `game.mapping`, `bridge.handoff`, `match`, etc.) even when it
+uses the Board harness. Use `board/` and `session/` only for behavior-shaped
+tests where no single production package owns the assertion. Do not put Board
+and Session tests in the same file.
+
+Use `behavior/<category>/<concept>/` for strict protocol-thesis tests, for
+example `behavior/annotations/tokencreated/` or
+`behavior/actions/castadventure/`. Use `behavior/cards/` for card-specific
+flows where the card text is the surface under test, and `behavior/puzzles/`
+for puzzle harness plumbing.
 
 ## Helpers — where things live
 
 ```
-conformance/
+testkit/
 ├── ZoneMatchers.kt           kotest Matcher<String> for zone membership ("X" should beInHandOf(p))
 ├── ActionMatchers.kt         kotest matchers for Action / ActionsAvailableReq (alt-cost offers, etc.)
-├── GameObjectMatchers.kt     kotest matchers for GameObjectInfo (visibility, attackState, copy projection)
 ├── TestExtensions.kt         non-matcher extensions: AnnotationInfo.detail*(), GSM.annotation(type), ActionsAvailableReq.ofType()
 ├── MessageWalk.kt            List<GREToClientMessage> walkers: allAnnotations(), firstGameObjectByIid(), etc.
 ├── ProtoDsl.kt               builder DSL for client→GRE messages (performAction { ... })
-├── ConformanceTestBase.kt    Subsystem-tier setup (initCardDatabase, addCard, startWithBoard)
-├── SubsystemTest.kt          base class — wires ConformanceTestBase
-├── InteractionTest.kt        base class — wires MatchFlowHarness, exposes selectTargets/passUntil/instanceIdOf
+├── BoardTestBase.kt          Board-tier setup (initCardDatabase, addCard, startWithBoard)
+├── BoardTest.kt              base class — wires BoardTestBase
+├── SessionTest.kt            base class — wires MatchFlowHarness, exposes selectTargets/passUntil/instanceIdOf
 ├── MatchFlowHarness.kt       Session-tier harness — owns the game thread, message stream, scripted AI
 ├── ScriptedPlayerController.kt
 ├── ClientAccumulator.kt      replays GSMs against a parallel game-state model — invariant checker
@@ -37,7 +63,7 @@ conformance/
 
 **Picking a layer when you reach for a helper:**
 
-- Need to *find a card iid* in a Session-tier test? Use `instanceIdOf(name, player, zone)` from `InteractionTest`. Don't roll `getZone(...).cards.first { it.name == name }.let { bridge.getOrAllocInstanceId(...) }` inline.
+- Need to *find a card iid* in a Session-tier test? Use `instanceIdOf(name, player, zone)` from `SessionTest`. Don't roll `getZone(...).cards.first { it.name == name }.let { bridge.getOrAllocInstanceId(...) }` inline.
 - Need to *assert a card is in a zone*? Use `ZoneMatchers` (`"X" should beInHandOf(player)` or `... should beInZoneOf(zone, player, count = N)`). The matcher's failure message names card+player+zone; an inline `.cards.any { it.name == ... } shouldBe true` doesn't.
 - Need to *walk the message log*? Use `MessageWalk.kt` extensions on `List<GREToClientMessage>`. Don't add private file-scoped walkers — promote them.
 - Need to *read an annotation detail*? Use `TestExtensions.detail*()`. Don't inline `detailsList.firstOrNull { it.key == ... }`.
@@ -70,7 +96,8 @@ Detekt rules to know — they shape what idioms are allowed:
 - **`NoTimingAssertsInTests`** — no wall-clock assertions. Performance gates belong in benchmarks, not FunSpec.
 - **`NoThreadSleepInTests`** — `Thread.sleep` is forbidden. Use the harness's pass/await primitives.
 - **`EmptyAssertion`** — at least one assertion per test.
-- **`FunSpecMissingTags`** — every Spec must call `tags(...)`.
+- **`FunSpecMissingTags`** — every direct Spec class/file must declare exactly one lane tag.
+- **`TestLayoutCheck`** — `board/*`, `session/*`, and `mechanics/*` packages must match the lane. It rejects mixed `BoardTag` + `IntegrationTag` in domain files and direct `leyline.mechanics` packages.
 
 `@Suppress("WeakAssertionOnly")` is the right escape hatch when you're asserting structural absence (`hasOffer.shouldBeFalse()` on the result of `actionsList.any { ... } || inactiveActionsList.any { ... }`) — boolean predicates over a list ARE the native idiom for that shape, no equality body to assert. Once an `offerAltCost` matcher exists, prefer `actions shouldNot offerAltCost(altGrpId)` over the suppressed boolean — it's both shorter and self-describing.
 
@@ -100,7 +127,7 @@ When you do add one:
 ## Cross-cutting reminders
 
 - **Detekt rules are part of the gate.** `:matchdoor:detekt` runs before tests in CI and as a pre-commit hook. A test that compiles but trips a rule will block the merge.
-- **Targeted tests during iteration:** `./gradlew :matchdoor:test --tests "leyline.match.ForetellTest"` for one class, `--tests "leyline.match.*Test"` for a package. `:matchdoor:testGate` (unit + conformance, excludes IntegrationTag) is the focused mid-iteration gate. `:matchdoor:test` is the full run including IntegrationTag — minutes, save for PR boundaries.
+- **Targeted tests during iteration:** `./gradlew :matchdoor:test --tests "leyline.mechanics.foretell.ForetellActionTest"` for one class, `--tests "leyline.mechanics.*.*Test"` for mechanics. `:matchdoor:testGate` (unit + board, excludes IntegrationTag) is the focused mid-iteration gate. `:matchdoor:test` is the full run including IntegrationTag — minutes, save for PR boundaries.
 - **Test names** are sentences, not snake_case method names. `test("Foretell offer disappears when the {2} action cost is unpayable")` reads in the failure log as the assertion intent. Avoid `test("test foretell unpayable")` and `test("foretell_unpayable")`.
-- **One puzzle, one test class** is the wrong split. One *behavior surface* per test class — tests within can share setup. `ForetellTest` covers the foretell hand-cast rail; it has 5 tests for 5 different conditions, all on Demon Bolt. That's correct.
+- **One puzzle, one test class** is the wrong split. One *behavior surface* per test class — tests within can share setup. `ForetellActionTest` covers the foretell hand-cast rail; it has 5 tests for 5 different conditions, all on Demon Bolt. That's correct.
 - **Comments name invariants, not the test.** `// Pre-fix: zero SelectTargetsReq emitted, cast silently drops` documents the regression the test guards against. `// This test casts Foretell` does not — the test name and body already say that.

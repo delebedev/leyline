@@ -5,7 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.string.shouldContain
 import leyline.SimClientTag
-import leyline.conformance.MatchFlowHarness
+import leyline.testkit.MatchFlowHarness
 import java.nio.file.Files
 import java.time.LocalDateTime
 
