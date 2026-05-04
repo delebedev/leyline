@@ -19,17 +19,12 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
- * Produces a [GsmSnapshot] by reading [Game] + [GameBridge]. This is the only
- * place in the pipeline (aside from [leyline.game.bundle.BundleBuilder]'s capture call)
- * that reads `forge.game.Game` directly. Each mapper migration grows the capture
- * to cover the newly-migrated stage's reads.
+ * Produces a [GsmSnapshot] by reading [Game] + [GameBridge].
  *
- * Task 1: bare skeleton — matchId + empty collections.
- * Task 2: populates [GsmSnapshot.seats] for seats 1 and 2.
- * Task 4: populates [GsmSnapshot.zones] — hand/library/graveyard per seat +
- *   shared zones (battlefield/stack/exile/command).
- * Task 6: populates [GsmSnapshot.objects] — one [CardSnapshot] per card in any zone.
- *   Later tasks populate each section as the corresponding mapper migrates.
+ * The snapshot is the stable mapper input: seats, zones, objects, bound card
+ * data, phase, stack, ability-word entries, and persistent annotation state are
+ * captured once so downstream protocol mappers do not keep re-reading live
+ * Forge state.
  */
 object SnapshotCapture {
     private val log = org.slf4j.LoggerFactory.getLogger(SnapshotCapture::class.java)
@@ -162,7 +157,7 @@ object SnapshotCapture {
             ?: 0
     }
 
-    // --- Task 10: phase + stack capture ---
+    // --- Phase And Stack Capture ---
 
     /**
      * Snapshot turn/phase/priority state from [game.phaseHandler].
@@ -339,7 +334,7 @@ object SnapshotCapture {
             )
     }
 
-    // --- Task 6: object capture ---
+    // --- Object Capture ---
 
     /**
      * Build [CardSnapshot] for every card referenced by any captured zone.
@@ -457,7 +452,7 @@ object SnapshotCapture {
         val ownerSeat = SeatId(if (card.owner == human) 1 else 2)
         val controllerSeat = SeatId(if (card.controller == human) 1 else 2)
 
-        // Task 8: ActionMapper shape flags — read once here, not in the mapper.
+        // ActionMapper shape flags — read once here, not in the mapper.
         val isLand = type.isLand
         val isAdventureCard = card.isAdventureCard
         val hasManaAbilities = card.manaAbilities.isNotEmpty()
@@ -477,7 +472,7 @@ object SnapshotCapture {
             hasManaAbilities = hasManaAbilities,
             hasNonManaActivatedAbilities = hasNonManaActivatedAbilities,
             isOnBattlefield = onBf,
-            // P/T captured for all creatures (legacy path sets P/T regardless of zone)
+            // P/T captured for all creatures so off-battlefield object shape stays stable.
             netPower = if (type.isCreature) card.netPower else null,
             netToughness = if (type.isCreature) card.netToughness else null,
             tapped = if (onBf) card.isTapped else false,

@@ -143,6 +143,18 @@ internal fun getNonManaActivatedAbilities(
     return abilities
 }
 
+internal fun getPlayableManaAbilities(
+    card: Card,
+    player: Player,
+): List<SpellAbility> {
+    val abilities = mutableListOf<SpellAbility>()
+    for (ability in card.manaAbilities) {
+        ability.setActivatingPlayer(player)
+        if (ability.canPlay()) abilities.add(ability)
+    }
+    return abilities
+}
+
 /** Hand is always castable; other zones allowed if the card has mayPlay grants for the given player. */
 internal fun canCastFromZone(
     card: Card,

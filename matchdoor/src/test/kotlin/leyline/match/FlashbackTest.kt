@@ -1,20 +1,24 @@
 package leyline.match
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.IntegrationTag
-import leyline.bridge.types.GrpId
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.MatchFlowHarness
+import leyline.conformance.haveManaCost
 import leyline.conformance.humanPlayer
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
-import leyline.game.snapshot.GrpIdResolver
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 private val PUZZLE =
@@ -55,21 +59,32 @@ class FlashbackTest :
             val human = game.humanPlayer
 
             val gyCards = human.getZone(ZoneType.Graveyard).cards
-            gyCards.any { it.name == "Think Twice" }.shouldBeTrue()
+            val thinkTwice = gyCards.firstOrNull { it.name == "Think Twice" }
+            thinkTwice shouldNotBe null
+            val thinkTwiceIid = b.getOrAllocInstanceId(ForgeCardId(thinkTwice!!.id)).value
+            val thinkTwiceGrpId = b.cardRepository.findGrpIdByName("Think Twice")!!
+            val flashbackAbilityGrpId =
+                b.cardRepository.findKeywordAbilityGrpId(thinkTwiceGrpId, KeywordAbilityIds.FLASHBACK)!!
 
             val actions =
-                ActionMapper.buildActionList(
-                    player = human,
+                ActionMapper.buildFromSnapshot(
                     seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
+                    snap = GsmSnapshot.capture(game, b, "test", 0),
+                    bridge = b,
                 )
 
-            val castActions = actions.actionsList.filter { it.actionType == ActionType.Cast }
+            val castActions =
+                actions.actionsList.filter {
+                    it.actionType == ActionType.Cast && it.instanceId == thinkTwiceIid
+                }
             castActions.shouldNotBeEmpty()
-            castActions.first().manaCostCount.shouldBeGreaterThan(0)
+            val flashbackOffer = castActions.firstOrNull { it.abilityGrpId == flashbackAbilityGrpId }
+            flashbackOffer shouldNotBe null
+            assertSoftly {
+                flashbackOffer!!.grpId shouldBe thinkTwiceGrpId
+                flashbackOffer.facetId shouldBe thinkTwiceIid
+                flashbackOffer should haveManaCost(generic = 2, blue = 1)
+            }
         }
 
         test("full lifecycle: hand cast → GY → flashback → exile").config(tags = setOf(IntegrationTag)) {

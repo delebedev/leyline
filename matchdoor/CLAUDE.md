@@ -65,6 +65,8 @@ ArchUnit enforces: bridge → game → match (no reverse deps within the module)
 
 ## Mental Model
 
+Read `docs/forge-api-concepts.md` before changing Forge-facing code. Short version: Forge owns rules; `PlayerController` callbacks are the blocking interaction surface; `SpellAbility` is often a chain; use shared cast/cost helpers; use events for causes and snapshots for current truth.
+
 **Outbound (engine → client):** Forge `Game` → `StateMapper.buildFromGame()` snapshots zones/objects/players → `GameEventCollector.drainEvents()` feeds `TransferCategoryResolver.categoryFromEvents()` for transfer categories → `annotationsForTransfer()` builds per-event proto annotations → `BundleBuilder` assembles GRE messages (Diff/Full GSM + ActionsAvailableReq) → `MessageSink` → client.
 
 **Inbound (client → engine):** client proto (`PerformActionResp`, `DeclareAttackersResp`, etc.) → `MatchHandler` dispatches unconditionally to session (`SessionOps`) → `MatchSession` translates to `PlayerAction` or prompt response → submits through `GameActionBridge.submitAction()` or `InteractivePromptBridge.submitResponse()` (both `CompletableFuture.complete()`) → engine thread unblocks. `FamiliarSession` no-ops all action methods.

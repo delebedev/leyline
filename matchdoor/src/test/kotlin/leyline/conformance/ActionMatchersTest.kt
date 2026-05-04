@@ -9,6 +9,7 @@ import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.ManaRequirement
 
 private const val FORETELL_GRP = 188_700
@@ -136,5 +137,31 @@ class ActionMatchersTest :
                     req shouldNot offerAltCost(FORETELL_GRP)
                 }
             failure.message shouldContain "found 1 active"
+        }
+
+        test("haveManaCost accepts exact color counts") {
+            val offer =
+                Action
+                    .newBuilder()
+                    .addManaCost(mana(ManaColor.Generic, 2))
+                    .addManaCost(mana(ManaColor.Blue_afc9, 1))
+                    .build()
+
+            offer should haveManaCost(generic = 2, blue = 1)
+        }
+
+        test("haveManaCost fails informatively on mismatched counts") {
+            val offer =
+                Action
+                    .newBuilder()
+                    .addManaCost(mana(ManaColor.Generic, 2))
+                    .build()
+
+            val failure =
+                shouldFail {
+                    offer should haveManaCost(generic = 1)
+                }
+            failure.message shouldContain "expected mana cost"
+            failure.message shouldContain ManaColor.Generic.toString()
         }
     })
