@@ -9,7 +9,6 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.BoardTag
-import leyline.IntegrationTag
 import leyline.bridge.types.InstanceId
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
@@ -25,12 +24,13 @@ import wotc.mtgo.gre.external.messaging.Messages.CardType
  */
 class CardInjectionTest :
     FunSpec({
+        tags(BoardTag)
 
         val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("injected Serra Angel appears in GSM with correct metadata").config(tags = setOf(BoardTag)) {
+        test("injected Serra Angel appears in GSM with correct metadata") {
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, "Serra Angel", ZoneType.Battlefield, sick = false)
 
@@ -58,7 +58,7 @@ class CardInjectionTest :
             acc.assertConsistent("after Serra Angel injection")
         }
 
-        test("injected creature to hand is visible in hand zone").config(tags = setOf(BoardTag)) {
+        test("injected creature to hand is visible in hand zone") {
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, "Lightning Bolt", ZoneType.Hand)
 
@@ -69,6 +69,7 @@ class CardInjectionTest :
                 checkNotNull(
                     gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId },
                 ) { "Injected card should appear in gameObjectsList" }
+            obj.instanceId shouldBe injected.instanceId
             obj.cardTypesList.shouldContain(CardType.Instant)
 
             val handZone =
@@ -77,10 +78,11 @@ class CardInjectionTest :
                         it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand && it.ownerSeatId == 1
                     },
                 ) { "Hand zone should exist for seat 1" }
+            handZone.ownerSeatId shouldBe 1
             handZone.objectInstanceIdsList.shouldContain(injected.instanceId)
         }
 
-        test("CardDataDeriver produces consistent grpIds for same card name").config(tags = setOf(BoardTag)) {
+        test("CardDataDeriver produces consistent grpIds for same card name") {
             val (b, _, _) = base.startWithBoard { _, _, _ -> }
 
             val first = TestCardInjector.inject(b, 1, "Grizzly Bears", ZoneType.Battlefield)
@@ -91,17 +93,17 @@ class CardInjectionTest :
             first.forgeCardId shouldNotBe second.forgeCardId
         }
 
-        // This test is integration group — kept separate from conformance
-        test("auto-register deck list populates repository for all cards").config(tags = setOf(IntegrationTag)) {
+        test("auto-register deck list populates repository for all cards") {
             val deckList = "30 Plains\n20 Serra Angel\n10 Lightning Bolt"
             val (b, _, _) = base.startGameAtMain1(deckList = deckList)
 
-            b.cardRepository.findGrpIdByName("Plains").shouldNotBeNull()
-            b.cardRepository.findGrpIdByName("Serra Angel").shouldNotBeNull()
-            b.cardRepository.findGrpIdByName("Lightning Bolt").shouldNotBeNull()
+            val registeredNames =
+                listOf("Plains", "Serra Angel", "Lightning Bolt")
+                    .filter { b.cardRepository.findGrpIdByName(it) != null }
+            registeredNames shouldBe listOf("Plains", "Serra Angel", "Lightning Bolt")
         }
 
-        test("injected land enters tapped when requested").config(tags = setOf(BoardTag)) {
+        test("injected land enters tapped when requested") {
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, "Plains", ZoneType.Battlefield, tapped = true)
 
@@ -112,6 +114,7 @@ class CardInjectionTest :
                 checkNotNull(
                     gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId },
                 ) { "Injected land should appear in gameObjectsList" }
+            obj.instanceId shouldBe injected.instanceId
             obj.cardTypesList.shouldContain(CardType.Land_a80b)
         }
     })

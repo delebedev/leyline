@@ -14,7 +14,11 @@ Three tiers, each with a base class. **Never mix in one file.** A detekt rule (`
 
 If a Session-tier test never calls a driver (`passPriority`, `passUntil`, `advanceTo*`, `onPerformAction`, `respondTo*`), move it to Board tier — same signal, much cheaper. Suppress `TierPlacementCheck` only with a comment explaining why the loop is essential to the assertion (e.g. `DrawUpdateTypeShapeTest` needs a real turn-boundary draw event from the engine's EventBus).
 
-Every Spec subclass must call `tags(UnitTag | BoardTag | IntegrationTag)`. `FunSpecMissingTags` enforces it. `SessionTest` and `BoardTest` auto-tag — only standalone `FunSpec` classes need the explicit call.
+Every direct Spec subclass/file must declare exactly one lane tag: `UnitTag`,
+`BoardTag`, `IntegrationTag`, or `SimClientTag`. Semantic tags are additive, but
+never add a second lane tag. `FunSpecMissingTags` enforces this. `SessionTest`
+and `BoardTest` auto-tag — only standalone `FunSpec` classes need the explicit
+call.
 
 ## Layout — where test files live
 
@@ -92,7 +96,7 @@ Detekt rules to know — they shape what idioms are allowed:
 - **`NoTimingAssertsInTests`** — no wall-clock assertions. Performance gates belong in benchmarks, not FunSpec.
 - **`NoThreadSleepInTests`** — `Thread.sleep` is forbidden. Use the harness's pass/await primitives.
 - **`EmptyAssertion`** — at least one assertion per test.
-- **`FunSpecMissingTags`** — every Spec must call `tags(...)`.
+- **`FunSpecMissingTags`** — every direct Spec class/file must declare exactly one lane tag.
 - **`TestLayoutCheck`** — `board/*`, `session/*`, and `mechanics/*` packages must match the lane. It rejects mixed `BoardTag` + `IntegrationTag` in domain files and direct `leyline.mechanics` packages.
 
 `@Suppress("WeakAssertionOnly")` is the right escape hatch when you're asserting structural absence (`hasOffer.shouldBeFalse()` on the result of `actionsList.any { ... } || inactiveActionsList.any { ... }`) — boolean predicates over a list ARE the native idiom for that shape, no equality body to assert. Once an `offerAltCost` matcher exists, prefer `actions shouldNot offerAltCost(altGrpId)` over the suppressed boolean — it's both shorter and self-describing.

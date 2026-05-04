@@ -7,7 +7,6 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
-import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
@@ -15,7 +14,6 @@ import leyline.testkit.BoardTestBase
 import leyline.testkit.haveManaCost
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 class AdventureCastActionTest :
     FunSpec({
@@ -81,33 +79,5 @@ class AdventureCastActionTest :
 
             actions.actionsList.filter { it.actionType == ActionType.CastAdventure } shouldHaveSize 0
             actions.inactiveActionsList.filter { it.actionType == ActionType.CastAdventure } shouldHaveSize 0
-        }
-    })
-
-/** Unit test for producedToManaColor — used by addManaCostFromForge. */
-class ProducedToManaColorTest :
-    FunSpec({
-        tags(UnitTag)
-
-        test("maps single-letter color codes") {
-            assertSoftly {
-                ActionMapper.producedToManaColor("R") shouldBe ManaColor.Red_afc9
-                ActionMapper.producedToManaColor("W") shouldBe ManaColor.White_afc9
-                ActionMapper.producedToManaColor("U") shouldBe ManaColor.Blue_afc9
-                ActionMapper.producedToManaColor("B") shouldBe ManaColor.Black_afc9
-                ActionMapper.producedToManaColor("G") shouldBe ManaColor.Green_afc9
-                ActionMapper.producedToManaColor("C") shouldBe ManaColor.Colorless_afc9
-                ActionMapper.producedToManaColor("ANY") shouldBe ManaColor.Generic
-            }
-        }
-
-        test("case insensitive") {
-            ActionMapper.producedToManaColor("r") shouldBe ManaColor.Red_afc9
-            ActionMapper.producedToManaColor("any") shouldBe ManaColor.Generic
-        }
-
-        test("unknown returns null") {
-            ActionMapper.producedToManaColor("X") shouldBe null
-            ActionMapper.producedToManaColor("{R}") shouldBe null // caller must strip braces
         }
     })

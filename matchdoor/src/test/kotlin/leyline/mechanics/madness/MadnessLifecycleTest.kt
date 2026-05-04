@@ -74,12 +74,13 @@ private val HARDCAST_PUZZLE =
 
 class MadnessLifecycleTest :
     FunSpec({
+        tags(IntegrationTag)
 
         val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("madness cast path: discard outlet → exile → cast for {R} → resolve").config(tags = setOf(IntegrationTag)) {
+        test("madness cast path: discard outlet → exile → cast for {R} → resolve") {
             val h = MatchFlowHarness(validating = true)
             try {
                 h.connectAndKeepPuzzleText(MADNESS_PUZZLE)
@@ -204,7 +205,7 @@ class MadnessLifecycleTest :
             }
         }
 
-        test("madness hardcast: regular cast from hand omits CastingTimeOption + alternativeGrpId").config(tags = setOf(IntegrationTag)) {
+        test("madness hardcast: regular cast from hand omits CastingTimeOption + alternativeGrpId") {
             // validating=false: the hardcast resolve path surfaces a pre-existing
             // annotation-affectedId unresolvable violation (iid=119 in ZT at gsId=8)
             // unrelated to Madness wiring. Not introduced by this test. See
@@ -258,7 +259,7 @@ class MadnessLifecycleTest :
             }
         }
 
-        test("madness decline: reject the optional cast → Exile→Graveyard Put").config(tags = setOf(IntegrationTag)) {
+        test("madness decline: reject the optional cast → Exile→Graveyard Put") {
             val h = MatchFlowHarness(validating = true)
             try {
                 h.connectAndKeepPuzzleText(MADNESS_PUZZLE)

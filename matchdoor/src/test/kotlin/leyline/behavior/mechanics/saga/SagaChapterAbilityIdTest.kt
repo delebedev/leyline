@@ -24,38 +24,38 @@ import leyline.testkit.TestCardInjector
  */
 class SagaChapterAbilityIdTest :
     FunSpec({
+        tags(BoardTag)
+
         val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("Tribute to Horobi: 3 distinct chapter ability ids in leading abilityIds positions")
-            .config(tags = setOf(BoardTag)) {
-                val cardName = "Tribute to Horobi"
-                val (b, _, _) = base.startWithBoard { _, _, _ -> }
+        test("Tribute to Horobi: 3 distinct chapter ability ids in leading abilityIds positions") {
+            val cardName = "Tribute to Horobi"
+            val (b, _, _) = base.startWithBoard { _, _, _ -> }
 
-                TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
-                val grpId = b.cardRepository.findGrpIdByName(cardName)!!
-                val cardData = b.cardRepository.findByGrpId(grpId)!!
+            TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
+            val grpId = b.cardRepository.findGrpIdByName(cardName)!!
+            val cardData = b.cardRepository.findByGrpId(grpId)!!
 
-                cardData.abilityIds shouldHaveSize 3
-                cardData.abilityIds.map { it.first }.toSet() shouldHaveSize 3 // all distinct
-                cardData.abilityIds.forEach { (id, _) ->
-                    id shouldNotBe 0
-                    id shouldNotBe cardData.grpId
-                }
-                // Chapter list is intentionally empty — positional fallback path.
-                cardData.chapterAbilityGrpIds shouldBe emptyList()
+            cardData.abilityIds shouldHaveSize 3
+            cardData.abilityIds.map { it.first }.toSet() shouldHaveSize 3 // all distinct
+            cardData.abilityIds.forEach { (id, _) ->
+                id shouldNotBe 0
+                id shouldNotBe cardData.grpId
             }
+            // Chapter list is intentionally empty — positional fallback path.
+            cardData.chapterAbilityGrpIds shouldBe emptyList()
+        }
 
-        test("non-saga card has empty chapterAbilityGrpIds")
-            .config(tags = setOf(BoardTag)) {
-                val cardName = "Grizzly Bears"
-                val (b, _, _) = base.startWithBoard { _, _, _ -> }
+        test("non-saga card has empty chapterAbilityGrpIds") {
+            val cardName = "Grizzly Bears"
+            val (b, _, _) = base.startWithBoard { _, _, _ -> }
 
-                TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
-                val grpId = b.cardRepository.findGrpIdByName(cardName)!!
-                val cardData = b.cardRepository.findByGrpId(grpId)!!
+            TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
+            val grpId = b.cardRepository.findGrpIdByName(cardName)!!
+            val cardData = b.cardRepository.findByGrpId(grpId)!!
 
-                cardData.chapterAbilityGrpIds shouldBe emptyList()
-            }
+            cardData.chapterAbilityGrpIds shouldBe emptyList()
+        }
     })
