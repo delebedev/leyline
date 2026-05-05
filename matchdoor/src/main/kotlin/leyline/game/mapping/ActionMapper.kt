@@ -233,15 +233,12 @@ object ActionMapper {
                 continue
             }
             val sa = chooseCastAbility(forgeCard, player) ?: continue
-            if (hasUnmetTargeting(sa)) {
-                log.trace("ActionMapper.buildFromSnapshot: skipping {} — no legal targets", cardSnap.name)
-                continue
-            }
+            val noLegalTargets = hasUnmetTargeting(sa)
             val canPay = canPayManaCost(sa, player)
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             val grpId = cardSnap.grpId
 
-            if (!canPay) {
+            if (noLegalTargets || !canPay) {
                 val inactiveBuilder =
                     Action
                         .newBuilder()
@@ -366,6 +363,9 @@ object ActionMapper {
         // --- Zone casts (graveyard, exile, command) ---
         addZoneCastActionsFromSnap(seatId, snap, builder, bridge)
 
+        // --- Graveyard: activated abilities (Unearth, Embalm, Eternalize) ---
+        addGraveyardActivatedActionsFromSnap(seatId, snap, builder, bridge)
+
         // Pass + FloatMana always available
         builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
         builder.addActions(Action.newBuilder().setActionType(ActionType.FloatMana))
@@ -475,6 +475,75 @@ object ActionMapper {
             ZoneIds.P2_GRAVEYARD to CastRails.fromGraveyard,
             ZoneIds.COMMAND to emptyList(),
         )
+
+    /**
+     * Graveyard-zone activated abilities (Unearth, Embalm, Eternalize, …).
+     *
+     * Walks each own-graveyard card's `forgeCard.spellAbilities`, accepts
+     * activated non-mana abilities whose `canPlay()` passes (Forge enforces
+     * `ActivationZone$ Graveyard` and `SorcerySpeed$` checks). Emits
+     * `Activate_add3` with the minimal envelope: `instanceId + abilityGrpId +
+     * manaCost` (each mana slot echoes `abilityGrpId`). NO `grpId` /
+     * `facetId` / `shouldStop` — graveyard activations omit all three.
+     */
+    @Suppress("CyclomaticComplexMethod") // mirrors the hand-zone activated-ability emit path; same shape, same complexity
+    private fun addGraveyardActivatedActionsFromSnap(
+        seatId: Int,
+        snap: GsmSnapshot,
+        builder: ActionsAvailableReq.Builder,
+        bridge: GameBridge,
+    ) {
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return
+        val graveyardZoneId =
+            when (seatId) {
+                1 -> ZoneIds.P1_GRAVEYARD
+                2 -> ZoneIds.P2_GRAVEYARD
+                else -> return
+            }
+        val zone = snap.zones[graveyardZoneId] ?: return
+        for (fid in zone.contents) {
+            val cardSnap = snap.objects[fid] ?: continue
+            if (!cardSnap.hasNonManaActivatedAbilities) continue
+            val forgeCard = bridge.findCard(fid) ?: continue
+            val cardData = snap.boundCards[fid]?.data
+            for (ability in getNonManaActivatedAbilities(forgeCard, player)) {
+                if (!ability.canPlay()) continue
+                val canPay =
+                    try {
+                        ComputerUtilMana.canPayManaCost(ability, player, 0, false)
+                    } catch (_: Exception) {
+                        false
+                    }
+                val instanceId = bridge.getOrAllocInstanceId(fid).value
+                val registry = bridge.abilityRegistryFor(forgeCard, cardData)
+                val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
+                val abilityCost = ability.payCosts?.totalMana
+                if (canPay) {
+                    val actionBuilder =
+                        Action
+                            .newBuilder()
+                            .setActionType(ActionType.Activate_add3)
+                            .setInstanceId(instanceId)
+                    if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+                    if (abilityCost != null && !abilityCost.isNoCost) {
+                        addManaCostFromForge(abilityCost, actionBuilder, abilityGrpId)
+                    }
+                    builder.addActions(actionBuilder)
+                } else {
+                    val inactiveBuilder =
+                        Action
+                            .newBuilder()
+                            .setActionType(ActionType.Activate_add3)
+                            .setInstanceId(instanceId)
+                    if (abilityGrpId > 0) inactiveBuilder.setAbilityGrpId(abilityGrpId)
+                    if (abilityCost != null && !abilityCost.isNoCost) {
+                        addManaCostFromForge(abilityCost, inactiveBuilder, abilityGrpId)
+                    }
+                    builder.addInactiveActions(inactiveBuilder)
+                }
+            }
+        }
+    }
 
     /**
      * Configure a Cast action's keyword-specific fields per the rail's row in

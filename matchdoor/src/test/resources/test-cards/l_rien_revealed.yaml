@@ -1,0 +1,22 @@
+name: "Lórien Revealed"
+grpId: 84752
+titleId: 703241
+abilities:
+  - id: 1746
+    textId: 1464
+    category: 4
+  - id: 166902
+    textId: 703243
+    category: 1
+    baseId: 30
+    mana: "o1"
+expansionCode: "LTR"
+power: ""
+toughness: ""
+colors:
+  - 2
+types:
+  - 10
+subtypes: []
+supertypes: []
+manaCost: "o3oUoU"

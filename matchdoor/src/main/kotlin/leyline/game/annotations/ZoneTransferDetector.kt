@@ -53,12 +53,25 @@ data class AppliedTransfer(
     val chosenX: Int = 0,
 )
 
-/** A triggered ability that just appeared on the stack (no previousZone entry). */
+/** A triggered or activated ability that just appeared on the stack (no previousZone entry).
+ *
+ *  [isActivatedAbility] — true when the source SpellCast event flagged the
+ *  stack item as an activated ability (cycling, channel, unearth, …) rather
+ *  than a triggered one. Activated abilities skip the persistent
+ *  `TriggeringObject` annotation: that is reserved for triggers.
+ *
+ *  [activationZoneId] — when [isActivatedAbility] is true and the matching
+ *  SpellCast event carried an explicit `activationZoneId`, prefer it over the
+ *  snapshot-derived [sourceZoneId] (which can read 0 when the source card's
+ *  pre-cost zone wasn't tracked through the snapshot diff — common for
+ *  puzzle-injected starting states). Zero means "fall back to [sourceZoneId]". */
 data class StackAbilityAppearance(
     val abilityInstanceId: Int,
     val sourceCardInstanceId: Int,
     val sourceZoneId: Int,
     val grpId: Int,
+    val isActivatedAbility: Boolean = false,
+    val activationZoneId: Int = 0,
 )
 
 /** A triggered ability that was on the stack and is now gone (resolved or fizzled). */
@@ -741,6 +754,17 @@ object ZoneTransferDetector {
                 ) ?: continue
             val sourceCardIid = idLookup(sourceCardForgeId).value
             val sourceZoneId = if (sourceCardIid > 0) previousZones[sourceCardIid] ?: 0 else 0
+            // Discriminate trigger vs activated. The matching SpellCast event
+            // (same source card, isAbility set by the collector) tells us
+            // which lifecycle path applies. Activated abilities skip the
+            // persistent TriggeringObject — that annotation is trigger-only.
+            val matchingCast =
+                events
+                    .filterIsInstance<GameEvent.SpellCast>()
+                    .firstOrNull { it.cardId == sourceCardForgeId }
+            val isActivated = matchingCast?.let { it.isAbility && !it.isTrigger } ?: false
+            val activationZone =
+                if (isActivated) matchingCast?.activationZoneId ?: 0 else 0
 
             appearances.add(
                 StackAbilityAppearance(
@@ -748,9 +772,17 @@ object ZoneTransferDetector {
                     sourceCardInstanceId = sourceCardIid,
                     sourceZoneId = sourceZoneId,
                     grpId = obj.grpId,
+                    isActivatedAbility = isActivated,
+                    activationZoneId = activationZone,
                 ),
             )
-            log.debug("stack ability appeared: iid={} grpId={} source={}", obj.instanceId, obj.grpId, sourceCardIid)
+            log.debug(
+                "stack ability appeared: iid={} grpId={} source={} activated={}",
+                obj.instanceId,
+                obj.grpId,
+                sourceCardIid,
+                isActivated,
+            )
         }
         return appearances
     }

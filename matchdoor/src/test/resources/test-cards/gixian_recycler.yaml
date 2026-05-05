@@ -1,0 +1,13 @@
+name: "Gixian Recycler"
+grpId: 84195
+titleId: 701508
+abilities:
+  - id: 166119
+    textId: 1069050
+    category: 2
+  - id: 5323
+    textId: 7458
+    category: 1
+    baseId: 85
+    mana: "o1oB"
+expansionCode: "Y23"

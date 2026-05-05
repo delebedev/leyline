@@ -26,6 +26,20 @@ object PromptIds {
     const val GROUP_SURVEIL = 129
     const val SEARCH = 1065
 
+    /**
+     * Typecycling-shape library search — "Search your library for an X card,
+     * reveal it, put it into your hand, then shuffle."
+     *
+     * Typecycling and basiccycling cards (cycling/swampcycling/islandcycling/
+     * forestcycling/mountaincycling/plainscycling/basiccycling/wizardcycling/
+     * slivercycling) all map to this promptId. The picker UI keys on it to
+     * render the highlight-all-valid layout (every Type-matching library card
+     * gets the blue glow + click-to-select-and-submit affordance).
+     *
+     * Generic searches (Diabolic Tutor, etc.) use [SEARCH] instead.
+     */
+    const val SEARCH_TYPECYCLING = 11626
+
     /** Mandatory additional cost (discard). Client expects PayCostsReq promptId=1024. */
     const val DISCARD_COST = 1024
 

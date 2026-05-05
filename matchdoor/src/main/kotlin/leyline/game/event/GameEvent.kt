@@ -98,8 +98,16 @@ sealed interface GameEvent {
         val isAbility: Boolean = false,
         /** True if this is a triggered ability landing on the stack, not a player-cast spell. */
         val isTrigger: Boolean = false,
-        /** Forge SpellAbility id when [isTrigger] — used to mint the stack-ability instanceId. */
+        /** Forge SpellAbility id when [isTrigger] or [isAbility] — used to mint the stack-ability instanceId. */
         val abilityForgeId: Int = 0,
+        /**
+         * Source zone (ZoneIds) the ability was activated from. Populated for
+         * activated abilities ([isAbility] && ![isTrigger]) so the
+         * `AbilityInstanceCreated` annotation carries the right `source_zone`
+         * detail (31=Hand for cycling/channel, 33=Graveyard for unearth/embalm).
+         * Zero when not applicable (spells, triggers).
+         */
+        val activationZoneId: Int = 0,
         /** Non-zero when the cast paid Kicker. The per-card kicker ability grpId
          *  (looked up via cardRepository.findKeywordAbilityGrpId on KICKER base).
          *  Drives the persistent CastingTimeOption type=Kicker annotation. */
@@ -123,7 +131,14 @@ sealed interface GameEvent {
         val hasFizzled: Boolean,
         /** True if the resolved item was a triggered ability rather than a cast spell. */
         val isTrigger: Boolean = false,
-        /** Forge SpellAbility id when [isTrigger] — used to mint the stack-ability instanceId. */
+        /**
+         * True if the resolved item was a player-activated ability
+         * (cycling/channel/unearth/embalm/etc.). Distinct from [isTrigger];
+         * both go through the AbilityInstance lifecycle but only triggers
+         * carry a TriggeringObject persistent annotation.
+         */
+        val isAbility: Boolean = false,
+        /** Forge SpellAbility id when [isTrigger] or [isAbility] — used to mint the stack-ability instanceId. */
         val abilityForgeId: Int = 0,
     ) : GameEvent
 

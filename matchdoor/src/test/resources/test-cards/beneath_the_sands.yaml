@@ -1,0 +1,13 @@
+name: "Beneath the Sands"
+grpId: 73962
+titleId: 125307
+abilities:
+  - id: 62342
+    textId: 487899
+    category: 4
+  - id: 2296
+    textId: 1703
+    category: 1
+    baseId: 30
+    mana: "o2"
+expansionCode: "AKR"

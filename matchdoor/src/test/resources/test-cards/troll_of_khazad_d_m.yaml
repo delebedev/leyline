@@ -1,0 +1,23 @@
+name: "Troll of Khazad-dûm"
+grpId: 84803
+titleId: 703419
+abilities:
+  - id: 88576
+    textId: 928717
+    category: 3
+  - id: 166964
+    textId: 703422
+    category: 1
+    baseId: 30
+    mana: "o1"
+expansionCode: "LTR"
+power: "6"
+toughness: "5"
+colors:
+  - 3
+types:
+  - 2
+subtypes:
+  - 72
+supertypes: []
+manaCost: "o5oB"

@@ -12,6 +12,7 @@ import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.RequestBuilder
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.SearchShape
 import leyline.game.mapping.ZoneIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -103,7 +104,13 @@ class TargetingHandler(
                     val playerIdx = resolvePlayerTarget(instanceId, pendingPrompt)
                     if (playerIdx != null) return@mapNotNull playerIdx
                     val cardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@mapNotNull null
-                    pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
+                    // MUST filter by kind=="card" — Forge Card.id and Player.id share
+                    // the same int space and frequently collide (e.g. card.id=1 and
+                    // opp player.id=1). Without the kind guard, indexOfFirst hits the
+                    // wrong candidate (saw bolt-on-Gixian register as bolt-on-opponent).
+                    pendingPrompt.request.candidateRefs.indexOfFirst {
+                        it.kind == "card" && it.entityId == cardId.value
+                    }
                 }.filter { it >= 0 }
 
         log.info(
@@ -1066,13 +1073,43 @@ class TargetingHandler(
                 bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
             }
 
-        // Source spell instanceId — from the spell on stack, or first stack card
+        // Source iid (searchReq.sourceId) — for activated-ability searches
+        // (cycling, typecycling) the protocol expects the AB instance iid
+        // here. Mint via the same SA-id-keyed surrogate the AbilityInstance
+        // lifecycle uses so sourceId and AbilityInstanceCreated reference
+        // the same iid. Spell searches fall back to the host card iid.
+        //
+        // Host card iid (prompt.parameters[0]) — names the source card so
+        // the picker header reads the card name. Always the host card iid,
+        // even for activated abilities (the AB iid lives in sourceId).
+        //
+        // Picker layout (promptId) — typecycling-shape searches use
+        // SEARCH_TYPECYCLING (highlight every valid candidate, click-to-pick).
+        // Generic tutors (Diabolic Tutor, Sylvan Ranger) use SEARCH.
+        val stackTop = ctx.game.stack.firstOrNull()
+        val sa = stackTop?.spellAbility
+        val saId = sa?.id
+        val isAbilityOnStack = stackTop?.isAbility == true
+        val hostCardForgeId = sa?.hostCard?.id ?: req.sourceEntityId
+        val hostCardIid =
+            hostCardForgeId?.let { bridge.getOrAllocInstanceId(ForgeCardId(it)).value } ?: 0
         val sourceId =
-            req.sourceEntityId?.let {
-                bridge.getOrAllocInstanceId(ForgeCardId(it)).value
-            } ?: ctx.game.stack.firstOrNull()?.let {
-                bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value
-            } ?: 0
+            when {
+                isAbilityOnStack && saId != null -> {
+                    val abForgeId = FrameIdResolver.triggerStackAbilityForgeId(saId)
+                    bridge.getOrAllocInstanceId(abForgeId).value
+                }
+                hostCardIid != 0 -> hostCardIid
+                stackTop != null ->
+                    bridge.getOrAllocInstanceId(ForgeCardId(stackTop.id)).value
+                else -> 0
+            }
+        val promptId =
+            if (isAbilityOnStack && SearchShape.isTypeCycling(sa)) {
+                PromptIds.SEARCH_TYPECYCLING
+            } else {
+                PromptIds.SEARCH
+            }
 
         val msgId = counters.counter.nextMsgId()
         val gsId = counters.counter.currentGsId()
@@ -1081,11 +1118,14 @@ class TargetingHandler(
                 msgId = msgId,
                 gsId = gsId,
                 sourceInstanceId = sourceId,
+                hostCardInstanceId = hostCardIid,
+                searchingSeat = counters.seatId.value,
                 libraryZoneId = libZoneId,
                 allLibraryIds = allLibIds,
                 validTargetIds = validIds,
                 maxFind = req.max,
                 allowFailToFind = req.min == 0,
+                promptId = promptId,
             )
         sink.sendBundledGRE(listOf(msg))
         pendingInteraction = PendingClientInteraction.Search(pendingPrompt.promptId)

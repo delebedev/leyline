@@ -335,16 +335,40 @@ class BundleBuilder(
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
     fun buildSelectNReq(prompt: InteractivePromptBridge.PendingPrompt): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge)
 
-    /** Build a [SearchReq] GRE message with populated inner fields for library search. */
+    /** Build a [SearchReq] GRE message with populated inner fields for library search.
+     *
+     *  [sourceInstanceId] — `searchReq.sourceId` (the AB iid for activated-
+     *  ability searches; the spell iid for hard-cast tutors).
+     *
+     *  [hostCardInstanceId] — first `prompt.parameters` CardId. Names the
+     *  source card (so the picker header reads "Lórien Revealed" rather
+     *  than the bare ability description).
+     *
+     *  [searchingSeat] — second `prompt.parameters` CardId. The searching
+     *  seat — what the client picker pairs with [hostCardInstanceId] to
+     *  anchor the panel header. Both parameters are required.
+     *
+     *  [promptId] — picker layout. [PromptIds.SEARCH_TYPECYCLING] for
+     *  cycling/typecycling/basiccycling (highlight-every-valid-card layout
+     *  with click-to-pick); [PromptIds.SEARCH] for generic tutors.
+     *
+     *  [allowCancel] — defaults to `No_a526` (typecycling-shape; non-cancellable
+     *  resolution-side picker). Generic tutors with optional resolution may
+     *  pass `Abort` instead. */
+    @Suppress("LongParameterList")
     fun buildSearchReq(
         msgId: Int,
         gsId: Int,
         sourceInstanceId: Int,
+        hostCardInstanceId: Int,
+        searchingSeat: Int,
         libraryZoneId: Int,
         allLibraryIds: List<Int>,
         validTargetIds: List<Int>,
         maxFind: Int = 1,
         allowFailToFind: Boolean = true,
+        promptId: Int = PromptIds.SEARCH,
+        allowCancel: AllowCancel = AllowCancel.No_a526,
     ): GREToClientMessage {
         val searchReq =
             SearchReq
@@ -363,16 +387,23 @@ class BundleBuilder(
             .setMsgId(msgId)
             .setGameStateId(gsId)
             .addSystemSeatIds(seatId)
+            .setAllowCancel(allowCancel)
             .setPrompt(
                 Prompt
                     .newBuilder()
-                    .setPromptId(PromptIds.SEARCH)
+                    .setPromptId(promptId)
                     .addParameters(
                         PromptParameter
                             .newBuilder()
                             .setParameterName("CardId")
                             .setType(ParameterType.Number)
-                            .setNumberValue(sourceInstanceId),
+                            .setNumberValue(hostCardInstanceId),
+                    ).addParameters(
+                        PromptParameter
+                            .newBuilder()
+                            .setParameterName("CardId")
+                            .setType(ParameterType.Number)
+                            .setNumberValue(searchingSeat),
                     ),
             ).setSearchReq(searchReq)
             .build()

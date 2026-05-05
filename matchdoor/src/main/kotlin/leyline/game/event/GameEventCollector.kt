@@ -16,6 +16,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.codes.ManaColorMapping
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PlayerMapper
+import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
@@ -116,6 +117,15 @@ class GameEventCollector(
      */
     private val pendingTriggers = ConcurrentHashMap<Int, ForgeCardId>()
 
+    /**
+     * Active player-activated abilities on the stack, keyed by Forge SA id.
+     * Parallel to [pendingTriggers] so the SpellResolved visitor can recover
+     * the `isAbility` flag and re-emit it on the resolution event — closing
+     * the AbilityInstance lifecycle for cycling / channel / unearth and other
+     * activated abilities.
+     */
+    private val pendingActivations = ConcurrentHashMap<Int, ForgeCardId>()
+
     /** Non-consuming check: is this SpellAbility a triggered ability currently on the stack?
      *  Used by [leyline.game.GamePlayback] to decide whether to insert a per-step diff
      *  for trigger resolutions on the local player's turn. */
@@ -208,10 +218,23 @@ class GameEventCollector(
         // not expose either flag.
         val isTrigger = ev.si()?.isTrigger ?: false
         val isAbility = ev.si()?.isAbility ?: false
-        val abilityForgeId = if (isTrigger) ev.sa()?.id ?: 0 else 0
+        // The SA's Forge id is needed for both triggered and activated abilities;
+        // both surface through the AbilityInstance lifecycle path keyed on it.
+        val abilityForgeId = if (isTrigger || isAbility) ev.sa()?.id ?: 0 else 0
         if (isTrigger && abilityForgeId != 0) {
             pendingTriggers[abilityForgeId] = ForgeCardId(card.id)
+        } else if (isAbility && abilityForgeId != 0) {
+            pendingActivations[abilityForgeId] = ForgeCardId(card.id)
         }
+        // Activation zone: only meaningful for activated abilities (cycling →
+        // Hand=31; unearth → Graveyard=33; …). Triggered abilities' "source
+        // zone" is wherever the source card lives, computed elsewhere.
+        val activationZoneId =
+            if (isAbility && !isTrigger) {
+                resolveActivationZoneId(topSa, card.id, seat, evSaId = ev.sa()?.id ?: 0)
+            } else {
+                0
+            }
         val (kickerAbilityGrpId, chosenX) = readCastingTimeOptionState(topSa, card)
         frame.add(
             GameEvent.SpellCast(
@@ -224,6 +247,7 @@ class GameEventCollector(
                 isAbility = isAbility,
                 isTrigger = isTrigger,
                 abilityForgeId = abilityForgeId,
+                activationZoneId = activationZoneId,
                 kickerAbilityGrpId = kickerAbilityGrpId,
                 chosenX = chosenX,
             ),
@@ -243,6 +267,107 @@ class GameEventCollector(
             chosenX,
         )
     }
+
+    /**
+     * Resolve the activation zone of an activated ability to a protocol ZoneId.
+     *
+     * Strategy (first hit wins):
+     *   1. **Frame correlation** — if a `CardDiscarded` or `ZoneChanged` event
+     *      for this card already fired in the current frame (cost-payment side
+     *      of the activation), its `from` zone is the activation zone. Most
+     *      reliable for cycling/channel/unearth — the discard or graveyard-exit
+     *      event always fires before `SpellAbilityCast`.
+     *   2. **Stack peek (`topSa`)** — populated for normal activate flows where
+     *      the AB still lives on the stack at event time.
+     *   3. **Live SA on the host card matched by id** — recovers the restriction
+     *      when stack.peek() has already cleared (compressed cycling resolution).
+     *   4. **Host card's `lastKnownZone`** — covers SAs without an explicit
+     *      `ActivationZone$` (battlefield-implicit activated abilities).
+     *
+     * Returns 0 when nothing pins down the zone.
+     */
+    private fun resolveActivationZoneId(
+        topSa: forge.game.spellability.SpellAbility?,
+        cardId: Int,
+        seat: SeatId,
+        evSaId: Int,
+    ): Int {
+        // 1. Frame correlation — read this card's pre-cost zone from sibling
+        //    events. CardDiscarded carries the pre-discard zone (Hand →
+        //    Graveyard); ZoneChanged carries the same. For cycling/channel
+        //    the discard fires before SpellAbilityCast in Forge's event order.
+        val target = ForgeCardId(cardId)
+        for (ev in frame.asReversed()) {
+            when (ev) {
+                is GameEvent.CardDiscarded -> if (ev.cardId == target) return ZoneIds.handOf(seat)
+                is GameEvent.ZoneChanged ->
+                    if (ev.cardId == target) {
+                        return zoneToProtocolId(ev.from, seat)
+                    }
+                else -> {}
+            }
+        }
+        // 2-3. SA-driven resolution.
+        val candidate =
+            if (topSa != null && topSa.hostCard?.id == cardId) {
+                topSa
+            } else {
+                findLiveSaOnCard(cardId, evSaId)
+            }
+        if (candidate != null) {
+            val restrictionZone = candidate.restrictions?.zone
+            if (restrictionZone != null) return zoneTypeToProtocolId(restrictionZone, seat)
+            val hostZone = candidate.hostCard?.lastKnownZone?.zoneType
+            if (hostZone != null) return zoneTypeToProtocolId(hostZone, seat)
+        }
+        // 4. Last-resort: live host card lookup.
+        val hostZone = bridge.findCard(target)?.lastKnownZone?.zoneType
+        return if (hostZone != null) zoneTypeToProtocolId(hostZone, seat) else 0
+    }
+
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+    private fun zoneToProtocolId(
+        zone: Zone,
+        seat: SeatId,
+    ): Int =
+        when (zone) {
+            Zone.Hand -> ZoneIds.handOf(seat)
+            Zone.Graveyard -> ZoneIds.graveyardOf(seat)
+            Zone.Battlefield -> ZoneIds.BATTLEFIELD
+            Zone.Exile -> ZoneIds.EXILE
+            Zone.Command -> ZoneIds.COMMAND
+            Zone.Stack -> ZoneIds.STACK
+            Zone.Library -> ZoneIds.libraryOf(seat)
+            // Other / unmapped — not a wire-level zone we surface.
+            else -> 0
+        }
+
+    private fun findLiveSaOnCard(
+        cardId: Int,
+        evSaId: Int,
+    ): forge.game.spellability.SpellAbility? {
+        if (evSaId == 0) return null
+        val card = bridge.findCard(ForgeCardId(cardId)) ?: return null
+        return card.spellAbilities.firstOrNull { it.id == evSaId }
+            ?: card.allSpellAbilities?.firstOrNull { it.id == evSaId }
+    }
+
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+    private fun zoneTypeToProtocolId(
+        zone: ZoneType,
+        seat: SeatId,
+    ): Int =
+        when (zone) {
+            ZoneType.Hand -> ZoneIds.handOf(seat)
+            ZoneType.Graveyard -> ZoneIds.graveyardOf(seat)
+            ZoneType.Battlefield -> ZoneIds.BATTLEFIELD
+            ZoneType.Exile -> ZoneIds.EXILE
+            ZoneType.Command -> ZoneIds.COMMAND
+            ZoneType.Stack -> ZoneIds.STACK
+            ZoneType.Library -> ZoneIds.libraryOf(seat)
+            // Sideboard / Subgame / ExtraHand / None — not zones the AbilityInstance source_zone surfaces.
+            else -> 0
+        }
 
     /** CastingTimeOption type=3 (Kicker) and type=2 (ChooseX) state, read from
      *  the live SA on top of the stack — same window altCost is read in.
@@ -278,20 +403,23 @@ class GameEventCollector(
         val card = ev.spell().hostCard ?: return
         val saId = ev.spell().id
         val isTrigger = pendingTriggers.remove(saId) != null
+        val isAbility = !isTrigger && pendingActivations.remove(saId) != null
         frame.add(
             GameEvent.SpellResolved(
                 cardId = ForgeCardId(card.id),
                 hasFizzled = ev.hasFizzled(),
                 isTrigger = isTrigger,
-                abilityForgeId = if (isTrigger) saId else 0,
+                isAbility = isAbility,
+                abilityForgeId = if (isTrigger || isAbility) saId else 0,
             ),
         )
         log.debug(
-            "event: SpellResolved card={} fizzled={} trigger={} abilityForgeId={}",
+            "event: SpellResolved card={} fizzled={} trigger={} ability={} abilityForgeId={}",
             card.name,
             ev.hasFizzled(),
             isTrigger,
-            if (isTrigger) saId else 0,
+            isAbility,
+            if (isTrigger || isAbility) saId else 0,
         )
     }
 

@@ -1,0 +1,18 @@
+[metadata]
+Name:Unearth Gixian Recycler
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast Gixian Recycler ({2}) → Bolt it to graveyard → Unearth from GY ({1}{B}) → attack.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Gixian Recycler;Lightning Bolt
+humanbattlefield=Swamp;Swamp;Mountain;Mountain;Mountain
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

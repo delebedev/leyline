@@ -74,7 +74,13 @@ internal object CategoryRules {
                 events.any { it is GameEvent.LandPlayed && it.cardId == fid }
             },
             CategoryRule(100, TransferCategory.CastSpell) { events, fid ->
-                events.any { it is GameEvent.SpellCast && it.cardId == fid && !it.isTrigger }
+                // Activated abilities (cycling, channel, unearth, embalm, eternalize, …)
+                // ride GameEventSpellAbilityCast just like spells in Forge, but their
+                // cost-paid zone transfers are NOT casts — Hand→Graveyard from cycling
+                // discard belongs in Discard, not CastSpell. Filter on isAbility so
+                // activated-ability cost transfers fall through to the discard /
+                // sacrifice / zone-pair rules below.
+                events.any { it is GameEvent.SpellCast && it.cardId == fid && !it.isTrigger && !it.isAbility }
             },
             CategoryRule(100, TransferCategory.Resolve) { events, fid ->
                 events.any { it is GameEvent.SpellResolved && it.cardId == fid && !it.hasFizzled }
