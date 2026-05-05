@@ -54,11 +54,16 @@ class OptionalCostInteractionTest :
         test("CastingTimeOptionsReq — kicker prompt shape") {
             startBurst()
 
-            after { castSpellByName("Burst Lightning").shouldBeTrue() }
-                .expectCastingTimeOptionsReq {
-                    option(CastingTimeOptionType.Kicker, ctoId = 1)
-                    done(ctoId = 0, required = true)
-                }
+            val cto =
+                after { castSpellByName("Burst Lightning").shouldBeTrue() }
+                    .expectCastingTimeOptionsReq {
+                        option(CastingTimeOptionType.Kicker, ctoId = 1)
+                        done(ctoId = 0, required = true)
+                    }
+
+            // Locks the option count: block-form asserts Kicker + Done are present
+            // and shaped correctly, but a third unexpected option would slip through.
+            cto.castingTimeOptionReqList shouldHaveSize 2
         }
 
         test("kicked Burst Lightning deals 4 damage") {
@@ -99,7 +104,7 @@ class OptionalCostInteractionTest :
             startBurst()
 
             val cast = after { castSpellByName("Burst Lightning").shouldBeTrue() }
-            cast.expectOneCastingTimeOptionsReq()
+            cast.expectOneCastingTimeOptionsReq().castingTimeOptionReqList shouldHaveSize 2
             cast.expectNoSelectTargetsReq()
 
             after { declineKicker() }.expectOneSelectTargetsReq()

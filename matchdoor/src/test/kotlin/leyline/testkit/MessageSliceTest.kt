@@ -1,10 +1,13 @@
 package leyline.testkit
 
+import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
@@ -16,6 +19,8 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsReq
 
 class MessageSliceTest :
     FunSpec({
+
+        tags(UnitTag)
 
         fun gsm(): GREToClientMessage =
             GREToClientMessage
@@ -81,9 +86,11 @@ class MessageSliceTest :
         test("expectOneCastingTimeOptionsReq fails with named prompt + observed types when missing") {
             val slice = MessageSlice(listOf(gsm(), selectTargetsReq()))
             val err = shouldThrow<AssertionError> { slice.expectOneCastingTimeOptionsReq() }
-            err.message!! shouldContain "CastingTimeOptionsReq"
-            err.message!! shouldContain "found 0"
-            err.message!! shouldContain "SelectTargetsReq_695e"
+            assertSoftly {
+                err.message!! shouldContain "CastingTimeOptionsReq"
+                err.message!! shouldContain "found 0"
+                err.message!! shouldContain "SelectTargetsReq_695e"
+            }
         }
 
         test("expectOneCastingTimeOptionsReq fails when multiple present") {
@@ -94,15 +101,17 @@ class MessageSliceTest :
 
         test("expectNoSelectTargetsReq passes when absent") {
             val slice = MessageSlice(listOf(gsm(), ctoReq()))
-            slice.expectNoSelectTargetsReq()
+            shouldNotThrowAny { slice.expectNoSelectTargetsReq() }
         }
 
         test("expectNoSelectTargetsReq fails with named prompt + observed types when present") {
             val slice = MessageSlice(listOf(ctoReq(), selectTargetsReq()))
             val err = shouldThrow<AssertionError> { slice.expectNoSelectTargetsReq() }
-            err.message!! shouldContain "SelectTargetsReq"
-            err.message!! shouldContain "found 1"
-            err.message!! shouldContain "CastingTimeOptionsReq_695e"
+            assertSoftly {
+                err.message!! shouldContain "SelectTargetsReq"
+                err.message!! shouldContain "found 1"
+                err.message!! shouldContain "CastingTimeOptionsReq_695e"
+            }
         }
 
         test("expectOnePayCostsReq + expectNoPayCostsReq cover PayCostsReq family") {
@@ -132,9 +141,11 @@ class MessageSliceTest :
 
         test("expectCastingTimeOptionsReq block — passes when option + done match") {
             val slice = MessageSlice(listOf(gsm(), kickerCtoReq()))
-            slice.expectCastingTimeOptionsReq {
-                option(CastingTimeOptionType.Kicker, ctoId = 1)
-                done(ctoId = 0, required = true)
+            shouldNotThrowAny {
+                slice.expectCastingTimeOptionsReq {
+                    option(CastingTimeOptionType.Kicker, ctoId = 1)
+                    done(ctoId = 0, required = true)
+                }
             }
         }
 
@@ -146,9 +157,11 @@ class MessageSliceTest :
                         option(CastingTimeOptionType.Multikicker, ctoId = 1)
                     }
                 }
-            err.message!! shouldContain "Multikicker"
-            err.message!! shouldContain "Kicker/ctoId=1"
-            err.message!! shouldContain "Done/ctoId=0"
+            assertSoftly {
+                err.message!! shouldContain "Multikicker"
+                err.message!! shouldContain "Kicker/ctoId=1"
+                err.message!! shouldContain "Done/ctoId=0"
+            }
         }
 
         test("expectCastingTimeOptionsReq block — fails when ctoId mismatches") {
