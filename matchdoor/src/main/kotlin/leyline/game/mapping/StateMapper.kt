@@ -1150,8 +1150,34 @@ object StateMapper {
                 .filterIsInstance<GameEvent.DamageDealtToCard>()
                 .map { it.targetCardId }
                 .toSet()
+        // Activated-ability affector map: forgeCardId → AB iid. Used to stamp
+        // affectorId on cost-paid transfers (cycling discard, channel discard,
+        // unearth GY→BF return) so the resulting annotation ties the transfer
+        // back to the ability instance that caused it.
+        val activatedAbilityAffectors: Map<ForgeCardId, Int> =
+            if (frameIds != null) {
+                events
+                    .filterIsInstance<GameEvent.SpellCast>()
+                    .filter { it.isAbility && !it.isTrigger }
+                    .associate { it.cardId to stackAbilityIidFor(it.abilityForgeId, it.cardId, frameIds) }
+            } else {
+                emptyMap()
+            }
+        val patchedTransfers =
+            if (activatedAbilityAffectors.isEmpty()) {
+                transferResult.transfers
+            } else {
+                transferResult.transfers.map { transfer ->
+                    val abIid = transfer.forgeCardId?.let { activatedAbilityAffectors[it] }
+                    if (abIid != null && transfer.affectorId == 0) {
+                        transfer.copy(affectorId = abIid)
+                    } else {
+                        transfer
+                    }
+                }
+            }
         val (deferredTransfers, immediateTransfers) =
-            transferResult.transfers.partition { transfer ->
+            patchedTransfers.partition { transfer ->
                 transfer.category == TransferCategory.Destroy &&
                     transfer.forgeCardId != null &&
                     transfer.forgeCardId in lethalDamageVictims
@@ -1167,20 +1193,30 @@ object StateMapper {
         // Snapshot-derived appearances (cast spells visible on the stack at snapshot time).
         val snapshotSourceIids = transferResult.stackAbilityAppearances.map { it.sourceCardInstanceId }.toSet()
         for (a in transferResult.stackAbilityAppearances) {
+            // Snapshot-derived sourceZoneId reads `previousZones[sourceCardIid]`
+            // which is 0 when the source card wasn't tracked through the diff
+            // (puzzle-injected starting state). For activated abilities the
+            // SpellCast event carries an explicit activationZoneId — prefer it
+            // when non-zero so cycling=Hand and unearth=Graveyard both land.
+            val sourceZone = if (a.activationZoneId != 0) a.activationZoneId else a.sourceZoneId
             annotations.add(
                 AnnotationBuilder.abilityInstanceCreated(
                     InstanceId(a.abilityInstanceId),
                     InstanceId(a.sourceCardInstanceId),
-                    a.sourceZoneId,
+                    sourceZone,
                 ),
             )
-            transferPersistent.add(
-                AnnotationBuilder.triggeringObject(
-                    abilityInstanceId = InstanceId(a.abilityInstanceId),
-                    sourceCardInstanceId = InstanceId(a.sourceCardInstanceId),
-                    sourceZone = a.sourceZoneId,
-                ),
-            )
+            // TriggeringObject is trigger-only — activated abilities (cycling,
+            // channel, unearth, …) do not carry one in the protocol shape.
+            if (!a.isActivatedAbility) {
+                transferPersistent.add(
+                    AnnotationBuilder.triggeringObject(
+                        abilityInstanceId = InstanceId(a.abilityInstanceId),
+                        sourceCardInstanceId = InstanceId(a.sourceCardInstanceId),
+                        sourceZone = sourceZone,
+                    ),
+                )
+            }
         }
         val snapshotDisappearanceIids = transferResult.stackAbilityDisappearances.map { it.abilityInstanceId }.toSet()
         // Event-driven trigger lifecycle. With auto-pass on the local turn the
@@ -1263,10 +1299,30 @@ object StateMapper {
             )
         }
 
+        // Activated-ability cast half: AbilityInstanceCreated keyed off the
+        // event's activationZoneId (cycling=Hand, unearth=Graveyard, …).
+        // No persistent TriggeringObject — that annotation is specific to
+        // triggered abilities.
+        for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isAbility && !it.isTrigger }) {
+            val sourceCardIid = frameIds.cardIid(cast.cardId).value
+            val abilityIid = stackAbilityIidFor(cast.abilityForgeId, cast.cardId, frameIds)
+            val sourceZone =
+                if (cast.activationZoneId != 0) cast.activationZoneId else currentSourceZoneId(cast.cardId, bridge)
+
+            if (sourceCardIid in snapshotSourceIids) continue
+            annotations.add(
+                AnnotationBuilder.abilityInstanceCreated(
+                    InstanceId(abilityIid),
+                    InstanceId(sourceCardIid),
+                    sourceZone,
+                ),
+            )
+        }
+
         // Resolve half: ResolutionStart/Complete (always — snap-diff doesn't emit
         // these for stack-only abilities) + AbilityInstanceDeleted (when snap-diff
-        // missed it).
-        for (resolved in events.filterIsInstance<GameEvent.SpellResolved>().filter { it.isTrigger }) {
+        // missed it). Same shape applies for triggered and activated abilities.
+        for (resolved in events.filterIsInstance<GameEvent.SpellResolved>().filter { it.isTrigger || it.isAbility }) {
             val sourceCardIid = frameIds.cardIid(resolved.cardId).value
             val abilityIid = stackAbilityIidFor(resolved.abilityForgeId, resolved.cardId, frameIds)
             val abilityGrpId = abilityGrpIdForSource(resolved.cardId, snap)

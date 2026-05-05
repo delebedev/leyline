@@ -40,6 +40,7 @@ import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
 import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.GsmSnapshot
 import org.jetbrains.annotations.VisibleForTesting
@@ -1017,7 +1018,9 @@ class GameBridge(
             )
         var registered = 0
         for (player in game.players) {
+            val seatId = players.entries.firstOrNull { it.value === player }?.key ?: continue
             for (zone in allZones) {
+                val protocolZoneId = puzzleZoneId(zone, seatId) ?: continue
                 for (card in player.getZone(zone).cards) {
                     if (card.rules != null) {
                         val grpId = cardRepository.findGrpIdByName(card.name)
@@ -1026,13 +1029,33 @@ class GameBridge(
                             abilityRegistryFor(card, cardData)
                         }
                     }
-                    ids.getOrAlloc(ForgeCardId(card.id))
+                    val iid = ids.getOrAlloc(ForgeCardId(card.id))
+                    // Seed zone tracking so the FIRST diff after the puzzle
+                    // GSM can detect zone changes against the puzzle's
+                    // initial state (cycling discard, unearth return, …).
+                    // Without this seed, ZoneTransferDetector reads
+                    // previousZones[iid]==null and silently skips emission.
+                    diff.recordZone(iid.value, protocolZoneId)
                     registered++
                 }
             }
         }
         log.info("GameBridge: registered {} puzzle cards in InstanceIdRegistry", registered)
     }
+
+    private fun puzzleZoneId(
+        zone: ZoneType,
+        seatId: Int,
+    ): Int? =
+        when (zone) {
+            ZoneType.Hand -> ZoneIds.handOf(seatId)
+            ZoneType.Library -> ZoneIds.libraryOf(seatId)
+            ZoneType.Graveyard -> ZoneIds.graveyardOf(seatId)
+            ZoneType.Battlefield -> ZoneIds.BATTLEFIELD
+            ZoneType.Exile -> ZoneIds.EXILE
+            ZoneType.Command -> ZoneIds.COMMAND
+            else -> null
+        }
 
     /**
      * Seed persistent [AnnotationType.Attachment] annotations for cards that start
