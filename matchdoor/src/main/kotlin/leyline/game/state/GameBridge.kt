@@ -1017,8 +1017,10 @@ class GameBridge(
                 ZoneType.Command,
             )
         var registered = 0
+        val playerToSeat: Map<forge.game.player.Player, Int> =
+            players.entries.associate { it.value to it.key }
         for (player in game.players) {
-            val seatId = players.entries.firstOrNull { it.value === player }?.key ?: continue
+            val seatId = playerToSeat[player] ?: continue
             for (zone in allZones) {
                 val protocolZoneId = puzzleZoneId(zone, seatId) ?: continue
                 for (card in player.getZone(zone).cards) {
@@ -1043,6 +1045,7 @@ class GameBridge(
         log.info("GameBridge: registered {} puzzle cards in InstanceIdRegistry", registered)
     }
 
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun puzzleZoneId(
         zone: ZoneType,
         seatId: Int,
@@ -1054,6 +1057,7 @@ class GameBridge(
             ZoneType.Battlefield -> ZoneIds.BATTLEFIELD
             ZoneType.Exile -> ZoneIds.EXILE
             ZoneType.Command -> ZoneIds.COMMAND
+            // Sideboard / Stack / RareAside / etc. — not zones we seed for puzzles.
             else -> null
         }
 

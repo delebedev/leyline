@@ -12,6 +12,7 @@ import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.RequestBuilder
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.SearchShape
 import leyline.game.mapping.ZoneIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -1103,16 +1104,12 @@ class TargetingHandler(
                     bridge.getOrAllocInstanceId(ForgeCardId(stackTop.id)).value
                 else -> 0
             }
-        // Typecycling/landcycling/basiccycling: SA is `AB$ ChangeZone | Origin$
-        // Library | Destination$ Hand | ChangeType$ <type>`. The ChangeType
-        // param is the discriminator — generic tutors omit it or use Card.
-        val isTypeCyclingShape =
-            sa != null &&
-                isAbilityOnStack &&
-                sa.hasParam("Origin") && sa.getParam("Origin") == "Library" &&
-                sa.hasParam("Destination") && sa.getParam("Destination") == "Hand" &&
-                sa.hasParam("ChangeType") && sa.getParam("ChangeType") != "Card"
-        val promptId = if (isTypeCyclingShape) PromptIds.SEARCH_TYPECYCLING else PromptIds.SEARCH
+        val promptId =
+            if (isAbilityOnStack && SearchShape.isTypeCycling(sa)) {
+                PromptIds.SEARCH_TYPECYCLING
+            } else {
+                PromptIds.SEARCH
+            }
 
         val msgId = counters.counter.nextMsgId()
         val gsId = counters.counter.currentGsId()
@@ -1122,7 +1119,7 @@ class TargetingHandler(
                 gsId = gsId,
                 sourceInstanceId = sourceId,
                 hostCardInstanceId = hostCardIid,
-                seatId = counters.seatId.value,
+                searchingSeat = counters.seatId.value,
                 libraryZoneId = libZoneId,
                 allLibraryIds = allLibIds,
                 validTargetIds = validIds,

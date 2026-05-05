@@ -344,26 +344,31 @@ class BundleBuilder(
      *  source card (so the picker header reads "Lórien Revealed" rather
      *  than the bare ability description).
      *
-     *  [seatId] — second `prompt.parameters` CardId. The searching seat —
-     *  what the client picker pairs with [hostCardInstanceId] to anchor
-     *  the panel header. Both parameters are required.
+     *  [searchingSeat] — second `prompt.parameters` CardId. The searching
+     *  seat — what the client picker pairs with [hostCardInstanceId] to
+     *  anchor the panel header. Both parameters are required.
      *
      *  [promptId] — picker layout. [PromptIds.SEARCH_TYPECYCLING] for
      *  cycling/typecycling/basiccycling (highlight-every-valid-card layout
-     *  with click-to-pick); [PromptIds.SEARCH] for generic tutors. */
+     *  with click-to-pick); [PromptIds.SEARCH] for generic tutors.
+     *
+     *  [allowCancel] — defaults to `No_a526` (typecycling-shape; non-cancellable
+     *  resolution-side picker). Generic tutors with optional resolution may
+     *  pass `Abort` instead. */
     @Suppress("LongParameterList")
     fun buildSearchReq(
         msgId: Int,
         gsId: Int,
         sourceInstanceId: Int,
         hostCardInstanceId: Int,
-        seatId: Int,
+        searchingSeat: Int,
         libraryZoneId: Int,
         allLibraryIds: List<Int>,
         validTargetIds: List<Int>,
         maxFind: Int = 1,
         allowFailToFind: Boolean = true,
         promptId: Int = PromptIds.SEARCH,
+        allowCancel: AllowCancel = AllowCancel.No_a526,
     ): GREToClientMessage {
         val searchReq =
             SearchReq
@@ -381,8 +386,8 @@ class BundleBuilder(
             .setType(GREMessageType.SearchReq_695e)
             .setMsgId(msgId)
             .setGameStateId(gsId)
-            .addSystemSeatIds(this.seatId)
-            .setAllowCancel(AllowCancel.No_a526)
+            .addSystemSeatIds(seatId)
+            .setAllowCancel(allowCancel)
             .setPrompt(
                 Prompt
                     .newBuilder()
@@ -398,7 +403,7 @@ class BundleBuilder(
                             .newBuilder()
                             .setParameterName("CardId")
                             .setType(ParameterType.Number)
-                            .setNumberValue(seatId),
+                            .setNumberValue(searchingSeat),
                     ),
             ).setSearchReq(searchReq)
             .build()

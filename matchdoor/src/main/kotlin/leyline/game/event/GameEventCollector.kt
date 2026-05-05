@@ -325,6 +325,7 @@ class GameEventCollector(
         return if (hostZone != null) zoneTypeToProtocolId(hostZone, seat) else 0
     }
 
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun zoneToProtocolId(
         zone: Zone,
         seat: SeatId,
@@ -337,6 +338,7 @@ class GameEventCollector(
             Zone.Command -> ZoneIds.COMMAND
             Zone.Stack -> ZoneIds.STACK
             Zone.Library -> ZoneIds.libraryOf(seat)
+            // Other / unmapped — not a wire-level zone we surface.
             else -> 0
         }
 
@@ -350,6 +352,7 @@ class GameEventCollector(
             ?: card.allSpellAbilities?.firstOrNull { it.id == evSaId }
     }
 
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun zoneTypeToProtocolId(
         zone: ZoneType,
         seat: SeatId,
@@ -362,6 +365,7 @@ class GameEventCollector(
             ZoneType.Command -> ZoneIds.COMMAND
             ZoneType.Stack -> ZoneIds.STACK
             ZoneType.Library -> ZoneIds.libraryOf(seat)
+            // Sideboard / Subgame / ExtraHand / None — not zones the AbilityInstance source_zone surfaces.
             else -> 0
         }
 

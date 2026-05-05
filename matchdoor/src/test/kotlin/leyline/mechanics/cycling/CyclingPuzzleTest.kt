@@ -1,6 +1,7 @@
 package leyline.mechanics.cycling
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
@@ -16,6 +17,7 @@ import leyline.testkit.MatchFlowHarness
  * Discard<1/CARDNAME> cost component fires the Hand→Graveyard ZoneTransfer
  * with category=Discard, and the resolve effect (Draw) lands.
  */
+@Suppress("MissingAssertSoftly") // intentional fail-fast — passUntil depends on activation succeeding first
 class CyclingPuzzleTest :
     FunSpec({
 
@@ -48,14 +50,18 @@ class CyclingPuzzleTest :
                 ailibrary=Mountain
                 """.trimIndent()
 
-            val h = MatchFlowHarness(seed = 42L, validating = false)
+            val h = MatchFlowHarness(seed = 42L, validating = true)
             harness = h
             h.connectAndKeepPuzzleText(pzl)
 
             val human = h.game().registeredPlayers.first()
 
             // Pre-cycle invariants
-            human.getZone(ZoneType.Hand).cards.any { it.name == "Miscalculation" }.shouldBeTrue()
+            human
+                .getZone(ZoneType.Hand)
+                .cards
+                .any { it.name == "Miscalculation" }
+                .shouldBeTrue()
             val handBefore = human.getZone(ZoneType.Hand).size()
             val gyBefore = human.getZone(ZoneType.Graveyard).size()
 
@@ -63,24 +69,26 @@ class CyclingPuzzleTest :
             h.activateAbilityFromHand("Miscalculation").shouldBeTrue()
             // Wait for the Cycling AB to resolve (Discard is part of the cost,
             // Draw is the resolve effect — we need both to land before asserting).
-            h.passUntil(maxPasses = 10) {
-                human.getZone(ZoneType.Graveyard).cards.any { it.name == "Miscalculation" } &&
-                    human.getZone(ZoneType.Hand).cards.any { it.name == "Lightning Bolt" }
-            }.shouldBeTrue()
+            h
+                .passUntil(maxPasses = 10) {
+                    human.getZone(ZoneType.Graveyard).cards.any { it.name == "Miscalculation" } &&
+                        human.getZone(ZoneType.Hand).cards.any { it.name == "Lightning Bolt" }
+                }.shouldBeTrue()
 
-            // Miscalculation now in graveyard
-            human
-                .getZone(ZoneType.Graveyard)
-                .cards
-                .any { it.name == "Miscalculation" }
-                .shouldBeTrue()
-            // Hand size: -1 (cycled) +1 (drew Lightning Bolt) = same
-            human.getZone(ZoneType.Hand).size() shouldBe handBefore
-            human
-                .getZone(ZoneType.Hand)
-                .cards
-                .any { it.name == "Lightning Bolt" }
-                .shouldBeTrue()
-            human.getZone(ZoneType.Graveyard).size() shouldBe gyBefore + 1
+            assertSoftly {
+                human
+                    .getZone(ZoneType.Graveyard)
+                    .cards
+                    .any { it.name == "Miscalculation" }
+                    .shouldBeTrue()
+                // Hand size: -1 (cycled) +1 (drew Lightning Bolt) = same
+                human.getZone(ZoneType.Hand).size() shouldBe handBefore
+                human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .any { it.name == "Lightning Bolt" }
+                    .shouldBeTrue()
+                human.getZone(ZoneType.Graveyard).size() shouldBe gyBefore + 1
+            }
         }
     })

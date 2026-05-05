@@ -1,18 +1,17 @@
 [metadata]
-Name:Flashback Think Twice — Full Lifecycle
-Goal:Play the Specified Permanent
-Targets:Coral Merfolk
-Turns:5
+Name:Flashback Think Twice
+Goal:Cast and Flashback
+Turns:1
 Difficulty:Easy
-Description:Tests full flashback lifecycle: hand cast → GY → flashback cast → exile. Drawn creature is the win condition.
+Description:Cast Think Twice from hand ({1}{U}, draw a card), then flashback from graveyard ({2}{U}, draw a card; exile).
 
 [state]
 ActivePlayer=Human
 ActivePhase=Main1
 HumanLife=20
-AILife=2
+AILife=20
 
 humanhand=Think Twice
 humanbattlefield=Island;Island;Island;Island;Island;Island
-humanlibrary=Coral Merfolk;Plains;Plains;Plains;Plains
-ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

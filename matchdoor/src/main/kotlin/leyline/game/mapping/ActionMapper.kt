@@ -486,6 +486,7 @@ object ActionMapper {
      * manaCost` (each mana slot echoes `abilityGrpId`). NO `grpId` /
      * `facetId` / `shouldStop` — graveyard activations omit all three.
      */
+    @Suppress("CyclomaticComplexMethod") // mirrors the hand-zone activated-ability emit path; same shape, same complexity
     private fun addGraveyardActivatedActionsFromSnap(
         seatId: Int,
         snap: GsmSnapshot,
@@ -505,10 +506,7 @@ object ActionMapper {
             if (!cardSnap.hasNonManaActivatedAbilities) continue
             val forgeCard = bridge.findCard(fid) ?: continue
             val cardData = snap.boundCards[fid]?.data
-            for (ability in forgeCard.spellAbilities) {
-                ability.setActivatingPlayer(player)
-                if (!ability.isActivatedAbility) continue
-                if (ability.isManaAbility()) continue
+            for (ability in getNonManaActivatedAbilities(forgeCard, player)) {
                 if (!ability.canPlay()) continue
                 val canPay =
                     try {

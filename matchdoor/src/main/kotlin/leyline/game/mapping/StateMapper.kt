@@ -1173,30 +1173,45 @@ object StateMapper {
                 .filterIsInstance<GameEvent.DamageDealtToCard>()
                 .map { it.targetCardId }
                 .toSet()
-        // Activated-ability affector map: forgeCardId → AB iid. Used to stamp
+        // Activated-ability affector map: forgeCardId → queue of AB iids. Stamps
         // affectorId on cost-paid transfers (cycling discard, channel discard,
         // unearth GY→BF return) so the resulting annotation ties the transfer
         // back to the ability instance that caused it.
-        val activatedAbilityAffectors: Map<ForgeCardId, Int> =
+        //
+        // Restricted to categories that are plausibly the "ability put X here"
+        // outcome — Discard (cycling/channel cost), Resolve (unearth GY→BF) —
+        // so an unrelated transfer for the same card later in the same frame
+        // (e.g., a bounce trigger BF→Hand) doesn't get the AB iid stamped.
+        //
+        // Backed by a mutable per-card queue so chained activations on the
+        // same card in one frame burn distinct AB iids in order; the same
+        // forgeCardId stamping the same iid twice would conflate transfers.
+        val activatedAbilityAffectors: MutableMap<ForgeCardId, ArrayDeque<Int>> =
             if (frameIds != null) {
                 events
                     .filterIsInstance<GameEvent.SpellCast>()
                     .filter { it.isAbility && !it.isTrigger }
-                    .associate { it.cardId to stackAbilityIidFor(it.abilityForgeId, it.cardId, frameIds) }
+                    .map { it.cardId to stackAbilityIidFor(it.abilityForgeId, it.cardId, frameIds) }
+                    .groupBy({ it.first }, { it.second })
+                    .mapValues { (_, iids) -> ArrayDeque(iids) }
+                    .toMutableMap()
             } else {
-                emptyMap()
+                mutableMapOf()
             }
         val patchedTransfers =
             if (activatedAbilityAffectors.isEmpty()) {
                 transferResult.transfers
             } else {
                 transferResult.transfers.map { transfer ->
-                    val abIid = transfer.forgeCardId?.let { activatedAbilityAffectors[it] }
-                    if (abIid != null && transfer.affectorId == 0) {
-                        transfer.copy(affectorId = abIid)
-                    } else {
-                        transfer
-                    }
+                    val canCarryAffector =
+                        transfer.affectorId == 0 &&
+                            (
+                                transfer.category == TransferCategory.Discard ||
+                                    transfer.category == TransferCategory.Resolve
+                            )
+                    if (!canCarryAffector) return@map transfer
+                    val abIid = transfer.forgeCardId?.let { activatedAbilityAffectors[it]?.removeFirstOrNull() }
+                    if (abIid != null) transfer.copy(affectorId = abIid) else transfer
                 }
             }
         val (deferredTransfers, immediateTransfers) =
@@ -1364,8 +1379,10 @@ object StateMapper {
     }
 
     /**
-     * SA-id-keyed surrogate iid for a stack-resident trigger, with source-card
-     * fallback when the collector didn't surface the SA id (defensive 0).
+     * SA-id-keyed surrogate iid for a stack-resident trigger or activated
+     * ability, with source-card fallback when the collector didn't surface
+     * the SA id (defensive 0). Both lifecycle paths share this minter so a
+     * single AB iid threads through Created → ZoneTransfer affector → Deleted.
      */
     private fun stackAbilityIidFor(
         forgeAbilityId: Int,
