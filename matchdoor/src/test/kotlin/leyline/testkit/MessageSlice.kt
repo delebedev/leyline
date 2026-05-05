@@ -55,8 +55,7 @@ class MessageSlice(
 
     fun expectNoSelectTargetsReq() = expectNoPrompt("SelectTargetsReq") { it.hasSelectTargetsReq() }
 
-    fun expectOnePayCostsReq(): PayCostsReq =
-        expectOnePrompt("PayCostsReq", { it.hasPayCostsReq() }) { it.payCostsReq }
+    fun expectOnePayCostsReq(): PayCostsReq = expectOnePrompt("PayCostsReq", { it.hasPayCostsReq() }) { it.payCostsReq }
 
     fun expectNoPayCostsReq() = expectNoPrompt("PayCostsReq") { it.hasPayCostsReq() }
 
@@ -141,6 +140,5 @@ class CastingTimeOptionsAsserter internal constructor(
         }
     }
 
-    private fun observed(): List<String> =
-        req.castingTimeOptionReqList.map { "${it.castingTimeOptionType}/ctoId=${it.ctoId}" }
+    private fun observed(): List<String> = req.castingTimeOptionReqList.map { "${it.castingTimeOptionType}/ctoId=${it.ctoId}" }
 }

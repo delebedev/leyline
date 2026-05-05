@@ -71,7 +71,11 @@ class MessageSliceTest :
 
         test("expectOneCastingTimeOptionsReq returns the proto when exactly one present") {
             val slice = MessageSlice(listOf(gsm(), ctoReq(ctoId = 7), gsm()))
-            slice.expectOneCastingTimeOptionsReq().castingTimeOptionReqList.single().ctoId shouldBe 7
+            slice
+                .expectOneCastingTimeOptionsReq()
+                .castingTimeOptionReqList
+                .single()
+                .ctoId shouldBe 7
         }
 
         test("expectOneCastingTimeOptionsReq fails with named prompt + observed types when missing") {
