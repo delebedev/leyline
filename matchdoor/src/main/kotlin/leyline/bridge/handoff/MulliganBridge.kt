@@ -27,25 +27,69 @@ class MulliganBridge(
         private val log = LoggerFactory.getLogger(MulliganBridge::class.java)
     }
 
-    // Pending state — exposed for state DTO mapping
-    @Volatile var pendingPhase: MulliganPhase? = null
-        private set
+    data class PendingPrompt(
+        val phase: MulliganPhase,
+        val playerId: Int,
+        val mulliganCount: Int,
+        val cardsToTuck: Int,
+        val sequence: Int,
+    )
 
-    @Volatile var pendingMulliganCount: Int = 0
-        private set
+    private sealed interface MulliganState {
+        data object Idle : MulliganState
 
-    @Volatile var pendingCardsToTuck: Int = 0
-        private set
+        data class WaitingKeep(
+            val playerId: Int,
+            val mulliganCount: Int,
+            val sequence: Int,
+            val future: CompletableFuture<Boolean>,
+        ) : MulliganState
 
-    @Volatile var pendingPlayerId: Int = -1
-        private set
+        data class WaitingTuck(
+            val playerId: Int,
+            val mulliganCount: Int,
+            val cardsToTuck: Int,
+            val sequence: Int,
+            val future: CompletableFuture<List<Card>>,
+        ) : MulliganState
+    }
+
+    @Volatile private var state: MulliganState = MulliganState.Idle
+    private var promptSequenceValue: Int = 0
 
     /** Monotonic counter — increments each time a keep/tuck prompt is posted. */
-    @Volatile var promptSequence: Int = 0
-        private set
+    val promptSequence: Int
+        get() = synchronized(this) { promptSequenceValue }
 
-    private var keepFuture: CompletableFuture<Boolean>? = null
-    private var tuckFuture: CompletableFuture<List<Card>>? = null
+    fun pendingPrompt(): PendingPrompt? =
+        synchronized(this) {
+            when (val current = state) {
+                MulliganState.Idle -> null
+                is MulliganState.WaitingKeep ->
+                    PendingPrompt(
+                        phase = MulliganPhase.WaitingKeep,
+                        playerId = current.playerId,
+                        mulliganCount = current.mulliganCount,
+                        cardsToTuck = 0,
+                        sequence = current.sequence,
+                    )
+                is MulliganState.WaitingTuck ->
+                    PendingPrompt(
+                        phase = MulliganPhase.WaitingTuck,
+                        playerId = current.playerId,
+                        mulliganCount = current.mulliganCount,
+                        cardsToTuck = current.cardsToTuck,
+                        sequence = current.sequence,
+                    )
+            }
+        }
+
+    fun pendingPromptAfter(sequence: Int): PendingPrompt? = pendingPrompt()?.takeIf { it.sequence > sequence }
+
+    private fun nextPromptSequence(): Int {
+        promptSequenceValue += 1
+        return promptSequenceValue
+    }
 
     /**
      * Called by [leyline.bridge.forge.PlayerController.mulliganKeepHand] on the game thread.
@@ -64,12 +108,13 @@ class MulliganBridge(
 
         val future = CompletableFuture<Boolean>()
         synchronized(this) {
-            pendingPhase = MulliganPhase.WaitingKeep
-            pendingMulliganCount = mulliganCount
-            pendingCardsToTuck = 0
-            pendingPlayerId = playerId
-            keepFuture = future
-            promptSequence++
+            state =
+                MulliganState.WaitingKeep(
+                    playerId = playerId,
+                    mulliganCount = mulliganCount,
+                    sequence = nextPromptSequence(),
+                    future = future,
+                )
         }
         log.info("MulliganBridge: awaiting keep/mull for player {} (mulls={})", playerId, mulliganCount)
         return try {
@@ -80,8 +125,9 @@ class MulliganBridge(
             true
         } finally {
             synchronized(this) {
-                pendingPhase = null
-                keepFuture = null
+                if ((state as? MulliganState.WaitingKeep)?.future === future) {
+                    state = MulliganState.Idle
+                }
             }
         }
     }
@@ -104,12 +150,14 @@ class MulliganBridge(
 
         val future = CompletableFuture<List<Card>>()
         synchronized(this) {
-            pendingPhase = MulliganPhase.WaitingTuck
-            pendingMulliganCount = pendingMulliganCount // keep current count
-            pendingCardsToTuck = count
-            pendingPlayerId = playerId
-            tuckFuture = future
-            promptSequence++
+            state =
+                MulliganState.WaitingTuck(
+                    playerId = playerId,
+                    mulliganCount = count,
+                    cardsToTuck = count,
+                    sequence = nextPromptSequence(),
+                    future = future,
+                )
         }
         log.info("MulliganBridge: awaiting tuck {} cards for player {}", count, playerId)
         return try {
@@ -120,37 +168,39 @@ class MulliganBridge(
             hand.toList().take(count)
         } finally {
             synchronized(this) {
-                pendingPhase = null
-                tuckFuture = null
+                if ((state as? MulliganState.WaitingTuck)?.future === future) {
+                    state = MulliganState.Idle
+                }
             }
         }
     }
 
     fun submitKeep() {
-        synchronized(this) {
-            keepFuture?.complete(true)
-        }
+        val future = synchronized(this) { (state as? MulliganState.WaitingKeep)?.future }
+        future?.complete(true)
     }
 
     fun submitMull() {
-        synchronized(this) {
-            keepFuture?.complete(false)
-        }
+        val future = synchronized(this) { (state as? MulliganState.WaitingKeep)?.future }
+        future?.complete(false)
     }
 
     fun submitTuck(cards: List<Card>) {
-        synchronized(this) {
-            tuckFuture?.complete(cards)
-        }
+        val future = synchronized(this) { (state as? MulliganState.WaitingTuck)?.future }
+        future?.complete(cards)
     }
 
     fun cancelPending() {
-        synchronized(this) {
-            keepFuture?.cancel(true)
-            tuckFuture?.cancel(true)
-            pendingPhase = null
-            keepFuture = null
-            tuckFuture = null
+        val current =
+            synchronized(this) {
+                val pending = state
+                state = MulliganState.Idle
+                pending
+            }
+        when (current) {
+            MulliganState.Idle -> Unit
+            is MulliganState.WaitingKeep -> current.future.cancel(true)
+            is MulliganState.WaitingTuck -> current.future.cancel(true)
         }
     }
 }
