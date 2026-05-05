@@ -1,6 +1,5 @@
 package leyline.session.costs
 
-import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -55,27 +54,11 @@ class OptionalCostInteractionTest :
         test("CastingTimeOptionsReq — kicker prompt shape") {
             startBurst()
 
-            val ctoReq =
-                after { castSpellByName("Burst Lightning").shouldBeTrue() }
-                    .expectOneCastingTimeOptionsReq()
-
-            // Two options: Kicker + Done
-            ctoReq.castingTimeOptionReqList shouldHaveSize 2
-
-            val kickerOption =
-                ctoReq.castingTimeOptionReqList.first {
-                    it.castingTimeOptionType == CastingTimeOptionType.Kicker
+            after { castSpellByName("Burst Lightning").shouldBeTrue() }
+                .expectCastingTimeOptionsReq {
+                    option(CastingTimeOptionType.Kicker, ctoId = 1)
+                    done(ctoId = 0, required = true)
                 }
-            val doneOption =
-                ctoReq.castingTimeOptionReqList.first {
-                    it.castingTimeOptionType == CastingTimeOptionType.Done
-                }
-
-            assertSoftly {
-                kickerOption.ctoId shouldBe 1
-                doneOption.ctoId shouldBe 0
-                doneOption.isRequired.shouldBeTrue()
-            }
         }
 
         test("kicked Burst Lightning deals 4 damage") {

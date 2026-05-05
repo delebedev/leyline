@@ -6,6 +6,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -31,6 +32,27 @@ class MessageSliceTest :
                     CastingTimeOptionsReq.newBuilder().addCastingTimeOptionReq(
                         CastingTimeOptionReq.newBuilder().setCtoId(ctoId),
                     ),
+                ).build()
+
+        fun kickerCtoReq(): GREToClientMessage =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.CastingTimeOptionsReq_695e)
+                .setCastingTimeOptionsReq(
+                    CastingTimeOptionsReq
+                        .newBuilder()
+                        .addCastingTimeOptionReq(
+                            CastingTimeOptionReq
+                                .newBuilder()
+                                .setCtoId(1)
+                                .setCastingTimeOptionType(CastingTimeOptionType.Kicker),
+                        ).addCastingTimeOptionReq(
+                            CastingTimeOptionReq
+                                .newBuilder()
+                                .setCtoId(0)
+                                .setCastingTimeOptionType(CastingTimeOptionType.Done)
+                                .setIsRequired(true),
+                        ),
                 ).build()
 
         fun selectTargetsReq(): GREToClientMessage =
@@ -100,5 +122,52 @@ class MessageSliceTest :
             err.message!! shouldContain "SelectTargetsReq_695e"
             // GSM dominates every slice; surfacing it in diagnostics is pure noise.
             err.message!! shouldNotContain "GameStateMessage_695e"
+        }
+
+        // --- expectCastingTimeOptionsReq { } block form ---
+
+        test("expectCastingTimeOptionsReq block — passes when option + done match") {
+            val slice = MessageSlice(listOf(gsm(), kickerCtoReq()))
+            slice.expectCastingTimeOptionsReq {
+                option(CastingTimeOptionType.Kicker, ctoId = 1)
+                done(ctoId = 0, required = true)
+            }
+        }
+
+        test("expectCastingTimeOptionsReq block — fails when option type missing, lists actuals") {
+            val slice = MessageSlice(listOf(kickerCtoReq()))
+            val err =
+                shouldThrow<AssertionError> {
+                    slice.expectCastingTimeOptionsReq {
+                        option(CastingTimeOptionType.Multikicker, ctoId = 1)
+                    }
+                }
+            err.message!! shouldContain "Multikicker"
+            err.message!! shouldContain "Kicker/ctoId=1"
+            err.message!! shouldContain "Done/ctoId=0"
+        }
+
+        test("expectCastingTimeOptionsReq block — fails when ctoId mismatches") {
+            val slice = MessageSlice(listOf(kickerCtoReq()))
+            val err =
+                shouldThrow<AssertionError> {
+                    slice.expectCastingTimeOptionsReq {
+                        option(CastingTimeOptionType.Kicker, ctoId = 99)
+                    }
+                }
+            err.message!! shouldContain "ctoId=99"
+            err.message!! shouldContain "Kicker/ctoId=1"
+        }
+
+        test("expectCastingTimeOptionsReq block — done(required=...) catches isRequired drift") {
+            val slice = MessageSlice(listOf(kickerCtoReq()))
+            val err =
+                shouldThrow<AssertionError> {
+                    slice.expectCastingTimeOptionsReq {
+                        done(ctoId = 0, required = false)
+                    }
+                }
+            err.message!! shouldContain "isRequired=false"
+            err.message!! shouldContain "got isRequired=true"
         }
     })
