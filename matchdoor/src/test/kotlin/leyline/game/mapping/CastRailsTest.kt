@@ -88,10 +88,11 @@ class CastRailsTest :
             resolveAltGrpId(plotHand, altCosts, matching) shouldBe plotRow.abilityGrpId
         }
 
-        test("Rails inventory — buckets cover the six AltCostKind values without overlap loss") {
+        test("Rails inventory — buckets cover every AltCostKind value without overlap loss") {
             assertSoftly {
                 CastRails.fromExile.map { it.kind } shouldContainExactly listOf(AltCostKind.PLOT, AltCostKind.FORETELL)
-                CastRails.fromGraveyard.map { it.kind } shouldContainExactly listOf(AltCostKind.DISTURB, AltCostKind.ESCAPE)
+                CastRails.fromGraveyard.map { it.kind } shouldContainExactly
+                    listOf(AltCostKind.DISTURB, AltCostKind.ESCAPE, AltCostKind.FLASHBACK)
                 CastRails.handWithAltCost.map { it.kind } shouldContainExactly
                     listOf(AltCostKind.WARP, AltCostKind.SNEAK, AltCostKind.PLOT, AltCostKind.FORETELL)
             }
