@@ -363,6 +363,30 @@ abstract class SessionTest(
         return harness.game().findById(cardId.value)
     }
 
+    // --- Instance probe DSL ---
+
+    /** Battlefield zone of [this] player as a probe handle. */
+    val Player.battlefield: PlayerZone get() = PlayerZone(this, ZoneType.Battlefield)
+
+    /** Hand zone of [this] player as a probe handle. */
+    val Player.hand: PlayerZone get() = PlayerZone(this, ZoneType.Hand)
+
+    /** Graveyard zone of [this] player as a probe handle. */
+    val Player.graveyard: PlayerZone get() = PlayerZone(this, ZoneType.Graveyard)
+
+    /** Exile zone of [this] player as a probe handle. */
+    val Player.exile: PlayerZone get() = PlayerZone(this, ZoneType.Exile)
+
+    /** Library zone of [this] player as a probe handle. */
+    val Player.library: PlayerZone get() = PlayerZone(this, ZoneType.Library)
+
+    /**
+     * Resolve a card by name within this (player, zone) handle to its
+     * instanceId — same lookup as [instanceIdOf], with the zone made positional
+     * so call sites read like a path: `human.battlefield.iid("Walking Corpse")`.
+     */
+    fun PlayerZone.iid(cardName: String): Int = instanceIdOf(cardName, player, zone)
+
     // --- State queries ---
 
     fun phase() = harness.phase()

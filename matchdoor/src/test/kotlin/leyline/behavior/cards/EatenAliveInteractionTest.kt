@@ -3,7 +3,6 @@ package leyline.behavior.cards
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.ForgeCardId
 import leyline.testkit.SessionTest
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.haveManaCost
@@ -29,12 +28,7 @@ class EatenAliveInteractionTest :
             """.trimIndent()
 
         fun latestCastActionsFor(cardName: String): List<Action> {
-            val iid =
-                human
-                    .getZone(forge.game.zone.ZoneType.Hand)
-                    .cards
-                    .first { it.name == cardName }
-                    .let { harness.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
+            val iid = human.hand.iid(cardName)
             return allMessages
                 .asReversed()
                 .first { it.hasActionsAvailableReq() }
@@ -52,17 +46,6 @@ class EatenAliveInteractionTest :
             harness.drainSink()
         }
 
-        fun zoneInstanceId(
-            player: forge.game.player.Player,
-            zone: ForgeZoneType,
-            cardName: String,
-        ): Int =
-            player
-                .getZone(zone)
-                .cards
-                .first { it.name == cardName }
-                .let { harness.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
-
         test("Eaten Alive exposes a single cast action with base mana cost") {
             startPuzzle(eatenAliveState, name = "Eaten Alive")
 
@@ -77,10 +60,10 @@ class EatenAliveInteractionTest :
             submitAction(latestCastActionsFor("Eaten Alive").single())
             respondToOptionalCost(1)
 
-            val targetId = zoneInstanceId(ai, ForgeZoneType.Battlefield, "Centaur Courser")
+            val targetId = ai.battlefield.iid("Centaur Courser")
             after { selectTargets(listOf(targetId)) }.expectOnePayCostsReq()
 
-            val sacId = zoneInstanceId(human, ForgeZoneType.Battlefield, "Walking Corpse")
+            val sacId = human.battlefield.iid("Walking Corpse")
             respondToEffectCost(listOf(sacId))
 
             passUntilResolved(maxPasses = 8)
