@@ -293,6 +293,18 @@ abstract class SessionTest(
 
     fun annotationsSince(snapshot: Int): List<AnnotationInfo> = harness.annotationsSince(snapshot)
 
+    /**
+     * Snapshot the message stream, run [block], return the slice of messages
+     * produced. Reduces `messageSnapshot()` / `messagesSince(snap)` to one
+     * line and lets typed prompt expectations replace raw `any { hasFooReq() }`
+     * scans. Raw access remains via [MessageSlice.messages].
+     */
+    fun after(block: () -> Unit): MessageSlice {
+        val snap = messageSnapshot()
+        block()
+        return MessageSlice(messagesSince(snap))
+    }
+
     // --- Convenience: last-of-kind prompt ---
 
     fun lastSelectNReq(): SelectNReq = harness.allMessages.last { it.hasSelectNReq() }.selectNReq

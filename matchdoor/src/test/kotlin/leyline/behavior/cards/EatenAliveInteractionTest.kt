@@ -78,9 +78,7 @@ class EatenAliveInteractionTest :
             respondToOptionalCost(1)
 
             val targetId = zoneInstanceId(ai, ForgeZoneType.Battlefield, "Centaur Courser")
-            val sacrificePromptSnap = messageSnapshot()
-            selectTargets(listOf(targetId))
-            messagesSince(sacrificePromptSnap).any { it.hasPayCostsReq() } shouldBe true
+            after { selectTargets(listOf(targetId)) }.expectOnePayCostsReq()
 
             val sacId = zoneInstanceId(human, ForgeZoneType.Battlefield, "Walking Corpse")
             respondToEffectCost(listOf(sacId))

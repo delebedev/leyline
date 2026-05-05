@@ -1,13 +1,10 @@
 package leyline.session.costs
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
-import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -58,14 +55,9 @@ class OptionalCostInteractionTest :
         test("CastingTimeOptionsReq — kicker prompt shape") {
             startBurst()
 
-            val snap = messageSnapshot()
-            castSpellByName("Burst Lightning").shouldBeTrue()
-            val castMessages = messagesSince(snap)
-
             val ctoReq =
-                castMessages
-                    .first { it.hasCastingTimeOptionsReq() }
-                    .castingTimeOptionsReq
+                after { castSpellByName("Burst Lightning").shouldBeTrue() }
+                    .expectOneCastingTimeOptionsReq()
 
             // Two options: Kicker + Done
             ctoReq.castingTimeOptionReqList shouldHaveSize 2
@@ -111,38 +103,22 @@ class OptionalCostInteractionTest :
         test("kicker GSM has no synthesized ability on stack") {
             startBurst()
 
-            val snap = messageSnapshot()
-            castSpellByName("Burst Lightning").shouldBeTrue()
-            val msgs = messagesSince(snap)
+            val cast = after { castSpellByName("Burst Lightning").shouldBeTrue() }
 
-            val ctoIdx = msgs.indexOfFirst { it.hasCastingTimeOptionsReq() }
-            ctoIdx shouldBeGreaterThan 0
-
-            // GSM before CTO should NOT have a synthesized ability —
-            // kicker is a spell-time cost, not an ETB trigger
-            val gsm = msgs[ctoIdx - 1].gameStateMessage
-            val abilities =
-                gsm.gameObjectsList.filter {
-                    it.type == GameObjectType.Ability
-                }
-            abilities shouldHaveSize 0
+            // GSM immediately before the CTO should NOT carry a synthesized
+            // ability — kicker is a spell-time cost, not an ETB trigger.
+            val ctoIdx = cast.messages.indexOfFirst { it.hasCastingTimeOptionsReq() }
+            val gsmBeforeCto = cast.messages[ctoIdx - 1].gameStateMessage
+            gsmBeforeCto.gameObjectsList.filter { it.type == GameObjectType.Ability } shouldHaveSize 0
         }
 
         test("optional cost prompt gates targeting — no SelectTargetsReq before response") {
             startBurst()
 
-            val castSnap = messageSnapshot()
-            castSpellByName("Burst Lightning").shouldBeTrue()
+            val cast = after { castSpellByName("Burst Lightning").shouldBeTrue() }
+            cast.expectOneCastingTimeOptionsReq()
+            cast.expectNoSelectTargetsReq()
 
-            // After cast: CastingTimeOptionsReq present, SelectTargetsReq absent
-            val castMessages = messagesSince(castSnap)
-            castMessages.any { it.hasCastingTimeOptionsReq() }.shouldBeTrue()
-            castMessages.any { it.hasSelectTargetsReq() }.shouldBeFalse()
-
-            // After responding to optional cost: SelectTargetsReq appears
-            val targetSnap = messageSnapshot()
-            declineKicker()
-            val targetMessages = messagesSince(targetSnap)
-            targetMessages.any { it.hasSelectTargetsReq() }.shouldBeTrue()
+            after { declineKicker() }.expectOneSelectTargetsReq()
         }
     })
