@@ -2,19 +2,15 @@ package leyline.behavior.annotations.tokencreated
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.SubType
@@ -28,15 +24,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SubType
  * and sacrifice-to-draw ability on the Clue.
  */
 class TokenDiffStabilityTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         beforeSpec {
             GameBootstrap.initializeCardDatabase(quiet = true)
@@ -67,21 +55,20 @@ class TokenDiffStabilityTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        fun castInspectorAndWaitForClue(h: MatchFlowHarness): Int {
-            val human = h.bridge.getPlayer(SeatId(1))!!
+        fun castInspectorAndWaitForClue(): Int {
             human
                 .getZone(ZoneType.Hand)
                 .cards
                 .any { it.name == "Novice Inspector" }
                 .shouldBeTrue()
 
-            h.castSpellByName("Novice Inspector").shouldBeTrue()
+            castSpellByName("Novice Inspector").shouldBeTrue()
 
             // Pass until Clue token appears (ETB trigger resolves)
             repeat(15) {
                 val clues = human.getZone(ZoneType.Battlefield).cards.filter { it.isToken }
                 if (clues.isNotEmpty()) return@repeat
-                h.passPriority()
+                passPriority()
             }
 
             val clue =
@@ -90,18 +77,16 @@ class TokenDiffStabilityTest :
                     .cards
                     .firstOrNull { it.isToken }
                     .shouldNotBeNull()
-            return h.bridge.getOrAllocInstanceId(ForgeCardId(clue.id)).value
+            return human.battlefield.iid(clue)
         }
 
         test("Clue token has Artifact type and Clue subtype in GSM") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(puzzleText)
+            startPuzzleRaw(puzzleText, validating = false)
 
-            val clueIid = castInspectorAndWaitForClue(h)
+            val clueIid = castInspectorAndWaitForClue()
 
-            val snapClue1 = GsmSnapshot.capture(h.game(), h.bridge, "test-clue", 1)
-            val gsm = StateMapper.buildFromSnapshot(snapClue1, 1, "test-clue", h.bridge, viewingSeatId = 1).gsm
+            val snapClue1 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-clue", 1)
+            val gsm = StateMapper.buildFromSnapshot(snapClue1, 1, "test-clue", harness.bridge, viewingSeatId = 1).gsm
             val clueObj =
                 gsm.gameObjectsList
                     .firstOrNull { it.instanceId == clueIid }
@@ -114,26 +99,34 @@ class TokenDiffStabilityTest :
         }
 
         test("Clue token retains types and subtypes across diff GSMs") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(puzzleText)
+            startPuzzleRaw(puzzleText, validating = false)
 
-            val clueIid = castInspectorAndWaitForClue(h)
+            val clueIid = castInspectorAndWaitForClue()
 
             // First GSM — baseline
-            val snapClue2 = GsmSnapshot.capture(h.game(), h.bridge, "test-clue", 1)
-            val gsm1 = StateMapper.buildFromSnapshot(snapClue2, 1, "test-clue", h.bridge, viewingSeatId = 1).gsm
+            val snapClue2 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-clue", 1)
+            val gsm1 = StateMapper.buildFromSnapshot(snapClue2, 1, "test-clue", harness.bridge, viewingSeatId = 1).gsm
 
             val clueObj1 = gsm1.gameObjectsList.first { it.instanceId == clueIid }
             clueObj1.cardTypesList shouldContain CardType.Artifact_a80b
             clueObj1.instanceId shouldBe clueIid
 
             // Trigger a state change
-            h.passPriority()
+            passPriority()
 
             // Second GSM — diff against snapClue2 baseline
-            val snapClue3 = GsmSnapshot.capture(h.game(), h.bridge, "test-clue", 2)
-            val gsm2 = StateMapper.buildDiff(snapClue2, snapClue3, FrameEventLog.EMPTY, 2, "test-clue", h.bridge, viewingSeatId = 1).gsm
+            val snapClue3 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-clue", 2)
+            val gsm2 =
+                StateMapper
+                    .buildDiff(
+                        snapClue2,
+                        snapClue3,
+                        FrameEventLog.EMPTY,
+                        2,
+                        "test-clue",
+                        harness.bridge,
+                        viewingSeatId = 1,
+                    ).gsm
 
             // If Clue appears in diff, fields must be intact (not stripped)
             val clueInDiff = gsm2.gameObjectsList.firstOrNull { it.instanceId == clueIid }
@@ -146,7 +139,7 @@ class TokenDiffStabilityTest :
             }
 
             // Registry cached the grpId — stable for future diffs
-            h.bridge.tokenRegistry
+            harness.bridge.tokenRegistry
                 .resolve(clueIid)
                 .shouldNotBeNull()
         }

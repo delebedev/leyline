@@ -166,6 +166,11 @@ abstract class SessionTest(
         abilityIndex: Int = 0,
     ) = harness.activateAbilityFromHand(cardName, abilityIndex)
 
+    fun activateAbilityFromGraveyard(
+        cardName: String,
+        abilityIndex: Int = 0,
+    ) = harness.activateAbilityFromGraveyard(cardName, abilityIndex)
+
     fun selectTargets(targetInstanceIds: List<Int>) = harness.selectTargets(targetInstanceIds)
 
     fun selectTargetsIterative(targetInstanceIds: List<Int>) = harness.selectTargetsIterative(targetInstanceIds)
@@ -293,6 +298,18 @@ abstract class SessionTest(
 
     fun annotationsSince(snapshot: Int): List<AnnotationInfo> = harness.annotationsSince(snapshot)
 
+    /**
+     * Snapshot the message stream, run [block], return the slice of messages
+     * produced. Reduces `messageSnapshot()` / `messagesSince(snap)` to one
+     * line and lets typed prompt expectations replace raw `any { hasFooReq() }`
+     * scans. Raw access remains via [MessageSlice.messages].
+     */
+    fun after(block: () -> Unit): MessageSlice {
+        val snap = messageSnapshot()
+        block()
+        return MessageSlice(messagesSince(snap))
+    }
+
     // --- Convenience: last-of-kind prompt ---
 
     fun lastSelectNReq(): SelectNReq = harness.allMessages.last { it.hasSelectNReq() }.selectNReq
@@ -350,6 +367,45 @@ abstract class SessionTest(
         val cardId = harness.bridge.getForgeCardId(InstanceId(iid)) ?: return null
         return harness.game().findById(cardId.value)
     }
+
+    // --- Instance probe DSL ---
+
+    /** Battlefield zone of [this] player as a probe handle. */
+    val Player.battlefield: PlayerZone get() = PlayerZone(this, ZoneType.Battlefield)
+
+    /** Hand zone of [this] player as a probe handle. */
+    val Player.hand: PlayerZone get() = PlayerZone(this, ZoneType.Hand)
+
+    /** Graveyard zone of [this] player as a probe handle. */
+    val Player.graveyard: PlayerZone get() = PlayerZone(this, ZoneType.Graveyard)
+
+    /** Exile zone of [this] player as a probe handle. */
+    val Player.exile: PlayerZone get() = PlayerZone(this, ZoneType.Exile)
+
+    /** Library zone of [this] player as a probe handle. */
+    val Player.library: PlayerZone get() = PlayerZone(this, ZoneType.Library)
+
+    /**
+     * Resolve a card by name within this (player, zone) handle to its
+     * instanceId — same lookup as [instanceIdOf], with the zone made positional
+     * so call sites read like a path: `human.battlefield.iid("Walking Corpse")`.
+     */
+    fun PlayerZone.iid(cardName: String): Int = instanceIdOf(cardName, player, zone)
+
+    /**
+     * Resolve a [forge.game.card.Card] already in hand to its instanceId via
+     * the bridge. The zone is informational only here — the bridge keys by
+     * Forge card id, not zone — but keeping the call shape consistent with
+     * [iid] (`human.battlefield.iid(card)`) makes test sites read uniformly.
+     */
+    fun PlayerZone.iid(card: forge.game.card.Card): Int = harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+
+    /**
+     * Resolve multiple cards by name in one go — `human.battlefield.iids("A", "B", "C")`.
+     * Convenience over `listOf(iid("A"), iid("B"), iid("C"))` when the test
+     * passes a target list straight to `selectTargets`.
+     */
+    fun PlayerZone.iids(vararg cardNames: String): List<Int> = cardNames.map { iid(it) }
 
     // --- State queries ---
 

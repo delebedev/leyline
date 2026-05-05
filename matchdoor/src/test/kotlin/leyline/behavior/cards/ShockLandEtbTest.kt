@@ -1,12 +1,8 @@
 package leyline.behavior.cards
 
 import forge.game.zone.ZoneType
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -18,15 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
  * life payment works correctly, tapped/untapped state matches decision.
  */
 class ShockLandEtbTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         /**
          * Puzzle: Temple Garden in hand, enough life to pay.
@@ -53,37 +41,34 @@ class ShockLandEtbTest :
             """.trimIndent()
 
         test("accept — pay 2 life, land enters untapped") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(puzzleText())
+            startPuzzleRaw(puzzleText(), validating = false)
 
-            val human = h.bridge.getPlayer(SeatId(1))!!
             human.life shouldBe 20
-            h.phase() shouldBe "MAIN1"
+            phase() shouldBe "MAIN1"
 
             // Play the shock land — don't use playLand() as it auto-accepts
             val land = human.getZone(ZoneType.Hand).cards.first { it.name == "Temple Garden" }
             val msg =
                 performAction {
                     actionType = ActionType.Play_add3
-                    instanceId = h.bridge.getOrAllocInstanceId(ForgeCardId(land.id)).value
-                    grpId = h.bridge.cardRepository.findGrpIdByName(land.name) ?: 0
+                    instanceId = human.hand.iid(land)
+                    grpId = harness.bridge.cardRepository.findGrpIdByName(land.name) ?: 0
                 }
-            h.session.onPerformAction(msg)
+            harness.session.onPerformAction(msg)
 
-            // Drain sink to capture OAM (without auto-responding)
-            h.allMessages.addAll(h.sink.messages)
-            h.allRawMessages.addAll(h.sink.rawMessages)
-            h.accumulator.processAll(h.sink.messages)
-            h.sink.clear()
+            // Drain sink to keep OAM (without auto-responding)
+            harness.allMessages.addAll(harness.sink.messages)
+            harness.allRawMessages.addAll(harness.sink.rawMessages)
+            harness.accumulator.processAll(harness.sink.messages)
+            harness.sink.clear()
 
             // Verify OAM was sent
-            val oam = h.allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
+            val oam = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
             oam shouldBe oam // non-null check implicit in line below
             checkNotNull(oam) { "Expected OptionalActionMessage for shock land" }
 
             // Accept — pay 2 life
-            h.respondToOptionalAction(true)
+            harness.respondToOptionalAction(true)
 
             // Verify: life=18, Temple Garden on battlefield untapped
             human.life shouldBe 18
@@ -94,11 +79,8 @@ class ShockLandEtbTest :
         }
 
         test("decline — land enters tapped, life unchanged") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(puzzleText())
+            startPuzzleRaw(puzzleText(), validating = false)
 
-            val human = h.bridge.getPlayer(SeatId(1))!!
             human.life shouldBe 20
 
             // Play the shock land manually
@@ -106,24 +88,24 @@ class ShockLandEtbTest :
             val msg =
                 performAction {
                     actionType = ActionType.Play_add3
-                    instanceId = h.bridge.getOrAllocInstanceId(ForgeCardId(land.id)).value
-                    grpId = h.bridge.cardRepository.findGrpIdByName(land.name) ?: 0
+                    instanceId = human.hand.iid(land)
+                    grpId = harness.bridge.cardRepository.findGrpIdByName(land.name) ?: 0
                 }
-            h.session.onPerformAction(msg)
+            harness.session.onPerformAction(msg)
 
-            // Drain sink to capture OAM
-            h.allMessages.addAll(h.sink.messages)
-            h.allRawMessages.addAll(h.sink.rawMessages)
-            h.accumulator.processAll(h.sink.messages)
-            h.sink.clear()
+            // Drain sink to keep OAM
+            harness.allMessages.addAll(harness.sink.messages)
+            harness.allRawMessages.addAll(harness.sink.rawMessages)
+            harness.accumulator.processAll(harness.sink.messages)
+            harness.sink.clear()
 
             // Verify OAM was sent
-            checkNotNull(h.allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e }) {
+            checkNotNull(allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e }) {
                 "Expected OptionalActionMessage for shock land"
             }
 
             // Decline — don't pay life
-            h.respondToOptionalAction(false)
+            harness.respondToOptionalAction(false)
 
             // Verify: life=20, Temple Garden on battlefield tapped
             human.life shouldBe 20

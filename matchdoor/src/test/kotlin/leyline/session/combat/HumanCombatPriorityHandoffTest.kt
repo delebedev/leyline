@@ -1,12 +1,8 @@
 package leyline.session.combat
 
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.bridge.types.SeatId
-import leyline.testkit.MatchFlowHarness
-import leyline.testkit.aiPlayer
+import leyline.testkit.SessionTest
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -32,18 +28,9 @@ import kotlin.time.Duration.Companion.seconds
 // Session-tier: exercises the full MatchSession + AutoPassEngine loop.
 @Suppress("TierPlacementCheck")
 class HumanCombatPriorityHandoffTest :
-    FunSpec({
-
-        tags(IntegrationTag)
+    SessionTest({
 
         beforeSpec { GameBootstrap.initializeCardDatabase(quiet = true) }
-
-        var harness: MatchFlowHarness? = null
-
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
 
         test("human attacks, no blockers — DECLARE_BLOCKERS pass-only priority doesn't hang bridge")
             .config(timeout = 3.seconds) {
@@ -69,26 +56,22 @@ class HumanCombatPriorityHandoffTest :
                     ailibrary=Mountain;Mountain;Mountain
                     """.trimIndent()
 
-                val h = MatchFlowHarness(validating = false)
-                harness = h
-                h.connectAndKeepPuzzleText(puzzleText)
+                startPuzzleRaw(puzzleText, validating = false)
 
                 // Puzzle starts at MAIN1 on human's turn; advance to combat so
                 // the harness sees a live DeclareAttackersReq.
-                if (h.phase() == "MAIN1") h.passPriority()
+                if (phase() == "MAIN1") passPriority()
 
                 val attackerIid =
-                    h
-                        .humanBattlefieldCreatures()
+                    humanBattlefieldCreatures()
                         .single { it.second == "Raging Goblin" }
                         .first
-                h.declareAttackers(listOf(attackerIid))
+                declareAttackers(listOf(attackerIid))
 
                 // If the bug were present, the engine would block in awaitAction at
                 // COMBAT_DECLARE_BLOCKERS after AI declared blocks; damage never applies
                 // within the 3s test timeout. With the fix, the auto-pass loop falls
                 // through to advanceOrWait and Raging Goblin (1/1) resolves unblocked.
-                val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
-                aiPlayer.life shouldBe 19
+                ai.life shouldBe 19
             }
     })

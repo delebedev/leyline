@@ -1,23 +1,20 @@
 package leyline.session.turns
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.AI_FIRST_SEED
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import leyline.testkit.detail
 import leyline.testkit.gameStateMessages
-import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 
 /**
- * Wire contract: a turn-boundary or trigger-driven own-seat draw must be emitted
- * with [GameStateUpdate.SendHiFi]. Spell-driven Main1 draws continue to use
- * [GameStateUpdate.SendAndRecord] (covered by the bundle unit tests).
+ * Stream contract: a turn-boundary or trigger-driven own-seat draw must be
+ * emitted with [GameStateUpdate.SendHiFi]. Spell-driven Main1 draws continue
+ * to use [GameStateUpdate.SendAndRecord] (covered by the bundle unit tests).
  *
  * Refs internal bead leyline-pey.
  */
@@ -28,36 +25,25 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 // bypass that code path and would not exercise the override.
 @Suppress("TierPlacementCheck")
 class DrawUpdateTypeShapeTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("turn-boundary DRAW for human seat uses SendHiFi") {
             // AI goes first on this seed. After connectAndKeep + auto-pass through
             // the AI's turn 1, the human reaches turn 2 Main1 — having just drawn
             // their turn-boundary card during the draw step.
-            val h = MatchFlowHarness(seed = AI_FIRST_SEED)
-            harness = h
-            h.connectAndKeep()
+            startGame(seed = AI_FIRST_SEED)
 
             assertSoftly {
-                h.isGameOver() shouldBe false
-                h.turn() shouldBe 2
-                h.phase() shouldBe "MAIN1"
+                isGameOver() shouldBe false
+                turn() shouldBe 2
+                phase() shouldBe "MAIN1"
             }
 
             // The first own-seat Library→Hand ZoneTransfer we see in the message log
             // is the turn-2 turn-boundary draw. Under the fix it must carry SendHiFi;
             // pre-fix it carries SendAndRecord.
             val drawGsm =
-                h.allMessages
+                allMessages
                     .gameStateMessages()
                     .firstOrNull { gsm ->
                         gsm.annotationsList.any { ann ->

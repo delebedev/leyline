@@ -1,21 +1,18 @@
 package leyline.behavior.mechanics.mobilize
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.allAnnotations
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationTypeSet
 import leyline.testkit.annotationsOfType
-import leyline.testkit.gsm
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -32,7 +29,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
  * `DB$ Token | TokenAmount=N | TokenScript=r_1_1_warrior | TokenTapped=True
  * | TokenAttacking=True | AtEOT=Sacrifice`.
  *
- * Wire shape exercised here:
+ * Lifecycle exercised here:
  *   - AbilityInstanceCreated + persistent TriggeringObject when the trigger fires
  *   - ResolutionStart / TokenCreated (xN) / ResolutionComplete on resolution
  *   - per-token EnteredZoneThisTurn, TemporaryPermanent, DelayedTriggerAffectees
@@ -43,15 +40,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
  * run through the whole human turn and asserts on the message stream.
  */
 class MobilizeKeywordTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         beforeSpec {
             // Register the source card and the Warrior token Forge spawns at trigger
@@ -128,32 +117,28 @@ class MobilizeKeywordTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        test("Mobilize 1 trigger emits the full wire shape during attack + resolution") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(mobilize1Puzzle)
+        test("Mobilize 1 trigger emits the full annotation lifecycle during attack + resolution") {
+            startPuzzleRaw(mobilize1Puzzle, validating = false)
 
-            val sources = h.humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
+            val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             sources shouldHaveSize 1
             val sourceIid = sources.first().first
 
             // Drive into combat -> declare attackers via the session priority chain.
-            h.passUntil(maxPasses = 30) {
-                h.allMessages.any { it.hasDeclareAttackersReq() }
-            }
+            passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }
             val req =
-                h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
+                allMessages.lastOrNull { it.hasDeclareAttackersReq() }
                     ?: error("never reached DeclareAttackers")
             req.declareAttackersReq.attackersList.map { it.attackerInstanceId } shouldContain sourceIid
 
-            val snap = h.messageSnapshot()
-            h.declareAttackers(listOf(sourceIid))
-            // Auto-pass eats the rest of the turn — that's fine, the token only
-            // exists between trigger resolution and end step. The annotations
-            // get archived in allMessages either way.
-            h.passUntil(maxPasses = 30) { h.turn() > 1 || h.isGameOver() }
-
-            val post = h.messagesSince(snap)
+            val post =
+                after {
+                    declareAttackers(listOf(sourceIid))
+                    // Auto-pass eats the rest of the turn — that's fine, the token only
+                    // exists between trigger resolution and end step. The annotations
+                    // get archived in allMessages either way.
+                    passUntil(maxPasses = 30) { turn() > 1 || isGameOver() }
+                }.messages
             post.allAnnotations().shouldNotBeEmpty()
             val types = post.annotationTypeSet()
 
@@ -220,41 +205,38 @@ class MobilizeKeywordTest :
             """.trimIndent()
 
         test("Mobilize 3 produces three Warrior tokens") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(mobilize3Puzzle)
+            startPuzzleRaw(mobilize3Puzzle, validating = false)
 
-            val sources = h.humanBattlefieldCreatures().filter { it.second == "Dalkovan Packbeasts" }
+            val sources = humanBattlefieldCreatures().filter { it.second == "Dalkovan Packbeasts" }
             sources shouldHaveSize 1
             val sourceIid = sources.first().first
 
-            h.passUntil(maxPasses = 30) { h.allMessages.any { it.hasDeclareAttackersReq() } }
-            val snap = h.messageSnapshot()
-            h.declareAttackers(listOf(sourceIid))
-            h.passUntil(maxPasses = 30) { h.turn() > 1 || h.isGameOver() }
-
-            val post = h.messagesSince(snap)
+            passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }
+            val post =
+                after {
+                    declareAttackers(listOf(sourceIid))
+                    passUntil(maxPasses = 30) { turn() > 1 || isGameOver() }
+                }.messages
             post.annotationsOfType(AnnotationType.TokenCreated).size shouldBeGreaterThanOrEqual 3
         }
 
         test("two Mobilize sources both surface AbilityInstanceCreated + TriggeringObject") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(twoSourcePuzzle)
+            startPuzzleRaw(twoSourcePuzzle, validating = false)
 
-            val creatures = h.humanBattlefieldCreatures()
+            val creatures = humanBattlefieldCreatures()
             val attackerIids =
                 creatures
                     .filter { it.second == "Reigning Victor" || it.second == "Mardu Thunderkite" }
                     .map { it.first }
             attackerIids shouldHaveSize 2
 
-            h.passUntil(maxPasses = 30) { h.allMessages.any { it.hasDeclareAttackersReq() } }
-            val snap = h.messageSnapshot()
-            h.declareAttackers(attackerIids)
-            h.passUntil(maxPasses = 30) { h.turn() > 1 || h.isGameOver() }
+            passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }
+            val post =
+                after {
+                    declareAttackers(attackerIids)
+                    passUntil(maxPasses = 30) { turn() > 1 || isGameOver() }
+                }.messages
 
-            val post = h.messagesSince(snap)
             // Both triggers should surface — count distinct AbilityInstanceCreated affectedIds.
             // affectedIds is the stack ability instanceId.
             val distinctAbilities =
@@ -285,21 +267,19 @@ class MobilizeKeywordTest :
         }
 
         test("Mobilize 1 cleanup at next end step sacrifices the token") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(mobilize1Puzzle)
+            startPuzzleRaw(mobilize1Puzzle, validating = false)
 
-            val sources = h.humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
+            val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             val sourceIid = sources.first().first
 
-            h.passUntil(maxPasses = 30) { h.allMessages.any { it.hasDeclareAttackersReq() } }
-            val snap = h.messageSnapshot()
-            h.declareAttackers(listOf(sourceIid))
-            // Run the full turn. The token enters at trigger-resolution time and
-            // exits at end-step.
-            h.passUntil(maxPasses = 30) { h.turn() > 1 || h.isGameOver() }
-
-            val post = h.messagesSince(snap)
+            passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }
+            val post =
+                after {
+                    declareAttackers(listOf(sourceIid))
+                    // Run the full turn. The token enters at trigger-resolution time and
+                    // exits at end-step.
+                    passUntil(maxPasses = 30) { turn() > 1 || isGameOver() }
+                }.messages
             val sacrifice =
                 post
                     .annotationsOfType(AnnotationType.ZoneTransfer_af5a)
@@ -318,25 +298,23 @@ class MobilizeKeywordTest :
         // ------- TriggerHolder gameObject shape + lifecycle -------
 
         test("Mobilize 1 emits a TriggerHolder gameObject in Limbo with canonical fields") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(mobilize1Puzzle)
+            startPuzzleRaw(mobilize1Puzzle, validating = false)
 
-            val sources = h.humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
+            val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             val sourceIid = sources.first().first
 
-            h.passUntil(maxPasses = 30) { h.allMessages.any { it.hasDeclareAttackersReq() } }
-            val snap = h.messageSnapshot()
-            h.declareAttackers(listOf(sourceIid))
+            passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }
+            val snap = messageSnapshot()
+            declareAttackers(listOf(sourceIid))
             // Walk just past the resolution GSM so the holder has been emitted.
-            h.passUntil(maxPasses = 8) {
-                h.allMessages
+            passUntil(maxPasses = 8) {
+                allMessages
                     .drop(snap)
                     .allGameObjects()
                     .any { it.type == GameObjectType.TriggerHolder }
             }
 
-            val post = h.messagesSince(snap)
+            val post = messagesSince(snap)
             val holders =
                 post
                     .allGameObjects()
@@ -379,19 +357,17 @@ class MobilizeKeywordTest :
         }
 
         test("Mobilize holder is emitted once, not re-emitted, then deleted via diffDeletedInstanceIds") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(mobilize1Puzzle)
+            startPuzzleRaw(mobilize1Puzzle, validating = false)
 
-            val sources = h.humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
+            val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             val sourceIid = sources.first().first
 
-            h.passUntil(maxPasses = 30) { h.allMessages.any { it.hasDeclareAttackersReq() } }
-            val snap = h.messageSnapshot()
-            h.declareAttackers(listOf(sourceIid))
-            h.passUntil(maxPasses = 30) { h.turn() > 1 || h.isGameOver() }
-
-            val post = h.messagesSince(snap)
+            passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }
+            val post =
+                after {
+                    declareAttackers(listOf(sourceIid))
+                    passUntil(maxPasses = 30) { turn() > 1 || isGameOver() }
+                }.messages
             val gsms = post.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
 
             // Walk every GSM. Find which carry the holder gameObject and which
@@ -412,8 +388,8 @@ class MobilizeKeywordTest :
 
             assertSoftly("holder lifecycle") {
                 // Emitted in exactly one GSM (the resolution diff). Re-emitting
-                // every GSM while the holder is live is wire noise the
-                // canonical wire doesn't produce.
+                // every GSM while the holder is live is noise the canonical
+                // engine output doesn't produce.
                 holderEmissions.map { it.first } shouldHaveSize 1
                 // Deleted exactly once when cleanup retires it.
                 deletionGsmIndices shouldHaveSize 1

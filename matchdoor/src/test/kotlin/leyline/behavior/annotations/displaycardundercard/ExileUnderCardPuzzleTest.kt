@@ -1,14 +1,11 @@
 package leyline.behavior.annotations.displaycardundercard
 
 import forge.game.zone.ZoneType
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.bridge.types.ForgeCardId
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -20,15 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * returns to play.
  */
 class ExileUnderCardPuzzleTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("Banishing Light exile emits DisplayCardUnderCard, Disenchant removes it") {
             val pzl =
@@ -53,36 +42,28 @@ class ExileUnderCardPuzzleTest :
                 ailibrary=Forest
                 """.trimIndent()
 
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(pzl)
-            h.phase() shouldBe "MAIN1"
+            startPuzzleRaw(pzl, validating = false)
+            phase() shouldBe "MAIN1"
 
-            // Find Grizzly Bears instance ID (AI's battlefield)
-            val ai = h.game().registeredPlayers.last()
-            val bears =
-                ai
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
-            val bearsIid = h.bridge.getOrAllocInstanceId(ForgeCardId(bears.id)).value
+            val bearsIid = ai.battlefield.iid("Grizzly Bears")
 
             // --- Phase 1: Cast Banishing Light, target Grizzly Bears ---
-            val snap1 = h.messageSnapshot()
-            h.castSpellByName("Banishing Light").shouldBeTrue()
+            val phase1 =
+                after {
+                    castSpellByName("Banishing Light").shouldBeTrue()
 
-            // Banishing Light is on the stack — pass to resolve it
-            // ETB trigger will fire and need a target
-            h.passPriority() // resolve Banishing Light → ETB trigger on stack
+                    // Banishing Light is on the stack — pass to resolve it
+                    // ETB trigger will fire and need a target
+                    passPriority() // resolve Banishing Light → ETB trigger on stack
 
-            // Select Grizzly Bears as target for the exile trigger
-            h.selectTargets(listOf(bearsIid))
+                    // Select Grizzly Bears as target for the exile trigger
+                    selectTargets(listOf(bearsIid))
 
-            // Pass until the trigger resolves and Grizzly Bears is exiled
-            h
-                .passUntil(maxPasses = 10) {
-                    ai.getZone(ZoneType.Battlefield).cards.none { it.name == "Grizzly Bears" }
-                }.shouldBeTrue()
+                    // Pass until the trigger resolves and Grizzly Bears is exiled
+                    passUntil(maxPasses = 10) {
+                        ai.getZone(ZoneType.Battlefield).cards.none { it.name == "Grizzly Bears" }
+                    }.shouldBeTrue()
+                }
 
             // Verify Grizzly Bears is in exile
             ai
@@ -96,7 +77,7 @@ class ExileUnderCardPuzzleTest :
             // annotation — the trailing post-content echo GSM has no
             // persistent annotations, so `gsms.last()` would hit the empty
             // echo and report 0.
-            val gsms = h.gameStateMessagesSince(snap1)
+            val gsms = phase1.messages.mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
             gsms.size shouldBeGreaterThan 0
 
             val underCardAnns =
@@ -106,29 +87,24 @@ class ExileUnderCardPuzzleTest :
 
             underCardAnns.size shouldBe 1
             // Resolve Banishing Light iid (on battlefield, stable at this point)
-            val human = h.game().registeredPlayers.first()
-            val banishing =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Banishing Light" }
-            val banishingIid = h.bridge.getOrAllocInstanceId(ForgeCardId(banishing.id)).value
+            val banishingIid = human.battlefield.iid("Banishing Light")
             underCardAnns[0].affectorId shouldBe banishingIid
             underCardAnns[0].affectedIdsCount shouldBe 1
 
             // --- Phase 2: Cast Disenchant to destroy Banishing Light ---
 
-            val snap2 = h.messageSnapshot()
-            h.castSpellByName("Disenchant").shouldBeTrue()
+            val phase2 =
+                after {
+                    castSpellByName("Disenchant").shouldBeTrue()
 
-            // Disenchant targets Banishing Light
-            h.selectTargets(listOf(banishingIid))
+                    // Disenchant targets Banishing Light
+                    selectTargets(listOf(banishingIid))
 
-            // Pass to resolve — Banishing Light destroyed, Grizzly Bears returns
-            h
-                .passUntil(maxPasses = 15) {
-                    ai.getZone(ZoneType.Battlefield).cards.any { it.name == "Grizzly Bears" }
-                }.shouldBeTrue()
+                    // Pass to resolve — Banishing Light destroyed, Grizzly Bears returns
+                    passUntil(maxPasses = 15) {
+                        ai.getZone(ZoneType.Battlefield).cards.any { it.name == "Grizzly Bears" }
+                    }.shouldBeTrue()
+                }
 
             // Verify Grizzly Bears is back on battlefield
             ai
@@ -138,7 +114,7 @@ class ExileUnderCardPuzzleTest :
                 .shouldBeTrue()
 
             // Verify DisplayCardUnderCard annotation is removed
-            val gsms2 = h.gameStateMessagesSince(snap2)
+            val gsms2 = phase2.messages.mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
             val lastGsm2 = gsms2.last()
             val remainingUnderCard =
                 lastGsm2.persistentAnnotationsList

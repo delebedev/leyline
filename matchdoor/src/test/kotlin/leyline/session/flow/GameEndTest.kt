@@ -1,17 +1,15 @@
 package leyline.session.flow
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -22,29 +20,20 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * server sends the game-over GRE sequence.
  */
 class GameEndTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("concede produces MatchCompleted") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeep()
+            startGame(validating = false)
 
             // Concede triggers sendGameOver()
-            val snap = h.messageSnapshot()
-            h.session.onConcede()
-            h.drainSink()
+            val concede =
+                after {
+                    harness.session.onConcede()
+                    harness.drainSink()
+                }
 
             // Verify GRE messages: 3x GSM + IntermissionReq
-            val msgs = h.messagesSince(snap)
+            val msgs = concede.messages
             val gsmCount = msgs.count { it.hasGameStateMessage() }
             val intermission = msgs.firstOrNull { it.hasIntermissionReq() }
 
@@ -86,7 +75,7 @@ class GameEndTest :
             }
 
             // MatchCompleted room state should be in allRawMessages
-            val rawMsgs = h.allRawMessages
+            val rawMsgs = harness.allRawMessages
             val matchCompleted =
                 rawMsgs.firstOrNull {
                     it.hasMatchGameRoomStateChangedEvent() &&
@@ -103,8 +92,8 @@ class GameEndTest :
                 finalResult.getResultList(0).result shouldBe ResultType.WinLoss
             }
 
-            h.registry.getMatch("test-match").shouldBeNull()
-            h.registry.getPeer("test-match", SeatId(1)).shouldBeNull()
+            harness.registry.getMatch("test-match").shouldBeNull()
+            harness.registry.getPeer("test-match", SeatId(1)).shouldBeNull()
         }
 
         test("lethal damage produces MatchCompleted room state") {
@@ -130,25 +119,23 @@ class GameEndTest :
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """.trimIndent()
 
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(pzl)
+            startPuzzleRaw(pzl, validating = false)
 
             // Advance to combat
-            val startTurn = h.turn()
-            h.passPriority()
+            val startTurn = turn()
+            passPriority()
 
             // Attack all
-            h.declareAllAttackers()
-            h.submitAttackers()
+            harness.declareAllAttackers()
+            harness.submitAttackers()
 
             // Pass through remaining combat phases
-            h.passThroughCombat(startTurn)
+            harness.passThroughCombat(startTurn)
 
-            h.isGameOver().shouldBeTrue()
+            isGameOver().shouldBeTrue()
 
             // Verify MatchCompleted was sent
-            val rawMsgs = h.allRawMessages
+            val rawMsgs = harness.allRawMessages
             val matchCompleted =
                 rawMsgs.firstOrNull {
                     it.hasMatchGameRoomStateChangedEvent() &&
@@ -159,7 +146,7 @@ class GameEndTest :
 
             // Verify IntermissionReq with correct fields
             val intermission =
-                checkNotNull(h.allMessages.firstOrNull { it.hasIntermissionReq() }) {
+                checkNotNull(allMessages.firstOrNull { it.hasIntermissionReq() }) {
                     "Should have IntermissionReq after lethal damage"
                 }
             val req = intermission.intermissionReq
@@ -172,11 +159,10 @@ class GameEndTest :
             }
 
             // Game-over GSMs: the 3 GSMs immediately before IntermissionReq
-            val allMsgs = h.allMessages
-            val intermissionIdx = allMsgs.indexOfFirst { it.hasIntermissionReq() }
+            val intermissionIdx = allMessages.indexOfFirst { it.hasIntermissionReq() }
             intermissionIdx shouldBeGreaterThanOrEqualTo 3
             val gameOverGsms =
-                allMsgs
+                allMessages
                     .subList(intermissionIdx - 3, intermissionIdx)
                     .filter { it.hasGameStateMessage() }
                     .map { it.gameStateMessage }

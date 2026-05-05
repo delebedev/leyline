@@ -56,10 +56,10 @@ class TargetingInteractionTest :
             val creatureIid = humanBattlefieldCreatures().first().first
 
             // Phase 1: prompt shape
-            val snap = messageSnapshot()
-            castSpellByName("Giant Growth").shouldBeTrue()
-
-            val stReq = messagesSince(snap).firstOrNull { it.hasSelectTargetsReq() }
+            val stReq =
+                after { castSpellByName("Giant Growth").shouldBeTrue() }
+                    .messages
+                    .firstOrNull { it.hasSelectTargetsReq() }
             stReq.shouldNotBeNull()
             val targetSelection = stReq.selectTargetsReq.targetsList.first()
             assertSoftly {
@@ -119,7 +119,7 @@ class TargetingInteractionTest :
                 name = "Stacking Giant Growth",
             )
 
-            val creatureIid = instanceIdOf("Grizzly Bears")
+            val creatureIid = human.battlefield.iid("Grizzly Bears")
 
             castSpellByName("Giant Growth").shouldBeTrue()
             selectTargets(listOf(creatureIid))
@@ -144,9 +144,11 @@ class TargetingInteractionTest :
             val creatureIid = humanBattlefieldCreatures().first().first
 
             // Cast → cancel
-            val snap = messageSnapshot()
-            castSpellByName("Giant Growth").shouldBeTrue()
-            cancelAction()
+            val cancel =
+                after {
+                    castSpellByName("Giant Growth").shouldBeTrue()
+                    cancelAction()
+                }
 
             assertSoftly {
                 game().stack.isEmpty.shouldBeTrue()
@@ -155,7 +157,7 @@ class TargetingInteractionTest :
                     .getZone(ForgeZoneType.Hand)
                     .cards
                     .filter { it.name == "Giant Growth" } shouldHaveSize 1
-                messagesSince(snap).any { it.hasActionsAvailableReq() }.shouldBeTrue()
+                cancel.messages.any { it.hasActionsAvailableReq() }.shouldBeTrue()
             }
 
             // Re-cast → select → resolve
@@ -172,10 +174,7 @@ class TargetingInteractionTest :
         test("Lightning Bolt — prompt shape, sourceId, resolve deals 3 damage to opponent") {
             startPuzzleFile("puzzles/bolt-face.pzl")
 
-            val snap = messageSnapshot()
-            castSpellByName("Lightning Bolt").shouldBeTrue()
-
-            val msgs = messagesSince(snap)
+            val msgs = after { castSpellByName("Lightning Bolt").shouldBeTrue() }.messages
             val stMsg = msgs.firstOrNull { it.hasSelectTargetsReq() }
             stMsg.shouldNotBeNull()
 
@@ -244,9 +243,7 @@ class TargetingInteractionTest :
         test("Lightning Bolt — PST on cast frame, PSuT on submit frame") {
             startPuzzleFile("puzzles/bolt-face.pzl")
 
-            val castSnap = messageSnapshot()
-            castSpellByName("Lightning Bolt").shouldBeTrue()
-            val castMessages = messagesSince(castSnap)
+            val castMessages = after { castSpellByName("Lightning Bolt").shouldBeTrue() }.messages
 
             val selectTargetsReq = castMessages.firstOrNull { it.hasSelectTargetsReq() }
             selectTargetsReq.shouldNotBeNull()
@@ -271,9 +268,7 @@ class TargetingInteractionTest :
 
             // Submit + drive the engine to the next frame; PSuT lands on the
             // GSM following SubmitTargetsReq with the same shape as PST.
-            val submitSnap = messageSnapshot()
-            selectTargets(listOf(OPPONENT_SEAT))
-            val submitMessages = messagesSince(submitSnap)
+            val submitMessages = after { selectTargets(listOf(OPPONENT_SEAT)) }.messages
             val psutFrame =
                 submitMessages
                     .filter { it.hasGameStateMessage() }
@@ -311,9 +306,7 @@ class TargetingInteractionTest :
             val preBoltAiLife = ai.life
             castSpellByName("Lightning Bolt").shouldBeTrue()
 
-            val snap = messageSnapshot()
-            selectTargetsIterative(listOf(OPPONENT_SEAT))
-            val echoMessages = messagesSince(snap)
+            val echoMessages = after { selectTargetsIterative(listOf(OPPONENT_SEAT)) }.messages
 
             val rePromptMsg = echoMessages.firstOrNull { it.hasSelectTargetsReq() }
             rePromptMsg.shouldNotBeNull()
@@ -339,9 +332,7 @@ class TargetingInteractionTest :
             val preBoltAiLife = ai.life
             castSpellByName("Lightning Bolt").shouldBeTrue()
 
-            val phase1Snap = messageSnapshot()
-            selectTargetsIterative(listOf(OPPONENT_SEAT))
-            val phase1Messages = messagesSince(phase1Snap)
+            val phase1Messages = after { selectTargetsIterative(listOf(OPPONENT_SEAT)) }.messages
 
             assertSoftly {
                 // No damage landed yet — spell hasn't resolved
@@ -350,9 +341,7 @@ class TargetingInteractionTest :
                 phase1Messages.any { it.hasSelectTargetsReq() }.shouldBeTrue()
             }
 
-            val phase2Snap = messageSnapshot()
-            submitTargets()
-            messagesSince(phase2Snap).any { it.hasSubmitTargetsResp() }.shouldBeTrue()
+            after { submitTargets() }.messages.any { it.hasSubmitTargetsResp() }.shouldBeTrue()
 
             passUntilResolved()
             // Damage landed only after submit
@@ -378,15 +367,15 @@ class TargetingInteractionTest :
         test("Run Away Together — initial prompt: both creatures legal with min=max=2") {
             startPuzzle(runAwayTogetherState, name = "RAT Initial")
 
-            val snap = messageSnapshot()
-            castSpellByName("Run Away Together").shouldBeTrue()
-
-            val stMsg = messagesSince(snap).firstOrNull { it.hasSelectTargetsReq() }
+            val stMsg =
+                after { castSpellByName("Run Away Together").shouldBeTrue() }
+                    .messages
+                    .firstOrNull { it.hasSelectTargetsReq() }
             stMsg.shouldNotBeNull()
             val group = stMsg.selectTargetsReq.getTargets(0)
 
-            val humanBearsIid = instanceIdOf("Grizzly Bears", player = human)
-            val aiMerfolkIid = instanceIdOf("Coral Merfolk", player = ai)
+            val humanBearsIid = human.battlefield.iid("Grizzly Bears")
+            val aiMerfolkIid = ai.battlefield.iid("Coral Merfolk")
 
             assertSoftly {
                 group.minTargets shouldBe 2
@@ -405,14 +394,15 @@ class TargetingInteractionTest :
         test("Run Away Together — re-prompt: picked = Unselect, opposite-controller = Select+Tepid") {
             startPuzzle(runAwayTogetherState, name = "RAT RePrompt")
 
-            val humanBearsIid = instanceIdOf("Grizzly Bears", player = human)
-            val aiMerfolkIid = instanceIdOf("Coral Merfolk", player = ai)
+            val humanBearsIid = human.battlefield.iid("Grizzly Bears")
+            val aiMerfolkIid = ai.battlefield.iid("Coral Merfolk")
 
             castSpellByName("Run Away Together").shouldBeTrue()
 
-            val snap = messageSnapshot()
-            selectTargetsIterative(listOf(humanBearsIid))
-            val rePromptMsg = messagesSince(snap).firstOrNull { it.hasSelectTargetsReq() }
+            val rePromptMsg =
+                after { selectTargetsIterative(listOf(humanBearsIid)) }
+                    .messages
+                    .firstOrNull { it.hasSelectTargetsReq() }
             rePromptMsg.shouldNotBeNull()
             val group = rePromptMsg.selectTargetsReq.getTargets(0)
 
@@ -434,8 +424,8 @@ class TargetingInteractionTest :
         test("Run Away Together — Unselect tap removes from accumulation") {
             startPuzzle(runAwayTogetherState, name = "RAT Unselect")
 
-            val humanBearsIid = instanceIdOf("Grizzly Bears", player = human)
-            val aiMerfolkIid = instanceIdOf("Coral Merfolk", player = ai)
+            val humanBearsIid = human.battlefield.iid("Grizzly Bears")
+            val aiMerfolkIid = ai.battlefield.iid("Coral Merfolk")
 
             castSpellByName("Run Away Together").shouldBeTrue()
 
@@ -458,10 +448,11 @@ class TargetingInteractionTest :
             harness.drainSink()
 
             // Re-prompt after Unselect: both creatures selectable, selectedTargets=0.
-            val snap = messageSnapshot()
             // Trigger one more tap to observe the latest re-prompt.
-            selectTargetsIterative(listOf(aiMerfolkIid))
-            val rePromptMsg = messagesSince(snap).firstOrNull { it.hasSelectTargetsReq() }
+            val rePromptMsg =
+                after { selectTargetsIterative(listOf(aiMerfolkIid)) }
+                    .messages
+                    .firstOrNull { it.hasSelectTargetsReq() }
             rePromptMsg.shouldNotBeNull()
             val group = rePromptMsg.selectTargetsReq.getTargets(0)
 
@@ -478,8 +469,8 @@ class TargetingInteractionTest :
         test("Run Away Together — submit both: creatures return to owners' hands") {
             startPuzzle(runAwayTogetherState, name = "RAT Resolve")
 
-            val humanBearsIid = instanceIdOf("Grizzly Bears", player = human)
-            val aiMerfolkIid = instanceIdOf("Coral Merfolk", player = ai)
+            val humanBearsIid = human.battlefield.iid("Grizzly Bears")
+            val aiMerfolkIid = ai.battlefield.iid("Coral Merfolk")
 
             castSpellByName("Run Away Together").shouldBeTrue()
             // Real client sends one tap per SelectTargetsResp — server accumulates.
@@ -501,8 +492,8 @@ class TargetingInteractionTest :
         test("Bite Down — resolution state: damage, destroy, target in GY") {
             startPuzzleFile("puzzles/bite-down.pzl")
 
-            val dealerIid = instanceIdOf("Grizzly Bears", player = human)
-            val targetIid = instanceIdOf("Grizzly Bears", player = ai)
+            val dealerIid = human.battlefield.iid("Grizzly Bears")
+            val targetIid = ai.battlefield.iid("Grizzly Bears")
 
             castSpellByName("Bite Down").shouldBeTrue()
             selectTargets(listOf(dealerIid))
@@ -544,8 +535,8 @@ class TargetingInteractionTest :
         test("Bite Down — two TargetSpec persistent annotations, cleaned up on resolve") {
             startPuzzleFile("puzzles/bite-down.pzl")
 
-            val dealerIid = instanceIdOf("Grizzly Bears", player = human)
-            val targetIid = instanceIdOf("Grizzly Bears", player = ai)
+            val dealerIid = human.battlefield.iid("Grizzly Bears")
+            val targetIid = ai.battlefield.iid("Grizzly Bears")
 
             castSpellByName("Bite Down").shouldBeTrue()
             selectTargets(listOf(dealerIid))

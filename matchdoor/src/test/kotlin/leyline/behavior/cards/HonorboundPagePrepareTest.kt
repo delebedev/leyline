@@ -6,13 +6,11 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.bridge.types.ForgeCardId
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
 import leyline.testkit.firstGameObjectByIid
-import leyline.testkit.gsm
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -64,8 +62,8 @@ class HonorboundPagePrepareTest :
             castSpellByName("Honorbound Page")
             passUntilResolved()
 
-            val sourceIid = instanceIdOf("Honorbound Page", human, ZoneType.Battlefield)
-            val copyIid = instanceIdOf("Forum's Favor", human, ZoneType.Exile)
+            val sourceIid = human.battlefield.iid("Honorbound Page")
+            val copyIid = human.exile.iid("Forum's Favor")
 
             // Persistent annotations are differential — pAnns added in earlier
             // GSMs aren't republished in later diffs. Walk every emitted GSM,
@@ -108,7 +106,7 @@ class HonorboundPagePrepareTest :
                     .getZone(ZoneType.Exile)
                     .cards
                     .first { it.name == "Forum's Favor" }
-            val copyIid = harness.bridge.getOrAllocInstanceId(ForgeCardId(copy.id)).value
+            val copyIid = human.exile.iid("Forum's Favor")
             val grpId = harness.bridge.resolveGrpId(copy, copyIid)
             grpId shouldNotBe 0
             // Same value the cardRepository would resolve via name lookup.
@@ -141,7 +139,7 @@ class HonorboundPagePrepareTest :
             castSpellByName("Honorbound Page")
             passUntilResolved()
 
-            val sourceIid = instanceIdOf("Honorbound Page", human, ZoneType.Battlefield)
+            val sourceIid = human.battlefield.iid("Honorbound Page")
 
             // Find the GSM that carries the Stack→Battlefield Resolve ZoneTransfer
             // for Honorbound Page. The protocol spec requires GainDesignation type=24
@@ -186,7 +184,7 @@ class HonorboundPagePrepareTest :
             castSpellByName("Honorbound Page")
             passUntilResolved()
 
-            val sourceIid = instanceIdOf("Honorbound Page", human, ZoneType.Battlefield)
+            val sourceIid = human.battlefield.iid("Honorbound Page")
 
             // Pre-cast: persistent Designation pAnn exists for the source. Save
             // its id so we can assert it's listed in diffDeletedPersistentAnnotationIds
@@ -207,12 +205,7 @@ class HonorboundPagePrepareTest :
             // LoseDesignation. Assert the prompt actually surfaced.
             allMessages.drop(cutoffMessageCount).any { it.hasSelectTargetsReq() } shouldBe true
 
-            val opponentBear =
-                ai.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
-            val oppIid =
-                harness.bridge
-                    .getOrAllocInstanceId(ForgeCardId(opponentBear.id))
-                    .value
+            val oppIid = ai.battlefield.iid("Grizzly Bears")
             selectTargets(listOf(oppIid))
 
             val postCastGsms =
@@ -248,10 +241,10 @@ class HonorboundPagePrepareTest :
             castSpellByName("Elite Interceptor")
             passUntilResolved()
 
-            val honorbound = instanceIdOf("Honorbound Page", human, ZoneType.Battlefield)
-            val interceptor = instanceIdOf("Elite Interceptor", human, ZoneType.Battlefield)
-            val forumsFavor = instanceIdOf("Forum's Favor", human, ZoneType.Exile)
-            val rejoinder = instanceIdOf("Rejoinder", human, ZoneType.Exile)
+            val honorbound = human.battlefield.iid("Honorbound Page")
+            val interceptor = human.battlefield.iid("Elite Interceptor")
+            val forumsFavor = human.exile.iid("Forum's Favor")
+            val rejoinder = human.exile.iid("Rejoinder")
 
             // Persistent annotations are differential — pAnns added in earlier
             // GSMs aren't republished in later diffs. Walk every emitted GSM and
@@ -315,7 +308,7 @@ class HonorboundPagePrepareTest :
             // the trailing post-content echo GSM has zero gameObjects, so
             // `last { hasGameStateMessage() }` would hit the empty echo and
             // fail to locate the projection.
-            val copyIid = instanceIdOf("Forum's Favor", human, ZoneType.Exile)
+            val copyIid = human.exile.iid("Forum's Favor")
             val gsm =
                 allMessages
                     .last { it.hasGameStateMessage() && it.gameStateMessage.gameObjectsList.any { o -> o.instanceId == copyIid } }

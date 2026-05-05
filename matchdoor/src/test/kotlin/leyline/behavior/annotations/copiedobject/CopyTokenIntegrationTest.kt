@@ -2,22 +2,18 @@ package leyline.behavior.annotations.copiedobject
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
 import leyline.game.codes.DetailKeys
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -33,15 +29,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * Board B: Homunculus Horde (permanent copy via draw trigger).
  */
 class CopyTokenIntegrationTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         beforeSpec {
             GameBootstrap.initializeCardDatabase(quiet = true)
@@ -82,28 +70,26 @@ class CopyTokenIntegrationTest :
          * Cast Electroduplicate, resolve, and return the copy token's Forge Card
          * plus its instanceId.
          */
-        fun castAndResolveCopy(h: MatchFlowHarness): Pair<forge.game.card.Card, Int> {
-            val human = h.bridge.getPlayer(SeatId(1))!!
-
+        fun castAndResolveCopy(): Pair<forge.game.card.Card, Int> {
             // Preconditions
             human
                 .getZone(ZoneType.Hand)
                 .cards
                 .any { it.name == "Electroduplicate" }
                 .shouldBeTrue()
-            val creatures = h.humanBattlefieldCreatures()
+            val creatures = humanBattlefieldCreatures()
             creatures.shouldNotBeEmpty()
             val bearsIid = creatures.first { it.second == "Grizzly Bears" }.first
 
             // Cast Electroduplicate targeting Grizzly Bears
-            h.castSpellByName("Electroduplicate").shouldBeTrue()
-            h.selectTargets(listOf(bearsIid))
+            castSpellByName("Electroduplicate").shouldBeTrue()
+            selectTargets(listOf(bearsIid))
 
             // Pass priority until copy token appears
             repeat(10) {
                 val tokens = human.getZone(ZoneType.Battlefield).cards.filter { it.isToken }
                 if (tokens.isNotEmpty()) return@repeat
-                h.passPriority()
+                passPriority()
             }
 
             val copyToken =
@@ -112,32 +98,30 @@ class CopyTokenIntegrationTest :
                     .cards
                     .firstOrNull { it.isToken }
                     .shouldNotBeNull()
-            val copyIid = h.bridge.getOrAllocInstanceId(ForgeCardId(copyToken.id)).value
+            val copyIid = human.battlefield.iid(copyToken)
 
             return copyToken to copyIid
         }
 
         test("copy token gets source grpId, isCopy, and objectSourceGrpId") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(puzzleText)
+            startPuzzleRaw(puzzleText, validating = false)
 
-            val (copyToken, copyIid) = castAndResolveCopy(h)
+            val (copyToken, copyIid) = castAndResolveCopy()
 
             // Forge should mark this as a copy
             copyToken.copiedPermanent.shouldNotBeNull()
             copyToken.isToken.shouldBeTrue()
 
             // Build GSM and find the copy token object
-            val snapCopy1 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 1)
-            val gsm = StateMapper.buildFromSnapshot(snapCopy1, 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
+            val snapCopy1 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-copy", 1)
+            val gsm = StateMapper.buildFromSnapshot(snapCopy1, 1, "test-copy", harness.bridge, viewingSeatId = 1).gsm
             val copyObj =
                 gsm.gameObjectsList
                     .firstOrNull { it.instanceId == copyIid }
                     .shouldNotBeNull()
 
             // Source grpId — should match Grizzly Bears, not a token grpId
-            val bearsGrpId = h.bridge.cardRepository.findGrpIdByName("Grizzly Bears")!!
+            val bearsGrpId = harness.bridge.cardRepository.findGrpIdByName("Grizzly Bears")!!
             assertSoftly {
                 copyObj.grpId shouldBe bearsGrpId
                 copyObj.overlayGrpId shouldBe bearsGrpId
@@ -147,14 +131,12 @@ class CopyTokenIntegrationTest :
         }
 
         test("copy token retains cardTypes and power/toughness in GSM") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(puzzleText)
+            startPuzzleRaw(puzzleText, validating = false)
 
-            val (_, copyIid) = castAndResolveCopy(h)
+            val (_, copyIid) = castAndResolveCopy()
 
-            val snapCopy2 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 1)
-            val gsm = StateMapper.buildFromSnapshot(snapCopy2, 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
+            val snapCopy2 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-copy", 1)
+            val gsm = StateMapper.buildFromSnapshot(snapCopy2, 1, "test-copy", harness.bridge, viewingSeatId = 1).gsm
             val copyObj = gsm.gameObjectsList.first { it.instanceId == copyIid }
 
             assertSoftly {
@@ -166,28 +148,36 @@ class CopyTokenIntegrationTest :
         }
 
         test("copy token fields survive diff GSM") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(puzzleText)
+            startPuzzleRaw(puzzleText, validating = false)
 
-            val (_, copyIid) = castAndResolveCopy(h)
+            val (_, copyIid) = castAndResolveCopy()
 
             // First GSM — establishes baseline (apply mutations so recordZone fires)
-            val snapCopy3 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 1)
-            val baselineResult = StateMapper.buildFromSnapshot(snapCopy3, 1, "test-copy", h.bridge, viewingSeatId = 1)
-            h.bridge.applyMutations(baselineResult.mutations)
+            val snapCopy3 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-copy", 1)
+            val baselineResult = StateMapper.buildFromSnapshot(snapCopy3, 1, "test-copy", harness.bridge, viewingSeatId = 1)
+            harness.bridge.applyMutations(baselineResult.mutations)
 
             // Trigger a state change (pass priority) so a diff is generated
-            h.passPriority()
+            passPriority()
 
             // Second GSM — diff from baseline
-            val snapCopy4 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 2)
-            val gsm2 = StateMapper.buildDiff(snapCopy3, snapCopy4, FrameEventLog.EMPTY, 2, "test-copy", h.bridge, viewingSeatId = 1).gsm
+            val snapCopy4 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-copy", 2)
+            val gsm2 =
+                StateMapper
+                    .buildDiff(
+                        snapCopy3,
+                        snapCopy4,
+                        FrameEventLog.EMPTY,
+                        2,
+                        "test-copy",
+                        harness.bridge,
+                        viewingSeatId = 1,
+                    ).gsm
 
             // If the copy token appears in the diff, its fields must be intact
             val copyInDiff = gsm2.gameObjectsList.firstOrNull { it.instanceId == copyIid }
             if (copyInDiff != null) {
-                val bearsGrpId = h.bridge.cardRepository.findGrpIdByName("Grizzly Bears")!!
+                val bearsGrpId = harness.bridge.cardRepository.findGrpIdByName("Grizzly Bears")!!
                 assertSoftly {
                     copyInDiff.grpId shouldBe bearsGrpId
                     copyInDiff.isCopy shouldBe true
@@ -197,24 +187,22 @@ class CopyTokenIntegrationTest :
             // If absent from diff, it means unchanged — equally valid (no field stripping)
 
             // Registry should have cached the grpId
-            h.bridge.tokenRegistry
+            harness.bridge.tokenRegistry
                 .resolve(copyIid)
                 .shouldNotBeNull()
         }
 
         test("TemporaryPermanent pAnn emitted for EOT-sacrifice copy") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(puzzleText)
+            startPuzzleRaw(puzzleText, validating = false)
 
-            val (copyToken, copyIid) = castAndResolveCopy(h)
+            val (copyToken, copyIid) = castAndResolveCopy()
 
             // Electroduplicate adds EndOfTurnLeavePlay SVar
             copyToken.hasSVar("EndOfTurnLeavePlay").shouldBeTrue()
 
             // Build GSM — should have TemporaryPermanent persistent annotation
-            val snapCopy4 = GsmSnapshot.capture(h.game(), h.bridge, "test-copy", 1)
-            val gsm = StateMapper.buildFromSnapshot(snapCopy4, 1, "test-copy", h.bridge, viewingSeatId = 1).gsm
+            val snapCopy4 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-copy", 1)
+            val gsm = StateMapper.buildFromSnapshot(snapCopy4, 1, "test-copy", harness.bridge, viewingSeatId = 1).gsm
             val tempPerm =
                 gsm.persistentAnnotationsList
                     .firstOrNull { ann ->
@@ -252,8 +240,7 @@ class CopyTokenIntegrationTest :
             ailibrary=Island;Island;Island;Island;Island
             """.trimIndent()
 
-        fun castQuickStudyAndWaitForCopy(h: MatchFlowHarness): Pair<forge.game.card.Card, Int> {
-            val human = h.bridge.getPlayer(SeatId(1))!!
+        fun castQuickStudyAndWaitForCopy(): Pair<forge.game.card.Card, Int> {
             human
                 .getZone(ZoneType.Hand)
                 .cards
@@ -265,13 +252,13 @@ class CopyTokenIntegrationTest :
                 .any { it.name == "Homunculus Horde" }
                 .shouldBeTrue()
 
-            h.castSpellByName("Quick Study").shouldBeTrue()
+            castSpellByName("Quick Study").shouldBeTrue()
 
             // Pass until a token copy appears
             repeat(15) {
                 val tokens = human.getZone(ZoneType.Battlefield).cards.filter { it.isToken }
                 if (tokens.isNotEmpty()) return@repeat
-                h.passPriority()
+                passPriority()
             }
 
             val copyToken =
@@ -280,28 +267,26 @@ class CopyTokenIntegrationTest :
                     .cards
                     .firstOrNull { it.isToken }
                     .shouldNotBeNull()
-            val copyIid = h.bridge.getOrAllocInstanceId(ForgeCardId(copyToken.id)).value
+            val copyIid = human.battlefield.iid(copyToken)
             return copyToken to copyIid
         }
 
         test("Homunculus Horde copy gets source grpId and isCopy") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(homunculusPuzzle)
+            startPuzzleRaw(homunculusPuzzle, validating = false)
 
-            val (copyToken, copyIid) = castQuickStudyAndWaitForCopy(h)
+            val (copyToken, copyIid) = castQuickStudyAndWaitForCopy()
 
             copyToken.copiedPermanent.shouldNotBeNull()
             copyToken.isToken.shouldBeTrue()
 
-            val snapHom1 = GsmSnapshot.capture(h.game(), h.bridge, "test-homunculus", 1)
-            val gsm = StateMapper.buildFromSnapshot(snapHom1, 1, "test-homunculus", h.bridge, viewingSeatId = 1).gsm
+            val snapHom1 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-homunculus", 1)
+            val gsm = StateMapper.buildFromSnapshot(snapHom1, 1, "test-homunculus", harness.bridge, viewingSeatId = 1).gsm
             val copyObj =
                 gsm.gameObjectsList
                     .firstOrNull { it.instanceId == copyIid }
                     .shouldNotBeNull()
 
-            val hordeGrpId = h.bridge.cardRepository.findGrpIdByName("Homunculus Horde")!!
+            val hordeGrpId = harness.bridge.cardRepository.findGrpIdByName("Homunculus Horde")!!
             assertSoftly {
                 copyObj.grpId shouldBe hordeGrpId
                 copyObj.overlayGrpId shouldBe hordeGrpId
@@ -314,17 +299,15 @@ class CopyTokenIntegrationTest :
         }
 
         test("Homunculus Horde copy has NO TemporaryPermanent pAnn") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(homunculusPuzzle)
+            startPuzzleRaw(homunculusPuzzle, validating = false)
 
-            val (copyToken, copyIid) = castQuickStudyAndWaitForCopy(h)
+            val (copyToken, copyIid) = castQuickStudyAndWaitForCopy()
 
             // Permanent copy — no EOT sacrifice SVar
             copyToken.hasSVar("EndOfTurnLeavePlay") shouldBe false
 
-            val snapHom2 = GsmSnapshot.capture(h.game(), h.bridge, "test-homunculus", 1)
-            val gsm = StateMapper.buildFromSnapshot(snapHom2, 1, "test-homunculus", h.bridge, viewingSeatId = 1).gsm
+            val snapHom2 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-homunculus", 1)
+            val gsm = StateMapper.buildFromSnapshot(snapHom2, 1, "test-homunculus", harness.bridge, viewingSeatId = 1).gsm
             val tempPerm =
                 gsm.persistentAnnotationsList
                     .firstOrNull { ann ->

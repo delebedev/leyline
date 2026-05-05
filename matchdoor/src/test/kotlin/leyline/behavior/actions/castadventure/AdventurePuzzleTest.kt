@@ -1,13 +1,10 @@
 package leyline.behavior.actions.castadventure
 
 import forge.game.zone.ZoneType
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.bridge.types.ForgeCardId
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
@@ -23,15 +20,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  *
  */
 class AdventurePuzzleTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("adventure lifecycle: cast adventure → tokens → exile → cast creature → battlefield") {
             val pzl =
@@ -56,24 +45,15 @@ class AdventurePuzzleTest :
                 ailibrary=Forest
                 """.trimIndent()
 
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(pzl)
-            h.phase() shouldBe "MAIN1"
-
-            val human = h.game().registeredPlayers.first()
+            startPuzzleRaw(pzl, validating = false)
+            phase() shouldBe "MAIN1"
 
             // --- Step 1: Verify CastAdventure action is available ---
-            val trainee =
-                human
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first { it.name == "Ratcatcher Trainee" }
-            val traineeIid = h.bridge.getOrAllocInstanceId(ForgeCardId(trainee.id)).value
+            val traineeIid = human.hand.iid("Ratcatcher Trainee")
 
             // Look for CastAdventure in the latest ActionsAvailableReq
             val actionsMsg =
-                h.allMessages
+                allMessages
                     .asReversed()
                     .firstOrNull { it.hasActionsAvailableReq() }
             checkNotNull(actionsMsg) { "No ActionsAvailableReq found in messages" }
@@ -94,13 +74,13 @@ class AdventurePuzzleTest :
                     instanceId = adventureAction.instanceId
                     grpId = adventureAction.grpId
                 }
-            h.session.onPerformAction(castMsg)
-            h.drainSink()
+            harness.session.onPerformAction(castMsg)
+            harness.drainSink()
 
             // --- Step 3: Pass priority until adventure resolves (tokens appear) ---
             // Forge token name is "Rat Token" (from b_1_1_rat_noblock.txt)
             val tokensAppeared =
-                h.passUntil(maxPasses = 15) {
+                passUntil(maxPasses = 15) {
                     human.getZone(ZoneType.Battlefield).cards.any { it.isToken && "Rat" in it.name }
                 }
             tokensAppeared.shouldBeTrue()
@@ -122,11 +102,11 @@ class AdventurePuzzleTest :
             inExile.shouldBeTrue()
 
             // --- Step 5: Cast creature from exile ---
-            h.castFromExile("Ratcatcher Trainee").shouldBeTrue()
+            harness.castFromExile("Ratcatcher Trainee").shouldBeTrue()
 
             // --- Step 6: Pass until creature resolves to battlefield ---
             val creatureOnBattlefield =
-                h.passUntil(maxPasses = 15) {
+                passUntil(maxPasses = 15) {
                     human
                         .getZone(ZoneType.Battlefield)
                         .cards

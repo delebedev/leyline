@@ -39,12 +39,12 @@ class BushwhackFightTest :
             // by CharmEffect.makePossibleOptions, so index 1 = Fight.
             val fightOption = modalReq.getModalOptions(1)
 
-            val snap = messageSnapshot()
-            harness.respondModalChoice(listOf(fightOption.grpId))
-
             // Pre-fix: zero SelectTargetsReq emitted, cast silently drops.
             // Post-fix: first SelectTargetsReq for "creature you control".
-            val firstSt = messagesSince(snap).firstOrNull { it.hasSelectTargetsReq() }
+            val firstSt =
+                after { harness.respondModalChoice(listOf(fightOption.grpId)) }
+                    .messages
+                    .firstOrNull { it.hasSelectTargetsReq() }
             firstSt.shouldNotBeNull()
             val firstSelection = firstSt.selectTargetsReq.targetsList.first()
             assertSoftly {
@@ -52,15 +52,15 @@ class BushwhackFightTest :
                 firstSelection.maxTargets shouldBe 1
                 firstSelection.targetsList
                     .map { it.targetInstanceId }
-                    .shouldContain(instanceIdOf("Centaur Courser", player = human))
+                    .shouldContain(human.battlefield.iid("Centaur Courser"))
             }
         }
 
         test("Bushwhack Fight resolves: mutual damage, both creatures take damage") {
             startPuzzleFile("puzzles/bushwhack-fight.pzl")
 
-            val ownIid = instanceIdOf("Centaur Courser", player = human)
-            val oppIid = instanceIdOf("Grizzly Bears", player = ai)
+            val ownIid = human.battlefield.iid("Centaur Courser")
+            val oppIid = ai.battlefield.iid("Grizzly Bears")
 
             val cto = castSpellUntilCastingTimeOptionsReq("Bushwhack")
             val fightOption = cto.getCastingTimeOptionReq(0).modalReq.getModalOptions(1)

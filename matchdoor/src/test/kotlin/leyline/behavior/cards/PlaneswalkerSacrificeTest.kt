@@ -2,14 +2,12 @@ package leyline.behavior.cards
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 
 /**
  * Integration test for planeswalker sacrifice puzzle.
@@ -18,15 +16,7 @@ import leyline.testkit.MatchFlowHarness
  * Centaur Courser → Grizzly Bears attacks unblocked for lethal.
  */
 class PlaneswalkerSacrificeTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("Liliana -2 forces sacrifice, attack for lethal") {
             val pzl =
@@ -51,23 +41,18 @@ class PlaneswalkerSacrificeTest :
                 ailibrary=Mountain
                 """.trimIndent()
 
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(pzl)
+            startPuzzleRaw(pzl, validating = false)
 
-            val human = h.game().registeredPlayers.first()
-            val ai = h.game().registeredPlayers.last()
-
-            h.phase() shouldBe "MAIN1"
+            phase() shouldBe "MAIN1"
 
             // Cast Liliana of the Veil (1BB)
-            h.castSpellByName("Liliana of the Veil").shouldBeTrue()
+            castSpellByName("Liliana of the Veil").shouldBeTrue()
 
             // Resolve onto battlefield
             repeat(5) {
-                if (h.isGameOver()) return@repeat
+                if (isGameOver()) return@repeat
                 if (human.getZone(ZoneType.Battlefield).cards.any { it.name.contains("Liliana") }) return@repeat
-                h.passPriority()
+                passPriority()
             }
             human
                 .getZone(ZoneType.Battlefield)
@@ -76,16 +61,16 @@ class PlaneswalkerSacrificeTest :
                 .shouldHaveSize(1)
 
             // Activate -2 (second ability, index 1)
-            h.activateAbility("Liliana of the Veil", abilityIndex = 1).shouldBeTrue()
+            activateAbility("Liliana of the Veil", abilityIndex = 1).shouldBeTrue()
 
             // Target opponent (seatId 2)
-            h.selectTargets(listOf(2))
+            selectTargets(listOf(OPPONENT_SEAT))
 
             // Resolve -2 — Courser should be sacrificed
             repeat(10) {
-                if (h.isGameOver()) return@repeat
+                if (isGameOver()) return@repeat
                 if (ai.getZone(ZoneType.Battlefield).cards.none { it.isCreature }) return@repeat
-                h.passPriority()
+                passPriority()
             }
 
             ai
@@ -96,27 +81,26 @@ class PlaneswalkerSacrificeTest :
 
             // Advance to combat, attack with Bears
             repeat(10) {
-                if (h.isGameOver()) return@repeat
-                if (h.phase() == "COMBAT_DECLARE_ATTACKERS") return@repeat
-                h.passPriority()
+                if (isGameOver()) return@repeat
+                if (phase() == "COMBAT_DECLARE_ATTACKERS") return@repeat
+                passPriority()
             }
-            (h.isGameOver() || h.phase() == "COMBAT_DECLARE_ATTACKERS").shouldBeTrue()
+            (isGameOver() || phase() == "COMBAT_DECLARE_ATTACKERS").shouldBeTrue()
 
             val bearsIid =
-                h
-                    .humanBattlefieldCreatures()
+                humanBattlefieldCreatures()
                     .first { it.second == "Grizzly Bears" }
                     .first
-            h.declareAttackers(listOf(bearsIid))
+            declareAttackers(listOf(bearsIid))
 
             // Pass through combat
             repeat(10) {
-                if (h.isGameOver()) return@repeat
-                h.passPriority()
+                if (isGameOver()) return@repeat
+                passPriority()
             }
 
             assertSoftly {
-                h.isGameOver().shouldBeTrue()
+                isGameOver().shouldBeTrue()
                 human.hasWon().shouldBeTrue()
                 human.hasLost().shouldBeFalse()
                 ai.life shouldBe 0

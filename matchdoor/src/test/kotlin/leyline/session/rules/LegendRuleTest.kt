@@ -1,17 +1,13 @@
 package leyline.session.rules
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
 import leyline.bridge.types.InstanceId
-import leyline.bridge.types.SeatId
-import leyline.testkit.MatchFlowHarness
-import leyline.testkit.allAnnotations
+import leyline.testkit.SessionTest
 import leyline.testkit.assertConsistent
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.detailString
@@ -29,16 +25,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * 3. Resolution Diff: ZoneTransfer(SBA_LegendRule) + ObjectIdChanged
  */
 class LegendRuleTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         val puzzleText =
             """
@@ -61,30 +48,36 @@ class LegendRuleTest :
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
             """.trimIndent()
 
-        fun setup(): MatchFlowHarness {
-            val h = MatchFlowHarness()
-            harness = h
-            h.connectAndKeepPuzzleText(puzzleText)
-            return h
+        fun findUntappedIsamaru(instanceIds: List<Int>): Int? {
+            for (iid in instanceIds) {
+                val cardId = harness.bridge.getForgeCardId(InstanceId(iid)) ?: continue
+                val card =
+                    human
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .firstOrNull { it.id == cardId.value }
+                if (card != null && !card.isTapped) return iid
+            }
+            return null
         }
 
         /** Cast Isamaru, resolve, trigger legend rule, respond to SelectNReq. */
-        fun castAndResolveLegendRule(h: MatchFlowHarness): Int {
-            h.castSpellByName("Isamaru, Hound of Konda").shouldBeTrue()
-            h.passPriority()
+        fun castAndResolveLegendRule(): Int {
+            castSpellByName("Isamaru, Hound of Konda").shouldBeTrue()
+            passPriority()
 
-            val selectNReq = h.allMessages.last { it.hasSelectNReq() }
+            val selectNReq = allMessages.last { it.hasSelectNReq() }
             val legendaryIds = selectNReq.selectNReq.idsList
-            val keepId = findUntappedIsamaru(h, legendaryIds) ?: legendaryIds.last()
+            val keepId = findUntappedIsamaru(legendaryIds) ?: legendaryIds.last()
 
-            h.respondToSelectN(listOf(keepId))
+            harness.respondToSelectN(listOf(keepId))
             return keepId
         }
 
-        test("SelectNReq shape matches wire spec") {
-            val h = setup()
+        test("SelectNReq carries the documented context/listType/idType fields") {
+            startPuzzleRaw(puzzleText)
 
-            val req = h.castSpellUntilSelectNReq("Isamaru, Hound of Konda")
+            val req = harness.castSpellUntilSelectNReq("Isamaru, Hound of Konda")
 
             assertSoftly {
                 req.idsList.size shouldBe 2
@@ -99,13 +92,12 @@ class LegendRuleTest :
         }
 
         test("SBA_LegendRule transfer category") {
-            val h = setup()
-            val snap = h.messageSnapshot()
+            startPuzzleRaw(puzzleText)
 
-            castAndResolveLegendRule(h)
+            val resolution = after { castAndResolveLegendRule() }
 
             val allAnnotations =
-                h.messagesSince(snap).flatMap { msg ->
+                resolution.messages.flatMap { msg ->
                     if (msg.hasGameStateMessage()) msg.gameStateMessage.annotationsList else emptyList()
                 }
             val zt =
@@ -116,30 +108,28 @@ class LegendRuleTest :
         }
 
         test("keeps chosen legendary on battlefield") {
-            val h = setup()
+            startPuzzleRaw(puzzleText)
 
-            castAndResolveLegendRule(h)
+            castAndResolveLegendRule()
 
-            val player = h.bridge.getPlayer(SeatId(1))!!
             val bfIsamarus =
-                player
+                human
                     .getZone(ForgeZoneType.Battlefield)
                     .cards
                     .filter { it.name == "Isamaru, Hound of Konda" }
             bfIsamarus.size shouldBe 1
 
-            val gyCards = player.getZone(ForgeZoneType.Graveyard).cards
+            val gyCards = human.getZone(ForgeZoneType.Graveyard).cards
             gyCards.any { it.name == "Isamaru, Hound of Konda" } shouldBe true
         }
 
         test("ObjectIdChanged annotation present") {
-            val h = setup()
-            val snap = h.messageSnapshot()
+            startPuzzleRaw(puzzleText)
 
-            castAndResolveLegendRule(h)
+            val resolution = after { castAndResolveLegendRule() }
 
             val allAnnotations =
-                h.messagesSince(snap).flatMap { msg ->
+                resolution.messages.flatMap { msg ->
                     if (msg.hasGameStateMessage()) msg.gameStateMessage.annotationsList else emptyList()
                 }
             allAnnotations
@@ -149,29 +139,12 @@ class LegendRuleTest :
         }
 
         test("state validity after legend rule") {
-            val h = setup()
+            startPuzzleRaw(puzzleText)
 
-            castAndResolveLegendRule(h)
+            castAndResolveLegendRule()
 
-            h.accumulator.assertConsistent("after legend rule")
-            assertGsIdChain(h.allMessages, context = "legend rule flow")
-            h.isGameOver().shouldBeFalse()
+            harness.accumulator.assertConsistent("after legend rule")
+            assertGsIdChain(allMessages, context = "legend rule flow")
+            isGameOver().shouldBeFalse()
         }
     })
-
-private fun findUntappedIsamaru(
-    h: MatchFlowHarness,
-    instanceIds: List<Int>,
-): Int? {
-    val player = h.bridge.getPlayer(SeatId(1)) ?: return null
-    for (iid in instanceIds) {
-        val cardId = h.bridge.getForgeCardId(InstanceId(iid)) ?: continue
-        val card =
-            player
-                .getZone(ForgeZoneType.Battlefield)
-                .cards
-                .firstOrNull { it.id == cardId.value }
-        if (card != null && !card.isTapped) return iid
-    }
-    return null
-}

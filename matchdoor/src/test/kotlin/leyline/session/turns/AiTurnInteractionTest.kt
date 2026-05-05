@@ -190,14 +190,13 @@ class AiTurnInteractionTest :
                 turns = 3,
             )
 
-            val startSnap = messageSnapshot()
             val startTurn = turn()
-            passUntil(maxPasses = 30) { isGameOver() || turn() > startTurn }
+            val turnSlice = after { passUntil(maxPasses = 30) { isGameOver() || turn() > startTurn } }
 
             // Filter AARs sent while AI was the active player
             val aiTurnAars = mutableListOf<Int>()
             var lastActivePlayer = OPPONENT_SEAT
-            for (msg in messagesSince(startSnap)) {
+            for (msg in turnSlice.messages) {
                 if (msg.hasGameStateMessage() && msg.gameStateMessage.hasTurnInfo()) {
                     lastActivePlayer = msg.gameStateMessage.turnInfo.activePlayer
                 }

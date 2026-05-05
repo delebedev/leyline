@@ -48,24 +48,24 @@ class SimultaneousTriggerOrderTest :
                 """.trimIndent(),
             )
 
-            val snapshot = messageSnapshot()
             // [`castSpellByName`] + [`selectTargets`] drive Bolt to resolution.
             // Pump triggers fire and play in default order via the auto-resolve
             // short-circuit in `ClientGuiGame.order`.
-            castSpellByName("Lightning Bolt")
-            selectTargets(listOf(OPPONENT_SEAT))
+            val cast =
+                after {
+                    castSpellByName("Lightning Bolt")
+                    selectTargets(listOf(OPPONENT_SEAT))
+                }
 
             // Bolt + the two pump triggers resolve inside the cast/target flow's
             // internal drainSink. AI takes 3.
             ai.life shouldBe 17
 
             // Auto-resolve contract: only the SelectTargetsReq for Bolt's
-            // target should appear between snapshot and end. Without the fix,
-            // an additional SelectNReq from `bridge.requestChoice("choose_one")`
+            // target should appear in the cast slice. Without the fix, an
+            // additional SelectNReq from `bridge.requestChoice("choose_one")`
             // leaks onto the wire when `orderSimultaneousSa` invokes the
             // chooser through the bridge.
-            val newMessages = messagesSince(snapshot)
-            val selectNCount = newMessages.count { it.hasSelectNReq() }
-            selectNCount shouldBe 0
+            cast.expectNoSelectNReq()
         }
     })

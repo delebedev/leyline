@@ -2,11 +2,9 @@ package leyline.mechanics.cycling
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 
 /**
  * Integration test for Cycling (hand-zone activated ability with discard-as-cost).
@@ -19,15 +17,7 @@ import leyline.testkit.MatchFlowHarness
  */
 @Suppress("MissingAssertSoftly") // intentional fail-fast — passUntil depends on activation succeeding first
 class CyclingPuzzleTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("Miscalculation cycle from hand draws + discards") {
             val pzl =
@@ -50,11 +40,7 @@ class CyclingPuzzleTest :
                 ailibrary=Mountain
                 """.trimIndent()
 
-            val h = MatchFlowHarness(seed = 42L, validating = true)
-            harness = h
-            h.connectAndKeepPuzzleText(pzl)
-
-            val human = h.game().registeredPlayers.first()
+            startPuzzleRaw(pzl, validating = true)
 
             // Pre-cycle invariants
             human
@@ -66,14 +52,13 @@ class CyclingPuzzleTest :
             val gyBefore = human.getZone(ZoneType.Graveyard).size()
 
             // Cycle Miscalculation — same path as Channel.
-            h.activateAbilityFromHand("Miscalculation").shouldBeTrue()
+            activateAbilityFromHand("Miscalculation").shouldBeTrue()
             // Wait for the Cycling AB to resolve (Discard is part of the cost,
             // Draw is the resolve effect — we need both to land before asserting).
-            h
-                .passUntil(maxPasses = 10) {
-                    human.getZone(ZoneType.Graveyard).cards.any { it.name == "Miscalculation" } &&
-                        human.getZone(ZoneType.Hand).cards.any { it.name == "Lightning Bolt" }
-                }.shouldBeTrue()
+            passUntil(maxPasses = 10) {
+                human.getZone(ZoneType.Graveyard).cards.any { it.name == "Miscalculation" } &&
+                    human.getZone(ZoneType.Hand).cards.any { it.name == "Lightning Bolt" }
+            }.shouldBeTrue()
 
             assertSoftly {
                 human
