@@ -1,0 +1,18 @@
+[metadata]
+Name:Endure — Kin-Tree Nurturer
+Goal:Win
+Turns:10
+Difficulty:Easy
+Description:Cast Kin-Tree Nurturer (2B). ETB triggers Endure 1 — pick a +1/+1 counter or create a 1/1 Spirit token. Plenty of turns to explore both modes via multiple casts.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Kin-Tree Nurturer;Kin-Tree Nurturer;Kin-Tree Nurturer
+humanbattlefield=Swamp;Swamp;Plains;Plains
+humanlibrary=Swamp;Swamp;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+aibattlefield=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains

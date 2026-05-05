@@ -1,0 +1,10 @@
+name: "Inspirited Vanguard"
+grpId: 95668
+titleId: 927099
+abilities:
+  - id: 188851
+    textId: 927101
+    category: 2
+expansionCode: "TDM"
+tokens:
+  "188851": 95826

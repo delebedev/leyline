@@ -1,0 +1,13 @@
+name: "Kin-Tree Nurturer"
+grpId: 95602
+titleId: 926912
+abilities:
+  - id: 12
+    textId: 38
+    category: 3
+  - id: 188702
+    textId: 926705
+    category: 2
+expansionCode: "TDM"
+tokens:
+  "188702": 95825

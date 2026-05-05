@@ -89,6 +89,7 @@ class OptionalActionGate(
         forceSnapshotBeforePrompt: Boolean = false,
         defaultOnTimeout: Boolean,
         logContext: String,
+        customPromptId: Int? = null,
     ): Boolean {
         val future = CompletableFuture<Boolean>()
         owner.pendingOptionalAction =
@@ -97,6 +98,7 @@ class OptionalActionGate(
                 hostCard = hostCard,
                 future = future,
                 forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
+                customPromptId = customPromptId,
             )
         actionBridge?.prioritySignal?.signal()
 

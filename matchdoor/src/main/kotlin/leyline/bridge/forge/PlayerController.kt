@@ -9,6 +9,7 @@ import forge.game.GameActionUtil
 import forge.game.GameEntity
 import forge.game.GameObject
 import forge.game.ability.AbilityUtils
+import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
@@ -54,6 +55,7 @@ import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.Seating
 import leyline.bridge.types.manaTokenToPair
+import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -254,6 +256,11 @@ class PlayerController(
          *  before blocking on the choice. Without this, the client sees the prompt
          *  before it sees the discard-to-exile transition. */
         val forceSnapshotBeforePrompt: Boolean = false,
+        /** Override for the OptionalActionMessage promptId. Null falls back to the
+         *  generic OPTIONAL_ACTION loc. Used by mechanic-specific binary picks
+         *  (e.g. Endure → ENDURE_PUT_COUNTERS) that ride the same Yes/No surface
+         *  but need a different rendered prompt text. */
+        val customPromptId: Int? = null,
     )
 
     data class NumericInputPrompt(
@@ -465,6 +472,22 @@ class PlayerController(
         cardToShow: Card?,
         params: MutableMap<String, Any>?,
     ): Boolean {
+        // Endure: binary mode pick at trigger resolution. Yes → +1/+1 counters
+        // (engine adds counters when confirmAction returns true); No → Spirit
+        // token (engine creates the token in the else branch). Rides the same
+        // OptionalActionMessage gate as confirmTrigger, with a counters-flavoured
+        // promptId so the client renders a Yes/No prompt over the source creature.
+        if (sa?.api == ApiType.Endure) {
+            val hostCard = cardToShow ?: sa.hostCard
+            return optionalActionGate.await(
+                wrapper = null,
+                hostCard = hostCard,
+                defaultOnTimeout = true,
+                logContext = "confirmAction:Endure",
+                customPromptId = PromptIds.ENDURE_PUT_COUNTERS,
+            )
+        }
+
         val displayMessage = message ?: "Confirm action?"
         val displayOptions =
             if (options.isNullOrEmpty()) {
