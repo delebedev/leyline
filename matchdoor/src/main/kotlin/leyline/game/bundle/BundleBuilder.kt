@@ -337,24 +337,33 @@ class BundleBuilder(
 
     /** Build a [SearchReq] GRE message with populated inner fields for library search.
      *
-     *  [sourceInstanceId] — protocol-side source iid. For activated-ability
-     *  searches (cycling/typecycling) this is the AB instance iid, not the
-     *  host card iid; for spell searches (Diabolic Tutor, etc.) it is the
-     *  spell's iid on the stack.
+     *  [sourceInstanceId] — `searchReq.sourceId` (the AB iid for activated-
+     *  ability searches; the spell iid for hard-cast tutors).
      *
-     *  [seatId] — the searching player's seat. Surfaces as a second `CardId`
-     *  prompt parameter alongside [sourceInstanceId]; the second parameter
-     *  is what the client picker uses to anchor the search panel header. */
+     *  [hostCardInstanceId] — first `prompt.parameters` CardId. Names the
+     *  source card (so the picker header reads "Lórien Revealed" rather
+     *  than the bare ability description).
+     *
+     *  [seatId] — second `prompt.parameters` CardId. The searching seat —
+     *  what the client picker pairs with [hostCardInstanceId] to anchor
+     *  the panel header. Both parameters are required.
+     *
+     *  [promptId] — picker layout. [PromptIds.SEARCH_TYPECYCLING] for
+     *  cycling/typecycling/basiccycling (highlight-every-valid-card layout
+     *  with click-to-pick); [PromptIds.SEARCH] for generic tutors. */
+    @Suppress("LongParameterList")
     fun buildSearchReq(
         msgId: Int,
         gsId: Int,
         sourceInstanceId: Int,
+        hostCardInstanceId: Int,
         seatId: Int,
         libraryZoneId: Int,
         allLibraryIds: List<Int>,
         validTargetIds: List<Int>,
         maxFind: Int = 1,
         allowFailToFind: Boolean = true,
+        promptId: Int = PromptIds.SEARCH,
     ): GREToClientMessage {
         val searchReq =
             SearchReq
@@ -377,13 +386,13 @@ class BundleBuilder(
             .setPrompt(
                 Prompt
                     .newBuilder()
-                    .setPromptId(PromptIds.SEARCH)
+                    .setPromptId(promptId)
                     .addParameters(
                         PromptParameter
                             .newBuilder()
                             .setParameterName("CardId")
                             .setType(ParameterType.Number)
-                            .setNumberValue(sourceInstanceId),
+                            .setNumberValue(hostCardInstanceId),
                     ).addParameters(
                         PromptParameter
                             .newBuilder()

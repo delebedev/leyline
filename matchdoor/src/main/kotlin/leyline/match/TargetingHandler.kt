@@ -1072,28 +1072,47 @@ class TargetingHandler(
                 bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
             }
 
-        // Source instanceId — for activated-ability searches (cycling,
-        // typecycling) the protocol expects the AB instance iid here, not
-        // the host card iid. Mint via the same SA-id-keyed surrogate the
-        // AbilityInstance lifecycle uses so SearchReq.sourceId, the prompt's
-        // CardId parameter, and the existing AbilityInstanceCreated annotation
-        // all reference the same iid. Falls back to host card iid for plain
-        // spell searches (sa is a Spell, not an Ability gameObject).
+        // Source iid (searchReq.sourceId) — for activated-ability searches
+        // (cycling, typecycling) the protocol expects the AB instance iid
+        // here. Mint via the same SA-id-keyed surrogate the AbilityInstance
+        // lifecycle uses so sourceId and AbilityInstanceCreated reference
+        // the same iid. Spell searches fall back to the host card iid.
+        //
+        // Host card iid (prompt.parameters[0]) — names the source card so
+        // the picker header reads the card name. Always the host card iid,
+        // even for activated abilities (the AB iid lives in sourceId).
+        //
+        // Picker layout (promptId) — typecycling-shape searches use
+        // SEARCH_TYPECYCLING (highlight every valid candidate, click-to-pick).
+        // Generic tutors (Diabolic Tutor, Sylvan Ranger) use SEARCH.
         val stackTop = ctx.game.stack.firstOrNull()
-        val saId = stackTop?.spellAbility?.id
+        val sa = stackTop?.spellAbility
+        val saId = sa?.id
         val isAbilityOnStack = stackTop?.isAbility == true
+        val hostCardForgeId = sa?.hostCard?.id ?: req.sourceEntityId
+        val hostCardIid =
+            hostCardForgeId?.let { bridge.getOrAllocInstanceId(ForgeCardId(it)).value } ?: 0
         val sourceId =
             when {
                 isAbilityOnStack && saId != null -> {
                     val abForgeId = FrameIdResolver.triggerStackAbilityForgeId(saId)
                     bridge.getOrAllocInstanceId(abForgeId).value
                 }
-                req.sourceEntityId != null ->
-                    bridge.getOrAllocInstanceId(ForgeCardId(req.sourceEntityId)).value
+                hostCardIid != 0 -> hostCardIid
                 stackTop != null ->
                     bridge.getOrAllocInstanceId(ForgeCardId(stackTop.id)).value
                 else -> 0
             }
+        // Typecycling/landcycling/basiccycling: SA is `AB$ ChangeZone | Origin$
+        // Library | Destination$ Hand | ChangeType$ <type>`. The ChangeType
+        // param is the discriminator — generic tutors omit it or use Card.
+        val isTypeCyclingShape =
+            sa != null &&
+                isAbilityOnStack &&
+                sa.hasParam("Origin") && sa.getParam("Origin") == "Library" &&
+                sa.hasParam("Destination") && sa.getParam("Destination") == "Hand" &&
+                sa.hasParam("ChangeType") && sa.getParam("ChangeType") != "Card"
+        val promptId = if (isTypeCyclingShape) PromptIds.SEARCH_TYPECYCLING else PromptIds.SEARCH
 
         val msgId = counters.counter.nextMsgId()
         val gsId = counters.counter.currentGsId()
@@ -1102,12 +1121,14 @@ class TargetingHandler(
                 msgId = msgId,
                 gsId = gsId,
                 sourceInstanceId = sourceId,
+                hostCardInstanceId = hostCardIid,
                 seatId = counters.seatId.value,
                 libraryZoneId = libZoneId,
                 allLibraryIds = allLibIds,
                 validTargetIds = validIds,
                 maxFind = req.max,
                 allowFailToFind = req.min == 0,
+                promptId = promptId,
             )
         sink.sendBundledGRE(listOf(msg))
         pendingInteraction = PendingClientInteraction.Search(pendingPrompt.promptId)

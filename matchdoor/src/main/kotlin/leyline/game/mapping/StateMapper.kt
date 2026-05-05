@@ -668,6 +668,29 @@ object StateMapper {
             )
         }
 
+        // Library reveal forces a Full GSM. Library cards don't move zones or
+        // change CardSnapshot fields when a search reveals them, so the diff
+        // filter (snap-vs-snap object delta + zone-moved fids) discards them
+        // and the picker can't render face-up. Sending Full re-emits every
+        // game object including the library, with per-object visibility set
+        // to Private + viewers=[searchingSeat] so only the searcher sees the
+        // contents (matches the protocol shape Arena uses for cycling /
+        // tutor searches).
+        if (revealForSeat != null) {
+            return buildFromSnapshot(
+                cur,
+                gameStateId,
+                matchId,
+                bridge,
+                actions = actions,
+                updateType = updateType,
+                viewingSeatId = viewingSeatId,
+                revealForSeat = revealForSeat,
+                prev = prev,
+                events = events,
+            )
+        }
+
         // Build current full GSM (viewingSeatId=0 to include all objects for accurate diff).
         val fullResult =
             buildFromSnapshot(

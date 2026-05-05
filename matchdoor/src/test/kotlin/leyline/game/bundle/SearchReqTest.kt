@@ -27,6 +27,7 @@ class SearchReqTest :
                     msgId = 42,
                     gsId = 10,
                     sourceInstanceId = 290,
+                    hostCardInstanceId = 290,
                     seatId = 1,
                     libraryZoneId = 32,
                     allLibraryIds = listOf(100, 101, 102),
