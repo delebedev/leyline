@@ -54,7 +54,9 @@ testkit/
 ├── ProtoDsl.kt               builder DSL for client→GRE messages (performAction { ... })
 ├── BoardTestBase.kt          Board-tier setup (initCardDatabase, addCard, startWithBoard)
 ├── BoardTest.kt              base class — wires BoardTestBase
-├── SessionTest.kt            base class — wires MatchFlowHarness, exposes selectTargets/passUntil/instanceIdOf
+├── SessionTest.kt            base class — wires MatchFlowHarness, exposes selectTargets/passUntil/instanceIdOf, after { } slice builder, Player.{battlefield,hand,…}.iid(name) probe DSL
+├── MessageSlice.kt           bounded slice of GREToClientMessage from after { } — typed expectOne*/expectNo* prompt assertions + block-form prompt-shape sub-DSL
+├── PlayerZone.kt             (player, zone) probe handle for SessionTest's instance-probe DSL
 ├── MatchFlowHarness.kt       Session-tier harness — owns the game thread, message stream, scripted AI
 ├── ScriptedPlayerController.kt
 ├── ClientAccumulator.kt      replays GSMs against a parallel game-state model — invariant checker
@@ -63,9 +65,10 @@ testkit/
 
 **Picking a layer when you reach for a helper:**
 
-- Need to *find a card iid* in a Session-tier test? Use `instanceIdOf(name, player, zone)` from `SessionTest`. Don't roll `getZone(...).cards.first { it.name == name }.let { bridge.getOrAllocInstanceId(...) }` inline.
+- Need to *find a card iid* in a Session-tier test? Prefer the probe DSL: `human.battlefield.iid("Walking Corpse")`, `ai.exile.iid("Forum's Favor")`. Falls back to `instanceIdOf(name, player, zone)` when the zone is computed at runtime. Don't roll `getZone(...).cards.first { it.name == name }.let { bridge.getOrAllocInstanceId(...) }` inline.
+- Need to *assert prompt shape* in a window of messages? `after { castSpellByName("X") }.expectOneCastingTimeOptionsReq()` (or `.expectNo*` / block-form `.expectCastingTimeOptionsReq { option(...); done(...) }`). Raw `messageSnapshot()` / `messagesSince()` still work as an escape hatch when the assertion is positional. Note: `expectOne*` means *exactly one* — if a flow legitimately re-prompts, fall back to the raw walker rather than silently tightening the contract.
 - Need to *assert a card is in a zone*? Use `ZoneMatchers` (`"X" should beInHandOf(player)` or `... should beInZoneOf(zone, player, count = N)`). The matcher's failure message names card+player+zone; an inline `.cards.any { it.name == ... } shouldBe true` doesn't.
-- Need to *walk the message log*? Use `MessageWalk.kt` extensions on `List<GREToClientMessage>`. Don't add private file-scoped walkers — promote them.
+- Need to *walk the message log*? Use `MessageWalk.kt` extensions on `List<GREToClientMessage>` — they compose with `MessageSlice.messages`. Don't add private file-scoped walkers — promote them.
 - Need to *read an annotation detail*? Use `TestExtensions.detail*()`. Don't inline `detailsList.firstOrNull { it.key == ... }`.
 - Need to *build a client→GRE message*? Use `ProtoDsl.kt`.
 
