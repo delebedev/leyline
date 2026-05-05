@@ -65,8 +65,12 @@ object TransferAnnotations {
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
             }
             TransferCategory.Resolve -> {
-                annotations.add(AnnotationBuilder.resolutionStart(newId, grpId))
-                annotations.add(AnnotationBuilder.resolutionComplete(newId, grpId))
+                val resolvingId = if (origId != newId) origId else newId
+                annotations.add(AnnotationBuilder.resolutionStart(resolvingId, grpId))
+                annotations.add(AnnotationBuilder.resolutionComplete(resolvingId, grpId))
+                if (origId != newId) {
+                    annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
+                }
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, actingSeat))
             }
             TransferCategory.Sacrifice -> {
@@ -301,7 +305,12 @@ object TransferAnnotations {
             )
             annotations.add(AnnotationBuilder.abilityInstanceDeleted(manaAbilityIid, landIid))
         }
-        val castActionType = if (ev.isAdventure) ActionType.CastAdventure else ActionType.Cast
+        val castActionType =
+            when {
+                ev.isOmen -> ActionType.CastOmen
+                ev.isAdventure -> ActionType.CastAdventure
+                else -> ActionType.Cast
+            }
         val altCostGrpId = GrpId(ev.altCostAbilityGrpId)
         annotations.add(
             AnnotationBuilder.userActionTaken(

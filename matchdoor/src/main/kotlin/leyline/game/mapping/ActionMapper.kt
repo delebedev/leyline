@@ -171,6 +171,23 @@ object ActionMapper {
             }
         }
 
+        // --- Battlefield: room door casts (for the unlocked-door's locked sibling) ---
+        // A bf Room with one door already unlocked still offers CastLeftRoom /
+        // CastRightRoom for the still-locked door. Stack/resolve runs the same
+        // way as a hand cast — the cast emits a new stack iid that resolves
+        // back onto the same bf room. Once both doors are unlocked
+        // `getLockedRooms()` returns empty and no offer fires.
+        for (fid in battlefield) {
+            val cardSnap = snap.objects[fid] ?: continue
+            if (cardSnap.controller.value != seatId) continue
+            if (!cardSnap.isRoom) continue
+            val player = bridge.getPlayer(SeatId(seatId)) ?: continue
+            val forgeCard = bridge.findCard(fid) ?: continue
+            if (forgeCard.lockedRooms.isEmpty()) continue
+            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            addRoomCastActions(forgeCard, player, instanceId, builder, checkLegality = true)
+        }
+
         // --- Hand: lands ---
         for (fid in hand) {
             val card = snap.objects[fid] ?: continue
@@ -206,6 +223,15 @@ object ActionMapper {
             if (cardSnap.isLand) continue
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
+            // Rooms ride a dedicated CastLeftRoom / CastRightRoom rail handled
+            // below — they have no plain `Cast` offer. The unlock SAs are part
+            // of `getAllCastableAbilities` (so cast index resolution works),
+            // but the hand-cast emit must skip them.
+            if (cardSnap.isRoom) {
+                val instanceId = bridge.getOrAllocInstanceId(fid).value
+                addRoomCastActions(forgeCard, player, instanceId, builder, checkLegality = true)
+                continue
+            }
             val sa = chooseCastAbility(forgeCard, player) ?: continue
             if (hasUnmetTargeting(sa)) {
                 log.trace("ActionMapper.buildFromSnapshot: skipping {} — no legal targets", cardSnap.name)
@@ -243,6 +269,9 @@ object ActionMapper {
                     altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
                     builder = builder,
                 )
+                // Adventure / Omen offers are independent of the main face's
+                // payability — emit them even when the main cast is unaffordable.
+                addSecondaryFaceCastActions(forgeCard, player, instanceId, grpId, cardSnap, builder)
                 continue
             }
 
@@ -288,15 +317,7 @@ object ActionMapper {
                 builder = builder,
             )
 
-            if (cardSnap.isAdventureCard) {
-                val advAction = buildAdventureAction(forgeCard, player, instanceId, grpId, checkLegality = true)
-                if (advAction != null) {
-                    builder.addActions(advAction)
-                } else {
-                    buildInactiveAdventureAction(forgeCard, player, instanceId, grpId)
-                        ?.let { builder.addInactiveActions(it) }
-                }
-            }
+            addSecondaryFaceCastActions(forgeCard, player, instanceId, grpId, cardSnap, builder)
         }
 
         // --- Hand: non-battlefield activated abilities (Channel, Ninjutsu, etc.) ---
@@ -958,6 +979,45 @@ object ActionMapper {
         return actionBuilder.build()
     }
 
+    /**
+     * Emit Adventure / Omen offers for a hand card. Both ride a Secondary
+     * state (subtype "Adventure" or "Omen") and are independent of the main
+     * face's payability. Called from both the affordable and unaffordable
+     * main-cast branches so the secondary face surfaces regardless.
+     *
+     * Per-action-type field divergence: CastAdventure carries `grpId =
+     * creature face` (the client rejects unknown grpIds on IsPrimaryCard=0
+     * Adventure faces); CastOmen and CastLeftRoom/CastRightRoom omit
+     * `grpId`. That asymmetry is intentional, not an oversight.
+     */
+    private fun addSecondaryFaceCastActions(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        grpId: Int,
+        cardSnap: leyline.game.snapshot.CardSnapshot,
+        builder: ActionsAvailableReq.Builder,
+    ) {
+        if (cardSnap.isAdventureCard) {
+            val advAction = buildAdventureAction(card, player, instanceId, grpId, checkLegality = true)
+            if (advAction != null) {
+                builder.addActions(advAction)
+            } else {
+                buildInactiveAdventureAction(card, player, instanceId, grpId)
+                    ?.let { builder.addInactiveActions(it) }
+            }
+        }
+        if (cardSnap.isOmenCard) {
+            val omenAction = buildOmenAction(card, player, instanceId, checkLegality = true)
+            if (omenAction != null) {
+                builder.addActions(omenAction)
+            } else {
+                buildInactiveOmenAction(card, player, instanceId)
+                    ?.let { builder.addInactiveActions(it) }
+            }
+        }
+    }
+
     /** Build a CastAdventure action for an adventure card, or null if not castable. */
     private fun buildAdventureAction(
         card: Card,
@@ -994,6 +1054,130 @@ object ActionMapper {
             if (advManaCost != null && !advManaCost.isNoCost) {
                 addManaCostFromForge(advManaCost, builder)
             }
+        }
+        return builder.build()
+    }
+
+    /**
+     * Emit one CastLeftRoom and/or CastRightRoom action per locked door whose
+     * SA is castable. Each emit carries `actionType + instanceId + manaCost`
+     * only — door identity is encoded by `actionType` alone (no grpId,
+     * facetId, abilityGrpId, alternativeGrpId).
+     *
+     * From hand, Forge surfaces door SAs via `card.getSpells()` (the split-cast
+     * shape — `cardStateName=LeftSplit/RightSplit`). From battlefield, the
+     * locked door's SA comes from `card.getUnlockAbility(state)`.
+     */
+    private fun addRoomCastActions(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        builder: ActionsAvailableReq.Builder,
+        checkLegality: Boolean,
+    ) {
+        for (state in card.lockedRooms) {
+            val actionType = roomDoorActionType(state) ?: continue
+            val sa = leyline.bridge.pickRoomDoorSa(card, state) ?: continue
+            sa.setActivatingPlayer(player)
+            val canPay =
+                if (checkLegality) {
+                    try {
+                        sa.canPlay() && ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+                    } catch (_: Exception) {
+                        false
+                    }
+                } else {
+                    true
+                }
+            val actionBuilder =
+                Action
+                    .newBuilder()
+                    .setActionType(actionType)
+                    .setInstanceId(instanceId)
+                    .setShouldStop(ShouldStopEvaluator.shouldStop(actionType))
+            val effective = computeEffectiveCost(sa, player)
+            val manaCost = effective?.takeIf { !it.isNoCost } ?: sa.payCosts?.totalMana?.takeIf { !it.isNoCost }
+            if (manaCost != null) {
+                addManaCostFromForge(manaCost, actionBuilder)
+            }
+            if (canPay) {
+                builder.addActions(actionBuilder)
+            } else {
+                builder.addInactiveActions(actionBuilder)
+            }
+        }
+    }
+
+    /** Map a Room door's [CardStateName] to its `ActionType`. Returns null for
+     *  any [CardStateName] that isn't a room door (LeftSplit / RightSplit). */
+    private fun roomDoorActionType(state: CardStateName): ActionType? =
+        if (state == CardStateName.LeftSplit) {
+            ActionType.CastLeftRoom
+        } else if (state == CardStateName.RightSplit) {
+            ActionType.CastRightRoom
+        } else {
+            null
+        }
+
+    /**
+     * Build a CastOmen action for an Omen-capable card, or null if not castable.
+     * Mirrors [buildAdventureAction] but emits the minimal envelope —
+     * `actionType + instanceId + manaCost` only. No grpId / facetId. The Omen
+     * face is encoded by `actionType` alone (sibling: CastLeftRoom).
+     */
+    private fun buildOmenAction(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        checkLegality: Boolean,
+    ): Action? {
+        val omenState = card.getState(CardStateName.Secondary) ?: return null
+        val omenSa = omenState.nonManaAbilities?.firstOrNull() ?: return null
+
+        if (checkLegality) {
+            omenSa.setActivatingPlayer(player)
+            val canCast =
+                try {
+                    omenSa.canPlay() && ComputerUtilMana.canPayManaCost(omenSa, player, 0, false)
+                } catch (_: Exception) {
+                    false
+                }
+            if (!canCast) return null
+        }
+
+        val builder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.CastOmen)
+                .setInstanceId(instanceId)
+                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastOmen))
+        val effective = computeEffectiveCost(omenSa, player)
+        val manaCost = effective?.takeIf { !it.isNoCost } ?: omenSa.payCosts?.totalMana?.takeIf { !it.isNoCost }
+        if (manaCost != null) {
+            addManaCostFromForge(manaCost, builder)
+        }
+        return builder.build()
+    }
+
+    /** Build an inactive CastOmen action (unaffordable), or null if card has no Omen state. */
+    private fun buildInactiveOmenAction(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+    ): Action? {
+        val omenState = card.getState(CardStateName.Secondary) ?: return null
+        val omenSa = omenState.nonManaAbilities?.firstOrNull() ?: return null
+        omenSa.setActivatingPlayer(player)
+        if (!omenSa.canPlay()) return null
+        val builder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.CastOmen)
+                .setInstanceId(instanceId)
+        val effective = computeEffectiveCost(omenSa, player)
+        val manaCost = effective?.takeIf { !it.isNoCost } ?: omenSa.payCosts?.totalMana?.takeIf { !it.isNoCost }
+        if (manaCost != null) {
+            addManaCostFromForge(manaCost, builder)
         }
         return builder.build()
     }

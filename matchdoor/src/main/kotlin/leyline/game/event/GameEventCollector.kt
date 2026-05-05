@@ -168,22 +168,23 @@ class GameEventCollector(
                     color = mp.color().toInt() and 0xFF,
                 )
             }
-        val realCard = bridge.findCard(ForgeCardId(card.id))
-        val isAdventure =
-            realCard != null &&
-                realCard.isAdventureCard &&
-                realCard.currentStateName == CardStateName.Secondary
-        // Alt-cost detection (Madness, Flashback, Warp, Cycling, Impending).
-        // ev.sa() is a SpellAbilityView snapshot which doesn't expose alt-cost.
-        // Peek the live stack instead — the just-cast spell sits on top — then
-        // resolve to the client ability grpId via the keyword→grpId lookup
-        // (same path ActionMapper uses when offering the alt-cost cast action).
         val topSa =
             bridge
                 .getGame()
                 ?.stack
                 ?.peek()
                 ?.spellAbility
+        val realCard = bridge.findCard(ForgeCardId(card.id))
+        val isAdventure =
+            realCard != null &&
+                realCard.isAdventureCard &&
+                realCard.currentStateName == CardStateName.Secondary
+        val isOmen = topSa?.isOmen == true
+        // Alt-cost detection (Madness, Flashback, Warp, Cycling, Impending).
+        // ev.sa() is a SpellAbilityView snapshot which doesn't expose alt-cost.
+        // Peek the live stack instead — the just-cast spell sits on top — then
+        // resolve to the client ability grpId via the keyword→grpId lookup
+        // (same path ActionMapper uses when offering the alt-cost cast action).
         val saAltCost =
             if (topSa != null && topSa.hostCard?.id == card.id) {
                 topSa.getAlternativeCost()
@@ -218,6 +219,7 @@ class GameEventCollector(
                 seatId = seat,
                 manaPayments = payments,
                 isAdventure = isAdventure,
+                isOmen = isOmen,
                 altCostAbilityGrpId = altCostAbilityGrpId,
                 isAbility = isAbility,
                 isTrigger = isTrigger,
@@ -227,11 +229,13 @@ class GameEventCollector(
             ),
         )
         log.debug(
-            "event: SpellCast card={} seat={} manaPayments={} adventure={} altCost={} trigger={} abilityForgeId={} kicker={} chosenX={}",
+            "event: SpellCast card={} seat={} manaPayments={} adventure={} omen={} " +
+                "altCost={} trigger={} abilityForgeId={} kicker={} chosenX={}",
             card.name,
             seat,
             payments.size,
             isAdventure,
+            isOmen,
             altCostAbilityGrpId,
             isTrigger,
             abilityForgeId,

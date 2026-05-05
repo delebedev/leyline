@@ -235,6 +235,30 @@ data object PlottedDesignationKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
 }
 
+data object LeftUnlockedDesignationKind : PersistentAnnotationKind {
+    override val name = "LeftUnlockedDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList &&
+            designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_LEFT_UNLOCKED
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
+data object RightUnlockedDesignationKind : PersistentAnnotationKind {
+    override val name = "RightUnlockedDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList &&
+            designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_RIGHT_UNLOCKED
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
 /**
  * Pure-snapshot persistent annotation: card-entered-zone-this-turn marker.
  * Does NOT participate in upsert dispatch — rows arrive via the transfer-
@@ -338,6 +362,8 @@ object PersistentAnnotationKinds {
             TargetSpecKind,
             PreparedDesignationKind,
             PlottedDesignationKind,
+            LeftUnlockedDesignationKind,
+            RightUnlockedDesignationKind,
         )
 
     /** Lifecycle-only kinds — pass through pure-append in the transfer pipeline,

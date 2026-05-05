@@ -1,0 +1,14 @@
+name: "Surgical Suite // Hospital Room"
+grpId: 92094
+titleId: 812365
+abilities:
+  - id: 174302
+    textId: 812366
+    category: 2
+  - id: 143859
+    textId: 499061
+    category: 2
+expansionCode: "DSK"
+linkedFaces:
+  - 92095
+  - 92096

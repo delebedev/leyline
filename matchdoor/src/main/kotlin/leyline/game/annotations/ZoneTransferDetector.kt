@@ -391,9 +391,26 @@ object ZoneTransferDetector {
             idLookup,
         )
 
+        val gameObjectIds = patchedObjects.map { it.instanceId }.toSet()
+
+        // Post-pass: detect transfers into hidden zones. Library / hidden-hand
+        // cards can appear only in ZoneInfo.objectInstanceIds, with no
+        // GameObjectInfo for the main loop to inspect.
+        detectZoneOnlyTransfers(
+            events,
+            previousZones,
+            gameObjectIds,
+            patchedZones,
+            transfers,
+            retiredIds,
+            zoneRecordings,
+            forgeIdLookup,
+            idAllocator,
+            grpIdResolver,
+        )
+
         // Post-pass: detect triggered ability lifecycle on the stack.
         val mainLoopIds = transfers.map { it.origId }.toSet()
-        val gameObjectIds = patchedObjects.map { it.instanceId }.toSet()
         val appearances =
             detectStackAbilityAppearances(
                 patchedObjects,
@@ -426,8 +443,9 @@ object ZoneTransferDetector {
         // but not in gameObjects (e.g. library cards — hidden, no GameObjectInfo).
         for (zone in patchedZones) {
             for (iid in zone.objectInstanceIdsList) {
-                if (iid !in gameObjectIds) {
-                    zoneRecordings.add(iid to zone.zoneId)
+                val zonePair = iid to zone.zoneId
+                if (iid !in gameObjectIds && zonePair !in zoneRecordings) {
+                    zoneRecordings.add(zonePair)
                 }
             }
         }
@@ -482,6 +500,152 @@ object ZoneTransferDetector {
                     else -> TransferCategory.ZoneTransfer
                 }
             else -> TransferCategory.ZoneTransfer
+        }
+
+    @Suppress("LongParameterList")
+    private fun detectZoneOnlyTransfers(
+        events: List<GameEvent>,
+        previousZones: Map<Int, Int>,
+        gameObjectIds: Set<Int>,
+        patchedZones: MutableList<ZoneInfo>,
+        transfers: MutableList<AppliedTransfer>,
+        retiredIds: MutableList<Int>,
+        zoneRecordings: MutableList<Pair<Int, Int>>,
+        forgeIdLookup: (InstanceId) -> ForgeCardId?,
+        idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
+        grpIdResolver: (ForgeCardId) -> GrpId,
+    ) {
+        val currentZoneById =
+            patchedZones
+                .asSequence()
+                .flatMap { zone -> zone.objectInstanceIdsList.asSequence().map { iid -> iid to zone.zoneId } }
+                .toMap()
+
+        for ((iid, destZone) in currentZoneById) {
+            if (iid in gameObjectIds) continue
+            if (destZone == ZoneIds.LIMBO) continue
+            if (transfers.any { it.origId == iid || it.newId == iid }) continue
+            val prevZone = previousZones[iid] ?: continue
+            if (prevZone == destZone) continue
+
+            val forgeCardId = forgeIdLookup(InstanceId(iid)) ?: continue
+            val ownerSeatId = ownerSeatIdForZone(destZone) ?: ownerSeatIdForZone(prevZone) ?: 0
+            if (isCollapsedOmenTransfer(events, forgeCardId, prevZone, destZone)) {
+                // Compatibility fallback: Forge can collapse a local Omen cast
+                // into a final hidden Hand->Library snapshot. Reconstruct the
+                // client lifecycle well enough to avoid a stale hand object; a
+                // full Omen implementation should emit from real stack frames.
+                val castHandoff = ZoneHandoff.fromRealloc(idAllocator(forgeCardId), ZoneIds.STACK)
+                val resolveHandoff = ZoneHandoff.fromRealloc(idAllocator(forgeCardId), destZone)
+                val handId = castHandoff.realloc.old.value
+                val stackId = castHandoff.realloc.new.value
+                val libraryId = resolveHandoff.realloc.new.value
+                val grpId = grpIdResolver(forgeCardId).value
+
+                patchZoneInstanceId(patchedZones, destZone, iid, libraryId)
+                retiredIds.add(handId)
+                appendToZone(patchedZones, ZoneIds.LIMBO, handId)
+                retiredIds.add(stackId)
+                appendToZone(patchedZones, ZoneIds.LIMBO, stackId)
+                transfers.add(
+                    AppliedTransfer(
+                        origId = handId,
+                        newId = stackId,
+                        category = TransferCategory.CastSpell,
+                        srcZoneId = prevZone,
+                        destZoneId = ZoneIds.STACK,
+                        forgeCardId = forgeCardId,
+                        grpId = grpId,
+                        ownerSeatId = ownerSeatId,
+                    ),
+                )
+                transfers.add(
+                    AppliedTransfer(
+                        origId = stackId,
+                        newId = libraryId,
+                        category = TransferCategory.Resolve,
+                        srcZoneId = ZoneIds.STACK,
+                        destZoneId = destZone,
+                        forgeCardId = forgeCardId,
+                        grpId = grpId,
+                        ownerSeatId = ownerSeatId,
+                    ),
+                )
+                zoneRecordings.add(libraryId to destZone)
+                log.debug(
+                    "zone-only Omen transfer: iid {} -> stack {} -> library {}",
+                    handId,
+                    stackId,
+                    libraryId,
+                )
+                continue
+            }
+            val category =
+                if (events.isNotEmpty()) {
+                    TransferCategoryResolver.categoryFromEvents(forgeCardId, events)
+                        ?: inferCategory(GameObjectInfo.getDefaultInstance(), prevZone, destZone)
+                } else {
+                    inferCategory(GameObjectInfo.getDefaultInstance(), prevZone, destZone)
+                }
+            val handoff =
+                if (!category.keepsSameInstanceId) {
+                    ZoneHandoff.fromRealloc(idAllocator(forgeCardId), destZone)
+                } else {
+                    ZoneHandoff.keepingSameInstanceId(InstanceId(iid), destZone)
+                }
+            val origId = handoff.realloc.old.value
+            val newId = handoff.realloc.new.value
+
+            applyHiddenHandoffToZoneSet(handoff, patchedZones, destZone, retiredIds)
+            transfers.add(
+                AppliedTransfer(
+                    origId = origId,
+                    newId = newId,
+                    category = category,
+                    srcZoneId = prevZone,
+                    destZoneId = destZone,
+                    forgeCardId = forgeCardId,
+                    grpId = grpIdResolver(forgeCardId).value,
+                    ownerSeatId = ownerSeatId,
+                ),
+            )
+            zoneRecordings.add(newId to destZone)
+            log.debug("zone-only transfer: iid {} -> {} category={}", origId, newId, category)
+        }
+    }
+
+    private fun isCollapsedOmenTransfer(
+        events: List<GameEvent>,
+        forgeCardId: ForgeCardId,
+        prevZone: Int,
+        destZone: Int,
+    ): Boolean {
+        val handToLibrary =
+            (prevZone == ZoneIds.P1_HAND || prevZone == ZoneIds.P2_HAND) &&
+                (destZone == ZoneIds.P1_LIBRARY || destZone == ZoneIds.P2_LIBRARY)
+        if (!handToLibrary) return false
+        val omenCast =
+            events.any {
+                it is GameEvent.SpellCast &&
+                    it.cardId == forgeCardId &&
+                    it.isOmen &&
+                    !it.isAbility &&
+                    !it.isTrigger
+            }
+        val resolved =
+            events.any {
+                it is GameEvent.SpellResolved &&
+                    it.cardId == forgeCardId &&
+                    !it.hasFizzled
+            }
+        return omenCast && resolved
+    }
+
+    private fun ownerSeatIdForZone(zoneId: Int): Int? =
+        when (zoneId) {
+            ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, ZoneIds.P1_SIDEBOARD, ZoneIds.REVEALED_P1 -> 1
+            ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, ZoneIds.P2_SIDEBOARD, ZoneIds.REVEALED_P2 -> 2
+            else -> null
         }
 
     /**
@@ -920,6 +1084,20 @@ object ZoneTransferDetector {
         val obj = patchedObjects[objectIndex]
         patchedObjects[objectIndex] = obj.toBuilder().setInstanceId(newId).build()
         patchZoneInstanceId(patchedZones, sourceZoneId, origId, newId)
+        retiredIds.add(origId)
+        appendToZone(patchedZones, ZoneIds.LIMBO, origId)
+    }
+
+    private fun applyHiddenHandoffToZoneSet(
+        handoff: ZoneHandoff,
+        patchedZones: MutableList<ZoneInfo>,
+        destinationZoneId: Int,
+        retiredIds: MutableList<Int>,
+    ) {
+        val limbo = handoff.limboRetirement ?: return
+        val origId = limbo.value
+        val newId = handoff.realloc.new.value
+        patchZoneInstanceId(patchedZones, destinationZoneId, origId, newId)
         retiredIds.add(origId)
         appendToZone(patchedZones, ZoneIds.LIMBO, origId)
     }

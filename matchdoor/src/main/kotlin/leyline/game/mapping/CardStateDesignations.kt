@@ -33,6 +33,8 @@ enum class DesignationKind {
     PREPARED,
     PLOTTED,
     FORETOLD,
+    LEFT_UNLOCKED,
+    RIGHT_UNLOCKED,
 }
 
 /**
@@ -84,8 +86,24 @@ object CardStateDesignations {
             mode = TransientMode.FACE_DOWN_PAIR,
             readRole = { it.designations.isForetold },
         )
+    val LeftUnlocked =
+        CardStateDesignationSpec(
+            kind = DesignationKind.LEFT_UNLOCKED,
+            designationType = AnnotationConstants.DESIGNATION_TYPE_LEFT_UNLOCKED,
+            // Gain fires in the same GSM as the Stack→Battlefield Resolve ZT
+            // for the room — the door's unlock effect runs at resolution.
+            mode = TransientMode.GAIN_INSERT_BEFORE_RESOLVE_ZT,
+            readRole = { it.designations.isLeftDoorUnlocked },
+        )
+    val RightUnlocked =
+        CardStateDesignationSpec(
+            kind = DesignationKind.RIGHT_UNLOCKED,
+            designationType = AnnotationConstants.DESIGNATION_TYPE_RIGHT_UNLOCKED,
+            mode = TransientMode.GAIN_INSERT_BEFORE_RESOLVE_ZT,
+            readRole = { it.designations.isRightDoorUnlocked },
+        )
 
-    val all: List<CardStateDesignationSpec> = listOf(Prepared, Plotted, Foretold)
+    val all: List<CardStateDesignationSpec> = listOf(Prepared, Plotted, Foretold, LeftUnlocked, RightUnlocked)
 }
 
 /**

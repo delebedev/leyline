@@ -100,7 +100,10 @@ class ActionPerformer(
         val isCastOrActivate =
             action.actionType == ActionType.Cast ||
                 action.actionType == ActionType.Activate_add3 ||
-                action.actionType == ActionType.CastAdventure
+                action.actionType == ActionType.CastAdventure ||
+                action.actionType == ActionType.CastLeftRoom ||
+                action.actionType == ActionType.CastRightRoom ||
+                action.actionType == ActionType.CastOmen
         val game = ctx.game
         val stackWasNonEmpty = !game.stack.isEmpty
         val actionName = action.actionType.name.removeSuffix("_add3")
@@ -204,6 +207,70 @@ class ActionPerformer(
                             pending.actionId,
                             PlayerAction.CastSpell(cardId, adventureIndex),
                         )
+                    } else {
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
+                    }
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
+            }
+            ActionType.CastOmen -> {
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val submitted =
+                    if (cardId != null) {
+                        val card = findCard(game, cardId)
+                        val player = bridge.getPlayer(counters.seatId)
+                        val omenIndex =
+                            if (card != null && player != null) {
+                                getAllCastableAbilities(card, player)
+                                    .indexOfFirst { it.isOmen }
+                                    .takeIf { it >= 0 }
+                            } else {
+                                null
+                            }
+                        if (omenIndex == null) {
+                            log.warn("CastOmen: no Omen SA found for card={} iid={}", card?.name, action.instanceId)
+                        }
+                        seatBridge.action.submitAction(pending.actionId, requiredAbilityCastAction(cardId, omenIndex))
+                    } else {
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
+                    }
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
+            }
+            ActionType.CastLeftRoom, ActionType.CastRightRoom -> {
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val submitted =
+                    if (cardId != null) {
+                        val card = findCard(game, cardId)
+                        val player = bridge.getPlayer(counters.seatId)
+                        val targetState =
+                            if (action.actionType == ActionType.CastLeftRoom) {
+                                forge.card.CardStateName.LeftSplit
+                            } else {
+                                forge.card.CardStateName.RightSplit
+                            }
+                        // Hand: the split-spell SA from card.getSpells() is the
+                        // correct cast SA (the activated unlock SA is filtered out
+                        // by canPlay's zone gate from hand). Battlefield: the
+                        // unlock SA is the only castable. pickRoomDoorSa handles
+                        // both — the SA the offer-side emitted and the SA the
+                        // accept-side expects must match by reference.
+                        val doorSa = if (card != null) leyline.bridge.pickRoomDoorSa(card, targetState) else null
+                        val abilityIndex =
+                            if (card != null && player != null && doorSa != null) {
+                                getAllCastableAbilities(card, player)
+                                    .indexOfFirst { it === doorSa }
+                                    .takeIf { it >= 0 }
+                            } else {
+                                null
+                            }
+                        if (abilityIndex == null) {
+                            log.warn(
+                                "{}: no door SA matched for card={} iid={}",
+                                action.actionType,
+                                card?.name,
+                                action.instanceId,
+                            )
+                        }
+                        seatBridge.action.submitAction(pending.actionId, requiredAbilityCastAction(cardId, abilityIndex))
                     } else {
                         seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                     }
@@ -381,3 +448,13 @@ class ActionPerformer(
         return null
     }
 }
+
+internal fun requiredAbilityCastAction(
+    cardId: ForgeCardId,
+    abilityIndex: Int?,
+): PlayerAction =
+    if (abilityIndex == null) {
+        PlayerAction.PassPriority
+    } else {
+        PlayerAction.CastSpell(cardId, abilityIndex)
+    }

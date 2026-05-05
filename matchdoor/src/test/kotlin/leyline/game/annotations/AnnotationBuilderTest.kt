@@ -718,6 +718,26 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("leftUnlockedDesignationFields") {
+            val ann = AnnotationBuilder.leftUnlockedDesignation(instanceId = 117.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.Designation
+                ann.affectorId shouldBe 117
+                ann.affectedIdsList shouldContain 117
+                ann.detailInt("DesignationType") shouldBe 19
+            }
+        }
+
+        test("rightUnlockedDesignationFields") {
+            val ann = AnnotationBuilder.rightUnlockedDesignation(instanceId = 117.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.Designation
+                ann.affectorId shouldBe 117
+                ann.affectedIdsList shouldContain 117
+                ann.detailInt("DesignationType") shouldBe 20
+            }
+        }
+
         test("faceDownFields") {
             val ann = AnnotationBuilder.faceDown(instanceId = 388.iid)
             assertSoftly {

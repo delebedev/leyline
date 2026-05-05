@@ -1,0 +1,18 @@
+[metadata]
+Name:Rooms — Surgical Suite
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast either door of Surgical Suite // Hospital Room. The room enters the battlefield with the chosen door open (LeftUnlocked or RightUnlocked designation). Pay the other door's cost from the battlefield to fully unlock; both doors open triggers any "fully unlocked" effects.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=4
+
+humanhand=Surgical Suite // Hospital Room;Llanowar Elves
+humanbattlefield=Plains;Plains;Plains;Plains;Plains
+humangraveyard=Llanowar Elves
+humanlibrary=Plains;Plains;Plains;Plains
+ailibrary=Plains;Plains;Plains;Plains

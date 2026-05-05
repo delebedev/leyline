@@ -1,0 +1,15 @@
+name: "Soldier"
+grpId: 95824
+titleId: 558
+abilities: []
+isToken: true
+isPrimaryCard: false
+power: "2"
+toughness: "2"
+colors: []
+types:
+  - 2
+subtypes:
+  - 64
+supertypes: []
+manaCost: ""

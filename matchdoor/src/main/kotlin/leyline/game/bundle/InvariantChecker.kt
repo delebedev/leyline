@@ -388,7 +388,11 @@ class RuntimeAccumulator {
      * Check if an ID is a known entity: object instanceId, player seat (1/2), or zone ID.
      * Annotations use affectorId/affectedIds to reference any of these.
      */
-    fun isKnownEntity(id: Int): Boolean = id in 1..2 || objects.containsKey(id) || zones.containsKey(id)
+    fun isKnownEntity(id: Int): Boolean =
+        id in 1..2 ||
+            objects.containsKey(id) ||
+            zones.containsKey(id) ||
+            zones.values.any { zone -> id in zone.objectInstanceIdsList }
 
     fun actionInstanceIdsMissingFromObjects(): List<Int> {
         val req = actions ?: return emptyList()

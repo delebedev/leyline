@@ -20,6 +20,10 @@ data class CardSnapshot(
     val isLand: Boolean = false,
     /** True when this is an adventure card (has a Secondary state with its own spell ability). */
     val isAdventureCard: Boolean = false,
+    /** True when this is an Omen card (Secondary state with subtype "Omen"). */
+    val isOmenCard: Boolean = false,
+    /** True when the card has the `Room` subtype (split-room enchantment with two doors). */
+    val isRoom: Boolean = false,
     /** True when the card has at least one mana ability (used for ActivateMana action shape). */
     val hasManaAbilities: Boolean = false,
     /**
@@ -115,6 +119,21 @@ data class CardSnapshot(
      * additional structural variants).
      */
     val isForetold: Boolean = false,
+    /**
+     * True when this is a battlefield Room card with the LeftSplit door
+     * unlocked. Drives the persistent `Designation{type=19}` (LeftUnlocked)
+     * pAnn and the transient gain/lose pair as the door state changes.
+     *
+     * Filtered to `isOnBattlefield` at construction (Forge keeps the
+     * `unlockedRooms` set on retired stack/limbo card states alongside the
+     * live battlefield permanent — same trap as Prepared / Plotted).
+     */
+    val isLeftDoorUnlocked: Boolean = false,
+    /**
+     * True when this is a battlefield Room card with the RightSplit door
+     * unlocked. See [isLeftDoorUnlocked] for the lifecycle invariant.
+     */
+    val isRightDoorUnlocked: Boolean = false,
 )
 
 /**

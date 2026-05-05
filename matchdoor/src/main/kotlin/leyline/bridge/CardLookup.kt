@@ -73,15 +73,17 @@ internal fun getAllCastableAbilities(
         } else {
             card.getSpells()
         }
-    if (baseAbilities.isEmpty()) return emptyList()
 
+    // No early-return for empty baseAbilities: the keyword-handSA appendage
+    // (Plot/Foretell) and the Room unlock-SA appendage below add zone-specific
+    // SAs that aren't in `card.getSpells()`. Bailing here would drop those
+    // entire categories.
+    val expanded = mutableListOf<SpellAbility>()
     val withAddCosts = mutableListOf<SpellAbility>()
     for (sa in baseAbilities) {
         sa.setActivatingPlayer(player)
         withAddCosts.addAll(GameActionUtil.getAdditionalCostSpell(sa))
     }
-
-    val expanded = mutableListOf<SpellAbility>()
     for (sa in withAddCosts) {
         sa.setActivatingPlayer(player)
         val altCosts = GameActionUtil.getAlternativeCosts(sa, player, false)
@@ -106,7 +108,42 @@ internal fun getAllCastableAbilities(
     val keywordHandSAs = card.spellAbilities.filter { it.isPlotting || it.isForetelling }
     expanded.addAll(keywordHandSAs)
 
+    // Room door-unlock SAs aren't in card.getSpells() — Forge stores them on
+    // Card.unlockAbilities[CardStateName] keyed by LeftSplit / RightSplit. Append
+    // each locked door's unlock SA so CastLeftRoom / CastRightRoom share the
+    // same index space as the regular cast pathway. From hand both doors are
+    // locked; from battlefield only the side(s) not yet unlocked surface here.
+    if (card.isRoom) {
+        for (lockedState in card.lockedRooms) {
+            val unlockSa = card.getUnlockAbility(lockedState) ?: continue
+            unlockSa.setActivatingPlayer(player)
+            expanded.add(unlockSa)
+        }
+    }
+
     return expanded.filter { it.canPlay() && it.canCastTiming(player) }
+}
+
+/**
+ * Pick the door SA for [state] on a Room card. From hand, the room's split-spell
+ * SA in `card.getSpells()` (`cardStateName == state`) is the right cast SA —
+ * Forge's standard cast pathway runs through the SpellPermanent, not the
+ * activated unlock ability. From battlefield, only `card.getUnlockAbility(state)`
+ * is castable (the SpellPermanent is gone once the room is on battlefield).
+ *
+ * The split is load-bearing for ActionPerformer's accept arm: mismatching the
+ * SA against the action type causes `getAllCastableAbilities` to filter the
+ * unlock SA out from hand (its canPlay gates on zone == Battlefield), and
+ * `PlayerAction.CastSpell(cardId, null)` falls through to candidates.first()
+ * which is always the LEFT SpellPermanent — silently casting the wrong door.
+ */
+internal fun pickRoomDoorSa(
+    card: Card,
+    state: forge.card.CardStateName,
+): SpellAbility? {
+    val splitSa = card.getSpells()?.firstOrNull { it.cardStateName == state }
+    if (splitSa != null) return splitSa
+    return card.getUnlockAbility(state)
 }
 
 fun chooseCastAbility(

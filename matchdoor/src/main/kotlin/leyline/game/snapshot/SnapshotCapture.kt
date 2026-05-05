@@ -102,6 +102,8 @@ object SnapshotCapture {
                     prepared = snap.preparedRole,
                     plotted = snap.plottedRole,
                     foretold = snap.isForetold,
+                    isLeftDoorUnlocked = snap.isLeftDoorUnlocked,
+                    isRightDoorUnlocked = snap.isRightDoorUnlocked,
                 )
             out[fid] = BoundCard(fid, snap, data, altCosts, mobilizeCleanup, parentLinkage, designations)
         }
@@ -455,6 +457,10 @@ object SnapshotCapture {
         // ActionMapper shape flags — read once here, not in the mapper.
         val isLand = type.isLand
         val isAdventureCard = card.isAdventureCard
+        val isOmenCard =
+            card.hasState(forge.card.CardStateName.Secondary) &&
+                card.getState(forge.card.CardStateName.Secondary).type.hasSubtype("Omen")
+        val isRoom = card.isRoom
         val hasManaAbilities = card.manaAbilities.isNotEmpty()
         val hasNonManaActivatedAbilities =
             card.spellAbilities.any { sa ->
@@ -469,6 +475,8 @@ object SnapshotCapture {
             controller = controllerSeat,
             isLand = isLand,
             isAdventureCard = isAdventureCard,
+            isOmenCard = isOmenCard,
+            isRoom = isRoom,
             hasManaAbilities = hasManaAbilities,
             hasNonManaActivatedAbilities = hasNonManaActivatedAbilities,
             isOnBattlefield = onBf,
@@ -493,6 +501,19 @@ object SnapshotCapture {
             preparedRole = preparedRole,
             plottedRole = if (Plotted.isPlotted(card)) PlottedRole.Plotted else PlottedRole.None,
             isForetold = Foretell.isForetold(card),
+            // Door state is meaningful only on battlefield rooms — Forge keeps
+            // `unlockedRooms` populated on retired stack/limbo card states the
+            // same way it keeps `isPrepared` / `isPlotted` lingering. Filter to
+            // `onBf && card.isRoom` to anchor the Designation pAnn on the live
+            // battlefield permanent.
+            isLeftDoorUnlocked =
+                onBf &&
+                    card.isRoom &&
+                    forge.card.CardStateName.LeftSplit in card.unlockedRooms,
+            isRightDoorUnlocked =
+                onBf &&
+                    card.isRoom &&
+                    forge.card.CardStateName.RightSplit in card.unlockedRooms,
         )
     }
 

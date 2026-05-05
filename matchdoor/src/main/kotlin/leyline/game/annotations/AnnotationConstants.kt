@@ -23,4 +23,14 @@ object AnnotationConstants {
      *  Carried on `GainDesignation` / persistent `Designation` / `LoseDesignation`
      *  for cards exiled with the plot keyword. */
     const val DESIGNATION_TYPE_PLOTTED: Int = 18
+
+    /** `DesignationType` enum value for the `LeftUnlocked` Room-door state.
+     *  Marks the left half of a split-room enchantment as unlocked. Gained when
+     *  a `CastLeftRoom` action resolves; persists while the door stays open. */
+    const val DESIGNATION_TYPE_LEFT_UNLOCKED: Int = 19
+
+    /** `DesignationType` enum value for the `RightUnlocked` Room-door state.
+     *  Marks the right half of a split-room enchantment as unlocked. Gained when
+     *  a `CastRightRoom` action resolves; persists while the door stays open. */
+    const val DESIGNATION_TYPE_RIGHT_UNLOCKED: Int = 20
 }
