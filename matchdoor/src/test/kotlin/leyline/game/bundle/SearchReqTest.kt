@@ -27,6 +27,7 @@ class SearchReqTest :
                     msgId = 42,
                     gsId = 10,
                     sourceInstanceId = 290,
+                    seatId = 1,
                     libraryZoneId = 32,
                     allLibraryIds = listOf(100, 101, 102),
                     validTargetIds = listOf(100, 102),
@@ -40,6 +41,10 @@ class SearchReqTest :
                 msg.gameStateId shouldBe 10
                 msg.systemSeatIdsList shouldBe listOf(1)
                 msg.prompt.promptId shouldBe PromptIds.SEARCH
+                msg.prompt.parametersList.size shouldBe 2
+                msg.prompt.parametersList[0].numberValue shouldBe 290
+                msg.prompt.parametersList[1].numberValue shouldBe 1
+                msg.allowCancel shouldBe wotc.mtgo.gre.external.messaging.Messages.AllowCancel.No_a526
             }
 
             val sr = msg.searchReq

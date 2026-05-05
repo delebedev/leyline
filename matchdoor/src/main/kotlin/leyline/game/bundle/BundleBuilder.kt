@@ -335,11 +335,21 @@ class BundleBuilder(
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
     fun buildSelectNReq(prompt: InteractivePromptBridge.PendingPrompt): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge)
 
-    /** Build a [SearchReq] GRE message with populated inner fields for library search. */
+    /** Build a [SearchReq] GRE message with populated inner fields for library search.
+     *
+     *  [sourceInstanceId] — protocol-side source iid. For activated-ability
+     *  searches (cycling/typecycling) this is the AB instance iid, not the
+     *  host card iid; for spell searches (Diabolic Tutor, etc.) it is the
+     *  spell's iid on the stack.
+     *
+     *  [seatId] — the searching player's seat. Surfaces as a second `CardId`
+     *  prompt parameter alongside [sourceInstanceId]; the second parameter
+     *  is what the client picker uses to anchor the search panel header. */
     fun buildSearchReq(
         msgId: Int,
         gsId: Int,
         sourceInstanceId: Int,
+        seatId: Int,
         libraryZoneId: Int,
         allLibraryIds: List<Int>,
         validTargetIds: List<Int>,
@@ -362,7 +372,8 @@ class BundleBuilder(
             .setType(GREMessageType.SearchReq_695e)
             .setMsgId(msgId)
             .setGameStateId(gsId)
-            .addSystemSeatIds(seatId)
+            .addSystemSeatIds(this.seatId)
+            .setAllowCancel(AllowCancel.No_a526)
             .setPrompt(
                 Prompt
                     .newBuilder()
@@ -373,6 +384,12 @@ class BundleBuilder(
                             .setParameterName("CardId")
                             .setType(ParameterType.Number)
                             .setNumberValue(sourceInstanceId),
+                    ).addParameters(
+                        PromptParameter
+                            .newBuilder()
+                            .setParameterName("CardId")
+                            .setType(ParameterType.Number)
+                            .setNumberValue(seatId),
                     ),
             ).setSearchReq(searchReq)
             .build()

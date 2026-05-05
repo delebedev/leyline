@@ -1072,13 +1072,28 @@ class TargetingHandler(
                 bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
             }
 
-        // Source spell instanceId — from the spell on stack, or first stack card
+        // Source instanceId — for activated-ability searches (cycling,
+        // typecycling) the protocol expects the AB instance iid here, not
+        // the host card iid. Mint via the same SA-id-keyed surrogate the
+        // AbilityInstance lifecycle uses so SearchReq.sourceId, the prompt's
+        // CardId parameter, and the existing AbilityInstanceCreated annotation
+        // all reference the same iid. Falls back to host card iid for plain
+        // spell searches (sa is a Spell, not an Ability gameObject).
+        val stackTop = ctx.game.stack.firstOrNull()
+        val saId = stackTop?.spellAbility?.id
+        val isAbilityOnStack = stackTop?.isAbility == true
         val sourceId =
-            req.sourceEntityId?.let {
-                bridge.getOrAllocInstanceId(ForgeCardId(it)).value
-            } ?: ctx.game.stack.firstOrNull()?.let {
-                bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value
-            } ?: 0
+            when {
+                isAbilityOnStack && saId != null -> {
+                    val abForgeId = FrameIdResolver.triggerStackAbilityForgeId(saId)
+                    bridge.getOrAllocInstanceId(abForgeId).value
+                }
+                req.sourceEntityId != null ->
+                    bridge.getOrAllocInstanceId(ForgeCardId(req.sourceEntityId)).value
+                stackTop != null ->
+                    bridge.getOrAllocInstanceId(ForgeCardId(stackTop.id)).value
+                else -> 0
+            }
 
         val msgId = counters.counter.nextMsgId()
         val gsId = counters.counter.currentGsId()
@@ -1087,6 +1102,7 @@ class TargetingHandler(
                 msgId = msgId,
                 gsId = gsId,
                 sourceInstanceId = sourceId,
+                seatId = counters.seatId.value,
                 libraryZoneId = libZoneId,
                 allLibraryIds = allLibIds,
                 validTargetIds = validIds,
