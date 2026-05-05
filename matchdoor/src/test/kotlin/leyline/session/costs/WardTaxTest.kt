@@ -6,7 +6,6 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.SeatId
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 
@@ -39,9 +38,8 @@ class WardTaxTest :
         test("accept — auto-tap consumes the Ward {2} on top of Bolt's {R}") {
             startPuzzleFile("puzzles/ward-tax.pzl")
 
-            val ai = harness.bridge.getPlayer(SeatId(2))!!
             castSpellByName("Lightning Bolt").shouldBeTrue()
-            val targetIid = instanceIdOf("Sovereign Okinec Ahau", player = ai)
+            val targetIid = ai.battlefield.iid("Sovereign Okinec Ahau")
             // selectTargets drains the sink, which auto-accepts the Ward OAM
             // (default AllowYes). On accept, payWardManaTax returns true after
             // ComputerUtilMana taps lands for the {2} tax. The Counter SA's
@@ -69,9 +67,8 @@ class WardTaxTest :
         test("decline — Counter SA proceeds, Forests stay untapped") {
             startPuzzleFile("puzzles/ward-tax.pzl")
 
-            val ai = harness.bridge.getPlayer(SeatId(2))!!
             castSpellByName("Lightning Bolt").shouldBeTrue()
-            val targetIid = instanceIdOf("Sovereign Okinec Ahau", player = ai)
+            val targetIid = ai.battlefield.iid("Sovereign Okinec Ahau")
 
             // Pre-seed decline: drainSink auto-responds CancelNo on the Ward
             // OAM. payWardManaTax returns false; the Counter SA proceeds and

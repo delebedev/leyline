@@ -392,6 +392,21 @@ abstract class SessionTest(
      */
     fun PlayerZone.iid(cardName: String): Int = instanceIdOf(cardName, player, zone)
 
+    /**
+     * Resolve a [forge.game.card.Card] already in hand to its instanceId via
+     * the bridge. The zone is informational only here — the bridge keys by
+     * Forge card id, not zone — but keeping the call shape consistent with
+     * [iid] (`human.battlefield.iid(card)`) makes test sites read uniformly.
+     */
+    fun PlayerZone.iid(card: forge.game.card.Card): Int = harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+
+    /**
+     * Resolve multiple cards by name in one go — `human.battlefield.iids("A", "B", "C")`.
+     * Convenience over `listOf(iid("A"), iid("B"), iid("C"))` when the test
+     * passes a target list straight to `selectTargets`.
+     */
+    fun PlayerZone.iids(vararg cardNames: String): List<Int> = cardNames.map { iid(it) }
+
     // --- State queries ---
 
     fun phase() = harness.phase()
