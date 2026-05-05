@@ -2,7 +2,6 @@ package leyline.behavior.cards
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -10,15 +9,12 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.GsmSnapshot
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.allAnnotations
 import leyline.testkit.beInHandOf
@@ -41,15 +37,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * Treasure mana → cast Lightning Bolt → target opponent → win.
  */
 class TreasureTokenTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         beforeSpec {
             GameBootstrap.initializeCardDatabase(quiet = true)
@@ -82,11 +70,7 @@ class TreasureTokenTest :
             """.trimIndent()
 
         test("full treasure token flow: cast Innkeeper, ETB treasure, bolt for lethal") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(puzzleText)
-            val human = h.bridge.getPlayer(SeatId(1))!!
-            val ai = h.bridge.getPlayer(SeatId(2))!!
+            startPuzzleRaw(puzzleText, validating = false)
 
             // --- Preconditions ---
             assertSoftly {
@@ -97,12 +81,12 @@ class TreasureTokenTest :
             }
 
             // --- Cast Prosperous Innkeeper (1G) ---
-            h.castSpellByName("Prosperous Innkeeper").shouldBeTrue()
+            castSpellByName("Prosperous Innkeeper").shouldBeTrue()
 
             // Pass until Treasure Token appears on battlefield (spell + ETB trigger resolve)
             repeat(10) {
                 if (human.getZone(ZoneType.Battlefield).cards.any { it.name == "Treasure Token" }) return@repeat
-                h.passPriority()
+                passPriority()
             }
             human
                 .getZone(ZoneType.Battlefield)
@@ -119,18 +103,18 @@ class TreasureTokenTest :
             treasure.isToken.shouldBeTrue()
 
             // --- Regression: Treasure grpId must resolve to non-zero ---
-            val treasureGrpId = GrpIdResolver.resolve(treasure, h.bridge.cardRepository)
+            val treasureGrpId = GrpIdResolver.resolve(treasure, harness.bridge.cardRepository)
             treasureGrpId shouldBeGreaterThan 0
 
             // --- Regression: buildFromSnapshot must not crash (was NPE) ---
-            val snapTreasure = GsmSnapshot.capture(h.game(), h.bridge, "test-treasure", 1)
+            val snapTreasure = GsmSnapshot.capture(harness.game(), harness.bridge, "test-treasure", 1)
             val gsm =
                 StateMapper
                     .buildFromSnapshot(
                         snapTreasure,
                         1,
                         "test-treasure",
-                        h.bridge,
+                        harness.bridge,
                         viewingSeatId = 1,
                     ).gsm
             gsm.shouldNotBeNull()
@@ -138,11 +122,11 @@ class TreasureTokenTest :
             treasureObj.shouldNotBeNull()
 
             // --- Regression: buildActions must not crash, Treasure has ActivateMana ---
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(h.game(), h.bridge, "test", 0), h.bridge)
+            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(harness.game(), harness.bridge, "test", 0), harness.bridge)
             val manaActions = actions.actionsList.filter { it.actionType == ActionType.ActivateMana }
             manaActions.size shouldBeGreaterThan 0
 
-            val treasureInstanceId = h.bridge.getOrAllocInstanceId(ForgeCardId(treasure.id)).value
+            val treasureInstanceId = human.battlefield.iid(treasure)
             val treasureMana = manaActions.firstOrNull { it.instanceId == treasureInstanceId }
             treasureMana.shouldNotBeNull()
 
@@ -151,23 +135,23 @@ class TreasureTokenTest :
             castActions.size shouldBe 1
 
             // --- Cast Lightning Bolt (Treasure provides R via auto-pay) ---
-            h.castSpellByName("Lightning Bolt").shouldBeTrue()
+            castSpellByName("Lightning Bolt").shouldBeTrue()
 
             // Target opponent (seatId 2)
-            h.selectTargets(listOf(2))
+            selectTargets(listOf(OPPONENT_SEAT))
 
             // Resolve bolt → lethal
             repeat(10) {
-                if (h.isGameOver()) return@repeat
-                h.passPriority()
+                if (isGameOver()) return@repeat
+                passPriority()
             }
-            h.isGameOver().shouldBeTrue()
+            isGameOver().shouldBeTrue()
 
             // --- Assert: Sacrifice ZoneTransfer + mana-ability bracket annotations exist ---
             // Treasure sacrifice fires during bolt resolution (Forge auto-pays mana at resolution
             // time). The pre-game-over diff in sendGameOver() drains these events into a GSM.
             val allAnnotations =
-                h.allMessages
+                allMessages
                     .filter { it.hasGameStateMessage() }
                     .flatMap { it.gameStateMessage.annotationsList }
 
@@ -199,7 +183,7 @@ class TreasureTokenTest :
 
             // --- Assert: game over, human wins ---
             assertSoftly {
-                h.isGameOver().shouldBeTrue()
+                isGameOver().shouldBeTrue()
                 human.hasWon().shouldBeTrue()
                 ai.life shouldBe 0
             }

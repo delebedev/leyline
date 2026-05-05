@@ -1,10 +1,8 @@
 package leyline.behavior.cards
 
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 
 /**
  * Integration test for vehicle crew mechanic.
@@ -16,15 +14,7 @@ import leyline.testkit.MatchFlowHarness
  * before we get to crew. After crewing, Brute Suit (4/3) finishes the job.
  */
 class VehicleCrewPuzzleTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("crew vehicle and attack for lethal") {
             val pzl =
@@ -48,22 +38,18 @@ class VehicleCrewPuzzleTest :
                 ailibrary=Mountain|Mountain|Mountain|Mountain
                 """.trimIndent()
 
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(pzl)
-
-            val human = h.game().registeredPlayers.first()
+            startPuzzleRaw(pzl, validating = false)
 
             // Auto-pass should stop at Main1 when crew ability is available
-            h.phase() shouldBe "MAIN1"
+            phase() shouldBe "MAIN1"
 
             // Activate crew ability on Brute Suit — engine auto-selects Centaur Courser
-            h.activateAbility("Brute Suit").shouldBeTrue()
+            activateAbility("Brute Suit").shouldBeTrue()
 
             // Pass priority until game over — auto-pass handles combat
-            h.passUntil(maxPasses = 40) { isGameOver() }.shouldBeTrue()
+            passUntil(maxPasses = 40) { isGameOver() }.shouldBeTrue()
 
-            h.isGameOver().shouldBeTrue()
+            isGameOver().shouldBeTrue()
             human.hasWon().shouldBeTrue()
         }
     })

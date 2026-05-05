@@ -1,15 +1,13 @@
 package leyline.behavior.cards
 
 import forge.game.zone.ZoneType
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.IntegrationTag
 import leyline.bridge.types.SeatId
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import leyline.testkit.beInExileOf
 
 /**
@@ -19,15 +17,7 @@ import leyline.testkit.beInExileOf
  * Predator tapped → tap trigger fires → GY exile targeting → +1/+1 counter.
  */
 class ImmersturmPredatorTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("sacrifice-as-cost: sac creature -> Predator tapped -> trigger fires -> counter") {
             val pzl =
@@ -53,12 +43,8 @@ class ImmersturmPredatorTest :
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """.trimIndent()
 
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(pzl)
-
-            val human = h.game().registeredPlayers.first()
-            h.phase() shouldBe "MAIN1"
+            startPuzzleRaw(pzl, validating = false)
+            phase() shouldBe "MAIN1"
 
             val predatorBefore =
                 human
@@ -68,11 +54,11 @@ class ImmersturmPredatorTest :
             val basePower = predatorBefore.netPower
 
             // --- Step 1: Activate sacrifice ability ---
-            h.activateAbility("Immersturm Predator").shouldBeTrue()
+            activateAbility("Immersturm Predator").shouldBeTrue()
 
             // Sacrifice cost prompt should appear — verify structural properties
             val sacPrompt =
-                h.bridge
+                harness.bridge
                     .seat(SeatId(1))
                     .prompt
                     .getPendingPrompt()
@@ -81,15 +67,15 @@ class ImmersturmPredatorTest :
 
             // --- Step 2: Respond to sacrifice cost by submitting directly to prompt bridge ---
             // The prompt has candidateRefs with forge card IDs. Index 0 = Grizzly Bears.
-            h.bridge
+            harness.bridge
                 .seat(SeatId(1))
                 .prompt
                 .submitResponse(sacPrompt.promptId, listOf(0))
-            h.bridge.awaitPriority()
+            harness.bridge.awaitPriority()
 
             // Drain messages produced by the sacrifice
-            h.session.triggerAutoPass()
-            h.drainSink()
+            harness.session.triggerAutoPass()
+            harness.drainSink()
 
             // Bears should be sacrificed now
             human
@@ -108,31 +94,30 @@ class ImmersturmPredatorTest :
 
             // --- Step 3: Tap trigger fires → targeting prompt for GY exile ---
             val tapPrompt =
-                h.bridge
+                harness.bridge
                     .seat(SeatId(1))
                     .prompt
                     .getPendingPrompt()
             if (tapPrompt != null && tapPrompt.request.candidateRefs.isNotEmpty()) {
                 // Pick first GY card to exile
-                h.bridge
+                harness.bridge
                     .seat(SeatId(1))
                     .prompt
                     .submitResponse(tapPrompt.promptId, listOf(0))
-                h.bridge.awaitPriority()
-                h.session.triggerAutoPass()
-                h.drainSink()
+                harness.bridge.awaitPriority()
+                harness.session.triggerAutoPass()
+                harness.drainSink()
             }
 
             // --- Step 4: Pass until trigger resolves ---
-            h
-                .passUntil(maxPasses = 10) {
-                    val predator =
-                        human
-                            .getZone(ZoneType.Battlefield)
-                            .cards
-                            .firstOrNull { it.name == "Immersturm Predator" }
-                    predator != null && predator.netPower > basePower
-                }.shouldBeTrue()
+            passUntil(maxPasses = 10) {
+                val predator =
+                    human
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .firstOrNull { it.name == "Immersturm Predator" }
+                predator != null && predator.netPower > basePower
+            }.shouldBeTrue()
 
             // Verify Predator got +1/+1 counter
             val predatorAfter =
@@ -146,7 +131,6 @@ class ImmersturmPredatorTest :
             // If tap trigger exiled a card, verify it went to Exile (not under Predator).
             // Trigger is "up to one" — card may stay in GY if targeting skipped.
             // But if it left GY, it must be in Exile (not attached to anything).
-            val ai = h.game().registeredPlayers.last()
             val courserInGY = ai.getZone(ZoneType.Graveyard).cards.any { it.name == "Centaur Courser" }
             if (!courserInGY) {
                 "Centaur Courser" should beInExileOf(ai)

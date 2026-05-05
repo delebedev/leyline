@@ -1,15 +1,12 @@
 package leyline.behavior.cards
 
 import forge.game.zone.ZoneType
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.bridge.types.SeatId
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 
 /**
@@ -19,15 +16,7 @@ import leyline.testkit.TestCardRegistry
  * activate Clue ({2}, sacrifice: draw a card) → verify draw + Clue gone.
  */
 class NoviceInspectorTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         beforeSpec {
             GameBootstrap.initializeCardDatabase(quiet = true)
@@ -59,22 +48,18 @@ class NoviceInspectorTest :
             """.trimIndent()
 
         test("cast → ETB creates Clue token → sac Clue draws card") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(puzzleText)
-            val human = h.bridge.getPlayer(SeatId(1))!!
+            startPuzzleRaw(puzzleText, validating = false)
             // 1. Cast Novice Inspector
-            h.castSpellByName("Novice Inspector").shouldBeTrue()
+            castSpellByName("Novice Inspector").shouldBeTrue()
 
             // 2. Pass until Clue token appears (spell resolve + ETB trigger resolve)
-            h
-                .passUntil(maxPasses = 15) {
-                    human
-                        .getZone(ZoneType.Battlefield)
-                        .cards
-                        .toList()
-                        .any { it.name.contains("Clue", ignoreCase = true) }
-                }.shouldBeTrue()
+            passUntil(maxPasses = 15) {
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .toList()
+                    .any { it.name.contains("Clue", ignoreCase = true) }
+            }.shouldBeTrue()
 
             val bfCards = human.getZone(ZoneType.Battlefield).cards.toList()
             bfCards.map { it.name } shouldContain "Novice Inspector"
@@ -82,9 +67,9 @@ class NoviceInspectorTest :
             clueCard.isToken.shouldBeTrue()
 
             // Verify Clue has the sac-for-draw ability registered
-            val clueGrpId = h.bridge.cardRepository.findGrpIdByName("Clue")
+            val clueGrpId = harness.bridge.cardRepository.findGrpIdByName("Clue")
             clueGrpId shouldNotBe null
-            val clueData = h.bridge.cardRepository.findByGrpId(clueGrpId!!)
+            val clueData = harness.bridge.cardRepository.findByGrpId(clueGrpId!!)
             clueData shouldNotBe null
             clueData!!.abilityIds.any { it.first == 152 }.shouldBeTrue()
 
@@ -95,17 +80,16 @@ class NoviceInspectorTest :
                     .cards
                     .toList()
                     .size
-            h.activateAbility(clueCard.name).shouldBeTrue()
+            activateAbility(clueCard.name).shouldBeTrue()
 
             // 4. Pass until Clue is gone (cost paid + ability resolves)
-            h
-                .passUntil(maxPasses = 15) {
-                    human
-                        .getZone(ZoneType.Battlefield)
-                        .cards
-                        .toList()
-                        .none { it.name.contains("Clue", ignoreCase = true) }
-                }.shouldBeTrue()
+            passUntil(maxPasses = 15) {
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .toList()
+                    .none { it.name.contains("Clue", ignoreCase = true) }
+            }.shouldBeTrue()
 
             // Clue sacrificed — no longer on battlefield
             human

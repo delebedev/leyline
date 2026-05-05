@@ -1,14 +1,11 @@
 package leyline.behavior.annotations.addability
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.bridge.types.ForgeCardId
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import leyline.testkit.detailUint
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -21,29 +18,18 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *   Forge event → GameEventCollector → EffectTracker → AddAbility pAnn + uniqueAbilities on gameObject.
  */
 class KeywordGrantOverrunTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("Overrun: creatures get AddAbility pAnn with Trample grpId") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzle("puzzles/keyword-grant-overrun.pzl")
+            startPuzzleFile("puzzles/keyword-grant-overrun.pzl", validating = false)
 
-            h.castSpellByName("Overrun").shouldBeTrue()
+            castSpellByName("Overrun").shouldBeTrue()
             // Pass priority to let Overrun resolve
-            h.passPriority()
+            passPriority()
 
             // Find AddAbility persistent annotation
             val addAbility =
-                h.allMessages
+                allMessages
                     .filter { it.hasGameStateMessage() }
                     .flatMap { it.gameStateMessage.persistentAnnotationsList }
                     .firstOrNull { AnnotationType.AddAbility_af5a in it.typeList }
@@ -57,11 +43,8 @@ class KeywordGrantOverrunTest :
         }
 
         test("Overrun: creature gameObjects have Trample in uniqueAbilities") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzle("puzzles/keyword-grant-overrun.pzl")
+            startPuzzleFile("puzzles/keyword-grant-overrun.pzl", validating = false)
 
-            val human = h.game().registeredPlayers.first()
             val bears =
                 human
                     .getZone(ForgeZoneType.Battlefield)
@@ -69,18 +52,18 @@ class KeywordGrantOverrunTest :
                     .filter { it.name == "Grizzly Bears" }
             bears.size shouldBe 2
 
-            h.castSpellByName("Overrun").shouldBeTrue()
+            castSpellByName("Overrun").shouldBeTrue()
             // Pass priority to let Overrun resolve
-            h.passPriority()
+            passPriority()
 
             // Get the latest GSM with game objects
             val lastGsm =
-                h.allMessages
+                allMessages
                     .filter { it.hasGameStateMessage() }
                     .last { it.gameStateMessage.gameObjectsCount > 0 }
                     .gameStateMessage
 
-            val bearIids = bears.map { h.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }.toSet()
+            val bearIids = bears.map { human.battlefield.iid(it) }.toSet()
             val bearObjects = lastGsm.gameObjectsList.filter { it.instanceId in bearIids }
             bearObjects.shouldNotBeEmpty()
 

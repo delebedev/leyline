@@ -1,13 +1,10 @@
 package leyline.session.actions
 
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.testkit.MatchFlowHarness
 import leyline.testkit.ScriptedAction
-import leyline.testkit.aar
+import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
@@ -15,34 +12,22 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * when legal targets/blocks exist.
  */
 class ActionLegalityTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("counterspell not offered as castable when stack is empty") {
             val puzzleText = javaClass.getResource("/puzzles/counterspell-empty-stack.pzl")!!.readText()
-            val h = MatchFlowHarness(validating = false)
-            harness = h
-
-            h.connectAndKeepPuzzleText(puzzleText)
+            startPuzzleRaw(puzzleText, validating = false)
 
             // Pass to get ActionsAvailableReq in Main1
             val found =
-                h.passUntil(maxPasses = 3) {
+                passUntil(maxPasses = 3) {
                     allMessages.any { it.hasActionsAvailableReq() }
                 }
             found.shouldBeTrue()
 
             // Find the priority-stop ActionsAvailableReq (has Pass action)
             val aar =
-                h.allMessages.last {
+                allMessages.last {
                     it.hasActionsAvailableReq() &&
                         it.actionsAvailableReq.actionsList.any { a -> a.actionType == ActionType.Pass }
                 }
@@ -55,11 +40,10 @@ class ActionLegalityTest :
 
         test("no DeclareBlockersReq when only flyers attack and defender has no reach") {
             val puzzleText = javaClass.getResource("/puzzles/flying-blockers.pzl")!!.readText()
-            val h = MatchFlowHarness(validating = false)
-            harness = h
 
-            h.connectAndKeepPuzzleText(
+            startPuzzleRaw(
                 puzzleText,
+                validating = false,
                 aiScript =
                     listOf(
                         ScriptedAction.Attack(listOf("Spyglass Siren", "Kitesail Cleric")),
@@ -68,10 +52,10 @@ class ActionLegalityTest :
             )
 
             // AI turn: pass until combat happens and resolves
-            h.passThroughCombat()
+            harness.passThroughCombat()
 
             // DeclareBlockersReq should never have been sent
-            val blockReq = h.allMessages.firstOrNull { it.hasDeclareBlockersReq() }
+            val blockReq = allMessages.firstOrNull { it.hasDeclareBlockersReq() }
             blockReq.shouldBeNull()
         }
     })

@@ -1,11 +1,9 @@
 package leyline.session.stack
 
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -14,37 +12,26 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * handler returned early before checking isGameOver (#122).
  */
 class StackResolutionGameOverTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("spell resolving for lethal sends MatchCompleted") {
             // Bolt-face puzzle: AI at 3 life, human has Lightning Bolt + Mountain
-            val h = MatchFlowHarness(validating = false)
-            harness = h
-            h.connectAndKeepPuzzle("puzzles/bolt-face.pzl")
+            startPuzzleFile("puzzles/bolt-face.pzl", validating = false)
 
             // Cast Lightning Bolt — triggers SelectTargetsReq
-            h.castSpellByName("Lightning Bolt").shouldBeTrue()
+            castSpellByName("Lightning Bolt").shouldBeTrue()
 
             // Target opponent (seatId=2)
-            h.selectTargets(listOf(2))
+            selectTargets(listOf(OPPONENT_SEAT))
 
             // Pass priority to resolve — bolt deals 3 to AI at 3 life = lethal
-            h.passPriority()
+            passPriority()
 
-            h.isGameOver().shouldBeTrue()
+            isGameOver().shouldBeTrue()
 
             // Verify MatchCompleted was sent
             val matchCompleted =
-                h.allRawMessages.firstOrNull {
+                harness.allRawMessages.firstOrNull {
                     it.hasMatchGameRoomStateChangedEvent() &&
                         it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
                         MatchGameRoomStateType.MatchCompleted
@@ -52,7 +39,7 @@ class StackResolutionGameOverTest :
             matchCompleted.shouldNotBeNull()
 
             // Verify IntermissionReq with game result
-            val intermission = h.allMessages.firstOrNull { it.hasIntermissionReq() }
+            val intermission = allMessages.firstOrNull { it.hasIntermissionReq() }
             intermission.shouldNotBeNull()
             intermission.intermissionReq.result.reason shouldBe ResultReason.Game_ae0a
         }
