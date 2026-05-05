@@ -106,11 +106,12 @@ class OptionalActionHandler(
                 .build()
 
         // TODO: shock land ETB needs promptId 2233 + ReplacementEffect pAnn with
-        // allocated affectorId as sourceId. Currently uses generic prompt for all.
+        // allocated affectorId as sourceId. Currently uses generic prompt for all,
+        // unless overridden via prompt.customPromptId (e.g. Endure → ENDURE_PUT_COUNTERS).
         val promptProto =
             Prompt
                 .newBuilder()
-                .setPromptId(PromptIds.OPTIONAL_ACTION)
+                .setPromptId(prompt.customPromptId ?: PromptIds.OPTIONAL_ACTION)
                 .addParameters(
                     PromptParameter
                         .newBuilder()

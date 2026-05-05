@@ -49,6 +49,10 @@ object PromptIds {
     /** Shock land ETB "pay life or enter tapped" (OptionalActionMessage). */
     const val SHOCK_LAND_ETB = 2233
 
+    /** Endure trigger resolution "put +1/+1 counters or create a Spirit token" (OptionalActionMessage).
+     *  Loc text: "Put N +1/+1 counters on this creature?" — Yes = counters, No = Spirit token. */
+    const val ENDURE_PUT_COUNTERS = 13976
+
     const val SELECT_N = 1243
 
     /**

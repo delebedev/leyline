@@ -1,0 +1,18 @@
+[metadata]
+Name:Endure — Inspirited Vanguard
+Goal:Demo
+Turns:2
+Difficulty:Easy
+Description:Cast Inspirited Vanguard. ETB triggers Endure 2 — pick +1/+1 counters or create a 2/2 Spirit token. Attack next turn for the second Endure 2 trigger.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Inspirited Vanguard
+humanbattlefield=Forest;Forest;Forest;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aibattlefield=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains
