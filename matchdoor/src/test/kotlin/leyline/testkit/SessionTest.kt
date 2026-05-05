@@ -166,6 +166,11 @@ abstract class SessionTest(
         abilityIndex: Int = 0,
     ) = harness.activateAbilityFromHand(cardName, abilityIndex)
 
+    fun activateAbilityFromGraveyard(
+        cardName: String,
+        abilityIndex: Int = 0,
+    ) = harness.activateAbilityFromGraveyard(cardName, abilityIndex)
+
     fun selectTargets(targetInstanceIds: List<Int>) = harness.selectTargets(targetInstanceIds)
 
     fun selectTargetsIterative(targetInstanceIds: List<Int>) = harness.selectTargetsIterative(targetInstanceIds)

@@ -2,14 +2,11 @@ package leyline.mechanics.unearth
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.bridge.types.ForgeCardId
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
@@ -21,15 +18,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  */
 @Suppress("MissingAssertSoftly") // intentional fail-fast — offer-shape and passUntil depend on prior steps
 class UnearthPuzzleTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("Gixian Recycler unearth from graveyard returns with haste") {
             val pzl =
@@ -54,11 +43,7 @@ class UnearthPuzzleTest :
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent()
 
-            val h = MatchFlowHarness(seed = 42L, validating = true)
-            harness = h
-            h.connectAndKeepPuzzleText(pzl)
-
-            val human = h.game().registeredPlayers.first()
+            startPuzzleRaw(pzl, validating = true)
 
             // Pre-unearth invariants
             human
@@ -78,10 +63,9 @@ class UnearthPuzzleTest :
             // activation) confirms the offer is on the wire — without this,
             // submitActivateAction below would still succeed even if the
             // graveyard rail returned without emitting anything.
-            val gixian = human.getZone(ZoneType.Graveyard).cards.first { it.name == "Gixian Recycler" }
-            val gixianIid = h.bridge.getOrAllocInstanceId(ForgeCardId(gixian.id)).value
+            val gixianIid = human.graveyard.iid("Gixian Recycler")
             val unearthOffer =
-                h.allMessages
+                allMessages
                     .asReversed()
                     .firstNotNullOfOrNull { msg ->
                         if (!msg.hasActionsAvailableReq()) return@firstNotNullOfOrNull null
@@ -94,11 +78,10 @@ class UnearthPuzzleTest :
                 unearthOffer.abilityGrpId shouldBeGreaterThan 0
             }
 
-            h.activateAbilityFromGraveyard("Gixian Recycler").shouldBeTrue()
-            h
-                .passUntil(maxPasses = 10) {
-                    human.getZone(ZoneType.Battlefield).cards.any { it.name == "Gixian Recycler" }
-                }.shouldBeTrue()
+            activateAbilityFromGraveyard("Gixian Recycler").shouldBeTrue()
+            passUntil(maxPasses = 10) {
+                human.getZone(ZoneType.Battlefield).cards.any { it.name == "Gixian Recycler" }
+            }.shouldBeTrue()
 
             // Now on battlefield with haste (per Forge's Unearth implementation).
             val unearthed =
