@@ -1,0 +1,13 @@
+name: "Miscalculation"
+grpId: 12607
+titleId: 35880
+abilities:
+  - id: 6374
+    textId: 30988
+    category: 4
+  - id: 2296
+    textId: 1703
+    category: 1
+    baseId: 30
+    mana: "o2"
+expansionCode: "ULG"

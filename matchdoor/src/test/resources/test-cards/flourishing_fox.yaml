@@ -1,0 +1,13 @@
+name: "Flourishing Fox"
+grpId: 71080
+titleId: 427911
+abilities:
+  - id: 137164
+    textId: 942371
+    category: 2
+  - id: 137159
+    textId: 427903
+    category: 1
+    baseId: 30
+    mana: "o1"
+expansionCode: "IKO"

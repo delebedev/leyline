@@ -103,7 +103,13 @@ class TargetingHandler(
                     val playerIdx = resolvePlayerTarget(instanceId, pendingPrompt)
                     if (playerIdx != null) return@mapNotNull playerIdx
                     val cardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@mapNotNull null
-                    pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
+                    // MUST filter by kind=="card" — Forge Card.id and Player.id share
+                    // the same int space and frequently collide (e.g. card.id=1 and
+                    // opp player.id=1). Without the kind guard, indexOfFirst hits the
+                    // wrong candidate (saw bolt-on-Gixian register as bolt-on-opponent).
+                    pendingPrompt.request.candidateRefs.indexOfFirst {
+                        it.kind == "card" && it.entityId == cardId.value
+                    }
                 }.filter { it >= 0 }
 
         log.info(

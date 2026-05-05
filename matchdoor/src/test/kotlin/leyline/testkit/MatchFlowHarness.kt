@@ -763,6 +763,20 @@ class MatchFlowHarness(
         return submitActivateAction(card, abilityIndex)
     }
 
+    /** Activate an ability on a card in the player's graveyard (Unearth, Embalm, Eternalize). */
+    fun activateAbilityFromGraveyard(
+        cardName: String,
+        abilityIndex: Int = 0,
+    ): Boolean {
+        val player = bridge.getPlayer(seatId) ?: return false
+        val card =
+            player
+                .getZone(ZoneType.Graveyard)
+                .cards
+                .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
+        return submitActivateAction(card, abilityIndex)
+    }
+
     /** Common Activate_add3 submission for both battlefield and hand cards. */
     private fun submitActivateAction(
         card: forge.game.card.Card,
