@@ -2,13 +2,10 @@ package leyline.behavior.annotations.controllerchanged
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.bridge.types.ForgeCardId
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.lastWithPersistentAnnotation
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -23,15 +20,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * - LayeredEffectCreated transient
  */
 class ControllerChangedPuzzleTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("Act of Treason steals creature, annotations emitted, attack wins") {
             val pzl =
@@ -56,35 +45,25 @@ class ControllerChangedPuzzleTest :
                 ailibrary=Forest
                 """.trimIndent()
 
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(pzl)
-            h.phase() shouldBe "MAIN1"
+            startPuzzleRaw(pzl, validating = false)
+            phase() shouldBe "MAIN1"
 
-            // Find Grizzly Bears instanceId
-            val ai = h.game().registeredPlayers.last()
-            val bears =
-                ai
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
-            val bearsIid = h.bridge.getOrAllocInstanceId(ForgeCardId(bears.id)).value
+            val bearsIid = ai.battlefield.iid("Grizzly Bears")
 
-            val snap = h.messageSnapshot()
+            val steal =
+                after {
+                    // Cast Act of Treason targeting Grizzly Bears
+                    castSpellByName("Act of Treason").shouldBeTrue()
+                    selectTargets(listOf(bearsIid))
 
-            // Cast Act of Treason targeting Grizzly Bears
-            h.castSpellByName("Act of Treason").shouldBeTrue()
-            h.selectTargets(listOf(bearsIid))
-
-            // Pass until Act of Treason resolves and Bears changes controller
-            val human = h.game().registeredPlayers.first()
-            h
-                .passUntil(maxPasses = 10) {
-                    human.getZone(ZoneType.Battlefield).cards.any { it.name == "Grizzly Bears" }
-                }.shouldBeTrue()
+                    // Pass until Act of Treason resolves and Bears changes controller
+                    passUntil(maxPasses = 10) {
+                        human.getZone(ZoneType.Battlefield).cards.any { it.name == "Grizzly Bears" }
+                    }.shouldBeTrue()
+                }
 
             // Check annotations from steal
-            val gsms = h.gameStateMessagesSince(snap)
+            val gsms = steal.messages.mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
             gsms.size shouldBeGreaterThan 0
 
             // Find ControllerChanged transient annotation
@@ -121,15 +100,12 @@ class ControllerChangedPuzzleTest :
             }
 
             // Now attack with the stolen creature and win
-            h.advanceToCombat()
-            val bearsNewIid = h.bridge.getOrAllocInstanceId(ForgeCardId(bears.id)).value
-            h.declareAttackers(listOf(bearsNewIid))
+            harness.advanceToCombat()
+            val bearsNewIid = human.battlefield.iid("Grizzly Bears")
+            declareAttackers(listOf(bearsNewIid))
 
             // Pass through combat — AI at 2 life, Bears is 2/2, should be lethal
-            h
-                .passUntil(maxPasses = 20) {
-                    h.isGameOver()
-                }.shouldBeTrue()
+            passUntil(maxPasses = 20) { isGameOver() }.shouldBeTrue()
 
             // AI should have lost (life <= 0)
             ai.life shouldBe 0

@@ -1,14 +1,10 @@
 package leyline.behavior.cards
 
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -22,15 +18,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * 4. Copy token appears on battlefield
  */
 class ElectroduplicateTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("flashback from GY: targets creature, resolves, spell exiled") {
             // 2 creatures on BF so targeting prompt fires (not auto-resolved for single target).
@@ -55,14 +43,11 @@ class ElectroduplicateTest :
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """.trimIndent()
 
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(pzl)
+            startPuzzleRaw(pzl, validating = false)
 
             // 1. Verify Cast action offered with abilityGrpId for flashback
-            val player = h.bridge.getPlayer(SeatId(1))!!
             val actions =
-                h.allMessages
+                allMessages
                     .filter { it.hasActionsAvailableReq() }
                     .flatMap { it.actionsAvailableReq.actionsList }
             val flashbackAction =
@@ -73,46 +58,39 @@ class ElectroduplicateTest :
             flashbackAction.abilityGrpId shouldBeGreaterThan 0
 
             // Auto-pass went to combat — skip it to get to Main2
-            if (h.phase() != "MAIN1" && h.phase() != "MAIN2") {
-                h.declareNoAttackers()
-                h.passThroughCombat()
+            if (phase() != "MAIN1" && phase() != "MAIN2") {
+                harness.declareNoAttackers()
+                harness.passThroughCombat()
             }
 
             val creaturesBefore =
-                player
+                human
                     .getZone(ForgeZoneType.Battlefield)
                     .cards
                     .filter { it.isCreature }
             creaturesBefore.size shouldBeGreaterThan 1
 
-            val targetIid =
-                h.bridge
-                    .getOrAllocInstanceId(
-                        ForgeCardId(creaturesBefore.first().id),
-                    ).value
+            val targetIid = human.battlefield.iid(creaturesBefore.first())
 
             // 2. Cast from GY — triggers SelectTargetsReq
-            val snap = h.messageSnapshot()
-            h.castFromGraveyard("Electroduplicate").shouldBeTrue()
-            val msgs = h.messagesSince(snap)
-            val stReq = msgs.firstOrNull { it.hasSelectTargetsReq() }
-            stReq.shouldNotBeNull()
+            val cast = after { harness.castFromGraveyard("Electroduplicate").shouldBeTrue() }
+            cast.expectOneSelectTargetsReq()
 
             // 3. Select target + resolve
-            h.selectTargets(listOf(targetIid))
-            h.passUntil(maxPasses = 10) { game().stack.isEmpty }
+            selectTargets(listOf(targetIid))
+            passUntil(maxPasses = 10) { game().stack.isEmpty }
 
             // 4. Spell not in GY/Hand/Stack after flashback resolve
             val nonExileZones = listOf(ForgeZoneType.Graveyard, ForgeZoneType.Hand, ForgeZoneType.Stack)
             val strayCards =
                 nonExileZones.flatMap { z ->
-                    player.getZone(z)?.cards?.filter { it.name == "Electroduplicate" } ?: emptyList()
+                    human.getZone(z)?.cards?.filter { it.name == "Electroduplicate" } ?: emptyList()
                 }
             strayCards.size shouldBe 0
 
             // 5. Copy token on BF (creature count increased)
             val afterCreatures =
-                player
+                human
                     .getZone(ForgeZoneType.Battlefield)
                     .cards
                     .filter { it.isCreature }

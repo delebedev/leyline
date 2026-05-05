@@ -2,23 +2,18 @@ package leyline.behavior.cards
 
 import forge.game.card.CounterEnumType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.IntegrationTag
-import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
-import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Modal ETB flow tests using [MatchFlowHarness] + puzzle files.
+ * Modal ETB flow tests using [SessionTest] + puzzle files.
  *
  * Trufflesnout (2G, 2/2 Boar) has 2 ETB modal choices:
  *   - Mode 0: Put a +1/+1 counter on Trufflesnout
@@ -29,14 +24,12 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *   - Mode 1: You gain 3 life
  *   - Mode 2: Exile another target creature you own, return at next end step
  *
- * Tests verify that casting these produces a CastingTimeOptionsReq with the
- * correct wire shape — particularly that ETB modals reference the ability
- * instanceId (not the card), as the protocol requires.
+ * Tests verify that casting these produces a CastingTimeOptionsReq with
+ * affectedId/affectorId pointing at the ability instanceId (not the card),
+ * as the protocol requires.
  */
 class ModalETBFlowTest :
-    FunSpec({
-
-        tags(IntegrationTag)
+    SessionTest({
 
         // Trufflesnout modal ability ids — match `trufflesnout.yaml` fixture.
         val parentAbilityGrpId = 137979
@@ -47,30 +40,13 @@ class ModalETBFlowTest :
         val princeAbilityGrpId = 136341
         val princeLifeModeGrpId = 26167
 
-        var harness: MatchFlowHarness? = null
+        fun setupTrufflesnout() = startPuzzleFile("puzzles/modal-etb.pzl", validating = false)
 
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
-
-        fun setupTrufflesnout(): MatchFlowHarness {
-            val h = MatchFlowHarness(validating = false)
-            harness = h
-            h.connectAndKeepPuzzle("puzzles/modal-etb.pzl")
-            return h
-        }
-
-        fun setupPrince(): MatchFlowHarness {
-            val h = MatchFlowHarness(validating = false)
-            harness = h
-            h.connectAndKeepPuzzle("puzzles/prince-etb.pzl")
-            return h
-        }
+        fun setupPrince() = startPuzzleFile("puzzles/prince-etb.pzl", validating = false)
 
         test("modal ETB emits CastingTimeOptionsReq") {
-            val h = setupTrufflesnout()
-            val req = h.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
+            setupTrufflesnout()
+            val req = harness.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
             req.castingTimeOptionReqCount shouldBe 1
 
             val option = req.getCastingTimeOptionReq(0)
@@ -94,33 +70,30 @@ class ModalETBFlowTest :
         }
 
         test("modal choice resolves life gain") {
-            val h = setupTrufflesnout()
+            setupTrufflesnout()
 
-            val player = h.bridge.getPlayer(SeatId(1))!!
-            val startLife = player.life
+            val startLife = human.life
 
-            h.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
+            harness.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
 
             // Choose life gain mode (index 1 → lifeModeGrpId)
-            h.respondModalChoice(listOf(lifeModeGrpId))
+            harness.respondModalChoice(listOf(lifeModeGrpId))
 
             // Verify life gain
-            val endLife = h.bridge.getPlayer(SeatId(1))!!.life
-            (endLife - startLife) shouldBe 4
+            (human.life - startLife) shouldBe 4
         }
 
         test("modal choice resolves +1/+1 counter") {
-            val h = setupTrufflesnout()
+            setupTrufflesnout()
 
-            h.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
+            harness.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
 
             // Choose counter mode (index 0 → counterModeGrpId)
-            h.respondModalChoice(listOf(counterModeGrpId))
+            harness.respondModalChoice(listOf(counterModeGrpId))
 
             // Find Trufflesnout on battlefield — should have a +1/+1 counter
-            val player = h.bridge.getPlayer(SeatId(1))!!
             val trufflesnout =
-                player
+                human
                     .getZone(forge.game.zone.ZoneType.Battlefield)
                     .cards
                     .firstOrNull { it.name == "Trufflesnout" }
@@ -129,9 +102,9 @@ class ModalETBFlowTest :
         }
 
         test("Charming Prince ETB modal uses ability instanceId, not card instanceId") {
-            val h = setupPrince()
+            setupPrince()
 
-            val req = h.castSpellUntilCastingTimeOptionsReq("Charming Prince")
+            val req = harness.castSpellUntilCastingTimeOptionsReq("Charming Prince")
             req.castingTimeOptionReqCount shouldBe 1
 
             val option = req.getCastingTimeOptionReq(0)
@@ -149,14 +122,7 @@ class ModalETBFlowTest :
             // is brittle: the SA id Forge assigns depends on internal
             // allocation order, and the SA isn't on the stack at CTO emission
             // time (still in the cost-prep phase).
-            val princeCard =
-                h.bridge
-                    .getPlayer(SeatId(1))!!
-                    .getZone(forge.game.zone.ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Charming Prince" }
-            val princeCardIid =
-                h.bridge.getOrAllocInstanceId(ForgeCardId(princeCard.id)).value
+            val princeCardIid = human.battlefield.iid("Charming Prince")
 
             assertSoftly {
                 option.affectedId shouldNotBe princeCardIid
@@ -183,11 +149,9 @@ class ModalETBFlowTest :
         }
 
         test("ETB modal GSM has ability on stack and pendingMessageCount") {
-            val h = setupTrufflesnout()
+            setupTrufflesnout()
 
-            val snapshot = h.messageSnapshot()
-            h.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
-            val msgs = h.messagesSince(snapshot)
+            val msgs = after { harness.castSpellUntilCastingTimeOptionsReq("Trufflesnout") }.messages
 
             // Find the GSM that accompanies the CTO
             val ctoIdx = msgs.indexOfFirst { it.type == GREMessageType.CastingTimeOptionsReq_695e }
@@ -216,25 +180,17 @@ class ModalETBFlowTest :
         }
 
         test("ETB ability object has correct parentId and objectSourceGrpId") {
-            val h = setupTrufflesnout()
+            setupTrufflesnout()
             val trufflesnoutGrpId = TestCardRegistry.repo.findGrpIdByName("Trufflesnout")!!
 
-            val snapshot = h.messageSnapshot()
-            h.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
-            val msgs = h.messagesSince(snapshot)
+            val msgs = after { harness.castSpellUntilCastingTimeOptionsReq("Trufflesnout") }.messages
 
             val ctoIdx = msgs.indexOfFirst { it.type == GREMessageType.CastingTimeOptionsReq_695e }
             val gsm = msgs[ctoIdx - 1].gameStateMessage
             val abilityObj = gsm.gameObjectsList.first { it.type == GameObjectType.Ability }
 
             // parentId = source card instanceId on the battlefield
-            val trufflesnoutCard =
-                h.bridge
-                    .getPlayer(SeatId(1))!!
-                    .getZone(forge.game.zone.ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Trufflesnout" }
-            val cardInstanceId = h.bridge.getOrAllocInstanceId(ForgeCardId(trufflesnoutCard.id)).value
+            val cardInstanceId = human.battlefield.iid("Trufflesnout")
 
             abilityObj.parentId shouldBe cardInstanceId
             // objectSourceGrpId = card grpId (not ability grpId)
@@ -252,16 +208,14 @@ class ModalETBFlowTest :
         // lists the ability iid in `zones[ZoneIds.STACK].objectInstanceIds`
         // post-respond. So tightening to "any GSM with explicit Stack
         // cleanup" or "accumulator stack empty" both fail on the actual
-        // wire output, not on a test bug. Re-enable once leyline-l1tc
+        // engine output, not on a test bug. Re-enable once leyline-l1tc
         // ships the missing cleanup signal.
         xtest("synthesized ability cleaned up after modal resolves (leyline-l1tc)") {
-            val h = setupTrufflesnout()
+            setupTrufflesnout()
 
-            h.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
+            harness.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
 
-            val snapshot = h.messageSnapshot()
-            h.respondModalChoice(listOf(lifeModeGrpId))
-            val msgs = h.messagesSince(snapshot)
+            val msgs = after { harness.respondModalChoice(listOf(lifeModeGrpId)) }.messages
 
             val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
             gsms.shouldNotBeEmpty()
@@ -281,15 +235,13 @@ class ModalETBFlowTest :
         }
 
         test("Charming Prince gain 3 life mode resolves") {
-            val h = setupPrince()
+            setupPrince()
 
-            val player = h.bridge.getPlayer(SeatId(1))!!
-            val startLife = player.life
+            val startLife = human.life
 
-            h.castSpellUntilCastingTimeOptionsReq("Charming Prince")
-            h.respondModalChoice(listOf(princeLifeModeGrpId))
+            harness.castSpellUntilCastingTimeOptionsReq("Charming Prince")
+            harness.respondModalChoice(listOf(princeLifeModeGrpId))
 
-            val endLife = h.bridge.getPlayer(SeatId(1))!!.life
-            (endLife - startLife) shouldBe 3
+            (human.life - startLife) shouldBe 3
         }
     })
