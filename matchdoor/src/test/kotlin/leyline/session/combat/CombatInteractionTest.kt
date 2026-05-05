@@ -144,15 +144,7 @@ class CombatInteractionTest :
             val attackerIid = setupSingleAttacker()
 
             // Pass from Main1 to advance to combat — auto-pass should emit DeclareAttackersReq
-            val snap = messageSnapshot()
-            passPriority()
-
-            // Find DeclareAttackersReq in messages
-            val msgs = messagesSince(snap)
-            val daReq = msgs.firstOrNull { it.hasDeclareAttackersReq() }
-            daReq.shouldNotBeNull()
-
-            val req = daReq.declareAttackersReq
+            val req = after { passPriority() }.expectOneDeclareAttackersReq()
             req.attackersCount shouldBeGreaterThan 0
 
             // The Raging Goblin (haste) should be among eligible attackers
@@ -160,11 +152,9 @@ class CombatInteractionTest :
             (attackerIid in eligibleIds).shouldBeTrue()
 
             // Declare the attack
-            val snap2 = messageSnapshot()
-            declareAttackers(listOf(attackerIid))
+            val postAttack = after { declareAttackers(listOf(attackerIid)) }.messages
 
             // Should get confirmation messages
-            val postAttack = messagesSince(snap2)
             postAttack.shouldNotBeEmpty()
 
             // Validate accumulated state
@@ -176,14 +166,7 @@ class CombatInteractionTest :
             val attackerIids = setupMultipleAttackers()
 
             // Advance to combat
-            val snap = messageSnapshot()
-            passPriority()
-
-            val msgs = messagesSince(snap)
-            val daReq = msgs.firstOrNull { it.hasDeclareAttackersReq() }
-            daReq.shouldNotBeNull()
-
-            val req = daReq.declareAttackersReq
+            val req = after { passPriority() }.expectOneDeclareAttackersReq()
             val eligibleIds = req.attackersList.map { it.attackerInstanceId }.toSet()
 
             // Both Raging Goblins (haste) should be eligible
@@ -192,11 +175,7 @@ class CombatInteractionTest :
 
             // Declare 2 attackers
             val twoAttackers = ourEligible.take(2)
-            val snap2 = messageSnapshot()
-            declareAttackers(twoAttackers)
-
-            val postAttack = messagesSince(snap2)
-            postAttack.shouldNotBeEmpty()
+            after { declareAttackers(twoAttackers) }.messages.shouldNotBeEmpty()
 
             assertAccumulatorConsistent("after multiple attackers declared")
         }
@@ -221,13 +200,8 @@ class CombatInteractionTest :
                 messagesSince(snap).any { it.hasDeclareAttackersReq() }
             }.shouldBeTrue()
 
-            // Declare our attack
-            val snap2 = messageSnapshot()
-            declareAttackers(listOf(iid))
-
-            // After declaring attackers, auto-pass should advance through AI blocking
-            val postAttack = messagesSince(snap2)
-            postAttack.shouldNotBeEmpty()
+            // Declare our attack — auto-pass advances through AI blocking
+            after { declareAttackers(listOf(iid)) }.messages.shouldNotBeEmpty()
 
             // Game state should remain valid through combat
             assertAccumulatorConsistent("after combat with AI blocker")
@@ -382,14 +356,12 @@ class CombatInteractionTest :
             passPriority()
 
             // Declare attack
-            val snap = messageSnapshot()
-            val daReq = allMessages.lastOrNull { it.hasDeclareAttackersReq() }
-            if (daReq != null) declareAttackers(listOf(iid))
-
-            passThroughCombat(startTurn)
-
-            // Check message stream for annotations
-            val combatMsgs = messagesSince(snap)
+            val combatMsgs =
+                after {
+                    val daReq = allMessages.lastOrNull { it.hasDeclareAttackersReq() }
+                    if (daReq != null) declareAttackers(listOf(iid))
+                    passThroughCombat(startTurn)
+                }.messages
             val allAnnotations =
                 combatMsgs
                     .filter { it.hasGameStateMessage() }
@@ -407,18 +379,13 @@ class CombatInteractionTest :
             val attackerIid = setupSingleAttacker()
             val startTurn = turn()
 
-            val snap = messageSnapshot()
-
-            // Pass to combat
-            passPriority()
-
-            // Declare attack
-            declareAttackers(listOf(attackerIid))
-
-            passThroughCombat(startTurn)
-
-            // Validate full message chain
-            val allMsgs = messagesSince(snap)
+            val allMsgs =
+                after {
+                    // Pass to combat → declare attack → resolve combat
+                    passPriority()
+                    declareAttackers(listOf(attackerIid))
+                    passThroughCombat(startTurn)
+                }.messages
             allMsgs.size shouldBeGreaterThanOrEqualTo 3
 
             // gsId chain must be valid across all combat phases
@@ -611,13 +578,8 @@ class CombatInteractionTest :
             // Verify we got DeclareAttackersReq
             allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
-            // Declare no attackers
-            val snap = messageSnapshot()
-            declareNoAttackers()
-
-            // Should advance past combat
-            val postCombat = messagesSince(snap)
-            postCombat.shouldNotBeEmpty()
+            // Declare no attackers — should advance past combat
+            after { declareNoAttackers() }.messages.shouldNotBeEmpty()
 
             assertAccumulatorConsistent("after declining combat")
             isGameOver().shouldBeFalse()
@@ -690,11 +652,10 @@ class CombatInteractionTest :
                     it.instanceId to it.assignedDamage
                 }
 
-            val snap = messageSnapshot()
-            assignDamage(listOf(assigner.instanceId to responseAssignments))
-
-            val postAssign = messagesSince(snap)
-            val confirmation = postAssign.firstOrNull { it.hasAssignDamageConfirmation() }
+            val confirmation =
+                after { assignDamage(listOf(assigner.instanceId to responseAssignments)) }
+                    .messages
+                    .firstOrNull { it.hasAssignDamageConfirmation() }
             confirmation.shouldNotBeNull()
 
             // 1 trample overflow to AI at 1 life → game should end
@@ -769,17 +730,11 @@ class CombatInteractionTest :
                     ),
             )
 
-            val snap = messageSnapshot()
-
-            // Pass through human turn into AI combat
-            passPriority()
-
-            // Pass through combat — should auto-advance without blockers prompt
-            passThroughCombat()
-
-            // No DeclareBlockersReq should have been sent
-            val msgs = messagesSince(snap)
-            msgs.any { it.hasDeclareBlockersReq() }.shouldBeFalse()
+            after {
+                // Pass through human turn into AI combat → combat auto-advances
+                passPriority()
+                passThroughCombat()
+            }.expectNoDeclareBlockersReq()
 
             // Game should still be running (not stuck)
             isGameOver().shouldBeFalse()

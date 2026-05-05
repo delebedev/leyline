@@ -4,9 +4,13 @@ import io.kotest.assertions.fail
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
+import wotc.mtgo.gre.external.messaging.Messages.DeclareAttackersReq
+import wotc.mtgo.gre.external.messaging.Messages.DeclareBlockersReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.GroupReq
 import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
+import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsReq
 
 /**
@@ -58,6 +62,24 @@ class MessageSlice(
     fun expectOnePayCostsReq(): PayCostsReq = expectOnePrompt("PayCostsReq", { it.hasPayCostsReq() }) { it.payCostsReq }
 
     fun expectNoPayCostsReq() = expectNoPrompt("PayCostsReq") { it.hasPayCostsReq() }
+
+    fun expectOneSelectNReq(): SelectNReq = expectOnePrompt("SelectNReq", { it.hasSelectNReq() }) { it.selectNReq }
+
+    fun expectNoSelectNReq() = expectNoPrompt("SelectNReq") { it.hasSelectNReq() }
+
+    fun expectOneGroupReq(): GroupReq = expectOnePrompt("GroupReq", { it.hasGroupReq() }) { it.groupReq }
+
+    fun expectNoGroupReq() = expectNoPrompt("GroupReq") { it.hasGroupReq() }
+
+    fun expectOneDeclareAttackersReq(): DeclareAttackersReq =
+        expectOnePrompt("DeclareAttackersReq", { it.hasDeclareAttackersReq() }) { it.declareAttackersReq }
+
+    fun expectNoDeclareAttackersReq() = expectNoPrompt("DeclareAttackersReq") { it.hasDeclareAttackersReq() }
+
+    fun expectOneDeclareBlockersReq(): DeclareBlockersReq =
+        expectOnePrompt("DeclareBlockersReq", { it.hasDeclareBlockersReq() }) { it.declareBlockersReq }
+
+    fun expectNoDeclareBlockersReq() = expectNoPrompt("DeclareBlockersReq") { it.hasDeclareBlockersReq() }
 
     private fun <T> expectOnePrompt(
         name: String,

@@ -1,14 +1,12 @@
 package leyline.session.combat
 
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.IntegrationTag
-import leyline.testkit.MatchFlowHarness
 import leyline.testkit.ScriptedAction
+import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
@@ -16,7 +14,8 @@ import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Verifies that attacking creatures show tapped state on the wire after SubmitAttackers.
+ * Verifies that attacking creatures appear with tapped state in the post-submit
+ * diff GSM.
  *
  * Client expects BOTH:
  * 1. `isTapped=true` + `attackState=Attacking` on the creature's GameObjectInfo in the diff
@@ -25,23 +24,12 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Regression test for leyline-o2q: human-seat attackers were missing tap + attack state.
  */
 class AttackerTapStateTest :
-    FunSpec({
-
-        tags(IntegrationTag)
-
-        var harness: MatchFlowHarness? = null
-
-        afterEach {
-            harness?.shutdown()
-            harness = null
-        }
+    SessionTest({
 
         test("attacker creature is tapped with attackState in post-submit GSM diff") {
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
-            harness = h
-            h.connectAndKeep()
+            startGame(deckList = COMBAT_DECK, validating = false)
 
-            h.installScriptedAi(
+            installScriptedAi(
                 listOf(
                     ScriptedAction.PlayLand("Mountain"),
                     ScriptedAction.DeclareNoAttackers,
@@ -50,25 +38,23 @@ class AttackerTapStateTest :
             )
 
             // Turn 1: play Mountain, cast Raging Goblin (haste)
-            h.playLand("Mountain").shouldBeTrue()
-            h.resolveSpell("Raging Goblin").shouldBeTrue()
+            playLand("Mountain").shouldBeTrue()
+            harness.resolveSpell("Raging Goblin").shouldBeTrue()
 
-            h.turn() shouldBe 1
-            h.isAiTurn().shouldBeFalse()
+            turn() shouldBe 1
+            isAiTurn().shouldBeFalse()
 
-            val creatures = h.humanBattlefieldCreatures()
+            val creatures = humanBattlefieldCreatures()
             creatures.shouldNotBeEmpty()
             val attackerIid = creatures.first().first
 
             // Advance to combat — triggers DeclareAttackersReq
-            h.passPriority()
-            h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
+            passPriority()
+            allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
-            // Toggle creature ON, then submit — captures the post-submit messages
-            h.toggleAttackers(listOf(attackerIid))
-            val snap = h.messageSnapshot()
-            h.submitAttackers()
-            val postSubmit = h.messagesSince(snap)
+            // Toggle creature ON, then submit — collect the post-submit messages
+            harness.toggleAttackers(listOf(attackerIid))
+            val postSubmit = after { harness.submitAttackers() }.messages
 
             postSubmit.gameStateMessages().shouldNotBeEmpty()
 
@@ -83,11 +69,9 @@ class AttackerTapStateTest :
         }
 
         test("TappedUntappedPermanent annotation emitted for attacker") {
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
-            harness = h
-            h.connectAndKeep()
+            startGame(deckList = COMBAT_DECK, validating = false)
 
-            h.installScriptedAi(
+            installScriptedAi(
                 listOf(
                     ScriptedAction.PlayLand("Mountain"),
                     ScriptedAction.DeclareNoAttackers,
@@ -96,18 +80,16 @@ class AttackerTapStateTest :
             )
 
             // Turn 1: play Mountain, cast Raging Goblin (haste)
-            h.playLand("Mountain").shouldBeTrue()
-            h.resolveSpell("Raging Goblin").shouldBeTrue()
+            playLand("Mountain").shouldBeTrue()
+            harness.resolveSpell("Raging Goblin").shouldBeTrue()
 
-            val creatures = h.humanBattlefieldCreatures()
+            val creatures = humanBattlefieldCreatures()
             creatures.shouldNotBeEmpty()
             val attackerIid = creatures.first().first
 
             // Advance to combat, declare attack
-            h.passPriority()
-            val snap = h.messageSnapshot()
-            h.declareAttackers(listOf(attackerIid))
-            val postAttack = h.messagesSince(snap)
+            passPriority()
+            val postAttack = after { declareAttackers(listOf(attackerIid)) }.messages
 
             // Find TappedUntappedPermanent for our attacker
             val tapAnnotation =
