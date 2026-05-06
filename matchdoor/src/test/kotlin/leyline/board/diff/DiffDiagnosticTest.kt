@@ -72,7 +72,14 @@ class DiffDiagnosticTest :
         }
 
         test("cast creature -> pass -> resolve tracks zone placement correctly") {
-            val (b, game, counter) = base.startGameAtMain1()
+            val (b, game, counter) =
+                base.startGameAtMain1(
+                    deckList =
+                        """
+                        30 Forest
+                        30 Llanowar Elves
+                        """.trimIndent(),
+                )
             val acc = ClientAccumulator()
             acc.seedFull(base.handshakeFull(game, b, counter.currentGsId()))
 

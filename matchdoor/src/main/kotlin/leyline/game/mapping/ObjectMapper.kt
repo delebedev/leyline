@@ -204,6 +204,27 @@ object ObjectMapper {
             .build()
     }
 
+    fun buildDisturbBackObject(
+        cardSnap: CardSnapshot,
+        instanceId: Int,
+        parentInstanceId: Int,
+        zoneId: Int,
+        ownerSeatId: Int,
+        cardProto: CardProtoBuilder,
+        visibility: Visibility,
+    ): GameObjectInfo =
+        cardProto
+            .buildObjectInfo(cardSnap.othersideGrpId)
+            .setInstanceId(instanceId)
+            .setType(GameObjectType.DisturbBack)
+            .setZoneId(zoneId)
+            .setVisibility(visibility)
+            .setOwnerSeatId(ownerSeatId)
+            .setControllerSeatId(cardSnap.controller.value)
+            .setParentId(parentInstanceId)
+            .setOthersideGrpId(cardSnap.grpId)
+            .build()
+
     /**
      * Apply live game state from [cardSnap] onto a [GameObjectInfo.Builder].
      *

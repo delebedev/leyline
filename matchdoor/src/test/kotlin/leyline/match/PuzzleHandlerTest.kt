@@ -95,6 +95,10 @@ class PuzzleHandlerTest :
                 gre.map { it.type } shouldContain GREMessageType.ConnectResp_695e
                 gre.map { it.type } shouldContain GREMessageType.GameStateMessage_695e
                 gre.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
+                gre
+                    .first { it.hasGameStateMessage() }
+                    .gameStateMessage.actionsList
+                    .shouldNotBeEmpty()
                 sink.messages.shouldNotBeEmpty()
                 session.gameBridge shouldBeSameInstanceAs bridge
                 channel.close()

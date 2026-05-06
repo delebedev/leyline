@@ -46,22 +46,15 @@ class PerformActionRecoveryTest :
 
             session.onPerformAction(performAction { actionType = wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass })
 
-            // postAction emits one content GSM + one AAR + one trailing echo
-            // GSM (the post-content empty-diff frame). autoPassAndAdvance
+            // postAction resync emits one content GSM + one AAR. autoPassAndAdvance
             // would iterate phases, emitting multiple GSM/AAR pairs.
             val gsms = sink.messages.filter { it.hasGameStateMessage() }
             val aarCount = sink.messages.count { it.hasActionsAvailableReq() }
             val content = gsms[0].gameStateMessage
-            val echo = gsms[1].gameStateMessage
             assertSoftly {
-                gsms.size shouldBe 2
+                gsms.size shouldBe 1
                 aarCount shouldBe 1
-                // Trailing echo invariant: matching updateType, no content fields.
-                echo.update shouldBe content.update
-                echo.annotationsCount shouldBe 0
-                echo.persistentAnnotationsCount shouldBe 0
-                echo.zonesCount shouldBe 0
-                echo.gameObjectsCount shouldBe 0
+                content.pendingMessageCount shouldBe 1
             }
         }
     })

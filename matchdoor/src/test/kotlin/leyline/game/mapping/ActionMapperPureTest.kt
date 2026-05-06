@@ -280,6 +280,37 @@ class ActionMapperPureTest :
             }
         }
 
+        test("stripActionForGsm preserves alt-cost cast identity") {
+            val s =
+                stripped(ActionType.Cast) {
+                    instanceId = 100
+                    grpId = 75570
+                    facetId = 100
+                    abilityGrpId = 12345
+                    sourceId = 100
+                    alternativeGrpId = 12345
+                    alternativeSourceZcid = 100
+                    addManaCost(
+                        ManaRequirement
+                            .newBuilder()
+                            .addColor(ManaColor.Blue_afc9)
+                            .setCount(1)
+                            .setAbilityGrpId(12345),
+                    )
+                }
+
+            assertSoftly {
+                s.instanceId shouldBe 100
+                s.abilityGrpId shouldBe 12345
+                s.sourceId shouldBe 100
+                s.alternativeGrpId shouldBe 12345
+                s.alternativeSourceZcid shouldBe 100
+                s.manaCostList.single().abilityGrpId shouldBe 12345
+                s.grpId shouldBe 0
+                s.facetId shouldBe 0
+            }
+        }
+
         test("stripActionForGsm preserves manaCost on CastAdventure") {
             val s =
                 stripped(ActionType.CastAdventure) {

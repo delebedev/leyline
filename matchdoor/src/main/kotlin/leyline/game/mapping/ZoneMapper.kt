@@ -5,6 +5,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.data.CardData
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.EffectTracker
 import leyline.game.state.GameBridge
@@ -62,8 +63,7 @@ object ZoneMapper {
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             handBuilder.addObjectInstanceIds(instanceId)
             if (canSeeHand) {
-                buildPlayerCard(snap, fid, instanceId, handZoneId, seatId, bridge, cardVisibility, "hand")
-                    ?.let { gameObjects.add(it) }
+                addPlayerCardObjects(snap, fid, instanceId, handZoneId, seatId, bridge, cardVisibility, "hand", gameObjects)
             }
         }
         zones.add(handBuilder.build())
@@ -80,8 +80,18 @@ object ZoneMapper {
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             libBuilder.addObjectInstanceIds(instanceId)
             if (revealLib) {
-                buildPlayerCard(snap, fid, instanceId, libZoneId, seatId, bridge, Visibility.Private, "library")
-                    ?.let { gameObjects.add(it.toBuilder().addViewers(seatId.value).build()) }
+                addPlayerCardObjects(
+                    snap,
+                    fid,
+                    instanceId,
+                    libZoneId,
+                    seatId,
+                    bridge,
+                    Visibility.Private,
+                    "library",
+                    gameObjects,
+                    addViewer = seatId.value,
+                )
             }
         }
         zones.add(libBuilder.build())
@@ -97,8 +107,7 @@ object ZoneMapper {
             for (fid in snap.zones[gyZoneId]?.contents ?: emptyList()) {
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
                 gyBuilder.addObjectInstanceIds(instanceId)
-                buildPlayerCard(snap, fid, instanceId, gyZoneId, seatId, bridge, Visibility.Public, "graveyard")
-                    ?.let { gameObjects.add(it) }
+                addPlayerCardObjects(snap, fid, instanceId, gyZoneId, seatId, bridge, Visibility.Public, "graveyard", gameObjects)
             }
             zones.add(gyBuilder.build())
         }
@@ -133,6 +142,55 @@ object ZoneMapper {
             bridge.cardProto,
             visibility,
             parentLinkage = snap.boundCards[fid]?.parentLinkage,
+        )
+    }
+
+    @Suppress("detekt:LongParameterList")
+    private fun addPlayerCardObjects(
+        snap: GsmSnapshot,
+        fid: ForgeCardId,
+        instanceId: Int,
+        zoneId: Int,
+        seatId: SeatId,
+        bridge: GameBridge,
+        visibility: Visibility,
+        zoneName: String,
+        gameObjects: MutableList<GameObjectInfo>,
+        addViewer: Int? = null,
+    ) {
+        val card =
+            buildPlayerCard(snap, fid, instanceId, zoneId, seatId, bridge, visibility, zoneName)
+                ?: return
+        gameObjects.add(addViewer?.let { card.toBuilder().addViewers(it).build() } ?: card)
+        addDisturbBackObject(snap, fid, instanceId, zoneId, seatId, bridge, visibility, gameObjects)
+    }
+
+    @Suppress("detekt:LongParameterList")
+    private fun addDisturbBackObject(
+        snap: GsmSnapshot,
+        fid: ForgeCardId,
+        sourceInstanceId: Int,
+        zoneId: Int,
+        seatId: SeatId,
+        bridge: GameBridge,
+        visibility: Visibility,
+        gameObjects: MutableList<GameObjectInfo>,
+    ) {
+        val bound = snap.boundCards[fid] ?: return
+        if (bound.altCost(KeywordAbilityIds.DISTURB) == null) return
+        val cardSnap = snap.objects[fid] ?: return
+        if (cardSnap.othersideGrpId == 0) return
+        val backInstanceId = bridge.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(fid)).value
+        gameObjects.add(
+            ObjectMapper.buildDisturbBackObject(
+                cardSnap,
+                backInstanceId,
+                sourceInstanceId,
+                zoneId,
+                seatId.value,
+                bridge.cardProto,
+                visibility,
+            ),
         )
     }
 
