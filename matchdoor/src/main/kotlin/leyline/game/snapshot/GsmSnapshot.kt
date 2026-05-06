@@ -38,7 +38,10 @@ class GsmSnapshot internal constructor(
     /** Active player's current-turn spell count — `Player.getSpellsCastThisTurn()`
      *  on `phase.activePlayer`. Resets at turn boundary; increments per cast.
      *  Surfaced as `ActivePlayerSpellCount` on the persistent Day/Night
-     *  `Designation` annotation. */
+     *  `Designation` annotation. The `0` default is paired with `dayTime=null`
+     *  in normal flow — pre-game / between-turn-boundary edges where
+     *  `playerTurn` is unset still emit no Day/Night annotation, so the 0
+     *  fallback is a no-op for consumers. */
     val activePlayerSpellsCastThisTurn: Int = 0,
 ) {
     /**

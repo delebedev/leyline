@@ -809,18 +809,28 @@ object AnnotationBuilder {
 
     /** Persistent `Designation` for game-scope Day/Night state.
      *  Carries the `ActivePlayerSpellCount` running tally — re-emitted every GSM
-     *  once the state is established. `affectedIds=[0]`, no `affectorId`. */
+     *  once the state is established. `affectedIds=[0]`, no `affectorId`.
+     *  Detail-key order matches the rest of the Designation family — auxiliary
+     *  rich key (APSC) first, `DesignationType` last (mirrors how
+     *  [preparedDesignation] orders `PreparedCopyZcid` then `DesignationType`). */
     fun dayNightDesignation(
         designationType: Int,
         activePlayerSpellCount: Int,
-    ): AnnotationInfo =
-        AnnotationInfo
+    ): AnnotationInfo {
+        require(
+            designationType == AnnotationConstants.DESIGNATION_TYPE_DAY ||
+                designationType == AnnotationConstants.DESIGNATION_TYPE_NIGHT,
+        ) {
+            "dayNightDesignation requires DesignationType=10 (Day) or 11 (Night), got $designationType"
+        }
+        return AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.Designation)
             .addAffectedIds(0)
-            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
             .addDetails(int32Detail(DetailKeys.ACTIVE_PLAYER_SPELL_COUNT, activePlayerSpellCount))
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
             .build()
+    }
 
     /** Persistent `Designation` for the `Prepared` card-state designation.
      *  Carries the int32 `PreparedCopyZcid` detail pointing at the prepare-spell exile copy.

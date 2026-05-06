@@ -58,6 +58,8 @@ class DayNightTransientsTest :
             out.forEach { ann ->
                 ann.affectedIdsList shouldContainExactly listOf(0)
                 ann.affectorId shouldBe 0
+                // Lite shape — no APSC on transient.
+                ann.detailsList shouldHaveSize 1
             }
         }
 
@@ -68,6 +70,7 @@ class DayNightTransientsTest :
             out shouldHaveSize 2
             designationType(out[0]) shouldBe AnnotationConstants.DESIGNATION_TYPE_NIGHT
             designationType(out[1]) shouldBe AnnotationConstants.DESIGNATION_TYPE_DAY
+            out.forEach { it.detailsList shouldHaveSize 1 }
         }
 
         test("no transition: empty out (APSC ticks via persistent re-emit, not transients)") {

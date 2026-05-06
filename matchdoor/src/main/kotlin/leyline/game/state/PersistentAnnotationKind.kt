@@ -278,6 +278,7 @@ data object DayNightDesignationKind : PersistentAnnotationKind {
 
     override fun matches(ann: AnnotationInfo): Boolean =
         AnnotationType.Designation in ann.typeList &&
+            firstAffectedId(ann) == 0 &&
             designationTypeOf(ann).let {
                 it == AnnotationConstants.DESIGNATION_TYPE_DAY ||
                     it == AnnotationConstants.DESIGNATION_TYPE_NIGHT
