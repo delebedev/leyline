@@ -1,5 +1,6 @@
 package leyline.game.mapping
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -29,37 +30,45 @@ class DayNightTransientsTest :
             val out = mutableListOf<AnnotationInfo>()
             insertDayNightDesignationTransients(out, prevDayTime = null, curDayTime = false)
 
-            out shouldHaveSize 1
-            out[0].typeList shouldContainExactly listOf(AnnotationType.GainDesignation)
-            out[0].affectedIdsList shouldContainExactly listOf(0)
-            out[0].affectorId shouldBe 0
-            designationType(out[0]) shouldBe AnnotationConstants.DESIGNATION_TYPE_DAY
-            out[0].detailsList shouldHaveSize 1
+            assertSoftly {
+                out shouldHaveSize 1
+                out[0].typeList shouldContainExactly listOf(AnnotationType.GainDesignation)
+                out[0].affectedIdsList shouldContainExactly listOf(0)
+                out[0].affectorId shouldBe 0
+                designationType(out[0]) shouldBe AnnotationConstants.DESIGNATION_TYPE_DAY
+                out[0].detailsList shouldHaveSize 1
+            }
         }
 
         test("neither -> Night: single GainDesignation lite, no Lose") {
             val out = mutableListOf<AnnotationInfo>()
             insertDayNightDesignationTransients(out, prevDayTime = null, curDayTime = true)
 
-            out shouldHaveSize 1
-            out[0].typeList shouldContainExactly listOf(AnnotationType.GainDesignation)
-            designationType(out[0]) shouldBe AnnotationConstants.DESIGNATION_TYPE_NIGHT
+            assertSoftly {
+                out shouldHaveSize 1
+                out[0].typeList shouldContainExactly listOf(AnnotationType.GainDesignation)
+                designationType(out[0]) shouldBe AnnotationConstants.DESIGNATION_TYPE_NIGHT
+            }
         }
 
         test("Day -> Night: Lose{Day} paired with Gain{Night}") {
             val out = mutableListOf<AnnotationInfo>()
             insertDayNightDesignationTransients(out, prevDayTime = false, curDayTime = true)
 
-            out shouldHaveSize 2
-            out[0].typeList shouldContainExactly listOf(AnnotationType.LoseDesignation)
-            designationType(out[0]) shouldBe AnnotationConstants.DESIGNATION_TYPE_DAY
-            out[1].typeList shouldContainExactly listOf(AnnotationType.GainDesignation)
-            designationType(out[1]) shouldBe AnnotationConstants.DESIGNATION_TYPE_NIGHT
-            out.forEach { ann ->
-                ann.affectedIdsList shouldContainExactly listOf(0)
-                ann.affectorId shouldBe 0
-                // Lite shape — no APSC on transient.
-                ann.detailsList shouldHaveSize 1
+            assertSoftly {
+                out shouldHaveSize 2
+                out[0].typeList shouldContainExactly listOf(AnnotationType.LoseDesignation)
+                designationType(out[0]) shouldBe AnnotationConstants.DESIGNATION_TYPE_DAY
+                out[1].typeList shouldContainExactly listOf(AnnotationType.GainDesignation)
+                designationType(out[1]) shouldBe AnnotationConstants.DESIGNATION_TYPE_NIGHT
+                out.forEach { ann ->
+                    assertSoftly {
+                        ann.affectedIdsList shouldContainExactly listOf(0)
+                        ann.affectorId shouldBe 0
+                        // Lite shape — no APSC on transient.
+                        ann.detailsList shouldHaveSize 1
+                    }
+                }
             }
         }
 
@@ -67,10 +76,12 @@ class DayNightTransientsTest :
             val out = mutableListOf<AnnotationInfo>()
             insertDayNightDesignationTransients(out, prevDayTime = true, curDayTime = false)
 
-            out shouldHaveSize 2
-            designationType(out[0]) shouldBe AnnotationConstants.DESIGNATION_TYPE_NIGHT
-            designationType(out[1]) shouldBe AnnotationConstants.DESIGNATION_TYPE_DAY
-            out.forEach { it.detailsList shouldHaveSize 1 }
+            assertSoftly {
+                out shouldHaveSize 2
+                designationType(out[0]) shouldBe AnnotationConstants.DESIGNATION_TYPE_NIGHT
+                designationType(out[1]) shouldBe AnnotationConstants.DESIGNATION_TYPE_DAY
+                out.forEach { it.detailsList shouldHaveSize 1 }
+            }
         }
 
         test("no transition: empty out (APSC ticks via persistent re-emit, not transients)") {

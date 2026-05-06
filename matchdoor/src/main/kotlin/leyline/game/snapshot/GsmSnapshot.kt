@@ -18,6 +18,7 @@ import org.jetbrains.annotations.VisibleForTesting
  * a derived view exposing each [BoundCard]'s underlying [CardSnapshot] by
  * ForgeCardId.
  */
+@Suppress("LongParameterList")
 class GsmSnapshot internal constructor(
     val matchId: String,
     val gameStateId: Int,
