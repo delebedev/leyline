@@ -49,6 +49,7 @@ enum class AltCostKind(
     FORETELL(KeywordAbilityIds.FORETELL),
     DISTURB(KeywordAbilityIds.DISTURB),
     ESCAPE(KeywordAbilityIds.ESCAPE),
+    FLASHBACK(KeywordAbilityIds.FLASHBACK),
     WARP(KeywordAbilityIds.WARP),
     SNEAK(KeywordAbilityIds.SNEAK),
 }
@@ -187,6 +188,12 @@ object CastRails {
             FromGraveyard(
                 kind = AltCostKind.ESCAPE,
                 saPredicate = { it.alternativeCost == AlternativeCost.Escape },
+                echoAlternativeOnMana = true,
+                omitGrpIdAndFacetId = true,
+            ),
+            FromGraveyard(
+                kind = AltCostKind.FLASHBACK,
+                saPredicate = { it.alternativeCost == AlternativeCost.Flashback },
                 echoAlternativeOnMana = true,
                 omitGrpIdAndFacetId = true,
             ),

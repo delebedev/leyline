@@ -600,7 +600,7 @@ object ActionMapper {
 
     /**
      * Fallback for zone-cast SAs that don't match any [CastRails] rail —
-     * unrecognized alt-costs (Madness, Flashback) and no-alt zone casts
+     * unrecognized alt-costs (Madness) and no-alt zone casts
      * (commander, etc.). Emit printed mana cost from [CardData] when there's
      * no alt cost; otherwise emit effective SA cost with optional abilityGrpId
      * lookup. Best-effort shape until a CastRails row lands for the keyword.

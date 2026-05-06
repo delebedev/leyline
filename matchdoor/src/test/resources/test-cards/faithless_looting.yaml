@@ -1,0 +1,13 @@
+name: "Faithless Looting"
+grpId: 86653
+titleId: 39661
+abilities:
+  - id: 30064
+    textId: 26917
+    category: 4
+  - id: 5301
+    textId: 3105
+    category: 8
+    baseId: 35
+    mana: "o2oR"
+expansionCode: "SIS"
