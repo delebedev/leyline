@@ -30,6 +30,16 @@ class GsmSnapshot internal constructor(
     val abilityWordEntries: List<AbilityWordScanner.AbilityWordEntry>,
     val persistentAnnotationState: PersistentAnnotationState,
     val capturedAt: CaptureMarker,
+    /** Game-scope Day/Night state, mirroring `forge.game.Game.getDayTime()`.
+     *  `null` = neither (pre-first-transition), `false` = Day, `true` = Night.
+     *  Read directly each snapshot — Forge owns the rules-side flip; the bridge
+     *  observes via state-tail diff on this field. */
+    val dayTime: Boolean? = null,
+    /** Active player's current-turn spell count — `Player.getSpellsCastThisTurn()`
+     *  on `phase.activePlayer`. Resets at turn boundary; increments per cast.
+     *  Surfaced as `ActivePlayerSpellCount` on the persistent Day/Night
+     *  `Designation` annotation. */
+    val activePlayerSpellsCastThisTurn: Int = 0,
 ) {
     /**
      * Derived view exposing each [BoundCard]'s underlying [CardSnapshot] by
@@ -53,7 +63,9 @@ class GsmSnapshot internal constructor(
             phase == other.phase &&
             combat == other.combat &&
             abilityWordEntries == other.abilityWordEntries &&
-            persistentAnnotationState == other.persistentAnnotationState
+            persistentAnnotationState == other.persistentAnnotationState &&
+            dayTime == other.dayTime &&
+            activePlayerSpellsCastThisTurn == other.activePlayerSpellsCastThisTurn
     }
 
     override fun hashCode(): Int {
@@ -67,6 +79,8 @@ class GsmSnapshot internal constructor(
         h = 31 * h + (combat?.hashCode() ?: 0)
         h = 31 * h + abilityWordEntries.hashCode()
         h = 31 * h + persistentAnnotationState.hashCode()
+        h = 31 * h + (dayTime?.hashCode() ?: 0)
+        h = 31 * h + activePlayerSpellsCastThisTurn
         return h
     }
 
@@ -101,6 +115,8 @@ class GsmSnapshot internal constructor(
             abilityWordEntries: List<AbilityWordScanner.AbilityWordEntry> = emptyList(),
             persistentAnnotationState: PersistentAnnotationState = PersistentAnnotationState.INITIAL,
             capturedAt: CaptureMarker = CaptureMarker.unknown(),
+            dayTime: Boolean? = null,
+            activePlayerSpellsCastThisTurn: Int = 0,
         ): GsmSnapshot {
             val resolvedBoundCards =
                 boundCards
@@ -117,6 +133,8 @@ class GsmSnapshot internal constructor(
                 abilityWordEntries,
                 persistentAnnotationState,
                 capturedAt,
+                dayTime,
+                activePlayerSpellsCastThisTurn,
             )
         }
     }

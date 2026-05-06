@@ -15,6 +15,18 @@ object AnnotationConstants {
      *  annotations whose affector is the zone rather than any specific permanent. */
     val BATTLEFIELD_ZONE_AFFECTOR: InstanceId = InstanceId(28)
 
+    /** `DesignationType` enum value for the `Day` game-scope state designation.
+     *  Carried on `GainDesignation` / persistent `Designation` / `LoseDesignation`.
+     *  The persistent shape additionally carries the `ActivePlayerSpellCount`
+     *  detail key — exclusive to types 10/11. */
+    const val DESIGNATION_TYPE_DAY: Int = 10
+
+    /** `DesignationType` enum value for the `Night` game-scope state designation.
+     *  Pairs with [DESIGNATION_TYPE_DAY] — a game in either state can flip to the
+     *  other at second-part-of-untap (CR 731.2) when the previous turn's
+     *  active-player spell count meets the rules-side threshold. */
+    const val DESIGNATION_TYPE_NIGHT: Int = 11
+
     /** `DesignationType` enum value for the `Prepared` card-state designation.
      *  Carried on `GainDesignation` / persistent `Designation` / `LoseDesignation`. */
     const val DESIGNATION_TYPE_PREPARED: Int = 24

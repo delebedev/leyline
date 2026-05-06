@@ -58,6 +58,12 @@ object SnapshotCapture {
                 nextAnnotationId = bridge.annotations.currentAnnotationId(),
                 nextPersistentId = bridge.annotations.currentPersistentId(),
             )
+        // Day/Night state. `Game.getDayTime()` is null=neither, false=Day, true=Night.
+        // APSC reads from the engine-current active player, not the snapshot's
+        // priority view — `phase.activePlayer` may differ during resolution but
+        // the spell-count tally is owned by the player whose turn it is.
+        val dayTime: Boolean? = game.dayTime
+        val activePlayerSpellsCastThisTurn: Int = game.phaseHandler.playerTurn?.spellsCastThisTurn ?: 0
         return GsmSnapshot.forTest(
             matchId = matchId,
             gameStateId = gameStateId,
@@ -73,6 +79,8 @@ object SnapshotCapture {
                     gsIdBeforeCapture = -1,
                     wallClockMs = System.currentTimeMillis(),
                 ),
+            dayTime = dayTime,
+            activePlayerSpellsCastThisTurn = activePlayerSpellsCastThisTurn,
         )
     }
 

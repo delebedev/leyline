@@ -32,6 +32,7 @@ object DetailKeys {
     const val ABILITY_GRP_ID_UPPER = "AbilityGrpId"
     const val USES_REMAINING = "UsesRemaining"
     const val DESIGNATION_TYPE = "DesignationType"
+    const val ACTIVE_PLAYER_SPELL_COUNT = "ActivePlayerSpellCount"
     const val PREPARED_COPY_ZCID = "PreparedCopyZcid"
     const val SOURCE_ABILITY_GRPID = "sourceAbilityGRPID"
     const val COLORS = "colors"
