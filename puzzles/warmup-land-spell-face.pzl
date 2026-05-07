@@ -1,0 +1,16 @@
+[metadata]
+Name:Warmup - Land + Face Spell
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Play Mountain, cast Lightning Bolt at the opponent, and verify life changes without a visible stack ghost.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Mountain;Lightning Bolt
+humanlibrary=Mountain
+ailibrary=Mountain

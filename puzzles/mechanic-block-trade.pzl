@@ -1,0 +1,17 @@
+[metadata]
+Name:Combat Smoke - Block Trade
+Goal:Block the attack so both creatures die.
+Turns:2
+Difficulty:Easy
+Description:AI attacks with Juggernaut; block with Centaur Courser. Both creatures should leave the battlefield.
+
+[state]
+ActivePlayer=AI
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Forest;Forest;Forest;Centaur Courser
+humanlibrary=Forest;Forest
+aibattlefield=Mountain;Mountain;Mountain;Juggernaut
+ailibrary=Mountain;Mountain

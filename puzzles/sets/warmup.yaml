@@ -1,0 +1,15 @@
+name: warmup
+description: Minimal arena-driven smoke loop for puzzle hot-reload, basic actions, and visual checks.
+scenarios:
+  - id: land-permanent
+    puzzle: warmup-land-permanent
+    run: play land, cast Savannah Lions, resolve
+    expect: Plains and Savannah Lions visible on our battlefield
+  - id: land-spell-face
+    puzzle: warmup-land-spell-face
+    run: play land, cast Lightning Bolt at opponent, resolve
+    expect: opponent life changes and no visible stack ghost remains
+  - id: attack-main2
+    puzzle: warmup-attack-main2
+    run: attack opponent, advance to second main
+    expect: opponent life changes and phase reaches Main2
