@@ -21,6 +21,7 @@ import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
 import leyline.game.annotations.ZoneTransferDetector
 import leyline.game.bundle.GsmFrame
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.SnapDeltaSynthesizer
@@ -124,6 +125,13 @@ import forge.game.zone.ZoneType as ForgeZoneType
 @Suppress("LargeClass") // pipeline orchestrator; stages already delegated to mapper/* and helper objects
 object StateMapper {
     private val log = LoggerFactory.getLogger(StateMapper::class.java)
+    private val disturbBackPlayerZoneIds =
+        setOf(
+            ZoneIds.P1_HAND,
+            ZoneIds.P2_HAND,
+            ZoneIds.P1_GRAVEYARD,
+            ZoneIds.P2_GRAVEYARD,
+        )
 
     /** Result of [buildFromSnapshot] / [buildDiff] — GSM plus metadata for message framing. */
     data class BuildResult(
@@ -788,13 +796,22 @@ object StateMapper {
                 .filter { fid -> prevZoneOf[fid] != curZoneOf[fid] }
                 .toSet()
 
+        val prevDisturbBackSourceFids = projectedDisturbBackSourceFids(prev)
+        val curDisturbBackSourceFids = projectedDisturbBackSourceFids(cur)
         val changedFids = cardSnapshotChangedFids + zoneMovedFids
-        val changedInstanceIds = changedFids.map { bridge.getOrAllocInstanceId(it).value }.toSet()
+        val changedDisturbBackIds =
+            disturbBackInstanceIds(
+                changedFids.filter { it in prevDisturbBackSourceFids || it in curDisturbBackSourceFids },
+                bridge,
+            )
+        val changedInstanceIds =
+            changedFids.map { bridge.getOrAllocInstanceId(it).value }.toSet() + changedDisturbBackIds
         // instanceIds tracked in the prev snapshot (to detect truly new objects like RevealedCard proxies)
         val prevInstanceIds =
             prev.objects.keys
                 .map { bridge.getOrAllocInstanceId(it).value }
-                .toSet()
+                .toSet() +
+                disturbBackInstanceIds(prevDisturbBackSourceFids, bridge)
         val changedObjects =
             current.gameObjectsList.filter { obj ->
                 // Always include new objects absent from prev (e.g. RevealedCard proxies synthesized mid-diff).
@@ -830,9 +847,9 @@ object StateMapper {
         // in cur zone listings (limbo-retired IDs that still appear in zone contents).
         val currentObjIds = current.gameObjectsList.map { it.instanceId }.toSet()
         val currentZoneTrackedIds = current.zonesList.flatMap { it.objectInstanceIdsList }.toSet()
+        val deletedDisturbBackIds = disturbBackInstanceIds(prevDisturbBackSourceFids - curDisturbBackSourceFids, bridge)
         val deletedIds =
-            (prev.objects.keys - cur.objects.keys)
-                .map { bridge.getOrAllocInstanceId(it).value }
+            ((prev.objects.keys - cur.objects.keys).map { bridge.getOrAllocInstanceId(it).value } + deletedDisturbBackIds)
                 .filter { it !in currentObjIds && it !in currentZoneTrackedIds }
 
         val builder =
@@ -981,6 +998,34 @@ object StateMapper {
         }
         return builder.build()
     }
+
+    private fun projectedDisturbBackSourceFids(snap: GsmSnapshot): Set<ForgeCardId> {
+        val playerZoneFids =
+            disturbBackPlayerZoneIds
+                .asSequence()
+                .flatMap { zoneId ->
+                    snap.zones[zoneId]
+                        ?.contents
+                        .orEmpty()
+                        .asSequence()
+                }
+
+        return playerZoneFids
+            .filter { fid ->
+                val cardSnap = snap.objects[fid] ?: return@filter false
+                cardSnap.othersideGrpId != 0 &&
+                    snap.boundCards[fid]?.altCost(KeywordAbilityIds.DISTURB) != null
+            }.toSet()
+    }
+
+    private fun disturbBackInstanceIds(
+        sourceFids: Iterable<ForgeCardId>,
+        bridge: GameBridge,
+    ): Set<Int> =
+        sourceFids
+            .mapTo(mutableSetOf()) { fid ->
+                bridge.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(fid)).value
+            }
 
     /** Result of stages 4-5 + persistent annotation computation. */
     private data class RemainingAnnotationsResult(

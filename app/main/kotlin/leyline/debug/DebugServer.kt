@@ -8,6 +8,9 @@ import kotlinx.serialization.json.Json
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.GsmBuilder
+import leyline.game.bundle.GsmFrame
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.StateMapper
@@ -407,6 +410,10 @@ class DebugServer(
                     viewingSeatId = session.seatId.value,
                 ).gsm
 
+        val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
+        val fullGsmWithActions =
+            GsmBuilder.embedActions(fullGsm, actions, GsmFrame.from(snap), recipientSeatId = session.seatId.value)
+
         val greGsm =
             GREToClientMessage
                 .newBuilder()
@@ -414,10 +421,9 @@ class DebugServer(
                 .setMsgId(msgId)
                 .setGameStateId(gsId)
                 .addSystemSeatIds(session.seatId.value)
-                .setGameStateMessage(fullGsm)
+                .setGameStateMessage(fullGsmWithActions)
                 .build()
 
-        val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
         val greActions =
             GREToClientMessage
                 .newBuilder()
@@ -535,11 +541,15 @@ class DebugServer(
                     viewingSeatId = newSession.seatId.value,
                 ).gsm
 
+        val actions = ActionMapper.buildFromSnapshot(newSession.seatId.value, snap, bridge)
+        val fullGsmWithActions =
+            GsmBuilder.embedActions(fullGsm, actions, GsmFrame.from(snap), recipientSeatId = newSession.seatId.value)
+
         val gsmWithDeletes =
             if (deletedIds.isNotEmpty()) {
-                fullGsm.toBuilder().addAllDiffDeletedInstanceIds(deletedIds).build()
+                fullGsmWithActions.toBuilder().addAllDiffDeletedInstanceIds(deletedIds).build()
             } else {
-                fullGsm
+                fullGsmWithActions
             }
 
         val greGsm =
@@ -552,7 +562,6 @@ class DebugServer(
                 .setGameStateMessage(gsmWithDeletes)
                 .build()
 
-        val actions = ActionMapper.buildFromSnapshot(newSession.seatId.value, snap, bridge)
         val greActions =
             GREToClientMessage
                 .newBuilder()
@@ -565,14 +574,21 @@ class DebugServer(
 
         newSession.sendBundledGRE(listOf(greGsm, greActions))
         bridge.bundleCursor.lastSent = snap
+        val advanced = BundleBuilder.shouldAutoPass(actions)
+        if (advanced) {
+            newSession.triggerAutoPass()
+        }
+        val advancedSuffix = if (advanced) " + advanced" else ""
 
         return if (fileParam != null) {
-            "Puzzle '$fileParam' set + injected gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
-                .also { log.info(it) }
+            "Puzzle '$fileParam' set + injected gsId=$gsId " +
+                "objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}$advancedSuffix"
+                    .also { log.info(it) }
         } else {
             val meta = PuzzleSource.parseMetadata(body)
-            "Injected puzzle '${meta.name}' gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
-                .also { log.info(it) }
+            "Injected puzzle '${meta.name}' gsId=$gsId " +
+                "objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}$advancedSuffix"
+                    .also { log.info(it) }
         }
     }
 

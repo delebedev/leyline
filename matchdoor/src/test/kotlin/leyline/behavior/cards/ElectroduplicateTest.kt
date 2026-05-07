@@ -12,7 +12,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Integration test: Electroduplicate flashback from graveyard.
  *
  * Verifies:
- * 1. Cast action offered with flashback abilityGrpId
+ * 1. Cast action offered with flashback alternativeGrpId
  * 2. Flashback cast triggers SelectTargetsReq (targeting)
  * 3. After resolution, spell exiled (not in GY)
  * 4. Copy token appears on battlefield
@@ -43,19 +43,19 @@ class ElectroduplicateTest :
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """.trimIndent()
 
-            startPuzzleRaw(pzl, validating = false)
+            startPuzzleRaw(pzl)
 
-            // 1. Verify Cast action offered with abilityGrpId for flashback
+            // 1. Verify Cast action offered with alternativeGrpId for flashback
             val actions =
                 allMessages
                     .filter { it.hasActionsAvailableReq() }
                     .flatMap { it.actionsAvailableReq.actionsList }
             val flashbackAction =
                 actions.firstOrNull {
-                    it.actionType == ActionType.Cast && it.abilityGrpId > 0
+                    it.actionType == ActionType.Cast && it.alternativeGrpId > 0
                 }
             flashbackAction.shouldNotBeNull()
-            flashbackAction.abilityGrpId shouldBeGreaterThan 0
+            flashbackAction.alternativeGrpId shouldBeGreaterThan 0
 
             // Auto-pass went to combat — skip it to get to Main2
             if (phase() != "MAIN1" && phase() != "MAIN2") {

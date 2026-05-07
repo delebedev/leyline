@@ -2,6 +2,7 @@ package leyline.protocol
 
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.GsmBuilder
+import leyline.game.bundle.GsmFrame
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
@@ -444,11 +445,8 @@ object HandshakeMessages {
                 events = bridge.closeBundleFrame(seatId.value),
             )
         bridge.applyMutations(fullResult.mutations)
-        val gsm =
-            fullResult.gsm
-                .toBuilder()
-                .setPendingMessageCount(1) // ActionsAvailableReq follows
-                .build()
+        val actions = ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)
+        val gsm = GsmBuilder.embedActions(fullResult.gsm, actions, GsmFrame.from(snap), recipientSeatId = seatId.value)
 
         messages.add(
             GREToClientMessage

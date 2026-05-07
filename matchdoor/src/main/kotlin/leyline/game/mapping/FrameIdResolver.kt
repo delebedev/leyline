@@ -125,6 +125,9 @@ class FrameIdResolver(
         /** Offset added to land forge IDs for per-payment mana Ability gameObjects. */
         private const val MANA_ABILITY_ID_OFFSET = 200_000
 
+        /** Offset added to source card forge IDs for DisturbBack face objects. */
+        private const val DISTURB_BACK_ID_OFFSET = 300_000
+
         /**
          * Surrogate forge ID for a stack-resident Ability gameObject — used as
          * the key into [GameBridge.getOrAllocInstanceId] so the Ability's iid
@@ -143,6 +146,9 @@ class FrameIdResolver(
 
         /** Surrogate forge ID for a per-payment mana Ability gameObject. */
         fun manaAbilityForgeId(sourceForgeId: ForgeCardId): ForgeCardId = ForgeCardId(sourceForgeId.value + MANA_ABILITY_ID_OFFSET)
+
+        /** Surrogate forge ID for a DisturbBack face object. */
+        fun disturbBackForgeId(sourceForgeId: ForgeCardId): ForgeCardId = ForgeCardId(sourceForgeId.value + DISTURB_BACK_ID_OFFSET)
 
         /** True if [forgeId] falls in the stack-ability surrogate range. */
         fun isStackAbilityForgeId(forgeId: ForgeCardId): Boolean = forgeId.value in STACK_ABILITY_ID_OFFSET until MANA_ABILITY_ID_OFFSET

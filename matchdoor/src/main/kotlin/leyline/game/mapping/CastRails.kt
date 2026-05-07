@@ -17,8 +17,8 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *    Sneak, Plot's hand SA, Foretell's hand SA.
  *  - [FromExile] — cast offer originates from the exile zone. Plot's cast leg
  *    (universal-149) and Foretell's cast leg (per-card row).
- *  - [FromGraveyard] — cast offer originates from a graveyard zone. Disturb,
- *    Escape.
+ *  - [FromGraveyard] — cast offer originates from a graveyard zone. Flashback,
+ *    Disturb, Escape.
  *
  * `ActionMapper.addZoneCastActionsFromSnap` iterates the zone-cast buckets;
  * `ActionMapper.addHandAltCostCastActions` iterates the hand bucket;
@@ -47,9 +47,9 @@ enum class AltCostKind(
 ) {
     PLOT(KeywordAbilityIds.PLOT),
     FORETELL(KeywordAbilityIds.FORETELL),
+    FLASHBACK(KeywordAbilityIds.FLASHBACK),
     DISTURB(KeywordAbilityIds.DISTURB),
     ESCAPE(KeywordAbilityIds.ESCAPE),
-    FLASHBACK(KeywordAbilityIds.FLASHBACK),
     WARP(KeywordAbilityIds.WARP),
     SNEAK(KeywordAbilityIds.SNEAK),
 }
@@ -111,9 +111,16 @@ sealed interface ZoneCastRail : CastRail {
     val abilityGrpIdMode: AbilityGrpIdMode
     val emitManaCost: Boolean
     val echoAlternativeOnMana: Boolean
+    val emitAlternativeSourceZcid: Boolean
+    val grpIdMode: ZoneCastGrpIdMode
 
     /** When true, the action omits `grpId` and `facetId` (Plot, Foretold, Escape pattern). */
     val omitGrpIdAndFacetId: Boolean
+}
+
+enum class ZoneCastGrpIdMode {
+    Source,
+    OtherSide,
 }
 
 /**
@@ -138,6 +145,8 @@ data class FromExile(
     override val abilityGrpIdMode: AbilityGrpIdMode,
     override val emitManaCost: Boolean,
     override val echoAlternativeOnMana: Boolean,
+    override val emitAlternativeSourceZcid: Boolean = false,
+    override val grpIdMode: ZoneCastGrpIdMode = ZoneCastGrpIdMode.Source,
     override val omitGrpIdAndFacetId: Boolean = true,
 ) : ZoneCastRail
 
@@ -153,6 +162,8 @@ data class FromGraveyard(
     override val abilityGrpIdMode: AbilityGrpIdMode = AbilityGrpIdMode.EchoAlternative,
     override val emitManaCost: Boolean = true,
     override val echoAlternativeOnMana: Boolean,
+    override val emitAlternativeSourceZcid: Boolean,
+    override val grpIdMode: ZoneCastGrpIdMode = ZoneCastGrpIdMode.Source,
     override val omitGrpIdAndFacetId: Boolean,
 ) : ZoneCastRail
 
@@ -180,21 +191,26 @@ object CastRails {
     val fromGraveyard: List<FromGraveyard> =
         listOf(
             FromGraveyard(
+                kind = AltCostKind.FLASHBACK,
+                saPredicate = { it.alternativeCost == AlternativeCost.Flashback },
+                abilityGrpIdMode = AbilityGrpIdMode.None,
+                echoAlternativeOnMana = true,
+                emitAlternativeSourceZcid = true,
+                omitGrpIdAndFacetId = false,
+            ),
+            FromGraveyard(
                 kind = AltCostKind.DISTURB,
                 saPredicate = { it.alternativeCost == AlternativeCost.Disturb },
-                echoAlternativeOnMana = false,
+                echoAlternativeOnMana = true,
+                emitAlternativeSourceZcid = true,
+                grpIdMode = ZoneCastGrpIdMode.OtherSide,
                 omitGrpIdAndFacetId = false,
             ),
             FromGraveyard(
                 kind = AltCostKind.ESCAPE,
                 saPredicate = { it.alternativeCost == AlternativeCost.Escape },
                 echoAlternativeOnMana = true,
-                omitGrpIdAndFacetId = true,
-            ),
-            FromGraveyard(
-                kind = AltCostKind.FLASHBACK,
-                saPredicate = { it.alternativeCost == AlternativeCost.Flashback },
-                echoAlternativeOnMana = true,
+                emitAlternativeSourceZcid = false,
                 omitGrpIdAndFacetId = true,
             ),
         )

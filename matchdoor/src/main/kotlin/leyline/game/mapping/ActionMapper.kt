@@ -437,12 +437,24 @@ object ActionMapper {
                 if (castable.isEmpty()) continue
                 val sa = castable.first()
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
-                val grpId =
-                    snap.objects[fid]?.grpId
+                val cardSnap = snap.objects[fid]
+                val sourceGrpId =
+                    cardSnap?.grpId
                         ?: bridge.resolveGrpId(forgeCard, instanceId)
                 val bound = snap.boundCards[fid]
                 val rail = rails.firstOrNull { it.saPredicate(sa) }
                 val omit = rail?.omitGrpIdAndFacetId == true
+                val actionGrpId =
+                    when (rail?.grpIdMode) {
+                        ZoneCastGrpIdMode.OtherSide -> cardSnap?.othersideGrpId?.takeIf { it > 0 } ?: sourceGrpId
+                        else -> sourceGrpId
+                    }
+                val actionFacetId =
+                    when {
+                        rail?.grpIdMode == ZoneCastGrpIdMode.OtherSide && cardSnap?.othersideGrpId?.takeIf { it > 0 } != null ->
+                            bridge.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(fid)).value
+                        else -> instanceId
+                    }
 
                 val actionBuilder =
                     Action
@@ -451,8 +463,11 @@ object ActionMapper {
                         .setInstanceId(instanceId)
                         .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
                 if (!omit) {
-                    actionBuilder.setGrpId(grpId)
-                    actionBuilder.setFacetId(instanceId)
+                    actionBuilder.setGrpId(actionGrpId)
+                    actionBuilder.setFacetId(actionFacetId)
+                }
+                if (rail?.emitAlternativeSourceZcid == true) {
+                    actionBuilder.setAlternativeSourceZcid(instanceId)
                 }
 
                 if (rail != null) {
@@ -1520,7 +1535,7 @@ object ActionMapper {
      * Strip an Action down to the minimal format used inside GSM embedded actions.
      *
      * GSM actions carry fewer fields than ActionsAvailableReq actions:
-     * - Cast/CastAdventure: instanceId + manaCost
+     * - Cast/CastAdventure: instanceId + manaCost + cast-variant identity fields
      * - Play: instanceId
      * - ActivateMana/Activate: instanceId + abilityGrpId
      * - Pass/FloatMana: empty
@@ -1529,18 +1544,20 @@ object ActionMapper {
      */
     fun stripActionForGsm(action: Action): Action {
         val b = Action.newBuilder().setActionType(action.actionType)
-        when (action.actionType) {
-            ActionType.Cast, ActionType.CastAdventure -> {
-                b.setInstanceId(action.instanceId)
-                b.addAllManaCost(action.manaCostList)
-            }
-            ActionType.Play_add3 -> b.setInstanceId(action.instanceId)
-            ActionType.ActivateMana, ActionType.Activate_add3 -> {
-                b.setInstanceId(action.instanceId)
-                if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
-            }
-            ActionType.Pass, ActionType.FloatMana -> {} // empty
-            else -> b.setInstanceId(action.instanceId)
+        if (action.actionType == ActionType.Cast || action.actionType == ActionType.CastAdventure) {
+            b.setInstanceId(action.instanceId)
+            if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
+            if (action.sourceId != 0) b.setSourceId(action.sourceId)
+            if (action.alternativeGrpId != 0) b.setAlternativeGrpId(action.alternativeGrpId)
+            if (action.alternativeSourceZcid != 0) b.setAlternativeSourceZcid(action.alternativeSourceZcid)
+            b.addAllManaCost(action.manaCostList)
+        } else if (action.actionType == ActionType.Play_add3) {
+            b.setInstanceId(action.instanceId)
+        } else if (action.actionType == ActionType.ActivateMana || action.actionType == ActionType.Activate_add3) {
+            b.setInstanceId(action.instanceId)
+            if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
+        } else if (action.actionType != ActionType.Pass && action.actionType != ActionType.FloatMana) {
+            b.setInstanceId(action.instanceId)
         }
         return b.build()
     }

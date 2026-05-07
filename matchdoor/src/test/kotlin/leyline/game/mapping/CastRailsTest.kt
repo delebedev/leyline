@@ -40,13 +40,25 @@ class CastRailsTest :
                 abilityGrpId = 7001,
                 manaCost = listOf(ManaColor.Generic to 3),
             )
+        val flashbackRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.FLASHBACK,
+                abilityGrpId = 7101,
+                manaCost = listOf(ManaColor.Generic to 2, ManaColor.Blue_afc9 to 1),
+            )
+        val disturbRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.DISTURB,
+                abilityGrpId = 7201,
+                manaCost = listOf(ManaColor.Generic to 4, ManaColor.Blue_afc9 to 1),
+            )
         val plotRow =
             AltCostBinding(
                 keywordBaseId = KeywordAbilityIds.PLOT,
                 abilityGrpId = 6001,
                 manaCost = listOf(ManaColor.Red_afc9 to 1, ManaColor.Generic to 1),
             )
-        val altCosts = listOf(warpRow, foretellRow, escapeRow, plotRow)
+        val altCosts = listOf(warpRow, foretellRow, escapeRow, flashbackRow, disturbRow, plotRow)
 
         test("Plot exile rail returns universal-149 regardless of altCosts contents") {
             val plotExile = CastRails.fromExile.first { it.kind == AltCostKind.PLOT }
@@ -61,10 +73,37 @@ class CastRailsTest :
             resolveAltGrpId(foretellExile, altCosts, payAction) shouldBe foretellRow.abilityGrpId
         }
 
-        test("Disturb / Escape graveyard rails are cost-agnostic per current behavior") {
+        test("Flashback / Disturb / Escape graveyard rails are cost-agnostic per current behavior") {
+            val flashback = CastRails.fromGraveyard.first { it.kind == AltCostKind.FLASHBACK }
+            val disturb = CastRails.fromGraveyard.first { it.kind == AltCostKind.DISTURB }
             val escape = CastRails.fromGraveyard.first { it.kind == AltCostKind.ESCAPE }
             // Empty payCostPairs still resolves — graveyard rails default to cost-agnostic.
-            resolveAltGrpId(escape, altCosts, payCostPairs = emptyList()) shouldBe escapeRow.abilityGrpId
+            assertSoftly {
+                resolveAltGrpId(flashback, altCosts, payCostPairs = emptyList()) shouldBe flashbackRow.abilityGrpId
+                resolveAltGrpId(disturb, altCosts, payCostPairs = emptyList()) shouldBe disturbRow.abilityGrpId
+                resolveAltGrpId(escape, altCosts, payCostPairs = emptyList()) shouldBe escapeRow.abilityGrpId
+            }
+        }
+
+        test("graveyard rails declare client-visible source projection") {
+            val flashback = CastRails.fromGraveyard.first { it.kind == AltCostKind.FLASHBACK }
+            val disturb = CastRails.fromGraveyard.first { it.kind == AltCostKind.DISTURB }
+            val escape = CastRails.fromGraveyard.first { it.kind == AltCostKind.ESCAPE }
+
+            assertSoftly {
+                flashback.emitAlternativeSourceZcid shouldBe true
+                flashback.abilityGrpIdMode shouldBe AbilityGrpIdMode.None
+                flashback.omitGrpIdAndFacetId shouldBe false
+                flashback.grpIdMode shouldBe ZoneCastGrpIdMode.Source
+
+                disturb.emitAlternativeSourceZcid shouldBe true
+                disturb.echoAlternativeOnMana shouldBe true
+                disturb.omitGrpIdAndFacetId shouldBe false
+                disturb.grpIdMode shouldBe ZoneCastGrpIdMode.OtherSide
+
+                escape.emitAlternativeSourceZcid shouldBe false
+                escape.omitGrpIdAndFacetId shouldBe true
+            }
         }
 
         test("Warp hand rail is cost-aware — matches on mana cost multiset") {
@@ -88,11 +127,11 @@ class CastRailsTest :
             resolveAltGrpId(plotHand, altCosts, matching) shouldBe plotRow.abilityGrpId
         }
 
-        test("Rails inventory — buckets cover every AltCostKind value without overlap loss") {
+        test("Rails inventory — buckets cover the six AltCostKind values without overlap loss") {
             assertSoftly {
                 CastRails.fromExile.map { it.kind } shouldContainExactly listOf(AltCostKind.PLOT, AltCostKind.FORETELL)
                 CastRails.fromGraveyard.map { it.kind } shouldContainExactly
-                    listOf(AltCostKind.DISTURB, AltCostKind.ESCAPE, AltCostKind.FLASHBACK)
+                    listOf(AltCostKind.FLASHBACK, AltCostKind.DISTURB, AltCostKind.ESCAPE)
                 CastRails.handWithAltCost.map { it.kind } shouldContainExactly
                     listOf(AltCostKind.WARP, AltCostKind.SNEAK, AltCostKind.PLOT, AltCostKind.FORETELL)
             }
