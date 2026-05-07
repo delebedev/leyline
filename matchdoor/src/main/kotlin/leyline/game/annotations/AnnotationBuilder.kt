@@ -784,6 +784,54 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
             .build()
 
+    /** GainDesignation transient on the game itself. Lite shape — `DesignationType`
+     *  is the only detail key. Used by game-scope state primitives (Day=10/Night=11).
+     *  `affectedIds=[0]`, no `affectorId` — the rules engine, not a specific source,
+     *  drove the state change. */
+    fun gainDesignationOnGame(designationType: Int): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.GainDesignation)
+            .addAffectedIds(0)
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
+            .build()
+
+    /** LoseDesignation transient on the game itself. Lite shape. Pairs with
+     *  [gainDesignationOnGame] in the same GSM at a Day↔Night flip — outgoing
+     *  state's lose plus incoming state's gain. `affectedIds=[0]`, no `affectorId`. */
+    fun loseDesignationOnGame(designationType: Int): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.LoseDesignation)
+            .addAffectedIds(0)
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
+            .build()
+
+    /** Persistent `Designation` for game-scope Day/Night state.
+     *  Carries the `ActivePlayerSpellCount` running tally — re-emitted every GSM
+     *  once the state is established. `affectedIds=[0]`, no `affectorId`.
+     *  Detail-key order matches the rest of the Designation family — auxiliary
+     *  rich key (APSC) first, `DesignationType` last (mirrors how
+     *  [preparedDesignation] orders `PreparedCopyZcid` then `DesignationType`). */
+    fun dayNightDesignation(
+        designationType: Int,
+        activePlayerSpellCount: Int,
+    ): AnnotationInfo {
+        require(
+            designationType == AnnotationConstants.DESIGNATION_TYPE_DAY ||
+                designationType == AnnotationConstants.DESIGNATION_TYPE_NIGHT,
+        ) {
+            "dayNightDesignation requires DesignationType=10 (Day) or 11 (Night), got $designationType"
+        }
+        return AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .addAffectedIds(0)
+            .addDetails(int32Detail(DetailKeys.ACTIVE_PLAYER_SPELL_COUNT, activePlayerSpellCount))
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
+            .build()
+    }
+
     /** Persistent `Designation` for the `Prepared` card-state designation.
      *  Carries the int32 `PreparedCopyZcid` detail pointing at the prepare-spell exile copy.
      *  affector / affectedIds both = the prepared creature's instance id. */

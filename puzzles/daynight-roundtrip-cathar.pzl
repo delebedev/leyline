@@ -1,0 +1,18 @@
+[metadata]
+Name:Day/Night Round Trip with Brutal Cathar
+Goal:Win
+Turns:6
+Difficulty:Medium
+Description:End-to-end Day/Night flip exercise. Turn 1: cast Brutal Cathar (Day enters, ETB exiles Llanowar Elves). Turn 2: opp passes (no spells). Turn 3 (our untap): Day->Night flip (opp had 0 casts) — Cathar transforms into Moonrage Brute. Cast Defiant Strike on Cathar twice on turn 3 to push our spell-count to 2. Turn 4 (opp untap): Night->Day flip (we cast 2+ spells last turn) — Cathar transforms back to front face.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Brutal Cathar;Thraben Inspector;Thraben Inspector
+humanbattlefield=Plains;Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aibattlefield=Llanowar Elves
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest

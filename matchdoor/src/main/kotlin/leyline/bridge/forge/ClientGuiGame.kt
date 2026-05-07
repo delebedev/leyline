@@ -725,9 +725,18 @@ class ClientGuiGame(
 
     override fun setGameSpeed(gameSpeed: PlaybackSpeed) {}
 
-    override fun getDayTime(): String = "day"
+    // Day/Night state mirrors `forge.game.Game.getDayTime()` and is surfaced on
+    // the wire via the `Designation` annotation family in StateMapper. These
+    // IGuiGame methods exist only to satisfy Forge's GUI contract — the matchdoor
+    // bridge does not consume them. Backing field mirrors `AbstractGuiGame`
+    // semantics so a future reader sees a normal accessor pair, not a lie.
+    private var daytime: String? = null
 
-    override fun updateDayTime(daytime: String) {}
+    override fun getDayTime(): String? = daytime
+
+    override fun updateDayTime(daytime: String?) {
+        this.daytime = daytime
+    }
 
     override fun awaitNextInput() {}
 

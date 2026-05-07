@@ -30,6 +30,7 @@ import leyline.game.snapshot.PreparedRole
 import leyline.game.state.AbilityWordActiveKind
 import leyline.game.state.BridgeMutations
 import leyline.game.state.CrewedThisTurnKind
+import leyline.game.state.DayNightDesignationKind
 import leyline.game.state.DelayedTriggerAffecteesKind
 import leyline.game.state.EffectTracker
 import leyline.game.state.FrameContext
@@ -535,6 +536,25 @@ object StateMapper {
                     )
                 }
 
+        // Day/Night: persistent Designation (DesignationType=10/11) on the game
+        // itself, carrying the active player's running spell-count tally. Emits
+        // every GSM once the state is established. Pre-first-transition is
+        // wire-silent (snap.dayTime == null).
+        val dayNightDesignationPersistentFromSnap: List<AnnotationInfo> =
+            snap.dayTime?.let { isNight ->
+                listOf(
+                    AnnotationBuilder.dayNightDesignation(
+                        designationType =
+                            if (isNight) {
+                                AnnotationConstants.DESIGNATION_TYPE_NIGHT
+                            } else {
+                                AnnotationConstants.DESIGNATION_TYPE_DAY
+                            },
+                        activePlayerSpellCount = snap.activePlayerSpellsCastThisTurn,
+                    ),
+                )
+            } ?: emptyList()
+
         // Transient gain/lose Designation annotations — diff prev vs cur on the
         // `Source on battlefield with isPrepared` set. Gains insert before the
         // Stack→Battlefield Resolve ZoneTransfer for the same source iid to match
@@ -547,6 +567,7 @@ object StateMapper {
             insertStateDesignationTransients(annotations, prev, snap) { fid ->
                 bridge.getOrAllocInstanceId(fid)
             }
+            insertDayNightDesignationTransients(annotations, prev.dayTime, snap.dayTime)
         }
 
         // Stages 4-5 + persistent computation
@@ -591,6 +612,7 @@ object StateMapper {
                 plottedDesignationPersistentFromSnap = plottedDesignationPersistentFromSnap,
                 leftUnlockedDesignationPersistentFromSnap = leftUnlockedDesignationPersistentFromSnap,
                 rightUnlockedDesignationPersistentFromSnap = rightUnlockedDesignationPersistentFromSnap,
+                dayNightDesignationPersistentFromSnap = dayNightDesignationPersistentFromSnap,
             )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
@@ -992,6 +1014,7 @@ object StateMapper {
         plottedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         leftUnlockedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         rightUnlockedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        dayNightDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds =
             events
@@ -1115,6 +1138,7 @@ object StateMapper {
                         put(PlottedDesignationKind, plottedDesignationPersistentFromSnap)
                         put(LeftUnlockedDesignationKind, leftUnlockedDesignationPersistentFromSnap)
                         put(RightUnlockedDesignationKind, rightUnlockedDesignationPersistentFromSnap)
+                        put(DayNightDesignationKind, dayNightDesignationPersistentFromSnap)
                     },
             )
         val batch =

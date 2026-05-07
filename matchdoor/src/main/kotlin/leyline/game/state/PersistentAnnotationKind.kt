@@ -260,6 +260,34 @@ data object RightUnlockedDesignationKind : PersistentAnnotationKind {
 }
 
 /**
+ * Game-scope Day/Night state designation. Single row per game — Day and Night
+ * are mutually exclusive, and the row carries a running `ActivePlayerSpellCount`
+ * tally that updates each GSM. At a flip, the outgoing state's row is pruned
+ * (lands in `diffDeletedPersistentAnnotationIds`) and the incoming state's row
+ * gets a fresh persistent id.
+ *
+ * Identity key collapses both 10 and 11 to a constant so the row replaces in
+ * place across a flip — APSC ticks become detail-list updates under
+ * REPLACE_IF_CHANGED, and a Day↔Night flip looks like a designation-type
+ * change on the same identity.
+ */
+data object DayNightDesignationKind : PersistentAnnotationKind {
+    override val name = "DayNightDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList &&
+            firstAffectedId(ann) == 0 &&
+            designationTypeOf(ann).let {
+                it == AnnotationConstants.DESIGNATION_TYPE_DAY ||
+                    it == AnnotationConstants.DESIGNATION_TYPE_NIGHT
+            }
+
+    override fun identityKey(ann: AnnotationInfo): Any = "DayNight"
+}
+
+/**
  * Pure-snapshot persistent annotation: card-entered-zone-this-turn marker.
  * Does NOT participate in upsert dispatch — rows arrive via the transfer-
  * originated pipeline (one EZTT per zone transfer landing on Battlefield /
@@ -364,6 +392,7 @@ object PersistentAnnotationKinds {
             PlottedDesignationKind,
             LeftUnlockedDesignationKind,
             RightUnlockedDesignationKind,
+            DayNightDesignationKind,
         )
 
     /** Lifecycle-only kinds — pass through pure-append in the transfer pipeline,

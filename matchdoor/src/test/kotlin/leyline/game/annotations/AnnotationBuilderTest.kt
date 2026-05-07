@@ -718,6 +718,49 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("gainDesignationOnGameFields — game-scope lite shape, no affector") {
+            val ann = AnnotationBuilder.gainDesignationOnGame(designationType = 10)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.GainDesignation
+                ann.affectorId shouldBe 0
+                ann.affectedIdsList shouldContain 0
+                ann.detailInt("DesignationType") shouldBe 10
+                // Lite shape — no APSC on the transient.
+                ann.detailsList.filter { it.key == "ActivePlayerSpellCount" }.shouldBeEmpty()
+            }
+        }
+
+        test("loseDesignationOnGameFields — game-scope lite shape, no affector") {
+            val ann = AnnotationBuilder.loseDesignationOnGame(designationType = 11)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.LoseDesignation
+                ann.affectorId shouldBe 0
+                ann.affectedIdsList shouldContain 0
+                ann.detailInt("DesignationType") shouldBe 11
+            }
+        }
+
+        test("dayNightDesignationFields — persistent rich shape carries APSC") {
+            val ann = AnnotationBuilder.dayNightDesignation(designationType = 10, activePlayerSpellCount = 3)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.Designation
+                ann.affectorId shouldBe 0
+                ann.affectedIdsList shouldContain 0
+                ann.detailInt("DesignationType") shouldBe 10
+                ann.detailInt("ActivePlayerSpellCount") shouldBe 3
+                // Detail-key order matches the rest of the Designation family —
+                // auxiliary rich key first, DesignationType last.
+                ann.detailsList[0].key shouldBe "ActivePlayerSpellCount"
+                ann.detailsList[1].key shouldBe "DesignationType"
+            }
+        }
+
+        test("dayNightDesignation — rejects non-Day/Night designation types") {
+            io.kotest.assertions.throwables.shouldThrow<IllegalArgumentException> {
+                AnnotationBuilder.dayNightDesignation(designationType = 18, activePlayerSpellCount = 0)
+            }
+        }
+
         test("leftUnlockedDesignationFields") {
             val ann = AnnotationBuilder.leftUnlockedDesignation(instanceId = 117.iid)
             assertSoftly {
