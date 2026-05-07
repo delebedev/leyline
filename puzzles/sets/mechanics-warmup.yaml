@@ -1,0 +1,15 @@
+name: mechanics-warmup
+description: Small arena-driven mechanic smoke suite focused on client-accepted mechanic surfaces.
+scenarios:
+  - id: kicker-burst
+    puzzle: mechanic-kicker-burst
+    run: cast Burst Lightning, choose kicker, target opponent
+    expect: opponent life drops by 4 without relying on game over
+  - id: cycling-activate
+    puzzle: mechanic-cycling-miscalculation
+    run: activate Miscalculation cycling
+    expect: Miscalculation leaves hand and Lightning Bolt is drawn
+  - id: prowess-buff
+    puzzle: mechanic-prowess-buff
+    run: cast Shock with Monastery Swiftspear on battlefield
+    expect: Swiftspear has at least 2/3 stats this turn

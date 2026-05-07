@@ -1,0 +1,17 @@
+[metadata]
+Name:Mechanic Smoke - Cycling Miscalculation
+Goal:Verify hand-zone cycling activation.
+Turns:3
+Difficulty:Easy
+Description:Activate Miscalculation's cycling ability. It should leave hand and draw Lightning Bolt.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Miscalculation
+humanbattlefield=Island;Island
+humanlibrary=Lightning Bolt;Island;Island
+ailibrary=Mountain

@@ -1,0 +1,17 @@
+[metadata]
+Name:Warmup - Attack Face + Main2
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Attack the opponent with one creature, then advance to second main and verify combat damage landed.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Savannah Lions
+humanhand=Plains
+humanlibrary=Plains
+ailibrary=Mountain

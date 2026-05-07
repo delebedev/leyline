@@ -1,0 +1,17 @@
+[metadata]
+Name:Mechanic Smoke - Kicker Burst
+Goal:Verify kicked spell damage without ending the game.
+Turns:3
+Difficulty:Easy
+Description:Cast Burst Lightning, choose kicker, target the opponent. Opponent life should drop from 20 to 16.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Burst Lightning
+humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain
+ailibrary=Mountain

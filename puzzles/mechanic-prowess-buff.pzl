@@ -1,0 +1,18 @@
+[metadata]
+Name:Mechanic Smoke - Prowess Buff
+Goal:Verify prowess temporary stat buff.
+Turns:3
+Difficulty:Easy
+Description:Cast Shock with Monastery Swiftspear on the battlefield. Swiftspear should become at least 2/3 this turn.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Monastery Swiftspear;Mountain
+humanhand=Shock
+humanlibrary=Mountain;Mountain
+ailibrary=Mountain

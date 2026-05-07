@@ -1,0 +1,7 @@
+name: combat-warmup
+description: Small arena-driven combat smoke suite focused on blocking and combat cleanup.
+scenarios:
+  - id: block-trade
+    puzzle: mechanic-block-trade
+    run: block Juggernaut with Centaur Courser
+    expect: both creatures leave the battlefield after combat damage
