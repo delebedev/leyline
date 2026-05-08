@@ -1299,9 +1299,9 @@ class CostDecision(
                 selectCards(
                     Localizer.getInstance().getMessage("lblSelectACreatureToTap"),
                     typeList,
-                    0,
+                    1,
                     typeList.size,
-                    cancelAllowed = true,
+                    cancelAllowed = false,
                 ) ?: return null
             if (CardLists.getTotalPower(selected, ability) < i) return null
             return PaymentDecision.card(selected)

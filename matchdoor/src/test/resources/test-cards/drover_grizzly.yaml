@@ -1,0 +1,12 @@
+name: "Drover Grizzly"
+grpId: 90507
+titleId: 756600
+abilities:
+  - id: 171905
+    textId: 756602
+    category: 2
+  - id: 171726
+    textId: 756069
+    category: 1
+    baseId: 329
+expansionCode: "OTJ"

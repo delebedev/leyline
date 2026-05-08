@@ -45,6 +45,7 @@ import leyline.game.state.PlottedDesignationKind
 import leyline.game.state.PreparedDesignationKind
 import leyline.game.state.QualificationKind
 import leyline.game.state.RightUnlockedDesignationKind
+import leyline.game.state.SaddledThisTurnKind
 import leyline.game.state.TargetSpecKind
 import leyline.game.state.TemporaryPermanentKind
 import org.slf4j.LoggerFactory
@@ -1162,6 +1163,7 @@ object StateMapper {
 
         val (crewedThisTurnPersistent, crewTypeChangePersistent, crewExpiredAnnotations) =
             computeCrewAnnotations(bridge)
+        val saddledThisTurnPersistent = computeSaddleAnnotations(bridge)
         annotations.addAll(crewExpiredAnnotations)
 
         val enrichedMechanicResult =
@@ -1175,6 +1177,7 @@ object StateMapper {
                                 mechanicResult.perKindPersistent[QualificationKind].orEmpty(),
                         )
                         put(CrewedThisTurnKind, crewedThisTurnPersistent)
+                        put(SaddledThisTurnKind, saddledThisTurnPersistent)
                         put(ModifiedTypeForCrewKind, crewTypeChangePersistent)
                         put(TemporaryPermanentKind, temporaryPermanentPersistent)
                         put(DelayedTriggerAffecteesKind, delayedTriggerAffecteesPersistent)
@@ -1668,6 +1671,15 @@ object StateMapper {
         }
         return Triple(crewedThisTurn, typeChange, expired)
     }
+
+    /** Saddle annotation scan: SaddledThisTurn pAnns for mounts and helper creatures. */
+    private fun computeSaddleAnnotations(bridge: GameBridge): List<AnnotationInfo> =
+        bridge.snapshotSaddleState().map { snap ->
+            AnnotationBuilder.saddledThisTurn(
+                InstanceId(snap.mountInstanceId),
+                snap.saddleSourceInstanceIds.map { InstanceId(it) },
+            )
+        }
 
     /**
      * Find the active reveal across all seats, or null. Clears stale reveals where

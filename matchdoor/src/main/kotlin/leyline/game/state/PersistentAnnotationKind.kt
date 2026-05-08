@@ -168,6 +168,16 @@ data object CrewedThisTurnKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId
 }
 
+data object SaddledThisTurnKind : PersistentAnnotationKind {
+    override val name = "SaddledThisTurn"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.SaddledThisTurn in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId
+}
+
 data object ModifiedTypeForCrewKind : PersistentAnnotationKind {
     override val name = "ModifiedTypeForCrew"
     override val pruneStale = true
@@ -384,6 +394,7 @@ object PersistentAnnotationKinds {
             AbilityWordActiveKind,
             QualificationKind,
             CrewedThisTurnKind,
+            SaddledThisTurnKind,
             ModifiedTypeForCrewKind,
             TemporaryPermanentKind,
             DelayedTriggerAffecteesKind,

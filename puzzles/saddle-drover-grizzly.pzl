@@ -1,0 +1,16 @@
+[metadata]
+Name:Saddle Drover Grizzly
+Goal:Saddle Drover Grizzly with Grizzly Bears.
+Turns:2
+Difficulty:Easy
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Forest
+humanbattlefield=Drover Grizzly;Grizzly Bears
+humanlibrary=Forest;Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain

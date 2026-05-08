@@ -287,7 +287,10 @@ class PersistentAnnotationStore {
                 when (kind.collisionStrategy) {
                     CollisionStrategy.KEEP_EXISTING -> Unit
                     CollisionStrategy.REPLACE_IF_CHANGED -> {
-                        if (existingEntry.value.detailsList != ann.detailsList) {
+                        if (
+                            existingEntry.value.detailsList != ann.detailsList ||
+                            existingEntry.value.affectedIdsList != ann.affectedIdsList
+                        ) {
                             active.remove(existingEntry.key)
                             deletions.add(existingEntry.key)
                             val numbered = ann.toBuilder().setId(nextId++).build()

@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory
 /**
  * Player card collection — what cards a player owns and how many copies.
  *
- * Current impl: full card DB × 4 (unrestricted collection for offline play).
+ * Current impl: full card DB × 250 (unrestricted collection for offline play).
  * Future: per-player restrictions from player DB, format-based filtering.
  *
  * ## Wire protocol (CmdType 551 — Card_GetAllCards)
@@ -15,7 +15,8 @@ import org.slf4j.LoggerFactory
  * Server responds `{"cacheVersion": N, "cards": {"<grpId>": <count>, ...}}`.
  *
  * The protocol supports incremental updates — only changed cards after the
- * client's cached version. We always return the full set (cacheVersion = -1).
+ * client's cached version. We always return the full set with a stable positive
+ * cache version so the client accepts the replacement collection.
  */
 class CollectionService(
     /** Provides all available card grpIds. Injected from CardRepository at wiring time. */
@@ -25,7 +26,7 @@ class CollectionService(
 
     /**
      * Returns the card collection for [playerId] as grpId → owned count.
-     * Currently returns all non-token cards × 4 (full playset).
+     * Currently returns all non-token cards × 250 so seeded basic-land decks are redeemable.
      */
     fun getCollection(
         @Suppress("UnusedParameter") playerId: PlayerId?,
@@ -34,14 +35,14 @@ class CollectionService(
         if (grpIds.isEmpty()) {
             log.warn("Card DB returned no grpIds — collection will be empty")
         } else {
-            log.debug("Collection: {} cards (4x each)", grpIds.size)
+            log.debug("Collection: {} cards (250x each)", grpIds.size)
         }
-        return grpIds.associateWith { 4 }
+        return grpIds.associateWith { 250 }
     }
 
     /** Serialize collection to the wire format expected by CmdType 551. */
     fun toJson(collection: Map<Int, Int>): String {
         val cards = collection.entries.joinToString(",") { (grpId, count) -> "\"$grpId\":$count" }
-        return """{"cacheVersion":1,"cards":{$cards}}"""
+        return """{"cacheVersion":2,"cards":{$cards}}"""
     }
 }

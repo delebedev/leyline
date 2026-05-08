@@ -1157,6 +1157,22 @@ object AnnotationBuilder {
             .build()
 
     /**
+     * Persistent: mount was saddled this turn. client type 104 (SaddledThisTurn).
+     * Wire shape mirrors CrewedThisTurn: affectorId = mount instanceId,
+     * affectedIds = helper creature instanceIds.
+     */
+    fun saddledThisTurn(
+        mountInstanceId: InstanceId,
+        saddleSourceInstanceIds: List<InstanceId>,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.SaddledThisTurn)
+            .setAffectorId(mountInstanceId.value)
+            .apply { saddleSourceInstanceIds.forEach { addAffectedIds(it.value) } }
+            .build()
+
+    /**
      * Persistent: vehicle became a creature via crew (type change). Types: [ModifiedType, LayeredEffect].
      * Wire shape: affectedIds = [vehicleInstanceId], effect_id, sourceAbilityGRPID (crew ability grpId).
      * Emitted when crew resolves and vehicle gains Creature type; removed on expiry.
