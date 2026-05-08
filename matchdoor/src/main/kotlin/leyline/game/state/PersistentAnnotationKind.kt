@@ -245,6 +245,18 @@ data object PlottedDesignationKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
 }
 
+data object SaddledDesignationKind : PersistentAnnotationKind {
+    override val name = "SaddledDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList &&
+            designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_SADDLED
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
 data object LeftUnlockedDesignationKind : PersistentAnnotationKind {
     override val name = "LeftUnlockedDesignation"
     override val pruneStale = true
@@ -401,6 +413,7 @@ object PersistentAnnotationKinds {
             TargetSpecKind,
             PreparedDesignationKind,
             PlottedDesignationKind,
+            SaddledDesignationKind,
             LeftUnlockedDesignationKind,
             RightUnlockedDesignationKind,
             DayNightDesignationKind,

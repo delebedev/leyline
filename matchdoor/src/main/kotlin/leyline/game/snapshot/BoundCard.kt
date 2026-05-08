@@ -182,6 +182,7 @@ data class AltCostBinding(
 data class DesignationSet(
     val prepared: PreparedRole = PreparedRole.None,
     val plotted: PlottedRole = PlottedRole.None,
+    val isSaddled: Boolean = false,
     val foretold: Boolean = false,
     val isLeftDoorUnlocked: Boolean = false,
     val isRightDoorUnlocked: Boolean = false,

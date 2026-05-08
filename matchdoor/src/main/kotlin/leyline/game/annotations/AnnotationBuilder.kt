@@ -861,6 +861,17 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_PLOTTED))
             .build()
 
+    /** Persistent `Designation` for the `Saddled` card-state designation (DesignationType=17).
+     *  affector / affectedIds both = the saddled mount's battlefield instance id. */
+    fun saddledDesignation(instanceId: InstanceId): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_SADDLED))
+            .build()
+
     /** Persistent `Designation` for the `LeftUnlocked` Room-door state (DesignationType=19).
      *  affector / affectedIds both = the Room card's battlefield instance id. */
     fun leftUnlockedDesignation(instanceId: InstanceId): AnnotationInfo =

@@ -32,6 +32,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 enum class DesignationKind {
     PREPARED,
     PLOTTED,
+    SADDLED,
     FORETOLD,
     LEFT_UNLOCKED,
     RIGHT_UNLOCKED,
@@ -79,6 +80,13 @@ object CardStateDesignations {
             mode = TransientMode.GAIN_APPEND,
             readRole = { it.designations.isPlotted },
         )
+    val Saddled =
+        CardStateDesignationSpec(
+            kind = DesignationKind.SADDLED,
+            designationType = AnnotationConstants.DESIGNATION_TYPE_SADDLED,
+            mode = TransientMode.GAIN_APPEND,
+            readRole = { it.designations.isSaddled },
+        )
     val Foretold =
         CardStateDesignationSpec(
             kind = DesignationKind.FORETOLD,
@@ -103,7 +111,7 @@ object CardStateDesignations {
             readRole = { it.designations.isRightDoorUnlocked },
         )
 
-    val all: List<CardStateDesignationSpec> = listOf(Prepared, Plotted, Foretold, LeftUnlocked, RightUnlocked)
+    val all: List<CardStateDesignationSpec> = listOf(Prepared, Plotted, Saddled, Foretold, LeftUnlocked, RightUnlocked)
 }
 
 /**
