@@ -10,6 +10,8 @@ import forge.game.event.GameEventManaAbilityActivated
 import forge.game.event.GameEventSpellMovedToStack
 import forge.game.player.Player
 import forge.game.player.PlayerView
+import forge.game.spellability.AlternativeCost
+import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
@@ -190,7 +192,8 @@ class GameEventCollector(
                 realCard.isAdventureCard &&
                 realCard.currentStateName == CardStateName.Secondary
         val isOmen = topSa?.isOmen == true
-        // Alt-cost detection (Madness, Flashback, Warp, Cycling, Impending).
+        // Alt-cost detection. Most keywords surface as a Forge AlternativeCost;
+        // Cleave is script-level (`PrecostDesc$ Cleave`) on a non-basic spell SA.
         // ev.sa() is a SpellAbilityView snapshot which doesn't expose alt-cost.
         // Peek the live stack instead — the just-cast spell sits on top — then
         // resolve to the client ability grpId via the keyword→grpId lookup
@@ -201,15 +204,11 @@ class GameEventCollector(
             } else {
                 null
             }
+        val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+        val keywordId = castThroughAbilityKeywordId(topSa, saAltCost)
         val altCostAbilityGrpId =
-            if (saAltCost != null) {
-                val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
-                val keywordId = KeywordAbilityIds.fromForgeAltCostName(saAltCost.name)
-                if (grpId != 0 && keywordId != null) {
-                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
-                } else {
-                    0
-                }
+            if (grpId != 0 && keywordId != null) {
+                bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
             } else {
                 0
             }
@@ -267,6 +266,16 @@ class GameEventCollector(
             chosenX,
         )
     }
+
+    private fun castThroughAbilityKeywordId(
+        topSa: SpellAbility?,
+        saAltCost: AlternativeCost?,
+    ): Int? =
+        when {
+            saAltCost != null -> KeywordAbilityIds.fromForgeAltCostName(saAltCost.name)
+            topSa?.hasParam("PrecostDesc") == true && topSa.getParam("PrecostDesc") == "Cleave" -> KeywordAbilityIds.CLEAVE
+            else -> null
+        }
 
     /**
      * Resolve the activation zone of an activated ability to a protocol ZoneId.

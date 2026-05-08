@@ -1,0 +1,13 @@
+name: "Path of Peril"
+grpId: 78922
+titleId: 546038
+abilities:
+  - id: 146689
+    textId: 546040
+    category: 3
+    baseId: 221
+    mana: "o4oWoB"
+  - id: 146690
+    textId: 546041
+    category: 4
+expansionCode: "VOW"

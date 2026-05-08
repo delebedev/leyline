@@ -374,7 +374,7 @@ class ActionPerformer(
         val card = findCard(game, forgeCardId) ?: return null
         val grpId = bridge.resolveGrpId(card, action.instanceId)
         val (candidates, _) =
-            leyline.game.mapping.ActionMapper.buildHandCastActionsForCard(
+            leyline.game.mapping.ActionMapper.buildIndexedHandCastActionsForCard(
                 card = card,
                 player = player,
                 instanceId = action.instanceId,
@@ -388,7 +388,7 @@ class ActionPerformer(
                 cardDataLookup = { candidateGrpId -> bridge.cardRepository.findByGrpId(candidateGrpId.value) },
                 abilityRegistryLookup = { candidate, cardData -> bridge.abilityRegistryFor(candidate, cardData) },
             )
-        return candidates.indexOfFirst { equivalentCastAction(it, action) }.takeIf { it >= 0 }
+        return candidates.firstOrNull { equivalentCastAction(it.action, action) }?.abilityIndex
     }
 
     private fun equivalentCastAction(

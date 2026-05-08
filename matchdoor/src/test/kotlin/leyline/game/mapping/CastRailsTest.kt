@@ -58,7 +58,13 @@ class CastRailsTest :
                 abilityGrpId = 6001,
                 manaCost = listOf(ManaColor.Red_afc9 to 1, ManaColor.Generic to 1),
             )
-        val altCosts = listOf(warpRow, foretellRow, escapeRow, flashbackRow, disturbRow, plotRow)
+        val cleaveRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.CLEAVE,
+                abilityGrpId = 6101,
+                manaCost = listOf(ManaColor.Generic to 1, ManaColor.Blue_afc9 to 2),
+            )
+        val altCosts = listOf(warpRow, foretellRow, escapeRow, flashbackRow, disturbRow, plotRow, cleaveRow)
 
         test("Plot exile rail returns universal-149 regardless of altCosts contents") {
             val plotExile = CastRails.fromExile.first { it.kind == AltCostKind.PLOT }
@@ -127,13 +133,19 @@ class CastRailsTest :
             resolveAltGrpId(plotHand, altCosts, matching) shouldBe plotRow.abilityGrpId
         }
 
-        test("Rails inventory — buckets cover the six AltCostKind values without overlap loss") {
+        test("Cleave hand rail is cost-aware") {
+            val cleaveHand = CastRails.handWithAltCost.first { it.kind == AltCostKind.CLEAVE }
+            val matching = listOf(ManaColor.Generic to 1, ManaColor.Blue_afc9 to 2)
+            resolveAltGrpId(cleaveHand, altCosts, matching) shouldBe cleaveRow.abilityGrpId
+        }
+
+        test("Rails inventory covers AltCostKind values without overlap loss") {
             assertSoftly {
                 CastRails.fromExile.map { it.kind } shouldContainExactly listOf(AltCostKind.PLOT, AltCostKind.FORETELL)
                 CastRails.fromGraveyard.map { it.kind } shouldContainExactly
                     listOf(AltCostKind.FLASHBACK, AltCostKind.DISTURB, AltCostKind.ESCAPE)
                 CastRails.handWithAltCost.map { it.kind } shouldContainExactly
-                    listOf(AltCostKind.WARP, AltCostKind.SNEAK, AltCostKind.PLOT, AltCostKind.FORETELL)
+                    listOf(AltCostKind.WARP, AltCostKind.SNEAK, AltCostKind.PLOT, AltCostKind.FORETELL, AltCostKind.CLEAVE)
             }
         }
 
