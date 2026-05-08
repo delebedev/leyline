@@ -210,6 +210,7 @@ object KeywordAbilityIds {
     const val KICKER = 34
     const val FLASHBACK = 35
     const val MADNESS = 36
+    const val OVERLOAD = 97
     const val ESCAPE = 199
     const val FORETELL = 208
     const val DISTURB = 215
@@ -234,6 +235,7 @@ object KeywordAbilityIds {
         when (name.uppercase()) {
             "WARP" -> WARP
             "SNEAK" -> SNEAK
+            "OVERLOAD" -> OVERLOAD
             "FLASHBACK" -> FLASHBACK
             "MADNESS" -> MADNESS
             "PLOT", "PLOTTED" -> PLOT

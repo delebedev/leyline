@@ -51,6 +51,7 @@ enum class AltCostKind(
     DISTURB(KeywordAbilityIds.DISTURB),
     ESCAPE(KeywordAbilityIds.ESCAPE),
     CLEAVE(KeywordAbilityIds.CLEAVE),
+    OVERLOAD(KeywordAbilityIds.OVERLOAD),
     WARP(KeywordAbilityIds.WARP),
     SNEAK(KeywordAbilityIds.SNEAK),
 }
@@ -242,6 +243,11 @@ object CastRails {
                 kind = AltCostKind.CLEAVE,
                 saPredicate = { it.hasParam("PrecostDesc") && it.getParam("PrecostDesc") == "Cleave" },
                 lookupMode = LookupMode.CostAware,
+            ),
+            HandWithAltCost(
+                kind = AltCostKind.OVERLOAD,
+                saPredicate = { it.alternativeCost == AlternativeCost.Overload },
+                lookupMode = LookupMode.CostAgnostic,
             ),
         )
 
