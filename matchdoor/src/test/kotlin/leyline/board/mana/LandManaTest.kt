@@ -31,6 +31,7 @@ import leyline.testkit.gsmOrNull
 import leyline.testkit.haveManaCost
 import leyline.testkit.humanPlayer
 import leyline.testkit.mana
+import leyline.testkit.mergedGsm
 import leyline.testkit.ofType
 import leyline.testkit.persistentAnnotation
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -126,24 +127,24 @@ class LandManaTest :
 
             val player = humanPlayer(b)
             val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand")
-            val origId = b.getOrAllocInstanceId(ForgeCardId(land.id))
-            val cardId = land.id
 
             playLand(b) ?: error("No land in hand")
             val postResult = postAction(game, b, counter)
             acc.processAll(postResult.messages)
-            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
+            val oic = postResult.mergedGsm.annotation(AnnotationType.ObjectIdChanged)
+            val origId = oic.detailInt("orig_id")
+            val newId = oic.detailInt("new_id")
 
             assertSoftly {
-                acc.objects[newId.value].shouldNotBeNull().zoneId shouldBe ZoneIds.BATTLEFIELD
+                acc.objects[newId].shouldNotBeNull().zoneId shouldBe ZoneIds.BATTLEFIELD
 
                 val handZone =
                     acc.zones.values
                         .first { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
-                handZone.objectInstanceIdsList shouldNotContain origId.value
+                handZone.objectInstanceIdsList shouldNotContain origId
 
-                acc.zones[ZoneIds.BATTLEFIELD]!!.objectInstanceIdsList.shouldContain(newId.value)
-                acc.zones[ZoneIds.LIMBO]!!.objectInstanceIdsList.shouldContain(origId.value)
+                acc.zones[ZoneIds.BATTLEFIELD]!!.objectInstanceIdsList.shouldContain(newId)
+                acc.zones[ZoneIds.LIMBO]!!.objectInstanceIdsList.shouldContain(origId)
             }
 
             acc.assertConsistent("after play land")
