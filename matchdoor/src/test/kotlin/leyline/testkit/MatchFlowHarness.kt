@@ -3,6 +3,7 @@ package leyline.testkit
 import forge.game.Game
 import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
@@ -785,15 +786,13 @@ class MatchFlowHarness(
         val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
         val cardData = bridge.cardRepository.findByGrpId(grpId)
-        val keywordCount =
-            if (cardData != null) {
-                bridge.abilityRegistryFor(card, cardData)?.slotLayout?.keywordCount ?: 0
+        val ability = bridge.getPlayer(seatId)?.let { getNonManaActivatedAbilities(card, it).getOrNull(abilityIndex) }
+        val abilityGrpId =
+            if (cardData != null && ability != null) {
+                bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability.id) ?: 0
             } else {
                 0
             }
-        // Arena layout: [keywords, triggers, activated]. Skip trigger slots.
-        val triggerCount = card.triggers?.count { it.isIntrinsic } ?: 0
-        val abilityGrpId = cardData?.abilityIds?.getOrNull(keywordCount + triggerCount + abilityIndex)?.first ?: 0
 
         val msg =
             performAction {

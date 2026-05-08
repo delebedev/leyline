@@ -27,6 +27,11 @@ object AnnotationConstants {
      *  active-player spell count meets the rules-side threshold. */
     const val DESIGNATION_TYPE_NIGHT: Int = 11
 
+    /** `DesignationType` enum value for the `Saddled` card-state designation.
+     *  Carried on `GainDesignation` / persistent `Designation` / `LoseDesignation`
+     *  for mounts saddled this turn. */
+    const val DESIGNATION_TYPE_SADDLED: Int = 17
+
     /** `DesignationType` enum value for the `Prepared` card-state designation.
      *  Carried on `GainDesignation` / persistent `Designation` / `LoseDesignation`. */
     const val DESIGNATION_TYPE_PREPARED: Int = 24

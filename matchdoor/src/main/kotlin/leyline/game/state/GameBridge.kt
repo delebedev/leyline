@@ -1191,6 +1191,12 @@ class GameBridge(
         val crewAbilityGrpId: Int?,
     )
 
+    /** Snapshot of a saddled mount and the helper creatures that saddled it. */
+    data class SaddleSnapshot(
+        val mountInstanceId: Int,
+        val saddleSourceInstanceIds: List<Int>,
+    )
+
     /**
      * Snapshot which vehicles are currently crewed this turn.
      * Iterates all battlefield cards and checks `card.getCrewedByThisTurn()`.
@@ -1217,6 +1223,26 @@ class GameBridge(
                         crewSourceInstanceIds = sourceIids,
                         isCreature = card.isCreature,
                         crewAbilityGrpId = crewAbilityGrpId,
+                    ),
+                )
+            }
+        }
+        return result
+    }
+
+    /** Snapshot which mounts are currently saddled this turn. */
+    fun snapshotSaddleState(): List<SaddleSnapshot> {
+        val game = game ?: return emptyList()
+        val result = mutableListOf<SaddleSnapshot>()
+        for (player in game.players) {
+            for (card in player.getZone(ZoneType.Battlefield).cards) {
+                val saddleSources = card.getSaddledByThisTurn()
+                if (saddleSources == null || saddleSources.isEmpty()) continue
+
+                result.add(
+                    SaddleSnapshot(
+                        mountInstanceId = ids.getOrAlloc(ForgeCardId(card.id)).value,
+                        saddleSourceInstanceIds = saddleSources.map { ids.getOrAlloc(ForgeCardId(it.id)).value },
                     ),
                 )
             }

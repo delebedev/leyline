@@ -685,6 +685,16 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("saddledThisTurnFields") {
+            val ann = AnnotationBuilder.saddledThisTurn(mountInstanceId = 313.iid, saddleSourceInstanceIds = listOf(401.iid, 402.iid))
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.SaddledThisTurn
+                ann.affectorId shouldBe 313
+                ann.affectedIdsList shouldBe listOf(401, 402)
+                ann.detailsList.shouldBeEmpty()
+            }
+        }
+
         test("preparedDesignationFields") {
             val ann = AnnotationBuilder.preparedDesignation(instanceId = 313.iid, preparedCopyInstanceId = 318.iid)
             assertSoftly {

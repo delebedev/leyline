@@ -168,6 +168,16 @@ data object CrewedThisTurnKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId
 }
 
+data object SaddledThisTurnKind : PersistentAnnotationKind {
+    override val name = "SaddledThisTurn"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.SaddledThisTurn in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId
+}
+
 data object ModifiedTypeForCrewKind : PersistentAnnotationKind {
     override val name = "ModifiedTypeForCrew"
     override val pruneStale = true
@@ -231,6 +241,18 @@ data object PlottedDesignationKind : PersistentAnnotationKind {
     override fun matches(ann: AnnotationInfo): Boolean =
         AnnotationType.Designation in ann.typeList &&
             designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_PLOTTED
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
+data object SaddledDesignationKind : PersistentAnnotationKind {
+    override val name = "SaddledDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList &&
+            designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_SADDLED
 
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
 }
@@ -384,12 +406,14 @@ object PersistentAnnotationKinds {
             AbilityWordActiveKind,
             QualificationKind,
             CrewedThisTurnKind,
+            SaddledThisTurnKind,
             ModifiedTypeForCrewKind,
             TemporaryPermanentKind,
             DelayedTriggerAffecteesKind,
             TargetSpecKind,
             PreparedDesignationKind,
             PlottedDesignationKind,
+            SaddledDesignationKind,
             LeftUnlockedDesignationKind,
             RightUnlockedDesignationKind,
             DayNightDesignationKind,

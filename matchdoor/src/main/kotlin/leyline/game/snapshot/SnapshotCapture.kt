@@ -108,6 +108,7 @@ object SnapshotCapture {
                 DesignationSet(
                     prepared = snap.preparedRole,
                     plotted = snap.plottedRole,
+                    isSaddled = snap.isSaddled,
                     foretold = snap.isForetold,
                     isLeftDoorUnlocked = snap.isLeftDoorUnlocked,
                     isRightDoorUnlocked = snap.isRightDoorUnlocked,
@@ -507,6 +508,7 @@ object SnapshotCapture {
             combatRole = combatRole,
             preparedRole = preparedRole,
             plottedRole = if (Plotted.isPlotted(card)) PlottedRole.Plotted else PlottedRole.None,
+            isSaddled = onBf && card.isSaddled,
             isForetold = Foretell.isForetold(card),
             // Door state is meaningful only on battlefield rooms — Forge keeps
             // `unlockedRooms` populated on retired stack/limbo card states the

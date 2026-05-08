@@ -179,6 +179,7 @@ class CardStateDesignationsTest :
                 listOf(
                     DesignationKind.PREPARED,
                     DesignationKind.PLOTTED,
+                    DesignationKind.SADDLED,
                     DesignationKind.FORETOLD,
                     DesignationKind.LEFT_UNLOCKED,
                     DesignationKind.RIGHT_UNLOCKED,
@@ -189,6 +190,7 @@ class CardStateDesignationsTest :
             assertSoftly {
                 CardStateDesignations.Prepared.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_PREPARED
                 CardStateDesignations.Plotted.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_PLOTTED
+                CardStateDesignations.Saddled.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_SADDLED
                 CardStateDesignations.Foretold.designationType shouldBe null
                 CardStateDesignations.LeftUnlocked.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_LEFT_UNLOCKED
                 CardStateDesignations.RightUnlocked.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_RIGHT_UNLOCKED
