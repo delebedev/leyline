@@ -1,0 +1,15 @@
+name: "Overlord of the Mistmoors"
+grpId: 92083
+titleId: 812323
+abilities:
+  - id: 174289
+    textId: 812324
+    category: 3
+    baseId: 352
+    mana: "o2oWoW"
+  - id: 174290
+    textId: 971948
+    category: 2
+expansionCode: "DSK"
+tokens:
+  "174290": 92391

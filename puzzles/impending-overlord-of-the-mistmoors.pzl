@@ -1,0 +1,16 @@
+[metadata]
+Name:Impending Overlord of the Mistmoors
+Goal:Cast Overlord of the Mistmoors for its impending cost.
+Turns:8
+Difficulty:Easy
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Overlord of the Mistmoors
+humanbattlefield=Plains;Plains;Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

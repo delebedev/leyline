@@ -1339,7 +1339,7 @@ object ActionMapper {
      *  - `alternativeGrpId` = per-card row resolved per the rail's lookup mode
      *  - `manaCost` entries echo `alternativeGrpId` on each slot
      *
-     * Madness, Flashback, Impending, … are intentionally NOT in
+     * Madness and Flashback are intentionally NOT in
      * [CastRails.handWithAltCost] — they ride other rails (OptionalAction for
      * Madness, zone-cast for Flashback).
      */

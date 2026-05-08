@@ -216,6 +216,7 @@ object KeywordAbilityIds {
     const val FORETELL = 208
     const val DISTURB = 215
     const val CLEAVE = 221
+    const val IMPENDING = 352
     const val PLOT = 328
     const val MOBILIZE = 363
     const val WARP = 371
@@ -245,6 +246,7 @@ object KeywordAbilityIds {
             "DISTURB" -> DISTURB
             "ESCAPE" -> ESCAPE
             "CLEAVE" -> CLEAVE
+            "IMPENDING" -> IMPENDING
             "MOBILIZE" -> MOBILIZE
             else -> null
         }

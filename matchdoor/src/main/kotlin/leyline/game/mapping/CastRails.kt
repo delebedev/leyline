@@ -14,7 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *
  * Three rail buckets, keyed on source zone:
  *  - [HandWithAltCost] — cast offer originates from the player's hand. Warp,
- *    Sneak, Plot's hand SA, Foretell's hand SA.
+ *    Sneak, Plot's hand SA, Foretell's hand SA, Impending.
  *  - [FromExile] — cast offer originates from the exile zone. Plot's cast leg
  *    (universal-149) and Foretell's cast leg (per-card row).
  *  - [FromGraveyard] — cast offer originates from a graveyard zone. Flashback,
@@ -51,6 +51,7 @@ enum class AltCostKind(
     DISTURB(KeywordAbilityIds.DISTURB),
     ESCAPE(KeywordAbilityIds.ESCAPE),
     JUMP_START(KeywordAbilityIds.JUMP_START),
+    IMPENDING(KeywordAbilityIds.IMPENDING),
     CLEAVE(KeywordAbilityIds.CLEAVE),
     OVERLOAD(KeywordAbilityIds.OVERLOAD),
     WARP(KeywordAbilityIds.WARP),
@@ -255,6 +256,11 @@ object CastRails {
             HandWithAltCost(
                 kind = AltCostKind.OVERLOAD,
                 saPredicate = { it.alternativeCost == AlternativeCost.Overload },
+                lookupMode = LookupMode.CostAgnostic,
+            ),
+            HandWithAltCost(
+                kind = AltCostKind.IMPENDING,
+                saPredicate = { it.isImpending },
                 lookupMode = LookupMode.CostAgnostic,
             ),
         )
