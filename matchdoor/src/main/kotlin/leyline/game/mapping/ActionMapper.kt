@@ -40,6 +40,11 @@ import forge.game.zone.ZoneType as ForgeZoneType
 object ActionMapper {
     private val log = LoggerFactory.getLogger(ActionMapper::class.java)
 
+    data class IndexedCastAction(
+        val abilityIndex: Int,
+        val action: Action,
+    )
+
     private const val INITIAL_MANA_ID = 10
 
     private fun canPayManaCost(
@@ -908,18 +913,45 @@ object ActionMapper {
         cardDataLookup: (GrpId) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry? = { _, _ -> null },
     ): Pair<List<Action>, List<Action>> {
+        val (actions, inactive) =
+            buildIndexedHandCastActionsForCard(
+                card = card,
+                player = player,
+                instanceId = instanceId,
+                grpId = grpId,
+                checkLegality = checkLegality,
+                idResolver = idResolver,
+                grpIdResolver = grpIdResolver,
+                cardDataLookup = cardDataLookup,
+                abilityRegistryLookup = abilityRegistryLookup,
+            )
+        return actions.map { it.action } to inactive.map { it.action }
+    }
+
+    internal fun buildIndexedHandCastActionsForCard(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        grpId: Int,
+        checkLegality: Boolean,
+        idResolver: (ForgeCardId) -> InstanceId,
+        grpIdResolver: (Card) -> GrpId,
+        cardDataLookup: (GrpId) -> CardData?,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry? = { _, _ -> null },
+    ): Pair<List<IndexedCastAction>, List<IndexedCastAction>> {
         val cardData = cardDataLookup(GrpId(grpId))
         if (!checkLegality) {
-            return listOf(buildFallbackCastAction(instanceId, grpId, cardData)) to emptyList()
+            return listOf(IndexedCastAction(0, buildFallbackCastAction(instanceId, grpId, cardData))) to emptyList()
         }
 
-        val actions = mutableListOf<Action>()
-        val inactive = mutableListOf<Action>()
+        val actions = mutableListOf<IndexedCastAction>()
+        val inactive = mutableListOf<IndexedCastAction>()
         val castable = getAllCastableAbilities(card, player)
-        if (castable.isEmpty()) return emptyList<Action>() to emptyList()
+        if (castable.isEmpty()) return emptyList<IndexedCastAction>() to emptyList()
 
-        for (sa in castable) {
+        for ((abilityIndex, sa) in castable.withIndex()) {
             if (sa.isAdventure) continue
+            if (CastRails.handWithAltCost.any { it.saPredicate(sa) }) continue
             if (hasUnmetTargeting(sa)) {
                 log.debug("ActionMapper: skipping {} variant — no legal targets", card.name)
                 continue
@@ -938,7 +970,8 @@ object ActionMapper {
                     cardDataLookup = cardDataLookup,
                     abilityRegistryLookup = abilityRegistryLookup,
                 )
-            if (canPay) actions.add(action) else inactive.add(action)
+            val indexed = IndexedCastAction(abilityIndex, action)
+            if (canPay) actions.add(indexed) else inactive.add(indexed)
         }
         return actions to inactive
     }

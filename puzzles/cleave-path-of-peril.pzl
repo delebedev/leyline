@@ -1,0 +1,18 @@
+[metadata]
+Name:Cleave Path of Peril
+Goal:Win
+Turns:3
+Difficulty:Easy
+Description:Cast Path of Peril with Cleave. The cleaved branch destroys Serra Angel; the regular branch would leave it alive.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Path of Peril
+humanbattlefield=Plains;Swamp;Plains;Swamp;Plains;Swamp
+humanlibrary=Plains;Plains;Plains
+aibattlefield=Serra Angel;Raging Goblin
+ailibrary=Mountain;Mountain;Mountain
