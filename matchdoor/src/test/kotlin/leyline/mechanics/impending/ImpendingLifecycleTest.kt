@@ -19,7 +19,7 @@ private val PUZZLE =
     [metadata]
     Name:Impending Overlord of the Mistmoors
     Goal:Cast Overlord of the Mistmoors for its impending cost.
-    Turns:6
+    Turns:8
     Difficulty:Easy
 
     [state]
@@ -84,6 +84,42 @@ class ImpendingLifecycleTest :
                 removed.any { it.detailString("counter_type") == "Time" && it.detailInt("transaction_amount") == 1 }.shouldBeTrue()
                 overlord.getCounters(CounterEnumType.TIME) shouldBe 3
                 overlord.isCreature.shouldBeFalse()
+            }
+        }
+
+        test("impending removes all time counters and becomes a creature") {
+            startPuzzleRaw(PUZZLE)
+            val overlordGrpId = harness.bridge.cardRepository.findGrpIdByName("Overlord of the Mistmoors")!!
+            val impendingAbilityGrpId =
+                harness.bridge.cardRepository.findKeywordAbilityGrpId(overlordGrpId, KeywordAbilityIds.IMPENDING)!!
+
+            castSpellByName("Overlord of the Mistmoors", alternativeGrpId = impendingAbilityGrpId).shouldBeTrue()
+            var removedAllCounters = false
+            repeat(80) {
+                if (removedAllCounters) return@repeat
+                val overlord = human.getZone(ZoneType.Battlefield).cards.firstOrNull { it.name == "Overlord of the Mistmoors" }
+                if (overlord != null && overlord.getCounters(CounterEnumType.TIME) == 0) {
+                    removedAllCounters = true
+                    return@repeat
+                }
+                if (allMessages.lastOrNull { it.hasDeclareAttackersReq() } != null) {
+                    declareNoAttackers()
+                } else {
+                    passPriority()
+                }
+            }
+            removedAllCounters.shouldBeTrue()
+
+            val removed =
+                allMessages
+                    .flatMap { it.gameStateMessage.annotationsList }
+                    .filter { AnnotationType.CounterRemoved in it.typeList && it.detailString("counter_type") == "Time" }
+            val overlord = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Overlord of the Mistmoors" }
+
+            assertSoftly {
+                removed.sumOf { it.detailInt("transaction_amount") } shouldBe 4
+                overlord.getCounters(CounterEnumType.TIME) shouldBe 0
+                overlord.isCreature.shouldBeTrue()
             }
         }
     })
