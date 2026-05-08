@@ -18,7 +18,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *  - [FromExile] — cast offer originates from the exile zone. Plot's cast leg
  *    (universal-149) and Foretell's cast leg (per-card row).
  *  - [FromGraveyard] — cast offer originates from a graveyard zone. Flashback,
- *    Disturb, Escape.
+ *    Disturb, Escape, Jump-start.
  *
  * `ActionMapper.addZoneCastActionsFromSnap` iterates the zone-cast buckets;
  * `ActionMapper.addHandAltCostCastActions` iterates the hand bucket;
@@ -50,6 +50,7 @@ enum class AltCostKind(
     FLASHBACK(KeywordAbilityIds.FLASHBACK),
     DISTURB(KeywordAbilityIds.DISTURB),
     ESCAPE(KeywordAbilityIds.ESCAPE),
+    JUMP_START(KeywordAbilityIds.JUMP_START),
     CLEAVE(KeywordAbilityIds.CLEAVE),
     OVERLOAD(KeywordAbilityIds.OVERLOAD),
     WARP(KeywordAbilityIds.WARP),
@@ -214,6 +215,13 @@ object CastRails {
                 echoAlternativeOnMana = true,
                 emitAlternativeSourceZcid = false,
                 omitGrpIdAndFacetId = true,
+            ),
+            FromGraveyard(
+                kind = AltCostKind.JUMP_START,
+                saPredicate = { it.isJumpstart },
+                echoAlternativeOnMana = true,
+                emitAlternativeSourceZcid = true,
+                omitGrpIdAndFacetId = false,
             ),
         )
 

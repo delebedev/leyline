@@ -5,6 +5,7 @@ import forge.game.GameActionUtil
 import forge.game.GameEntity
 import forge.game.card.Card
 import forge.game.player.Player
+import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.handoff.Target
@@ -98,6 +99,13 @@ internal fun getAllCastableAbilities(
         expanded.addAll(priority)
         expanded.add(sa)
         expanded.addAll(other)
+
+        for (optional in GameActionUtil.getOptionalCostValues(sa)) {
+            if (optional.type != OptionalCost.Jumpstart) continue
+            val optionalSa = GameActionUtil.addOptionalCosts(sa, listOf(optional))
+            optionalSa.setActivatingPlayer(player)
+            expanded.add(optionalSa)
+        }
     }
 
     // Plot and Foretell's hand SAs are added by Forge as KeywordInstance abilities

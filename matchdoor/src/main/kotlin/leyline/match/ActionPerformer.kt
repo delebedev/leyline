@@ -7,6 +7,7 @@ import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.AbilityGrpIdMode
 import leyline.game.mapping.AltGrpIdSource
 import leyline.game.mapping.CastRail
@@ -138,7 +139,8 @@ class ActionPerformer(
                 // Check for optional costs (kicker, buyback, etc.) before submitting.
                 // If found, sends CastingTimeOptionsReq to client and returns without
                 // submitting to engine. onCastingTimeOptions resumes the cast.
-                if (targetingHandler.checkOptionalCosts(action, pending.actionId, castAbilityIndex)) {
+                val skipOptionalCostPrompt = action.alternativeGrpId == KeywordAbilityIds.JUMP_START
+                if (!skipOptionalCostPrompt && targetingHandler.checkOptionalCosts(action, pending.actionId, castAbilityIndex)) {
                     Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
                     // Don't submit to engine yet — wait for CastingTimeOptionsResp
                     return
@@ -436,8 +438,10 @@ class ActionPerformer(
                         (rail.abilityGrpIdMode as? AbilityGrpIdMode.FixedKeyword)?.baseId == action.abilityGrpId
                 }
             } else {
-                val info = bridge.cardRepository.findAbilityInfo(alternativeGrpId) ?: return null
-                CastRails.all.filter { it.kind.keywordBaseId == info.baseId }
+                CastRails.all.filter { it.kind.keywordBaseId == alternativeGrpId }.ifEmpty {
+                    val info = bridge.cardRepository.findAbilityInfo(alternativeGrpId) ?: return null
+                    CastRails.all.filter { it.kind.keywordBaseId == info.baseId }
+                }
             }
         if (candidateRails.isEmpty()) return null
 

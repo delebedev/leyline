@@ -273,6 +273,7 @@ class GameEventCollector(
     ): Int? =
         when {
             saAltCost != null -> KeywordAbilityIds.fromForgeAltCostName(saAltCost.name)
+            topSa?.isJumpstart == true -> KeywordAbilityIds.JUMP_START
             topSa?.hasParam("PrecostDesc") == true && topSa.getParam("PrecostDesc") == "Cleave" -> KeywordAbilityIds.CLEAVE
             else -> null
         }
