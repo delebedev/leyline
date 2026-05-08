@@ -102,6 +102,11 @@ class CostDecision(
         return if (selected.size >= min) selected else null
     }
 
+    private fun discardAmount(
+        cost: CostDiscard,
+        discardType: String,
+    ): Int = if (ability.isJumpstart && discardType == "Card") 1 else cost.getAbilityAmount(ability)
+
     // ═══════════════════════════════════════════════════════════════════
     // Non-interactive visit() methods
     // ═══════════════════════════════════════════════════════════════════
@@ -397,7 +402,7 @@ class CostDecision(
             return if (hand.contains(lastDrawn)) PaymentDecision.card(lastDrawn) else null
         }
 
-        var c = cost.getAbilityAmount(ability)
+        var c = discardAmount(cost, discardType)
 
         if (discardType == "Random") {
             var randomSubset: CardCollectionView = CardCollection(Aggregates.random(hand, c))

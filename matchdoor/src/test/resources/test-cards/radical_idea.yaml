@@ -1,0 +1,11 @@
+name: "Radical Idea"
+grpId: 68513
+titleId: 272684
+abilities:
+  - id: 25848
+    textId: 730
+    category: 4
+  - id: 170
+    textId: 272640
+    category: 3
+expansionCode: "GRN"
