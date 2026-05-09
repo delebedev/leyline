@@ -8,6 +8,8 @@ import io.kotest.matchers.collections.shouldExist
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import leyline.UnitTag
+import leyline.game.bundle.InvariantCheck
+import leyline.game.bundle.InvariantSelection
 import leyline.infra.ListMessageSink
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -69,6 +71,8 @@ class ValidatingMessageSinkTest :
 
         fun strictSink() = ValidatingMessageSink(strict = true)
 
+        fun selectedSink(selection: InvariantSelection) = ValidatingMessageSink(strict = false, selection = selection)
+
         // --- Positive: clean stream ---
 
         test("Clean message stream produces no violations") {
@@ -124,6 +128,27 @@ class ValidatingMessageSinkTest :
             sink.send(listOf(greMessage(msgId = 2, gsm = gsm2)))
 
             sink.violations.shouldExist { "prevGsId 99 not in known set" in it }
+        }
+
+        test("Selection can relax one invariant while preserving others") {
+            val sink =
+                selectedSink(
+                    InvariantSelection.except(
+                        "exercise partial validation selection",
+                        InvariantCheck.GsIdPrevKnown,
+                    ),
+                )
+
+            val gsm1 = gsm(gsId = 1, type = GameStateType.Full)
+            val gsm2 = gsm(gsId = 2, prevGsId = 99)
+            val gsm3 = gsm(gsId = 1, prevGsId = 2)
+
+            sink.send(listOf(greMessage(msgId = 1, gsm = gsm1)))
+            sink.send(listOf(greMessage(msgId = 2, gsm = gsm2)))
+            sink.send(listOf(greMessage(msgId = 3, gsm = gsm3)))
+
+            sink.violations.none { "prevGsId 99 not in known set" in it } shouldBe true
+            sink.violations.shouldExist { "gsId not monotonic" in it }
         }
 
         // --- No self-referential gsId ---

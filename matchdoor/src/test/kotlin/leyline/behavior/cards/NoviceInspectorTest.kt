@@ -6,6 +6,8 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.game.bundle.InvariantCheck
+import leyline.game.bundle.InvariantSelection
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 
@@ -48,7 +50,14 @@ class NoviceInspectorTest :
             """.trimIndent()
 
         test("cast → ETB creates Clue token → sac Clue draws card") {
-            startPuzzleRaw(puzzleText, validating = false)
+            startPuzzleRaw(
+                puzzleText,
+                validation =
+                    InvariantSelection.except(
+                        "Clue token ZoneTransfer affectedIds are unresolved until token projection is fixed (leyline-g8bw)",
+                        InvariantCheck.AnnotationReferences,
+                    ),
+            )
             // 1. Cast Novice Inspector
             castSpellByName("Novice Inspector").shouldBeTrue()
 

@@ -37,6 +37,9 @@ run under the `:matchdoor:simclient` Gradle task, never under `:testGate`.
 batch, copies logs into `~/.scry/games/`:
 
 ```bash
+# Required for arbitrary decks: point at the local Arena card DB.
+export LEYLINE_CARD_DB="$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_<hash>.mtga"
+
 # Defaults: 4 decks × 5 seeds + Simple test deck × 3 seeds
 just simclient
 
@@ -48,6 +51,17 @@ just simclient "Auras,Black aggro" 1,2,3   # 6 games using data/decks/*.txt
 # Pick the policy (greedy default; forge-ai consults Forge AI as advisor)
 SIMCLIENT_POLICY=forge-ai just simclient bears 1..5
 ```
+
+Add a custom deck by saving Arena/export-style deck text as
+`data/decks/<name>.txt`, then pass the basename without `.txt`:
+
+```bash
+just simclient "My deck" 1..5
+```
+
+If `LEYLINE_CARD_DB` is missing, the batch fails before running. Use the same
+Raw card database path the server uses; built-in fixture-only smoke tests do
+not need it, but deck-file runs do.
 
 **Direct gradle** (no ingest):
 

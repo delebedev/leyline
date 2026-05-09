@@ -18,7 +18,9 @@ import kotlin.text.get
  * consistency, action instanceId consistency, zone-object consistency,
  * msgId monotonicity.
  */
-class InvariantChecker {
+class InvariantChecker(
+    private val selection: InvariantSelection = InvariantSelection.all(),
+) {
     @Serializable
     data class Violation(
         val seq: Int,
@@ -486,7 +488,9 @@ class InvariantChecker {
         check: String,
         message: String,
     ) {
-        _violations.add(Violation(messageIndex, gsId, check, message))
+        if (selection.includes(check)) {
+            _violations.add(Violation(messageIndex, gsId, check, message))
+        }
     }
 }
 

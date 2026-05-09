@@ -9,6 +9,7 @@ import leyline.config.AiConfig
 import leyline.config.MatchConfig
 import leyline.config.ServerConfig
 import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.InvariantSelection
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
@@ -33,6 +34,7 @@ class MatchFlowHarness(
     private val seed: Long = 42L,
     private val deckList: String? = null,
     validating: Boolean = true,
+    private val validation: InvariantSelection = defaultValidation(validating),
     private val matchConfig: MatchConfig =
         MatchConfig(
             ai = AiConfig(speed = 0.0),
@@ -59,15 +61,24 @@ class MatchFlowHarness(
      */
     private val cardRepositoryOverride: leyline.game.data.CardRepository? = null,
 ) {
+    companion object {
+        fun defaultValidation(validating: Boolean): InvariantSelection =
+            if (validating) {
+                InvariantSelection.all()
+            } else {
+                InvariantSelection.none("legacy validating=false")
+            }
+    }
+
     private val matchId = "test-match"
     private val seatId = SeatId(1)
 
     val registry = MatchRegistry()
     val sink = ListMessageSink()
 
-    /** Validating decorator — null when [validating] is false. */
+    /** Validating decorator — null only when the selected validation set is empty. */
     val validatingSink: ValidatingMessageSink? =
-        if (validating) ValidatingMessageSink(sink, strict = true) else null
+        if (!validation.isEmpty()) ValidatingMessageSink(sink, strict = true, selection = validation) else null
 
     /** The [MessageSink] passed to [MatchSession] (validating wrapper or plain). */
     private val effectiveSink get() = validatingSink ?: sink

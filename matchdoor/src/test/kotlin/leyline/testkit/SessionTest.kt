@@ -8,6 +8,7 @@ import leyline.IntegrationTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.InvariantSelection
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -95,7 +96,8 @@ abstract class SessionTest(
         seed: Long = 42L,
         validating: Boolean = false,
         aiScript: List<ScriptedAction>? = null,
-    ): MatchFlowHarness = startPuzzleRaw(buildPuzzleText(state, name, goal, turns), seed, validating, aiScript)
+        validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
+    ): MatchFlowHarness = startPuzzleRaw(buildPuzzleText(state, name, goal, turns), seed, validating, aiScript, validation)
 
     /** Start a puzzle from full `.pzl` text (metadata + state). Escape hatch. */
     fun startPuzzleRaw(
@@ -103,8 +105,9 @@ abstract class SessionTest(
         seed: Long = 42L,
         validating: Boolean = false,
         aiScript: List<ScriptedAction>? = null,
+        validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
     ): MatchFlowHarness {
-        val h = MatchFlowHarness(seed = seed, validating = validating)
+        val h = MatchFlowHarness(seed = seed, validating = validating, validation = validation)
         _harness = h
         h.connectAndKeepPuzzleText(puzzleText, aiScript)
         cachePlayerRefs()
@@ -133,8 +136,9 @@ abstract class SessionTest(
         deckList: String? = null,
         validating: Boolean = true,
         aiScript: List<ScriptedAction>? = null,
+        validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
     ): MatchFlowHarness {
-        val h = MatchFlowHarness(seed = seed, deckList = deckList, validating = validating)
+        val h = MatchFlowHarness(seed = seed, deckList = deckList, validating = validating, validation = validation)
         _harness = h
         h.connectAndKeep(aiScript)
         cachePlayerRefs()
@@ -146,8 +150,9 @@ abstract class SessionTest(
         resourcePath: String,
         seed: Long = 42L,
         validating: Boolean = false,
+        validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
     ): MatchFlowHarness {
-        val h = MatchFlowHarness(seed = seed, validating = validating)
+        val h = MatchFlowHarness(seed = seed, validating = validating, validation = validation)
         _harness = h
         h.connectAndKeepPuzzle(resourcePath)
         cachePlayerRefs()
