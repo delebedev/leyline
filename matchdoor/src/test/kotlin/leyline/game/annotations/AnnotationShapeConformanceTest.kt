@@ -120,9 +120,9 @@ class AnnotationShapeConformanceTest :
             detailKeys(ann) shouldBe setOf("counter_type", "transaction_amount")
         }
 
-        test("Scry shape: {topCount, bottomCount}") {
-            val ann = AnnotationBuilder.scry(1.sid, 2, 1)
-            detailKeys(ann) shouldBe setOf("topCount", "bottomCount")
+        test("Scry shape: {topIds, bottomIds}") {
+            val ann = AnnotationBuilder.scry(1.sid, listOf(2, 3), listOf(4))
+            detailKeys(ann) shouldBe setOf("topIds", "bottomIds")
         }
 
         test("SyntheticEvent shape: {type}") {

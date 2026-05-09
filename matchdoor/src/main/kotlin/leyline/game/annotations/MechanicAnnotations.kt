@@ -121,14 +121,14 @@ object MechanicAnnotations {
                     log.debug("mechanic: shuffle seat={} (suppressed — no detail keys)", ev.seatId.value)
                 }
                 is GameEvent.Scry -> {
-                    annotations.add(AnnotationBuilder.scry(ev.seatId, ev.topCount, ev.bottomCount))
-                    log.debug("mechanic: scry seat={} top={} bottom={}", ev.seatId.value, ev.topCount, ev.bottomCount)
+                    annotations.add(AnnotationBuilder.scry(ev.seatId, ev.topIds, ev.bottomIds))
+                    log.debug("mechanic: scry seat={} top={} bottom={}", ev.seatId.value, ev.topIds, ev.bottomIds)
                 }
                 is GameEvent.Surveil -> {
                     // Surveil is mechanically similar to scry — use scry annotation
-                    // with surveil semantics (toLibrary = top, toGraveyard = bottom)
-                    annotations.add(AnnotationBuilder.scry(ev.seatId, ev.toLibrary, ev.toGraveyard))
-                    log.debug("mechanic: surveil seat={} lib={} gy={}", ev.seatId.value, ev.toLibrary, ev.toGraveyard)
+                    // with surveil semantics (library = top, graveyard = bottom).
+                    annotations.add(AnnotationBuilder.scry(ev.seatId, ev.libraryIds, ev.graveyardIds))
+                    log.debug("mechanic: surveil seat={} lib={} gy={}", ev.seatId.value, ev.libraryIds, ev.graveyardIds)
                 }
                 is GameEvent.TokenCreated -> {
                     val instanceId = idResolver(ev.cardId)

@@ -430,18 +430,20 @@ class TargetingHandler(
         val selectedIndices =
             when (classified) {
                 is ClassifiedPrompt.Grouping -> {
+                    val topIds = groups.getOrNull(0)?.idsList.orEmpty()
+                    val awayIds = groups.getOrNull(1)?.idsList.orEmpty()
+                    bridge.recordLibraryArrangement(counters.seatId, classified.context, topIds, awayIds)
+
                     if (req.max == 1 && req.options.size == 2) {
                         // Single-card surveil/scry: "Top of library" (0) vs "Graveyard"/"Bottom" (1)
                         // Group 1 (away zone) has the card → user chose "away" → index 1
-                        val awayGroup = if (groups.size >= 2) groups[1] else null
-                        if (awayGroup != null && awayGroup.idsList.isNotEmpty()) {
+                        if (awayIds.isNotEmpty()) {
                             listOf(1) // away (graveyard for surveil, bottom for scry)
                         } else {
                             listOf(0) // keep on top
                         }
                     } else {
                         // Multi-card surveil/scry: away group IDs → indices into options
-                        val awayIds = if (groups.size >= 2) groups[1].idsList else emptyList()
                         awayIds
                             .mapNotNull { iid ->
                                 val cardId = bridge.getForgeCardId(InstanceId(iid)) ?: return@mapNotNull null
@@ -453,7 +455,12 @@ class TargetingHandler(
                     }
                 }
 
-                else -> listOf(req.defaultIndex)
+                is ClassifiedPrompt.AutoResolve,
+                is ClassifiedPrompt.ModalChoice,
+                is ClassifiedPrompt.Search,
+                is ClassifiedPrompt.SelectN,
+                is ClassifiedPrompt.Targeting,
+                -> listOf(req.defaultIndex)
             }
 
         log.info("TargetingHandler: GroupResp → prompt indices={}", selectedIndices)

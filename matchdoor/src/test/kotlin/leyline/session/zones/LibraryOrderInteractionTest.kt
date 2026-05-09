@@ -7,6 +7,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.testkit.SessionTest
 import leyline.testkit.annotations
+import leyline.testkit.detailIntList
 import leyline.testkit.detailString
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -192,7 +193,12 @@ class LibraryOrderInteractionTest :
                 allMessages
                     .flatMap { if (it.hasGameStateMessage()) it.gameStateMessage.annotationsList else emptyList() }
                     .firstOrNull { ann -> ann.typeList.any { it == AnnotationType.Scry_af5a } }
-            scryAnn.shouldNotBeNull()
+            assertSoftly {
+                scryAnn.shouldNotBeNull()
+                scryAnn.affectedIdsList shouldBe cardIds
+                scryAnn.detailIntList("topIds") shouldBe emptyList()
+                scryAnn.detailIntList("bottomIds") shouldBe cardIds
+            }
 
             // Grizzly Bears moved to bottom — library top is now Forest
             human

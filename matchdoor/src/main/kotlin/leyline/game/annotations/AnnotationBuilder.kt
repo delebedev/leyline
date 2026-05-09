@@ -554,15 +554,18 @@ object AnnotationBuilder {
     /** Scry action. client annotation type 65 (Scry_af5a). */
     fun scry(
         seatId: SeatId,
-        topCount: Int,
-        bottomCount: Int,
+        topIds: List<Int>,
+        bottomIds: List<Int>,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.Scry_af5a)
-            .addAffectedIds(seatId.value)
-            .addDetails(int32Detail(DetailKeys.TOP_COUNT, topCount))
-            .addDetails(int32Detail(DetailKeys.BOTTOM_COUNT, bottomCount))
+            .apply {
+                val affected = topIds + bottomIds
+                if (affected.isEmpty()) addAffectedIds(seatId.value) else addAllAffectedIds(affected)
+            }
+            .addDetails(int32ListDetail(DetailKeys.TOP_IDS, topIds))
+            .addDetails(int32ListDetail(DetailKeys.BOTTOM_IDS, bottomIds))
             .build()
 
     // -- Tier 1 state annotations --

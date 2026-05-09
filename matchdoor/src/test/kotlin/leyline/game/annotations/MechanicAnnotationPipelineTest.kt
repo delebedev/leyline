@@ -13,6 +13,7 @@ import leyline.game.annotations.MechanicAnnotations
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.testkit.detailInt
+import leyline.testkit.detailIntList
 import leyline.testkit.detailString
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -99,15 +100,15 @@ class MechanicAnnotationPipelineTest :
         test("scryAnnotation") {
             val events =
                 listOf(
-                    GameEvent.Scry(seatId = SeatId(2), topCount = 1, bottomCount = 2),
+                    GameEvent.Scry(seatId = SeatId(2), topIds = listOf(11), bottomIds = listOf(12, 13)),
                 )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             assertSoftly {
                 annotations.size shouldBe 1
                 annotations[0].typeList shouldContain AnnotationType.Scry_af5a
-                annotations[0].detailInt("topCount") shouldBe 1
-                annotations[0].detailInt("bottomCount") shouldBe 2
+                annotations[0].detailIntList("topIds") shouldBe listOf(11)
+                annotations[0].detailIntList("bottomIds") shouldBe listOf(12, 13)
             }
         }
 
@@ -116,12 +117,14 @@ class MechanicAnnotationPipelineTest :
         test("surveilAnnotation") {
             val events =
                 listOf(
-                    GameEvent.Surveil(seatId = SeatId(1), toLibrary = 1, toGraveyard = 1),
+                    GameEvent.Surveil(seatId = SeatId(1), libraryIds = listOf(21), graveyardIds = listOf(22)),
                 )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.Scry_af5a
+            annotations[0].detailIntList("topIds") shouldBe listOf(21)
+            annotations[0].detailIntList("bottomIds") shouldBe listOf(22)
         }
 
         // -- TokenCreated --
@@ -330,7 +333,7 @@ class MechanicAnnotationPipelineTest :
             val events =
                 listOf(
                     GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "P1P1", oldCount = 0, newCount = 1),
-                    GameEvent.Scry(seatId = SeatId(1), topCount = 2, bottomCount = 0),
+                    GameEvent.Scry(seatId = SeatId(1), topIds = listOf(11, 12), bottomIds = emptyList()),
                 )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
             assertSoftly {
