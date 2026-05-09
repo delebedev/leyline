@@ -111,6 +111,11 @@ data class CardSnapshot(
      */
     val plottedRole: PlottedRole = PlottedRole.None,
     /**
+     * True when this is a battlefield mount with Forge's saddled state active
+     * for the turn. Drives the `Saddled` Designation pAnn (DesignationType=17).
+     */
+    val isSaddled: Boolean = false,
+    /**
      * True when the card is currently in Exile with the foretold state.
      * Drives the face-down exile rendering (FaceDown +
      * SuppressedPowerAndToughness annotations + visibility=Private). Foretell

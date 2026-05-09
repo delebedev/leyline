@@ -210,9 +210,13 @@ object KeywordAbilityIds {
     const val KICKER = 34
     const val FLASHBACK = 35
     const val MADNESS = 36
+    const val OVERLOAD = 97
+    const val JUMP_START = 170
     const val ESCAPE = 199
     const val FORETELL = 208
     const val DISTURB = 215
+    const val CLEAVE = 221
+    const val IMPENDING = 352
     const val PLOT = 328
     const val MOBILIZE = 363
     const val WARP = 371
@@ -233,12 +237,16 @@ object KeywordAbilityIds {
         when (name.uppercase()) {
             "WARP" -> WARP
             "SNEAK" -> SNEAK
+            "OVERLOAD" -> OVERLOAD
+            "JUMPSTART", "JUMP_START", "JUMP-START" -> JUMP_START
             "FLASHBACK" -> FLASHBACK
             "MADNESS" -> MADNESS
             "PLOT", "PLOTTED" -> PLOT
             "FORETELL", "FORETOLD" -> FORETELL
             "DISTURB" -> DISTURB
             "ESCAPE" -> ESCAPE
+            "CLEAVE" -> CLEAVE
+            "IMPENDING" -> IMPENDING
             "MOBILIZE" -> MOBILIZE
             else -> null
         }

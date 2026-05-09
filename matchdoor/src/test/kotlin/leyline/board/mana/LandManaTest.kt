@@ -31,6 +31,7 @@ import leyline.testkit.gsmOrNull
 import leyline.testkit.haveManaCost
 import leyline.testkit.humanPlayer
 import leyline.testkit.mana
+import leyline.testkit.mergedGsm
 import leyline.testkit.ofType
 import leyline.testkit.persistentAnnotation
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -127,8 +128,7 @@ class LandManaTest :
             playLand(b) ?: error("No land in hand")
             val postResult = postAction(game, b, counter)
             acc.processAll(postResult.messages)
-            val playLandGsm = postResult.messages.first { it.hasGameStateMessage() }.gameStateMessage
-            val oic = playLandGsm.annotation(AnnotationType.ObjectIdChanged)
+            val oic = postResult.mergedGsm.annotation(AnnotationType.ObjectIdChanged)
             val origId = oic.detailInt("orig_id")
             val newId = oic.detailInt("new_id")
 

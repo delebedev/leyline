@@ -1,0 +1,17 @@
+[metadata]
+Name:Jump-start Radical Idea
+Goal:Cast Radical Idea from graveyard by discarding Coral Merfolk.
+Turns:3
+Difficulty:Easy
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Coral Merfolk
+humangraveyard=Radical Idea
+humanbattlefield=Island;Island
+humanlibrary=Island;Island;Island
+ailibrary=Mountain;Mountain;Mountain

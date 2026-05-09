@@ -14,11 +14,11 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *
  * Three rail buckets, keyed on source zone:
  *  - [HandWithAltCost] — cast offer originates from the player's hand. Warp,
- *    Sneak, Plot's hand SA, Foretell's hand SA.
+ *    Sneak, Plot's hand SA, Foretell's hand SA, Impending.
  *  - [FromExile] — cast offer originates from the exile zone. Plot's cast leg
  *    (universal-149) and Foretell's cast leg (per-card row).
  *  - [FromGraveyard] — cast offer originates from a graveyard zone. Flashback,
- *    Disturb, Escape.
+ *    Disturb, Escape, Jump-start.
  *
  * `ActionMapper.addZoneCastActionsFromSnap` iterates the zone-cast buckets;
  * `ActionMapper.addHandAltCostCastActions` iterates the hand bucket;
@@ -50,6 +50,10 @@ enum class AltCostKind(
     FLASHBACK(KeywordAbilityIds.FLASHBACK),
     DISTURB(KeywordAbilityIds.DISTURB),
     ESCAPE(KeywordAbilityIds.ESCAPE),
+    JUMP_START(KeywordAbilityIds.JUMP_START),
+    IMPENDING(KeywordAbilityIds.IMPENDING),
+    CLEAVE(KeywordAbilityIds.CLEAVE),
+    OVERLOAD(KeywordAbilityIds.OVERLOAD),
     WARP(KeywordAbilityIds.WARP),
     SNEAK(KeywordAbilityIds.SNEAK),
 }
@@ -213,6 +217,13 @@ object CastRails {
                 emitAlternativeSourceZcid = false,
                 omitGrpIdAndFacetId = true,
             ),
+            FromGraveyard(
+                kind = AltCostKind.JUMP_START,
+                saPredicate = { it.isJumpstart },
+                echoAlternativeOnMana = true,
+                emitAlternativeSourceZcid = true,
+                omitGrpIdAndFacetId = false,
+            ),
         )
 
     val handWithAltCost: List<HandWithAltCost> =
@@ -235,6 +246,21 @@ object CastRails {
             HandWithAltCost(
                 kind = AltCostKind.FORETELL,
                 saPredicate = { it.isForetelling },
+                lookupMode = LookupMode.CostAgnostic,
+            ),
+            HandWithAltCost(
+                kind = AltCostKind.CLEAVE,
+                saPredicate = { it.hasParam("PrecostDesc") && it.getParam("PrecostDesc") == "Cleave" },
+                lookupMode = LookupMode.CostAware,
+            ),
+            HandWithAltCost(
+                kind = AltCostKind.OVERLOAD,
+                saPredicate = { it.alternativeCost == AlternativeCost.Overload },
+                lookupMode = LookupMode.CostAgnostic,
+            ),
+            HandWithAltCost(
+                kind = AltCostKind.IMPENDING,
+                saPredicate = { it.isImpending },
                 lookupMode = LookupMode.CostAgnostic,
             ),
         )

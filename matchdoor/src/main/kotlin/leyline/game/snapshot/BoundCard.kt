@@ -16,7 +16,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *  - [data] holds the static metadata. Null when no DB row exists for the
  *    card's grpId — `EFFECT` engine pieces (grpId=0) and unbound tokens.
  *  - [altCosts] enumerates the alt-cost ability rows the card carries
- *    (Plot, Foretell, Disturb, Escape, Warp, Sneak, Madness, Flashback,
+ *    (Plot, Foretell, Disturb, Escape, Jump-start, Impending, Cleave, Overload, Warp, Sneak, Madness, Flashback,
  *    Mobilize). Drives [leyline.game.mapping.ActionMapper]'s
  *    cast-from-non-hand-zone and hand-alt-cost rails.
  *  - [mobilizeCleanup] is the per-card hidden triggered-ability grpId — the
@@ -66,7 +66,7 @@ data class BoundCard(
         /**
          * BaseId chain roots that identify alt-cost ability rows on a card.
          * Each appears as the `BaseId` of at most one ability row per printing
-         * (Warp/Sneak/Plot/Foretell/Disturb/Escape/Madness/Flashback/Mobilize).
+         * (Warp/Sneak/Plot/Foretell/Disturb/Escape/Jump-start/Impending/Cleave/Overload/Madness/Flashback/Mobilize).
          */
         private val ALT_COST_BASE_IDS: Set<Int> =
             setOf(
@@ -75,6 +75,10 @@ data class BoundCard(
                 KeywordAbilityIds.ESCAPE,
                 KeywordAbilityIds.FORETELL,
                 KeywordAbilityIds.DISTURB,
+                KeywordAbilityIds.JUMP_START,
+                KeywordAbilityIds.IMPENDING,
+                KeywordAbilityIds.CLEAVE,
+                KeywordAbilityIds.OVERLOAD,
                 KeywordAbilityIds.PLOT,
                 KeywordAbilityIds.MOBILIZE,
                 KeywordAbilityIds.WARP,
@@ -178,6 +182,7 @@ data class AltCostBinding(
 data class DesignationSet(
     val prepared: PreparedRole = PreparedRole.None,
     val plotted: PlottedRole = PlottedRole.None,
+    val isSaddled: Boolean = false,
     val foretold: Boolean = false,
     val isLeftDoorUnlocked: Boolean = false,
     val isRightDoorUnlocked: Boolean = false,

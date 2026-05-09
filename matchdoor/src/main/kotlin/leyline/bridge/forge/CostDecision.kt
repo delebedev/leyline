@@ -102,6 +102,11 @@ class CostDecision(
         return if (selected.size >= min) selected else null
     }
 
+    private fun discardAmount(
+        cost: CostDiscard,
+        discardType: String,
+    ): Int = if (ability.isJumpstart && discardType == "Card") 1 else cost.getAbilityAmount(ability)
+
     // ═══════════════════════════════════════════════════════════════════
     // Non-interactive visit() methods
     // ═══════════════════════════════════════════════════════════════════
@@ -397,7 +402,7 @@ class CostDecision(
             return if (hand.contains(lastDrawn)) PaymentDecision.card(lastDrawn) else null
         }
 
-        var c = cost.getAbilityAmount(ability)
+        var c = discardAmount(cost, discardType)
 
         if (discardType == "Random") {
             var randomSubset: CardCollectionView = CardCollection(Aggregates.random(hand, c))
@@ -1294,9 +1299,9 @@ class CostDecision(
                 selectCards(
                     Localizer.getInstance().getMessage("lblSelectACreatureToTap"),
                     typeList,
-                    0,
+                    1,
                     typeList.size,
-                    cancelAllowed = true,
+                    cancelAllowed = false,
                 ) ?: return null
             if (CardLists.getTotalPower(selected, ability) < i) return null
             return PaymentDecision.card(selected)

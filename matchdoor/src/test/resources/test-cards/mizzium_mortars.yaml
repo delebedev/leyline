@@ -1,0 +1,13 @@
+name: "Mizzium Mortars"
+grpId: 94615
+titleId: 41182
+abilities:
+  - id: 100029
+    textId: 111261
+    category: 4
+  - id: 19573
+    textId: 41184
+    category: 3
+    baseId: 97
+    mana: "o3oRoRoR"
+expansionCode: "PIO"

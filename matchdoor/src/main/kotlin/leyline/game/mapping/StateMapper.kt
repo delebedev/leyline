@@ -46,6 +46,8 @@ import leyline.game.state.PlottedDesignationKind
 import leyline.game.state.PreparedDesignationKind
 import leyline.game.state.QualificationKind
 import leyline.game.state.RightUnlockedDesignationKind
+import leyline.game.state.SaddledDesignationKind
+import leyline.game.state.SaddledThisTurnKind
 import leyline.game.state.TargetSpecKind
 import leyline.game.state.TemporaryPermanentKind
 import org.slf4j.LoggerFactory
@@ -525,6 +527,15 @@ object StateMapper {
                     )
                 }
 
+        val saddledDesignationPersistentFromSnap =
+            snap.boundCards.values
+                .mapNotNull { bound ->
+                    if (!bound.designations.isSaddled) return@mapNotNull null
+                    AnnotationBuilder.saddledDesignation(
+                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
+                    )
+                }
+
         // LeftUnlocked / RightUnlocked: persistent Designation (DesignationType=19/20)
         // for every battlefield Room card with the matching door open. Snapshot
         // pass filtered to `onBf && card.isRoom`, so no zone guard needed here.
@@ -619,6 +630,7 @@ object StateMapper {
                 abilityWordPersistentFromSnap = abilityWordPersistentFromSnap,
                 preparedDesignationPersistentFromSnap = preparedDesignationPersistentFromSnap,
                 plottedDesignationPersistentFromSnap = plottedDesignationPersistentFromSnap,
+                saddledDesignationPersistentFromSnap = saddledDesignationPersistentFromSnap,
                 leftUnlockedDesignationPersistentFromSnap = leftUnlockedDesignationPersistentFromSnap,
                 rightUnlockedDesignationPersistentFromSnap = rightUnlockedDesignationPersistentFromSnap,
                 dayNightDesignationPersistentFromSnap = dayNightDesignationPersistentFromSnap,
@@ -1058,6 +1070,7 @@ object StateMapper {
         abilityWordPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         preparedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         plottedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        saddledDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         leftUnlockedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         rightUnlockedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         dayNightDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
@@ -1163,6 +1176,7 @@ object StateMapper {
 
         val (crewedThisTurnPersistent, crewTypeChangePersistent, crewExpiredAnnotations) =
             computeCrewAnnotations(bridge)
+        val saddledThisTurnPersistent = computeSaddleAnnotations(bridge)
         annotations.addAll(crewExpiredAnnotations)
 
         val enrichedMechanicResult =
@@ -1176,12 +1190,14 @@ object StateMapper {
                                 mechanicResult.perKindPersistent[QualificationKind].orEmpty(),
                         )
                         put(CrewedThisTurnKind, crewedThisTurnPersistent)
+                        put(SaddledThisTurnKind, saddledThisTurnPersistent)
                         put(ModifiedTypeForCrewKind, crewTypeChangePersistent)
                         put(TemporaryPermanentKind, temporaryPermanentPersistent)
                         put(DelayedTriggerAffecteesKind, delayedTriggerAffecteesPersistent)
                         put(TargetSpecKind, targetSpecPersistent)
                         put(PreparedDesignationKind, preparedDesignationPersistentFromSnap)
                         put(PlottedDesignationKind, plottedDesignationPersistentFromSnap)
+                        put(SaddledDesignationKind, saddledDesignationPersistentFromSnap)
                         put(LeftUnlockedDesignationKind, leftUnlockedDesignationPersistentFromSnap)
                         put(RightUnlockedDesignationKind, rightUnlockedDesignationPersistentFromSnap)
                         put(DayNightDesignationKind, dayNightDesignationPersistentFromSnap)
@@ -1694,6 +1710,15 @@ object StateMapper {
         }
         return Triple(crewedThisTurn, typeChange, expired)
     }
+
+    /** Saddle annotation scan: SaddledThisTurn pAnns for mounts and helper creatures. */
+    private fun computeSaddleAnnotations(bridge: GameBridge): List<AnnotationInfo> =
+        bridge.snapshotSaddleState().map { snap ->
+            AnnotationBuilder.saddledThisTurn(
+                InstanceId(snap.mountInstanceId),
+                snap.saddleSourceInstanceIds.map { InstanceId(it) },
+            )
+        }
 
     /**
      * Find the active reveal across all seats, or null. Clears stale reveals where

@@ -58,7 +58,32 @@ class CastRailsTest :
                 abilityGrpId = 6001,
                 manaCost = listOf(ManaColor.Red_afc9 to 1, ManaColor.Generic to 1),
             )
-        val altCosts = listOf(warpRow, foretellRow, escapeRow, flashbackRow, disturbRow, plotRow)
+        val cleaveRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.CLEAVE,
+                abilityGrpId = 6101,
+                manaCost = listOf(ManaColor.Generic to 1, ManaColor.Blue_afc9 to 2),
+            )
+        val overloadRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.OVERLOAD,
+                abilityGrpId = 6201,
+                manaCost = listOf(ManaColor.Generic to 3, ManaColor.Red_afc9 to 3),
+            )
+        val jumpStartRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.JUMP_START,
+                abilityGrpId = 170,
+                manaCost = emptyList(),
+            )
+        val impendingRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.IMPENDING,
+                abilityGrpId = 6301,
+                manaCost = listOf(ManaColor.Generic to 2, ManaColor.White_afc9 to 2),
+            )
+        val altCosts =
+            listOf(warpRow, foretellRow, escapeRow, flashbackRow, disturbRow, plotRow, cleaveRow, overloadRow, jumpStartRow, impendingRow)
 
         test("Plot exile rail returns universal-149 regardless of altCosts contents") {
             val plotExile = CastRails.fromExile.first { it.kind == AltCostKind.PLOT }
@@ -77,11 +102,13 @@ class CastRailsTest :
             val flashback = CastRails.fromGraveyard.first { it.kind == AltCostKind.FLASHBACK }
             val disturb = CastRails.fromGraveyard.first { it.kind == AltCostKind.DISTURB }
             val escape = CastRails.fromGraveyard.first { it.kind == AltCostKind.ESCAPE }
+            val jumpStart = CastRails.fromGraveyard.first { it.kind == AltCostKind.JUMP_START }
             // Empty payCostPairs still resolves — graveyard rails default to cost-agnostic.
             assertSoftly {
                 resolveAltGrpId(flashback, altCosts, payCostPairs = emptyList()) shouldBe flashbackRow.abilityGrpId
                 resolveAltGrpId(disturb, altCosts, payCostPairs = emptyList()) shouldBe disturbRow.abilityGrpId
                 resolveAltGrpId(escape, altCosts, payCostPairs = emptyList()) shouldBe escapeRow.abilityGrpId
+                resolveAltGrpId(jumpStart, altCosts, payCostPairs = emptyList()) shouldBe jumpStartRow.abilityGrpId
             }
         }
 
@@ -127,13 +154,47 @@ class CastRailsTest :
             resolveAltGrpId(plotHand, altCosts, matching) shouldBe plotRow.abilityGrpId
         }
 
-        test("Rails inventory — buckets cover the six AltCostKind values without overlap loss") {
+        test("Cleave hand rail is cost-aware") {
+            val cleaveHand = CastRails.handWithAltCost.first { it.kind == AltCostKind.CLEAVE }
+            val matching = listOf(ManaColor.Generic to 1, ManaColor.Blue_afc9 to 2)
+            resolveAltGrpId(cleaveHand, altCosts, matching) shouldBe cleaveRow.abilityGrpId
+        }
+
+        test("Overload hand rail is cost-agnostic") {
+            val overloadHand = CastRails.handWithAltCost.first { it.kind == AltCostKind.OVERLOAD }
+            val matching = listOf(ManaColor.Generic to 3, ManaColor.Red_afc9 to 3)
+            val reduced = listOf(ManaColor.Generic to 2, ManaColor.Red_afc9 to 3)
+            assertSoftly {
+                resolveAltGrpId(overloadHand, altCosts, matching) shouldBe overloadRow.abilityGrpId
+                resolveAltGrpId(overloadHand, altCosts, reduced) shouldBe overloadRow.abilityGrpId
+            }
+        }
+
+        test("Impending hand rail is cost-agnostic") {
+            val impendingHand = CastRails.handWithAltCost.first { it.kind == AltCostKind.IMPENDING }
+            val matching = listOf(ManaColor.Generic to 2, ManaColor.White_afc9 to 2)
+            val reduced = listOf(ManaColor.Generic to 1, ManaColor.White_afc9 to 2)
+            assertSoftly {
+                resolveAltGrpId(impendingHand, altCosts, matching) shouldBe impendingRow.abilityGrpId
+                resolveAltGrpId(impendingHand, altCosts, reduced) shouldBe impendingRow.abilityGrpId
+            }
+        }
+
+        test("Rails inventory covers AltCostKind values without overlap loss") {
             assertSoftly {
                 CastRails.fromExile.map { it.kind } shouldContainExactly listOf(AltCostKind.PLOT, AltCostKind.FORETELL)
                 CastRails.fromGraveyard.map { it.kind } shouldContainExactly
-                    listOf(AltCostKind.FLASHBACK, AltCostKind.DISTURB, AltCostKind.ESCAPE)
+                    listOf(AltCostKind.FLASHBACK, AltCostKind.DISTURB, AltCostKind.ESCAPE, AltCostKind.JUMP_START)
                 CastRails.handWithAltCost.map { it.kind } shouldContainExactly
-                    listOf(AltCostKind.WARP, AltCostKind.SNEAK, AltCostKind.PLOT, AltCostKind.FORETELL)
+                    listOf(
+                        AltCostKind.WARP,
+                        AltCostKind.SNEAK,
+                        AltCostKind.PLOT,
+                        AltCostKind.FORETELL,
+                        AltCostKind.CLEAVE,
+                        AltCostKind.OVERLOAD,
+                        AltCostKind.IMPENDING,
+                    )
             }
         }
 
