@@ -3,11 +3,14 @@ package leyline.game.snapshot
 import forge.card.GamePieceType
 import forge.game.card.Card
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.BoardTestBase
 import leyline.testkit.humanPlayer
 
@@ -49,5 +52,28 @@ class SnapshotCaptureTest :
                     .first { it.name == "Grizzly Bears" }
             val bearsSnap = snap.objects.getValue(ForgeCardId(bearsCard.id))
             bearsSnap.grpId shouldBeGreaterThan 0
+        }
+
+        test("Effect helper with source is omitted from snapshot zones and objects") {
+            val (b, game, _) =
+                base.startWithBoard { g, human, _ ->
+                    val source = base.addCard("Grizzly Bears", human, ZoneType.Graveyard)
+
+                    val helper = Card(198, g)
+                    helper.owner = human
+                    helper.name = "Grizzly Bears's Effect"
+                    helper.gamePieceType = GamePieceType.EFFECT
+                    helper.setEffectSource(source)
+                    human.getZone(ZoneType.Battlefield).add(helper)
+                }
+
+            val snap = SnapshotCapture.run(game, b, "test", 0)
+            val helperFid = ForgeCardId(198)
+
+            assertSoftly {
+                snap.zones.getValue(ZoneIds.BATTLEFIELD).contents shouldBe emptyList()
+                snap.zones.getValue(ZoneIds.BATTLEFIELD).contents shouldNotContain helperFid
+                snap.objects.keys shouldNotContain helperFid
+            }
         }
     })

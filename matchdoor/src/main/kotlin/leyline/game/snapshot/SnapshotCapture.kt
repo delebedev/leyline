@@ -323,7 +323,7 @@ object SnapshotCapture {
                 type = arenaType,
                 owner = SeatId(seatNum),
                 visibility = visibility,
-                contents = zone.cards.map { ForgeCardId(it.id) },
+                contents = zone.cards.filter(::isSnapshotVisibleCard).map { ForgeCardId(it.id) },
             )
     }
 
@@ -340,9 +340,12 @@ object SnapshotCapture {
                 type = arenaType,
                 owner = null,
                 visibility = Visibility.Public,
-                contents = game.getCardsIn(fz).map { ForgeCardId(it.id) },
+                contents = game.getCardsIn(fz).filter(::isSnapshotVisibleCard).map { ForgeCardId(it.id) },
             )
     }
+
+    /** Forge effect helpers model delayed/resolution machinery, not client-visible cards. */
+    private fun isSnapshotVisibleCard(card: Card): Boolean = !card.isImmutable() || card.getEffectSource() == null
 
     // --- Object Capture ---
 
