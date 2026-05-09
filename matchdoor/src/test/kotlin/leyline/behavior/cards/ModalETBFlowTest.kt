@@ -40,9 +40,9 @@ class ModalETBFlowTest :
         val princeAbilityGrpId = 136341
         val princeLifeModeGrpId = 26167
 
-        fun setupTrufflesnout() = startPuzzleFile("puzzles/modal-etb.pzl", validating = false)
+        fun setupTrufflesnout() = startPuzzleFile("puzzles/modal-etb.pzl", validating = true)
 
-        fun setupPrince() = startPuzzleFile("puzzles/prince-etb.pzl", validating = false)
+        fun setupPrince() = startPuzzleFile("puzzles/prince-etb.pzl", validating = true)
 
         test("modal ETB emits CastingTimeOptionsReq") {
             setupTrufflesnout()

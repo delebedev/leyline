@@ -5,6 +5,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.string.shouldContain
 import leyline.SimClientTag
+import leyline.game.bundle.InvariantCheck
+import leyline.game.bundle.InvariantSelection
 import leyline.testkit.MatchFlowHarness
 import java.nio.file.Files
 import java.time.LocalDateTime
@@ -28,7 +30,18 @@ class SimClientE2ETest :
             tag: String,
             maxTurns: Int = 30,
         ): java.io.File {
-            val harness = MatchFlowHarness(seed = seed, deckList = deck, validating = false)
+            val harness =
+                MatchFlowHarness(
+                    seed = seed,
+                    deckList = deck,
+                    validation =
+                        InvariantSelection.except(
+                            "simclient driver can replay older queued ids around play-land diffs (leyline-qiws)",
+                            InvariantCheck.GsIdMonotonicity,
+                            InvariantCheck.MsgIdMonotonicity,
+                            InvariantCheck.GsIdPrevKnown,
+                        ),
+                )
             val tempLog = Files.createTempFile("simclient-$tag-", ".log").toFile()
             var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
             val writer = tempLog.bufferedWriter()

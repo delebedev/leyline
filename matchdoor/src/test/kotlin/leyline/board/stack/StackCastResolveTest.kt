@@ -185,14 +185,14 @@ class StackCastResolveTest :
         // 3. Resolve — annotations & instanceId lifecycle
         // ===================================================================
 
-        test("Resolve: exactly ResolutionStart, ResolutionComplete, ZoneTransfer") {
+        test("Resolve: exactly ResolutionStart, ZoneTransfer, ResolutionComplete") {
             val gsm = resolveAndCapture() ?: error("No resolve at seed 42")
 
             gsm.annotationsList.map { it.typeList.first() } shouldBe
                 listOf(
                     AnnotationType.ResolutionStart,
-                    AnnotationType.ResolutionComplete,
                     AnnotationType.ZoneTransfer_af5a,
+                    AnnotationType.ResolutionComplete,
                 )
         }
 

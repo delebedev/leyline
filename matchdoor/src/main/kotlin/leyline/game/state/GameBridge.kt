@@ -94,6 +94,8 @@ class GameBridge(
     private val players: MutableMap<Int, Player> = mutableMapOf()
     private var loopController: GameLoopController? = null
 
+    val abilityLineage = AbilityLineageRegistry()
+
     /** Shared signal — bridges notify when they have a pending item, replacing poll loops. */
     val prioritySignal = PrioritySignal()
 

@@ -73,7 +73,7 @@ private val WARP_END_STEP_PUZZLE =
 class WarpLifecycleTest :
     SessionTest({
         test("alternativeGrpId cast chooses the warp spell ability") {
-            startPuzzleRaw(WARP_PUZZLE, validating = false)
+            startPuzzleRaw(WARP_PUZZLE, validating = true)
             val warpAbilityGrpId = warpAbilityGrpId()
 
             check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))
@@ -86,7 +86,7 @@ class WarpLifecycleTest :
         }
 
         test("warp cast emits CastThroughAbility annotation for the selected rail") {
-            startPuzzleRaw(WARP_PUZZLE, validating = false)
+            startPuzzleRaw(WARP_PUZZLE, validating = true)
             val warpAbilityGrpId = warpAbilityGrpId()
 
             check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))
@@ -107,7 +107,7 @@ class WarpLifecycleTest :
         }
 
         test("regular-cost cast keeps Germinating Wurm on the battlefield") {
-            startPuzzleRaw(REGULAR_COST_PUZZLE, validating = false)
+            startPuzzleRaw(REGULAR_COST_PUZZLE, validating = true)
 
             check(castSpellByName("Germinating Wurm"))
             check(passUntil(maxPasses = 20) { game().stack.isEmpty })
@@ -124,7 +124,7 @@ class WarpLifecycleTest :
         }
 
         test("warp-cost cast exiles Germinating Wurm at end of turn") {
-            startPuzzleRaw(WARP_END_STEP_PUZZLE, validating = false)
+            startPuzzleRaw(WARP_END_STEP_PUZZLE, validating = true)
             val warpAbilityGrpId = warpAbilityGrpId()
 
             check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))

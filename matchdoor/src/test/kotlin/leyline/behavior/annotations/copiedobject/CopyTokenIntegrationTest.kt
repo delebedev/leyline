@@ -104,7 +104,7 @@ class CopyTokenIntegrationTest :
         }
 
         test("copy token gets source grpId, isCopy, and objectSourceGrpId") {
-            startPuzzleRaw(puzzleText, validating = false)
+            startPuzzleRaw(puzzleText, validating = true)
 
             val (copyToken, copyIid) = castAndResolveCopy()
 
@@ -131,7 +131,7 @@ class CopyTokenIntegrationTest :
         }
 
         test("copy token retains cardTypes and power/toughness in GSM") {
-            startPuzzleRaw(puzzleText, validating = false)
+            startPuzzleRaw(puzzleText, validating = true)
 
             val (_, copyIid) = castAndResolveCopy()
 
@@ -148,7 +148,7 @@ class CopyTokenIntegrationTest :
         }
 
         test("copy token fields survive diff GSM") {
-            startPuzzleRaw(puzzleText, validating = false)
+            startPuzzleRaw(puzzleText, validating = true)
 
             val (_, copyIid) = castAndResolveCopy()
 
@@ -193,7 +193,7 @@ class CopyTokenIntegrationTest :
         }
 
         test("TemporaryPermanent pAnn emitted for EOT-sacrifice copy") {
-            startPuzzleRaw(puzzleText, validating = false)
+            startPuzzleRaw(puzzleText, validating = true)
 
             val (copyToken, copyIid) = castAndResolveCopy()
 
@@ -272,7 +272,7 @@ class CopyTokenIntegrationTest :
         }
 
         test("Homunculus Horde copy gets source grpId and isCopy") {
-            startPuzzleRaw(homunculusPuzzle, validating = false)
+            startPuzzleRaw(homunculusPuzzle, validating = true)
 
             val (copyToken, copyIid) = castQuickStudyAndWaitForCopy()
 
@@ -299,7 +299,7 @@ class CopyTokenIntegrationTest :
         }
 
         test("Homunculus Horde copy has NO TemporaryPermanent pAnn") {
-            startPuzzleRaw(homunculusPuzzle, validating = false)
+            startPuzzleRaw(homunculusPuzzle, validating = true)
 
             val (copyToken, copyIid) = castQuickStudyAndWaitForCopy()
 

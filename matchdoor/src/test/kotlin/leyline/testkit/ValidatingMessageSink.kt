@@ -1,6 +1,7 @@
 package leyline.testkit
 
 import leyline.game.bundle.InvariantChecker
+import leyline.game.bundle.InvariantSelection
 import leyline.infra.ListMessageSink
 import leyline.infra.MessageSink
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -22,8 +23,9 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class ValidatingMessageSink(
     val inner: ListMessageSink = ListMessageSink(),
     private val strict: Boolean = true,
+    selection: InvariantSelection = InvariantSelection.all(),
 ) : MessageSink {
-    private val checker = InvariantChecker()
+    private val checker = InvariantChecker(selection)
 
     /** Accumulated violation descriptions (useful when [strict] = false). */
     val violations = mutableListOf<String>()

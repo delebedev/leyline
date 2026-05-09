@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
@@ -31,7 +32,7 @@ class ScriptedPlayerControllerTest :
 
         test("scripted AI plays Forest on turn 1") {
             // AI-first seed: AI goes first, gets priority on turn 1
-            val h = MatchFlowHarness(seed = 2L, validating = false)
+            val h = MatchFlowHarness(seed = 2L, validating = true)
             harness = h
             h.connectAndKeep()
 
@@ -57,12 +58,13 @@ class ScriptedPlayerControllerTest :
             val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
             val aiBf = aiPlayer.getZone(ZoneType.Battlefield)
             val forests = aiBf.cards.filter { it.name == "Forest" }
+            forests.size shouldBe 1
             forests.shouldNotBeEmpty()
         }
 
         test("script exhaustion does not hang") {
             // Empty script — AI should just pass on every decision
-            val h = MatchFlowHarness(seed = 2L, validating = false)
+            val h = MatchFlowHarness(seed = 2L, validating = true)
             harness = h
             h.connectAndKeep()
 
@@ -70,12 +72,13 @@ class ScriptedPlayerControllerTest :
 
             // This should not hang — exhausted script falls back to pass
             h.passUntilTurn(2, maxPasses = 30)
+            h.turn() shouldBe 2
             h.isGameOver().shouldBeFalse()
         }
 
         test("illegal action in script does not hang") {
             // Script tries to play a card that doesn't exist — should warn and pass
-            val h = MatchFlowHarness(seed = 2L, validating = false)
+            val h = MatchFlowHarness(seed = 2L, validating = true)
             harness = h
             h.connectAndKeep()
 
@@ -94,6 +97,7 @@ class ScriptedPlayerControllerTest :
 
             // Should not hang even with an illegal action
             h.passUntilTurn(2, maxPasses = 30)
+            h.turn() shouldBe 2
             h.isGameOver().shouldBeFalse()
         }
     })

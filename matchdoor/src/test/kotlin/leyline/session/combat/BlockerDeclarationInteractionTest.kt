@@ -35,7 +35,7 @@ class BlockerDeclarationInteractionTest :
         fun setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
             startGame(
                 deckList = COMBAT_DECK,
-                validating = false,
+                validating = true,
                 aiScript =
                     listOf(
                         ScriptedAction.PlayLand("Mountain"),
@@ -92,7 +92,7 @@ class BlockerDeclarationInteractionTest :
             val puzzleText = javaClass.getResource("/puzzles/multi-blocker.pzl")!!.readText()
             startPuzzleRaw(
                 puzzleText,
-                validating = false,
+                validating = true,
                 aiScript =
                     listOf(
                         ScriptedAction.Attack(listOf("Centaur Courser")),

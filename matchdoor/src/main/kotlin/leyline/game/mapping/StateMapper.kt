@@ -28,6 +28,7 @@ import leyline.game.event.SnapDeltaSynthesizer
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PreparedRole
+import leyline.game.state.AbilityWireIdentity
 import leyline.game.state.AbilityWordActiveKind
 import leyline.game.state.BridgeMutations
 import leyline.game.state.CrewedThisTurnKind
@@ -1363,10 +1364,12 @@ object StateMapper {
             )
         }
         for (d in transferResult.stackAbilityDisappearances) {
+            val lineage = bridge?.abilityLineage?.consume(d.abilityInstanceId)
+            val sourceCardInstanceId = lineage?.sourceIidAtCreate ?: d.sourceCardInstanceId
             annotations.add(
                 AnnotationBuilder.abilityInstanceDeleted(
                     InstanceId(d.abilityInstanceId),
-                    InstanceId(d.sourceCardInstanceId),
+                    InstanceId(sourceCardInstanceId),
                 ),
             )
         }
@@ -1406,6 +1409,14 @@ object StateMapper {
             val sourceZone = currentSourceZoneId(cast.cardId, bridge)
 
             if (sourceCardIid in snapshotSourceIids) continue
+            bridge.abilityLineage.record(
+                AbilityWireIdentity(
+                    abilityIid = abilityIid,
+                    sourceIidAtCreate = sourceCardIid,
+                    sourceZoneAtCreate = sourceZone,
+                    abilityGrpId = abilityGrpIdForSource(cast.cardId, snap),
+                ),
+            )
             annotations.add(
                 AnnotationBuilder.abilityInstanceCreated(
                     InstanceId(abilityIid),
@@ -1433,6 +1444,14 @@ object StateMapper {
                 if (cast.activationZoneId != 0) cast.activationZoneId else currentSourceZoneId(cast.cardId, bridge)
 
             if (sourceCardIid in snapshotSourceIids) continue
+            bridge.abilityLineage.record(
+                AbilityWireIdentity(
+                    abilityIid = abilityIid,
+                    sourceIidAtCreate = sourceCardIid,
+                    sourceZoneAtCreate = sourceZone,
+                    abilityGrpId = abilityGrpIdForSource(cast.cardId, snap),
+                ),
+            )
             annotations.add(
                 AnnotationBuilder.abilityInstanceCreated(
                     InstanceId(abilityIid),
@@ -1448,7 +1467,14 @@ object StateMapper {
         for (resolved in events.filterIsInstance<GameEvent.SpellResolved>().filter { it.isTrigger || it.isAbility }) {
             val sourceCardIid = frameIds.cardIid(resolved.cardId).value
             val abilityIid = stackAbilityIidFor(resolved.abilityForgeId, resolved.cardId, frameIds)
-            val abilityGrpId = abilityGrpIdForSource(resolved.cardId, snap)
+            val lineage =
+                if (abilityIid in snapshotDisappearanceIids) {
+                    bridge.abilityLineage.find(abilityIid)
+                } else {
+                    bridge.abilityLineage.consume(abilityIid)
+                }
+            val aidSourceIid = lineage?.sourceIidAtCreate ?: sourceCardIid
+            val abilityGrpId = lineage?.abilityGrpId?.takeIf { it != 0 } ?: abilityGrpIdForSource(resolved.cardId, snap)
 
             annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
             annotations.add(AnnotationBuilder.resolutionComplete(InstanceId(abilityIid), GrpId(abilityGrpId)))
@@ -1456,7 +1482,7 @@ object StateMapper {
                 annotations.add(
                     AnnotationBuilder.abilityInstanceDeleted(
                         InstanceId(abilityIid),
-                        InstanceId(sourceCardIid),
+                        InstanceId(aidSourceIid),
                     ),
                 )
             }

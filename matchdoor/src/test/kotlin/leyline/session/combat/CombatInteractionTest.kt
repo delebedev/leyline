@@ -12,6 +12,8 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.game.annotations.AnnotationConstants
+import leyline.game.bundle.InvariantCheck
+import leyline.game.bundle.InvariantSelection
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
 import leyline.testkit.allAnnotations
@@ -44,12 +46,22 @@ const val COMBAT_DECK = """
 class CombatInteractionTest :
     SessionTest({
 
+        val combatValidation =
+            InvariantSelection.except(
+                "combat playback can skip queued gsIds and combat damage refs are unresolved in some lanes",
+                InvariantCheck.GsIdMonotonicity,
+                InvariantCheck.GsIdPrevKnown,
+                InvariantCheck.MsgIdMonotonicity,
+                InvariantCheck.AnnotationReferences,
+            )
+
         // ─── Setup helpers ────────────────────────────────────────────────────
 
         fun setupSingleAttacker(): Int {
             startGame(
                 deckList = COMBAT_DECK,
-                validating = false,
+                validating = true,
+                validation = combatValidation,
                 aiScript =
                     listOf(
                         ScriptedAction.PlayLand("Mountain"),
@@ -76,7 +88,8 @@ class CombatInteractionTest :
         fun setupMultipleAttackers(): List<Int> {
             startGame(
                 deckList = COMBAT_DECK,
-                validating = false,
+                validating = true,
+                validation = combatValidation,
                 aiScript =
                     listOf(
                         ScriptedAction.PlayLand("Mountain"),
@@ -115,7 +128,8 @@ class CombatInteractionTest :
         fun setupWithAiBlocker(): Int {
             startGame(
                 deckList = COMBAT_DECK,
-                validating = false,
+                validating = true,
+                validation = combatValidation,
                 aiScript =
                     listOf(
                         ScriptedAction.PlayLand("Mountain"),
@@ -325,7 +339,8 @@ class CombatInteractionTest :
             // AI: play Mountain, cast Raging Goblin (blocker), skip attacking, decline blocking
             startGame(
                 deckList = COMBAT_DECK,
-                validating = false,
+                validating = true,
+                validation = combatValidation,
                 aiScript =
                     listOf(
                         ScriptedAction.PlayLand("Mountain"),
@@ -591,7 +606,8 @@ class CombatInteractionTest :
             val puzzleText = javaClass.getResource("/puzzles/trample-damage-assign.pzl")!!.readText()
             startPuzzleRaw(
                 puzzleText,
-                validating = false,
+                validating = true,
+                validation = combatValidation,
                 aiScript =
                     listOf(
                         ScriptedAction.DeclareNoAttackers,
@@ -677,7 +693,8 @@ class CombatInteractionTest :
                 """,
                 name = "Single Blocker No Prompt",
                 turns = 10,
-                validating = false,
+                validating = true,
+                validation = combatValidation,
                 aiScript =
                     listOf(
                         ScriptedAction.DeclareNoAttackers,
@@ -722,7 +739,8 @@ class CombatInteractionTest :
                 """,
                 name = "Zero Blockers AI Attack",
                 turns = 10,
-                validating = false,
+                validating = true,
+                validation = combatValidation,
                 aiScript =
                     listOf(
                         ScriptedAction.Attack(listOf("Raging Goblin")),
@@ -736,6 +754,7 @@ class CombatInteractionTest :
                 passThroughCombat()
             }.expectNoDeclareBlockersReq()
 
+            allMessages.count { it.hasDeclareBlockersReq() } shouldBe 0
             // Game should still be running (not stuck)
             isGameOver().shouldBeFalse()
         }
@@ -778,7 +797,8 @@ class CombatInteractionTest :
                 aibattlefield=Raging Goblin|Attacking|Tapped;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                validating = false,
+                validating = true,
+                validation = combatValidation,
             )
 
             human.life shouldBe 19

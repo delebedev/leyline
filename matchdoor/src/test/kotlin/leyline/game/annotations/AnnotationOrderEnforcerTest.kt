@@ -74,8 +74,12 @@ class AnnotationOrderEnforcerTest :
             val input = listOf(rs, rc, zt)
             val result = AnnotationOrderEnforcer.enforce(input)
 
-            // No ObjectIdChanged means no reordering needed
-            result shouldBe input
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.ResolutionStart,
+                    AnnotationType.ZoneTransfer_af5a,
+                    AnnotationType.ResolutionComplete,
+                )
         }
 
         test("handles multiple ObjectIdChanged for different cards") {
@@ -281,5 +285,122 @@ class AnnotationOrderEnforcerTest :
                     AnnotationType.TappedUntappedPermanent,
                     AnnotationType.ZoneTransfer_af5a,
                 )
+        }
+
+        // ===== Rule 4: PhaseOrStepFirst =====
+
+        test("Rule 4: reorders so PhaseOrStepModified leads") {
+            val aic = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 900.iid, sourceZoneId = 31)
+            val counter = AnnotationBuilder.counterAdded(instanceId = 500.iid, counterType = "+1/+1", amount = 1)
+            val posm = AnnotationBuilder.phaseOrStepModified(activeSeat = 1.sid, phase = 3, step = 0)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(aic, counter, posm))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.PhaseOrStepModified,
+                    AnnotationType.AbilityInstanceCreated,
+                    AnnotationType.CounterAdded,
+                )
+        }
+
+        test("Rule 4: no-op when PhaseOrStepModified already first") {
+            val posm = AnnotationBuilder.phaseOrStepModified(activeSeat = 1.sid, phase = 3, step = 0)
+            val aic = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 900.iid, sourceZoneId = 31)
+
+            val input = listOf(posm, aic)
+            val result = AnnotationOrderEnforcer.enforce(input)
+
+            result shouldBe input
+        }
+
+        test("Rule 4: no-op when PhaseOrStepModified absent") {
+            val aic = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 900.iid, sourceZoneId = 31)
+            val counter = AnnotationBuilder.counterAdded(instanceId = 500.iid, counterType = "+1/+1", amount = 1)
+
+            val input = listOf(aic, counter)
+            val result = AnnotationOrderEnforcer.enforce(input)
+
+            result shouldBe input
+        }
+
+        test("Rule 4: multiple PhaseOrStepModified preserve relative order") {
+            val aic = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 900.iid, sourceZoneId = 31)
+            val posmA = AnnotationBuilder.phaseOrStepModified(activeSeat = 1.sid, phase = 3, step = 0)
+            val posmB = AnnotationBuilder.phaseOrStepModified(activeSeat = 1.sid, phase = 4, step = 0)
+
+            // Wrong order: AIC before both PoSMs; PoSMs in (a, b) order
+            val result = AnnotationOrderEnforcer.enforce(listOf(aic, posmA, posmB))
+
+            // Both PoSMs lead, preserving (a, b) order; AIC trails.
+            result.map { it.typeList.first() to it.detailsList.firstOrNull { d -> d.key == "phase" }?.getValueInt32(0) } shouldBe
+                listOf(
+                    AnnotationType.PhaseOrStepModified to 3,
+                    AnnotationType.PhaseOrStepModified to 4,
+                    AnnotationType.AbilityInstanceCreated to null,
+                )
+        }
+
+        // ===== Rule 5: ResolveTransferInsideResolution =====
+
+        test("Rule 5: moves Resolve ZoneTransfer before ResolutionComplete") {
+            val rs = AnnotationBuilder.resolutionStart(instanceId = 200.iid, grpId = 12345.grp)
+            val rc = AnnotationBuilder.resolutionComplete(instanceId = 200.iid, grpId = 12345.grp)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 200.iid,
+                    srcZoneId = 27,
+                    destZoneId = 28,
+                    category = "Resolve",
+                )
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(rs, rc, zt))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.ResolutionStart,
+                    AnnotationType.ZoneTransfer_af5a,
+                    AnnotationType.ResolutionComplete,
+                )
+        }
+
+        test("Rule 5: moves Resolve ZoneTransfer after ResolutionStart") {
+            val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 200.iid,
+                    srcZoneId = 27,
+                    destZoneId = 28,
+                    category = "Resolve",
+                )
+            val rs = AnnotationBuilder.resolutionStart(instanceId = 200.iid, grpId = 12345.grp)
+            val rc = AnnotationBuilder.resolutionComplete(instanceId = 200.iid, grpId = 12345.grp)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(oic, zt, rs, rc))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.ObjectIdChanged,
+                    AnnotationType.ResolutionStart,
+                    AnnotationType.ZoneTransfer_af5a,
+                    AnnotationType.ResolutionComplete,
+                )
+        }
+
+        test("Rule 5: ignores non-Resolve ZoneTransfer") {
+            val rs = AnnotationBuilder.resolutionStart(instanceId = 200.iid, grpId = 12345.grp)
+            val rc = AnnotationBuilder.resolutionComplete(instanceId = 200.iid, grpId = 12345.grp)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 200.iid,
+                    srcZoneId = 31,
+                    destZoneId = 28,
+                    category = "PlayLand",
+                )
+
+            val input = listOf(rs, rc, zt)
+            val result = AnnotationOrderEnforcer.enforce(input)
+
+            result shouldBe input
         }
     })

@@ -125,12 +125,7 @@ class StockUpTest :
         }
 
         test("Stock Up resolves: 2 chosen cards move Library → Hand, no prompt loop") {
-            // validating=false: ValidatingMessageSink flags an unresolved
-            // affectedId on a ZoneTransfer annotation during resolution. The
-            // wire-shape test above runs validating=true (it doesn't drive
-            // resolution). Tracked separately — annotation iid bookkeeping
-            // for look-and-pick post-pick zone transfers.
-            startPuzzleFile("puzzles/stock-up.pzl", validating = false)
+            startPuzzleFile("puzzles/stock-up.pzl", validating = true)
 
             val req = castSpellUntilSelectNReq("Stock Up")
             val pickedIids = req.idsList.take(2)

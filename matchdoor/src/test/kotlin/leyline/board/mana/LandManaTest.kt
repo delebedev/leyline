@@ -125,9 +125,6 @@ class LandManaTest :
             acc.processAll(startResult.messages)
             b.seedDiffBaseline(game)
 
-            val player = humanPlayer(b)
-            val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand")
-
             playLand(b) ?: error("No land in hand")
             val postResult = postAction(game, b, counter)
             acc.processAll(postResult.messages)

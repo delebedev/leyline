@@ -21,7 +21,7 @@ class LandPlayLaneShapeTest :
     SessionTest({
 
         test("post-LAND_PLAY SendAndRecord GSM is not immediately followed by ActionsAvailableReq") {
-            startGame(deckList = COMBAT_DECK, validating = false)
+            startGame(deckList = COMBAT_DECK, validating = true)
             harness.advanceToMain1()
 
             val produced = after { playLand().shouldBeTrue() }.messages

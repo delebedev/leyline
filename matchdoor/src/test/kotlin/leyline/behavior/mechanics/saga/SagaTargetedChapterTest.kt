@@ -53,7 +53,7 @@ class SagaTargetedChapterTest :
                 ailibrary=Mountain;Mountain;Mountain;Mountain
                 """.trimIndent()
 
-            val harness = MatchFlowHarness(validating = false)
+            val harness = MatchFlowHarness(validating = true)
             try {
                 harness.connectAndKeepPuzzleText(puzzleText)
                 val game = harness.bridge.getGame()!!

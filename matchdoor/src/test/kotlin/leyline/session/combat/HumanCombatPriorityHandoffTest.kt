@@ -56,7 +56,7 @@ class HumanCombatPriorityHandoffTest :
                     ailibrary=Mountain;Mountain;Mountain
                     """.trimIndent()
 
-                startPuzzleRaw(puzzleText, validating = false)
+                startPuzzleRaw(puzzleText, validating = true)
 
                 // Puzzle starts at MAIN1 on human's turn; advance to combat so
                 // the harness sees a live DeclareAttackersReq.

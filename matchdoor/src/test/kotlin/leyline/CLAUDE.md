@@ -76,13 +76,13 @@ If the helper you need doesn't exist and the predicate has appeared 3+ times acr
 
 ## Validating sink
 
-`MatchFlowHarness(validating = true)` wraps the message sink in `ValidatingMessageSink`, which fails the test on per-message invariant breaks (unresolved iids on annotations, GSMs with mismatched gameObjects, etc.) — long before a soft assertion would notice. Default to `validating = true` for any new structural-shape test. Use `validating = false` only when:
+`MatchFlowHarness(validating = true)` wraps the message sink in `ValidatingMessageSink`, which fails the test on per-message invariant breaks (unresolved iids on annotations, GSMs with mismatched gameObjects, etc.) — long before a soft assertion would notice. Default to full validation for any new structural-shape test. Use `InvariantSelection.except(...)` only when:
 
 1. You're driving past a known-broken invariant whose fix is tracked separately (`StockUpTest` resolution path), or
 2. The puzzle-injected starting state lacks fields the validator requires (`MobilizeKeywordTest` due to synthetic ability ids), or
 3. You're observing a Forge engine quirk (e.g. id reallocation on transform) that the validator legitimately rejects.
 
-In every case, the `validating = false` line gets a comment naming the specific invariant being skipped and the tracking issue.
+In every case, the selection reason names the specific invariant being skipped and the tracking issue.
 
 ## Test-card setup
 

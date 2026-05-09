@@ -258,7 +258,7 @@ class AiTurnInteractionTest :
             )
 
         test("AI land play — dedicated gsId + annotations + precedes CastSpell, CastSpell clean") {
-            startGame(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            startGame(seed = 42L, deckList = COMBAT_DECK, validating = true)
             installScriptedAi(scriptedLandThenGoblin)
             passUntilTurn(3)
 
@@ -315,7 +315,7 @@ class AiTurnInteractionTest :
         }
 
         test("AI-first land play not discarded (default AI, no script)") {
-            startGame(seed = 2L, deckList = COMBAT_DECK, validating = false)
+            startGame(seed = 2L, deckList = COMBAT_DECK, validating = true)
             passUntilTurn(2)
 
             val turn1PlayLand =
@@ -327,6 +327,7 @@ class AiTurnInteractionTest :
                                 ann.detail("category")?.getValueString(0) == "PlayLand"
                         }
                 }
+            turn1PlayLand.size shouldBe 1
             turn1PlayLand.shouldNotBeEmpty()
         }
     })

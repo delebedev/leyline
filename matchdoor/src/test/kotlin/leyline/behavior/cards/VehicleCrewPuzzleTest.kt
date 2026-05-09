@@ -38,7 +38,7 @@ class VehicleCrewPuzzleTest :
                 ailibrary=Mountain|Mountain|Mountain|Mountain
                 """.trimIndent()
 
-            startPuzzleRaw(pzl, validating = false)
+            startPuzzleRaw(pzl, validating = true)
 
             // Auto-pass should stop at Main1 when crew ability is available
             phase() shouldBe "MAIN1"

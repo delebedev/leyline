@@ -2,6 +2,8 @@ package leyline.game.bundle
 
 import kotlinx.serialization.Serializable
 import leyline.game.annotations.AnnotationOrderEnforcer
+import leyline.game.annotations.TransferCategory
+import leyline.game.codes.DetailKeys
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
 import kotlin.text.get
@@ -12,9 +14,13 @@ import kotlin.text.get
  * (post-hoc diagnostics).
  *
  * Checks: gsId monotonicity, prevGsId validity, annotation sequentiality,
- * action instanceId consistency, zone-object consistency, msgId monotonicity.
+ * annotation ordering, phase_first, resolution_sandwich, aid_affector
+ * consistency, action instanceId consistency, zone-object consistency,
+ * msgId monotonicity.
  */
-class InvariantChecker {
+class InvariantChecker(
+    private val selection: InvariantSelection = InvariantSelection.all(),
+) {
     @Serializable
     data class Violation(
         val seq: Int,
@@ -31,6 +37,7 @@ class InvariantChecker {
     private var highWaterMsgId = 0
     private var pendingCountdown = 0
     private var messageIndex = 0
+    private val aicAffectorByAbilityIid = mutableMapOf<Int, Int>()
 
     private val _violations = mutableListOf<Violation>()
     val violations: List<Violation> get() = _violations
@@ -51,6 +58,10 @@ class InvariantChecker {
             checkNoSelfReferentialGsId(gsm)
             checkAnnotationIdSequentiality(gsm)
             checkAnnotationOrdering(gsm)
+            checkPhaseFirst(gsm)
+            checkResolutionSandwich(gsm)
+            val aidIids = checkAidAffectorConsistency(gsm)
+            recordAicAffectorHistory(gsm, aidIids)
             checkPendingMessageCountContract(gsm)
         }
 
@@ -257,6 +268,127 @@ class InvariantChecker {
         }
     }
 
+    /**
+     * When PhaseOrStepModified appears in a GSM, it must be at index 0.
+     * Detection only — the matching enforcer rule lands in a follow-up.
+     */
+    private fun checkPhaseFirst(gsm: GameStateMessage) {
+        val annotations = gsm.annotationsList
+        val firstPosIdx = annotations.indexOfFirst { AnnotationType.PhaseOrStepModified in it.typeList }
+        if (firstPosIdx <= 0) return
+        record(
+            gsm.gameStateId,
+            "phase_first",
+            "PhaseOrStepModified at index $firstPosIdx, expected 0 (gsId=${gsm.gameStateId})",
+        )
+    }
+
+    /**
+     * In any GSM that contains both [AnnotationType.ResolutionStart] and
+     * [AnnotationType.ResolutionComplete], every Resolve-category
+     * [AnnotationType.ZoneTransfer_af5a] must sit at an index strictly
+     * between the first ResolutionStart and the last ResolutionComplete.
+     *
+     * Resolution content (the zone change a resolving spell or ability
+     * causes) belongs inside the RS/RC bracket; if it lands outside, the
+     * client receives a zone event without its surrounding resolution
+     * wrapper.
+     *
+     * Detection only — the matching enforcer rule lands in a follow-up.
+     */
+    private fun checkResolutionSandwich(gsm: GameStateMessage) {
+        val annotations = gsm.annotationsList
+        val rsIdx = annotations.indexOfFirst { AnnotationType.ResolutionStart in it.typeList }
+        val rcIdx = annotations.indexOfLast { AnnotationType.ResolutionComplete in it.typeList }
+        if (rsIdx < 0 || rcIdx < 0) return
+        val gsId = gsm.gameStateId
+        annotations.forEachIndexed { idx, ann ->
+            if (AnnotationType.ZoneTransfer_af5a !in ann.typeList) return@forEachIndexed
+            val isResolve =
+                ann.detailsList.any { detail ->
+                    detail.key == DetailKeys.CATEGORY &&
+                        detail.valueStringList.firstOrNull() == TransferCategory.Resolve.label
+                }
+            if (!isResolve) return@forEachIndexed
+            if (idx < rsIdx || idx > rcIdx) {
+                val affected = ann.affectedIdsList.firstOrNull() ?: 0
+                record(
+                    gsId,
+                    "resolution_sandwich",
+                    "Resolve-category ZoneTransfer affected=$affected at index $idx " +
+                        "outside RS=$rsIdx..RC=$rcIdx (gsId=$gsId)",
+                )
+            }
+        }
+    }
+
+    /**
+     * Verify that an [AnnotationType.AbilityInstanceDeleted]'s `affectorId`
+     * matches the `affectorId` of the earlier [AnnotationType.AbilityInstanceCreated]
+     * for the same ability instance id (the AID/AIC's `affectedIds[0]`).
+     *
+     * Catches identity drift such as the saga T5 chapter-III + transform
+     * regression, where AID emits with the post-transform source iid even
+     * though AIC was emitted with the pre-transform source iid.
+     *
+     * Detection only — the matching producer-side fix lands when ability
+     * lineage tracking lands.
+     *
+     * Wired in [process] BEFORE [recordAicAffectorHistory] so an AID in
+     * GSM N is only checked against AICs from GSM 1..N-1; same-GSM AIC+AID
+     * pairs (mana brackets) do not interact through this map.
+     *
+     * The AIC entry is pruned after the AID check fires so it does not leak
+     * across re-emissions.
+     *
+     * Returns the set of ability iids that were AID'd in this GSM, so
+     * [recordAicAffectorHistory] can skip storing AICs whose ability was
+     * already closed in the same GSM (otherwise same-GSM AIC+AID pairs
+     * would leak the AIC entry into the map indefinitely).
+     */
+    private fun checkAidAffectorConsistency(gsm: GameStateMessage): Set<Int> {
+        val aidIids = mutableSetOf<Int>()
+        for (ann in gsm.annotationsList) {
+            if (AnnotationType.AbilityInstanceDeleted !in ann.typeList) continue
+            val abilityIid = ann.affectedIdsList.firstOrNull() ?: continue
+            aidIids.add(abilityIid)
+            val expected = aicAffectorByAbilityIid[abilityIid] ?: continue
+            if (ann.affectorId != expected) {
+                record(
+                    gsm.gameStateId,
+                    "aid_affector",
+                    "AID affectorId=${ann.affectorId} for ability=$abilityIid does not match " +
+                        "earlier AIC affectorId=$expected (gsId=${gsm.gameStateId})",
+                )
+            }
+            aicAffectorByAbilityIid.remove(abilityIid)
+        }
+        return aidIids
+    }
+
+    /**
+     * Store each [AnnotationType.AbilityInstanceCreated] in this GSM in
+     * the [aicAffectorByAbilityIid] map so that a future AID for the same
+     * ability iid can be checked against it.
+     *
+     * Wired in [process] AFTER [checkAidAffectorConsistency] so same-GSM
+     * AIC+AID pairs do not check against themselves. Same-GSM AIC entries
+     * are skipped via [aidIidsThisGsm] — storing them would leak the
+     * entry indefinitely because no future AID will arrive to prune it
+     * (mana brackets fire many times per match).
+     */
+    private fun recordAicAffectorHistory(
+        gsm: GameStateMessage,
+        aidIidsThisGsm: Set<Int>,
+    ) {
+        for (ann in gsm.annotationsList) {
+            if (AnnotationType.AbilityInstanceCreated !in ann.typeList) continue
+            val abilityIid = ann.affectedIdsList.firstOrNull() ?: continue
+            if (abilityIid in aidIidsThisGsm) continue
+            aicAffectorByAbilityIid[abilityIid] = ann.affectorId
+        }
+    }
+
     private fun checkPendingMessageCountContract(gsm: GameStateMessage) {
         // TODO: too strict — our phaseTransitionDiff sets pendingMessageCount=1
         // but AI action diffs can arrive before the expected follow-up.
@@ -356,7 +488,9 @@ class InvariantChecker {
         check: String,
         message: String,
     ) {
-        _violations.add(Violation(messageIndex, gsId, check, message))
+        if (selection.includes(check)) {
+            _violations.add(Violation(messageIndex, gsId, check, message))
+        }
     }
 }
 
