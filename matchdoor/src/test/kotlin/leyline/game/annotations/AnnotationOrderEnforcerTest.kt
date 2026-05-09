@@ -74,8 +74,12 @@ class AnnotationOrderEnforcerTest :
             val input = listOf(rs, rc, zt)
             val result = AnnotationOrderEnforcer.enforce(input)
 
-            // No ObjectIdChanged means no reordering needed
-            result shouldBe input
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.ResolutionStart,
+                    AnnotationType.ZoneTransfer_af5a,
+                    AnnotationType.ResolutionComplete,
+                )
         }
 
         test("handles multiple ObjectIdChanged for different cards") {
@@ -335,5 +339,68 @@ class AnnotationOrderEnforcerTest :
                     AnnotationType.PhaseOrStepModified to 4,
                     AnnotationType.AbilityInstanceCreated to null,
                 )
+        }
+
+        // ===== Rule 5: ResolveTransferInsideResolution =====
+
+        test("Rule 5: moves Resolve ZoneTransfer before ResolutionComplete") {
+            val rs = AnnotationBuilder.resolutionStart(instanceId = 200.iid, grpId = 12345.grp)
+            val rc = AnnotationBuilder.resolutionComplete(instanceId = 200.iid, grpId = 12345.grp)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 200.iid,
+                    srcZoneId = 27,
+                    destZoneId = 28,
+                    category = "Resolve",
+                )
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(rs, rc, zt))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.ResolutionStart,
+                    AnnotationType.ZoneTransfer_af5a,
+                    AnnotationType.ResolutionComplete,
+                )
+        }
+
+        test("Rule 5: moves Resolve ZoneTransfer after ResolutionStart") {
+            val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 200.iid,
+                    srcZoneId = 27,
+                    destZoneId = 28,
+                    category = "Resolve",
+                )
+            val rs = AnnotationBuilder.resolutionStart(instanceId = 200.iid, grpId = 12345.grp)
+            val rc = AnnotationBuilder.resolutionComplete(instanceId = 200.iid, grpId = 12345.grp)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(oic, zt, rs, rc))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.ObjectIdChanged,
+                    AnnotationType.ResolutionStart,
+                    AnnotationType.ZoneTransfer_af5a,
+                    AnnotationType.ResolutionComplete,
+                )
+        }
+
+        test("Rule 5: ignores non-Resolve ZoneTransfer") {
+            val rs = AnnotationBuilder.resolutionStart(instanceId = 200.iid, grpId = 12345.grp)
+            val rc = AnnotationBuilder.resolutionComplete(instanceId = 200.iid, grpId = 12345.grp)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 200.iid,
+                    srcZoneId = 31,
+                    destZoneId = 28,
+                    category = "PlayLand",
+                )
+
+            val input = listOf(rs, rc, zt)
+            val result = AnnotationOrderEnforcer.enforce(input)
+
+            result shouldBe input
         }
     })

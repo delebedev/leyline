@@ -36,6 +36,7 @@ object OrderRules {
             SameCardIncrementalRule,
             TokenCreatedFirstRule,
             PhaseOrStepFirstRule,
+            ResolveTransferInsideResolutionRule,
         )
 }
 
@@ -189,6 +190,32 @@ data object PhaseOrStepFirstRule : OrderRule {
     }
 }
 
+/**
+ * Rule 5: Resolve-category zone transfers belong inside the RS/RC bracket.
+ *
+ * ResolutionStart opens the client animation bracket and ResolutionComplete
+ * closes it. A resolving spell's zone movement after RC renders as an
+ * unbracketed state change, so each Resolve transfer gets RS -> ZT -> RC edges.
+ */
+data object ResolveTransferInsideResolutionRule : OrderRule {
+    override val name: String = "resolve_transfer_inside_resolution"
+
+    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
+        val rs = annotations.indexOfFirst { AnnotationType.ResolutionStart in it.typeList }
+        val rc = annotations.indexOfLast { AnnotationType.ResolutionComplete in it.typeList }
+        if (rs < 0 || rc < 0) return emptyList()
+
+        val edges = mutableListOf<Pair<Int, Int>>()
+        for ((i, ann) in annotations.withIndex()) {
+            if (AnnotationType.ZoneTransfer_af5a !in ann.typeList) continue
+            if (ann.detailString(DetailKeys.CATEGORY) != TransferCategory.Resolve.label) continue
+            edges.add(rs to i)
+            edges.add(i to rc)
+        }
+        return edges
+    }
+}
+
 // ---- Helpers shared across rules ----------------------------------------
 
 /**
@@ -249,3 +276,9 @@ internal fun AnnotationInfo.detailInt(key: String): Int =
     detailsList.firstOrNull { it.key == key }?.let {
         if (it.valueInt32Count > 0) it.getValueInt32(0) else 0
     } ?: 0
+
+/** Extract string detail value by key, returns empty string if not found. */
+internal fun AnnotationInfo.detailString(key: String): String =
+    detailsList.firstOrNull { it.key == key }?.let {
+        if (it.valueStringCount > 0) it.getValueString(0) else ""
+    } ?: ""
