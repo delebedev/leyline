@@ -124,26 +124,24 @@ class LandManaTest :
             acc.processAll(startResult.messages)
             b.seedDiffBaseline(game)
 
-            val player = humanPlayer(b)
-            val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand")
-            val origId = b.getOrAllocInstanceId(ForgeCardId(land.id))
-            val cardId = land.id
-
             playLand(b) ?: error("No land in hand")
             val postResult = postAction(game, b, counter)
             acc.processAll(postResult.messages)
-            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
+            val playLandGsm = postResult.messages.first { it.hasGameStateMessage() }.gameStateMessage
+            val oic = playLandGsm.annotation(AnnotationType.ObjectIdChanged)
+            val origId = oic.detailInt("orig_id")
+            val newId = oic.detailInt("new_id")
 
             assertSoftly {
-                acc.objects[newId.value].shouldNotBeNull().zoneId shouldBe ZoneIds.BATTLEFIELD
+                acc.objects[newId].shouldNotBeNull().zoneId shouldBe ZoneIds.BATTLEFIELD
 
                 val handZone =
                     acc.zones.values
                         .first { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
-                handZone.objectInstanceIdsList shouldNotContain origId.value
+                handZone.objectInstanceIdsList shouldNotContain origId
 
-                acc.zones[ZoneIds.BATTLEFIELD]!!.objectInstanceIdsList.shouldContain(newId.value)
-                acc.zones[ZoneIds.LIMBO]!!.objectInstanceIdsList.shouldContain(origId.value)
+                acc.zones[ZoneIds.BATTLEFIELD]!!.objectInstanceIdsList.shouldContain(newId)
+                acc.zones[ZoneIds.LIMBO]!!.objectInstanceIdsList.shouldContain(origId)
             }
 
             acc.assertConsistent("after play land")

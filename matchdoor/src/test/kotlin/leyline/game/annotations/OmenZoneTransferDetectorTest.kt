@@ -98,10 +98,12 @@ class OmenZoneTransferDetectorTest :
             }
 
             val annotations =
-                result.transfers.flatMap { transfer ->
-                    val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
-                    transient + persistent
-                }
+                AnnotationOrderEnforcer.enforce(
+                    result.transfers.flatMap { transfer ->
+                        val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
+                        transient + persistent
+                    },
+                )
             val gsm =
                 GameStateMessage
                     .newBuilder()
