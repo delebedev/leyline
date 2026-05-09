@@ -64,7 +64,7 @@ class EndureLifecycleTest :
         // sends `CancelNo` instead. Tests assert post-resolution state.
 
         test("Mode A — Yes puts a +1/+1 counter on the source") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
+            val h = MatchFlowHarness(seed = 42L, validating = true)
             harness = h
             h.connectAndKeepPuzzleText(puzzleText())
 
@@ -93,7 +93,7 @@ class EndureLifecycleTest :
         }
 
         test("Mode B — No creates a 1/1 Spirit token") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
+            val h = MatchFlowHarness(seed = 42L, validating = true)
             harness = h
             h.connectAndKeepPuzzleText(puzzleText())
 
@@ -134,7 +134,7 @@ class EndureLifecycleTest :
         }
 
         test("OAM envelope — promptId, sourceId, parameters, allowCancel") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
+            val h = MatchFlowHarness(seed = 42L, validating = true)
             harness = h
             h.connectAndKeepPuzzleText(puzzleText())
 

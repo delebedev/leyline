@@ -27,7 +27,7 @@ class AttackerTapStateTest :
     SessionTest({
 
         test("attacker creature is tapped with attackState in post-submit GSM diff") {
-            startGame(deckList = COMBAT_DECK, validating = false)
+            startGame(deckList = COMBAT_DECK, validating = true)
 
             installScriptedAi(
                 listOf(
@@ -69,7 +69,7 @@ class AttackerTapStateTest :
         }
 
         test("TappedUntappedPermanent annotation emitted for attacker") {
-            startGame(deckList = COMBAT_DECK, validating = false)
+            startGame(deckList = COMBAT_DECK, validating = true)
 
             installScriptedAi(
                 listOf(

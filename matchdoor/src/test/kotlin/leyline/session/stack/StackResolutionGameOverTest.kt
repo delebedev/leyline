@@ -16,7 +16,7 @@ class StackResolutionGameOverTest :
 
         test("spell resolving for lethal sends MatchCompleted") {
             // Bolt-face puzzle: AI at 3 life, human has Lightning Bolt + Mountain
-            startPuzzleFile("puzzles/bolt-face.pzl", validating = false)
+            startPuzzleFile("puzzles/bolt-face.pzl", validating = true)
 
             // Cast Lightning Bolt — triggers SelectTargetsReq
             castSpellByName("Lightning Bolt").shouldBeTrue()

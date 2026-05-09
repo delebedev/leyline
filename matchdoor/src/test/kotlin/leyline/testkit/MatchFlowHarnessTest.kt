@@ -97,7 +97,7 @@ class MatchFlowHarnessTest :
         }
 
         test("multi-turn accumulated state valid") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
+            val h = MatchFlowHarness(seed = 42L, validating = true)
             harness = h
             h.connectAndKeep()
 

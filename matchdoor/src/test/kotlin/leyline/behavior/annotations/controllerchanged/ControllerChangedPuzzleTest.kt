@@ -45,7 +45,7 @@ class ControllerChangedPuzzleTest :
                 ailibrary=Forest
                 """.trimIndent()
 
-            startPuzzleRaw(pzl, validating = false)
+            startPuzzleRaw(pzl, validating = true)
             phase() shouldBe "MAIN1"
 
             val bearsIid = ai.battlefield.iid("Grizzly Bears")

@@ -2,6 +2,8 @@ package leyline.simclient
 
 import io.kotest.core.spec.style.FunSpec
 import leyline.SimClientTag
+import leyline.game.bundle.InvariantCheck
+import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
 import leyline.game.data.ExposedCardRepository
 import leyline.testkit.MatchFlowHarness
@@ -64,6 +66,14 @@ class SimClientBatchTest :
          *   SIMCLIENT_DECKS=Auras.txt SIMCLIENT_SEEDS=42 ./gradlew :simclient
          */
         fun envOrProp(name: String): String? = System.getenv(name) ?: System.getProperty(name.lowercase().replace('_', '.'))
+
+        fun simclientRelaxedValidation(): InvariantSelection =
+            InvariantSelection.except(
+                "simclient driver can replay older queued ids around play-land diffs (leyline-qiws)",
+                InvariantCheck.GsIdMonotonicity,
+                InvariantCheck.MsgIdMonotonicity,
+                InvariantCheck.GsIdPrevKnown,
+            )
 
         fun parseSeeds(spec: String): List<Long> {
             if (spec.contains("..")) {
@@ -154,7 +164,7 @@ class SimClientBatchTest :
                 MatchFlowHarness(
                     seed = seed,
                     deckList = deckList,
-                    validating = false,
+                    validation = simclientRelaxedValidation(),
                     cardRepositoryOverride = cardRepo,
                 )
             val tag = "$deckName-s$seed"
@@ -222,7 +232,7 @@ class SimClientBatchTest :
                 MatchFlowHarness(
                     seed = seed,
                     deckList = null,
-                    validating = false,
+                    validation = simclientRelaxedValidation(),
                     cardRepositoryOverride = cardRepo,
                 )
             val tag = "$puzzleName-s$seed"

@@ -7,6 +7,8 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.annotations.AnnotationConstants
+import leyline.game.bundle.InvariantCheck
+import leyline.game.bundle.InvariantSelection
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
@@ -56,8 +58,14 @@ private fun List<GREToClientMessage>.preparedDesignations(): List<AnnotationInfo
 class HonorboundPagePrepareTest :
     SessionTest({
 
+        val prepareValidation =
+            InvariantSelection.except(
+                "Prepared copy cast can emit ManaPaid for an unresolved copied spell iid",
+                InvariantCheck.AnnotationReferences,
+            )
+
         test("Prepared state: persistent Designation + exile copy projection") {
-            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
+            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validation = prepareValidation)
 
             castSpellByName("Honorbound Page")
             passUntilResolved()
@@ -96,7 +104,7 @@ class HonorboundPagePrepareTest :
         }
 
         test("GrpIdResolver.resolve on prepared copy returns by-name grpId, not 0") {
-            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = false)
+            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validation = prepareValidation)
 
             castSpellByName("Honorbound Page")
             passUntilResolved()
@@ -117,7 +125,7 @@ class HonorboundPagePrepareTest :
             // Validating disabled: a downstream LayeredEffect emission for the +1/+0
             // flying buff carries a stale affectorId post-resolve, which is a separate
             // latent issue unrelated to the cast-from-exile rail this test exercises.
-            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = false)
+            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validation = prepareValidation)
 
             castSpellByName("Honorbound Page")
             passUntilResolved()
@@ -134,7 +142,7 @@ class HonorboundPagePrepareTest :
         }
 
         test("GainDesignation transient + Stack→Battlefield Resolve land in the same GSM") {
-            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
+            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validation = prepareValidation)
 
             castSpellByName("Honorbound Page")
             passUntilResolved()
@@ -179,7 +187,7 @@ class HonorboundPagePrepareTest :
         }
 
         test("LoseDesignation transient fires when the prepared copy is cast") {
-            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = false)
+            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validation = prepareValidation)
 
             castSpellByName("Honorbound Page")
             passUntilResolved()
@@ -234,7 +242,7 @@ class HonorboundPagePrepareTest :
         }
 
         test("Two prepared creatures: each Designation anchored on its own source iid") {
-            startPuzzleFile("puzzles/two-prepared.pzl", validating = true)
+            startPuzzleFile("puzzles/two-prepared.pzl", validation = prepareValidation)
 
             castSpellByName("Honorbound Page")
             passUntilResolved()
@@ -299,7 +307,7 @@ class HonorboundPagePrepareTest :
         }
 
         test("Exile copy uniqueAbilities reflect the spell face, not the source creature") {
-            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
+            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validation = prepareValidation)
 
             castSpellByName("Honorbound Page")
             passUntilResolved()

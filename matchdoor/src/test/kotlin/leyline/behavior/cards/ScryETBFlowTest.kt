@@ -36,7 +36,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
 class ScryETBFlowTest :
     SessionTest({
 
-        fun startScryEtb() = startPuzzleFile("puzzles/scry-etb.pzl", validating = false)
+        fun startScryEtb() = startPuzzleFile("puzzles/scry-etb.pzl", validating = true)
 
         test("play land produces PlayLand zone transfer") {
             startScryEtb()

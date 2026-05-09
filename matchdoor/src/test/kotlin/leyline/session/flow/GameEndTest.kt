@@ -23,7 +23,7 @@ class GameEndTest :
     SessionTest({
 
         test("concede produces MatchCompleted") {
-            startGame(validating = false)
+            startGame(validating = true)
 
             // Concede triggers sendGameOver()
             val concede =
@@ -119,7 +119,7 @@ class GameEndTest :
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """.trimIndent()
 
-            startPuzzleRaw(pzl, validating = false)
+            startPuzzleRaw(pzl, validating = true)
 
             // Advance to combat
             val startTurn = turn()

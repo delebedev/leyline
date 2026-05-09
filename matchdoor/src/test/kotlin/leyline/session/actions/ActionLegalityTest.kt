@@ -16,7 +16,7 @@ class ActionLegalityTest :
 
         test("counterspell not offered as castable when stack is empty") {
             val puzzleText = javaClass.getResource("/puzzles/counterspell-empty-stack.pzl")!!.readText()
-            startPuzzleRaw(puzzleText, validating = false)
+            startPuzzleRaw(puzzleText, validating = true)
 
             // Pass to get ActionsAvailableReq in Main1
             val found =
@@ -43,7 +43,7 @@ class ActionLegalityTest :
 
             startPuzzleRaw(
                 puzzleText,
-                validating = false,
+                validating = true,
                 aiScript =
                     listOf(
                         ScriptedAction.Attack(listOf("Spyglass Siren", "Kitesail Cleric")),

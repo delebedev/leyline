@@ -81,7 +81,7 @@ class TokenDiffStabilityTest :
         }
 
         test("Clue token has Artifact type and Clue subtype in GSM") {
-            startPuzzleRaw(puzzleText, validating = false)
+            startPuzzleRaw(puzzleText, validating = true)
 
             val clueIid = castInspectorAndWaitForClue()
 
@@ -99,7 +99,7 @@ class TokenDiffStabilityTest :
         }
 
         test("Clue token retains types and subtypes across diff GSMs") {
-            startPuzzleRaw(puzzleText, validating = false)
+            startPuzzleRaw(puzzleText, validating = true)
 
             val clueIid = castInspectorAndWaitForClue()
 

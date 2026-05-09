@@ -43,7 +43,7 @@ class ImmersturmPredatorTest :
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """.trimIndent()
 
-            startPuzzleRaw(pzl, validating = false)
+            startPuzzleRaw(pzl, validating = true)
             phase() shouldBe "MAIN1"
 
             val predatorBefore =
