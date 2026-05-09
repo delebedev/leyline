@@ -312,6 +312,7 @@ class AutoPassEngine(
             if (!reachedPriority) {
                 if (game.isGameOver) {
                     tracer.traceEvent(MatchEventType.GAME_OVER, game, "game over during AI wait")
+                    if (drainPlayback()) return LoopSignal.CONTINUE
                     sink.sendGameOver()
                     return LoopSignal.EXIT
                 }

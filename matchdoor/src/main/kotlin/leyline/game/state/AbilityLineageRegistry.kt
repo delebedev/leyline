@@ -18,5 +18,7 @@ class AbilityLineageRegistry {
         byAbilityIid[identity.abilityIid] = identity
     }
 
+    fun find(abilityIid: Int): AbilityWireIdentity? = byAbilityIid[abilityIid]
+
     fun consume(abilityIid: Int): AbilityWireIdentity? = byAbilityIid.remove(abilityIid)
 }

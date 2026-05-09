@@ -66,7 +66,7 @@ class MatchFlowHarness(
             if (validating) {
                 InvariantSelection.all()
             } else {
-                InvariantSelection.none("legacy validating=false")
+                InvariantSelection.none("legacy disabled validation flag")
             }
     }
 

@@ -250,16 +250,16 @@ seed-db: (_require classpath) check-java
 #   seeds  — comma-separated longs OR `start..end` range (inclusive).
 #            Default: 7,13,42,99,314
 #
-# Requires LEYLINE_CARD_DB for arbitrary deck files. Point it at the local
-# Arena Raw_CardDatabase_*.mtga / *.sqlite file used by the server.
+# Requires LEYLINE_CARD_DB. Point it at the local Arena
+# Raw_CardDatabase_*.mtga / *.sqlite file used by the server.
 # To add a deck, save Arena/export-style text as data/decks/<name>.txt, then
 # invoke with that basename: `just simclient "My deck" 1..5`.
 #
 # Examples:
-#   just simclient
+#   LEYLINE_CARD_DB="$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_x.mtga" just simclient
 #   LEYLINE_CARD_DB="$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_x.mtga" just simclient "Simple test" 42
-#   just simclient mono-r-burn 1..20
-#   just simclient "Auras,Black aggro" "1,2,3"
+#   LEYLINE_CARD_DB="$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_x.mtga" just simclient mono-r-burn 1..20
+#   LEYLINE_CARD_DB="$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_x.mtga" just simclient "Auras,Black aggro" "1,2,3"
 #
 # Output: matchdoor/build/simclient/*.log + .meta.json (source: simclient).
 # Logs are copied into ~/.scry/games/ so scry-ts (with --source simclient) can
@@ -273,7 +273,7 @@ simclient decks="" seeds="":
     if [ -n "{{seeds}}" ]; then export SIMCLIENT_SEEDS="{{seeds}}"; fi
     if [ -z "${LEYLINE_CARD_DB:-}" ]; then
         echo "LEYLINE_CARD_DB is not set." >&2
-        echo "Set it to your local Raw_CardDatabase_*.mtga / *.sqlite path before running arbitrary simclient decks." >&2
+        echo "Set it to your local Raw_CardDatabase_*.mtga / *.sqlite path before running simclient." >&2
         echo "Example:" >&2
         echo "  LEYLINE_CARD_DB=\"$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_x.mtga\" just simclient \"Simple test\" 42" >&2
         echo "Add custom decks as data/decks/<name>.txt, then pass \"<name>\" as the deck argument." >&2
@@ -281,7 +281,7 @@ simclient decks="" seeds="":
     fi
     src="matchdoor/build/simclient"
     # Clear prior outputs so the ingest step only picks up the current run.
-    if [ -d "$src" ]; then trash "$src" 2>/dev/null || rm -rf "$src"; fi
+    if [ -d "$src" ]; then trash "$src"; fi
     ./gradlew :matchdoor:simclient
     out="${HOME}/.scry/games"
     mkdir -p "$out"
@@ -300,10 +300,10 @@ simclient decks="" seeds="":
 # filters them distinctly from deck-shuffle runs.
 #
 # Examples:
-#   just simclient-puzzle bolt-face.pzl
-#   just simclient-puzzle bolt-face.pzl 1..5
-#   just simclient-puzzle "bolt-face.pzl,kicker-burst.pzl" "7,13,42"
-# Requires LEYLINE_CARD_DB when the puzzle references cards outside fixtures.
+#   LEYLINE_CARD_DB="$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_x.mtga" just simclient-puzzle bolt-face.pzl
+#   LEYLINE_CARD_DB="$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_x.mtga" just simclient-puzzle bolt-face.pzl 1..5
+#   LEYLINE_CARD_DB="$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_x.mtga" just simclient-puzzle "bolt-face.pzl,kicker-burst.pzl" "7,13,42"
+# Requires LEYLINE_CARD_DB.
 [group('simclient')]
 simclient-puzzle puzzles seeds="42":
     #!/usr/bin/env bash
@@ -317,7 +317,7 @@ simclient-puzzle puzzles seeds="42":
         exit 1
     fi
     src="matchdoor/build/simclient"
-    if [ -d "$src" ]; then trash "$src" 2>/dev/null || rm -rf "$src"; fi
+    if [ -d "$src" ]; then trash "$src"; fi
     # The matrix tests gate on SIMCLIENT_PUZZLE so deck tests no-op cleanly.
     ./gradlew :matchdoor:simclient
     out="${HOME}/.scry/games"

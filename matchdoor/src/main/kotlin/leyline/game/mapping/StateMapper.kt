@@ -1348,10 +1348,12 @@ object StateMapper {
             )
         }
         for (d in transferResult.stackAbilityDisappearances) {
+            val lineage = bridge?.abilityLineage?.consume(d.abilityInstanceId)
+            val sourceCardInstanceId = lineage?.sourceIidAtCreate ?: d.sourceCardInstanceId
             annotations.add(
                 AnnotationBuilder.abilityInstanceDeleted(
                     InstanceId(d.abilityInstanceId),
-                    InstanceId(d.sourceCardInstanceId),
+                    InstanceId(sourceCardInstanceId),
                 ),
             )
         }
@@ -1449,7 +1451,12 @@ object StateMapper {
         for (resolved in events.filterIsInstance<GameEvent.SpellResolved>().filter { it.isTrigger || it.isAbility }) {
             val sourceCardIid = frameIds.cardIid(resolved.cardId).value
             val abilityIid = stackAbilityIidFor(resolved.abilityForgeId, resolved.cardId, frameIds)
-            val lineage = bridge.abilityLineage.consume(abilityIid)
+            val lineage =
+                if (abilityIid in snapshotDisappearanceIids) {
+                    bridge.abilityLineage.find(abilityIid)
+                } else {
+                    bridge.abilityLineage.consume(abilityIid)
+                }
             val aidSourceIid = lineage?.sourceIidAtCreate ?: sourceCardIid
             val abilityGrpId = lineage?.abilityGrpId?.takeIf { it != 0 } ?: abilityGrpIdForSource(resolved.cardId, snap)
 
