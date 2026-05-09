@@ -41,7 +41,7 @@ class ShockLandEtbTest :
             """.trimIndent()
 
         test("accept — pay 2 life, land enters untapped") {
-            startPuzzleRaw(puzzleText(), validating = false)
+            startPuzzleRaw(puzzleText(), validating = true)
 
             human.life shouldBe 20
             phase() shouldBe "MAIN1"
@@ -79,7 +79,7 @@ class ShockLandEtbTest :
         }
 
         test("decline — land enters tapped, life unchanged") {
-            startPuzzleRaw(puzzleText(), validating = false)
+            startPuzzleRaw(puzzleText(), validating = true)
 
             human.life shouldBe 20
 

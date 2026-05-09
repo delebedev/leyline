@@ -87,14 +87,16 @@ class AutoPassEngine(
         val bridge = ctx.bridge
         val game = ctx.game
         repeat(MAX_ITERATIONS) {
+            // Drain playback before terminal checks. Playback diffs are already
+            // allocated on the shared counter; game-over frames must chain after
+            // the client-visible queue, not skip over it.
+            if (drainPlayback()) return@repeat
+
             if (game.isGameOver) {
                 tracer.traceEvent(MatchEventType.GAME_OVER, game, "game over detected")
                 sink.sendGameOver()
                 return
             }
-
-            // Drain pending AI-action diffs
-            if (drainPlayback()) return@repeat
 
             val human = bridge.getPlayer(counters.seatId)
             val phase = game.phaseHandler.phase
