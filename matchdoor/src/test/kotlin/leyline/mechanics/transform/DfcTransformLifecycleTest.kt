@@ -22,8 +22,7 @@ class DfcTransformLifecycleTest :
                 aibattlefield=Runeclaw Bear
                 """.trimIndent(),
                 name = "DFC Transform MatchSession Test",
-                // Strict validation currently rejects Forge's transform face-state id churn.
-                validating = false,
+                validating = true,
             )
 
             val curtains =
