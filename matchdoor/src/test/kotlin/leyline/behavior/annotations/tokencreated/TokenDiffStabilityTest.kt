@@ -93,6 +93,7 @@ class TokenDiffStabilityTest :
                     .shouldNotBeNull()
 
             assertSoftly {
+                clueObj.instanceId shouldBe clueIid
                 clueObj.cardTypesList shouldContain CardType.Artifact_a80b
                 clueObj.subtypesList shouldContain SubType.Clue
             }

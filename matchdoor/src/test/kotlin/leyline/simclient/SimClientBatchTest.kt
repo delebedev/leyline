@@ -40,7 +40,7 @@ class SimClientBatchTest :
             val cardDbPath =
                 requireNotNull(System.getenv("LEYLINE_CARD_DB")) {
                     "LEYLINE_CARD_DB is not set. Point it at the local Raw_CardDatabase_*.mtga / *.sqlite file. " +
-                        "For just recipes: LEYLINE_CARD_DB=\"\$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_<hash>.mtga\" just simclient \"Simple test\" 42. " +
+                        "For just recipes: set LEYLINE_CARD_DB to your Raw_CardDatabase path before `just simclient`. " +
                         "Custom decks live in data/decks/<name>.txt and are selected by basename."
                 }
             require(File(cardDbPath).exists()) { "Card database not found at: $cardDbPath" }

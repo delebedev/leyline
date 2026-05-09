@@ -754,6 +754,7 @@ class CombatInteractionTest :
                 passThroughCombat()
             }.expectNoDeclareBlockersReq()
 
+            allMessages.count { it.hasDeclareBlockersReq() } shouldBe 0
             // Game should still be running (not stuck)
             isGameOver().shouldBeFalse()
         }

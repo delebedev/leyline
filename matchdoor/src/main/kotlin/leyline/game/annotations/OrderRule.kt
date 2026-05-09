@@ -279,6 +279,8 @@ internal fun AnnotationInfo.detailInt(key: String): Int =
 
 /** Extract string detail value by key, returns empty string if not found. */
 internal fun AnnotationInfo.detailString(key: String): String =
-    detailsList.firstOrNull { it.key == key }?.let {
-        if (it.valueStringCount > 0) it.getValueString(0) else ""
-    } ?: ""
+    detailsList
+        .firstOrNull { it.key == key }
+        ?.let {
+            if (it.valueStringCount > 0) it.getValueString(0) else null
+        }.orEmpty()

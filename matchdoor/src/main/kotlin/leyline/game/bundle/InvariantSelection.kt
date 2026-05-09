@@ -1,7 +1,9 @@
 package leyline.game.bundle
 
 /** Named invariant checks enforced by [InvariantChecker]. */
-enum class InvariantCheck(val id: String) {
+enum class InvariantCheck(
+    val id: String,
+) {
     MsgIdMonotonicity("msgid_monotonicity"),
     MsgIdUnique("msgid_unique"),
     GsIdMonotonicity("gsid_monotonicity"),
@@ -48,7 +50,6 @@ class InvariantSelection private constructor(
         fun except(
             because: String,
             vararg checks: InvariantCheck,
-        ): InvariantSelection =
-            InvariantSelection(InvariantCheck.entries.toSet() - checks.toSet(), relaxationReason = because)
+        ): InvariantSelection = InvariantSelection(InvariantCheck.entries.toSet() - checks.toSet(), relaxationReason = because)
     }
 }

@@ -327,6 +327,7 @@ class AiTurnInteractionTest :
                                 ann.detail("category")?.getValueString(0) == "PlayLand"
                         }
                 }
+            turn1PlayLand.size shouldBe 1
             turn1PlayLand.shouldNotBeEmpty()
         }
     })

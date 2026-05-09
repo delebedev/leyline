@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
@@ -57,6 +58,7 @@ class ScriptedPlayerControllerTest :
             val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
             val aiBf = aiPlayer.getZone(ZoneType.Battlefield)
             val forests = aiBf.cards.filter { it.name == "Forest" }
+            forests.size shouldBe 1
             forests.shouldNotBeEmpty()
         }
 
@@ -70,6 +72,7 @@ class ScriptedPlayerControllerTest :
 
             // This should not hang — exhausted script falls back to pass
             h.passUntilTurn(2, maxPasses = 30)
+            h.turn() shouldBe 2
             h.isGameOver().shouldBeFalse()
         }
 
@@ -94,6 +97,7 @@ class ScriptedPlayerControllerTest :
 
             // Should not hang even with an illegal action
             h.passUntilTurn(2, maxPasses = 30)
+            h.turn() shouldBe 2
             h.isGameOver().shouldBeFalse()
         }
     })
