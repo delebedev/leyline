@@ -14,6 +14,7 @@ import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
 import org.jetbrains.annotations.VisibleForTesting
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -110,6 +111,9 @@ object SnapshotCapture {
                     plotted = snap.plottedRole,
                     isSaddled = snap.isSaddled,
                     foretold = snap.isForetold,
+                    isCommander = snap.isCommander,
+                    commanderTax = snap.commanderTax,
+                    commanderColorIdentity = snap.commanderColorIdentity,
                     isLeftDoorUnlocked = snap.isLeftDoorUnlocked,
                     isRightDoorUnlocked = snap.isRightDoorUnlocked,
                 )
@@ -513,6 +517,9 @@ object SnapshotCapture {
             plottedRole = if (Plotted.isPlotted(card)) PlottedRole.Plotted else PlottedRole.None,
             isSaddled = onBf && card.isSaddled,
             isForetold = Foretell.isForetold(card),
+            isCommander = card.isCommander,
+            commanderTax = commanderTax(card),
+            commanderColorIdentity = commanderColorIdentity(card),
             // Door state is meaningful only on battlefield rooms — Forge keeps
             // `unlockedRooms` populated on retired stack/limbo card states the
             // same way it keeps `isPrepared` / `isPlotted` lingering. Filter to
@@ -527,6 +534,50 @@ object SnapshotCapture {
                     card.isRoom &&
                     forge.card.CardStateName.RightSplit in card.unlockedRooms,
         )
+    }
+
+    private fun commanderTax(card: Card): Int {
+        if (!card.isCommander) return 0
+        return card.owner.getCommanderCast(card.realCommander ?: card) * 2
+    }
+
+    private fun commanderColorIdentity(card: Card): List<Int> {
+        if (!card.isCommander) return emptyList()
+        val mask =
+            card.rules.colorIdentity.color
+                .toInt()
+        return buildList {
+            if (mask and
+                forge.card.MagicColor.WHITE
+                    .toInt() != 0
+            ) {
+                add(ManaColor.White_afc9.number)
+            }
+            if (mask and
+                forge.card.MagicColor.BLUE
+                    .toInt() != 0
+            ) {
+                add(ManaColor.Blue_afc9.number)
+            }
+            if (mask and
+                forge.card.MagicColor.BLACK
+                    .toInt() != 0
+            ) {
+                add(ManaColor.Black_afc9.number)
+            }
+            if (mask and
+                forge.card.MagicColor.RED
+                    .toInt() != 0
+            ) {
+                add(ManaColor.Red_afc9.number)
+            }
+            if (mask and
+                forge.card.MagicColor.GREEN
+                    .toInt() != 0
+            ) {
+                add(ManaColor.Green_afc9.number)
+            }
+        }
     }
 
     /**

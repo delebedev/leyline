@@ -124,6 +124,12 @@ data class CardSnapshot(
      * additional structural variants).
      */
     val isForetold: Boolean = false,
+    /** True when this card is one of its owner's commanders. */
+    val isCommander: Boolean = false,
+    /** Commander tax currently exposed to the client, in generic mana. */
+    val commanderTax: Int = 0,
+    /** Commander color identity as proto ManaColor enum numbers. */
+    val commanderColorIdentity: List<Int> = emptyList(),
     /**
      * True when this is a battlefield Room card with the LeftSplit door
      * unlocked. Drives the persistent `Designation{type=19}` (LeftUnlocked)

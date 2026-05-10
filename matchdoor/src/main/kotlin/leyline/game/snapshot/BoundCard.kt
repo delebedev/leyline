@@ -184,6 +184,9 @@ data class DesignationSet(
     val plotted: PlottedRole = PlottedRole.None,
     val isSaddled: Boolean = false,
     val foretold: Boolean = false,
+    val isCommander: Boolean = false,
+    val commanderTax: Int = 0,
+    val commanderColorIdentity: List<Int> = emptyList(),
     val isLeftDoorUnlocked: Boolean = false,
     val isRightDoorUnlocked: Boolean = false,
 ) {

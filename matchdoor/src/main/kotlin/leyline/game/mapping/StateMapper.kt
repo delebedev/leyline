@@ -31,6 +31,7 @@ import leyline.game.snapshot.PreparedRole
 import leyline.game.state.AbilityWireIdentity
 import leyline.game.state.AbilityWordActiveKind
 import leyline.game.state.BridgeMutations
+import leyline.game.state.CommanderDesignationKind
 import leyline.game.state.CrewedThisTurnKind
 import leyline.game.state.DayNightDesignationKind
 import leyline.game.state.DelayedTriggerAffecteesKind
@@ -536,6 +537,30 @@ object StateMapper {
                     )
                 }
 
+        val commanderDesignationPersistentFromSnap =
+            snap.boundCards.values
+                .filter { it.designations.isCommander && it.snapshot.grpId > 0 }
+                .flatMap { bound ->
+                    val iid = frameIds.cardIid(bound.forgeCardId)
+                    val grpId = GrpId(bound.snapshot.grpId)
+                    val colorIdentity = bound.designations.commanderColorIdentity
+                    val tax = bound.designations.commanderTax
+                    listOf(
+                        AnnotationBuilder.commanderPlayerDesignation(
+                            seatId = bound.snapshot.owner,
+                            grpId = grpId,
+                            colorIdentity = colorIdentity,
+                            costIncrease = tax,
+                        ),
+                        AnnotationBuilder.commanderObjectDesignation(
+                            instanceId = iid,
+                            grpId = grpId,
+                            colorIdentity = colorIdentity,
+                            costIncrease = tax,
+                        ),
+                    )
+                }
+
         // LeftUnlocked / RightUnlocked: persistent Designation (DesignationType=19/20)
         // for every battlefield Room card with the matching door open. Snapshot
         // pass filtered to `onBf && card.isRoom`, so no zone guard needed here.
@@ -631,6 +656,7 @@ object StateMapper {
                 preparedDesignationPersistentFromSnap = preparedDesignationPersistentFromSnap,
                 plottedDesignationPersistentFromSnap = plottedDesignationPersistentFromSnap,
                 saddledDesignationPersistentFromSnap = saddledDesignationPersistentFromSnap,
+                commanderDesignationPersistentFromSnap = commanderDesignationPersistentFromSnap,
                 leftUnlockedDesignationPersistentFromSnap = leftUnlockedDesignationPersistentFromSnap,
                 rightUnlockedDesignationPersistentFromSnap = rightUnlockedDesignationPersistentFromSnap,
                 dayNightDesignationPersistentFromSnap = dayNightDesignationPersistentFromSnap,
@@ -1071,6 +1097,7 @@ object StateMapper {
         preparedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         plottedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         saddledDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        commanderDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         leftUnlockedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         rightUnlockedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         dayNightDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
@@ -1197,6 +1224,7 @@ object StateMapper {
                         put(TargetSpecKind, targetSpecPersistent)
                         put(PreparedDesignationKind, preparedDesignationPersistentFromSnap)
                         put(PlottedDesignationKind, plottedDesignationPersistentFromSnap)
+                        put(CommanderDesignationKind, commanderDesignationPersistentFromSnap)
                         put(SaddledDesignationKind, saddledDesignationPersistentFromSnap)
                         put(LeftUnlockedDesignationKind, leftUnlockedDesignationPersistentFromSnap)
                         put(RightUnlockedDesignationKind, rightUnlockedDesignationPersistentFromSnap)
