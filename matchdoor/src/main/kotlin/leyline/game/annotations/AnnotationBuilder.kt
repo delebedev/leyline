@@ -556,17 +556,16 @@ object AnnotationBuilder {
         seatId: SeatId,
         topIds: List<Int>,
         bottomIds: List<Int>,
-    ): AnnotationInfo =
-        AnnotationInfo
+    ): AnnotationInfo {
+        val affected = topIds + bottomIds
+        return AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.Scry_af5a)
-            .apply {
-                val affected = topIds + bottomIds
-                if (affected.isEmpty()) addAffectedIds(seatId.value) else addAllAffectedIds(affected)
-            }
+            .apply { if (affected.isEmpty()) addAffectedIds(seatId.value) else addAllAffectedIds(affected) }
             .addDetails(int32ListDetail(DetailKeys.TOP_IDS, topIds))
             .addDetails(int32ListDetail(DetailKeys.BOTTOM_IDS, bottomIds))
             .build()
+    }
 
     // -- Tier 1 state annotations --
 
