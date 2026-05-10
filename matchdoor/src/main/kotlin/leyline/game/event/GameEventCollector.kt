@@ -21,6 +21,7 @@ import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -618,14 +619,16 @@ class GameEventCollector(
 
     override fun visit(ev: GameEventScry) {
         val seat = seatOf(ev.player()) ?: return
-        frame.add(GameEvent.Scry(seat, ev.toTop(), ev.toBottom()))
-        log.debug("event: Scry seat={} top={} bottom={}", seat, ev.toTop(), ev.toBottom())
+        val arranged = bridge.pollLibraryArrangement(seat, GroupingContext.Scry_a0f6)
+        frame.add(GameEvent.Scry(seat, arranged?.topIds.orEmpty(), arranged?.awayIds.orEmpty()))
+        log.debug("event: Scry seat={} top={} bottom={}", seat, arranged?.topIds.orEmpty(), arranged?.awayIds.orEmpty())
     }
 
     override fun visit(ev: GameEventSurveil) {
         val seat = seatOf(ev.player()) ?: return
-        frame.add(GameEvent.Surveil(seat, ev.toLibrary(), ev.toGraveyard()))
-        log.debug("event: Surveil seat={} lib={} gy={}", seat, ev.toLibrary(), ev.toGraveyard())
+        val arranged = bridge.pollLibraryArrangement(seat, GroupingContext.Surveil)
+        frame.add(GameEvent.Surveil(seat, arranged?.topIds.orEmpty(), arranged?.awayIds.orEmpty()))
+        log.debug("event: Surveil seat={} lib={} gy={}", seat, arranged?.topIds.orEmpty(), arranged?.awayIds.orEmpty())
     }
 
     // Per-card surveil event — fired from Player.surveil() in our Forge fork

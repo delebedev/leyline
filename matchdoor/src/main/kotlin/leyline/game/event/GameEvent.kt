@@ -345,15 +345,15 @@ sealed interface GameEvent {
     /** A player scried (looked at top N, put some on top / some on bottom). */
     data class Scry(
         val seatId: SeatId,
-        val topCount: Int,
-        val bottomCount: Int,
+        val topIds: List<Int>,
+        val bottomIds: List<Int>,
     ) : GameEvent
 
     /** A player surveilled (looked at top N, put some in library / some in graveyard). */
     data class Surveil(
         val seatId: SeatId,
-        val toLibrary: Int,
-        val toGraveyard: Int,
+        val libraryIds: List<Int>,
+        val graveyardIds: List<Int>,
     ) : GameEvent
 
     // -- Group B+: reveal events --

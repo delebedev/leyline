@@ -46,9 +46,11 @@ import leyline.game.snapshot.GsmSnapshot
 import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * Bridges the client protocol to a real Forge [Game] engine.
@@ -295,6 +297,33 @@ class GameBridge(
      * drained for `diffDeletedInstanceIds` in the diff path.
      */
     val delayedTriggerHolders = DelayedTriggerHolderTracker()
+
+    data class LibraryArrangementResult(
+        val seatId: SeatId,
+        val context: GroupingContext,
+        val topIds: List<Int>,
+        val awayIds: List<Int>,
+    )
+
+    private val pendingLibraryArrangements = ConcurrentLinkedQueue<LibraryArrangementResult>()
+
+    fun recordLibraryArrangement(
+        seatId: SeatId,
+        context: GroupingContext,
+        topIds: List<Int>,
+        awayIds: List<Int>,
+    ) {
+        pendingLibraryArrangements.add(LibraryArrangementResult(seatId, context, topIds, awayIds))
+    }
+
+    fun pollLibraryArrangement(
+        seatId: SeatId,
+        context: GroupingContext,
+    ): LibraryArrangementResult? {
+        val match = pendingLibraryArrangements.firstOrNull { it.seatId == seatId && it.context == context } ?: return null
+        pendingLibraryArrangements.remove(match)
+        return match
+    }
 
     /**
      * Active crew type-change effects: forgeCardId → effectId.
