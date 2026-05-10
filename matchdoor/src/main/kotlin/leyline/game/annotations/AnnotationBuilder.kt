@@ -834,6 +834,42 @@ object AnnotationBuilder {
             .build()
     }
 
+    /** Persistent Commander `Designation` attached to a player seat. */
+    fun commanderPlayerDesignation(
+        seatId: SeatId,
+        grpId: GrpId,
+        colorIdentity: List<Int>,
+        costIncrease: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(seatId.value)
+            .addAffectedIds(seatId.value)
+            .addDetails(int32ListDetail(DetailKeys.COLOR_IDENTITY, colorIdentity))
+            .addDetails(int32Detail(DetailKeys.COST_INCREASE, costIncrease))
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_COMMANDER))
+            .addDetails(int32Detail(DetailKeys.GRPID, grpId.value))
+            .build()
+
+    /** Persistent Commander `Designation` attached to the commander object. */
+    fun commanderObjectDesignation(
+        instanceId: InstanceId,
+        grpId: GrpId,
+        colorIdentity: List<Int>,
+        costIncrease: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32ListDetail(DetailKeys.COLOR_IDENTITY, colorIdentity))
+            .addDetails(int32Detail(DetailKeys.COST_INCREASE, costIncrease))
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_COMMANDER))
+            .addDetails(int32Detail(DetailKeys.GRPID, grpId.value))
+            .build()
+
     /** Persistent `Designation` for the `Prepared` card-state designation.
      *  Carries the int32 `PreparedCopyZcid` detail pointing at the prepare-spell exile copy.
      *  affector / affectedIds both = the prepared creature's instance id. */

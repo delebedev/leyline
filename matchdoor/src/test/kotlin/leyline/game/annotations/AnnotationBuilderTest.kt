@@ -772,6 +772,40 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("commander designation rich fields") {
+            val playerAnn =
+                AnnotationBuilder.commanderPlayerDesignation(
+                    seatId = 1.sid,
+                    grpId = 93675.grp,
+                    colorIdentity = listOf(1, 4),
+                    costIncrease = 2,
+                )
+            val objectAnn =
+                AnnotationBuilder.commanderObjectDesignation(
+                    instanceId = 411.iid,
+                    grpId = 93675.grp,
+                    colorIdentity = listOf(1, 4),
+                    costIncrease = 2,
+                )
+
+            assertSoftly {
+                playerAnn.typeList shouldContain AnnotationType.Designation
+                playerAnn.affectorId shouldBe 1
+                playerAnn.affectedIdsList shouldBe listOf(1)
+                playerAnn.detailInt("DesignationType") shouldBe 1
+                playerAnn.detailInt("grpid") shouldBe 93675
+                playerAnn.detailInt("CostIncrease") shouldBe 2
+                playerAnn.detailIntList("ColorIdentity") shouldBe listOf(1, 4)
+
+                objectAnn.affectorId shouldBe 411
+                objectAnn.affectedIdsList shouldBe listOf(411)
+                objectAnn.detailInt("DesignationType") shouldBe 1
+                objectAnn.detailInt("grpid") shouldBe 93675
+                objectAnn.detailInt("CostIncrease") shouldBe 2
+                objectAnn.detailIntList("ColorIdentity") shouldBe listOf(1, 4)
+            }
+        }
+
         test("leftUnlockedDesignationFields") {
             val ann = AnnotationBuilder.leftUnlockedDesignation(instanceId = 117.iid)
             assertSoftly {

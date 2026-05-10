@@ -11,6 +11,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
@@ -50,6 +51,15 @@ class PersistentAnnotationKindTest :
                 transient = emptyList(),
                 persistent = emptyList(),
             )
+
+        fun annotationDetailInt(
+            ann: wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo,
+            key: String,
+        ): Int? =
+            ann.detailsList
+                .firstOrNull { it.key == key }
+                ?.valueInt32List
+                ?.firstOrNull()
 
         val emptyEffectDiff = EffectTracker.DiffResult(emptyList(), emptyList())
 
@@ -413,6 +423,67 @@ class PersistentAnnotationKindTest :
                 // EZTT expires (Upkeep) but ColorProduction survives (source still on BF).
                 result.deletedIds shouldContainExactlyInAnyOrder listOf(42)
                 result.allAnnotations.map { it.id } shouldContain 43
+            }
+        }
+
+        test("CommanderDesignation replaces tax updates and prunes absent rows") {
+            val playerRow =
+                AnnotationBuilder
+                    .commanderPlayerDesignation(SeatId(1), GrpId(92302), listOf(1, 4), costIncrease = 0)
+                    .toBuilder()
+                    .setId(42)
+                    .build()
+            val objectRow =
+                AnnotationBuilder
+                    .commanderObjectDesignation(InstanceId(101), GrpId(92302), listOf(1, 4), costIncrease = 0)
+                    .toBuilder()
+                    .setId(43)
+                    .build()
+            val active = mapOf(42 to playerRow, 43 to objectRow)
+            val taxedRows =
+                listOf(
+                    AnnotationBuilder.commanderPlayerDesignation(SeatId(1), GrpId(92302), listOf(1, 4), costIncrease = 2),
+                    AnnotationBuilder.commanderObjectDesignation(InstanceId(101), GrpId(92302), listOf(1, 4), costIncrease = 2),
+                )
+
+            val updated =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = active,
+                    startPersistentId = 100,
+                    frame = frame(PhaseType.MAIN1),
+                    effectPersistent = emptyList(),
+                    effectDiff = emptyEffectDiff,
+                    transferPersistent = emptyList(),
+                    mechanicResult =
+                        MechanicAnnotationResult(
+                            transient = emptyList(),
+                            persistent = emptyList(),
+                            perKindPersistent = mapOf(CommanderDesignationKind to taxedRows),
+                        ),
+                    resolveInstanceId = { InstanceId(it.value) },
+                )
+
+            assertSoftly {
+                updated.deletedIds shouldContainExactlyInAnyOrder listOf(42, 43)
+                updated.allAnnotations shouldHaveSize 2
+                updated.allAnnotations.map { annotationDetailInt(it, "CostIncrease") } shouldContainExactlyInAnyOrder listOf(2, 2)
+            }
+
+            val pruned =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = active,
+                    startPersistentId = 100,
+                    frame = frame(PhaseType.MAIN1),
+                    effectPersistent = emptyList(),
+                    effectDiff = emptyEffectDiff,
+                    transferPersistent = emptyList(),
+                    mechanicResult = emptyMechanicResult(),
+                    resolveInstanceId = { InstanceId(it.value) },
+                )
+
+            assertSoftly {
+                pruned.deletedIds shouldContainExactlyInAnyOrder listOf(42, 43)
+                pruned.allAnnotations.shouldBeEmpty()
             }
         }
     })
