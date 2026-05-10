@@ -11,6 +11,7 @@ import leyline.testkit.assertConsistent
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.detail
 import leyline.testkit.detailInt
+import leyline.testkit.detailIntList
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -190,7 +191,7 @@ class ScryETBFlowTest :
             }
         }
 
-        test("scry put on bottom produces Scry annotation with counts") {
+        test("scry put on bottom produces Scry annotation with card ids") {
             startScryEtb()
             playLand().shouldBeTrue()
             val cardIds = harness.castSpellUntilGroupReq("Wall of Runes").instanceIdsList
@@ -203,17 +204,16 @@ class ScryETBFlowTest :
                     if (msg.hasGameStateMessage()) msg.gameStateMessage.annotationsList else emptyList()
                 }
 
-            // Scry annotation — engine shape: affectedIds=[seatId], topCount/bottomCount
-            // Conformance gap: reference uses affectedIds=[cardId], bottomIds detail key.
-            // Our engine emits aggregate counts instead of per-card IDs.
+            // Scry annotation records the card ids chosen for top/bottom groups.
             val scryAnn =
                 allAnnotations.firstOrNull { ann ->
                     ann.typeList.any { it == AnnotationType.Scry_af5a }
                 }
             assertSoftly {
                 scryAnn.shouldNotBeNull()
-                scryAnn.affectedIdsList.shouldNotBeEmpty()
-                scryAnn.detail("bottomCount").shouldNotBeNull()
+                scryAnn.affectedIdsList shouldBe cardIds
+                scryAnn.detailIntList("topIds") shouldBe emptyList()
+                scryAnn.detailIntList("bottomIds") shouldBe cardIds
             }
 
             // ResolutionStart + ResolutionComplete for the creature spell

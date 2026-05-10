@@ -561,12 +561,12 @@ class AnnotationBuilderTest :
         // --- Scry (Group B) ---
 
         test("scryFields") {
-            val ann = AnnotationBuilder.scry(seatId = 1.sid, topCount = 2, bottomCount = 1)
+            val ann = AnnotationBuilder.scry(seatId = 1.sid, topIds = listOf(100, 101), bottomIds = listOf(102))
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.Scry_af5a
-                ann.affectedIdsList shouldContain 1
-                ann.detailInt("topCount") shouldBe 2
-                ann.detailInt("bottomCount") shouldBe 1
+                ann.affectedIdsList shouldBe listOf(100, 101, 102)
+                ann.detailIntList("topIds") shouldBe listOf(100, 101)
+                ann.detailIntList("bottomIds") shouldBe listOf(102)
             }
         }
 

@@ -27,6 +27,8 @@ object DetailKeys {
     const val TRANSACTION_AMOUNT = "transaction_amount"
     const val TOP_COUNT = "topCount"
     const val BOTTOM_COUNT = "bottomCount"
+    const val TOP_IDS = "topIds"
+    const val BOTTOM_IDS = "bottomIds"
     const val COUNT = "count"
     const val EFFECT_ID = "effect_id"
     const val UNIQUE_ABILITY_ID = "UniqueAbilityId"
