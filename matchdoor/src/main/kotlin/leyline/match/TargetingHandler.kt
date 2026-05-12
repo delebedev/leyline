@@ -288,6 +288,8 @@ class TargetingHandler(
                             sendSacrificePayCostsReq(classified.pendingPrompt)
                         ClassifiedPrompt.SelectN.Reason.ExileFromGrave ->
                             sendExileFromGravePayCostsReq(classified.pendingPrompt)
+                        ClassifiedPrompt.SelectN.Reason.StationTapCost ->
+                            sendStationTapCostPayCostsReq(classified.pendingPrompt)
                         else -> sendSelectNReq(classified.pendingPrompt, classified.reason)
                     }
                     return true
@@ -359,10 +361,14 @@ class TargetingHandler(
                     game,
                     "select_n(${classified.reason}) candidates=${pendingPrompt.request.candidateRefs.size}",
                 )
-                if (classified.reason == ClassifiedPrompt.SelectN.Reason.Sacrifice) {
-                    sendSacrificePayCostsReq(classified.pendingPrompt)
-                } else {
-                    sendSelectNReq(classified.pendingPrompt, classified.reason)
+                when (classified.reason) {
+                    ClassifiedPrompt.SelectN.Reason.Sacrifice ->
+                        sendSacrificePayCostsReq(classified.pendingPrompt)
+                    ClassifiedPrompt.SelectN.Reason.ExileFromGrave ->
+                        sendExileFromGravePayCostsReq(classified.pendingPrompt)
+                    ClassifiedPrompt.SelectN.Reason.StationTapCost ->
+                        sendStationTapCostPayCostsReq(classified.pendingPrompt)
+                    else -> sendSelectNReq(classified.pendingPrompt, classified.reason)
                 }
                 PromptResult.SENT_TO_CLIENT
             }
@@ -1188,6 +1194,14 @@ class TargetingHandler(
             )
         val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
         Tap.outboundTemplate("PayCostsReq(exile-from-grave) seat=${counters.seatId}")
+        sink.sendBundledGRE(result.messages)
+    }
+
+    private fun sendStationTapCostPayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
+        val bridge = ctx.bridge
+        val (req, prompt) = RequestBuilder.buildStationTapCostPayCostsReq(pendingPrompt, bridge)
+        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
+        Tap.outboundTemplate("PayCostsReq(station) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 

@@ -9,7 +9,12 @@ cardsfolder := project_dir / "forge/forge-gui/res/cardsfolder"
 card +ids:
     #!/usr/bin/env bash
     set -euo pipefail
-    db=$(echo "{{arena_db}}"/Raw_CardDatabase_*.mtga)
+    db=""
+    for candidate in "{{arena_db}}"/Raw_CardDatabase_*.mtga; do
+        [ -f "$candidate" ] || continue
+        sqlite3 "$candidate" "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Cards'" | grep -q 1 || continue
+        if [ -z "$db" ] || [ "$candidate" -nt "$db" ]; then db="$candidate"; fi
+    done
     if [ ! -f "$db" ]; then echo "Client DB not found at {{arena_db}}" >&2; exit 1; fi
     ids="{{ids}}"
     in_clause=$(echo "$ids" | tr ' ' ',')
@@ -20,7 +25,12 @@ card +ids:
 ability id:
     #!/usr/bin/env bash
     set -euo pipefail
-    db=$(echo "{{arena_db}}"/Raw_CardDatabase_*.mtga)
+    db=""
+    for candidate in "{{arena_db}}"/Raw_CardDatabase_*.mtga; do
+        [ -f "$candidate" ] || continue
+        sqlite3 "$candidate" "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Cards'" | grep -q 1 || continue
+        if [ -z "$db" ] || [ "$candidate" -nt "$db" ]; then db="$candidate"; fi
+    done
     if [ ! -f "$db" ]; then echo "Client DB not found at {{arena_db}}" >&2; exit 1; fi
     echo "--- Info ---"
     sqlite3 -header "$db" "SELECT a.Id, COALESCE(l.Loc, '(no name)') AS Name, a.Category, a.SubCategory, a.IsIntrinsicAbility FROM Abilities a LEFT JOIN Localizations_enUS l ON a.TextId = l.LocId WHERE a.Id = {{id}};"
@@ -34,7 +44,12 @@ ability id:
 card-grp name:
     #!/usr/bin/env bash
     set -euo pipefail
-    db=$(echo "{{arena_db}}"/Raw_CardDatabase_*.mtga)
+    db=""
+    for candidate in "{{arena_db}}"/Raw_CardDatabase_*.mtga; do
+        [ -f "$candidate" ] || continue
+        sqlite3 "$candidate" "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Cards'" | grep -q 1 || continue
+        if [ -z "$db" ] || [ "$candidate" -nt "$db" ]; then db="$candidate"; fi
+    done
     if [ ! -f "$db" ]; then echo "Client DB not found at {{arena_db}}" >&2; exit 1; fi
     escaped=$(echo "{{name}}" | sed "s/'/''/g")
     sqlite3 "$db" "SELECT c.GrpId, l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE l.Formatted = 1 AND l.Loc LIKE '%$escaped%';"
@@ -44,7 +59,12 @@ card-grp name:
 puzzle-check file:
     #!/usr/bin/env bash
     set -euo pipefail
-    db=$(echo "{{arena_db}}"/Raw_CardDatabase_*.mtga)
+    db=""
+    for candidate in "{{arena_db}}"/Raw_CardDatabase_*.mtga; do
+        [ -f "$candidate" ] || continue
+        sqlite3 "$candidate" "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Cards'" | grep -q 1 || continue
+        if [ -z "$db" ] || [ "$candidate" -nt "$db" ]; then db="$candidate"; fi
+    done
     if [ ! -f "$db" ]; then echo "Client DB not found at {{arena_db}}" >&2; exit 1; fi
     if [ ! -f "{{file}}" ]; then echo "Puzzle file not found: {{file}}" >&2; exit 1; fi
     cards=$(grep -E '^(human|ai)(battlefield|hand|library|graveyard|exile|command)=' "{{file}}" \
@@ -54,7 +74,7 @@ puzzle-check file:
     fail=0
     while IFS= read -r name; do
         escaped=$(echo "$name" | sed "s/'/''/g")
-        grp=$(sqlite3 "$db" "SELECT c.GrpId FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE l.Formatted = 1 AND l.Loc = '$escaped' LIMIT 1;")
+        grp=$(sqlite3 "$db" "SELECT c.GrpId FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE l.Formatted = 1 AND REPLACE(REPLACE(l.Loc, '<nobr>', ''), '</nobr>', '') = '$escaped' LIMIT 1;")
         if [ -z "$grp" ]; then echo "FAIL  $name"; fail=1; else echo "  OK  $name ($grp)"; fi
     done <<< "$cards"
     [ "$fail" -eq 0 ] && echo "All cards valid." || { echo "Missing cards — puzzle will crash."; exit 1; }

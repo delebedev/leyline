@@ -1,0 +1,16 @@
+[metadata]
+Name:Station Lumen-Class Frigate
+Goal:Win
+Turns:4
+Difficulty:Easy
+Description:Activate Lumen-Class Frigate by tapping Grizzly Bears, then inspect charge counters and Station thresholds.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Lumen-Class Frigate;Grizzly Bears;Walking Corpse
+humanlibrary=Plains;Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain

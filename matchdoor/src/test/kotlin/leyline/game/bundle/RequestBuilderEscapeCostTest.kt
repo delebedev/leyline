@@ -162,4 +162,42 @@ class RequestBuilderEscapeCostTest :
                 prompt.promptId shouldBe PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE
             }
         }
+
+        test("buildStationTapCostPayCostsReq uses Station prompt id with cost envelope") {
+            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val stationAbilityForgeId = 300
+            val creatureForgeId = 301
+            val stationAbilityIid = b.getOrAllocInstanceId(ForgeCardId(stationAbilityForgeId)).value
+            val creatureIid = b.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
+
+            val request =
+                PromptRequest(
+                    promptType = "choose_cards",
+                    message = "Tap a creature to add charge counters",
+                    options = listOf("Creature"),
+                    min = 1,
+                    max = 1,
+                    semantic = PromptSemantic.StationTapCost,
+                    candidateRefs = listOf(PromptCandidateRefDto(0, "card", creatureForgeId)),
+                    sourceEntityId = stationAbilityForgeId,
+                )
+            val pending =
+                InteractivePromptBridge.PendingPrompt(
+                    promptId = "test-station",
+                    request = request,
+                    future = java.util.concurrent.CompletableFuture(),
+                )
+
+            val (req, prompt) = RequestBuilder.buildStationTapCostPayCostsReq(pending, b)
+
+            assertSoftly {
+                req.hasPaymentActions() shouldBe true
+                req.effectCostReq.effectCostType shouldBe EffectCostType.Select_a59c
+                req.effectCostReq.costSelection.context shouldBe SelectionContext.NonManaPayment
+                req.effectCostReq.costSelection.optionContext shouldBe OptionContext.Payment
+                req.effectCostReq.costSelection.idsList.toList() shouldBe listOf(creatureIid)
+                prompt.promptId shouldBe PromptIds.STATION_TAP_COST
+                prompt.parametersList.first { it.parameterName == "CardId" }.numberValue shouldBe stationAbilityIid
+            }
+        }
     })

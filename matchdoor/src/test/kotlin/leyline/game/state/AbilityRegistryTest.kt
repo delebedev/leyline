@@ -23,6 +23,19 @@ class AbilityRegistryTest :
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
+        test("Station activated ability maps to shared abilityGrpId 373") {
+            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val injected = TestCardInjector.inject(b, 1, "Lumen-Class Frigate", ZoneType.Battlefield)
+            val stationAbility =
+                injected.card.spellAbilities.first { ability ->
+                    ability.isActivatedAbility && ability.isIntrinsic && !ability.isManaAbility()
+                }
+
+            val registry = AbilityRegistry.build(injected.card, CardDataDeriver.fromForgeCard(injected.card, "Lumen-Class Frigate"))
+
+            registry.forSpellAbility(stationAbility.id) shouldBe 373
+        }
+
         test("planeswalker loyalty abilities map to distinct abilityGrpId slots") {
             val cardName = "Chandra, Torch of Defiance"
             val (b, game, _) = base.startWithBoard { _, _, _ -> }

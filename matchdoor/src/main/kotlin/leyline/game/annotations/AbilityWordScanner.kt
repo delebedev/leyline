@@ -3,6 +3,8 @@ package leyline.game.annotations
 import forge.game.ability.AbilityUtils
 import forge.game.card.Card
 import forge.game.card.CardUtil
+import forge.game.card.CounterEnumType
+import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
@@ -21,6 +23,8 @@ import kotlin.collections.iterator
  * AbilityGrpId resolution: delegates to AbilityRegistry.
  */
 object AbilityWordScanner {
+    private val STATION_THRESHOLD = Regex("counters_GE(\\d+)_CHARGE")
+
     /** One ability word annotation to emit. */
     data class AbilityWordEntry(
         val instanceId: Int,
@@ -197,6 +201,8 @@ object AbilityWordScanner {
                     }
                 }
             }
+
+            results.addAll(stationThresholdEntries(card, iid, registry))
         }
 
         // Phase 3: emit one pAnn per player for perPlayer conditions (only when condition is true)
@@ -232,5 +238,27 @@ object AbilityWordScanner {
         )
 
         return results
+    }
+
+    private fun stationThresholdEntries(
+        card: Card,
+        iid: Int,
+        registry: AbilityRegistry?,
+    ): List<AbilityWordEntry> {
+        if (card.getKeywordMagnitude(Keyword.STATION) <= 0) return emptyList()
+        val chargeCount = card.getCounters(CounterEnumType.CHARGE)
+        if (chargeCount <= 0) return emptyList()
+
+        return card.staticAbilities.orEmpty().mapNotNull { staticAbility ->
+            val affected = staticAbility.getParam("Affected") ?: return@mapNotNull null
+            val threshold = STATION_THRESHOLD.find(affected)?.groupValues?.get(1)?.toIntOrNull() ?: return@mapNotNull null
+            AbilityWordEntry(
+                instanceId = iid,
+                abilityWordName = "StationLevelThreshold",
+                value = chargeCount,
+                threshold = threshold,
+                abilityGrpId = registry?.forStaticAbility(staticAbility.id)?.takeIf { it > 0 },
+            )
+        }
     }
 }

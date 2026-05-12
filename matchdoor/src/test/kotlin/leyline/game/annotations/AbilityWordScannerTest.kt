@@ -1,5 +1,7 @@
 package leyline.game.annotations
 
+import forge.game.ability.AbilityKey
+import forge.game.card.CounterEnumType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
@@ -22,6 +24,35 @@ class AbilityWordScannerTest :
         val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
+
+        test("Station thresholds emit StationLevelThreshold entries after charge counters exist") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Lumen-Class Frigate", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val frigate = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Lumen-Class Frigate" }
+            frigate.addCounterInternal(CounterEnumType.CHARGE, 3, human, true, null, AbilityKey.newMap())
+            val iid = b.getOrAllocInstanceId(ForgeCardId(frigate.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                    registryResolver = { card ->
+                        val grpId = b.cardRepository.findGrpIdByName(card.name) ?: 0
+                        b.abilityRegistryFor(card, b.cardRepository.findByGrpId(grpId))
+                    },
+                ).filter { it.abilityWordName == "StationLevelThreshold" }
+
+            results shouldHaveSize 2
+            assertSoftly {
+                results.map { it.instanceId }.toSet() shouldBe setOf(iid)
+                results.map { it.value }.toSet() shouldBe setOf(3)
+                results.map { it.threshold }.toSet() shouldBe setOf(2, 12)
+                results.map { it.abilityGrpId }.toSet() shouldBe setOf(60002, 60024)
+            }
+        }
 
         test("Threshold creature emits AbilityWordActive with GY count") {
             val (b, game, _) =

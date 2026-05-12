@@ -78,6 +78,9 @@ object PromptIds {
     /** Pay-cost-via-select for "exile N from graveyard" — Escape's additional cost. */
     const val CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE = 5500
 
+    /** Station activation cost — "Tap a creature to add charge counters equal to its power." */
+    const val STATION_TAP_COST = 14726
+
     /** sourceId on SelectNReq for legend rule. */
     const val SELECT_N_LEGEND_RULE_SOURCE = 15168
 

@@ -354,6 +354,11 @@ object RequestBuilder {
         bridge: GameBridge,
     ): Pair<PayCostsReq, Prompt> = buildSelectCostPayCostsReq(prompt, bridge, PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE)
 
+    fun buildStationTapCostPayCostsReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Pair<PayCostsReq, Prompt> = buildSelectCostPayCostsReq(prompt, bridge, PromptIds.STATION_TAP_COST)
+
     /**
      * Build a `PayCostsReq` for an additional cost paid by selecting N cards
      * (sacrifice, exile-from-grave, etc). Builder is uniform —

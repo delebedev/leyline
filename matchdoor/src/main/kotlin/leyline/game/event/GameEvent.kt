@@ -100,6 +100,8 @@ sealed interface GameEvent {
         val isTrigger: Boolean = false,
         /** Forge SpellAbility id when [isTrigger] or [isAbility] — used to mint the stack-ability instanceId. */
         val abilityForgeId: Int = 0,
+        /** Client ability grpId for ability lifecycle annotations, when known. */
+        val abilityGrpId: Int = 0,
         /**
          * Source zone (ZoneIds) the ability was activated from. Populated for
          * activated abilities ([isAbility] && ![isTrigger]) so the
@@ -140,6 +142,8 @@ sealed interface GameEvent {
         val isAbility: Boolean = false,
         /** Forge SpellAbility id when [isTrigger] or [isAbility] — used to mint the stack-ability instanceId. */
         val abilityForgeId: Int = 0,
+        /** Client ability grpId for ability lifecycle annotations, when known. */
+        val abilityGrpId: Int = 0,
     ) : GameEvent
 
     /** A card changed zones (generic — covers destroy, exile, sacrifice, bounce, etc.). */

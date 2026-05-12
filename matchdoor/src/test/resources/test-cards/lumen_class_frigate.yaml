@@ -1,0 +1,23 @@
+name: "Lumen-Class Frigate"
+grpId: 96599
+titleId: 1055535
+abilities:
+  - id: 373
+    textId: 60000
+    category: 1
+  - id: 60002
+    textId: 60002
+    category: 3
+  - id: 2433
+    textId: 3315
+    category: 3
+  - id: 60024
+    textId: 60024
+    category: 3
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 12
+    textId: 38
+    category: 3
+expansionCode: "EOE"

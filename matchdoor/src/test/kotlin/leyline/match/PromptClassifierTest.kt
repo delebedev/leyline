@@ -132,6 +132,18 @@ class PromptClassifierTest :
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.SacrificeEffect
         }
 
+        test("station tap-cost semantic classifies as station cost payment") {
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "Tap a creature to add charge counters",
+                    semantic = PromptSemantic.StationTapCost,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.StationTapCost
+        }
+
         test("generic choose-cards prompt does not infer sacrifice from message text") {
             val result =
                 classify(

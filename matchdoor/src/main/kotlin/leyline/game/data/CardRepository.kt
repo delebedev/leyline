@@ -205,6 +205,7 @@ object KeywordAbilityIds {
     // Direct ability ids — well-known shared row used verbatim per card.
     const val HASTE = 9
     const val PROWESS = 137
+    const val STATION = 373
 
     // BaseId roots — each printing has its own ability row chaining to this.
     const val KICKER = 34
