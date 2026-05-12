@@ -1,5 +1,6 @@
 package leyline.mechanics.station
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
@@ -38,16 +39,21 @@ class StationLifecycleTest :
                     gsm.annotationsList.any { AnnotationType.ResolutionStart in it.typeList }
                 }
 
-            resolutionGsm.annotation(AnnotationType.ResolutionStart).detailUint("grpid") shouldBe 373
-            resolutionGsm.annotation(AnnotationType.ResolutionComplete).detailUint("grpid") shouldBe 373
-            resolutionGsm.annotation(AnnotationType.CounterAdded).detailInt("transaction_amount") shouldBe 2
-            resolutionGsm.persistentAnnotation(AnnotationType.Counter_803b).detailInt("count") shouldBe 2
             val threshold12 =
                 resolutionGsm.persistentAnnotationsList.first {
                     AnnotationType.AbilityWordActive in it.typeList && it.detailInt("threshold") == 12
                 }
-            threshold12.detailInt("AbilityGrpId") shouldBe 60024
-            resolutionGsm.gameObjectsList.first { it.instanceId == bearIid }.isTapped.shouldBeTrue()
-            resolutionGsm.annotationsList.map { it.typeList.first() } shouldContain AnnotationType.TappedUntappedPermanent
+            assertSoftly {
+                resolutionGsm.annotation(AnnotationType.ResolutionStart).detailUint("grpid") shouldBe 373
+                resolutionGsm.annotation(AnnotationType.ResolutionComplete).detailUint("grpid") shouldBe 373
+                resolutionGsm.annotation(AnnotationType.CounterAdded).detailInt("transaction_amount") shouldBe 2
+                resolutionGsm.persistentAnnotation(AnnotationType.Counter_803b).detailInt("count") shouldBe 2
+                threshold12.detailInt("AbilityGrpId") shouldBe 60024
+                resolutionGsm.gameObjectsList
+                    .first { it.instanceId == bearIid }
+                    .isTapped
+                    .shouldBeTrue()
+                resolutionGsm.annotationsList.map { it.typeList.first() } shouldContain AnnotationType.TappedUntappedPermanent
+            }
         }
     })

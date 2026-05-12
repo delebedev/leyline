@@ -368,7 +368,12 @@ class TargetingHandler(
                         sendExileFromGravePayCostsReq(classified.pendingPrompt)
                     ClassifiedPrompt.SelectN.Reason.StationTapCost ->
                         sendStationTapCostPayCostsReq(classified.pendingPrompt)
-                    else -> sendSelectNReq(classified.pendingPrompt, classified.reason)
+                    ClassifiedPrompt.SelectN.Reason.LegendRule,
+                    ClassifiedPrompt.SelectN.Reason.Discard,
+                    ClassifiedPrompt.SelectN.Reason.SacrificeEffect,
+                    ClassifiedPrompt.SelectN.Reason.RevealChoose,
+                    ClassifiedPrompt.SelectN.Reason.Resolution,
+                    -> sendSelectNReq(classified.pendingPrompt, classified.reason)
                 }
                 PromptResult.SENT_TO_CLIENT
             }

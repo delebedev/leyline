@@ -251,7 +251,13 @@ object AbilityWordScanner {
 
         return card.staticAbilities.orEmpty().mapNotNull { staticAbility ->
             val affected = staticAbility.getParam("Affected") ?: return@mapNotNull null
-            val threshold = STATION_THRESHOLD.find(affected)?.groupValues?.get(1)?.toIntOrNull() ?: return@mapNotNull null
+            val threshold =
+                STATION_THRESHOLD
+                    .find(affected)
+                    ?.groupValues
+                    ?.get(1)
+                    ?.toIntOrNull()
+                    ?: return@mapNotNull null
             AbilityWordEntry(
                 instanceId = iid,
                 abilityWordName = "StationLevelThreshold",

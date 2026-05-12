@@ -1442,7 +1442,9 @@ object StateMapper {
                     abilityIid = abilityIid,
                     sourceIidAtCreate = sourceCardIid,
                     sourceZoneAtCreate = sourceZone,
-                    abilityGrpId = cast.abilityGrpId.takeIf { it != 0 } ?: abilityGrpIdForSource(cast.cardId, cast.abilityForgeId, bridge, snap),
+                    abilityGrpId =
+                        cast.abilityGrpId.takeIf { it != 0 }
+                            ?: abilityGrpIdForSource(cast.cardId, cast.abilityForgeId, bridge, snap),
                 ),
             )
             annotations.add(
@@ -1477,7 +1479,9 @@ object StateMapper {
                     abilityIid = abilityIid,
                     sourceIidAtCreate = sourceCardIid,
                     sourceZoneAtCreate = sourceZone,
-                    abilityGrpId = cast.abilityGrpId.takeIf { it != 0 } ?: abilityGrpIdForSource(cast.cardId, cast.abilityForgeId, bridge, snap),
+                    abilityGrpId =
+                        cast.abilityGrpId.takeIf { it != 0 }
+                            ?: abilityGrpIdForSource(cast.cardId, cast.abilityForgeId, bridge, snap),
                 ),
             )
             annotations.add(

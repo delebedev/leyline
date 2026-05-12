@@ -36,14 +36,15 @@ class AbilityWordScannerTest :
             val iid = b.getOrAllocInstanceId(ForgeCardId(frigate.id)).value
 
             val results =
-                AbilityWordScanner.scan(
-                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
-                    instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
-                    registryResolver = { card ->
-                        val grpId = b.cardRepository.findGrpIdByName(card.name) ?: 0
-                        b.abilityRegistryFor(card, b.cardRepository.findByGrpId(grpId))
-                    },
-                ).filter { it.abilityWordName == "StationLevelThreshold" }
+                AbilityWordScanner
+                    .scan(
+                        battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                        instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
+                        registryResolver = { card ->
+                            val grpId = b.cardRepository.findGrpIdByName(card.name) ?: 0
+                            b.abilityRegistryFor(card, b.cardRepository.findByGrpId(grpId))
+                        },
+                    ).filter { it.abilityWordName == "StationLevelThreshold" }
 
             results shouldHaveSize 2
             assertSoftly {

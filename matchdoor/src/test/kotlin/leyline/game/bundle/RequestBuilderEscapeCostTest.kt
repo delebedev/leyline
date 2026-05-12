@@ -195,7 +195,8 @@ class RequestBuilderEscapeCostTest :
                 req.effectCostReq.effectCostType shouldBe EffectCostType.Select_a59c
                 req.effectCostReq.costSelection.context shouldBe SelectionContext.NonManaPayment
                 req.effectCostReq.costSelection.optionContext shouldBe OptionContext.Payment
-                req.effectCostReq.costSelection.idsList.toList() shouldBe listOf(creatureIid)
+                req.effectCostReq.costSelection.idsList
+                    .toList() shouldBe listOf(creatureIid)
                 prompt.promptId shouldBe PromptIds.STATION_TAP_COST
                 prompt.parametersList.first { it.parameterName == "CardId" }.numberValue shouldBe stationAbilityIid
             }

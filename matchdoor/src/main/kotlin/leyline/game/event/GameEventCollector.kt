@@ -175,6 +175,7 @@ class GameEventCollector(
         log.debug("event: LandPlayed card={} seat={} colors={}", ev.land().name, seat, colorOrdinals)
     }
 
+    @Suppress("CyclomaticComplexMethod")
     override fun visit(ev: GameEventSpellAbilityCast) {
         val card = ev.sa().hostCard ?: return
         val seat = seatOf(card.controller) ?: return
