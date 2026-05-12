@@ -1442,7 +1442,9 @@ object StateMapper {
                     abilityIid = abilityIid,
                     sourceIidAtCreate = sourceCardIid,
                     sourceZoneAtCreate = sourceZone,
-                    abilityGrpId = abilityGrpIdForSource(cast.cardId, snap),
+                    abilityGrpId =
+                        cast.abilityGrpId.takeIf { it != 0 }
+                            ?: abilityGrpIdForSource(cast.cardId, cast.abilityForgeId, bridge, snap),
                 ),
             )
             annotations.add(
@@ -1477,7 +1479,9 @@ object StateMapper {
                     abilityIid = abilityIid,
                     sourceIidAtCreate = sourceCardIid,
                     sourceZoneAtCreate = sourceZone,
-                    abilityGrpId = abilityGrpIdForSource(cast.cardId, snap),
+                    abilityGrpId =
+                        cast.abilityGrpId.takeIf { it != 0 }
+                            ?: abilityGrpIdForSource(cast.cardId, cast.abilityForgeId, bridge, snap),
                 ),
             )
             annotations.add(
@@ -1502,7 +1506,10 @@ object StateMapper {
                     bridge.abilityLineage.consume(abilityIid)
                 }
             val aidSourceIid = lineage?.sourceIidAtCreate ?: sourceCardIid
-            val abilityGrpId = lineage?.abilityGrpId?.takeIf { it != 0 } ?: abilityGrpIdForSource(resolved.cardId, snap)
+            val abilityGrpId =
+                lineage?.abilityGrpId?.takeIf { it != 0 }
+                    ?: resolved.abilityGrpId.takeIf { it != 0 }
+                    ?: abilityGrpIdForSource(resolved.cardId, resolved.abilityForgeId, bridge, snap)
 
             annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
             annotations.add(AnnotationBuilder.resolutionComplete(InstanceId(abilityIid), GrpId(abilityGrpId)))
@@ -1566,9 +1573,16 @@ object StateMapper {
      *  whose keyword isn't in [leyline.game.data.KeywordAbilityIds] yet. */
     private fun abilityGrpIdForSource(
         cardId: ForgeCardId,
+        abilityForgeId: Int,
+        bridge: GameBridge,
         snap: GsmSnapshot,
     ): Int {
         val bound = snap.boundCards[cardId] ?: return 0
+        if (abilityForgeId != 0) {
+            val card = bridge.findCard(cardId)
+            val registry = if (card != null) bridge.abilityRegistryFor(card, bound.data) else null
+            registry?.forSpellAbility(abilityForgeId)?.takeIf { it != 0 }?.let { return it }
+        }
         for (keywordId in keywordTriggerIds) {
             bound.altCost(keywordId)?.abilityGrpId?.let { return it }
         }

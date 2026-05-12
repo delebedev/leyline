@@ -11,6 +11,7 @@ import forge.game.GameEntityViewMap
 import forge.game.ability.AbilityUtils
 import forge.game.card.*
 import forge.game.cost.*
+import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.player.PlayerView
 import forge.game.spellability.SpellAbility
@@ -1324,6 +1325,7 @@ class CostDecision(
                 c ?: 1,
                 c ?: typeList.size,
                 cancelAllowed = !mandatory,
+                semantic = if (ability.isKeyword(Keyword.STATION)) PromptSemantic.StationTapCost else PromptSemantic.Generic,
             ) ?: return null
         return PaymentDecision.card(selected)
     }

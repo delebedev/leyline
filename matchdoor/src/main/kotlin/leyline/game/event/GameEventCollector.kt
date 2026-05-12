@@ -8,6 +8,7 @@ import forge.game.card.CardView
 import forge.game.event.*
 import forge.game.event.GameEventManaAbilityActivated
 import forge.game.event.GameEventSpellMovedToStack
+import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.player.PlayerView
 import forge.game.spellability.AlternativeCost
@@ -129,6 +130,9 @@ class GameEventCollector(
      */
     private val pendingActivations = ConcurrentHashMap<Int, ForgeCardId>()
 
+    /** Ability grpIds paired with pending stack ability ids. */
+    private val pendingAbilityGrpIds = ConcurrentHashMap<Int, Int>()
+
     /** Non-consuming check: is this SpellAbility a triggered ability currently on the stack?
      *  Used by [leyline.game.GamePlayback] to decide whether to insert a per-step diff
      *  for trigger resolutions on the local player's turn. */
@@ -171,6 +175,7 @@ class GameEventCollector(
         log.debug("event: LandPlayed card={} seat={} colors={}", ev.land().name, seat, colorOrdinals)
     }
 
+    @Suppress("CyclomaticComplexMethod")
     override fun visit(ev: GameEventSpellAbilityCast) {
         val card = ev.sa().hostCard ?: return
         val seat = seatOf(card.controller) ?: return
@@ -221,10 +226,13 @@ class GameEventCollector(
         // The SA's Forge id is needed for both triggered and activated abilities;
         // both surface through the AbilityInstance lifecycle path keyed on it.
         val abilityForgeId = if (isTrigger || isAbility) ev.sa()?.id ?: 0 else 0
+        val abilityGrpId = if ((isTrigger || isAbility) && realCard != null) abilityGrpIdFor(realCard, topSa) else 0
         if (isTrigger && abilityForgeId != 0) {
             pendingTriggers[abilityForgeId] = ForgeCardId(card.id)
+            if (abilityGrpId != 0) pendingAbilityGrpIds[abilityForgeId] = abilityGrpId
         } else if (isAbility && abilityForgeId != 0) {
             pendingActivations[abilityForgeId] = ForgeCardId(card.id)
+            if (abilityGrpId != 0) pendingAbilityGrpIds[abilityForgeId] = abilityGrpId
         }
         // Activation zone: only meaningful for activated abilities (cycling →
         // Hand=31; unearth → Graveyard=33; …). Triggered abilities' "source
@@ -247,6 +255,7 @@ class GameEventCollector(
                 isAbility = isAbility,
                 isTrigger = isTrigger,
                 abilityForgeId = abilityForgeId,
+                abilityGrpId = abilityGrpId,
                 activationZoneId = activationZoneId,
                 kickerAbilityGrpId = kickerAbilityGrpId,
                 chosenX = chosenX,
@@ -278,6 +287,17 @@ class GameEventCollector(
             topSa?.hasParam("PrecostDesc") == true && topSa.getParam("PrecostDesc") == "Cleave" -> KeywordAbilityIds.CLEAVE
             else -> null
         }
+
+    private fun abilityGrpIdFor(
+        card: Card,
+        sa: SpellAbility?,
+    ): Int {
+        if (sa == null) return 0
+        if (sa.isKeyword(Keyword.STATION)) return KeywordAbilityIds.STATION
+        val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
+        val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return 0
+        return bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(sa.id) ?: 0
+    }
 
     /**
      * Resolve the activation zone of an activated ability to a protocol ZoneId.
@@ -415,6 +435,7 @@ class GameEventCollector(
         val saId = ev.spell().id
         val isTrigger = pendingTriggers.remove(saId) != null
         val isAbility = !isTrigger && pendingActivations.remove(saId) != null
+        val abilityGrpId = pendingAbilityGrpIds.remove(saId) ?: 0
         frame.add(
             GameEvent.SpellResolved(
                 cardId = ForgeCardId(card.id),
@@ -422,6 +443,7 @@ class GameEventCollector(
                 isTrigger = isTrigger,
                 isAbility = isAbility,
                 abilityForgeId = if (isTrigger || isAbility) saId else 0,
+                abilityGrpId = if (isTrigger || isAbility) abilityGrpId else 0,
             ),
         )
         log.debug(

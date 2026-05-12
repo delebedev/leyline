@@ -35,6 +35,7 @@ sealed interface ClassifiedPrompt {
             RevealChoose,
             Resolution,
             ExileFromGrave,
+            StationTapCost,
         }
     }
 
@@ -79,6 +80,8 @@ object PromptClassifier {
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.Sacrifice)
             PromptSemantic.SelectNCostExileFromGrave ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.ExileFromGrave)
+            PromptSemantic.StationTapCost ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.StationTapCost)
             PromptSemantic.SelectNResolution ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.Resolution)
             PromptSemantic.Generic -> null

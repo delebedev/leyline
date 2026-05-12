@@ -64,6 +64,7 @@ class AbilityRegistry private constructor(
                     (keywordCount until abilityIds.size).toList()
                 }
             mapActivatedAbilities(card, abilityIds, activatedSlotIndices, saMap)
+            mapStationThresholdStatics(card, abilityIds, staticMap)
             mapManaAbilities(card, fallbackGrpId, saMap)
             mapUnclaimedIntrinsics(card, fallbackGrpId, staticMap, triggerMap)
 
@@ -85,6 +86,30 @@ class AbilityRegistry private constructor(
             val layout = SlotLayout(keywordCount, activatedCount, slots)
 
             return AbilityRegistry(saMap, staticMap, triggerMap, layout)
+        }
+
+        /**
+         * Station threshold rows are per-card static ability ids (e.g. 60002,
+         * 60024) interleaved with granted core ability rows. Forge exposes the
+         * threshold striations as static abilities whose descriptions start with
+         * `STATION N+`; Arena's per-threshold rows are the matching high synthetic
+         * ids in card slot order.
+         */
+        private fun mapStationThresholdStatics(
+            card: Card,
+            abilityIds: List<Pair<Int, Int>>,
+            staticMap: MutableMap<Int, Int>,
+        ) {
+            val stationStatics =
+                card.staticAbilities
+                    ?.filter { it.getParam("Description")?.startsWith("STATION ") == true }
+                    .orEmpty()
+            if (stationStatics.isEmpty()) return
+
+            val thresholdRows = abilityIds.map { it.first }.filter { it >= STATION_THRESHOLD_ABILITY_ID_FLOOR }
+            for ((staticAbility, grpId) in stationStatics.zip(thresholdRows)) {
+                staticMap[staticAbility.id] = grpId
+            }
         }
 
         /** Phase 1: Keywords occupy the first N slots. Returns keyword count. */
@@ -186,5 +211,7 @@ class AbilityRegistry private constructor(
             val kwName = kw.keyword.toString()
             return rulesText.startsWith(kwName, ignoreCase = true)
         }
+
+        private const val STATION_THRESHOLD_ABILITY_ID_FLOOR = 60_000
     }
 }

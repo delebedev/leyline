@@ -386,6 +386,12 @@ enum class PromptSemantic {
      * the cost-payment picker, parallel to the existing sacrifice cost path.
      */
     SelectNCostExileFromGrave,
+
+    /**
+     * Station's tap-a-creature activation cost. Routes to the Station-specific
+     * `PayCostsReq` promptId while keeping the normal non-mana payment envelope.
+     */
+    StationTapCost,
 }
 
 data class PromptRequest(
