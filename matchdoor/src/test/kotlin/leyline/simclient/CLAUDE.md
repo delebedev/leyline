@@ -11,7 +11,14 @@ excludes it.
 
 ## What's in this directory
 
-- `SimClientDriver.kt` — the loop: hybrid greedy + Forge-AI responder dispatcher.
+- `SimClientDriver.kt` — loop/orchestration, prompt retirement, outcome telemetry.
+- `SimPromptLedger.kt` — prompt lifecycle: active prompt selection, handled/retired
+  prompt ids, prompt-bound AAR payloads, stall fingerprints.
+- `SimPromptPolicy.kt` — greedy + Forge-AI policy. Policies return `SimDecision`;
+  they do not submit directly.
+- `SimDecision.kt` — decision model and submitter. The submitter owns all
+  `MatchFlowHarness` response calls.
+- `ActionAttemptLedger.kt` — per-turn AAR attempt/skip/outcome tracking.
 - `ForgeAiPolicy.kt` — Forge-AI advisor. Builds a parallel `PlayerControllerAi`
   consulted on `ActionsAvailableReq` and `DeclareBlockersReq`. **Not** registered
   as the player's actual controller (see "Forge-AI advisor — load-bearing rules"
@@ -115,13 +122,17 @@ to greedy on prompts not yet wired through an AI translator.
 | Prompt | greedy | forge-ai |
 |---|---|---|
 | `MulliganReq` | always keep (via `connectAndKeep`) | same |
-| `ActionsAvailableReq` | land then first castable spell, else pass | AI picks; falls through to greedy on null / no-castable |
+| `ActionsAvailableReq` | prompt-bound land then first castable spell, else pass | AI picks from the active prompt's AAR actions; falls through to greedy on null / no-castable |
 | `DeclareAttackersReq` | declare all, then submit | greedy (translator not yet wired) |
 | `DeclareBlockersReq` | submit empty | AI mutates live `Combat`; emits the resulting blocker→attacker map |
 | `SelectTargetsReq` | first legal target across slots | greedy (translator not yet wired) |
+| `SelectNreq` | choose minimum required ids | greedy |
+| `SearchReq` | choose up to `maxFind` from sought ids | greedy |
+| `PayCostsReq` | choose minimum required non-mana cost ids | greedy |
 | `GroupReq` | scry-style top-all | greedy |
 | `CastingTimeOptionsReq` | decline all (`ctoId=0`) | greedy |
-| `NumericInputReq` | submit `0` | greedy |
+| `NumericInputReq` | submit bounded small value | greedy |
+| `AssignDamageReq` | echo server-prefilled damage assignments | greedy |
 | `IntermissionReq` | pass | greedy |
 
 Anything outside the table falls back to `passPriority`. Adding a new AI
@@ -183,6 +194,17 @@ via `harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id))`.
   `aiChoseByPrompt` keyed by GRE prompt name
 - log signal — `warnsByLogger`, `errorsByType` populated by `GameLogCapture`
 - terminal flags — `gameOver`, `hitIterCap`
+- completion attribution — `completionReason`, `cleanupConcede`
+- prompt lifecycle — `promptRetiredByReason`, `stalledPrompt`, `stalledFingerprint`
+- action attempts — `decisionOutcomes`, `actionAttemptsByType`,
+  `noPendingByDecision`, `skippedAlreadyTried`
+
+`noPendingByDecision` is the structured form of the old
+`ActionPerformer: PerformActionResp but no pending action` smell. A high
+`pre-submit:ActionsAvailableReq_695e` count means the simclient saw stale AARs
+after the server had already consumed the priority window; a high
+`pass-priority` count means the submitter guard prevented stale pass spam from
+reaching `ActionPerformer`.
 
 Adding a new failure mode: think about whether it should be a `GameStats`
 field. Anything you want attributable to `(deck × seed × policy)` belongs

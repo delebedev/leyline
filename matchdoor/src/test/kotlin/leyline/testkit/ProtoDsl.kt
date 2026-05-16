@@ -277,6 +277,16 @@ fun selectNResp(ids: List<Int>): ClientToGREMessage =
         )
     }
 
+/** [SearchResp] — respond to a library/search prompt with selected instanceIds. */
+fun searchResp(itemsFound: List<Int>): ClientToGREMessage =
+    clientMessage(ClientMessageType.SearchResp_097b) {
+        setSearchResp(
+            SearchResp.newBuilder().apply {
+                addAllItemsFound(itemsFound)
+            },
+        )
+    }
+
 // ---------------------------------------------------------------------------
 // Modal — CastingTimeOptionsResp
 // ---------------------------------------------------------------------------

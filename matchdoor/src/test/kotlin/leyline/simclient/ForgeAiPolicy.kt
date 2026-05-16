@@ -9,6 +9,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.testkit.MatchFlowHarness
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
@@ -67,9 +68,11 @@ class ForgeAiPolicy(
 
     /** Resolved action ready to submit as a `PerformAction` GRE message. */
     data class Choice(
+        val action: Action,
         val instanceId: Int,
         val grpId: Int,
         val actionType: ActionType,
+        val abilityGrpId: Int = 0,
     )
 
     /**
@@ -80,9 +83,13 @@ class ForgeAiPolicy(
      * Match rules (iteration 1):
      *   - LandAbility → first AAR action with `actionType=Play_add3` and same grpId
      *   - isSpell()    → first AAR action with `actionType=Cast`         and same grpId
+     *   - non-spell activated ability → exact `Activate_add3` host iid + abilityGrpId match
      *   - everything else → null (driver falls back to greedy / pass)
      */
-    fun chooseAarAction(): Choice? {
+    fun chooseAarAction(
+        promptActions: List<Action>,
+        skipFingerprints: Set<String> = emptySet(),
+    ): Choice? {
         // Forge AI internals (AttachAi etc.) cast `player.getController()` to
         // PlayerControllerAi during decision-making. Use Forge's built-in
         // runWithController to temporarily install our AI controller for the
@@ -106,8 +113,6 @@ class ForgeAiPolicy(
         }
         if (abilities.isNullOrEmpty()) return null
 
-        val actions = harness.accumulator.actions ?: return null
-
         for (sa in abilities) {
             val hostCard = sa.hostCard ?: continue
             val grpId = harness.bridge.cardRepository.findGrpIdByName(hostCard.name) ?: continue
@@ -115,26 +120,47 @@ class ForgeAiPolicy(
                 when {
                     sa is LandAbility -> ActionType.Play_add3
                     sa.isSpell -> ActionType.Cast
-                    else -> continue
+                    else -> ActionType.Activate_add3
                 }
             // Prefer the action whose instanceId matches Forge's card id so we cast
             // THIS specific copy. getOrAlloc is idempotent (returns the existing
             // mapping if one exists) — no harmful side effect.
             val mappedInstanceId =
                 harness.bridge.getOrAllocInstanceId(ForgeCardId(hostCard.id)).value
-            val match =
-                actions.actionsList.firstOrNull {
-                    it.actionType == actionType &&
-                        it.grpId == grpId &&
-                        it.instanceId == mappedInstanceId
-                }
-                    ?: actions.actionsList.firstOrNull {
-                        it.actionType == actionType && it.grpId == grpId
-                    }
-                    ?: continue
-            return Choice(match.instanceId, match.grpId, actionType)
+            val match = chooseMatchingAction(sa, actionType, grpId, mappedInstanceId, promptActions, skipFingerprints) ?: continue
+            return Choice(match, match.instanceId, match.grpId, actionType, match.abilityGrpId)
         }
         return null
+    }
+
+    private fun chooseMatchingAction(
+        sa: SpellAbility,
+        actionType: ActionType,
+        grpId: Int,
+        mappedInstanceId: Int,
+        promptActions: List<Action>,
+        skipFingerprints: Set<String>,
+    ): Action? {
+        if (actionType != ActionType.Activate_add3) {
+            return promptActions.firstOrNull {
+                it.actionType == actionType &&
+                    it.grpId == grpId &&
+                    it.instanceId == mappedInstanceId &&
+                    it.actionFingerprint() !in skipFingerprints
+            } ?: promptActions.firstOrNull {
+                it.actionType == actionType && it.grpId == grpId && it.actionFingerprint() !in skipFingerprints
+            }
+        }
+
+        val hostCard = sa.hostCard ?: return null
+        val cardData = harness.bridge.cardRepository.findByGrpId(grpId) ?: return null
+        val abilityGrpId = harness.bridge.abilityRegistryFor(hostCard, cardData)?.forSpellAbility(sa.id) ?: return null
+        return promptActions.firstOrNull {
+            it.actionType == ActionType.Activate_add3 &&
+                it.instanceId == mappedInstanceId &&
+                it.abilityGrpId == abilityGrpId &&
+                it.actionFingerprint() !in skipFingerprints
+        }
     }
 
     /**

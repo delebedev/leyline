@@ -121,6 +121,8 @@ class SimClientBatchTest :
 
         fun mapToJson(m: Map<String, Int>): String = m.entries.joinToString(",", "{", "}") { (k, v) -> "${jsonString(k)}:$v" }
 
+        fun stringsToJson(values: List<String>): String = values.joinToString(",", "[", "]") { jsonString(it) }
+
         fun statsToJson(
             deckName: String,
             seed: Long,
@@ -139,6 +141,8 @@ class SimClientBatchTest :
                 append("\"durationMs\":${stats.durationMs},")
                 append("\"turn\":${stats.turn},")
                 append("\"gameOver\":${stats.gameOver},")
+                append("\"completionReason\":${jsonString(stats.completionReason)},")
+                append("\"cleanupConcede\":${stats.cleanupConcede},")
                 append("\"iterations\":${stats.iterations},")
                 append("\"totalMessages\":${stats.totalMessages},")
                 append("\"hitIterCap\":${stats.hitIterCap},")
@@ -148,7 +152,16 @@ class SimClientBatchTest :
                 append("\"aiChoseByPrompt\":${mapToJson(stats.aiChoseByPrompt)},")
                 append("\"promptHistogram\":$histo,")
                 append("\"warnsByLogger\":${mapToJson(stats.warnsByLogger)},")
-                append("\"errorsByType\":${mapToJson(stats.errorsByType)}")
+                append("\"errorsByType\":${mapToJson(stats.errorsByType)},")
+                append("\"validationViolationsByCheck\":${mapToJson(stats.validationViolationsByCheck)},")
+                append("\"validationViolations\":${stringsToJson(stats.validationViolations)},")
+                append("\"promptRetiredByReason\":${mapToJson(stats.promptRetiredByReason)},")
+                append("\"decisionOutcomes\":${mapToJson(stats.decisionOutcomes)},")
+                append("\"actionAttemptsByType\":${mapToJson(stats.actionAttemptsByType)},")
+                append("\"noPendingByDecision\":${mapToJson(stats.noPendingByDecision)},")
+                append("\"skippedAlreadyTried\":${stats.skippedAlreadyTried},")
+                append("\"stalledPrompt\":${stats.stalledPrompt?.let(::jsonString) ?: "null"},")
+                append("\"stalledFingerprint\":${stats.stalledFingerprint?.let(::jsonString) ?: "null"}")
                 append('}')
             }
         }
@@ -165,6 +178,7 @@ class SimClientBatchTest :
                     seed = seed,
                     deckList = deckList,
                     validation = simclientRelaxedValidation(),
+                    validationStrict = false,
                     cardRepositoryOverride = cardRepo,
                 )
             val tag = "$deckName-s$seed"
@@ -233,6 +247,7 @@ class SimClientBatchTest :
                     seed = seed,
                     deckList = null,
                     validation = simclientRelaxedValidation(),
+                    validationStrict = false,
                     cardRepositoryOverride = cardRepo,
                 )
             val tag = "$puzzleName-s$seed"
@@ -338,6 +353,7 @@ class SimClientBatchTest :
                     all.add(Triple(deckName, seed, stats))
                     val warnTotal = stats.warnsByLogger.values.sum()
                     val errTotal = stats.errorsByType.values.sum()
+                    val validationTotal = stats.validationViolationsByCheck.values.sum()
                     val aiSummary =
                         if (stats.aiConsulted > 0) {
                             "ai=${stats.aiChose}/${stats.aiConsulted} "
@@ -346,10 +362,10 @@ class SimClientBatchTest :
                         }
                     println(
                         "[$deckName s=$seed] ${stats.durationMs}ms turn=${stats.turn} " +
-                            "gameOver=${stats.gameOver} iter=${stats.iterations} " +
+                            "gameOver=${stats.gameOver} reason=${stats.completionReason} iter=${stats.iterations} " +
                             "msgs=${stats.totalMessages} hitCap=${stats.hitIterCap} " +
                             "prompts=${stats.promptHistogram.size} " +
-                            "${aiSummary}warns=$warnTotal errs=$errTotal",
+                            "${aiSummary}warns=$warnTotal errs=$errTotal validation=$validationTotal",
                     )
                     if (stats.aiConsulted > 0) {
                         stats.aiConsultedByPrompt.entries.sortedBy { it.key }.forEach { (prompt, consulted) ->
@@ -369,6 +385,16 @@ class SimClientBatchTest :
                         stats.errorsByType.entries.sortedByDescending { it.value }.forEach { (cls, n) ->
                             println("    err   $cls = $n")
                         }
+                    }
+                    if (validationTotal > 0) {
+                        stats.validationViolationsByCheck.entries
+                            .sortedByDescending { it.value }
+                            .forEach { (check, n) -> println("    inv   $check = $n") }
+                    }
+                    if (stats.promptRetiredByReason.isNotEmpty()) {
+                        stats.promptRetiredByReason.entries
+                            .sortedByDescending { it.value }
+                            .forEach { (reason, n) -> println("    retire $reason = $n") }
                     }
                 }
             }

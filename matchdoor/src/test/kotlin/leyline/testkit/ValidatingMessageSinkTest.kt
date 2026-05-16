@@ -10,6 +10,7 @@ import io.kotest.matchers.string.shouldContain
 import leyline.UnitTag
 import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantSelection
+import leyline.game.codes.DetailKeys
 import leyline.infra.ListMessageSink
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -67,6 +68,17 @@ class ValidatingMessageSinkTest :
                 .addType(type)
                 .build()
 
+        fun intDetail(
+            key: String,
+            value: Int,
+        ): KeyValuePairInfo =
+            KeyValuePairInfo
+                .newBuilder()
+                .setKey(key)
+                .setType(KeyValuePairValueType.Int32)
+                .addValueInt32(value)
+                .build()
+
         fun lenientSink() = ValidatingMessageSink(strict = false)
 
         fun strictSink() = ValidatingMessageSink(strict = true)
@@ -103,6 +115,49 @@ class ValidatingMessageSinkTest :
             sink.send(listOf(greMessage(msgId = 2, gsm = gsm2)))
 
             sink.violations.shouldExist { "gsId not monotonic" in it }
+        }
+
+        test("Lenient validation records violations by check") {
+            val sink = lenientSink()
+
+            sink.send(listOf(greMessage(msgId = 1, gsm = gsm(gsId = 5, type = GameStateType.Full))))
+            sink.send(listOf(greMessage(msgId = 2, gsm = gsm(gsId = 3))))
+
+            sink.violationsByCheck[InvariantCheck.GsIdMonotonicity.id] shouldBe 1
+        }
+
+        test("Annotation references may target same-GSM ObjectIdChanged new ids") {
+            val sink = selectedSink(InvariantSelection.only("annotation refs", InvariantCheck.AnnotationReferences))
+            val oic =
+                annotation(1, AnnotationType.ObjectIdChanged)
+                    .toBuilder()
+                    .addDetails(intDetail(DetailKeys.ORIG_ID, 100))
+                    .addDetails(intDetail(DetailKeys.NEW_ID, 220))
+                    .build()
+            val zt = annotation(2, AnnotationType.ZoneTransfer_af5a).toBuilder().addAffectedIds(220).build()
+
+            sink.send(listOf(greMessage(msgId = 1, gsm = gsm(gsId = 1, annotations = listOf(oic, zt)))))
+
+            sink.violationsByCheck[InvariantCheck.AnnotationReferences.id] shouldBe null
+        }
+
+        test("Annotation references may target same-GSM deleted ids") {
+            val sink = selectedSink(InvariantSelection.only("annotation refs", InvariantCheck.AnnotationReferences))
+            val deletedToken =
+                annotation(1, AnnotationType.TokenDeleted)
+                    .toBuilder()
+                    .setAffectorId(242)
+                    .addAffectedIds(242)
+                    .build()
+            val gsm =
+                gsm(gsId = 1, annotations = listOf(deletedToken))
+                    .toBuilder()
+                    .addDiffDeletedInstanceIds(242)
+                    .build()
+
+            sink.send(listOf(greMessage(msgId = 1, gsm = gsm)))
+
+            sink.violationsByCheck[InvariantCheck.AnnotationReferences.id] shouldBe null
         }
 
         test("gsId monotonicity throws in strict mode") {

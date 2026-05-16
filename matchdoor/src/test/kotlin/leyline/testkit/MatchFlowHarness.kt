@@ -36,6 +36,7 @@ class MatchFlowHarness(
     private val deckList: String? = null,
     validating: Boolean = true,
     private val validation: InvariantSelection = defaultValidation(validating),
+    private val validationStrict: Boolean = true,
     private val matchConfig: MatchConfig =
         MatchConfig(
             ai = AiConfig(speed = 0.0),
@@ -79,7 +80,7 @@ class MatchFlowHarness(
 
     /** Validating decorator — null only when the selected validation set is empty. */
     val validatingSink: ValidatingMessageSink? =
-        if (!validation.isEmpty()) ValidatingMessageSink(sink, strict = true, selection = validation) else null
+        if (!validation.isEmpty()) ValidatingMessageSink(sink, strict = validationStrict, selection = validation) else null
 
     /** The [MessageSink] passed to [MatchSession] (validating wrapper or plain). */
     private val effectiveSink get() = validatingSink ?: sink
@@ -826,6 +827,11 @@ class MatchFlowHarness(
      */
     fun respondToSelectN(selectedInstanceIds: List<Int>) {
         session.onSelectN(submitWithGsId(selectNResp(ids = selectedInstanceIds)))
+        drainSink()
+    }
+
+    fun respondToSearch(itemsFound: List<Int>) {
+        session.onSearch(submitWithGsId(searchResp(itemsFound)))
         drainSink()
     }
 
