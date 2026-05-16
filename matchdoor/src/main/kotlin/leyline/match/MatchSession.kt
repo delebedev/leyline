@@ -524,6 +524,7 @@ class MatchSession(
         // TODO: empty diff detection — disabled for now, many legitimate empty diffs exist
         //  (actions-only updates, phase transitions). Needs filtering by caller context.
 
+        bindPendingActionPrompt(result)
         sendBundle(result)
 
         // Decision timer — client shows rope countdown while waiting for action
@@ -646,6 +647,14 @@ class MatchSession(
         recorder?.recordOutbound(messages)
         sink.send(messages)
         mirrorToFamiliar(messages)
+    }
+
+    private fun bindPendingActionPrompt(result: BundleBuilder.BundleResult) {
+        val promptGsId = result.messages.firstOrNull { it.hasActionsAvailableReq() }?.gameStateId ?: return
+        val bound = gameBridge.seat(seatId).action.markCurrentPromptEmitted(promptGsId)
+        if (!bound) {
+            log.debug("MatchSession: ActionsAvailableReq gsId={} emitted without a pending action", promptGsId)
+        }
     }
 
     /** Send a copy of GRE messages to the Familiar (seat 2) via registry. */

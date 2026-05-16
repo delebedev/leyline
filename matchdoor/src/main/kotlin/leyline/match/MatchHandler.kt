@@ -233,7 +233,12 @@ class MatchHandler(
                     val match =
                         registry.getOrCreateMatch(matchId) {
                             val bridge =
-                                GameBridge(matchConfig = matchConfig, messageCounter = MessageCounter(), cardRepository = cardRepository)
+                                GameBridge(
+                                    bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
+                                    matchConfig = matchConfig,
+                                    messageCounter = MessageCounter(),
+                                    cardRepository = cardRepository,
+                                )
                             Match(matchId, bridge).also {
                                 it.start(
                                     seed = matchConfig.game.seed,

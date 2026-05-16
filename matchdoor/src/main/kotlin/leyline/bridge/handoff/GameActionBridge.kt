@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReference
  * One pending action at a time — the engine is single-threaded per game.
  */
 class GameActionBridge(
-    @Volatile private var timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+    @Volatile private var timeoutMs: Long? = DEFAULT_TIMEOUT_MS,
     val prioritySignal: PrioritySignal? = null,
 ) {
     companion object {
@@ -35,9 +35,9 @@ class GameActionBridge(
         private val log = LoggerFactory.getLogger(GameActionBridge::class.java)
     }
 
-    fun getTimeoutMs(): Long = timeoutMs
+    fun getTimeoutMs(): Long? = timeoutMs
 
-    fun setTimeoutMs(ms: Long) {
+    fun setTimeoutMs(ms: Long?) {
         timeoutMs = ms
     }
 
@@ -67,13 +67,14 @@ class GameActionBridge(
      * so the player gets a fresh timeout window.
      */
     fun resetDeadline() {
-        deadlineMs = System.currentTimeMillis() + timeoutMs
+        deadlineMs = timeoutMs?.let { System.currentTimeMillis() + it }
     }
 
     data class PendingAction(
         val actionId: String,
         val state: PendingActionState,
         val future: CompletableFuture<PlayerAction>,
+        @Volatile var promptGameStateId: Int? = null,
     )
 
     private val pending = AtomicReference<PendingAction?>(null)
@@ -113,7 +114,8 @@ class GameActionBridge(
      * @return the player's chosen action
      */
     fun awaitAction(state: PendingActionState): PlayerAction {
-        if (timeoutMs <= 0L) {
+        val configuredTimeoutMs = timeoutMs
+        if (configuredTimeoutMs == 0L) {
             return PlayerAction.PassPriority
         }
 
@@ -128,16 +130,20 @@ class GameActionBridge(
         }
         prioritySignal?.signal()
 
-        val effectiveTimeout = if (paused) Long.MAX_VALUE else timeoutMs
-        deadlineMs = if (paused) null else System.currentTimeMillis() + effectiveTimeout
+        val effectiveTimeout = if (paused) null else configuredTimeoutMs
+        deadlineMs = effectiveTimeout?.let { System.currentTimeMillis() + it }
 
         return try {
-            future.get(effectiveTimeout, TimeUnit.MILLISECONDS)
+            if (effectiveTimeout == null) {
+                future.get()
+            } else {
+                future.get(effectiveTimeout, TimeUnit.MILLISECONDS)
+            }
         } catch (_: TimeoutException) {
             val diagnostic =
                 BridgeTimeoutDiagnostic.buildMessage(
                     bridgeName = "GameActionBridge",
-                    timeoutMs = effectiveTimeout,
+                    timeoutMs = checkNotNull(effectiveTimeout),
                     game = diagnosticGame,
                     engineThread = diagnosticThread,
                     lastContext =
@@ -173,6 +179,34 @@ class GameActionBridge(
             return false
         }
         return current.future.complete(action)
+    }
+
+    /**
+     * Bind the outbound ActionsAvailableReq gsId to the pending engine wait.
+     * Later responses must echo this gsId; otherwise an old click can satisfy a
+     * newer pending action after the previous wait timed out or advanced.
+     */
+    fun markPromptEmitted(
+        actionId: String,
+        gameStateId: Int,
+    ): Boolean {
+        val current = pending.get() ?: return false
+        if (current.actionId != actionId || current.future.isDone) return false
+        current.promptGameStateId = gameStateId
+        return true
+    }
+
+    fun markCurrentPromptEmitted(gameStateId: Int): Boolean {
+        val current = getPending() ?: return false
+        return markPromptEmitted(current.actionId, gameStateId)
+    }
+
+    fun acceptsResponse(
+        pendingAction: PendingAction,
+        responseGameStateId: Int,
+    ): Boolean {
+        if (responseGameStateId == 0) return true
+        return pendingAction.promptGameStateId == responseGameStateId
     }
 
     /**

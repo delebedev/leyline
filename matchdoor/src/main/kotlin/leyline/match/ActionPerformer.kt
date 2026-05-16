@@ -73,6 +73,15 @@ class ActionPerformer(
                 sink.sendRealGameState(bridge)
                 return
             }
+        if (!seatBridge.action.acceptsResponse(pending, clientGsId)) {
+            log.warn(
+                "ActionPerformer: PerformActionResp gsId={} does not match pending prompt gsId={} phase={}, ignoring",
+                clientGsId,
+                pending.promptGameStateId,
+                pending.state.phase,
+            )
+            return
+        }
 
         // Track autoPassPriority from PerformActionResp (full control / auto-pass OK)
         val autoPassPriority = greMsg.performActionResp.autoPassPriority
