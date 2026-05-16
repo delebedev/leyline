@@ -66,8 +66,10 @@ data class MatchConfig(
         game.seed?.let {
             require(it >= 0) { "game.seed must be non-negative, got $it" }
         }
-        require(server.bridgeTimeoutMs > 0) {
-            "server.bridge_timeout_ms must be positive, got ${server.bridgeTimeoutMs}"
+        server.bridgeTimeoutMs?.let {
+            require(it > 0) {
+                "server.bridge_timeout_ms must be positive when set, got $it"
+            }
         }
     }
 
@@ -87,6 +89,7 @@ data class MatchConfig(
             append(game.dieRollWinner?.let { "seat$it" } ?: "random")
             append(" skipMulligan=${game.skipMulligan}")
             append(" aiSpeed=${ai.speed}x")
+            append(" bridgeTimeout=${server.bridgeTimeoutMs?.let { "${it}ms" } ?: "none"}")
             if (dev.strict || dev.strictPass) {
                 append(" dev.strict=${dev.strict} dev.strict_pass=${dev.strictPass}")
             }
@@ -114,9 +117,9 @@ data class ServerConfig(
     /** Management HTTP port (health checks, always starts). */
     @SerialName("management_port")
     val managementPort: Int = 8091,
-    /** Bridge timeout — how long the engine waits for client responses (ms). */
+    /** Bridge timeout — how long the engine waits for client responses (ms). Null disables timeout. */
     @SerialName("bridge_timeout_ms")
-    val bridgeTimeoutMs: Long = 45_000L,
+    val bridgeTimeoutMs: Long? = null,
     /**
      * How long `advanceOrWait` waits for the AI's turn to return priority
      * before giving up and suppressing [ActionsAvailableReq]. Large in production

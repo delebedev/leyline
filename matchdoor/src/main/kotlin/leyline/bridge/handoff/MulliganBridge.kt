@@ -21,7 +21,7 @@ import java.util.concurrent.TimeoutException
  */
 class MulliganBridge(
     private val autoKeep: Boolean = false,
-    private val timeoutMs: Long = 60_000,
+    private val timeoutMs: Long? = 60_000,
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(MulliganBridge::class.java)
@@ -118,7 +118,11 @@ class MulliganBridge(
         }
         log.info("MulliganBridge: awaiting keep/mull for player {} (mulls={})", playerId, mulliganCount)
         return try {
-            future.get(timeoutMs, TimeUnit.MILLISECONDS)
+            if (timeoutMs == null) {
+                future.get()
+            } else {
+                future.get(timeoutMs, TimeUnit.MILLISECONDS)
+            }
         } catch (_: TimeoutException) {
             log.warn("MulliganBridge: timeout waiting for keep decision, auto-keeping")
             DevCheck.failOnAutoPass { "Mulligan keep decision timed out" }
@@ -161,7 +165,11 @@ class MulliganBridge(
         }
         log.info("MulliganBridge: awaiting tuck {} cards for player {}", count, playerId)
         return try {
-            future.get(timeoutMs, TimeUnit.MILLISECONDS)
+            if (timeoutMs == null) {
+                future.get()
+            } else {
+                future.get(timeoutMs, TimeUnit.MILLISECONDS)
+            }
         } catch (_: TimeoutException) {
             log.warn("MulliganBridge: timeout waiting for tuck, auto-tucking first {}", count)
             DevCheck.failOnAutoPass { "Mulligan tuck decision timed out" }

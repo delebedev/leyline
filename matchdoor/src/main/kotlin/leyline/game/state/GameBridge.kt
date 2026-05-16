@@ -69,8 +69,8 @@ import java.util.concurrent.ConcurrentLinkedQueue
  */
 class GameBridge(
     /** Timeout for action bridge / prompt bridge / mulligan bridge.
-     *  Production: 45s. Tests: ~2-5s (engine responds in <100ms). */
-    private val bridgeTimeoutMs: Long = 45_000L,
+     *  Null waits indefinitely. Tests should pass a small finite value. */
+    private val bridgeTimeoutMs: Long? = 45_000L,
     /** Playtest config — controls AI speed, die roll, etc. */
     val matchConfig: MatchConfig = MatchConfig(),
     /** Shared protocol counter for GRE message sequencing.

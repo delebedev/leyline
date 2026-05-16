@@ -12,6 +12,7 @@
 #management_port = 8091
 
 # Bridge timeout — how long the engine waits for a client response (ms).
+# Leave unset for local gameplay: human action/prompt windows wait indefinitely.
 #bridge_timeout_ms = 45000
 
 # Player database path (relative to CWD or absolute).

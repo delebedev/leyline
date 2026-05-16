@@ -40,8 +40,8 @@ class MatchFlowHarness(
     private val matchConfig: MatchConfig =
         MatchConfig(
             ai = AiConfig(speed = 0.0),
-            // Fail fast in tests. Production defaults are tuned for the client
-            // (120s bridge, 30s AI-turn wait, 10s mulligan); here the engine
+            // Fail fast in tests. Local gameplay leaves the human bridge
+            // timeout disabled; here the engine
             // responds in <100ms so aggressive timeouts surface hangs quickly.
             server =
                 ServerConfig(
@@ -116,7 +116,7 @@ class MatchFlowHarness(
 
         bridge =
             GameBridge(
-                bridgeTimeoutMs = 5_000L,
+                bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
                 matchConfig = matchConfig,
                 messageCounter = MessageCounter(),
                 cardRepository = repo,
@@ -203,7 +203,7 @@ class MatchFlowHarness(
 
         bridge =
             GameBridge(
-                bridgeTimeoutMs = 5_000L,
+                bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
                 matchConfig = matchConfig,
                 messageCounter = MessageCounter(),
                 cardRepository = repo,

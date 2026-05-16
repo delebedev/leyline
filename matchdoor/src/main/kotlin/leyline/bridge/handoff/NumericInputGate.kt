@@ -42,8 +42,12 @@ class NumericInputGate(
         actionBridge?.prioritySignal?.signal()
 
         return try {
-            val timeoutMs = actionBridge?.getTimeoutMs() ?: DEFAULT_TIMEOUT_MS
-            future.get(timeoutMs, TimeUnit.MILLISECONDS)
+            val timeoutMs = actionBridge?.getTimeoutMs()
+            if (actionBridge != null && timeoutMs == null) {
+                future.get()
+            } else {
+                future.get(timeoutMs ?: DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            }
         } catch (e: Exception) {
             log.warn("{}: timeout/error for {} — defaulting to {}", logContext, sourceCard?.name, defaultOnTimeout, e)
             defaultOnTimeout

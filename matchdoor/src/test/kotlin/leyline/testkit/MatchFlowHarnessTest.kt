@@ -10,10 +10,14 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
+import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
+import leyline.game.awaitFreshPending
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -265,6 +269,33 @@ class MatchFlowHarnessTest :
                     h.phase() != phaseBefore ||
                     h.messagesSince(msgCountBefore).isNotEmpty()
             advanced.shouldBeTrue()
+        }
+
+        test("late PerformActionResp cannot satisfy a newer unprompted pending action") {
+            val h = MatchFlowHarness(seed = 42L)
+            harness = h
+            h.connectAndKeep()
+
+            val oldPromptGsId = h.latestPromptGsId()
+            val actionBridge = h.bridge.actionBridge(SeatId(1))
+            val oldPending = actionBridge.getPending().shouldNotBeNull()
+            oldPending.promptGameStateId shouldBe oldPromptGsId
+
+            actionBridge.submitAction(oldPending.actionId, PlayerAction.PassPriority)
+            val nextPending = awaitFreshPending(h.bridge, oldPending.actionId, timeoutMs = 5_000).shouldNotBeNull()
+            nextPending.promptGameStateId.shouldBeNull()
+
+            val latePass =
+                performAction { actionType = ActionType.Pass }
+                    .toBuilder()
+                    .setGameStateId(oldPromptGsId)
+                    .build()
+            h.session.onPerformAction(latePass)
+            h.drainSink()
+
+            val stillPending = actionBridge.getPending().shouldNotBeNull()
+            stillPending.actionId shouldBe nextPending.actionId
+            stillPending.promptGameStateId.shouldBeNull()
         }
 
         test("AI turn produces Diff messages") {

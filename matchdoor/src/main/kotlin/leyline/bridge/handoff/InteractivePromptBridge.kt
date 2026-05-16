@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicReference
  * One pending prompt at a time — the engine is single-threaded.
  */
 class InteractivePromptBridge(
-    private val timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+    private val timeoutMs: Long? = DEFAULT_TIMEOUT_MS,
     private val prioritySignal: PrioritySignal? = null,
 ) {
     /**
@@ -249,7 +249,8 @@ class InteractivePromptBridge(
         request: PromptRequest,
         targetingSa: SpellAbility? = null,
     ): List<Int> {
-        if (timeoutMs <= 0L) {
+        val configuredTimeoutMs = timeoutMs
+        if (configuredTimeoutMs == 0L) {
             return listOf(request.defaultIndex)
         }
 
@@ -266,7 +267,12 @@ class InteractivePromptBridge(
 
         val startMs = System.currentTimeMillis()
         return try {
-            val result = future.get(timeoutMs, TimeUnit.MILLISECONDS)
+            val result =
+                if (configuredTimeoutMs == null) {
+                    future.get()
+                } else {
+                    future.get(configuredTimeoutMs, TimeUnit.MILLISECONDS)
+                }
             record(request, PromptCallStatus.RESPONDED, result, System.currentTimeMillis() - startMs)
             prioritySignal?.markPromptResolved()
             result
@@ -274,7 +280,7 @@ class InteractivePromptBridge(
             val diagnostic =
                 BridgeTimeoutDiagnostic.buildMessage(
                     bridgeName = "InteractivePromptBridge",
-                    timeoutMs = timeoutMs,
+                    timeoutMs = checkNotNull(configuredTimeoutMs),
                     game = diagnosticGame,
                     engineThread = diagnosticThread,
                     lastContext =

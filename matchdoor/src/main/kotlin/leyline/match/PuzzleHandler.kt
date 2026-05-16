@@ -49,6 +49,7 @@ class PuzzleHandler(
             registry.getOrCreateMatch(matchId) {
                 val bridge =
                     GameBridge(
+                        bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
                         matchConfig = matchConfig,
                         messageCounter = MessageCounter(),
                         cardRepository = cardRepository,
@@ -94,6 +95,8 @@ class PuzzleHandler(
                 bridge,
             )
         session.counter.setMsgId(nextMsgId2)
+        session.counter.markPromptGsId(gsId)
+        bridge.seat(SeatId(seatId)).action.markCurrentPromptEmitted(gsId)
         Tap.outboundTemplate("PuzzleActionsReq seat=$seatId")
         ProtoDump.dump(actionsMsg, "PuzzleActionsReq-seat$seatId")
         ctx.writeAndFlush(actionsMsg)
