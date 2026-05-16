@@ -83,6 +83,7 @@ data class BoundCard(
                 KeywordAbilityIds.MOBILIZE,
                 KeywordAbilityIds.WARP,
                 KeywordAbilityIds.SNEAK,
+                KeywordAbilityIds.DISGUISE,
             )
 
         /**

@@ -53,4 +53,9 @@ object AnnotationConstants {
      *  Marks the right half of a split-room enchantment as unlocked. Gained when
      *  a `CastRightRoom` action resolves; persists while the door stays open. */
     const val DESIGNATION_TYPE_RIGHT_UNLOCKED: Int = 20
+
+    /** `REASON` value on the persistent `FaceDown` annotation for cards
+     *  put face-down by the `Disguise` keyword. Other observed REASON
+     *  values: 5 = Manifest, 8 = Morph; both out of scope for v1. */
+    const val FACEDOWN_REASON_DISGUISE: Int = 6
 }

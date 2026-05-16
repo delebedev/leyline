@@ -43,6 +43,52 @@ class CardProtoBuilder(
 
     private fun isRoomCard(subtypes: List<Int>): Boolean = subtypes.contains(roomSubtype)
 
+    /**
+     * Universal "Turn face up" stencil ability grpId carried as the sole
+     * `uniqueAbilities` entry on every face-down permanent. Same id across
+     * Morph / Manifest / Disguise / Cloak — the per-mechanic flip cost
+     * rides on the dedicated `Special_TurnFaceUp_add3` action emit, not on
+     * the projected ability list.
+     */
+    private val faceDownTurnFaceUpStencilGrpId = 141939
+
+    /**
+     * Universal face-down overlay grpId — the "card back" stencil the
+     * client renders in place of the real card art for any face-down
+     * permanent.
+     */
+    private val faceDownOverlayGrpId = 3
+
+    /** Face-down stat — every face-down creature is a 2/2 regardless of printed P/T. */
+    private val faceDownPowerAndToughness = 2
+
+    /**
+     * Build a [GameObjectInfo] for a face-down permanent (Disguise, Morph,
+     * Manifest, Cloak). The projection drops printed identity (name,
+     * subtypes, color, the per-card abilities) and substitutes the
+     * universal face-down stencil — `overlayGrpId=3`, single
+     * "Turn face up" ability `141939`, 2/2 P/T, `Creature` card type.
+     *
+     * The [grpId] of the underlying card is still set on the proto so the
+     * per-seat filter can preserve it for the controller and strip it for
+     * the opponent (opponent visibility=Private doesn't reveal identity).
+     */
+    fun buildFaceDownObjectInfo(grpId: Int): GameObjectInfo.Builder =
+        GameObjectInfo
+            .newBuilder()
+            .setGrpId(grpId)
+            .setOverlayGrpId(faceDownOverlayGrpId)
+            .setIsFacedown(true)
+            .addCardTypes(CardType.Creature)
+            .setPower(Int32Value.newBuilder().setValue(faceDownPowerAndToughness))
+            .setToughness(Int32Value.newBuilder().setValue(faceDownPowerAndToughness))
+            .addUniqueAbilities(
+                UniqueAbilityInfo
+                    .newBuilder()
+                    .setId(50)
+                    .setGrpId(faceDownTurnFaceUpStencilGrpId),
+            )
+
     /** Build a [GameObjectInfo] from DB data, no template — for the buildFromSnapshot path. */
     fun buildObjectInfo(
         grpId: Int,

@@ -302,6 +302,31 @@ data object RightUnlockedDesignationKind : PersistentAnnotationKind {
 }
 
 /**
+ * Persistent `FaceDown` annotation for face-down disguise creatures on the
+ * battlefield. Carries `REASON=6` (Disguise) + `abilityGrpId=307`
+ * (Disguise BaseId) detail keys. Lives across the card's entire face-down
+ * residence on the battlefield; pruned when the card flips face-up
+ * (`Special_TurnFaceUp_add3`) or leaves the battlefield.
+ */
+data object FaceDownDisguiseKind : PersistentAnnotationKind {
+    override val name = "FaceDownDisguise"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean {
+        if (AnnotationType.FaceDown !in ann.typeList) return false
+        val reason =
+            ann.detailsList
+                .firstOrNull { it.key == leyline.game.codes.DetailKeys.REASON_UPPER }
+                ?.valueInt32List
+                ?.firstOrNull() ?: return false
+        return reason == AnnotationConstants.FACEDOWN_REASON_DISGUISE
+    }
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
+/**
  * Game-scope Day/Night state designation. Single row per game — Day and Night
  * are mutually exclusive, and the row carries a running `ActivePlayerSpellCount`
  * tally that updates each GSM. At a flip, the outgoing state's row is pruned
@@ -438,6 +463,7 @@ object PersistentAnnotationKinds {
             LeftUnlockedDesignationKind,
             RightUnlockedDesignationKind,
             DayNightDesignationKind,
+            FaceDownDisguiseKind,
         )
 
     /** Lifecycle-only kinds — pass through pure-append in the transfer pipeline,

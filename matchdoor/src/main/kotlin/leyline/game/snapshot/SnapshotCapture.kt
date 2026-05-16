@@ -537,6 +537,7 @@ object SnapshotCapture {
             plottedRole = if (Plotted.isPlotted(card)) PlottedRole.Plotted else PlottedRole.None,
             isSaddled = onBf && card.isSaddled,
             isForetold = Foretell.isForetold(card),
+            isFaceDownDisguise = Disguise.isFaceDownDisguise(card),
             isCommander = card.isCommander,
             commanderTax = commanderTax(card),
             commanderColorIdentity = commanderColorIdentity(card),

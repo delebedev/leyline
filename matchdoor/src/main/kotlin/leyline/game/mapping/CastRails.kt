@@ -56,6 +56,7 @@ enum class AltCostKind(
     OVERLOAD(KeywordAbilityIds.OVERLOAD),
     WARP(KeywordAbilityIds.WARP),
     SNEAK(KeywordAbilityIds.SNEAK),
+    DISGUISE(KeywordAbilityIds.DISGUISE),
 }
 
 /**
@@ -135,6 +136,18 @@ data class HandWithAltCost(
     override val kind: AltCostKind,
     override val saPredicate: (SpellAbility) -> Boolean,
     val lookupMode: LookupMode,
+    /**
+     * When true, the action's `alternativeGrpId` is set to the keyword's
+     * BaseId constant ([AltCostKind.keywordBaseId]) directly, not the
+     * per-card row's `abilityGrpId`. Disguise's face-down hand cast emits
+     * `alternativeGrpId = 307` (DISGUISE BaseId), not the per-card
+     * disguise-up activator id — the per-card row drives the
+     * Special_TurnFaceUp action, the BaseId anchors the face-down cast.
+     *
+     * When false (default), the per-card row's `abilityGrpId` is used —
+     * Plot / Foretell / Warp / Sneak hand-cast pattern.
+     */
+    val useKeywordBaseIdAsAlternative: Boolean = false,
 ) : CastRail
 
 /**
@@ -248,6 +261,18 @@ object CastRails {
                 saPredicate = { it.isForetelling },
                 lookupMode = LookupMode.CostAgnostic,
             ),
+            // Disguise's face-down hand cast is a Forge `Spell` with
+            // `setCastFaceDown(true)`; there is no `AlternativeCost.Disguise`
+            // enum entry. The SA carries the fixed {3} morph-down cost
+            // returned by `abilityCastFaceDown(...)`. Cost-aware lookup
+            // matches the bound row whose printed mana cost is the {3}
+            // morph-down stencil.
+            HandWithAltCost(
+                kind = AltCostKind.DISGUISE,
+                saPredicate = { it.isCastFaceDown },
+                lookupMode = LookupMode.CostAgnostic,
+                useKeywordBaseIdAsAlternative = true,
+            ),
             HandWithAltCost(
                 kind = AltCostKind.CLEAVE,
                 saPredicate = { it.hasParam("PrecostDesc") && it.getParam("PrecostDesc") == "Cleave" },
@@ -287,7 +312,12 @@ internal fun resolveAltGrpId(
     payCostPairs: List<Pair<ManaColor, Int>>,
 ): Int =
     when (rail) {
-        is HandWithAltCost -> resolveByMode(altCosts, rail.kind, rail.lookupMode, payCostPairs)
+        is HandWithAltCost ->
+            if (rail.useKeywordBaseIdAsAlternative) {
+                rail.kind.keywordBaseId
+            } else {
+                resolveByMode(altCosts, rail.kind, rail.lookupMode, payCostPairs)
+            }
         is ZoneCastRail ->
             when (val src = rail.altGrpIdSource) {
                 AltGrpIdSource.Universal149 -> 149

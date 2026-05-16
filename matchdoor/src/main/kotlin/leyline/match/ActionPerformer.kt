@@ -2,6 +2,7 @@ package leyline.match
 
 import leyline.bridge.findCard
 import leyline.bridge.getAllCastableAbilities
+import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
@@ -104,7 +105,8 @@ class ActionPerformer(
                 action.actionType == ActionType.CastAdventure ||
                 action.actionType == ActionType.CastLeftRoom ||
                 action.actionType == ActionType.CastRightRoom ||
-                action.actionType == ActionType.CastOmen
+                action.actionType == ActionType.CastOmen ||
+                action.actionType == ActionType.SpecialTurnFaceUp_add3
         val game = ctx.game
         val stackWasNonEmpty = !game.stack.isEmpty
         val actionName = action.actionType.name.removeSuffix("_add3")
@@ -131,7 +133,9 @@ class ActionPerformer(
                 Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             ActionType.Cast -> {
-                val castAbilityIndex = resolveCastAbilityIndex(action, bridge)
+                val castAbilityIndex =
+                    resolveCastAbilityIndex(action, bridge)
+                        ?: resolveImplicitDisguiseCastAbilityIndex(action, bridge)
                 if (targetingHandler.checkAlternateAdditionalCostChoice(action, pending.actionId)) {
                     Tap.outboundTemplate("Cast deferred — alternate additional cost prompt sent")
                     return
@@ -278,6 +282,43 @@ class ActionPerformer(
                     }
                 Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
+            ActionType.SpecialTurnFaceUp_add3 -> {
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val submitted =
+                    if (cardId != null) {
+                        val card = findCard(game, cardId)
+                        val player = bridge.getPlayer(counters.seatId)
+                        // The disguise turn-face-up SA lives on the
+                        // KeywordInstance (CardFactoryUtil.abilityTurnFaceUp);
+                        // CardLookup.getAllCastableAbilities appends it so the
+                        // accept side can reference the same SA the offer side
+                        // emitted via reference equality.
+                        val turnFaceUpSa =
+                            card?.spellAbilities?.firstOrNull { it.isDisguiseUp }
+                        val abilityIndex =
+                            if (card != null && player != null && turnFaceUpSa != null) {
+                                getNonManaActivatedAbilities(card, player)
+                                    .indexOfFirst { it === turnFaceUpSa }
+                                    .takeIf { it >= 0 }
+                            } else {
+                                null
+                            }
+                        if (abilityIndex == null) {
+                            log.warn(
+                                "SpecialTurnFaceUp: no turn-face-up SA matched for card={} iid={}",
+                                card?.name,
+                                action.instanceId,
+                            )
+                        }
+                        seatBridge.action.submitAction(
+                            pending.actionId,
+                            PlayerAction.ActivateAbility(cardId, abilityIndex ?: 0),
+                        )
+                    } else {
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
+                    }
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
+            }
             else -> {
                 log.info("ActionPerformer: unhandled action type {}, passing", action.actionType)
                 seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
@@ -393,16 +434,47 @@ class ActionPerformer(
         return candidates.firstOrNull { equivalentCastAction(it.action, action) }?.abilityIndex
     }
 
+    private fun resolveImplicitDisguiseCastAbilityIndex(
+        action: Action,
+        bridge: GameBridge,
+    ): Int? {
+        if (action.alternativeGrpId != 0) return null
+        if (!isFaceDownCastCost(action)) return null
+        val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return null
+        val game = bridge.getGame() ?: return null
+        val player = bridge.getPlayer(counters.seatId) ?: return null
+        val card = findCard(game, forgeCardId) ?: return null
+        val castable = getAllCastableAbilities(card, player)
+        val index = castable.indexOfFirst { it.isCastFaceDown }.takeIf { it >= 0 } ?: return null
+        log.info(
+            "ActionPerformer: treating ambiguous Cast modal response as Disguise face-down cast card={} iid={}",
+            card.name,
+            action.instanceId,
+        )
+        return index
+    }
+
     private fun equivalentCastAction(
         expected: Action,
         actual: Action,
-    ): Boolean =
-        expected.actionType == actual.actionType &&
+    ): Boolean {
+        val manaCostMatches = actual.manaCostCount == 0 || expected.manaCostList == actual.manaCostList
+        val autoTapMatches = !actual.hasAutoTapSolution() || expected.autoTapSolution == actual.autoTapSolution
+
+        return expected.actionType == actual.actionType &&
             expected.instanceId == actual.instanceId &&
             expected.grpId == actual.grpId &&
             expected.abilityGrpId == actual.abilityGrpId &&
-            expected.manaCostList == actual.manaCostList &&
-            expected.autoTapSolution == actual.autoTapSolution
+            expected.alternativeGrpId == actual.alternativeGrpId &&
+            manaCostMatches &&
+            autoTapMatches
+    }
+
+    private fun isFaceDownCastCost(action: Action): Boolean {
+        if (action.manaCostCount == 0) return false
+        return action.manaCostList.all { it.colorList == listOf(ManaColor.Generic) } &&
+            action.manaCostList.sumOf { it.count } == 3
+    }
 
     @Suppress("ReturnCount")
     private fun resolveAltCostAbilityIndex(

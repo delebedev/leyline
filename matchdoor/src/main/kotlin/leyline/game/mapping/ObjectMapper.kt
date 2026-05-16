@@ -179,6 +179,30 @@ object ObjectMapper {
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
         parentLinkage: ParentLinkage? = null,
     ): GameObjectInfo {
+        // Face-down disguise creatures get a synthetic stencil envelope —
+        // the per-card identity (name, subtypes, color, abilities) is
+        // suppressed in favor of the universal face-down stencil (overlay
+        // grpId=3, ability=141939). Mechanic-agnostic so Morph / Manifest /
+        // Cloak can ride the same projection once their snapshot
+        // recognizers land.
+        if (cardSnap.isFaceDownDisguise) {
+            return cardProto
+                .buildFaceDownObjectInfo(cardSnap.grpId)
+                .setInstanceId(instanceId)
+                .setType(GameObjectType.Card)
+                .setZoneId(zoneId)
+                .setVisibility(Visibility.Private)
+                .setOwnerSeatId(ownerSeatId)
+                .setControllerSeatId(cardSnap.controller.value)
+                .apply {
+                    if (cardSnap.isOnBattlefield) {
+                        setIsTapped(cardSnap.tapped)
+                        setHasSummoningSickness(cardSnap.hasSickness)
+                        if (cardSnap.damage > 0) setDamage(cardSnap.damage)
+                    }
+                }.build()
+        }
+
         val objType =
             if (cardSnap.isToken && cardSnap.preparedRole !is PreparedRole.Copy) {
                 GameObjectType.Token

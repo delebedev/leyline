@@ -956,6 +956,29 @@ object AnnotationBuilder {
             .addAffectedIds(instanceId.value)
             .build()
 
+    /** Persistent FaceDown annotation for a face-down permanent on the
+     *  battlefield (Disguise / Morph / Manifest / Cloak). Carries the
+     *  mechanic discriminator on `REASON` (Disguise=6, Manifest=5, Morph=8)
+     *  and the keyword's BaseId on `abilityGrpId` (Disguise=307,
+     *  Foretell=208 etc.).
+     *
+     *  affector / affectedIds both = the face-down card's instance id.
+     *  Lives across many GSMs; deleted via diff-tracking when the card
+     *  flips face-up (`Special_TurnFaceUp_add3`) or leaves the battlefield. */
+    fun faceDownPersistent(
+        instanceId: InstanceId,
+        reason: Int,
+        abilityGrpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.FaceDown)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.REASON_UPPER, reason))
+            .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId.value))
+            .build()
+
     /** SuppressedPowerAndToughness transient annotation. Pairs with FaceDown
      *  for face-down exile objects that lose their P/T projection. */
     fun suppressedPowerAndToughness(instanceId: InstanceId): AnnotationInfo =

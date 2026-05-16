@@ -191,6 +191,7 @@ class CastRailsTest :
                         AltCostKind.SNEAK,
                         AltCostKind.PLOT,
                         AltCostKind.FORETELL,
+                        AltCostKind.DISGUISE,
                         AltCostKind.CLEAVE,
                         AltCostKind.OVERLOAD,
                         AltCostKind.IMPENDING,

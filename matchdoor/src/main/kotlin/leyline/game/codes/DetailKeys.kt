@@ -23,6 +23,12 @@ object DetailKeys {
     const val MARK_DAMAGE = "markDamage"
     const val LIFE = "life"
     const val REASON = "reason"
+
+    /** Uppercase REASON variant — used on the persistent `FaceDown`
+     *  annotation (`{ "key": "REASON", valueInt32: [6/8/5] }` for
+     *  Disguise/Morph/Manifest). Distinct from [REASON] (lowercase) which
+     *  is used for transient `LossOfGame` and similar annotations. */
+    const val REASON_UPPER = "REASON"
     const val COUNTER_TYPE = "counter_type"
     const val TRANSACTION_AMOUNT = "transaction_amount"
     const val TOP_COUNT = "topCount"
