@@ -29,6 +29,7 @@ class ValidatingMessageSink(
 
     /** Accumulated violation descriptions (useful when [strict] = false). */
     val violations = mutableListOf<String>()
+    val violationsByCheck = mutableMapOf<String, Int>()
 
     // --- MessageSink ---
 
@@ -39,7 +40,7 @@ class ValidatingMessageSink(
             // Check for new violations after each message
             while (checker.violations.size > beforeCount + violations.size) {
                 val v = checker.violations[beforeCount + violations.size]
-                record(v.message)
+                record(v.gsId, v.check, v.message)
             }
         }
         inner.send(messages)
@@ -79,8 +80,13 @@ class ValidatingMessageSink(
         checker.seedFull(gsm)
     }
 
-    private fun record(violation: String) {
-        violations.add(violation)
+    private fun record(
+        gsId: Int,
+        check: String,
+        violation: String,
+    ) {
+        violations.add("gsId=$gsId $violation")
+        violationsByCheck.merge(check, 1) { a, b -> a + b }
         if (strict) {
             throw AssertionError("ValidatingMessageSink: $violation")
         }

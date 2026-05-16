@@ -68,12 +68,18 @@ class ClientAccumulator {
         val req = actions ?: return emptyList()
         val missing = mutableListOf<Int>()
         for (action in req.actionsList) {
-            if (action.instanceId != 0 && !objects.containsKey(action.instanceId)) {
+            if (action.instanceId != 0 && !isKnownEntity(action.instanceId)) {
                 missing.add(action.instanceId)
             }
         }
         return missing
     }
+
+    private fun isKnownEntity(id: Int): Boolean =
+        id in 1..2 ||
+            objects.containsKey(id) ||
+            zones.containsKey(id) ||
+            zones.values.any { zone -> id in zone.objectInstanceIdsList }
 
     /**
      * Every instanceId referenced by a **visible** zone must exist in [objects].

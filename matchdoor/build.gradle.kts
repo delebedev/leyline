@@ -77,6 +77,12 @@ protobuf {
 
 // --- Testing (base config from leyline.test-conventions) ---
 
+tasks.named<Test>("test") {
+    // Simclient runs are slow, env-driven, and intentionally opt-in via the
+    // dedicated `:matchdoor:simclient` task.
+    systemProperty("kotest.tags", "!SimClientTag")
+}
+
 val testUnit by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "UnitTag")
