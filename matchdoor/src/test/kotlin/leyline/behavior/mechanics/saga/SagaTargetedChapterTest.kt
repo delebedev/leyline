@@ -2,6 +2,7 @@ package leyline.behavior.mechanics.saga
 
 import forge.game.card.CounterEnumType
 import forge.game.zone.ZoneType
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import leyline.IntegrationTag
@@ -71,17 +72,15 @@ class SagaTargetedChapterTest :
                 // Answer any SelectTargetsReq as it arrives during the tick-through.
                 var bearHasCounter = false
                 var lastSeenTargetReq = harness.allMessages.size
-                repeat(16) {
-                    if (harness.isGameOver()) return@repeat
-
+                harness.passUntil(maxPasses = 40) {
                     // Check for new SelectTargetsReq since last iteration.
                     val newSelectReq =
-                        harness.allMessages
+                        allMessages
                             .drop(lastSeenTargetReq)
                             .any { it.type == GREMessageType.SelectTargetsReq_695e }
-                    lastSeenTargetReq = harness.allMessages.size
+                    lastSeenTargetReq = allMessages.size
                     if (newSelectReq) {
-                        harness.selectTargets(listOf(bearIid))
+                        selectTargets(listOf(bearIid))
                     }
 
                     val liveBear =
@@ -91,12 +90,24 @@ class SagaTargetedChapterTest :
                             .firstOrNull { it.name == "Grizzly Bears" }
                     if (liveBear != null && liveBear.getCounters(CounterEnumType.P1P1) >= 1) {
                         bearHasCounter = true
-                        return@repeat
                     }
-                    harness.passPriority()
+                    bearHasCounter
                 }
 
-                bearHasCounter.shouldBeTrue()
+                withClue(
+                    "turn=${harness.turn()} phase=${harness.phase()} " +
+                        "stack=${game.stack.map { it.sourceCard.name }} " +
+                        "selectReqs=${harness.allMessages.count { it.type == GREMessageType.SelectTargetsReq_695e }} " +
+                        "bearCounters=${
+                            game.humanPlayer
+                                .getZone(ZoneType.Battlefield)
+                                .cards
+                                .firstOrNull { it.name == "Grizzly Bears" }
+                                ?.getCounters(CounterEnumType.P1P1)
+                        }",
+                ) {
+                    bearHasCounter.shouldBeTrue()
+                }
                 harness.accumulator.assertConsistent("after targeted Ch II")
             } finally {
                 harness.shutdown()

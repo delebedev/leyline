@@ -1,6 +1,7 @@
 package leyline.session.targeting
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
@@ -558,14 +559,25 @@ class TargetingInteractionTest :
                 group1.detailInt("promptParameters") shouldBe group2.detailInt("promptParameters")
             }
 
-            // Force GSM rebuild to trigger upsert cleanup
-            passPriority()
+            // Resolve/cleanup can span more than one tick: wait until both
+            // target specs emitted for the two target groups have been deleted.
+            val preResolveIds = preResolve.map { it.id }
+            passUntil(maxPasses = 6) {
+                val deletedIds =
+                    allMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.diffDeletedPersistentAnnotationIdsList }
+                        .toSet()
+                preResolveIds.all { it in deletedIds }
+            }
             val allDeletedPannIds =
                 allMessages
                     .filter { it.hasGameStateMessage() }
                     .flatMap { it.gameStateMessage.diffDeletedPersistentAnnotationIdsList }
                     .toSet()
-            preResolve.map { it.id }.all { it in allDeletedPannIds }.shouldBeTrue()
+            withClue("preResolve=$preResolveIds deleted=$allDeletedPannIds") {
+                preResolveIds.all { it in allDeletedPannIds }.shouldBeTrue()
+            }
         }
 
         // ─── Auto-resolve regression #92 ───────────────────────────────────────

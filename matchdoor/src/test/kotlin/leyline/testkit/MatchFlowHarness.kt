@@ -314,6 +314,19 @@ class MatchFlowHarness(
     }
 
     /**
+     * Advance through whichever default client response is appropriate for
+     * the current stop. Priority uses Pass; combat declaration prompts need
+     * their own submit messages.
+     */
+    private fun advanceDefaultStop() {
+        when (phase()) {
+            "COMBAT_DECLARE_ATTACKERS" -> declareNoAttackers()
+            "COMBAT_DECLARE_BLOCKERS" -> declareNoBlockers()
+            else -> passPriority()
+        }
+    }
+
+    /**
      * Keep passing until [stopWhen] becomes true, the game ends, or [maxPasses] is hit.
      *
      * Returns true when [stopWhen] was observed before the pass budget ran out.
@@ -325,7 +338,7 @@ class MatchFlowHarness(
     ): Boolean {
         repeat(maxPasses) {
             if (stopWhen() || isGameOver()) return true
-            passPriority()
+            advanceDefaultStop()
         }
         return stopWhen() || isGameOver()
     }
@@ -348,7 +361,7 @@ class MatchFlowHarness(
     ) {
         repeat(maxPasses) {
             if (turn() >= targetTurn || isGameOver()) return
-            passPriority()
+            advanceDefaultStop()
         }
     }
 
@@ -362,7 +375,7 @@ class MatchFlowHarness(
     ) {
         repeat(maxPasses) {
             if (isGameOver() || turn() > startTurn) return
-            passPriority()
+            advanceDefaultStop()
         }
     }
 
