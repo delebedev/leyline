@@ -366,7 +366,7 @@ object SnapshotCapture {
     ): Map<ForgeCardId, CardSnapshot> {
         val combat = game.phaseHandler?.combat
         val human = bridge.getPlayer(SeatId(1))
-        val liveZoneCards = liveZoneCardsById(game, bridge)
+        val liveZoneCards = liveZoneCardsByZoneAndId(game, bridge)
         // Pre-pass: walk the live battlefield once, build the prepared linkage in
         // both directions:
         //   sourceToCopy: source ForgeCardId → copy ForgeCardId
@@ -381,26 +381,28 @@ object SnapshotCapture {
         for (zone in zones.values) {
             for (fid in zone.contents) {
                 if (fid in seen) continue
-                val card = bridge.findCard(fid) ?: liveZoneCards[fid] ?: continue
+                val card = bridge.findCard(fid) ?: liveZoneCards[zone.id to fid] ?: continue
                 seen[fid] = captureCard(card, combat, bridge, human, linkage)
             }
         }
         return seen
     }
 
-    private fun liveZoneCardsById(
+    private fun liveZoneCardsByZoneAndId(
         game: Game,
         bridge: GameBridge,
-    ): Map<ForgeCardId, Card> {
-        val cards = linkedMapOf<ForgeCardId, Card>()
+    ): Map<Pair<Int, ForgeCardId>, Card> {
+        val cards = linkedMapOf<Pair<Int, ForgeCardId>, Card>()
         for (seatNum in listOf(1, 2)) {
             val player = bridge.getPlayer(SeatId(seatNum)) ?: continue
             for (zoneType in listOf(ForgeZoneType.Hand, ForgeZoneType.Library, ForgeZoneType.Graveyard)) {
-                player.getZone(zoneType)?.cards?.forEach { cards[ForgeCardId(it.id)] = it }
+                val zoneId = playerZoneId(seatNum, zoneType) ?: continue
+                player.getZone(zoneType)?.cards?.forEach { cards[zoneId to ForgeCardId(it.id)] = it }
             }
         }
         for (zoneType in listOf(ForgeZoneType.Battlefield, ForgeZoneType.Stack, ForgeZoneType.Exile, ForgeZoneType.Command)) {
-            game.getCardsIn(zoneType).forEach { cards[ForgeCardId(it.id)] = it }
+            val zoneId = sharedZoneId(zoneType) ?: continue
+            game.getCardsIn(zoneType).forEach { cards[zoneId to ForgeCardId(it.id)] = it }
         }
         return cards
     }

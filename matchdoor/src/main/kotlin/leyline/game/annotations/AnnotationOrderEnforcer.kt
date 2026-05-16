@@ -92,7 +92,7 @@ object AnnotationOrderEnforcer {
             if (from > to) {
                 val fromType = annotations[from].typeList
                 val toType = annotations[to].typeList
-                log.debug(
+                log.warn(
                     "Annotation ordering violation: {} at index {} must precede {} at index {}",
                     fromType,
                     from,
