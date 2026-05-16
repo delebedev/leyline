@@ -295,7 +295,7 @@ class PlayerController(
         }
 
     init {
-        setGui(ClientGuiGame(bridge, actionBridge))
+        setGui(ClientGuiGame(bridge))
     }
 
     companion object {
