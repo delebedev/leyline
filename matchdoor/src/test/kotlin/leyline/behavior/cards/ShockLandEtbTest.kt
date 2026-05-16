@@ -54,7 +54,7 @@ class ShockLandEtbTest :
                     instanceId = human.hand.iid(land)
                     grpId = harness.bridge.cardRepository.findGrpIdByName(land.name) ?: 0
                 }
-            harness.session.onPerformAction(msg)
+            harness.session.onPerformAction(harness.submitWithGsId(msg))
 
             // Drain sink to keep OAM (without auto-responding)
             harness.allMessages.addAll(harness.sink.messages)
@@ -91,7 +91,7 @@ class ShockLandEtbTest :
                     instanceId = human.hand.iid(land)
                     grpId = harness.bridge.cardRepository.findGrpIdByName(land.name) ?: 0
                 }
-            harness.session.onPerformAction(msg)
+            harness.session.onPerformAction(harness.submitWithGsId(msg))
 
             // Drain sink to keep OAM
             harness.allMessages.addAll(harness.sink.messages)

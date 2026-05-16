@@ -2,6 +2,7 @@ package leyline.mechanics.saddle
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -108,6 +109,8 @@ class SaddleLifecycleTest :
             passUntilTurn(2, maxPasses = 20)
 
             val grizzly = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Drover Grizzly" }
-            grizzly.isSaddled shouldBe false
+            withClue("turn=${turn()} phase=${phase()} stack=${game().stack.map { it.sourceCard.name }}") {
+                grizzly.isSaddled shouldBe false
+            }
         }
     })
