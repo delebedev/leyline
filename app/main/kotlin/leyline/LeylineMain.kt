@@ -94,14 +94,27 @@ private fun openCardRepo(): ExposedCardRepository {
             "  macOS: ~/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga\n" +
             "  Windows: C:/Program Files/Epic Games/MagicTheGathering/MTGA_Data/Downloads/Raw/Raw_CardDatabase_*.mtga"
     }
-    require(File(cardDbPath).exists()) { "Card database not found at: $cardDbPath" }
-    return ExposedCardRepository(
-        Database.connect(
-            "jdbc:sqlite:${File(cardDbPath).absolutePath}",
-            "org.sqlite.JDBC",
-        ),
-    )
+    val cardDbFile = File(cardDbPath)
+    require(cardDbFile.exists()) { "Card database not found at: $cardDbPath" }
+    require(cardDbFile.length() >= MIN_CARD_DB_BYTES) {
+        "Card database at $cardDbPath is ${cardDbFile.length()} bytes — too small to be a real DB.\n" +
+            "Likely an in-progress download placeholder alongside a real file in the same directory.\n" +
+            "Remove the empty file and rerun, or set LEYLINE_CARD_DB to the full DB explicitly."
+    }
+    val repo =
+        ExposedCardRepository(
+            Database.connect(
+                "jdbc:sqlite:${cardDbFile.absolutePath}",
+                "org.sqlite.JDBC",
+            ),
+        )
+    check(repo.findAllGrpIds().isNotEmpty()) {
+        "Card database at $cardDbPath has no usable Cards rows. Wrong file, or schema changed."
+    }
+    return repo
 }
+
+private const val MIN_CARD_DB_BYTES = 1_000_000L
 
 // -- Server builders ----------------------------------------------------------
 
@@ -230,6 +243,7 @@ private fun detectArenaCardDb(): String? {
     return rawDir
         .listFiles()
         ?.filter { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
+        ?.filter { it.length() >= MIN_CARD_DB_BYTES }
         ?.maxByOrNull { it.lastModified() }
         ?.absolutePath
 }
