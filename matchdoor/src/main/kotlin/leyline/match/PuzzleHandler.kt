@@ -82,6 +82,7 @@ class PuzzleHandler(
                 bridge,
             )
         session.counter.setMsgId(nextMsgId)
+        session.counter.markGameStateGsId(gsId)
         Tap.outboundTemplate("PuzzleInitialBundle seat=$seatId")
         ProtoDump.dump(bundleMsg, "PuzzleInitialBundle-seat$seatId")
         ctx.writeAndFlush(bundleMsg)

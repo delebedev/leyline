@@ -123,7 +123,7 @@ class OptionalActionHandler(
         // Bare GSM diff with pendingMessageCount=1 — signals the client that
         // OptionalActionMessage follows. Without this, the client may process
         // the preceding GSM before the prompt arrives.
-        val prevGsId = counters.counter.currentGsId()
+        val prevGsId = counters.counter.lastGameStateGsId().takeIf { it > 0 } ?: counters.counter.currentGsId()
         val gsId = counters.counter.nextGsId()
         val pendingGsm =
             GameStateMessage

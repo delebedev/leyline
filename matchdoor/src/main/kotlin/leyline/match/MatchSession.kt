@@ -643,7 +643,10 @@ class MatchSession(
      * same treatment as bundle-built messages — the funnel guarantees it.
      */
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
-        for (m in messages) markIfPrompt(counter, m.type, m.gameStateId)
+        for (m in messages) {
+            if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
+            markIfPrompt(counter, m.type, m.gameStateId)
+        }
         recorder?.recordOutbound(messages)
         sink.send(messages)
         mirrorToFamiliar(messages)

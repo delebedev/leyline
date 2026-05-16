@@ -206,14 +206,14 @@ class BundleBuilder(
                     makeGRE(GREMessageType.GameStateMessage_695e, main.gameStateId, counter.nextMsgId()) {
                         it.gameStateMessage = main
                     },
-                    buildEchoDiffGsm(counter, main.update),
+                    buildEchoDiffGsm(counter, main.update, previousGsId = main.gameStateId),
                 )
             } else {
                 listOf(
                     makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                         it.gameStateMessage = gs
                     },
-                    buildEchoDiffGsm(counter, gs.update),
+                    buildEchoDiffGsm(counter, gs.update, previousGsId = gs.gameStateId),
                 )
             }
 
@@ -294,7 +294,7 @@ class BundleBuilder(
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                 it.gameStateMessage = gs
             }
-        val echo = buildEchoDiffGsm(counter, GameStateUpdate.SendHiFi)
+        val echo = buildEchoDiffGsm(counter, GameStateUpdate.SendHiFi, previousGsId = nextGs)
 
         cursor.lastSent = snap
         return BundleResult(listOf(content, echo))
@@ -1634,6 +1634,7 @@ class BundleBuilder(
     fun buildEchoDiffGsm(
         counter: MessageCounter,
         updateType: GameStateUpdate = GameStateUpdate.Send,
+        previousGsId: Int = counter.lastGameStateGsId().takeIf { it > 0 } ?: counter.currentGsId(),
     ): GREToClientMessage {
         val gsId = counter.nextGsId()
         return makeGRE(GREMessageType.GameStateMessage_695e, gsId, counter.nextMsgId()) {
@@ -1642,7 +1643,7 @@ class BundleBuilder(
                     .newBuilder()
                     .setType(GameStateType.Diff)
                     .setGameStateId(gsId)
-                    .setPrevGameStateId(gsId - 1)
+                    .setPrevGameStateId(previousGsId)
                     .setUpdate(updateType)
                     .build()
         }

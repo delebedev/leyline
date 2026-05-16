@@ -26,7 +26,10 @@ class FamiliarSession(
     override var counter: MessageCounter = MessageCounter(),
 ) : SessionOps {
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
-        for (m in messages) markIfPrompt(counter, m.type, m.gameStateId)
+        for (m in messages) {
+            if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
+            markIfPrompt(counter, m.type, m.gameStateId)
+        }
         sink.send(messages)
     }
 
