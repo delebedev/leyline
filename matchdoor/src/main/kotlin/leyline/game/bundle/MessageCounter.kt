@@ -24,6 +24,7 @@ class MessageCounter(
     private val gsId = AtomicInteger(initialGsId)
     private val msgId = AtomicInteger(initialMsgId)
     private val lastPromptGsId = AtomicInteger(0)
+    private val lastGameStateGsId = AtomicInteger(0)
 
     /** Advance gsId and return the new value. */
     fun nextGsId(): Int = gsId.incrementAndGet()
@@ -36,6 +37,12 @@ class MessageCounter(
 
     /** Current msgId (read-only snapshot, may be stale by the time you use it). */
     fun currentMsgId(): Int = msgId.get()
+
+    /**
+     * gsId of the most recent outgoing message that carried a GameStateMessage.
+     * Unlike [currentGsId], this never points at prompt-only GREs.
+     */
+    fun lastGameStateGsId(): Int = lastGameStateGsId.get()
 
     /**
      * gsId of the most recent message that asked the client for a response —
@@ -69,10 +76,25 @@ class MessageCounter(
      * [nextGsId]/[nextMsgId]; both session and engine threads write here.
      */
     fun markPromptGsId(gsId: Int) {
+        markMonotonic(lastPromptGsId, gsId)
+    }
+
+    /**
+     * Record [gsId] as the latest GameStateMessage-bearing GRE seen by the client.
+     * Monotonic for the same concurrency reason as [markPromptGsId].
+     */
+    fun markGameStateGsId(gsId: Int) {
+        markMonotonic(lastGameStateGsId, gsId)
+    }
+
+    private fun markMonotonic(
+        value: AtomicInteger,
+        gsId: Int,
+    ) {
         while (true) {
-            val cur = lastPromptGsId.get()
+            val cur = value.get()
             if (gsId <= cur) return
-            if (lastPromptGsId.compareAndSet(cur, gsId)) return
+            if (value.compareAndSet(cur, gsId)) return
         }
     }
 
@@ -91,5 +113,7 @@ class MessageCounter(
         msgId.set(value)
     }
 
-    override fun toString(): String = "MessageCounter(gsId=${gsId.get()}, msgId=${msgId.get()}, lastPromptGsId=${lastPromptGsId.get()})"
+    override fun toString(): String =
+        "MessageCounter(gsId=${gsId.get()}, msgId=${msgId.get()}, " +
+            "lastPromptGsId=${lastPromptGsId.get()}, lastGameStateGsId=${lastGameStateGsId.get()})"
 }

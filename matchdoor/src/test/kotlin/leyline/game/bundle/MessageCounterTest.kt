@@ -41,6 +41,22 @@ class MessageCounterTest :
             c.lastPromptGsId() shouldBe 0
         }
 
+        test("lastGameStateGsId tracks only emitted game-state frames") {
+            val c = MessageCounter()
+            c.nextGsId()
+            c.nextGsId()
+            assertSoftly {
+                c.lastGameStateGsId() shouldBe 0
+                c.currentGsId() shouldBe 2
+            }
+
+            c.markGameStateGsId(1)
+            c.markGameStateGsId(3)
+            c.markGameStateGsId(2)
+
+            c.lastGameStateGsId() shouldBe 3
+        }
+
         test("markPromptGsId moves the horizon forward") {
             val c = MessageCounter()
             assertSoftly {

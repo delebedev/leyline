@@ -351,6 +351,19 @@ class BundleBuilderTest :
             action.actionType shouldBe Messages.ActionType.Pass
         }
 
+        test("echo diff prevGsId uses last emitted GSM instead of gsId adjacency") {
+            val counter = MessageCounter(initialGsId = 7, initialMsgId = 0)
+            counter.markGameStateGsId(7)
+            counter.nextGsId() // prompt-only interleave
+
+            val echo = pureBB().buildEchoDiffGsm(counter)
+
+            assertSoftly {
+                echo.gameStateMessage.gameStateId shouldBe 9
+                echo.gameStateMessage.prevGameStateId shouldBe 7
+            }
+        }
+
         test("gameOverBundle produces 3 GSM diffs + IntermissionReq") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
             val result =

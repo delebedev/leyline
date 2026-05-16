@@ -123,7 +123,7 @@ class NumericInputHandler(
                 ).build()
 
         // Bare GSM diff with pendingMessageCount=1 — same pattern as OptionalActionHandler.
-        val prevGsId = counters.counter.currentGsId()
+        val prevGsId = counters.counter.lastGameStateGsId().takeIf { it > 0 } ?: counters.counter.currentGsId()
         val gsId = counters.counter.nextGsId()
         val pendingGsm =
             GameStateMessage

@@ -376,6 +376,7 @@ class MatchHandler(
                 dieRollWinner = bridge.dieRollWinner,
             )
         s.counter.setMsgId(nextMsgId)
+        s.counter.markGameStateGsId(gsId)
         Tap.outboundTemplate("InitialBundle seat=$seatId")
         ProtoDump.dump(msg, "InitialBundle-seat$seatId")
         ctx.writeAndFlush(msg)
