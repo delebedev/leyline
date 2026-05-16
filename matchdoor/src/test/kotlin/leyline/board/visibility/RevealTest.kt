@@ -1,5 +1,6 @@
 package leyline.board.visibility
 
+import forge.game.card.CardCollection
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -17,6 +18,7 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.RequestBuilder
 import leyline.game.mapping.ZoneIds
+import leyline.game.seedDiffBaseline
 import leyline.game.state.GameBridge
 import leyline.testkit.BoardTest
 import leyline.testkit.aiPlayer
@@ -24,6 +26,7 @@ import leyline.testkit.annotation
 import leyline.testkit.annotationOrNull
 import leyline.testkit.annotations
 import leyline.testkit.gsm
+import leyline.testkit.gsmOrNull
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -87,6 +90,44 @@ class RevealTest :
                 }
 
             gsm.annotations(AnnotationType.RevealedCardCreated) shouldHaveSize 3
+        }
+
+        test("single-card hand reveal does not expose the rest of opponent hand") {
+            val (b, game, counter) =
+                startWithBoard { _, _, ai ->
+                    addCard("Lightning Bolt", ai, ZoneType.Hand)
+                    addCard("Grizzly Bears", ai, ZoneType.Hand)
+                }
+            val handCards =
+                game.aiPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .toList()
+            val revealed = handCards.first()
+            val coordinator = TargetingCoordinator(b.promptBridge(SeatId(1)), b.seating)
+
+            b.seedDiffBaseline(game, counter.currentGsId())
+            coordinator.captureReveal(CardCollection(listOf(revealed)), ZoneType.Hand, game.aiPlayer)
+            val gsm =
+                bundleBuilder(b)
+                    .stateOnlyDiff(game, counter)
+                    .gsmOrNull ?: error("stateOnlyDiff returned no GSM")
+
+            assertSoftly {
+                b
+                    .promptBridge(SeatId(1))
+                    .journal
+                    .activeReveal()
+                    .shouldBeNull()
+                gsm.annotations(AnnotationType.RevealedCardCreated) shouldHaveSize 1
+                gsm.revealedCardProxies().shouldBeEmpty()
+                gsm.zonesList.any { it.zoneId == ZoneIds.P2_HAND && it.visibility == Visibility.Public } shouldBe false
+                gsm.gameObjectsList.count {
+                    it.type == GameObjectType.Card &&
+                        it.zoneId == ZoneIds.P2_HAND &&
+                        it.visibility == Visibility.Public
+                } shouldBe 0
+            }
         }
 
         test("no reveal produces no RevealedCardCreated annotation") {

@@ -286,9 +286,8 @@ class TargetingCoordinator(
     // -- Reveal ------------------------------------------------------------
 
     /**
-     * Capture revealed card IDs for the annotation pipeline and, for hand
-     * reveals, stash the full hand on the bridge so subsequent
-     * reveal-choose prompts (e.g. Duress's follow-up) can emit the full
+     * Record revealed card IDs for the annotation pipeline. Whole-hand reveals
+     * also arm reveal-choose state so follow-up prompts can emit the full
      * `unfilteredIds` list. The caller is responsible for the super.reveal
      * delegation (GUI display).
      */
@@ -301,10 +300,17 @@ class TargetingCoordinator(
         val cardIds = cards.mapNotNull { card -> (card as? Card)?.let { ForgeCardId(it.id) } }
         val ownerSeat = if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
         bridge.recordReveal(cardIds, ownerSeat)
-        // Only record RevealStarted for hand reveals. Library reveals must not trigger proxy synthesis.
-        if (zone == ZoneType.Hand) {
+        if (zone == ZoneType.Hand && revealsWholeCurrentHand(cardIds, owner)) {
             TargetingCoordinator.startReveal(bridge, cardIds, ownerSeat)
         }
+    }
+
+    private fun revealsWholeCurrentHand(
+        cardIds: List<ForgeCardId>,
+        owner: Player,
+    ): Boolean {
+        val handIds = owner.getZone(ZoneType.Hand).cards.map { ForgeCardId(it.id) }
+        return handIds.isNotEmpty() && cardIds.size == handIds.size && cardIds.toSet() == handIds.toSet()
     }
 
     // -- Zone ordering ----------------------------------------------------
