@@ -2,6 +2,7 @@ package leyline.session.turns
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.fail
+import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -184,7 +185,9 @@ class AiTurnInteractionTest :
                             )
                         }
                     }
-                fail("Phase transitions must have PhaseOrStepModified annotations:\n$report")
+                withClue(report) {
+                    missing shouldBe emptyList()
+                }
             }
         }
 

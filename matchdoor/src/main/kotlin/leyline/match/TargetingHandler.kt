@@ -506,7 +506,11 @@ class TargetingHandler(
                 return
             }
 
-            else -> {}
+            is PendingClientInteraction.ModalChoice,
+            is PendingClientInteraction.Search,
+            is PendingClientInteraction.TargetSelection,
+            null,
+            -> Unit
         }
 
         val seatBridge = bridge.seat(counters.seatId)
