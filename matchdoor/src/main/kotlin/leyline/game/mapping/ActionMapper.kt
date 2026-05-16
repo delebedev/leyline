@@ -143,6 +143,11 @@ object ActionMapper {
                 val cardData = snap.boundCards[fid]?.data
                 for (ability in getNonManaActivatedAbilities(forgeCard, player)) {
                     if (!ability.canPlay()) continue
+                    // Disguise's turn-face-up SA rides the dedicated
+                    // Special_TurnFaceUp_add3 action emitted below; skip it
+                    // here so the same SA doesn't surface twice (once as
+                    // Activate, once as Special_TurnFaceUp).
+                    if (ability.isDisguiseUp) continue
                     val canPay = canPayManaCost(ability, player)
                     val registry = bridge.abilityRegistryFor(forgeCard, cardData)
                     val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
@@ -193,6 +198,34 @@ object ActionMapper {
             addRoomCastActions(forgeCard, player, instanceId, builder, checkLegality = true)
         }
 
+        // --- Battlefield: Special_TurnFaceUp for face-down disguise creatures ---
+        // A controller's face-down disguise permanent surfaces a dedicated
+        // Special_TurnFaceUp_add3 action carrying the per-card "Turn face up"
+        // ability grpId on `alternativeGrpId` and the printed disguise cost
+        // as `manaCost`. Distinct from `Activate_add3` — the client routes
+        // it through a different UI flow (card-flip animation).
+        for (fid in battlefield) {
+            val cardSnap = snap.objects[fid] ?: continue
+            if (cardSnap.controller.value != seatId) continue
+            if (!cardSnap.isFaceDownDisguise) continue
+            val player = bridge.getPlayer(SeatId(seatId)) ?: continue
+            val forgeCard = bridge.findCard(fid) ?: continue
+            val cardData = snap.boundCards[fid]?.data
+            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            addSpecialTurnFaceUpActions(
+                card = forgeCard,
+                player = player,
+                instanceId = instanceId,
+                cardData = cardData,
+                fallbackAlternativeGrpId =
+                    bridge.cardRepository.findKeywordAbilityGrpId(
+                        cardSnap.grpId,
+                        leyline.game.data.KeywordAbilityIds.DISGUISE,
+                    ) ?: 0,
+                abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
+                builder = builder,
+            )
+        }
         // --- Hand: lands ---
         for (fid in hand) {
             val card = snap.objects[fid] ?: continue
@@ -242,6 +275,22 @@ object ActionMapper {
             val canPay = canPayManaCost(sa, player)
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             val grpId = cardSnap.grpId
+            val preferAltCostFirst = getAllCastableAbilities(forgeCard, player).any { it.isCastFaceDown }
+
+            if (preferAltCostFirst) {
+                // The face-cast modal defaults to the first Cast offer even
+                // when the visual click lands on the second card. Put Disguise's
+                // face-down option first so the modal commit submits the
+                // `alternativeGrpId=307` action instead of the printed spell.
+                addHandAltCostCastActions(
+                    card = forgeCard,
+                    player = player,
+                    instanceId = instanceId,
+                    grpId = grpId,
+                    altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
+                    builder = builder,
+                )
+            }
 
             if (noLegalTargets || !canPay) {
                 val inactiveBuilder =
@@ -263,14 +312,16 @@ object ActionMapper {
                     }
                 }
                 builder.addInactiveActions(inactiveBuilder)
-                addHandAltCostCastActions(
-                    card = forgeCard,
-                    player = player,
-                    instanceId = instanceId,
-                    grpId = grpId,
-                    altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
-                    builder = builder,
-                )
+                if (!preferAltCostFirst) {
+                    addHandAltCostCastActions(
+                        card = forgeCard,
+                        player = player,
+                        instanceId = instanceId,
+                        grpId = grpId,
+                        altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
+                        builder = builder,
+                    )
+                }
                 // Adventure / Omen offers are independent of the main face's
                 // payability — emit them even when the main cast is unaffordable.
                 addSecondaryFaceCastActions(forgeCard, player, instanceId, grpId, cardSnap, builder)
@@ -310,14 +361,16 @@ object ActionMapper {
             }
             builder.addActions(actionBuilder)
 
-            addHandAltCostCastActions(
-                card = forgeCard,
-                player = player,
-                instanceId = instanceId,
-                grpId = grpId,
-                altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
-                builder = builder,
-            )
+            if (!preferAltCostFirst) {
+                addHandAltCostCastActions(
+                    card = forgeCard,
+                    player = player,
+                    instanceId = instanceId,
+                    grpId = grpId,
+                    altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
+                    builder = builder,
+                )
+            }
 
             addSecondaryFaceCastActions(forgeCard, player, instanceId, grpId, cardSnap, builder)
         }
@@ -1225,6 +1278,59 @@ object ActionMapper {
         }
     }
 
+    /**
+     * Emit the `Special_TurnFaceUp_add3` action for a face-down disguise
+     * permanent. The action's `alternativeGrpId` is the per-card "Turn face
+     * up" ability grpId (resolved via the AbilityRegistry), and `manaCost`
+     * is the printed disguise cost from the SA.
+     *
+     * Field divergence from regular Cast / Activate: no `grpId`, no
+     * `facetId` — the action-type alone identifies the target permanent
+     * (sibling pattern to CastOmen / CastLeftRoom).
+     */
+    private fun addSpecialTurnFaceUpActions(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        cardData: CardData?,
+        fallbackAlternativeGrpId: Int,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+        builder: ActionsAvailableReq.Builder,
+    ) {
+        val turnFaceUpSa =
+            card.spellAbilities.firstOrNull { it.isDisguiseUp } ?: return
+        turnFaceUpSa.setActivatingPlayer(player)
+        val canPay =
+            try {
+                ComputerUtilMana.canPayManaCost(turnFaceUpSa, player, 0, false)
+            } catch (_: Exception) {
+                false
+            }
+        val registry = abilityRegistryLookup(card, cardData)
+        val alternativeGrpId = registry?.forSpellAbility(turnFaceUpSa.id) ?: fallbackAlternativeGrpId
+        if (alternativeGrpId == 0) return
+        val actionBuilder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.SpecialTurnFaceUp_add3)
+                .setInstanceId(instanceId)
+                .setAlternativeGrpId(alternativeGrpId)
+                .setAlternativeSourceZcid(instanceId)
+                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.SpecialTurnFaceUp_add3))
+        val effectiveCost = computeEffectiveCost(turnFaceUpSa, player)
+        val manaCost =
+            effectiveCost?.takeIf { !it.isNoCost }
+                ?: turnFaceUpSa.payCosts?.totalMana?.takeIf { !it.isNoCost }
+        if (manaCost != null) {
+            addManaCostFromForge(manaCost, actionBuilder, alternativeGrpId)
+        }
+        if (canPay) {
+            builder.addActions(actionBuilder)
+        } else {
+            builder.addInactiveActions(actionBuilder)
+        }
+    }
+
     /** Map a Room door's [CardStateName] to its `ActionType`. Returns null for
      *  any [CardStateName] that isn't a room door (LeftSplit / RightSplit). */
     private fun roomDoorActionType(state: CardStateName): ActionType? =
@@ -1352,6 +1458,7 @@ object ActionMapper {
         builder: ActionsAvailableReq.Builder,
     ) {
         val castable = getAllCastableAbilities(card, player)
+        val emitted = mutableSetOf<Pair<Int, List<Pair<ManaColor, Int>>>>()
         for (sa in castable) {
             val rail = CastRails.handWithAltCost.firstOrNull { it.saPredicate(sa) } ?: continue
             val canPay = canPayManaCost(sa, player)
@@ -1362,6 +1469,7 @@ object ActionMapper {
                 effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
             val alternativeGrpId = resolveAltGrpId(rail, altCosts, payCostPairs)
             if (alternativeGrpId <= 0) continue
+            if (!emitted.add(alternativeGrpId to payCostPairs)) continue
 
             val actionBuilder =
                 Action
@@ -1575,6 +1683,7 @@ object ActionMapper {
      *
      * No grpId, facetId, shouldStop, or autoTapSolution.
      */
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     fun stripActionForGsm(action: Action): Action {
         val b = Action.newBuilder().setActionType(action.actionType)
         if (action.actionType == ActionType.Cast || action.actionType == ActionType.CastAdventure) {
@@ -1589,6 +1698,12 @@ object ActionMapper {
         } else if (action.actionType == ActionType.ActivateMana || action.actionType == ActionType.Activate_add3) {
             b.setInstanceId(action.instanceId)
             if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
+        } else if (action.actionType == ActionType.SpecialTurnFaceUp_add3) {
+            b.setInstanceId(action.instanceId)
+            if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
+            if (action.alternativeGrpId != 0) b.setAlternativeGrpId(action.alternativeGrpId)
+            if (action.alternativeSourceZcid != 0) b.setAlternativeSourceZcid(action.alternativeSourceZcid)
+            b.addAllManaCost(action.manaCostList)
         } else if (action.actionType != ActionType.Pass && action.actionType != ActionType.FloatMana) {
             b.setInstanceId(action.instanceId)
         }

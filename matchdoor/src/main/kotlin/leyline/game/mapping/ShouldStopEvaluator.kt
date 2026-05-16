@@ -22,6 +22,7 @@ object ShouldStopEvaluator {
             ActionType.Play_add3,
             ActionType.PlayMdfc,
             ActionType.Activate_add3,
+            ActionType.SpecialTurnFaceUp_add3,
             -> true
             else -> false
         }

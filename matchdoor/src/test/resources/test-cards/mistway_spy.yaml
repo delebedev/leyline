@@ -1,0 +1,18 @@
+name: "Mistway Spy"
+grpId: 88984
+titleId: 748496
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 170405
+    textId: 748433
+    category: 3
+    baseId: 307
+    mana: "o1oU"
+  - id: 170427
+    textId: 967939
+    category: 2
+expansionCode: "MKM"
+tokens:
+  "170714": 89236

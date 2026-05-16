@@ -25,8 +25,8 @@ import org.slf4j.LoggerFactory
  *    - `card.copiedPermanent != null` — copy permanent uses source's grpId.
  *    - Standard token via `tokenSpawningAbility.hostCard`'s
  *      `AbilityIdToLinkedTokenGrpId` mapping.
- * 3. Foretold cards — face-down in exile; `card.name` is empty while face-down.
- *    Resolve via the Original state's name.
+ * 3. Face-down alternate-state cards (Foretell / Disguise) — `card.name` is
+ *    empty while face-down. Resolve via the Original state's name.
  * 4. Standard non-token — `findGrpIdByName` (primary) → `findGrpIdByNameAnyFace`
  *    (DFC back faces with `IsPrimaryCard=0`).
  *
@@ -93,6 +93,7 @@ object GrpIdResolver {
         // them into a single tail expression would lose the registry-write side
         // effects per branch.
         "ReturnCount",
+        "CyclomaticComplexMethod",
     )
     fun resolve(
         card: Card,
@@ -148,6 +149,17 @@ object GrpIdResolver {
         // face-down, which would crash the strict resolver. Look up via the
         // Original state's name (the underlying card identity) instead.
         if (Foretell.isForetold(card)) {
+            val originalName =
+                card.getOriginalState(forge.card.CardStateName.Original)?.name ?: card.name
+            return cards.findGrpIdByName(originalName)
+                ?: cards.findGrpIdByNameAnyFace(originalName)
+                ?: GameBridge.FALLBACK_GRPID
+        }
+
+        // Disguise spells/permanents are face-down on stack and battlefield: the
+        // current Forge state has an empty name by rules, but Arena still carries
+        // the underlying card grpId while ObjectMapper suppresses visible identity.
+        if (Disguise.isFaceDownDisguise(card)) {
             val originalName =
                 card.getOriginalState(forge.card.CardStateName.Original)?.name ?: card.name
             return cards.findGrpIdByName(originalName)

@@ -1,0 +1,13 @@
+name: "Forum Familiar"
+grpId: 88936
+titleId: 748313
+abilities:
+  - id: 170365
+    textId: 748314
+    category: 3
+    baseId: 307
+    mana: "o1oW"
+  - id: 170366
+    textId: 967782
+    category: 2
+expansionCode: "MKM"

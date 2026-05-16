@@ -213,7 +213,16 @@ class GameEventCollector(
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
         val keywordId = castThroughAbilityKeywordId(topSa, saAltCost)
         val altCostAbilityGrpId =
-            if (grpId != 0 && keywordId != null) {
+            if (topSa?.isCastFaceDown == true) {
+                // Disguise / Morph face-down hand-cast SAs have no
+                // AlternativeCost enum entry — they're plain Forge `Spell`s
+                // with `setCastFaceDown(true)`. The CastingTimeOption pAnn
+                // for these cards uses the keyword's BaseId (Disguise=307,
+                // Morph=351) directly as alternateCostGrpId, not a per-card
+                // ability row. Disguise is the only mechanic in v1; Morph
+                // arrives later via the same path.
+                KeywordAbilityIds.DISGUISE
+            } else if (grpId != 0 && keywordId != null) {
                 bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
             } else {
                 0

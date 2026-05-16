@@ -113,7 +113,22 @@ internal fun getAllCastableAbilities(
     // — append directly from card.spellAbilities so they're reachable through the
     // same index space the cast pathway uses (action emit, alt-cost resolution,
     // SpellExecutor.castSpell).
-    val keywordHandSAs = card.spellAbilities.filter { it.isPlotting || it.isForetelling }
+    //
+    // Disguise's hand SA is similarly KeywordInstance-attached: Forge's
+    // `abilityCastFaceDown(card, intrinsic, "Disguise")` builds a face-down
+    // Spell with `setCastFaceDown(true)`. The face-up turn-face-up SA uses the
+    // activation path below, not the castable-spell index space.
+    //
+    // Dedup by SA reference: `card.getSpells()` may already return the
+    // disguise face-down SA on some printings (KeywordInstance.addSpellAbility
+    // can propagate into the host card's intrinsic SA list), in which case
+    // the SA appears once via `baseAbilities` and once via the keyword scan.
+    // Without the `!in expanded` filter the cast offer surfaces twice.
+    val keywordHandSAs =
+        card.spellAbilities.filter {
+            (it.isPlotting || it.isForetelling || it.isCastFaceDown) &&
+                expanded.none { existing -> existing === it }
+        }
     expanded.addAll(keywordHandSAs)
 
     // Room door-unlock SAs aren't in card.getSpells() — Forge stores them on
@@ -181,7 +196,9 @@ internal fun getNonManaActivatedAbilities(
     val abilities = mutableListOf<SpellAbility>()
     for (ability in card.spellAbilities) {
         ability.setActivatingPlayer(player)
-        if (!ability.isActivatedAbility) continue
+        val isSpecialTurnFaceUp =
+            ability.isDisguiseUp && card.isFaceDown && card.isInZone(ZoneType.Battlefield)
+        if (!ability.isActivatedAbility && !isSpecialTurnFaceUp) continue
         if (ability.isManaAbility()) continue
         abilities.add(ability)
     }

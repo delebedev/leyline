@@ -36,6 +36,7 @@ import leyline.game.state.CrewedThisTurnKind
 import leyline.game.state.DayNightDesignationKind
 import leyline.game.state.DelayedTriggerAffecteesKind
 import leyline.game.state.EffectTracker
+import leyline.game.state.FaceDownDisguiseKind
 import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
 import leyline.game.state.HolderRecord
@@ -581,6 +582,23 @@ object StateMapper {
                     )
                 }
 
+        // FaceDown (REASON=Disguise=6, abilityGrpId=DISGUISE=307): persistent
+        // annotation per face-down disguise creature on the battlefield. The
+        // snapshot pass filtered to `isFaceDown && (Battlefield || Stack) &&
+        // hasDisguiseKeyword`. Lives across the card's entire face-down
+        // residence; the upsert pipeline replaces the row when the card flips
+        // face-up (filter no longer matches -> row pruned via pruneStale).
+        val faceDownDisguisePersistentFromSnap =
+            snap.boundCards.values
+                .mapNotNull { bound ->
+                    if (!bound.snapshot.isFaceDownDisguise) return@mapNotNull null
+                    AnnotationBuilder.faceDownPersistent(
+                        instanceId = frameIds.cardIid(bound.forgeCardId),
+                        reason = AnnotationConstants.FACEDOWN_REASON_DISGUISE,
+                        abilityGrpId = leyline.bridge.types.GrpId(KeywordAbilityIds.DISGUISE),
+                    )
+                }
+
         // Day/Night: persistent Designation (DesignationType=10/11) on the game
         // itself, carrying the active player's running spell-count tally. Emits
         // every GSM once the state is established. Pre-first-transition is
@@ -599,7 +617,6 @@ object StateMapper {
                     ),
                 )
             } ?: emptyList()
-
         // Transient gain/lose Designation annotations — diff prev vs cur on the
         // `Source on battlefield with isPrepared` set. Gains insert before the
         // Stack→Battlefield Resolve ZoneTransfer for the same source iid to match
@@ -660,6 +677,7 @@ object StateMapper {
                 leftUnlockedDesignationPersistentFromSnap = leftUnlockedDesignationPersistentFromSnap,
                 rightUnlockedDesignationPersistentFromSnap = rightUnlockedDesignationPersistentFromSnap,
                 dayNightDesignationPersistentFromSnap = dayNightDesignationPersistentFromSnap,
+                faceDownDisguisePersistentFromSnap = faceDownDisguisePersistentFromSnap,
             )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
@@ -1101,6 +1119,7 @@ object StateMapper {
         leftUnlockedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         rightUnlockedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         dayNightDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        faceDownDisguisePersistentFromSnap: List<AnnotationInfo> = emptyList(),
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds =
             events
@@ -1229,6 +1248,7 @@ object StateMapper {
                         put(LeftUnlockedDesignationKind, leftUnlockedDesignationPersistentFromSnap)
                         put(RightUnlockedDesignationKind, rightUnlockedDesignationPersistentFromSnap)
                         put(DayNightDesignationKind, dayNightDesignationPersistentFromSnap)
+                        put(FaceDownDisguiseKind, faceDownDisguisePersistentFromSnap)
                     },
             )
         val batch =
