@@ -496,6 +496,19 @@ class TargetingHandler(
      */
     fun onCancelAction(autoPass: () -> Unit) {
         val bridge = ctx.bridge
+        when (pendingInteraction) {
+            is PendingClientInteraction.OptionalCost,
+            is PendingClientInteraction.AlternateCostChoice,
+            -> {
+                pendingInteraction = null
+                log.info("TargetingHandler: CancelActionReq — cancelling deferred cast before engine submit")
+                autoPass()
+                return
+            }
+
+            else -> {}
+        }
+
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt()
         if (pendingPrompt == null) {

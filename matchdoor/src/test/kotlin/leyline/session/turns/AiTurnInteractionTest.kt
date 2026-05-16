@@ -5,6 +5,7 @@ import io.kotest.assertions.fail
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.ints.shouldBeLessThan
@@ -21,9 +22,12 @@ import leyline.testkit.detail
 import leyline.testkit.detailInt
 import leyline.testkit.firstWithTransferCategory
 import leyline.testkit.gsm
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import wotc.mtgo.gre.external.messaging.Messages.Phase
@@ -41,6 +45,20 @@ import wotc.mtgo.gre.external.messaging.Messages.Phase
  */
 class AiTurnInteractionTest :
     SessionTest({
+
+        fun aiTurnActionsAvailableReqs(messages: List<GREToClientMessage>): List<ActionsAvailableReq> {
+            val aars = mutableListOf<ActionsAvailableReq>()
+            var lastActivePlayer = OPPONENT_SEAT
+            for (msg in messages) {
+                if (msg.hasGameStateMessage() && msg.gameStateMessage.hasTurnInfo()) {
+                    lastActivePlayer = msg.gameStateMessage.turnInfo.activePlayer
+                }
+                if (msg.type == GREMessageType.ActionsAvailableReq_695e && lastActivePlayer == OPPONENT_SEAT) {
+                    aars.add(msg.actionsAvailableReq)
+                }
+            }
+            return aars
+        }
 
         // ─── Boot wire conformance (seed-based, real game start) ────────────────
 
@@ -106,12 +124,9 @@ class AiTurnInteractionTest :
         test("AI turn — every phase transition annotated with PhaseOrStepModified") {
             // Dropped facet from the original AiFirstTurnShape test:
             // "AI-turn GSMs embed human actions (seat=1), not AI's (seat=2)".
-            // AutoPassEngine.checkHumanActions unconditionally returns
-            // Skip(OnlyPassActions) on AI turn (line 197 at time of writing),
-            // so no code path can produce AI-owned actions in AI-turn GSMs —
-            // the assertion is tautological. Keeping only the phase-transition
-            // annotation check, which verifies StateMapper emits on every
-            // transition.
+            // This puzzle has no legal instant-speed human actions, so AI-turn
+            // GSMs remain state-only; action ownership belongs in action-emission
+            // tests. Keep only the phase-transition annotation check.
             //
             // Puzzle: AI turn with Raging Goblin (haste) → walks through
             // Main1 → Combat → Main2 → End deterministically. No castable in
@@ -173,7 +188,7 @@ class AiTurnInteractionTest :
             }
         }
 
-        test("AI turn emits no ActionsAvailableReq") {
+        test("AI turn with no legal instant-speed actions emits no ActionsAvailableReq") {
             startPuzzle(
                 """
                 ActivePlayer=AI
@@ -193,18 +208,30 @@ class AiTurnInteractionTest :
             val startTurn = turn()
             val turnSlice = after { passUntil(maxPasses = 30) { isGameOver() || turn() > startTurn } }
 
-            // Filter AARs sent while AI was the active player
-            val aiTurnAars = mutableListOf<Int>()
-            var lastActivePlayer = OPPONENT_SEAT
-            for (msg in turnSlice.messages) {
-                if (msg.hasGameStateMessage() && msg.gameStateMessage.hasTurnInfo()) {
-                    lastActivePlayer = msg.gameStateMessage.turnInfo.activePlayer
-                }
-                if (msg.type == GREMessageType.ActionsAvailableReq_695e && lastActivePlayer == OPPONENT_SEAT) {
-                    aiTurnAars.add(msg.msgId)
-                }
-            }
-            aiTurnAars.shouldBeEmpty()
+            aiTurnActionsAvailableReqs(turnSlice.messages).shouldBeEmpty()
+        }
+
+        test("AI turn with legal instant-speed cast emits ActionsAvailableReq") {
+            startPuzzle(
+                """
+                ActivePlayer=AI
+                ActivePhase=MAIN1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Burst Lightning
+                humanbattlefield=Mountain
+                humanlibrary=Mountain;Mountain;Mountain
+                aibattlefield=Raging Goblin;Mountain
+                ailibrary=Mountain;Mountain;Mountain
+                """,
+                name = "AI Turn Instant Stop",
+                turns = 3,
+            )
+
+            val aiTurnAars = aiTurnActionsAvailableReqs(allMessages)
+            aiTurnAars shouldHaveSize 1
+            aiTurnAars.single().actionsList.map { it.actionType } shouldContain ActionType.Cast
         }
 
         test("turnInfo phase never stale during AI combat") {

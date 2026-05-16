@@ -1,10 +1,12 @@
 package leyline.session.costs
 
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.*
+import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Optional cost interactions — kicker, buyback, multikicker (future).
@@ -108,5 +110,20 @@ class OptionalCostInteractionTest :
             cast.expectNoSelectTargetsReq()
 
             after { declineKicker() }.expectOneSelectTargetsReq()
+        }
+
+        test("cancel optional cost prompt returns to priority without orphaning cast") {
+            startBurst()
+
+            after { castSpellByName("Burst Lightning").shouldBeTrue() }
+                .expectOneCastingTimeOptionsReq()
+
+            val cancel = after { cancelAction() }
+
+            cancel.messages.any { it.hasActionsAvailableReq() } shouldBe true
+            human
+                .getZone(ForgeZoneType.Hand)
+                .cards
+                .map { it.name } shouldContain "Burst Lightning"
         }
     })
