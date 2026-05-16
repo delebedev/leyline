@@ -19,10 +19,13 @@ import leyline.testkit.SessionTest
 import leyline.testkit.allAnnotations
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.gsm
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AttackState
 import wotc.mtgo.gre.external.messaging.Messages.BlockState
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.Step
@@ -56,6 +59,34 @@ class CombatInteractionTest :
             )
 
         // ─── Setup helpers ────────────────────────────────────────────────────
+
+        fun aiTurnActionsAvailableReqs(messages: List<GREToClientMessage>): List<GREToClientMessage> {
+            val aars = mutableListOf<GREToClientMessage>()
+            var lastActivePlayer = OPPONENT_SEAT
+            for (msg in messages) {
+                if (msg.hasGameStateMessage() && msg.gameStateMessage.hasTurnInfo()) {
+                    lastActivePlayer = msg.gameStateMessage.turnInfo.activePlayer
+                }
+                if (msg.type == GREMessageType.ActionsAvailableReq_695e && lastActivePlayer == OPPONENT_SEAT) {
+                    aars.add(msg)
+                }
+            }
+            return aars
+        }
+
+        fun passBackToHumanMain1() {
+            repeat(80) {
+                if (!isAiTurn() && phase() == "MAIN1" && turn() > 1) return
+                if (!isAiTurn() && phase() == "COMBAT_DECLARE_ATTACKERS") {
+                    declareNoAttackers()
+                } else {
+                    passPriority()
+                }
+            }
+            check(!isAiTurn() && phase() == "MAIN1" && turn() > 1) {
+                "Expected to return to human MAIN1 after setup passes; turn=${turn()} phase=${phase()} aiTurn=${isAiTurn()}"
+            }
+        }
 
         fun setupSingleAttacker(): Int {
             startGame(
@@ -109,11 +140,8 @@ class CombatInteractionTest :
             castSpellByName("Raging Goblin").shouldBeTrue()
             passPriority() // resolve
 
-            // Advance past turn 1 — may overshoot to turn 2 or 3
-            passPriority()
-
-            // If we landed on AI's turn, pass again to get back to human
-            if (isAiTurn() && !isGameOver()) passPriority()
+            // Advance through opponent-turn priority windows back to our Main1.
+            passBackToHumanMain1()
 
             // Play second land + cast second creature
             playLand("Mountain")
@@ -198,7 +226,7 @@ class CombatInteractionTest :
             val attackerIid = setupWithAiBlocker()
 
             // End human turn → AI turn (AI casts Raging Goblin via script) → back to human
-            passPriority()
+            passBackToHumanMain1()
 
             // Now on human's turn 2 (or still turn 1 if AI turn was fast)
             playLand("Mountain")
@@ -225,7 +253,7 @@ class CombatInteractionTest :
         test("combat damage frame carries persistent DamagedThisTurn badge") {
             val attackerIid = setupWithAiBlocker()
 
-            passPriority()
+            passBackToHumanMain1()
             playLand("Mountain")
             val snap = messageSnapshot()
             passUntil { messagesSince(snap).any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
@@ -759,23 +787,13 @@ class CombatInteractionTest :
             isGameOver().shouldBeFalse()
         }
 
-        // ─── AI combat auto-pass (regression #120) ────────────────────────────
+        // ─── AI combat opponent-turn priority ─────────────────────────────────
 
-        test("AI combat auto-passes when human has castable instant").config(timeout = 30.seconds) {
+        test("AI combat grants priority when human has castable instant").config(timeout = 30.seconds) {
             // Puzzle: AI's turn at COMBAT_DECLARE_ATTACKERS. AI has a Raging Goblin
             // marked |Attacking|Tapped. Human has Burst Lightning + untapped Mountain.
-            //
-            // Flow: onPuzzleStart → autoPassAndAdvance → checkCombatPhase at
-            // DECLARE_ATTACKERS (AI turn, attackers present) → SEND_STATE downgraded
-            // → engine advances to DECLARE_BLOCKERS → zero legal blockers detected
-            // → empty declaration auto-submitted → combat advances through
-            // COMBAT_DAMAGE and COMBAT_END where the fix must downgrade SEND_STATE
-            // on AI turns — otherwise the client gets stuck (no Pass button →
-            // 120s timeout).
-            //
-            // If the bug were present, bridge timeouts would stall combat — damage
-            // would never apply and the 30s test timeout would fire. Life at exactly 19
-            // proves combat resolved: Raging Goblin (1/1) attacked unblocked.
+            // The client should get an ActionsAvailableReq for the instant instead
+            // of silently auto-passing through combat damage.
             startPuzzleRaw(
                 """
                 [metadata]
@@ -801,6 +819,14 @@ class CombatInteractionTest :
                 validation = combatValidation,
             )
 
-            human.life shouldBe 19
+            val aiTurnAars = aiTurnActionsAvailableReqs(allMessages)
+
+            assertSoftly {
+                aiTurnAars.shouldNotBeEmpty()
+                aiTurnAars
+                    .flatMap { it.actionsAvailableReq.actionsList }
+                    .any { it.actionType == ActionType.Cast } shouldBe true
+                human.life shouldBe 20
+            }
         }
     })

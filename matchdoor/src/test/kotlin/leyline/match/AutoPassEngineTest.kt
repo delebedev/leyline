@@ -1,6 +1,7 @@
 package leyline.match
 
 import forge.game.GameEndReason
+import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
@@ -17,6 +18,7 @@ import leyline.match.NumericInputHandler
 import leyline.match.OptionalActionHandler
 import leyline.match.TargetingHandler
 import leyline.testkit.BoardTestBase
+import leyline.testkit.aiPlayer
 import leyline.testkit.settingsMessage
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
@@ -45,8 +47,10 @@ class AutoPassEngineTest :
 
         // --- checkHumanActions: AI turn ---
 
-        test("checkHumanActions — AI turn always returns Skip(OnlyPassActions)") {
+        test("checkHumanActions — AI turn with pass-only actions returns Skip(OnlyPassActions)") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            game.phaseHandler.devModeSet(PhaseType.MAIN1, game.aiPlayer)
+            game.phaseHandler.onStackResolved()
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
@@ -65,6 +69,66 @@ class AutoPassEngineTest :
             val decision = engine.checkHumanActions(game, isAiTurn = true)
 
             decision.shouldBeInstanceOf<PriorityDecision.Skip>()
+            (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.OnlyPassActions
+        }
+
+        test("checkHumanActions — AI turn with real action grants priority") {
+            val (bridge, game, counter) =
+                base.startWithBoard { _, human, ai ->
+                    base.addCard("Burst Lightning", human, ZoneType.Hand)
+                    base.addCard("Mountain", human, ZoneType.Battlefield)
+                    base.addCard("Raging Goblin", ai, ZoneType.Battlefield)
+                }
+            game.phaseHandler.devModeSet(PhaseType.MAIN1, game.aiPlayer)
+            game.phaseHandler.onStackResolved()
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
+            val engine =
+                AutoPassEngine(
+                    sink = ops,
+                    counters = ops,
+                    tracer = ops,
+                    bundles = ops,
+                    pacing = ops,
+                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    ctx = ops.ctx,
+                )
+
+            val decision = engine.checkHumanActions(game, isAiTurn = true)
+
+            decision.shouldBeInstanceOf<PriorityDecision.Grant>()
+            ops.hasTraceContaining("opponentTurn") shouldBe true
+        }
+
+        test("checkHumanActions — AI turn with only sorcery-speed hand actions skips") {
+            val (bridge, game, counter) =
+                base.startWithBoard { _, human, ai ->
+                    base.addCard("Raging Goblin", human, ZoneType.Hand)
+                    base.addCard("Mountain", human, ZoneType.Hand)
+                    base.addCard("Mountain", human, ZoneType.Battlefield)
+                    base.addCard("Raging Goblin", ai, ZoneType.Battlefield)
+                }
+            game.phaseHandler.devModeSet(PhaseType.MAIN1, game.aiPlayer)
+            game.phaseHandler.onStackResolved()
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
+            val engine =
+                AutoPassEngine(
+                    sink = ops,
+                    counters = ops,
+                    tracer = ops,
+                    bundles = ops,
+                    pacing = ops,
+                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    ctx = ops.ctx,
+                )
+
+            val decision = engine.checkHumanActions(game, isAiTurn = true)
+
             (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.OnlyPassActions
         }
 
@@ -95,6 +159,35 @@ class AutoPassEngineTest :
             decision.shouldBeInstanceOf<PriorityDecision.Grant>()
             ops.hasTrace(MatchEventType.SEND_STATE) shouldBe true
             ops.hasTraceContaining("fullControl") shouldBe true
+        }
+
+        test("checkHumanActions — AI turn full control grants priority even with pass-only actions") {
+            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            game.phaseHandler.devModeSet(PhaseType.MAIN1, game.aiPlayer)
+            game.phaseHandler.onStackResolved()
+            val autoPassState = ClientAutoPassState()
+            autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
+            val engine =
+                AutoPassEngine(
+                    sink = ops,
+                    counters = ops,
+                    tracer = ops,
+                    bundles = ops,
+                    pacing = ops,
+                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    ctx = ops.ctx,
+                    autoPassState = autoPassState,
+                )
+
+            val decision = engine.checkHumanActions(game, isAiTurn = true)
+
+            decision.shouldBeInstanceOf<PriorityDecision.Grant>()
+            ops.hasTraceContaining("fullControl") shouldBe true
+            ops.hasTraceContaining("opponentTurn") shouldBe true
         }
 
         // --- checkHumanActions: client autoPass ---

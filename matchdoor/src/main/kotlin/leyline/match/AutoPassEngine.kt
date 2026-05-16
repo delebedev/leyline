@@ -222,12 +222,7 @@ class AutoPassEngine(
         game: Game,
         isAiTurn: Boolean,
     ): PriorityDecision {
-        // AI-turn skips bypass the decision log intentionally — they fire every
-        // engine step (dozens per AI turn) and would drown out the human-turn
-        // decisions that matter for debugging priority/auto-pass issues.
-        if (isAiTurn) {
-            return PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
-        }
+        val turnContext = if (isAiTurn) "opponentTurn" else "ownTurn"
         val actions = bundles.bundleBuilder.buildActions()
 
         // Full control: always grant priority (never auto-pass on session side)
@@ -238,21 +233,25 @@ class AutoPassEngine(
                     actionCount = actions.actionsCount,
                 )
             recordDecision(game, decision)
-            tracer.traceEvent(MatchEventType.SEND_STATE, game, "fullControl: grant")
+            tracer.traceEvent(MatchEventType.SEND_STATE, game, "fullControl: grant $turnContext")
             return decision
         }
 
-        // Client autoPassOption active + no stop-worthy actions → skip
+        // Opponent-turn windows still build actions: legal instants and instant-speed
+        // activations must stop, while pass-only windows keep auto-advancing.
+        // Client autoPassOption active + no stop-worthy actions → skip.
         if (autoPassState.shouldAutoPass() && BundleBuilder.shouldAutoPass(actions)) {
             val decision = PriorityDecision.Skip(AutoPassReason.ClientAutoPass)
-            recordDecision(game, decision)
-            tracer.traceEvent(MatchEventType.AUTO_PASS, game, "clientAutoPass: ${autoPassState.autoPassOption}")
+            if (!isAiTurn) {
+                recordDecision(game, decision)
+                tracer.traceEvent(MatchEventType.AUTO_PASS, game, "clientAutoPass: ${autoPassState.autoPassOption} $turnContext")
+            }
             return decision
         }
 
         if (BundleBuilder.shouldAutoPass(actions)) {
             val decision = PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
-            recordDecision(game, decision)
+            if (!isAiTurn) recordDecision(game, decision)
             return decision
         }
 
@@ -267,7 +266,7 @@ class AutoPassEngine(
                 actionCount = actions.actionsCount,
             )
         recordDecision(game, decision)
-        tracer.traceEvent(MatchEventType.SEND_STATE, game, "actions: $actionSummary")
+        tracer.traceEvent(MatchEventType.SEND_STATE, game, "actions: $actionSummary $turnContext")
         return decision
     }
 
