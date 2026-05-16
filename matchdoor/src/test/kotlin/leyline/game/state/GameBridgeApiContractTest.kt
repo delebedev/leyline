@@ -38,4 +38,13 @@ class GameBridgeApiContractTest :
                 bridge.drainReveals(0) shouldBe emptyList()
             }
         }
+
+        test("disabled action timeout keeps prompt fail-safe finite") {
+            val bridge = GameBridge(bridgeTimeoutMs = null, cardRepository = InMemoryCardRepository())
+
+            assertSoftly {
+                bridge.actionBridge(SeatId(1)).getTimeoutMs() shouldBe null
+                bridge.promptBridge(SeatId(1)).getTimeoutMs() shouldBe GameBridge.DEFAULT_PROMPT_FAILSAFE_TIMEOUT_MS
+            }
+        }
     })

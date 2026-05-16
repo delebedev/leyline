@@ -104,11 +104,7 @@ class OptionalActionGate(
 
         return try {
             val timeoutMs = actionBridge?.getTimeoutMs()
-            if (actionBridge != null && timeoutMs == null) {
-                future.get()
-            } else {
-                future.get(timeoutMs ?: DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-            }
+            future.get(timeoutMs ?: DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         } catch (e: Exception) {
             val action = if (defaultOnTimeout) "auto-accepting" else "declining"
             log.warn("{}: timeout/error for {} — {}", logContext, hostCard?.name, action, e)

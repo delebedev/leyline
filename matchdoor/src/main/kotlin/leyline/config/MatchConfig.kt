@@ -117,7 +117,7 @@ data class ServerConfig(
     /** Management HTTP port (health checks, always starts). */
     @SerialName("management_port")
     val managementPort: Int = 8091,
-    /** Bridge timeout — how long the engine waits for client responses (ms). Null disables timeout. */
+    /** Priority/action timeout. Null disables human action-window timeout; prompt fail-safes stay finite. */
     @SerialName("bridge_timeout_ms")
     val bridgeTimeoutMs: Long? = null,
     /**

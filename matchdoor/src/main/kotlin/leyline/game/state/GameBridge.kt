@@ -68,8 +68,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * The engine thread blocks at mulligan via [MulliganBridge].
  */
 class GameBridge(
-    /** Timeout for action bridge / prompt bridge / mulligan bridge.
-     *  Null waits indefinitely. Tests should pass a small finite value. */
+    /** Timeout for player priority/action windows. Null waits indefinitely. */
     private val bridgeTimeoutMs: Long? = 45_000L,
     /** Playtest config — controls AI speed, die roll, etc. */
     val matchConfig: MatchConfig = MatchConfig(),
@@ -118,18 +117,19 @@ class GameBridge(
     private val actionBridges = mutableMapOf<Int, GameActionBridge>()
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
     private val mulliganBridges = mutableMapOf<Int, MulliganBridge>()
+    private val promptFailsafeTimeoutMs: Long = bridgeTimeoutMs ?: DEFAULT_PROMPT_FAILSAFE_TIMEOUT_MS
 
     init {
         // Seed seat-1 bridges (human seat) — matches previous singleton behaviour.
         actionBridges[1] = GameActionBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
         promptBridges[1] =
-            InteractivePromptBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal).also {
+            InteractivePromptBridge(timeoutMs = promptFailsafeTimeoutMs, prioritySignal = prioritySignal).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
             }
         mulliganBridges[1] =
             MulliganBridge(
                 autoKeep = matchConfig.game.skipMulligan,
-                timeoutMs = bridgeTimeoutMs,
+                timeoutMs = promptFailsafeTimeoutMs,
             )
     }
 
@@ -424,6 +424,9 @@ class GameBridge(
     companion object {
         /** Fallback grpId for cards not in client DB (renders face-down). */
         const val FALLBACK_GRPID = 0
+
+        /** Prompt-like waits keep a fail-safe even when human action windows wait indefinitely. */
+        const val DEFAULT_PROMPT_FAILSAFE_TIMEOUT_MS = 45_000L
 
         /** Forge-id offset for synthetic delayed-trigger holder objects. The
          *  holder's forge id is `<source card forge id> + offset`, which gets

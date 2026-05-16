@@ -11,8 +11,9 @@
 #account_port = 9443
 #management_port = 8091
 
-# Bridge timeout — how long the engine waits for a client response (ms).
-# Leave unset for local gameplay: human action/prompt windows wait indefinitely.
+# Bridge timeout — how long the engine waits for human priority/action responses (ms).
+# Leave unset for local gameplay: priority/action windows wait indefinitely.
+# Prompts still keep a finite fail-safe so unrendered engine prompts cannot stall forever.
 #bridge_timeout_ms = 45000
 
 # Player database path (relative to CWD or absolute).
