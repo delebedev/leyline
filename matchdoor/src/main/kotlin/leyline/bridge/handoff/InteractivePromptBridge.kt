@@ -112,6 +112,8 @@ class InteractivePromptBridge(
         private val log = LoggerFactory.getLogger(InteractivePromptBridge::class.java)
     }
 
+    fun getTimeoutMs(): Long? = timeoutMs
+
     data class PendingPrompt(
         val promptId: String,
         val request: PromptRequest,
@@ -130,7 +132,7 @@ class InteractivePromptBridge(
     // a trace it's impossible to tell WHAT prompted and WHETHER it timed out.
     // Tests inspect `history` to diagnose unexpected blocking calls.
 
-    enum class PromptCallStatus { RESPONDED, TIMEOUT, ERROR, ALREADY_PENDING }
+    enum class PromptCallStatus { RESPONDED, TIMEOUT, ERROR, ALREADY_PENDING, NON_GAME_THREAD }
 
     data class PromptRecord(
         val promptType: String,
@@ -171,7 +173,11 @@ class InteractivePromptBridge(
         val msg = "Prompt [${request.promptType}] \"${request.message}\" → $outcome $result (${secs}s)"
         when (outcome) {
             PromptCallStatus.RESPONDED -> log.info(msg)
-            PromptCallStatus.TIMEOUT, PromptCallStatus.ERROR, PromptCallStatus.ALREADY_PENDING -> log.warn(msg)
+            PromptCallStatus.TIMEOUT,
+            PromptCallStatus.ERROR,
+            PromptCallStatus.ALREADY_PENDING,
+            PromptCallStatus.NON_GAME_THREAD,
+            -> log.warn(msg)
         }
     }
     // ────────────────────────────────────────────────────────────────────────
@@ -249,6 +255,19 @@ class InteractivePromptBridge(
         request: PromptRequest,
         targetingSa: SpellAbility? = null,
     ): List<Int> {
+        if (!isGameLoopThread()) {
+            val fallback = listOf(request.defaultIndex)
+            log.warn(
+                "Prompt [{}] \"{}\" requested from non-game thread {}, using default {}",
+                request.promptType,
+                request.message,
+                Thread.currentThread().name,
+                fallback,
+            )
+            record(request, PromptCallStatus.NON_GAME_THREAD, fallback, 0)
+            return fallback
+        }
+
         val configuredTimeoutMs = timeoutMs
         if (configuredTimeoutMs == 0L) {
             return listOf(request.defaultIndex)
@@ -301,6 +320,11 @@ class InteractivePromptBridge(
         } finally {
             pending.set(null)
         }
+    }
+
+    private fun isGameLoopThread(): Boolean {
+        val engineThread = diagnosticThread ?: return true
+        return Thread.currentThread() == engineThread
     }
 
     /**

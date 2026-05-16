@@ -233,12 +233,8 @@ class PriorityLoopCoordinator(
         actionBridge.prioritySignal?.signal()
 
         return try {
-            val timeoutMs = actionBridge.getTimeoutMs()
-            if (timeoutMs == null) {
-                future.get()
-            } else {
-                future.get(timeoutMs, TimeUnit.MILLISECONDS)
-            }
+            val timeoutMs = actionBridge.getTimeoutMs() ?: GameActionBridge.DEFAULT_TIMEOUT_MS
+            future.get(timeoutMs, TimeUnit.MILLISECONDS)
         } catch (_: TimeoutException) {
             log.warn("assignCombatDamage: timed out, auto-assigning for {}", attacker.name)
             DevCheck.failOnAutoPass { "assignCombatDamage timed out for ${attacker.name}" }
