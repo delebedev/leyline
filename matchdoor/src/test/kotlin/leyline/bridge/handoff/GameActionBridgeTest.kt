@@ -1,5 +1,6 @@
 package leyline.bridge.handoff
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -99,7 +100,6 @@ class GameActionBridgeTest :
             ready.await(2, TimeUnit.SECONDS)
 
             val pending = pollForPending(bridge).shouldNotBeNull()
-            Thread.sleep(100)
             result.get().shouldBeNull()
 
             bridge.submitAction(pending.actionId, PlayerAction.PassPriority)
@@ -123,11 +123,12 @@ class GameActionBridgeTest :
             ready.await(2, TimeUnit.SECONDS)
 
             val pending = pollForPending(bridge).shouldNotBeNull()
-            bridge.acceptsResponse(pending, 12) shouldBe false
-
-            bridge.markPromptEmitted(pending.actionId, 12) shouldBe true
-            bridge.acceptsResponse(pending, 11) shouldBe false
-            bridge.acceptsResponse(pending, 12) shouldBe true
+            assertSoftly {
+                bridge.acceptsResponse(pending, 12) shouldBe false
+                bridge.markPromptEmitted(pending.actionId, 12) shouldBe true
+                bridge.acceptsResponse(pending, 11) shouldBe false
+                bridge.acceptsResponse(pending, 12) shouldBe true
+            }
 
             bridge.submitAction(pending.actionId, PlayerAction.PassPriority)
             engineThread.join(2000)

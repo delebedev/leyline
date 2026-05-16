@@ -95,12 +95,7 @@ private fun openCardRepo(): ExposedCardRepository {
             "  Windows: C:/Program Files/Epic Games/MagicTheGathering/MTGA_Data/Downloads/Raw/Raw_CardDatabase_*.mtga"
     }
     val cardDbFile = File(cardDbPath)
-    require(cardDbFile.exists()) { "Card database not found at: $cardDbPath" }
-    require(cardDbFile.length() >= MIN_CARD_DB_BYTES) {
-        "Card database at $cardDbPath is ${cardDbFile.length()} bytes — too small to be a real DB.\n" +
-            "Likely an in-progress download placeholder alongside a real file in the same directory.\n" +
-            "Remove the empty file and rerun, or set LEYLINE_CARD_DB to the full DB explicitly."
-    }
+    validateCardDbFile(cardDbFile, cardDbPath)
     val repo =
         ExposedCardRepository(
             Database.connect(
@@ -108,10 +103,29 @@ private fun openCardRepo(): ExposedCardRepository {
                 "org.sqlite.JDBC",
             ),
         )
-    check(repo.findAllGrpIds().isNotEmpty()) {
+    requireUsableCardRows(cardDbPath, repo.findAllGrpIds())
+    return repo
+}
+
+internal fun validateCardDbFile(
+    cardDbFile: File,
+    cardDbPath: String = cardDbFile.path,
+) {
+    require(cardDbFile.exists()) { "Card database not found at: $cardDbPath" }
+    require(cardDbFile.length() >= MIN_CARD_DB_BYTES) {
+        "Card database at $cardDbPath is ${cardDbFile.length()} bytes — too small to be a real DB.\n" +
+            "Likely an in-progress download placeholder alongside a real file in the same directory.\n" +
+            "Remove the empty file and rerun, or set LEYLINE_CARD_DB to the full DB explicitly."
+    }
+}
+
+internal fun requireUsableCardRows(
+    cardDbPath: String,
+    grpIds: Iterable<Int>,
+) {
+    check(grpIds.any()) {
         "Card database at $cardDbPath has no usable Cards rows. Wrong file, or schema changed."
     }
-    return repo
 }
 
 private const val MIN_CARD_DB_BYTES = 1_000_000L
