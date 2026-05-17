@@ -1461,6 +1461,7 @@ object ActionMapper {
         val emitted = mutableSetOf<Pair<Int, List<Pair<ManaColor, Int>>>>()
         for (sa in castable) {
             val rail = CastRails.handWithAltCost.firstOrNull { it.saPredicate(sa) } ?: continue
+            if (rail.kind == AltCostKind.MUTATE && hasUnmetTargeting(sa)) continue
             val canPay = canPayManaCost(sa, player)
             if (!canPay) continue
 

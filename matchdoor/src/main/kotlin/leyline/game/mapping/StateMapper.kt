@@ -42,6 +42,7 @@ import leyline.game.state.GameBridge
 import leyline.game.state.HolderRecord
 import leyline.game.state.LeftUnlockedDesignationKind
 import leyline.game.state.ModifiedTypeForCrewKind
+import leyline.game.state.MutateLayeredEffectKind
 import leyline.game.state.PersistentAnnotationKind
 import leyline.game.state.PersistentAnnotationStore
 import leyline.game.state.PlottedDesignationKind
@@ -330,6 +331,7 @@ object StateMapper {
             keywordSnapshot,
         )
         ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects, human)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Merged, ZoneIds.SUPPRESSED, bridge, zones, gameObjects, human)
         ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects, human)
         ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects, human)
 
@@ -693,6 +695,7 @@ object StateMapper {
                 startPersistentId,
                 startAnnotationId,
                 bridge,
+                snap,
                 frameContext,
                 frameIds,
                 keywordDiff,
@@ -1135,6 +1138,7 @@ object StateMapper {
         startPersistentId: Int,
         startAnnotationId: Int,
         bridge: GameBridge,
+        snap: GsmSnapshot,
         frameContext: FrameContext,
         frameIds: FrameIdResolver,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
@@ -1251,6 +1255,8 @@ object StateMapper {
 
         // TargetSpec pAnn for each targeted spell/ability on the stack
         val targetSpecPersistent = buildTargetSpecAnnotations(bridge, frameIds)
+        val (mutateMergeTransient, mutateMergePersistent) = buildMutateMergeAnnotations(snap, bridge, frameIds)
+        annotations.addAll(mutateMergeTransient)
 
         val (crewedThisTurnPersistent, crewTypeChangePersistent, crewExpiredAnnotations) =
             computeCrewAnnotations(bridge)
@@ -1273,6 +1279,7 @@ object StateMapper {
                         put(TemporaryPermanentKind, temporaryPermanentPersistent)
                         put(DelayedTriggerAffecteesKind, delayedTriggerAffecteesPersistent)
                         put(TargetSpecKind, targetSpecPersistent)
+                        put(MutateLayeredEffectKind, mutateMergePersistent)
                         put(PreparedDesignationKind, preparedDesignationPersistentFromSnap)
                         put(PlottedDesignationKind, plottedDesignationPersistentFromSnap)
                         put(CommanderDesignationKind, commanderDesignationPersistentFromSnap)
@@ -1976,12 +1983,61 @@ object StateMapper {
             AnnotationBuilder.targetSpec(
                 instanceId = targetIid,
                 affectorId = affectorIid,
-                abilityGrpId = grpId,
+                abilityGrpId = GrpId(spec.abilityGrpId ?: grpId.value),
                 index = spec.index,
-                promptId = 0,
+                promptId = spec.promptId ?: 0,
                 promptParameters = affectorIid.value,
             )
         }
+    }
+
+    private fun buildMutateMergeAnnotations(
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+        frameIds: FrameIdResolver,
+    ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
+        val transient = mutableListOf<AnnotationInfo>()
+        val persistent = mutableListOf<AnnotationInfo>()
+        val currentKeys = mutableSetOf<Pair<Int, Int>>()
+
+        for (bound in snap.boundCards.values) {
+            val targetIid = bound.snapshot.mergedToInstanceId ?: continue
+            val componentIid = frameIds.cardIid(bound.forgeCardId).value
+            val key = componentIid to targetIid
+            currentKeys.add(key)
+
+            val allocation = bridge.getOrAllocMutateMergeEffectId(componentIid, targetIid)
+            if (allocation.created) {
+                transient.add(
+                    AnnotationBuilder.layeredEffectCreated(
+                        effectId = EffectId(allocation.effectId),
+                        affectorId = InstanceId(componentIid),
+                    ),
+                )
+            }
+
+            val abilityGrpIds =
+                bound.data
+                    ?.abilityIds
+                    ?.map { it.first }
+                    .orEmpty()
+            persistent.add(
+                AnnotationBuilder.mutateLayeredEffect(
+                    componentId = InstanceId(componentIid),
+                    targetId = InstanceId(targetIid),
+                    effectId = EffectId(allocation.effectId),
+                    abilityGrpIds = abilityGrpIds,
+                    isTop = bound.snapshot.isTopMergedComponent,
+                    abilityGrpId = GrpId(KeywordAbilityIds.MUTATE),
+                ),
+            )
+        }
+
+        for (effectId in bridge.releaseMutateMergeEffects(currentKeys)) {
+            transient.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effectId)))
+        }
+
+        return transient to persistent
     }
 
     /** Crew annotation scan: CrewedThisTurn pAnns, ModifiedType pAnns, and expired effect annotations. */

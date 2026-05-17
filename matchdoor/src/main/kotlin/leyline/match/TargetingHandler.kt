@@ -377,6 +377,7 @@ class TargetingHandler(
                     ClassifiedPrompt.SelectN.Reason.SacrificeEffect,
                     ClassifiedPrompt.SelectN.Reason.RevealChoose,
                     ClassifiedPrompt.SelectN.Reason.Resolution,
+                    ClassifiedPrompt.SelectN.Reason.MutateTopBottom,
                     -> sendSelectNReq(classified.pendingPrompt, classified.reason)
                 }
                 PromptResult.SENT_TO_CLIENT
@@ -1197,6 +1198,7 @@ class TargetingHandler(
                 isLegendRule = reason == ClassifiedPrompt.SelectN.Reason.LegendRule,
                 isRevealChoose = reason == ClassifiedPrompt.SelectN.Reason.RevealChoose,
                 isResolution = reason == ClassifiedPrompt.SelectN.Reason.Resolution,
+                isMutateTopBottom = reason == ClassifiedPrompt.SelectN.Reason.MutateTopBottom,
             )
         Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)

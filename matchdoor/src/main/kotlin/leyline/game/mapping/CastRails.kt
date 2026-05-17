@@ -50,6 +50,7 @@ enum class AltCostKind(
     FLASHBACK(KeywordAbilityIds.FLASHBACK),
     DISTURB(KeywordAbilityIds.DISTURB),
     ESCAPE(KeywordAbilityIds.ESCAPE),
+    MUTATE(KeywordAbilityIds.MUTATE),
     JUMP_START(KeywordAbilityIds.JUMP_START),
     IMPENDING(KeywordAbilityIds.IMPENDING),
     CLEAVE(KeywordAbilityIds.CLEAVE),
@@ -250,6 +251,11 @@ object CastRails {
                 kind = AltCostKind.SNEAK,
                 saPredicate = { it.alternativeCost == AlternativeCost.Sneak },
                 lookupMode = LookupMode.CostAware,
+            ),
+            HandWithAltCost(
+                kind = AltCostKind.MUTATE,
+                saPredicate = { it.alternativeCost == AlternativeCost.Mutate },
+                lookupMode = LookupMode.CostAgnostic,
             ),
             HandWithAltCost(
                 kind = AltCostKind.PLOT,

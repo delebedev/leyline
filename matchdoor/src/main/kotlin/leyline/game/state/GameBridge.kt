@@ -357,6 +357,29 @@ class GameBridge(
         return expired.mapNotNull { activeCrewEffects.remove(it) }
     }
 
+    data class EffectAllocation(
+        val effectId: Int,
+        val created: Boolean,
+    )
+
+    private val activeMutateMergeEffects = mutableMapOf<Pair<Int, Int>, Int>()
+
+    fun getOrAllocMutateMergeEffectId(
+        componentInstanceId: Int,
+        targetInstanceId: Int,
+    ): EffectAllocation {
+        val key = componentInstanceId to targetInstanceId
+        activeMutateMergeEffects[key]?.let { return EffectAllocation(it, created = false) }
+        val effectId = effects.nextEffectId()
+        activeMutateMergeEffects[key] = effectId
+        return EffectAllocation(effectId, created = true)
+    }
+
+    fun releaseMutateMergeEffects(currentKeys: Set<Pair<Int, Int>>): List<Int> {
+        val expired = activeMutateMergeEffects.keys - currentKeys
+        return expired.mapNotNull { activeMutateMergeEffects.remove(it) }
+    }
+
     /** Drain pending target specs from all seat prompt bridges. */
     fun drainPendingTargetSpecs(): List<InteractivePromptBridge.PendingTarget> =
         promptBridges.values.flatMap { it.drainPendingTargetSpecs() }
@@ -958,6 +981,7 @@ class GameBridge(
         delayedTriggerHolders.resetAll()
         resetDecayedCleanupSources()
         activeCrewEffects.clear()
+        activeMutateMergeEffects.clear()
         abilityRegistries.clear()
         tokenRegistry.clear()
         revealProxies.clear()

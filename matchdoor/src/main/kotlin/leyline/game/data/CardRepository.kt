@@ -214,6 +214,7 @@ object KeywordAbilityIds {
     const val OVERLOAD = 97
     const val JUMP_START = 170
     const val ESCAPE = 199
+    const val MUTATE = 203
     const val FORETELL = 208
     const val DECAYED = 214
     const val DISTURB = 215
@@ -249,6 +250,7 @@ object KeywordAbilityIds {
             "FORETELL", "FORETOLD" -> FORETELL
             "DISTURB" -> DISTURB
             "ESCAPE" -> ESCAPE
+            "MUTATE" -> MUTATE
             "CLEAVE" -> CLEAVE
             "IMPENDING" -> IMPENDING
             "MOBILIZE" -> MOBILIZE

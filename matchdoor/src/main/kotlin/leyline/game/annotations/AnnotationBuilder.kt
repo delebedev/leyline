@@ -1039,6 +1039,25 @@ object AnnotationBuilder {
                 }
             }.build()
 
+    fun mutateLayeredEffect(
+        componentId: InstanceId,
+        targetId: InstanceId,
+        effectId: EffectId,
+        abilityGrpIds: List<Int>,
+        isTop: Boolean,
+        abilityGrpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.LayeredEffect)
+            .setAffectorId(componentId.value)
+            .addAffectedIds(targetId.value)
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+            .addDetails(int32ListDetail(DetailKeys.ABILITY_GRP_IDS, abilityGrpIds))
+            .addDetails(int32Detail(DetailKeys.IS_TOP, if (isTop) 1 else 0))
+            .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId.value))
+            .build()
+
     // -- Tier 2 detail-carrying annotations --
 
     /** Land color production for card frame rendering. client type 110 (ColorProduction).

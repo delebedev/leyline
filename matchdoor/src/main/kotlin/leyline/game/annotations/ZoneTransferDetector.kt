@@ -249,6 +249,10 @@ object ZoneTransferDetector {
             val obj = patchedObjects[i]
             val prevZone = previousZones[obj.instanceId]
             if (prevZone != null && prevZone != obj.zoneId) {
+                if (prevZone == ZoneIds.STACK && obj.zoneId == ZoneIds.SUPPRESSED) {
+                    zoneRecordings.add(obj.instanceId to obj.zoneId)
+                    continue
+                }
                 val forgeCardId = forgeIdLookup(InstanceId(obj.instanceId))
                 val baseCategory =
                     if (forgeCardId != null && events.isNotEmpty()) {

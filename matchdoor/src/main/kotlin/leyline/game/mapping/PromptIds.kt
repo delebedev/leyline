@@ -55,6 +55,9 @@ object PromptIds {
 
     const val SELECT_N = 1243
 
+    /** Mutate target group — "Target a non-Human creature you own." */
+    const val MUTATE_TARGET = 141
+
     /**
      * Stock Up's outer-prompt loc key — "Put two of them into your hand."
      *
