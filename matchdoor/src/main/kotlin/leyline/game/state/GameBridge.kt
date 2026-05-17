@@ -1166,12 +1166,24 @@ class GameBridge(
     }
 
     /**
-     * Seed persistent [AnnotationType.Counter_803b] annotations for permanents that
-     * start with counters (loyalty on planeswalkers, +1/+1 on creatures, etc.). Forge's
-     * puzzle loader bypasses the event chain when applying counters, so no
-     * [GameEvent.CountersChanged] fires.
+     * Seed persistent [AnnotationType.Counter_803b] annotations for player poison
+     * counters and permanents that start with counters (loyalty on planeswalkers,
+     * +1/+1 on creatures, etc.). Forge's puzzle loader bypasses the event chain
+     * when applying counters, so no counter-change event fires.
      */
     private fun seedCounterAnnotations(game: Game) {
+        for ((seatNum, player) in players) {
+            val poisonCount = player.poisonCounters
+            if (poisonCount <= 0) continue
+            val ann =
+                AnnotationBuilder
+                    .playerCounter(SeatId(seatNum), CounterTypes.counterTypeId("POISON"), poisonCount)
+                    .toBuilder()
+                    .setId(annotations.nextPersistentAnnotationId())
+                    .build()
+            annotations.add(ann)
+            log.debug("seedCounter: seat={} POISON = {}", seatNum, poisonCount)
+        }
         for (player in game.players) {
             for (card in player.getZone(ZoneType.Battlefield).cards) {
                 val counters = card.counters
