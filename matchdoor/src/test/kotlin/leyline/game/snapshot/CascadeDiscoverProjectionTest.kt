@@ -15,7 +15,7 @@ import leyline.testkit.SessionTest
  *  - `objectSourceGrpId` = the **source card's grpId** (the host permanent)
  *
  * These two fields used to collapse to the same value. The
- * [SnapshotCapture.resolveEntryAbilityGrpId] resolver and the
+ * [StackAbilityGrpIdResolver.resolveEntryAbilityGrpId] resolver and the
  * [leyline.game.mapping.ZoneMapper.addStackAbilitiesFromSnapshot] spell-vs-trigger
  * filter together produce the decoupled shape — this Cascade test exercises
  * both via the puzzle harness so a regression in either path fails here, in
@@ -27,7 +27,7 @@ import leyline.testkit.SessionTest
  * auto-accepts the resulting OptionalActionMessage all within one engine
  * tick. The snapshot-after-pass window never sees the trigger on the stack.
  * Tracked separately for a unit-test layer (mockk SA + cardData) that can
- * call [SnapshotCapture.resolveEntryAbilityGrpId] directly.
+ * call [StackAbilityGrpIdResolver.resolveEntryAbilityGrpId] directly.
  */
 class CascadeDiscoverProjectionTest :
     SessionTest({

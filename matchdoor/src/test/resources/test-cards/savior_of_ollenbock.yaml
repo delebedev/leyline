@@ -1,0 +1,14 @@
+name: "Savior of Ollenbock"
+grpId: 78816
+titleId: 545666
+abilities:
+  - id: 220
+    textId: 58176
+    category: 2
+  - id: 146570
+    textId: 955525
+    category: 2
+  - id: 146571
+    textId: 955526
+    category: 2
+expansionCode: "VOW"

@@ -145,7 +145,8 @@ data object AbilityWordActiveKind : PersistentAnnotationKind {
 
     override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.AbilityWordActive in ann.typeList
 
-    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann) to (stringDetail(ann, DetailKeys.ABILITY_WORD_NAME).orEmpty())
+    override fun identityKey(ann: AnnotationInfo): Any =
+        Triple(ann.affectorId, firstAffectedId(ann), stringDetail(ann, DetailKeys.ABILITY_WORD_NAME).orEmpty())
 }
 
 data object QualificationKind : PersistentAnnotationKind {

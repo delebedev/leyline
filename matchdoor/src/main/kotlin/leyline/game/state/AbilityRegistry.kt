@@ -66,6 +66,7 @@ class AbilityRegistry private constructor(
             mapActivatedAbilities(card, abilityIds, activatedSlotIndices, saMap)
             mapStationThresholdStatics(card, abilityIds, staticMap)
             mapManaAbilities(card, fallbackGrpId, saMap)
+            mapUnclaimedIntrinsicTriggers(card, cardData, abilityIds, keywordCount, triggerMap)
             mapUnclaimedIntrinsics(card, fallbackGrpId, staticMap, triggerMap)
 
             // Derive SlotLayout from the same data — single source of truth.
@@ -183,6 +184,33 @@ class AbilityRegistry private constructor(
             for (sa in card.spellAbilities ?: emptyList()) {
                 if (!sa.isManaAbility() || !sa.isIntrinsic) continue
                 saMap.putIfAbsent(sa.id, fallbackGrpId)
+            }
+        }
+
+        /** Map card-specific intrinsic triggers when Arena's remaining
+         *  intrinsic slots line up exactly with Forge's unclaimed triggers.
+         *  Mixed static+trigger layouts keep the legacy fallback until CardData
+         *  carries trigger/static categories separately. */
+        private fun mapUnclaimedIntrinsicTriggers(
+            card: Card,
+            cardData: CardData,
+            abilityIds: List<Pair<Int, Int>>,
+            keywordCount: Int,
+            triggerMap: MutableMap<Int, Int>,
+        ) {
+            if (cardData.abilityKinds.size != abilityIds.size) return
+            val triggers =
+                card.triggers
+                    ?.filter { it.isIntrinsic && it.id !in triggerMap }
+                    .orEmpty()
+            if (triggers.isEmpty()) return
+            val intrinsicSlots =
+                abilityIds.indices.filter { idx ->
+                    idx >= keywordCount && cardData.abilityKinds[idx] == SlotKind.Intrinsic
+                }
+            if (intrinsicSlots.size != triggers.size) return
+            for ((trig, slotIdx) in triggers.zip(intrinsicSlots)) {
+                triggerMap[trig.id] = abilityIds[slotIdx].first
             }
         }
 

@@ -520,10 +520,12 @@ object AnnotationBuilder {
         instanceId: InstanceId,
         counterType: String,
         amount: Int,
+        affectorId: InstanceId? = null,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.CounterAdded)
+            .apply { if (affectorId != null) setAffectorId(affectorId.value) }
             .addAffectedIds(instanceId.value)
             .addDetails(typedStringDetail(DetailKeys.COUNTER_TYPE, counterType))
             .addDetails(int32Detail(DetailKeys.TRANSACTION_AMOUNT, amount))

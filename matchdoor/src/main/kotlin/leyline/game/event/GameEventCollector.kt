@@ -3,6 +3,7 @@ package leyline.game.event
 import com.google.common.eventbus.Subscribe
 import forge.ai.LobbyPlayerAi
 import forge.card.CardStateName
+import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardView
 import forge.game.event.*
@@ -303,9 +304,16 @@ class GameEventCollector(
     ): Int {
         if (sa == null) return 0
         if (sa.isKeyword(Keyword.STATION)) return KeywordAbilityIds.STATION
+        if ((sa.isKeyword(Keyword.TRAINING) || sa.hasParam("Training")) && sa.api == ApiType.PutCounter) {
+            return KeywordAbilityIds.TRAINING
+        }
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
         val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return 0
-        return bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(sa.id) ?: 0
+        val registry = bridge.abilityRegistryFor(card, cardData)
+        sa.trigger?.id?.let { triggerId ->
+            registry?.forTrigger(triggerId)?.takeIf { it != 0 }?.let { return it }
+        }
+        return registry?.forSpellAbility(sa.id) ?: 0
     }
 
     /**

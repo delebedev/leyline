@@ -216,6 +216,7 @@ object KeywordAbilityIds {
     const val ESCAPE = 199
     const val FORETELL = 208
     const val DISTURB = 215
+    const val TRAINING = 220
     const val CLEAVE = 221
     const val DISGUISE = 307
     const val IMPENDING = 352

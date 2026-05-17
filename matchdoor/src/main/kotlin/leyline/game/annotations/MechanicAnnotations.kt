@@ -90,6 +90,7 @@ object MechanicAnnotations {
         effectIdAllocator: () -> EffectId = { EffectId(0) },
         activeStealForgeCardIds: Set<ForgeCardId> = emptySet(),
         manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
+        counterAffectorResolver: (Int, GameEvent.CountersChanged) -> InstanceId? = { _, _ -> null },
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
@@ -98,14 +99,21 @@ object MechanicAnnotations {
         val exileSourceLeftPlayForgeCardIds = mutableListOf<ForgeCardId>()
         val controllerChangedEffects = mutableListOf<MechanicAnnotationResult.ControllerChangedEffect>()
         val controllerRevertedForgeCardIds = mutableListOf<ForgeCardId>()
-        for (ev in events) {
+        for ((eventIndex, ev) in events.withIndex()) {
             when (ev) {
                 is GameEvent.CountersChanged -> {
                     val delta = ev.newCount - ev.oldCount
                     if (delta == 0) continue
                     val instanceId = idResolver(ev.cardId)
                     if (delta > 0) {
-                        annotations.add(AnnotationBuilder.counterAdded(instanceId, ev.counterType, delta))
+                        annotations.add(
+                            AnnotationBuilder.counterAdded(
+                                instanceId,
+                                ev.counterType,
+                                delta,
+                                affectorId = counterAffectorResolver(eventIndex, ev),
+                            ),
+                        )
                     } else {
                         annotations.add(AnnotationBuilder.counterRemoved(instanceId, ev.counterType, -delta))
                     }

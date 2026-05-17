@@ -503,6 +503,8 @@ object StateMapper {
                     affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
                 )
             }
+        val trainingAbilityWordPersistentFromEvents =
+            trainingAbilityWordPersistentFromEvents(eventsMutable, snap, prev, bridge, frameIds)
         val preparedDesignationPersistentFromSnap =
             snap.boundCards.values
                 .mapNotNull { bound ->
@@ -669,7 +671,7 @@ object StateMapper {
                 qualificationPersistentFromSnap = qualificationPersistentFromSnap,
                 temporaryPermanentPersistentFromSnap = temporaryPermanentPersistentFromSnap,
                 delayedTriggerAffecteesPersistentFromSnap = delayedTriggerAffecteesFromSnap,
-                abilityWordPersistentFromSnap = abilityWordPersistentFromSnap,
+                abilityWordPersistentFromSnap = abilityWordPersistentFromSnap + trainingAbilityWordPersistentFromEvents,
                 preparedDesignationPersistentFromSnap = preparedDesignationPersistentFromSnap,
                 plottedDesignationPersistentFromSnap = plottedDesignationPersistentFromSnap,
                 saddledDesignationPersistentFromSnap = saddledDesignationPersistentFromSnap,
@@ -1153,6 +1155,7 @@ object StateMapper {
                         }
                     leyline.bridge.types.GrpId(grpId)
                 },
+                counterAffectorResolver = { eventIndex, ev -> counterAffectorFor(eventIndex, ev, events, frameIds) },
             )
         // Token entries belong before combat damage: a Mobilize trigger that
         // resolves between attacker declaration and combat damage produces tokens
@@ -1602,11 +1605,85 @@ object StateMapper {
             val card = bridge.findCard(cardId)
             val registry = if (card != null) bridge.abilityRegistryFor(card, bound.data) else null
             registry?.forSpellAbility(abilityForgeId)?.takeIf { it != 0 }?.let { return it }
+            registry?.forTrigger(abilityForgeId)?.takeIf { it != 0 }?.let { return it }
         }
         for (keywordId in keywordTriggerIds) {
             bound.altCost(keywordId)?.abilityGrpId?.let { return it }
         }
         return bound.snapshot.grpId
+    }
+
+    /** Training's `AbilityWordActive` is relational: trainer → first declared
+     *  co-attacker with greater pre-resolution power. The previous snapshot is
+     *  the attack-declaration truth when auto-pass compresses trigger resolution
+     *  and counter placement into one GSM. */
+    private fun trainingAbilityWordPersistentFromEvents(
+        events: List<GameEvent>,
+        snap: GsmSnapshot,
+        prev: GsmSnapshot?,
+        bridge: GameBridge,
+        frameIds: FrameIdResolver,
+    ): List<AnnotationInfo> {
+        val attackEvents = events.filterIsInstance<GameEvent.AttackersDeclared>()
+        if (attackEvents.isEmpty()) return emptyList()
+        val powerSnap = prev ?: snap
+
+        return attackEvents.flatMap { ev ->
+            ev.attackerCardIds.mapNotNull { trainerId ->
+                val trainerBound = powerSnap.boundCards[trainerId] ?: snap.boundCards[trainerId] ?: return@mapNotNull null
+                if (!hasTrainingKeyword(trainerBound.snapshot.grpId, bridge)) return@mapNotNull null
+                val trainerPower = trainerBound.snapshot.netPower ?: return@mapNotNull null
+                val partnerId =
+                    ev.attackerCardIds.firstOrNull { otherId ->
+                        if (otherId == trainerId) return@firstOrNull false
+                        val otherBound = powerSnap.boundCards[otherId] ?: snap.boundCards[otherId] ?: return@firstOrNull false
+                        (otherBound.snapshot.netPower ?: Int.MIN_VALUE) > trainerPower
+                    } ?: return@mapNotNull null
+
+                val trainerIid = frameIds.cardIid(trainerId)
+                AnnotationBuilder.abilityWordActive(
+                    instanceId = trainerIid,
+                    abilityWordName = "Training",
+                    affectorId = trainerIid,
+                    affectedIds = listOf(frameIds.cardIid(partnerId)),
+                )
+            }
+        }
+    }
+
+    private fun hasTrainingKeyword(
+        grpId: Int,
+        bridge: GameBridge,
+    ): Boolean = bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.TRAINING) != null
+
+    private fun counterAffectorFor(
+        eventIndex: Int,
+        ev: GameEvent.CountersChanged,
+        events: List<GameEvent>,
+        frameIds: FrameIdResolver,
+    ): InstanceId? {
+        val resolvedTraining = trainingResolutionForCounterEvent(eventIndex, ev, events) ?: return null
+        return InstanceId(stackAbilityIidFor(resolvedTraining.abilityForgeId, resolvedTraining.cardId, frameIds))
+    }
+
+    internal fun trainingResolutionForCounterEvent(
+        eventIndex: Int,
+        ev: GameEvent.CountersChanged,
+        events: List<GameEvent>,
+    ): GameEvent.SpellResolved? {
+        if (ev.counterType != "P1P1" && ev.counterType != "+1/+1") return null
+        for (next in events.asSequence().drop(eventIndex + 1)) {
+            when {
+                next is GameEvent.CountersChanged && next.cardId == ev.cardId -> return null
+                next is GameEvent.SpellResolved && next.cardId == ev.cardId -> {
+                    if (next.isTrigger && next.abilityGrpId == KeywordAbilityIds.TRAINING) {
+                        return next
+                    }
+                    return null
+                }
+            }
+        }
+        return null
     }
 
     /** Keywords whose triggers we want to surface on the wire as
