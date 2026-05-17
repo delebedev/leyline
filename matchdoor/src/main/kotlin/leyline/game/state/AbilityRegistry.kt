@@ -51,6 +51,14 @@ class AbilityRegistry private constructor(
             val triggerMap = mutableMapOf<Int, Int>()
 
             val keywordCount = mapKeywords(card, abilityIds, saMap, staticMap, triggerMap)
+            val slotKinds =
+                abilityIds.mapIndexed { i, _ ->
+                    when {
+                        cardData.abilityKinds.size == abilityIds.size -> cardData.abilityKinds[i]
+                        i < keywordCount -> SlotKind.Keyword
+                        else -> SlotKind.Activated
+                    }
+                }
             // Indices in abilityIds that are eligible for activated SAs.
             // For Arena-sourced cards: slots whose `Abilities.Category=1`.
             // For data without per-slot kinds (legacy / puzzle deriver): fall back
@@ -58,7 +66,7 @@ class AbilityRegistry private constructor(
             val activatedSlotIndices =
                 if (cardData.abilityKinds.size == abilityIds.size) {
                     abilityIds.indices.filter {
-                        it >= keywordCount && cardData.abilityKinds[it] == SlotKind.Activated
+                        it >= keywordCount && slotKinds[it] == SlotKind.Activated
                     }
                 } else {
                     (keywordCount until abilityIds.size).toList()
@@ -72,17 +80,10 @@ class AbilityRegistry private constructor(
             // Derive SlotLayout from the same data — single source of truth.
             // Use cardData.abilityKinds when available so triggers/statics interleaved
             // among Arena's slots (e.g. Kaito at slot 0) get classified correctly.
-            val activatedCount = activatedSlotIndices.size.coerceAtLeast(0)
+            val activatedCount = slotKinds.count { it == SlotKind.Activated }
             val slots =
                 abilityIds.mapIndexed { i, (grpId, textId) ->
-                    val kind =
-                        when {
-                            i < keywordCount -> SlotKind.Keyword
-                            cardData.abilityKinds.size == abilityIds.size ->
-                                cardData.abilityKinds[i]
-                            else -> SlotKind.Activated
-                        }
-                    SlotEntry(grpId, textId, kind)
+                    SlotEntry(grpId, textId, slotKinds[i])
                 }
             val layout = SlotLayout(keywordCount, activatedCount, slots)
 

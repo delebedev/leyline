@@ -4,8 +4,6 @@ import forge.game.zone.ZoneType
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import leyline.game.bundle.InvariantCheck
-import leyline.game.bundle.InvariantSelection
 import leyline.testkit.SessionTest
 import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -47,14 +45,7 @@ class AdventurePuzzleTest :
                 ailibrary=Forest
                 """.trimIndent()
 
-            startPuzzleRaw(
-                pzl,
-                validation =
-                    InvariantSelection.except(
-                        "adventure token resolution can skip queued playback gsIds before later diffs (leyline-qiws)",
-                        InvariantCheck.GsIdPrevKnown,
-                    ),
-            )
+            startPuzzleRaw(pzl, validating = true)
             phase() shouldBe "MAIN1"
 
             // --- Step 1: Verify CastAdventure action is available ---

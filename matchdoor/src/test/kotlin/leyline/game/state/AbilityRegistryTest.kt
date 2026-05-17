@@ -36,6 +36,21 @@ class AbilityRegistryTest :
             registry.forSpellAbility(stationAbility.id) shouldBe 373
         }
 
+        test("keyword-backed activated ability dispatches by activated index") {
+            val cardName = "Ninja of the Deep Hours"
+            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val injected = TestCardInjector.inject(b, 1, cardName, ZoneType.Hand)
+            val ninjutsuAbility =
+                injected.card.spellAbilities.single { ability ->
+                    ability.isActivatedAbility && ability.isIntrinsic && !ability.isManaAbility()
+                }
+
+            val registry = AbilityRegistry.build(injected.card, CardDataDeriver.fromForgeCard(injected.card, cardName))
+
+            registry.forSpellAbility(ninjutsuAbility.id) shouldBe 5341
+            registry.slotLayout.forgeIndexFor(5341) shouldBe 0
+        }
+
         test("planeswalker loyalty abilities map to distinct abilityGrpId slots") {
             val cardName = "Chandra, Torch of Defiance"
             val (b, game, _) = base.startWithBoard { _, _, _ -> }

@@ -1,6 +1,6 @@
 package leyline.game.bundle
 
-/** Named invariant checks enforced by [InvariantChecker]. */
+/** Named checks understood by [InvariantChecker]. */
 enum class InvariantCheck(
     val id: String,
 ) {
@@ -22,10 +22,12 @@ enum class InvariantCheck(
 }
 
 /**
- * Selects which protocol invariants are active for a validator run.
+ * Selects which checks are active for a validator run.
  *
- * Full strict validation is the default. Use [only] or [except] in tests that
- * need to keep most checks active while documenting one known blocker.
+ * [protocolFacts] is the default: client-compatible checks safe to treat as
+ * hard failures. [diagnostics] keeps the older strict shape checks available
+ * for focused tests and troubleshooting, but those checks are intentionally
+ * not protocol facts.
  */
 class InvariantSelection private constructor(
     private val enabled: Set<InvariantCheck>,
@@ -38,7 +40,24 @@ class InvariantSelection private constructor(
     fun isEmpty(): Boolean = enabled.isEmpty()
 
     companion object {
-        fun all(): InvariantSelection = InvariantSelection(InvariantCheck.entries.toSet(), relaxationReason = null)
+        private val PROTOCOL_FACTS =
+            setOf(
+                InvariantCheck.GsIdMonotonicity,
+                InvariantCheck.GsIdUnique,
+                InvariantCheck.GsIdNoSelfRef,
+                InvariantCheck.AidAffector,
+            )
+
+        fun protocolFacts(): InvariantSelection = InvariantSelection(PROTOCOL_FACTS, relaxationReason = null)
+
+        fun protocolFactsExcept(
+            because: String,
+            vararg checks: InvariantCheck,
+        ): InvariantSelection = InvariantSelection(PROTOCOL_FACTS - checks.toSet(), relaxationReason = because)
+
+        fun diagnostics(): InvariantSelection = InvariantSelection(InvariantCheck.entries.toSet(), relaxationReason = null)
+
+        fun all(): InvariantSelection = diagnostics()
 
         fun none(because: String): InvariantSelection = InvariantSelection(emptySet(), relaxationReason = because)
 

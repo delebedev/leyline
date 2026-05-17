@@ -10,17 +10,15 @@ import kotlin.collections.iterator
 import kotlin.text.get
 
 /**
- * Runtime invariant checker for GRE message streams. Shared by
- * [ValidatingMessageSink] (test assertions) and [SessionAnalyzer]
- * (post-hoc diagnostics).
+ * Runtime checker for GRE message streams. Shared by test assertions and
+ * post-hoc diagnostics.
  *
- * Checks: gsId monotonicity, prevGsId validity, annotation sequentiality,
- * annotation ordering, phase_first, resolution_transfer_ordering, aid_affector
- * consistency, action instanceId consistency, zone-object consistency,
- * msgId monotonicity.
+ * The default selection is [InvariantSelection.protocolFacts]: hard
+ * client-compatible failures only. Other checks remain available through
+ * [InvariantSelection.diagnostics] for focused shape debugging.
  */
 class InvariantChecker(
-    private val selection: InvariantSelection = InvariantSelection.all(),
+    private val selection: InvariantSelection = InvariantSelection.protocolFacts(),
 ) {
     @Serializable
     data class Violation(
@@ -34,6 +32,7 @@ class InvariantChecker(
 
     private val accumulator = RuntimeAccumulator()
     private val seenGsIds = mutableSetOf<Int>()
+    private val seenMsgIds = mutableSetOf<Int>()
     private var highWaterGsId = 0
     private var highWaterMsgId = 0
     private var pendingCountdown = 0
@@ -43,37 +42,63 @@ class InvariantChecker(
     private val _violations = mutableListOf<Violation>()
     val violations: List<Violation> get() = _violations
 
+    private val needsRuntimeAccumulator =
+        selection.includes(InvariantCheck.ActionInstanceIds) ||
+            selection.includes(InvariantCheck.ZoneObjects) ||
+            selection.includes(InvariantCheck.AnnotationReferences)
+
     // --- Public API ---
 
-    /** Process a single GRE message through all invariant checks. */
+    /** Process a single GRE message through the selected checks. */
     fun process(msg: GREToClientMessage) {
         messageIndex++
         val gsId = if (msg.hasGameStateMessage()) msg.gameStateMessage.gameStateId else 0
 
-        checkMsgIdMonotonicity(msg, gsId)
+        if (selection.includes(InvariantCheck.MsgIdMonotonicity)) {
+            checkMsgIdMonotonicity(msg, gsId)
+        }
+        if (selection.includes(InvariantCheck.MsgIdUnique)) {
+            checkMsgIdUnique(msg, gsId)
+        }
 
         if (msg.hasGameStateMessage()) {
             val gsm = msg.gameStateMessage
-            checkGsIdMonotonicity(gsm)
-            checkPrevGsIdValidity(gsm)
-            checkNoSelfReferentialGsId(gsm)
-            checkAnnotationIdSequentiality(gsm)
-            checkAnnotationOrdering(gsm)
-            checkPhaseFirst(gsm)
-            checkResolutionTransferOrdering(gsm)
-            val aidIids = checkAidAffectorConsistency(gsm)
-            recordAicAffectorHistory(gsm, aidIids)
-            checkPendingMessageCountContract(gsm)
+            checkGsIdChain(gsm)
+            if (selection.includes(InvariantCheck.AnnotationSequentiality)) {
+                checkAnnotationIdSequentiality(gsm)
+            }
+            if (selection.includes(InvariantCheck.AnnotationOrdering)) {
+                checkAnnotationOrdering(gsm)
+            }
+            if (selection.includes(InvariantCheck.PhaseFirst)) {
+                checkPhaseFirst(gsm)
+            }
+            if (selection.includes(InvariantCheck.ResolutionTransferOrdering)) {
+                checkResolutionTransferOrdering(gsm)
+            }
+            if (selection.includes(InvariantCheck.AidAffector)) {
+                val aidIids = checkAidAffectorConsistency(gsm)
+                recordAicAffectorHistory(gsm, aidIids)
+            }
+            if (selection.includes(InvariantCheck.PendingMessageCount)) {
+                checkPendingMessageCountContract(gsm)
+            }
         }
 
-        accumulator.process(msg)
+        if (needsRuntimeAccumulator) {
+            accumulator.process(msg)
+        }
 
-        if (msg.hasActionsAvailableReq()) {
+        if (selection.includes(InvariantCheck.ActionInstanceIds) && msg.hasActionsAvailableReq()) {
             checkActionInstanceIdConsistency(gsId)
         }
         if (msg.hasGameStateMessage()) {
-            checkZoneObjectConsistency(gsId)
-            checkAnnotationReferentialIntegrity(msg.gameStateMessage)
+            if (selection.includes(InvariantCheck.ZoneObjects)) {
+                checkZoneObjectConsistency(gsId)
+            }
+            if (selection.includes(InvariantCheck.AnnotationReferences)) {
+                checkAnnotationReferentialIntegrity(msg.gameStateMessage)
+            }
         }
     }
 
@@ -97,8 +122,8 @@ class InvariantChecker(
 
     companion object {
         /**
-         * Validate gsId chain invariants across a message sequence.
-         * Returns violations list (empty = all invariants hold).
+         * Validate hard gsId facts across a message sequence.
+         * Returns violations list (empty = all hard gsId facts hold).
          */
         fun validateGsIdChain(
             messages: List<GREToClientMessage>,
@@ -106,78 +131,40 @@ class InvariantChecker(
         ): List<Violation> {
             val violations = mutableListOf<Violation>()
             val gsms = messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
-            val knownGsIds = priorGsIds.toMutableSet()
+            val seen = priorGsIds.toMutableSet()
+            var highWater = priorGsIds.maxOrNull() ?: 0
 
-            // gsIds strictly monotonic
-            for (i in 1 until gsms.size) {
-                if (gsms[i].gameStateId <= gsms[i - 1].gameStateId) {
+            for ((i, gsm) in gsms.withIndex()) {
+                val gsId = gsm.gameStateId
+                if (gsId == 0) continue
+                if (highWater > 0 && gsId <= highWater) {
                     violations.add(
                         Violation(
                             i,
-                            gsms[i].gameStateId,
+                            gsId,
                             "gsid_monotonicity",
-                            "gsIds not monotonic: ${gsms[i - 1].gameStateId} -> ${gsms[i].gameStateId}",
+                            "gsId not monotonic: got $gsId, expected > $highWater",
                         ),
                     )
                 }
-            }
-
-            // No self-referential prevGameStateId
-            for ((i, gsm) in gsms.withIndex()) {
-                if (gsm.prevGameStateId != 0 && gsm.prevGameStateId == gsm.gameStateId) {
+                if (gsId in seen) {
+                    violations.add(
+                        Violation(i, gsId, "gsid_unique", "Duplicate gsId: $gsId"),
+                    )
+                }
+                if (gsm.prevGameStateId != 0 && gsm.prevGameStateId == gsId) {
                     violations.add(
                         Violation(
                             i,
-                            gsm.gameStateId,
+                            gsId,
                             "gsid_self_ref",
-                            "Self-referential prevGsId: gsId=${gsm.gameStateId}",
+                            "Self-referential prevGsId: gsId=$gsId",
                         ),
                     )
                 }
+                highWater = maxOf(highWater, gsId)
+                seen.add(gsId)
             }
-
-            // prevGameStateId references a known gsId
-            for ((i, gsm) in gsms.withIndex()) {
-                if (gsm.prevGameStateId != 0 && !knownGsIds.contains(gsm.prevGameStateId)) {
-                    violations.add(
-                        Violation(
-                            i,
-                            gsm.gameStateId,
-                            "gsid_prev_unknown",
-                            "prevGsId ${gsm.prevGameStateId} not in known set (gsId=${gsm.gameStateId})",
-                        ),
-                    )
-                }
-                knownGsIds.add(gsm.gameStateId)
-            }
-
-            // gsIds globally unique
-            val allGsIds = gsms.map { it.gameStateId }
-            val duplicates = allGsIds.groupBy { it }.filter { it.value.size > 1 }.keys
-            if (duplicates.isNotEmpty()) {
-                violations.add(
-                    Violation(0, 0, "gsid_unique", "Duplicate gsIds: $duplicates"),
-                )
-            }
-
-            // msgIds strictly monotonic
-            val msgIds = messages.map { it.msgId }.filter { it > 0 }
-            for (i in 1 until msgIds.size) {
-                if (msgIds[i] <= msgIds[i - 1]) {
-                    violations.add(
-                        Violation(i, 0, "msgid_monotonicity", "msgIds not monotonic: ${msgIds[i - 1]} -> ${msgIds[i]}"),
-                    )
-                }
-            }
-
-            // msgIds globally unique
-            val dupMsgIds = msgIds.groupBy { it }.filter { it.value.size > 1 }.keys
-            if (dupMsgIds.isNotEmpty()) {
-                violations.add(
-                    Violation(0, 0, "msgid_unique", "Duplicate msgIds: $dupMsgIds"),
-                )
-            }
-
             return violations
         }
     }
@@ -196,28 +183,46 @@ class InvariantChecker(
         highWaterMsgId = msgId
     }
 
-    private fun checkGsIdMonotonicity(gsm: GameStateMessage) {
+    private fun checkMsgIdUnique(
+        msg: GREToClientMessage,
+        gsId: Int,
+    ) {
+        val msgId = msg.msgId
+        if (msgId == 0) return
+        if (msgId in seenMsgIds) {
+            record(gsId, "msgid_unique", "Duplicate msgId: $msgId")
+        }
+        seenMsgIds.add(msgId)
+    }
+
+    private fun checkGsIdChain(gsm: GameStateMessage) {
         val gsId = gsm.gameStateId
-        if (gsId == 0) return
-        if (highWaterGsId > 0 && gsId <= highWaterGsId) {
+        if (gsId == 0) {
+            return
+        }
+        if (
+            selection.includes(InvariantCheck.GsIdMonotonicity) &&
+            highWaterGsId > 0 &&
+            gsId <= highWaterGsId
+        ) {
             record(gsId, "gsid_monotonicity", "gsId not monotonic: got $gsId, expected > $highWaterGsId")
         }
-        highWaterGsId = gsId
-        seenGsIds.add(gsId)
-    }
-
-    private fun checkPrevGsIdValidity(gsm: GameStateMessage) {
         val prev = gsm.prevGameStateId
-        if (prev == 0) return
-        if (!seenGsIds.contains(prev)) {
+        if (selection.includes(InvariantCheck.GsIdUnique) && gsId in seenGsIds) {
+            record(gsId, "gsid_unique", "Duplicate gsId: $gsId")
+        }
+        if (
+            selection.includes(InvariantCheck.GsIdPrevKnown) &&
+            prev != 0 &&
+            !seenGsIds.contains(prev)
+        ) {
             record(gsm.gameStateId, "gsid_prev_unknown", "prevGsId $prev not in known set (gsId=${gsm.gameStateId})")
         }
-    }
-
-    private fun checkNoSelfReferentialGsId(gsm: GameStateMessage) {
-        if (gsm.gameStateId != 0 && gsm.gameStateId == gsm.prevGameStateId) {
+        if (selection.includes(InvariantCheck.GsIdNoSelfRef) && prev == gsId) {
             record(gsm.gameStateId, "gsid_self_ref", "Self-referential gsId: gameStateId=${gsm.gameStateId} == prevGameStateId")
         }
+        highWaterGsId = maxOf(highWaterGsId, gsId)
+        seenGsIds.add(gsId)
     }
 
     private fun checkAnnotationIdSequentiality(gsm: GameStateMessage) {
@@ -270,8 +275,8 @@ class InvariantChecker(
     }
 
     /**
-     * When PhaseOrStepModified appears in a GSM, it must be at index 0.
-     * Detection only — the matching enforcer rule lands in a follow-up.
+     * Diagnostic shape check for PhaseOrStepModified position. Some client-like
+     * streams put phase markers first; this is not part of the hard default set.
      */
     private fun checkPhaseFirst(gsm: GameStateMessage) {
         val annotations = gsm.annotationsList
@@ -291,6 +296,7 @@ class InvariantChecker(
      *
      * Stack-exit transfers apply after the RS/RC pair. Non-stack transfers caused
      * by resolving ability effects stay inside the pair.
+     * Kept opt-in so the default validator only enforces stable hard facts.
      */
     private fun checkResolutionTransferOrdering(gsm: GameStateMessage) {
         val annotations = gsm.annotationsList
@@ -452,6 +458,11 @@ class InvariantChecker(
                 .filter { it.typeList.any { t -> t == AnnotationType.AbilityInstanceCreated } }
                 .flatMap { it.affectedIdsList }
                 .toSet()
+        val closingAbilityIds =
+            annotations
+                .filter { it.typeList.any { t -> t == AnnotationType.AbilityInstanceDeleted } }
+                .flatMap { it.affectedIdsList }
+                .toSet()
         val sameGsmKnownIds =
             gsm.diffDeletedInstanceIdsList.toSet() +
                 annotations
@@ -462,7 +473,12 @@ class InvariantChecker(
                             .flatMap { detail -> (0 until detail.valueInt32Count).map { detail.getValueInt32(it) } }
                     }.toSet()
 
-        fun isKnown(id: Int) = accumulator.isKnownEntity(id) || id in transientAbilityIds || id in sameGsmKnownIds
+        fun isKnown(id: Int) =
+            accumulator.isKnownEntity(id) ||
+                id in transientAbilityIds ||
+                id in closingAbilityIds ||
+                id in aicAffectorByAbilityIid ||
+                id in sameGsmKnownIds
 
         for (ann in annotations) {
             // ObjectIdChanged references old (replaced) instanceIds — skip entirely

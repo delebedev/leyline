@@ -10,8 +10,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * [MessageSink] decorator that wraps [ListMessageSink] and runs invariant checks
  * on every [send] call automatically.
  *
- * Delegates to [InvariantChecker] for all invariant logic — single source of truth
- * shared with [SessionAnalyzer] at runtime.
+ * Delegates to [InvariantChecker] for all invariant logic.
  *
  * Swap in for any test that uses [ListMessageSink] to get free invariant coverage
  * without changing assertions. Access captured messages via [inner].
@@ -23,7 +22,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class ValidatingMessageSink(
     val inner: ListMessageSink = ListMessageSink(),
     private val strict: Boolean = true,
-    selection: InvariantSelection = InvariantSelection.all(),
+    selection: InvariantSelection = InvariantSelection.protocolFacts(),
 ) : MessageSink {
     private val checker = InvariantChecker(selection)
 

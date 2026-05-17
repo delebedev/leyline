@@ -36,6 +36,7 @@ sealed interface ClassifiedPrompt {
             Resolution,
             ExileFromGrave,
             StationTapCost,
+            ReturnUnblockedAttackerCost,
         }
     }
 
@@ -82,6 +83,8 @@ object PromptClassifier {
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.ExileFromGrave)
             PromptSemantic.StationTapCost ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.StationTapCost)
+            PromptSemantic.ReturnUnblockedAttackerCost ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost)
             PromptSemantic.SelectNResolution ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.Resolution)
             PromptSemantic.Generic -> null

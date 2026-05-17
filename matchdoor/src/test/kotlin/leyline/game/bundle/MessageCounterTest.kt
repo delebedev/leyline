@@ -57,6 +57,42 @@ class MessageCounterTest :
             c.lastGameStateGsId() shouldBe 3
         }
 
+        test("nextGameStateLink allocates gsId with a lower predecessor") {
+            val c = MessageCounter(initialGsId = 10)
+            val link = c.nextGameStateLink()
+
+            assertSoftly {
+                link.gsId shouldBe 11
+                link.prevGsId shouldBe 10
+                c.currentGsId() shouldBe 11
+            }
+        }
+
+        test("nextGameStateLink prefers last emitted GameStateMessage") {
+            val c = MessageCounter(initialGsId = 20)
+            c.markGameStateGsId(12)
+            val link = c.nextGameStateLink()
+
+            assertSoftly {
+                link.gsId shouldBe 21
+                link.prevGsId shouldBe 12
+            }
+        }
+
+        test("snapshot exposes counter and horizon state") {
+            val c = MessageCounter(initialGsId = 2, initialMsgId = 5)
+            c.markPromptGsId(7)
+            c.markGameStateGsId(4)
+
+            c.snapshot() shouldBe
+                MessageCounter.Snapshot(
+                    currentGsId = 2,
+                    currentMsgId = 5,
+                    lastPromptGsId = 7,
+                    lastGameStateGsId = 4,
+                )
+        }
+
         test("markPromptGsId moves the horizon forward") {
             val c = MessageCounter()
             assertSoftly {

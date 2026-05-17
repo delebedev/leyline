@@ -19,14 +19,10 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairInfo
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
 /**
- * Unit tests for phase and resolution annotation-order checks.
+ * Unit tests for focused [InvariantChecker] diagnostics and hard checks.
  *
- * PhaseOrStepModified, when present in a GSM, must be at index 0 of
- * the annotation list. Detection only — no enforcement here.
- *
- * Resolve-category ZoneTransfer annotations, when both ResolutionStart
- * and ResolutionComplete are present in the same GSM, are ordered by source
- * zone. Detection only.
+ * Phase and resolution ordering checks are diagnostics, so these tests select
+ * them explicitly instead of relying on the default hard-check set.
  */
 class InvariantCheckerTest :
     FunSpec({
@@ -98,6 +94,17 @@ class InvariantCheckerTest :
                 .addAffectedIds(abilityIid)
                 .build()
 
+        fun resolutionStartAnnotation(
+            id: Int,
+            abilityIid: Int,
+        ): AnnotationInfo =
+            AnnotationInfo
+                .newBuilder()
+                .setId(id)
+                .addType(AnnotationType.ResolutionStart)
+                .setAffectorId(abilityIid)
+                .build()
+
         fun gsm(
             gsId: Int,
             annotations: List<AnnotationInfo>,
@@ -120,10 +127,15 @@ class InvariantCheckerTest :
                 .setGameStateMessage(gsm)
                 .build()
 
+        fun checkerFor(
+            reason: String,
+            vararg checks: InvariantCheck,
+        ) = InvariantChecker(InvariantSelection.only(reason, *checks))
+
         // --- Tests ---
 
         test("phase_first violation when PhaseOrStepModified is not at index 0") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("phase diagnostic", InvariantCheck.PhaseFirst)
             val g =
                 gsm(
                     gsId = 1,
@@ -143,7 +155,7 @@ class InvariantCheckerTest :
         }
 
         test("no phase_first violation when PhaseOrStepModified is at index 0") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("phase diagnostic", InvariantCheck.PhaseFirst)
             val g =
                 gsm(
                     gsId = 1,
@@ -160,7 +172,7 @@ class InvariantCheckerTest :
         }
 
         test("no phase_first violation when PhaseOrStepModified is absent") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("phase diagnostic", InvariantCheck.PhaseFirst)
             val g =
                 gsm(
                     gsId = 1,
@@ -177,7 +189,7 @@ class InvariantCheckerTest :
         }
 
         test("no phase_first violation when multiple PhaseOrStepModified and first is at index 0") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("phase diagnostic", InvariantCheck.PhaseFirst)
             val g =
                 gsm(
                     gsId = 1,
@@ -196,8 +208,10 @@ class InvariantCheckerTest :
 
         // --- resolution_transfer_ordering tests ---
 
+        fun resolutionChecker() = checkerFor("resolution diagnostic", InvariantCheck.ResolutionTransferOrdering)
+
         test("resolution_transfer_ordering violation when stack Resolve ZT lands before ResolutionStart") {
-            val checker = InvariantChecker()
+            val checker = resolutionChecker()
             val g =
                 gsm(
                     gsId = 1,
@@ -218,7 +232,7 @@ class InvariantCheckerTest :
         }
 
         test("resolution_transfer_ordering violation when stack Resolve ZT lands between ResolutionStart and ResolutionComplete") {
-            val checker = InvariantChecker()
+            val checker = resolutionChecker()
             val g =
                 gsm(
                     gsId = 1,
@@ -238,7 +252,7 @@ class InvariantCheckerTest :
         }
 
         test("resolution_transfer_ordering records two violations when stack Resolve ZTs precede ResolutionComplete") {
-            val checker = InvariantChecker()
+            val checker = resolutionChecker()
             val g =
                 gsm(
                     gsId = 1,
@@ -253,12 +267,11 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            val ordering = checker.violations.filter { it.check == "resolution_transfer_ordering" }
-            ordering.size shouldBe 2
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.size shouldBe 2
         }
 
         test("no resolution_transfer_ordering violation when stack Resolve ZT follows ResolutionComplete") {
-            val checker = InvariantChecker()
+            val checker = resolutionChecker()
             val g =
                 gsm(
                     gsId = 1,
@@ -276,15 +289,8 @@ class InvariantCheckerTest :
         }
 
         test("no resolution_transfer_ordering violation when RS and RC are absent") {
-            val checker = InvariantChecker()
-            val g =
-                gsm(
-                    gsId = 1,
-                    annotations =
-                        listOf(
-                            zoneTransferAnnotation(1, "Resolve"),
-                        ),
-                )
+            val checker = resolutionChecker()
+            val g = gsm(gsId = 1, annotations = listOf(zoneTransferAnnotation(1, "Resolve")))
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
@@ -292,7 +298,7 @@ class InvariantCheckerTest :
         }
 
         test("no resolution_transfer_ordering violation when non-Resolve ZT sits before ResolutionComplete") {
-            val checker = InvariantChecker()
+            val checker = resolutionChecker()
             val g =
                 gsm(
                     gsId = 1,
@@ -310,7 +316,7 @@ class InvariantCheckerTest :
         }
 
         test("no resolution_transfer_ordering violation when multiple stack Resolve ZTs follow ResolutionComplete") {
-            val checker = InvariantChecker()
+            val checker = resolutionChecker()
             val g =
                 gsm(
                     gsId = 1,
@@ -331,7 +337,7 @@ class InvariantCheckerTest :
         test(
             "no resolution_transfer_ordering violation when non-stack Resolve ZT sits inside ResolutionStart and ResolutionComplete",
         ) {
-            val checker = InvariantChecker()
+            val checker = resolutionChecker()
             val g =
                 gsm(
                     gsId = 1,
@@ -349,7 +355,7 @@ class InvariantCheckerTest :
         }
 
         test("resolution_transfer_ordering violation when non-stack Resolve ZT lands before ResolutionStart") {
-            val checker = InvariantChecker()
+            val checker = resolutionChecker()
             val g =
                 gsm(
                     gsId = 1,
@@ -362,9 +368,7 @@ class InvariantCheckerTest :
                 )
 
             checker.process(greMessage(msgId = 1, gsm = g))
-
-            val ordering = checker.violations.filter { it.check == "resolution_transfer_ordering" }
-            ordering.size shouldBe 1
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.size shouldBe 1
         }
 
         // --- aid_affector tests ---
@@ -452,6 +456,25 @@ class InvariantCheckerTest :
                 mismatches.size shouldBe 1
                 mismatches[0].message shouldContain "ability=10"
             }
+        }
+
+        test("annotation_ref treats open ability lifecycles as known ids") {
+            val checker = InvariantChecker()
+            val g1 = gsm(gsId = 1, annotations = listOf(aicAnnotation(id = 1, abilityIid = 116, affectorId = 1)))
+            val g2 =
+                gsm(
+                    gsId = 2,
+                    annotations =
+                        listOf(
+                            resolutionStartAnnotation(id = 1, abilityIid = 116),
+                            aidAnnotation(id = 2, abilityIid = 116, affectorId = 1),
+                        ),
+                )
+
+            checker.process(greMessage(msgId = 1, gsm = g1))
+            checker.process(greMessage(msgId = 2, gsm = g2))
+
+            checker.violations.filter { it.check == "annotation_ref" }.shouldBeEmpty()
         }
 
         test("aid_affector entry is pruned after AID fires") {

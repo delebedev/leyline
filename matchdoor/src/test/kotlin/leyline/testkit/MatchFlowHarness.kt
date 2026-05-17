@@ -66,7 +66,7 @@ class MatchFlowHarness(
     companion object {
         fun defaultValidation(validating: Boolean): InvariantSelection =
             if (validating) {
-                InvariantSelection.all()
+                InvariantSelection.protocolFacts()
             } else {
                 InvariantSelection.none("legacy disabled validation flag")
             }

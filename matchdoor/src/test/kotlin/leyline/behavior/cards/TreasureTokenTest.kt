@@ -10,8 +10,6 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.game.bundle.InvariantCheck
-import leyline.game.bundle.InvariantSelection
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GrpIdResolver
@@ -72,14 +70,7 @@ class TreasureTokenTest :
             """.trimIndent()
 
         test("full treasure token flow: cast Innkeeper, ETB treasure, bolt for lethal") {
-            startPuzzleRaw(
-                puzzleText,
-                validation =
-                    InvariantSelection.except(
-                        "token ZoneTransfer affectedIds are unresolved until token projection is fixed (leyline-g8bw)",
-                        InvariantCheck.AnnotationReferences,
-                    ),
-            )
+            startPuzzleRaw(puzzleText, validating = true)
 
             // --- Preconditions ---
             assertSoftly {

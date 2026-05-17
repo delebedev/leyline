@@ -144,6 +144,18 @@ class PromptClassifierTest :
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.StationTapCost
         }
 
+        test("return-unblocked-attacker semantic classifies as cost payment") {
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "Return an unblocked attacker",
+                    semantic = PromptSemantic.ReturnUnblockedAttackerCost,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost
+        }
+
         test("generic choose-cards prompt does not infer sacrifice from message text") {
             val result =
                 classify(
