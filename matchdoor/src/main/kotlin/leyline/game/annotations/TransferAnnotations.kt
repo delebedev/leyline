@@ -285,7 +285,7 @@ object TransferAnnotations {
     ): List<AnnotationInfo> {
         if (ev.isAbility) return emptyList()
         val annotations = mutableListOf<AnnotationInfo>()
-        val spellIid = idResolver(ev.cardId)
+        val spellIid = ev.stackInstanceId.takeIf { it != 0 }?.let(::InstanceId) ?: idResolver(ev.cardId)
         for ((i, mp) in ev.manaPayments.withIndex()) {
             val landIid = idResolver(mp.sourceCardId)
             val manaAbilityIid = idResolver(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId))

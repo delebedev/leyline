@@ -90,6 +90,8 @@ sealed interface GameEvent {
         val altCostAbilityGrpId: Int = 0,
         /** Cast-through ability identity when it differs from [altCostAbilityGrpId]. */
         val castAbilityGrpId: Int = altCostAbilityGrpId,
+        /** Explicit stack iid for collapsed copy-cast flows that may resolve before the next snapshot. */
+        val stackInstanceId: Int = 0,
         /**
          * True when the stack item is an Ability gameObject (triggered OR
          * activated), not a player-cast spell. The SpellCast-driven
@@ -148,6 +150,10 @@ sealed interface GameEvent {
         val abilityForgeId: Int = 0,
         /** Client ability grpId for ability lifecycle annotations, when known. */
         val abilityGrpId: Int = 0,
+        /** True when the resolved spell is a Paradigm copy cast from exile. */
+        val isParadigmCopy: Boolean = false,
+        /** Stack iid allocated when the Paradigm copy was cast. */
+        val stackInstanceId: Int = 0,
     ) : GameEvent
 
     /** A card changed zones (generic — covers destroy, exile, sacrifice, bounce, etc.). */

@@ -10,6 +10,7 @@ import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -76,12 +77,21 @@ class ParadigmLifecycleTest :
                     gsms().flatMap { it.annotationsList }.any { it.isParadigmCopyCastAction() }
                 }
             sawFreeCopyCast.shouldBeTrue()
+            val sawCopySelfExile =
+                harness.passUntil(maxPasses = 30) {
+                    gsms()
+                        .flatMap { it.annotationsList }
+                        .count { it.isStackToExileParadigmTransfer() }
+                        .let { it >= 2 }
+                }
+            sawCopySelfExile.shouldBeTrue()
 
             val allGsms = gsms()
             assertSoftly {
                 allGsms
                     .flatMap { it.annotationsList }
-                    .any { it.isStackToExileParadigmTransfer() }
+                    .count { it.isStackToExileParadigmTransfer() }
+                    .let { it >= 2 }
                     .shouldBeTrue()
 
                 allGsms
@@ -153,10 +163,25 @@ class ParadigmLifecycleTest :
 
             selectTargets(listOf(OPPONENT_SEAT))
             passUntilResolved()
+            val sawCopySelfExile =
+                harness.passUntil(maxPasses = 30) {
+                    gsms()
+                        .flatMap { it.annotationsList }
+                        .count { it.isStackToExileParadigmTransfer() }
+                        .let { it >= 2 }
+                }
 
-            gsms()
-                .flatMap { it.annotationsList }
-                .firstOrNull { it.isParadigmCopyCastAction() } shouldNotBe null
+            assertSoftly {
+                sawCopySelfExile.shouldBeTrue()
+                gsms()
+                    .flatMap { it.annotationsList }
+                    .firstOrNull { it.isParadigmCopyCastAction() } shouldNotBe null
+                gsms()
+                    .flatMap { it.annotationsList }
+                    .count { it.isStackToExileParadigmTransfer() }
+                    .let { it >= 2 }
+                    .shouldBeTrue()
+            }
         }
     })
 
@@ -165,17 +190,17 @@ private fun List<GREToClientMessage>.gsms(): List<GameStateMessage> =
 
 private fun SessionTest.gsms(): List<GameStateMessage> = allMessages.gsms()
 
-private fun wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo.isStackToExileParadigmTransfer(): Boolean =
+private fun AnnotationInfo.isStackToExileParadigmTransfer(): Boolean =
     typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
         detailInt("zone_src") == ZoneIds.STACK &&
         detailInt("zone_dest") == ZoneIds.EXILE &&
         detailString("category") == "Exile"
 
-private fun wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo.isParadigmCopyCastAction(): Boolean =
+private fun AnnotationInfo.isParadigmCopyCastAction(): Boolean =
     typeList.contains(AnnotationType.UserActionTaken) &&
         detailIntOrNull("actionType") == ActionType.Cast.number &&
         detailIntOrNull("alternativeGrpId") == FREE_CAST &&
         detailIntOrNull("abilityGrpId") == PARADIGM_COPY_TRIGGER
 
-private fun wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo.detailIntOrNull(key: String): Int? =
+private fun AnnotationInfo.detailIntOrNull(key: String): Int? =
     detailsList.firstOrNull { it.key == key }?.takeIf { it.valueInt32Count > 0 }?.getValueInt32(0)
