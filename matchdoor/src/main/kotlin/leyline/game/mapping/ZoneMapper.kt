@@ -302,6 +302,12 @@ object ZoneMapper {
                     )
                     grpId
                 }
+            val parentInstanceId =
+                if (grpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER) {
+                    bridge.paradigmSourceStackIidFor(entry.forgeCardId) ?: 0
+                } else {
+                    0
+                }
 
             zoneBuilder.addObjectInstanceIds(abilityInstanceId)
             gameObjects.add(
@@ -311,6 +317,7 @@ object ZoneMapper {
                     instanceId = abilityInstanceId,
                     ownerSeatId = entry.owner.value,
                     cardProto = bridge.cardProto,
+                    parentInstanceId = parentInstanceId,
                 ),
             )
         }

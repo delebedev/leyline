@@ -126,8 +126,7 @@ class GamePlayback(
         hostCardForgeId: Int?,
         sa: SpellAbility?,
     ): Boolean {
-        if (hostCardForgeId == null) return false
-        if (sa == null) return false
+        if (hostCardForgeId == null || sa == null) return false
         if (hasLocalTurnSplitKeyword(hostCardForgeId, sa)) return true
         return isNonInteractiveLocalTrigger(sa)
     }
@@ -155,7 +154,8 @@ class GamePlayback(
         sa: SpellAbility,
     ): Boolean {
         val card = bridge.findCard(ForgeCardId(hostCardForgeId)) ?: return false
-        val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return false
+        val sourceCard = card.effectSource ?: card
+        val grpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return false
         return when {
             hasKeywordGrpId(grpId, KeywordAbilityIds.MOBILIZE) ->
                 sa.api == ApiType.Token && sa.trigger?.getParam("Mode") == "Attacks"
@@ -164,6 +164,7 @@ class GamePlayback(
             hasKeywordGrpId(grpId, KeywordAbilityIds.DECAYED) ->
                 (sa.api == ApiType.DelayedTrigger && sa.trigger?.getParam("Mode") == "Attacks") ||
                     (sa.api == ApiType.Sacrifice && sa.trigger?.getParam("Phase") == "EndCombat")
+            hasKeywordGrpId(grpId, KeywordAbilityIds.PARADIGM) -> true
             else -> false
         }
     }

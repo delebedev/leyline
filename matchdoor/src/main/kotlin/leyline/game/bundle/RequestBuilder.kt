@@ -105,6 +105,7 @@ object RequestBuilder {
      * to emitting all non-selected candidates as Select — unblocks the client
      * without a legality filter.
      */
+    @Suppress("CyclomaticComplexMethod")
     fun buildSelectTargetsRePrompt(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,

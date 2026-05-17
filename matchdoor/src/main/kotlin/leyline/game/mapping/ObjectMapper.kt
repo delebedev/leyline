@@ -34,18 +34,22 @@ object ObjectMapper {
         instanceId: Int,
         ownerSeatId: Int,
         cardProto: CardProtoBuilder,
-    ): GameObjectInfo =
-        cardProto
-            .buildObjectInfo(sourceCardGrpId)
-            .setGrpId(grpId)
-            .setInstanceId(instanceId)
-            .setType(GameObjectType.Ability)
-            .setZoneId(ZoneIds.STACK)
-            .setVisibility(Visibility.Public)
-            .setOwnerSeatId(ownerSeatId)
-            .setControllerSeatId(ownerSeatId)
-            .setObjectSourceGrpId(sourceCardGrpId)
-            .build()
+        parentInstanceId: Int = 0,
+    ): GameObjectInfo {
+        val builder =
+            cardProto
+                .buildObjectInfo(sourceCardGrpId)
+                .setGrpId(grpId)
+                .setInstanceId(instanceId)
+                .setType(GameObjectType.Ability)
+                .setZoneId(ZoneIds.STACK)
+                .setVisibility(Visibility.Public)
+                .setOwnerSeatId(ownerSeatId)
+                .setControllerSeatId(ownerSeatId)
+                .setObjectSourceGrpId(sourceCardGrpId)
+        if (parentInstanceId != 0) builder.parentId = parentInstanceId
+        return builder.build()
+    }
 
     /**
      * Build a [GameObjectInfo] for a transient `TriggerHolder` object that owns a

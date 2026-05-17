@@ -1,0 +1,17 @@
+[metadata]
+Name:Paradigm - Decorum Live
+Goal:Cast Decorum Dissertation, then cast the recurring copy.
+Turns:6
+Difficulty:Easy
+Description:Target a player with the original and copied Paradigm spell.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Decorum Dissertation
+humanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

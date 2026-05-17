@@ -354,6 +354,7 @@ object StateMapper {
 
         // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
         val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, eventsMutable)
+        recordParadigmSourceStackIids(transferResult, bridge)
         // Frame-scoped id resolver — uses the planned-realloc map so any consumer
         // asking "what iid will the client see for this card?" gets the
         // post-realloc answer even before applyMutations runs.
@@ -715,6 +716,7 @@ object StateMapper {
                 rightUnlockedDesignationPersistentFromSnap = rightUnlockedDesignationPersistentFromSnap,
                 dayNightDesignationPersistentFromSnap = dayNightDesignationPersistentFromSnap,
                 faceDownDisguisePersistentFromSnap = faceDownDisguisePersistentFromSnap,
+                transferResult = transferResult,
             )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
@@ -748,6 +750,32 @@ object StateMapper {
 
         val hasCastSpell = transferResult.transfers.any { it.category == TransferCategory.CastSpell }
         return BuildResult(built, hasCastSpell, mutations)
+    }
+
+    private fun recordParadigmSourceStackIids(
+        transferResult: TransferResult,
+        bridge: GameBridge,
+    ) {
+        for (transfer in transferResult.transfers) {
+            val forgeCardId = transfer.forgeCardId ?: continue
+            val isParadigm =
+                bridge.findCard(forgeCardId)?.hasKeyword("Paradigm") == true ||
+                    bridge.cardRepository.findKeywordAbilityGrpId(transfer.grpId, KeywordAbilityIds.PARADIGM) != null
+            if (!isParadigm) continue
+            val isOriginalCast =
+                transfer.category == TransferCategory.CastSpell &&
+                    (transfer.srcZoneId == ZoneIds.P1_HAND || transfer.srcZoneId == ZoneIds.P2_HAND) &&
+                    transfer.destZoneId == ZoneIds.STACK
+            val isStackSelfExile =
+                transfer.category == TransferCategory.Exile &&
+                    transfer.srcZoneId == ZoneIds.STACK &&
+                    transfer.destZoneId == ZoneIds.EXILE
+            if (isOriginalCast) {
+                bridge.paradigmSourceStackIids[forgeCardId] = transfer.newId
+            } else if (isStackSelfExile) {
+                bridge.paradigmSourceStackIids.putIfAbsent(forgeCardId, transfer.origId)
+            }
+        }
     }
 
     /**
@@ -1158,6 +1186,7 @@ object StateMapper {
         rightUnlockedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         dayNightDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
         faceDownDisguisePersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        transferResult: TransferResult,
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds =
             events
@@ -1171,6 +1200,12 @@ object StateMapper {
                 .map { it.cardId }
                 .toSet()
         val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds
+        val castStackIidsByCard =
+            transferResult.transfers
+                .asSequence()
+                .filter { it.category == TransferCategory.CastSpell }
+                .mapNotNull { transfer -> transfer.forgeCardId?.let { it to InstanceId(transfer.newId) } }
+                .toMap()
         val mechanicResult =
             MechanicAnnotations.mechanicAnnotations(
                 events,
@@ -1193,6 +1228,7 @@ object StateMapper {
                 },
                 counterAffectorResolver = { eventIndex, ev -> counterAffectorFor(eventIndex, ev, events, frameIds) },
                 playerCounterAffectorResolver = { eventIndex, ev -> playerCounterAffectorFor(eventIndex, ev, events, frameIds) },
+                stackInstanceResolver = { ev -> castStackIidsByCard[ev.cardId] },
             )
         // Token entries belong before combat damage: a Mobilize trigger that
         // resolves between attacker declaration and combat damage produces tokens
@@ -1334,6 +1370,7 @@ object StateMapper {
      * Assemble stages 2-3 around the key invariant for lethal damage:
      * DamageDealt must land before the victim's destroy transfer.
      */
+    @Suppress("LongMethod")
     internal fun assembleTransferAndCombatAnnotations(
         events: List<GameEvent>,
         transferResult: TransferResult,
@@ -1407,6 +1444,7 @@ object StateMapper {
         for (transfer in immediateTransfers) emitTransfer(transfer)
         // Snapshot-derived appearances (cast spells visible on the stack at snapshot time).
         val snapshotSourceIids = transferResult.stackAbilityAppearances.map { it.sourceCardInstanceId }.toSet()
+        val snapshotAppearanceIids = transferResult.stackAbilityAppearances.map { it.abilityInstanceId }.toSet()
         for (a in transferResult.stackAbilityAppearances) {
             // Snapshot-derived sourceZoneId reads `previousZones[sourceCardIid]`
             // which is 0 when the source card wasn't tracked through the diff
@@ -1414,6 +1452,14 @@ object StateMapper {
             // SpellCast event carries an explicit activationZoneId — prefer it
             // when non-zero so cycling=Hand and unearth=Graveyard both land.
             val sourceZone = if (a.activationZoneId != 0) a.activationZoneId else a.sourceZoneId
+            bridge?.abilityLineage?.record(
+                AbilityWireIdentity(
+                    abilityIid = a.abilityInstanceId,
+                    sourceIidAtCreate = a.sourceCardInstanceId,
+                    sourceZoneAtCreate = sourceZone,
+                    abilityGrpId = a.grpId,
+                ),
+            )
             annotations.add(
                 AnnotationBuilder.abilityInstanceCreated(
                     InstanceId(a.abilityInstanceId),
@@ -1446,6 +1492,7 @@ object StateMapper {
             emitTriggerLifecycleAnnotations(
                 events = events,
                 snapshotSourceIids = snapshotSourceIids,
+                snapshotAppearanceIids = snapshotAppearanceIids,
                 snapshotDisappearanceIids = snapshotDisappearanceIids,
                 annotations = annotations,
                 transferPersistent = transferPersistent,
@@ -1483,9 +1530,11 @@ object StateMapper {
      * distinct iids; falls back to source-card-keyed surrogate when the
      * collector didn't surface the SA id (legacy paths, defensive 0).
      */
+    @Suppress("CyclomaticComplexMethod")
     private fun emitTriggerLifecycleAnnotations(
         events: List<GameEvent>,
         snapshotSourceIids: Set<Int>,
+        snapshotAppearanceIids: Set<Int>,
         snapshotDisappearanceIids: Set<Int>,
         annotations: MutableList<AnnotationInfo>,
         transferPersistent: MutableList<AnnotationInfo>,
@@ -1495,11 +1544,22 @@ object StateMapper {
     ) {
         // Cast half: AbilityInstanceCreated (when snap-diff missed it) + persistent TriggeringObject.
         for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }) {
-            val sourceCardIid = frameIds.cardIid(cast.cardId).value
+            val isParadigmTrigger = cast.isParadigmDelayedTrigger()
+            val sourceCardIid =
+                if (isParadigmTrigger) {
+                    bridge.paradigmSourceStackIidFor(cast.cardId) ?: frameIds.cardIid(cast.cardId).value
+                } else {
+                    frameIds.cardIid(cast.cardId).value
+                }
             val abilityIid = stackAbilityIidFor(cast.abilityForgeId, cast.cardId, frameIds)
-            val sourceZone = cast.activationZoneId.takeIf { it != 0 } ?: currentSourceZoneId(cast.cardId, bridge)
+            val sourceZone =
+                if (isParadigmTrigger) {
+                    ZoneIds.STACK
+                } else {
+                    cast.activationZoneId.takeIf { it != 0 } ?: currentSourceZoneId(cast.cardId, bridge)
+                }
 
-            if (sourceCardIid in snapshotSourceIids) continue
+            if (abilityIid in snapshotAppearanceIids || sourceCardIid in snapshotSourceIids) continue
             bridge.abilityLineage.record(
                 AbilityWireIdentity(
                     abilityIid = abilityIid,
@@ -1536,7 +1596,7 @@ object StateMapper {
             val sourceZone =
                 if (cast.activationZoneId != 0) cast.activationZoneId else currentSourceZoneId(cast.cardId, bridge)
 
-            if (sourceCardIid in snapshotSourceIids) continue
+            if (abilityIid in snapshotAppearanceIids || sourceCardIid in snapshotSourceIids) continue
             bridge.abilityLineage.record(
                 AbilityWireIdentity(
                     abilityIid = abilityIid,
@@ -1560,7 +1620,12 @@ object StateMapper {
         // these for stack-only abilities) + AbilityInstanceDeleted (when snap-diff
         // missed it). Same shape applies for triggered and activated abilities.
         for (resolved in events.filterIsInstance<GameEvent.SpellResolved>().filter { it.isTrigger || it.isAbility }) {
-            val sourceCardIid = frameIds.cardIid(resolved.cardId).value
+            val sourceCardIid =
+                if (resolved.isParadigmDelayedTrigger()) {
+                    bridge.paradigmSourceStackIidFor(resolved.cardId) ?: frameIds.cardIid(resolved.cardId).value
+                } else {
+                    frameIds.cardIid(resolved.cardId).value
+                }
             val abilityIid = stackAbilityIidFor(resolved.abilityForgeId, resolved.cardId, frameIds)
             val lineage =
                 if (abilityIid in snapshotDisappearanceIids) {
@@ -1586,6 +1651,14 @@ object StateMapper {
             }
         }
     }
+
+    @Suppress("UnusedPrivateMember")
+    private fun GameEvent.SpellCast.isParadigmDelayedTrigger(): Boolean =
+        isTrigger && abilityGrpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+
+    @Suppress("UnusedPrivateMember")
+    private fun GameEvent.SpellResolved.isParadigmDelayedTrigger(): Boolean =
+        isTrigger && abilityGrpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
 
     /**
      * SA-id-keyed surrogate iid for a stack-resident trigger or activated

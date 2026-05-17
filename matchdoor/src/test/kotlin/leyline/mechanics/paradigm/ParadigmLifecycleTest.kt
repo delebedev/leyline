@@ -87,13 +87,15 @@ class ParadigmLifecycleTest :
             sawCopySelfExile.shouldBeTrue()
 
             val allGsms = gsms()
-            assertSoftly {
-                allGsms
-                    .flatMap { it.annotationsList }
-                    .count { it.isStackToExileParadigmTransfer() }
-                    .let { it >= 2 }
-                    .shouldBeTrue()
-
+            val allAnnotations = allGsms.flatMap { it.annotationsList }
+            val allPersistent = allGsms.flatMap { it.persistentAnnotationsList }
+            val originalStackToExile = allAnnotations.first { it.isStackToExileParadigmTransfer() }
+            val originalExileIid = originalStackToExile.affectedIdsList.single()
+            val originalStackIid =
+                allAnnotations
+                    .first { it.isObjectIdChangedTo(originalExileIid) }
+                    .detailInt("orig_id")
+            val triggerObject =
                 allGsms
                     .flatMap { it.gameObjectsList }
                     .firstOrNull {
@@ -101,11 +103,44 @@ class ParadigmLifecycleTest :
                             it.grpId == PARADIGM_COPY_TRIGGER &&
                             it.objectSourceGrpId == GERMINATION_PRACTICUM &&
                             it.zoneId == ZoneIds.STACK
-                    } shouldNotBe null
+                    }
+            val triggerIid = triggerObject?.instanceId ?: 0
+            val copyCastAction = allAnnotations.first { it.isParadigmCopyCastAction() }
+            val copyStackIid = copyCastAction.affectedIdsList.single()
+            assertSoftly {
+                allAnnotations
+                    .count { it.isStackToExileParadigmTransfer() }
+                    .let { it >= 2 }
+                    .shouldBeTrue()
 
-                allGsms
-                    .flatMap { it.annotationsList }
-                    .firstOrNull { it.isParadigmCopyCastAction() } shouldNotBe null
+                triggerObject shouldNotBe null
+                triggerObject?.parentId shouldBe originalStackIid
+
+                allAnnotations
+                    .firstOrNull {
+                        it.typeList.contains(AnnotationType.AbilityInstanceCreated) &&
+                            it.affectedIdsList.contains(triggerIid) &&
+                            it.affectorId == originalStackIid &&
+                            it.detailInt("source_zone") == ZoneIds.STACK
+                    } shouldNotBe null
+                allPersistent
+                    .firstOrNull {
+                        it.typeList.contains(AnnotationType.TriggeringObject) &&
+                            it.affectorId == triggerIid &&
+                            it.affectedIdsList.contains(originalStackIid) &&
+                            it.detailInt("source_zone") == ZoneIds.STACK
+                    } shouldNotBe null
+                allAnnotations.firstOrNull { it.isParadigmCopyCastAction() } shouldNotBe null
+                allAnnotations
+                    .firstOrNull { it.isExileToStackParadigmCastTransfer(copyStackIid) }
+                    ?.affectorId shouldBe triggerIid
+                allAnnotations
+                    .firstOrNull { it.isObjectIdChangedTo(copyStackIid) }
+                    ?.let { objectIdChanged ->
+                        objectIdChanged.affectorId shouldBe triggerIid
+                        objectIdChanged.detailInt("orig_id") shouldNotBe copyStackIid
+                    } shouldNotBe null
+                allMessages.none { it.hasOptionalActionMessage() }.shouldBeTrue()
             }
         }
 
@@ -128,11 +163,26 @@ class ParadigmLifecycleTest :
                 }
             sawCopyTargetPrompt.shouldBeTrue()
 
-            val copyTargetReq =
-                allMessages.last { it.hasSelectTargetsReq() && it.selectTargetsReq.sourceId != originalTargetSourceId }.selectTargetsReq
+            val copyTargetMessage = allMessages.last { it.hasSelectTargetsReq() && it.selectTargetsReq.sourceId != originalTargetSourceId }
+            val copyTargetReq = copyTargetMessage.selectTargetsReq
+            val copyTargetGsm = gsms().last { it.gameStateId == copyTargetMessage.gameStateId }
             assertSoftly {
                 copyTargetReq.sourceId shouldNotBe 0
                 copyTargetReq.abilityGrpId shouldBe DECORUM_DISSERTATION
+                gsms()
+                    .flatMap { it.annotationsList }
+                    .none {
+                        it.isObjectIdChangedTo(copyTargetReq.sourceId) &&
+                            it.detailInt("orig_id") == copyTargetReq.sourceId
+                    }.shouldBeTrue()
+                val triggerIid =
+                    copyTargetGsm.gameObjectsList
+                        .first {
+                            it.type == GameObjectType.Ability && it.grpId == PARADIGM_COPY_TRIGGER
+                        }.instanceId
+                copyTargetGsm.annotationsList
+                    .first { it.isExileToStackParadigmCastTransfer(copyTargetReq.sourceId) }
+                    .affectorId shouldBe triggerIid
                 val copySourceObjects =
                     gsms()
                         .flatMap { it.gameObjectsList }
@@ -181,6 +231,7 @@ class ParadigmLifecycleTest :
                     .count { it.isStackToExileParadigmTransfer() }
                     .let { it >= 2 }
                     .shouldBeTrue()
+                allMessages.none { it.hasOptionalActionMessage() }.shouldBeTrue()
             }
         }
     })
@@ -195,6 +246,16 @@ private fun AnnotationInfo.isStackToExileParadigmTransfer(): Boolean =
         detailInt("zone_src") == ZoneIds.STACK &&
         detailInt("zone_dest") == ZoneIds.EXILE &&
         detailString("category") == "Exile"
+
+private fun AnnotationInfo.isExileToStackParadigmCastTransfer(stackIid: Int): Boolean =
+    typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
+        affectedIdsList.contains(stackIid) &&
+        detailInt("zone_src") == ZoneIds.EXILE &&
+        detailInt("zone_dest") == ZoneIds.STACK &&
+        detailString("category") == "CastSpell"
+
+private fun AnnotationInfo.isObjectIdChangedTo(newIid: Int): Boolean =
+    typeList.contains(AnnotationType.ObjectIdChanged) && detailInt("new_id") == newIid
 
 private fun AnnotationInfo.isParadigmCopyCastAction(): Boolean =
     typeList.contains(AnnotationType.UserActionTaken) &&

@@ -62,8 +62,8 @@ object TransferAnnotations {
                 // drain Forge produces the populated SpellCast event in (same drain
                 // as the zone-change for untargeted spells; the post-target-submit
                 // drain for targeted spells, when Forge has actually paid mana).
-                annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
-                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
+                if (origId != newId) annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
+                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId))
             }
             TransferCategory.Resolve -> {
                 val resolvingId = if (origId != newId) origId else newId
@@ -282,10 +282,11 @@ object TransferAnnotations {
         ev: GameEvent.SpellCast,
         idResolver: (ForgeCardId) -> InstanceId,
         manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
+        stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
     ): List<AnnotationInfo> {
         if (ev.isAbility) return emptyList()
         val annotations = mutableListOf<AnnotationInfo>()
-        val spellIid = ev.stackInstanceId.takeIf { it != 0 }?.let(::InstanceId) ?: idResolver(ev.cardId)
+        val spellIid = stackInstanceResolver(ev) ?: ev.stackInstanceId.takeIf { it != 0 }?.let(::InstanceId) ?: idResolver(ev.cardId)
         for ((i, mp) in ev.manaPayments.withIndex()) {
             val landIid = idResolver(mp.sourceCardId)
             val manaAbilityIid = idResolver(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId))
