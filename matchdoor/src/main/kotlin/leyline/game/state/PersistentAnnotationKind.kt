@@ -86,7 +86,7 @@ sealed interface PersistentAnnotationKind {
 /** Strategy for upsert collisions where an incoming row's identity matches an
  *  existing active row's identity. */
 enum class CollisionStrategy {
-    /** Active row stays — incoming row is dropped. Used by Qualification, ModifiedType-for-crew,
+    /** Active row stays — incoming row is dropped. Used by ModifiedType-for-crew,
      *  TemporaryPermanent, DelayedTriggerAffectees, TargetSpec — all "appears once, value rarely
      *  changes" kinds. */
     KEEP_EXISTING,
@@ -115,6 +115,20 @@ private fun int32Detail(
     ann.detailsList
         .firstOrNull { it.key == key && it.valueInt32Count > 0 }
         ?.getValueInt32(0)
+
+private fun numericDetail(
+    ann: AnnotationInfo,
+    key: String,
+): Int? =
+    ann.detailsList
+        .firstOrNull { it.key == key && (it.valueInt32Count > 0 || it.valueUint32Count > 0) }
+        ?.let { detail ->
+            when {
+                detail.valueInt32Count > 0 -> detail.getValueInt32(0)
+                detail.valueUint32Count > 0 -> detail.getValueUint32(0)
+                else -> null
+            }
+        }
 
 private fun stringDetail(
     ann: AnnotationInfo,
@@ -152,11 +166,18 @@ data object AbilityWordActiveKind : PersistentAnnotationKind {
 data object QualificationKind : PersistentAnnotationKind {
     override val name = "Qualification"
     override val pruneStale = true
-    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
 
     override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.Qualification in ann.typeList
 
-    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+    override fun identityKey(ann: AnnotationInfo): Any =
+        listOf(
+            ann.affectorId,
+            ann.affectedIdsList,
+            numericDetail(ann, DetailKeys.GRPID) ?: 0,
+            numericDetail(ann, DetailKeys.QUALIFICATION_TYPE) ?: 0,
+            numericDetail(ann, DetailKeys.SOURCE_PARENT) ?: 0,
+        )
 }
 
 data object CrewedThisTurnKind : PersistentAnnotationKind {

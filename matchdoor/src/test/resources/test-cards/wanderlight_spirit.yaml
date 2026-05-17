@@ -1,0 +1,11 @@
+name: "Wanderlight Spirit"
+grpId: 78878
+titleId: 545879
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 86918
+    textId: 529927
+    category: 3
+expansionCode: "VOW"

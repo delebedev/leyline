@@ -93,9 +93,11 @@ class PersistentAnnotationStore {
          *
          * **Ordering invariant:** Steps 0-6 execute in fixed order. Lifecycle
          * expiry (0) runs before transfers (2) so newly arrived rows in the
-         * same frame survive. Effects (1) before transfers (2) before mechanic
-         * upserts (3) because a counter upsert must not collide with a
-         * LayeredEffect ID allocated in step 1. Cleanup (4-6) runs last so it
+         * same frame survive. Effects (1) before transfers (2) before
+         * Qualification upserts (3a) before mechanic upserts (3b) because
+         * combat restriction Qualifications are born before the Attachment
+         * row that links an aura to its target. Counter upserts must not collide
+         * with a LayeredEffect ID allocated in step 1. Cleanup (4-6) runs last so it
          * sees the full set of newly added pAnns — e.g. step 4 (detach) can
          * remove an Attachment just created in step 3 if the aura was
          * simultaneously destroyed.
@@ -171,7 +173,20 @@ class PersistentAnnotationStore {
                 active[numbered.id] = numbered
             }
 
-            // 3a. Mechanic-originated mixed list (Counter + Attachment +
+            // 3a. Qualification rows precede Attachment rows when both are born
+            //     on a resolving Aura frame. The client binds combat restriction
+            //     badges from the Qualification row before processing the
+            //     ongoing Attachment link.
+            nextId =
+                upsertByKind(
+                    active,
+                    deletions,
+                    nextId,
+                    QualificationKind,
+                    mechanicResult.perKindPersistent[QualificationKind] ?: emptyList(),
+                )
+
+            // 3b. Mechanic-originated mixed list (Counter + Attachment +
             //     DisplayCardUnderCard + ControllerChangedEffect). Counter
             //     rows go through CounterKind's REPLACE_ALWAYS collision
             //     handling; non-Counter rows pure-append since their lifecycle
@@ -194,10 +209,11 @@ class PersistentAnnotationStore {
                 active[numbered.id] = numbered
             }
 
-            // 3b-3j. Other registry-driven kinds — full upsert dispatch via
+            // 3c-3j. Other registry-driven kinds — full upsert dispatch via
             //        identity + collision strategy declared on each row.
             for (kind in PersistentAnnotationKinds.upsertable) {
                 if (kind === CounterKind) continue // Counter handled above with mechanicResult.persistent.
+                if (kind === QualificationKind) continue // Qualification handled before Attachment above.
                 nextId =
                     upsertByKind(
                         active,
