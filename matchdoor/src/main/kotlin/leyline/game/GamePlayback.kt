@@ -157,7 +157,7 @@ class GamePlayback(
         if (sa.isOptionalTrigger) return false
         var ability: SpellAbility? = sa
         while (ability != null) {
-            // Corpus-backed pure trigger lane: no target/select/cost prompt before resolution.
+            // Pure trigger lane: no target/select/cost prompt before resolution.
             if (ability.usesTargeting()) return false
             if (!hasNoPromptCost(ability)) return false
             if (ability.api !in localTurnSplitSafeApis) return false
@@ -325,7 +325,7 @@ class GamePlayback(
                 KeywordAbilityIds.DECAYED,
             )
 
-        // APIs observed in pure STATE_ONLY trigger-enter/resolve clusters.
+        // APIs that can resolve without prompts in the local trigger split path.
         private val localTurnSplitSafeApis =
             setOf(
                 ApiType.Draw,

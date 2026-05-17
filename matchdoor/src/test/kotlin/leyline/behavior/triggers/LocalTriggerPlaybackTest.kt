@@ -8,6 +8,8 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.game.bundle.InvariantCheck
+import leyline.game.bundle.InvariantSelection
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.annotationsOfType
@@ -24,6 +26,7 @@ class LocalTriggerPlaybackTest :
             TestCardRegistry.ensureRegistered()
             TestCardRegistry.ensureCardRegistered("Ajani's Pridemate")
             TestCardRegistry.ensureCardRegistered("Dwynen's Elite")
+            TestCardRegistry.ensureCardRegistered("Novice Inspector")
             TestCardRegistry.ensureCardRegistered("Revitalize")
         }
 
@@ -119,6 +122,27 @@ class LocalTriggerPlaybackTest :
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
 
+        val noviceInspectorPuzzle =
+            """
+            [metadata]
+            Name:Novice Inspector Local Investigate Trigger
+            Goal:Survive
+            Turns:3
+            Difficulty:Easy
+            Description:Novice Inspector enters, investigate trigger enters, then creates a Clue token.
+
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=20
+
+            humanhand=Novice Inspector
+            humanbattlefield=Plains
+            humanlibrary=Forest;Forest;Forest;Forest;Forest
+            ailibrary=Mountain;Mountain;Mountain
+            """.trimIndent()
+
         test("mandatory non-interactive local trigger enters before resolving") {
             startPuzzleRaw(ajaniPuzzle, validating = true)
 
@@ -161,6 +185,35 @@ class LocalTriggerPlaybackTest :
                 .getZone(ZoneType.Battlefield)
                 .cards
                 .filter { "Elf Warrior" in it.name && it.isToken }
+                .shouldNotBeEmpty()
+        }
+
+        test("mandatory non-interactive investigate trigger enters before resolving") {
+            startPuzzleRaw(
+                noviceInspectorPuzzle,
+                validation =
+                    InvariantSelection.except(
+                        "Clue token ZoneTransfer affectedIds are unresolved until token projection is fixed (leyline-g8bw)",
+                        InvariantCheck.AnnotationReferences,
+                    ),
+            )
+
+            val post =
+                after {
+                    castSpellByName("Novice Inspector").shouldBeTrue()
+                    passUntil(maxPasses = 20) {
+                        human
+                            .getZone(ZoneType.Battlefield)
+                            .cards
+                            .any { it.name.contains("Clue", ignoreCase = true) && it.isToken }
+                    }.shouldBeTrue()
+                }.messages
+
+            assertTriggerSplit(post)
+            human
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .filter { it.name.contains("Clue", ignoreCase = true) && it.isToken }
                 .shouldNotBeEmpty()
         }
     })
