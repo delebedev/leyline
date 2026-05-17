@@ -106,7 +106,7 @@ class GamePlayback(
     }
 
     /** Decide whether to split this trigger's lifecycle into its own diff on
-     *  the local turn. Today: Mobilize and Training keyword triggers.
+     *  the local turn. Today: Mobilize, Training, and Decayed keyword triggers.
      *
      *  Widening to other keyword triggers (other combat triggers, ETB
      *  mechanics with delayed-trigger tokens, etc.) inserts an extra Diff
@@ -119,7 +119,8 @@ class GamePlayback(
         val card = bridge.findCard(leyline.bridge.types.ForgeCardId(hostCardForgeId)) ?: return false
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return false
         return bridge.cardRepository.findKeywordAbilityGrpId(grpId, leyline.game.data.KeywordAbilityIds.MOBILIZE) != null ||
-            bridge.cardRepository.findKeywordAbilityGrpId(grpId, leyline.game.data.KeywordAbilityIds.TRAINING) != null
+            bridge.cardRepository.findKeywordAbilityGrpId(grpId, leyline.game.data.KeywordAbilityIds.TRAINING) != null ||
+            bridge.cardRepository.findKeywordAbilityGrpId(grpId, leyline.game.data.KeywordAbilityIds.DECAYED) != null
     }
 
     override fun visit(ev: GameEventTurnBegan) {

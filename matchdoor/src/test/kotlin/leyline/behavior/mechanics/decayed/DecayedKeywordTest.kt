@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.data.AbilityInfo
@@ -17,6 +18,7 @@ import leyline.testkit.annotationTypeSet
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
 import leyline.testkit.detailUint
+import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -77,6 +79,25 @@ class DecayedKeywordTest :
                 post.annotationsOfType(AnnotationType.ResolutionStart).filter {
                     it.detailUint("grpid") == DECAYED_CLEANUP_GRP_ID
                 }
+            val decayedResolution =
+                post.annotationsOfType(AnnotationType.ResolutionStart).first {
+                    it.detailUint("grpid") == KeywordAbilityIds.DECAYED
+                }
+            val decayedAbilityIid = decayedResolution.affectorId
+            val gsms = post.gameStateMessages()
+            val triggerEnterIdx =
+                gsms.indexOfFirst { gsm ->
+                    gsm.annotationsList.any {
+                        AnnotationType.AbilityInstanceCreated in it.typeList &&
+                            it.affectedIdsList.contains(decayedAbilityIid)
+                    }
+                }
+            val resolveIdx =
+                gsms.indexOfFirst { gsm ->
+                    gsm.annotationsList.any {
+                        AnnotationType.ResolutionStart in it.typeList && it.affectorId == decayedAbilityIid
+                    }
+                }
             val sourceTransferIids =
                 post
                     .annotationsOfType(AnnotationType.ObjectIdChanged)
@@ -97,6 +118,8 @@ class DecayedKeywordTest :
                 types shouldContain AnnotationType.AbilityInstanceDeleted
                 types shouldContain AnnotationType.TemporaryPermanent
                 post.persistentAnnotationsOfType(AnnotationType.DelayedTriggerAffectees).shouldBeEmpty()
+                triggerEnterIdx shouldBeGreaterThan -1
+                resolveIdx shouldBeGreaterThan triggerEnterIdx
 
                 post
                     .annotationsOfType(AnnotationType.ResolutionStart)
@@ -122,7 +145,6 @@ class DecayedKeywordTest :
                 tempPerm.detailInt("AbilityGrpId") shouldBe DECAYED_CLEANUP_GRP_ID
             }
 
-            val gsms = post.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
             val holderIids = holders.map { it.instanceId }.toSet()
             holderIids shouldHaveSize 1
             val holderIid = holderIids.single()
