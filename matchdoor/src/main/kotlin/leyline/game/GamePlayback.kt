@@ -4,6 +4,7 @@ import com.google.common.eventbus.Subscribe
 import forge.game.ability.ApiType
 import forge.game.cost.CostPartMana
 import forge.game.event.*
+import forge.game.keyword.Keyword
 import forge.game.phase.PhaseType
 import forge.game.spellability.SpellAbility
 import leyline.bridge.types.ForgeCardId
@@ -108,8 +109,8 @@ class GamePlayback(
     }
 
     /** Decide whether to split this trigger's lifecycle into its own diff on
-     *  the local turn. Today: the keyword allowlist in [localTurnSplitTriggerKeywordIds]
-     *  plus mandatory non-interactive trigger chains such as Ajani's Pridemate.
+     *  the local turn. Today: known keyword trigger shapes plus mandatory
+     *  non-interactive trigger chains such as Ajani's Pridemate.
      *
      *  Widening to other keyword triggers (other combat triggers, ETB
      *  mechanics with delayed-trigger tokens, etc.) inserts an extra Diff
@@ -122,8 +123,8 @@ class GamePlayback(
         sa: SpellAbility?,
     ): Boolean {
         if (hostCardForgeId == null) return false
-        if (hasLocalTurnSplitKeyword(hostCardForgeId)) return true
         if (sa == null) return false
+        if (hasLocalTurnSplitKeyword(hostCardForgeId, sa)) return true
         return isNonInteractiveLocalTrigger(sa)
     }
 
@@ -145,13 +146,28 @@ class GamePlayback(
             ?: card.allSpellAbilities?.firstOrNull { it.id == evSaId }
     }
 
-    private fun hasLocalTurnSplitKeyword(hostCardForgeId: Int): Boolean {
+    private fun hasLocalTurnSplitKeyword(
+        hostCardForgeId: Int,
+        sa: SpellAbility,
+    ): Boolean {
         val card = bridge.findCard(ForgeCardId(hostCardForgeId)) ?: return false
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return false
-        return localTurnSplitTriggerKeywordIds.any { keywordId ->
-            bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) != null
+        return when {
+            hasKeywordGrpId(grpId, KeywordAbilityIds.MOBILIZE) ->
+                sa.api == ApiType.Token && sa.trigger?.getParam("Mode") == "Attacks"
+            hasKeywordGrpId(grpId, KeywordAbilityIds.TRAINING) ->
+                (sa.isKeyword(Keyword.TRAINING) || sa.hasParam("Training")) && sa.api == ApiType.PutCounter
+            hasKeywordGrpId(grpId, KeywordAbilityIds.DECAYED) ->
+                (sa.api == ApiType.DelayedTrigger && sa.trigger?.getParam("Mode") == "Attacks") ||
+                    (sa.api == ApiType.Sacrifice && sa.trigger?.getParam("Phase") == "EndCombat")
+            else -> false
         }
     }
+
+    private fun hasKeywordGrpId(
+        grpId: Int,
+        keywordId: Int,
+    ): Boolean = bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) != null
 
     private fun isNonInteractiveLocalTrigger(sa: SpellAbility): Boolean {
         if (sa.isOptionalTrigger) return false
@@ -318,12 +334,6 @@ class GamePlayback(
         const val CAST_DELAY = 400
         const val RESOLVE_DELAY = 400
         const val LAND_DELAY = 300
-        private val localTurnSplitTriggerKeywordIds =
-            setOf(
-                KeywordAbilityIds.MOBILIZE,
-                KeywordAbilityIds.TRAINING,
-                KeywordAbilityIds.DECAYED,
-            )
 
         // APIs that can resolve without prompts in the local trigger split path.
         private val localTurnSplitSafeApis =
