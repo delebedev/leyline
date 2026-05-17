@@ -93,8 +93,15 @@ fun AnnotationInfo.hasDetail(key: String): Boolean = detailsList.any { it.key ==
 /** Shorthand: get an int32 detail value. Fails if the key is missing. */
 fun AnnotationInfo.detailInt(key: String): Int = detail(key)?.getValueInt32(0) ?: error("No detail '$key' on annotation $typeList")
 
-/** Shorthand: get a uint32 detail value. Fails if the key is missing. */
-fun AnnotationInfo.detailUint(key: String): Int = detail(key)?.getValueUint32(0) ?: error("No detail '$key' on annotation $typeList")
+/** Shorthand: get a numeric detail value historically asserted as uint32. */
+fun AnnotationInfo.detailUint(key: String): Int =
+    detail(key)?.let { d ->
+        when {
+            d.valueUint32Count > 0 -> d.getValueUint32(0)
+            d.valueInt32Count > 0 -> d.getValueInt32(0)
+            else -> error("Detail '$key' is not numeric on annotation $typeList")
+        }
+    } ?: error("No detail '$key' on annotation $typeList")
 
 /** Shorthand: get a string detail value. Fails if the key is missing. */
 fun AnnotationInfo.detailString(key: String): String = detail(key)?.getValueString(0) ?: error("No detail '$key' on annotation $typeList")

@@ -48,6 +48,11 @@ internal object CategoryRules {
         to: Zone,
     ): Boolean = any { it is GameEvent.ZoneChanged && it.cardId == forgeCardId && it.to == to }
 
+    private fun List<GameEvent>.hasZoneChangedFrom(
+        forgeCardId: ForgeCardId,
+        from: Zone,
+    ): Boolean = any { it is GameEvent.ZoneChanged && it.cardId == forgeCardId && it.from == from }
+
     private fun List<GameEvent>.hasZoneChangedFor(forgeCardId: ForgeCardId): Boolean =
         any { it is GameEvent.ZoneChanged && it.cardId == forgeCardId }
 
@@ -80,7 +85,8 @@ internal object CategoryRules {
                 // discard belongs in Discard, not CastSpell. Filter on isAbility so
                 // activated-ability cost transfers fall through to the discard /
                 // sacrifice / zone-pair rules below.
-                events.any { it is GameEvent.SpellCast && it.cardId == fid && !it.isTrigger && !it.isAbility }
+                events.any { it is GameEvent.SpellCast && it.cardId == fid && !it.isTrigger && !it.isAbility } &&
+                    !events.hasZoneChangedFrom(fid, Zone.Stack)
             },
             CategoryRule(100, TransferCategory.Resolve) { events, fid ->
                 events.any { it is GameEvent.SpellResolved && it.cardId == fid && !it.hasFizzled }

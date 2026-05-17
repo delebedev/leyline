@@ -1,0 +1,11 @@
+name: "Silent Hallcreeper"
+grpId: 92142
+titleId: 812505
+abilities:
+  - id: 62969
+    textId: 558164
+    category: 3
+  - id: 174348
+    textId: 972106
+    category: 2
+expansionCode: "DSK"
