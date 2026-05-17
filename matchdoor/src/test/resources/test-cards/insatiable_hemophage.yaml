@@ -1,0 +1,16 @@
+name: "Insatiable Hemophage"
+grpId: 71160
+titleId: 71160
+abilities:
+  - id: 137240
+    textId: 0
+    category: 3
+    baseId: 203
+    mana: "o2oB"
+  - id: 1
+    textId: 0
+    category: 3
+  - id: 137241
+    textId: 0
+    category: 2
+expansionCode: "IKO"

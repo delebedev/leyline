@@ -79,6 +79,8 @@ class InteractivePromptBridge(
         val targetForgeCardId: Int? = null,
         val targetSeatId: Int? = null,
         val isTriggeredAbility: Boolean = false,
+        val abilityGrpId: Int? = null,
+        val promptId: Int? = null,
         /**
          * Forge `SpellAbility.id` for triggered abilities. Drives SA-id-keyed
          * surrogate iid resolution at TargetSpec emission time when
@@ -425,6 +427,9 @@ enum class PromptSemantic {
 
     /** Ninjutsu's "return an unblocked attacker" activation cost. */
     ReturnUnblockedAttackerCost,
+
+    /** Mutate's resolution-time choice for which component is on top. */
+    MutateTopBottom,
 }
 
 data class PromptRequest(

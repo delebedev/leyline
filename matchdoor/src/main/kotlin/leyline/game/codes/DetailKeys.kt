@@ -14,6 +14,7 @@ object DetailKeys {
     const val NEW_ID = "new_id"
     const val ACTION_TYPE = "actionType"
     const val ABILITY_GRP_ID = "abilityGrpId"
+    const val ABILITY_GRP_IDS = "abilityGRPIDs"
     const val ID = "id"
     const val COLOR = "color"
     const val TAPPED = "tapped"
@@ -66,4 +67,5 @@ object DetailKeys {
     const val CAST_ABILITY_GRP_ID = "castAbilityGrpId"
     const val KICKER_ABILITY_GRP_ID = "kickerAbilityGrpId"
     const val REMOVES_FROM_ZONE = "removesFromZone"
+    const val IS_TOP = "isTop"
 }

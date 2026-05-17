@@ -243,6 +243,18 @@ data object TargetSpecKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann) to (int32Detail(ann, DetailKeys.INDEX) ?: 0)
 }
 
+data object MutateLayeredEffectKind : PersistentAnnotationKind {
+    override val name = "MutateLayeredEffect"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.LayeredEffect in ann.typeList &&
+            int32Detail(ann, DetailKeys.ABILITY_GRP_ID) == leyline.game.data.KeywordAbilityIds.MUTATE
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId to firstAffectedId(ann)
+}
+
 data object PreparedDesignationKind : PersistentAnnotationKind {
     override val name = "PreparedDesignation"
     override val pruneStale = true
@@ -478,6 +490,7 @@ object PersistentAnnotationKinds {
             TemporaryPermanentKind,
             DelayedTriggerAffecteesKind,
             TargetSpecKind,
+            MutateLayeredEffectKind,
             PreparedDesignationKind,
             PlottedDesignationKind,
             CommanderDesignationKind,
