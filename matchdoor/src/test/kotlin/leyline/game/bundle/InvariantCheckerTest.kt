@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import leyline.UnitTag
 import leyline.game.codes.DetailKeys
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -24,8 +25,8 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
  * the annotation list. Detection only — no enforcement here.
  *
  * Resolve-category ZoneTransfer annotations, when both ResolutionStart
- * and ResolutionComplete are present in the same GSM, must sit after
- * ResolutionComplete. Detection only.
+ * and ResolutionComplete are present in the same GSM, are ordered by source
+ * zone. Detection only.
  */
 class InvariantCheckerTest :
     FunSpec({
@@ -48,6 +49,7 @@ class InvariantCheckerTest :
             id: Int,
             category: String,
             affectedId: Int = 100,
+            srcZoneId: Int = ZoneIds.STACK,
         ): AnnotationInfo =
             AnnotationInfo
                 .newBuilder()
@@ -60,6 +62,13 @@ class InvariantCheckerTest :
                         .setKey(DetailKeys.CATEGORY)
                         .setType(KeyValuePairValueType.String)
                         .addValueString(category)
+                        .build(),
+                ).addDetails(
+                    KeyValuePairInfo
+                        .newBuilder()
+                        .setKey(DetailKeys.ZONE_SRC)
+                        .setType(KeyValuePairValueType.Int32)
+                        .addValueInt32(srcZoneId)
                         .build(),
                 ).build()
 
@@ -185,9 +194,9 @@ class InvariantCheckerTest :
             checker.violations.filter { it.check == "phase_first" }.shouldBeEmpty()
         }
 
-        // --- resolution_transfer_after_complete tests ---
+        // --- resolution_transfer_ordering tests ---
 
-        test("resolution_transfer_after_complete violation when Resolve ZT lands before ResolutionStart") {
+        test("resolution_transfer_ordering violation when stack Resolve ZT lands before ResolutionStart") {
             val checker = InvariantChecker()
             val g =
                 gsm(
@@ -203,12 +212,12 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            val ordering = checker.violations.filter { it.check == "resolution_transfer_after_complete" }
+            val ordering = checker.violations.filter { it.check == "resolution_transfer_ordering" }
             ordering.shouldNotBeEmpty()
             ordering.size shouldBe 1
         }
 
-        test("resolution_transfer_after_complete violation when Resolve ZT lands between ResolutionStart and ResolutionComplete") {
+        test("resolution_transfer_ordering violation when stack Resolve ZT lands between ResolutionStart and ResolutionComplete") {
             val checker = InvariantChecker()
             val g =
                 gsm(
@@ -223,12 +232,12 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            val ordering = checker.violations.filter { it.check == "resolution_transfer_after_complete" }
+            val ordering = checker.violations.filter { it.check == "resolution_transfer_ordering" }
             ordering.shouldNotBeEmpty()
             ordering.size shouldBe 1
         }
 
-        test("resolution_transfer_after_complete records two violations when Resolve ZTs precede ResolutionComplete") {
+        test("resolution_transfer_ordering records two violations when stack Resolve ZTs precede ResolutionComplete") {
             val checker = InvariantChecker()
             val g =
                 gsm(
@@ -244,11 +253,11 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            val ordering = checker.violations.filter { it.check == "resolution_transfer_after_complete" }
+            val ordering = checker.violations.filter { it.check == "resolution_transfer_ordering" }
             ordering.size shouldBe 2
         }
 
-        test("no resolution_transfer_after_complete violation when Resolve ZT follows ResolutionComplete") {
+        test("no resolution_transfer_ordering violation when stack Resolve ZT follows ResolutionComplete") {
             val checker = InvariantChecker()
             val g =
                 gsm(
@@ -263,10 +272,10 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            checker.violations.filter { it.check == "resolution_transfer_after_complete" }.shouldBeEmpty()
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.shouldBeEmpty()
         }
 
-        test("no resolution_transfer_after_complete violation when RS and RC are absent") {
+        test("no resolution_transfer_ordering violation when RS and RC are absent") {
             val checker = InvariantChecker()
             val g =
                 gsm(
@@ -279,10 +288,10 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            checker.violations.filter { it.check == "resolution_transfer_after_complete" }.shouldBeEmpty()
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.shouldBeEmpty()
         }
 
-        test("no resolution_transfer_after_complete violation when non-Resolve ZT sits before ResolutionComplete") {
+        test("no resolution_transfer_ordering violation when non-Resolve ZT sits before ResolutionComplete") {
             val checker = InvariantChecker()
             val g =
                 gsm(
@@ -297,10 +306,10 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            checker.violations.filter { it.check == "resolution_transfer_after_complete" }.shouldBeEmpty()
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.shouldBeEmpty()
         }
 
-        test("no resolution_transfer_after_complete violation when multiple Resolve ZTs follow ResolutionComplete") {
+        test("no resolution_transfer_ordering violation when multiple stack Resolve ZTs follow ResolutionComplete") {
             val checker = InvariantChecker()
             val g =
                 gsm(
@@ -316,7 +325,46 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            checker.violations.filter { it.check == "resolution_transfer_after_complete" }.shouldBeEmpty()
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.shouldBeEmpty()
+        }
+
+        test(
+            "no resolution_transfer_ordering violation when non-stack Resolve ZT sits inside ResolutionStart and ResolutionComplete",
+        ) {
+            val checker = InvariantChecker()
+            val g =
+                gsm(
+                    gsId = 1,
+                    annotations =
+                        listOf(
+                            annotation(1, AnnotationType.ResolutionStart),
+                            zoneTransferAnnotation(2, "Resolve", srcZoneId = ZoneIds.P1_LIBRARY),
+                            annotation(3, AnnotationType.ResolutionComplete),
+                        ),
+                )
+
+            checker.process(greMessage(msgId = 1, gsm = g))
+
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.shouldBeEmpty()
+        }
+
+        test("resolution_transfer_ordering violation when non-stack Resolve ZT lands before ResolutionStart") {
+            val checker = InvariantChecker()
+            val g =
+                gsm(
+                    gsId = 1,
+                    annotations =
+                        listOf(
+                            zoneTransferAnnotation(1, "Resolve", srcZoneId = ZoneIds.P1_LIBRARY),
+                            annotation(2, AnnotationType.ResolutionStart),
+                            annotation(3, AnnotationType.ResolutionComplete),
+                        ),
+                )
+
+            checker.process(greMessage(msgId = 1, gsm = g))
+
+            val ordering = checker.violations.filter { it.check == "resolution_transfer_ordering" }
+            ordering.size shouldBe 1
         }
 
         // --- aid_affector tests ---

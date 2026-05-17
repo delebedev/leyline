@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.annotations.TransferCategory
 import leyline.game.codes.DetailKeys
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
 import kotlin.text.get
@@ -14,7 +15,7 @@ import kotlin.text.get
  * (post-hoc diagnostics).
  *
  * Checks: gsId monotonicity, prevGsId validity, annotation sequentiality,
- * annotation ordering, phase_first, resolution_transfer_after_complete, aid_affector
+ * annotation ordering, phase_first, resolution_transfer_ordering, aid_affector
  * consistency, action instanceId consistency, zone-object consistency,
  * msgId monotonicity.
  */
@@ -59,7 +60,7 @@ class InvariantChecker(
             checkAnnotationIdSequentiality(gsm)
             checkAnnotationOrdering(gsm)
             checkPhaseFirst(gsm)
-            checkResolutionTransferAfterComplete(gsm)
+            checkResolutionTransferOrdering(gsm)
             val aidIids = checkAidAffectorConsistency(gsm)
             recordAicAffectorHistory(gsm, aidIids)
             checkPendingMessageCountContract(gsm)
@@ -285,14 +286,13 @@ class InvariantChecker(
 
     /**
      * In any GSM that contains both [AnnotationType.ResolutionStart] and
-     * [AnnotationType.ResolutionComplete], every Resolve-category
-     * [AnnotationType.ZoneTransfer_af5a] must sit after the last
-     * ResolutionComplete.
+     * [AnnotationType.ResolutionComplete], Resolve-category transfers are
+     * ordered by source zone.
      *
-     * The RS/RC pair identifies the object whose resolution is finishing; the
-     * resolve-category transfer applies the resulting stack exit after that pair.
+     * Stack-exit transfers apply after the RS/RC pair. Non-stack transfers caused
+     * by resolving ability effects stay inside the pair.
      */
-    private fun checkResolutionTransferAfterComplete(gsm: GameStateMessage) {
+    private fun checkResolutionTransferOrdering(gsm: GameStateMessage) {
         val annotations = gsm.annotationsList
         val rsIdx = annotations.indexOfFirst { AnnotationType.ResolutionStart in it.typeList }
         val rcIdx = annotations.indexOfLast { AnnotationType.ResolutionComplete in it.typeList }
@@ -306,13 +306,21 @@ class InvariantChecker(
                         detail.valueStringList.firstOrNull() == TransferCategory.Resolve.label
                 }
             if (!isResolve) return@forEachIndexed
-            if (idx <= rcIdx) {
+            val srcZone = ann.detailInt(DetailKeys.ZONE_SRC)
+            val invalid =
+                if (srcZone == ZoneIds.STACK) {
+                    idx <= rcIdx
+                } else {
+                    idx <= rsIdx || idx >= rcIdx
+                }
+            if (invalid) {
                 val affected = ann.affectedIdsList.firstOrNull() ?: 0
+                val expected = if (srcZone == ZoneIds.STACK) "after RC=$rcIdx" else "inside RS=$rsIdx..RC=$rcIdx"
                 record(
                     gsId,
-                    "resolution_transfer_after_complete",
+                    "resolution_transfer_ordering",
                     "Resolve-category ZoneTransfer affected=$affected at index $idx " +
-                        "not after ResolutionComplete at index $rcIdx (RS=$rsIdx, gsId=$gsId)",
+                        "not $expected (srcZone=$srcZone, gsId=$gsId)",
                 )
             }
         }
@@ -497,6 +505,11 @@ class InvariantChecker(
             _violations.add(Violation(messageIndex, gsId, check, message))
         }
     }
+
+    private fun AnnotationInfo.detailInt(key: String): Int =
+        detailsList.firstOrNull { it.key == key }?.let {
+            if (it.valueInt32Count > 0) it.getValueInt32(0) else 0
+        } ?: 0
 }
 
 /**
