@@ -15,6 +15,7 @@ import forge.game.player.IHasIcon
 import forge.game.player.PlayerView
 import forge.game.spellability.SpellAbilityView
 import forge.game.zone.ZoneType
+import forge.gamemodes.match.YieldUpdate
 import forge.gui.control.PlaybackSpeed
 import forge.gui.interfaces.IGuiGame
 import forge.interfaces.IGameController
@@ -25,7 +26,6 @@ import forge.player.PlayerZoneUpdates
 import forge.trackable.TrackableCollection
 import forge.util.FSerializableFunction
 import forge.util.ITriggerEvent
-import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import org.slf4j.LoggerFactory
@@ -39,7 +39,6 @@ import org.slf4j.LoggerFactory
  */
 class ClientGuiGame(
     private val bridge: InteractivePromptBridge,
-    private val actionBridge: GameActionBridge? = null,
 ) : IGuiGame {
     companion object {
         private val log = LoggerFactory.getLogger(ClientGuiGame::class.java)
@@ -709,7 +708,11 @@ class ClientGuiGame(
         b: Boolean,
     ) {}
 
-    override fun setSelectables(cards: Iterable<CardView>) {}
+    override fun setSelectables(
+        cards: Iterable<CardView>,
+        min: Int,
+        max: Int,
+    ) {}
 
     override fun applyDelta(packet: forge.gamemodes.net.DeltaPacket) {}
 
@@ -747,20 +750,9 @@ class ClientGuiGame(
         phase: PhaseType,
     ): Boolean = false
 
-    override fun autoPassUntilEndOfTurn(player: PlayerView) {
-        actionBridge?.setAutoPassUntilEndOfTurn(true)
-    }
-
-    override fun mayAutoPass(player: PlayerView): Boolean = actionBridge?.autoPassUntilEndOfTurn ?: false
-
-    override fun autoPassCancel(player: PlayerView) {
-        if (actionBridge != null && actionBridge.autoPassUntilEndOfTurn) {
-            actionBridge.setAutoPassUntilEndOfTurn(false)
-            log.info("autoPassCancel: cleared autoPassUntilEndOfTurn")
-        }
-    }
-
     override fun updateAutoPassPrompt() {}
+
+    override fun applyYieldUpdate(update: YieldUpdate) {}
 
     // Auto-yield + trigger-accept/decline live on IGameController, not IGuiGame.
     // ClientGuiGame implements IGuiGame only; those preferences are client-side
