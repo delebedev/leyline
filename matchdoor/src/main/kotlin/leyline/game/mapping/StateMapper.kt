@@ -21,6 +21,7 @@ import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
 import leyline.game.annotations.ZoneTransferDetector
 import leyline.game.bundle.GsmFrame
+import leyline.game.codes.CounterTypes
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
@@ -1191,6 +1192,7 @@ object StateMapper {
                     leyline.bridge.types.GrpId(grpId)
                 },
                 counterAffectorResolver = { eventIndex, ev -> counterAffectorFor(eventIndex, ev, events, frameIds) },
+                playerCounterAffectorResolver = { eventIndex, ev -> playerCounterAffectorFor(eventIndex, ev, events, frameIds) },
             )
         // Token entries belong before combat damage: a Mobilize trigger that
         // resolves between attacker declaration and combat damage produces tokens
@@ -1843,6 +1845,22 @@ object StateMapper {
                     }
                     return null
                 }
+            }
+        }
+        return null
+    }
+
+    private fun playerCounterAffectorFor(
+        eventIndex: Int,
+        ev: GameEvent.PlayerCountersChanged,
+        events: List<GameEvent>,
+        frameIds: FrameIdResolver,
+    ): InstanceId? {
+        if (CounterTypes.counterTypeId(ev.counterType) == 0) return null
+        for (next in events.asSequence().drop(eventIndex + 1)) {
+            when (next) {
+                is GameEvent.SpellResolved -> return InstanceId(stackAbilityIidFor(next.abilityForgeId, next.cardId, frameIds))
+                else -> Unit
             }
         }
         return null

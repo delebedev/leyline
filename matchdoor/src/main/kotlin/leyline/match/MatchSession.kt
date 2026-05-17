@@ -1,6 +1,7 @@
 package leyline.match
 
 import forge.game.Game
+import forge.game.player.GameLossReason
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.SeatId
@@ -561,7 +562,8 @@ class MatchSession(
         val humanWon = humanPlayer?.getOutcome()?.hasWon() ?: false
         val winningTeam = if (humanWon) 1 else 2
         val losingPlayerSeatId = if (humanWon) 2 else 1
-        val lossReason = if (reason == ResultReason.Concede) AnnotationLossReason.Concede else AnnotationLossReason.LifeTotal
+        val losingPlayer = bridge.getPlayer(SeatId(losingPlayerSeatId))
+        val lossReason = annotationLossReasonFor(reason, losingPlayer?.getOutcome()?.lossState)
 
         // If there are pending events (e.g. mana-ability sacrifice during resolution),
         // build a final diff GSM to emit those annotations before the game-over bundle.
@@ -703,3 +705,24 @@ class MatchSession(
         if (delay > 0) Thread.sleep(delay)
     }
 }
+
+internal fun annotationLossReasonFor(
+    resultReason: ResultReason,
+    lossState: GameLossReason?,
+): AnnotationLossReason =
+    if (resultReason == ResultReason.Concede) {
+        AnnotationLossReason.Concede
+    } else {
+        when (lossState) {
+            GameLossReason.LifeReachedZero -> AnnotationLossReason.LifeTotal
+            GameLossReason.Poisoned -> AnnotationLossReason.Poison
+            GameLossReason.Milled -> AnnotationLossReason.DrawFromEmptyLibrary
+            GameLossReason.Conceded -> AnnotationLossReason.Concede
+            GameLossReason.CommanderDamage,
+            GameLossReason.IntentionalDraw,
+            GameLossReason.OpponentWon,
+            GameLossReason.SpellEffect,
+            null,
+            -> AnnotationLossReason.LifeTotal
+        }
+    }

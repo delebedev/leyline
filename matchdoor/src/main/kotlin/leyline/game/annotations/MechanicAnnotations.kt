@@ -91,6 +91,7 @@ object MechanicAnnotations {
         activeStealForgeCardIds: Set<ForgeCardId> = emptySet(),
         manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
         counterAffectorResolver: (Int, GameEvent.CountersChanged) -> InstanceId? = { _, _ -> null },
+        playerCounterAffectorResolver: (Int, GameEvent.PlayerCountersChanged) -> InstanceId? = { _, _ -> null },
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
@@ -120,6 +121,34 @@ object MechanicAnnotations {
                     // Persistent: Counter state annotation with current count
                     persistent.add(AnnotationBuilder.counter(instanceId, CounterTypes.counterTypeId(ev.counterType), ev.newCount))
                     log.debug("mechanic: counter {} {} on iid={}", if (delta > 0) "added" else "removed", ev.counterType, instanceId.value)
+                }
+                is GameEvent.PlayerCountersChanged -> {
+                    val delta = ev.newCount - ev.oldCount
+                    if (delta == 0) continue
+                    val counterType = CounterTypes.counterTypeId(ev.counterType)
+                    if (counterType == 0) {
+                        log.debug("mechanic: skipped unknown player counter type {} on seat={}", ev.counterType, ev.seatId.value)
+                        continue
+                    }
+                    if (delta > 0) {
+                        annotations.add(
+                            AnnotationBuilder.playerCounterAdded(
+                                ev.seatId,
+                                counterType,
+                                delta,
+                                affectorId = playerCounterAffectorResolver(eventIndex, ev),
+                            ),
+                        )
+                    } else {
+                        annotations.add(AnnotationBuilder.playerCounterRemoved(ev.seatId, counterType, -delta))
+                    }
+                    persistent.add(AnnotationBuilder.playerCounter(ev.seatId, counterType, ev.newCount))
+                    log.debug(
+                        "mechanic: player counter {} {} on seat={}",
+                        if (delta > 0) "added" else "removed",
+                        ev.counterType,
+                        ev.seatId.value,
+                    )
                 }
                 is GameEvent.LibraryShuffled -> {
                     // TODO: re-enable once LibraryShuffled carries pre/post instanceId lists
