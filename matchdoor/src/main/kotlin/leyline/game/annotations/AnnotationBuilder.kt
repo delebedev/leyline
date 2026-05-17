@@ -1374,8 +1374,7 @@ object AnnotationBuilder {
                 if (cantBeBlockedByObjects.isNotEmpty()) {
                     builder.addDetails(int32ListDetail(DetailKeys.CANT_BE_BLOCKED_BY_OBJECTS, cantBeBlockedByObjects))
                 }
-            }
-            .build()
+            }.build()
 
     private fun typedStringDetail(
         key: String,

@@ -96,8 +96,6 @@ private fun List<AnnotationInfo>.singleQualification(type: QualificationType): A
 
 private fun AnnotationInfo.detail(key: String) = detailsList.firstOrNull { it.key == key }
 
-private fun AnnotationInfo.detailInt(key: String): Int =
-    detailsList.first { it.key == key }.getValueInt32(0)
+private fun AnnotationInfo.detailInt(key: String): Int = detailsList.first { it.key == key }.getValueInt32(0)
 
-private fun AnnotationInfo.detailString(key: String): String =
-    detailsList.first { it.key == key }.getValueString(0)
+private fun AnnotationInfo.detailString(key: String): String = detailsList.first { it.key == key }.getValueString(0)

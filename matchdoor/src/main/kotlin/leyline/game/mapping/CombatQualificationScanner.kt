@@ -192,8 +192,7 @@ object CombatQualificationScanner {
         snap.boundCards[ForgeCardId(card.id)]?.data
             ?: bridge.cardRepository.findGrpIdByName(card.name)?.let { bridge.cardRepository.findByGrpId(it) }
 
-    private fun sourceParent(staticAbility: StaticAbility): Card =
-        staticAbility.hostCard.getEffectSource() ?: staticAbility.hostCard
+    private fun sourceParent(staticAbility: StaticAbility): Card = staticAbility.hostCard.getEffectSource() ?: staticAbility.hostCard
 
     private fun instanceId(
         card: Card,

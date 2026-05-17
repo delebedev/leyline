@@ -57,7 +57,11 @@ class AbilityRegistryTest :
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Pacifism", human, ZoneType.Battlefield)
                 }
-            val pacifism = game.players[0].getZone(ZoneType.Battlefield).cards.first { it.name == "Pacifism" }
+            val pacifism =
+                game.players[0]
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Pacifism" }
             val restriction =
                 pacifism.staticAbilities.single {
                     it.checkMode(StaticAbilityMode.CantAttack) && it.checkMode(StaticAbilityMode.CantBlock)
@@ -73,7 +77,11 @@ class AbilityRegistryTest :
                 base.startWithBoard { _, human, _ ->
                     base.addCard("Pacifism", human, ZoneType.Battlefield)
                 }
-            val pacifism = game.players[0].getZone(ZoneType.Battlefield).cards.first { it.name == "Pacifism" }
+            val pacifism =
+                game.players[0]
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Pacifism" }
             val restriction =
                 pacifism.staticAbilities.single {
                     it.checkMode(StaticAbilityMode.CantAttack) && it.checkMode(StaticAbilityMode.CantBlock)

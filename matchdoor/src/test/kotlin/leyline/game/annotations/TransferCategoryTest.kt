@@ -2,9 +2,9 @@ package leyline.game.annotations
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.UnitTag
 import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferCategoryResolver
 import leyline.game.event.GameEvent
