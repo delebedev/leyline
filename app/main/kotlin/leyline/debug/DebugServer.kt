@@ -572,7 +572,11 @@ class DebugServer(
                 .setActionsAvailableReq(actions)
                 .build()
 
-        val bound = newSession.gameBridge.seat(newSession.seatId).action.markCurrentPromptEmitted(gsId)
+        val bound =
+            newSession.gameBridge
+                .seat(newSession.seatId)
+                .action
+                .markCurrentPromptEmitted(gsId)
         if (!bound) {
             log.warn("Puzzle hot-swap emitted ActionsAvailableReq gsId={} without a pending action", gsId)
         }
