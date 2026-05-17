@@ -412,16 +412,17 @@ class GamePlayback(
     private fun List<LeylineGameEvent>.canSafelySplitCombatDamage(): Boolean {
         var inDamageStep = false
         for (event in this) {
-            when (event) {
-                is LeylineGameEvent.PhaseChanged -> {
-                    if (event.isDamageStep()) inDamageStep = true
-                }
-                is LeylineGameEvent.DamageDealtToPlayer,
-                is LeylineGameEvent.LifeChanged,
-                LeylineGameEvent.CombatEnded,
-                -> if (!inDamageStep) return false
-                is LeylineGameEvent.DamageDealtToCard -> return false
-                else -> if (!inDamageStep && !event.isSafeBeforeDamageStep()) return false
+            if (event is LeylineGameEvent.PhaseChanged) {
+                if (event.isDamageStep()) inDamageStep = true
+            } else if (event is LeylineGameEvent.DamageDealtToPlayer ||
+                event is LeylineGameEvent.LifeChanged ||
+                event == LeylineGameEvent.CombatEnded
+            ) {
+                if (!inDamageStep) return false
+            } else if (event is LeylineGameEvent.DamageDealtToCard) {
+                return false
+            } else {
+                if (!inDamageStep && !event.isSafeBeforeDamageStep()) return false
             }
         }
         return true

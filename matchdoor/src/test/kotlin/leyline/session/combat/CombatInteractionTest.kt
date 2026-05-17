@@ -375,9 +375,11 @@ class CombatInteractionTest :
             val damageIndex = allGsms.indexOfFirst { it.gameStateId == damageGsm.gameStateId }
             damageIndex shouldBeGreaterThanOrEqualTo 0
             val echoGsm = allGsms.getOrNull(damageIndex + 1)
-            echoGsm.shouldNotBeNull()
-            echoGsm.annotationsCount shouldBe 0
-            echoGsm.prevGameStateId shouldBe damageGsm.gameStateId
+            assertSoftly {
+                echoGsm.shouldNotBeNull()
+                echoGsm.annotationsCount shouldBe 0
+                echoGsm.prevGameStateId shouldBe damageGsm.gameStateId
+            }
 
             val endCombatGsm =
                 allGsms.drop(damageIndex + 2).firstOrNull { gsm ->
@@ -443,11 +445,13 @@ class CombatInteractionTest :
                     .filter { gsm ->
                         gsm.annotationsList.any { AnnotationType.DamageDealt_af5a in it.typeList }
                     }
-            damageGsms shouldHaveSize 2
-            damageGsms.map { it.turnInfo.step } shouldBe listOf(Step.FirstStrikeDamage_a2cb, Step.CombatDamage_a2cb)
-            damageGsms.map { gsm ->
-                gsm.playersList.single { it.systemSeatNumber == OPPONENT_SEAT }.lifeTotal
-            } shouldBe listOf(19, 18)
+            assertSoftly {
+                damageGsms shouldHaveSize 2
+                damageGsms.map { it.turnInfo.step } shouldBe listOf(Step.FirstStrikeDamage_a2cb, Step.CombatDamage_a2cb)
+                damageGsms.map { gsm ->
+                    gsm.playersList.single { it.systemSeatNumber == OPPONENT_SEAT }.lifeTotal
+                } shouldBe listOf(19, 18)
+            }
 
             for (gsm in damageGsms) {
                 val damage = gsm.annotationsList.single { AnnotationType.DamageDealt_af5a in it.typeList }
