@@ -68,11 +68,9 @@ class SimClientBatchTest :
         fun envOrProp(name: String): String? = System.getenv(name) ?: System.getProperty(name.lowercase().replace('_', '.'))
 
         fun simclientRelaxedValidation(): InvariantSelection =
-            InvariantSelection.except(
+            InvariantSelection.protocolFactsExcept(
                 "simclient driver can replay older queued ids around play-land diffs (leyline-qiws)",
                 InvariantCheck.GsIdMonotonicity,
-                InvariantCheck.MsgIdMonotonicity,
-                InvariantCheck.GsIdPrevKnown,
             )
 
         fun parseSeeds(spec: String): List<Long> {

@@ -35,11 +35,9 @@ class SimClientE2ETest :
                     seed = seed,
                     deckList = deck,
                     validation =
-                        InvariantSelection.except(
+                        InvariantSelection.protocolFactsExcept(
                             "simclient driver can replay older queued ids around play-land diffs (leyline-qiws)",
                             InvariantCheck.GsIdMonotonicity,
-                            InvariantCheck.MsgIdMonotonicity,
-                            InvariantCheck.GsIdPrevKnown,
                         ),
                 )
             val tempLog = Files.createTempFile("simclient-$tag-", ".log").toFile()

@@ -15,8 +15,9 @@ import leyline.testkit.humanPlayer
 /**
  * Validates gsId chain **semantics** beyond structural invariants.
  *
- * Structural checks (gsId monotonicity, prevGsId validity, msgId monotonicity,
- * no self-referential gsIds) are automatic via [ValidatingMessageSink].
+ * Hard checks (gsId monotonicity, uniqueness, and no self-reference) are
+ * automatic via [ValidatingMessageSink]. Prev-known and msgId checks remain
+ * opt-in diagnostics for focused shape tests.
  *
  * What remains here: scenario-specific contracts about pendingMessageCount,
  * phase transition bundle structure, and cross-bundle chain continuity.

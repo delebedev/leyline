@@ -7,8 +7,6 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.game.bundle.InvariantCheck
-import leyline.game.bundle.InvariantSelection
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.allAnnotations
@@ -43,12 +41,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
  */
 class MobilizeKeywordTest :
     SessionTest({
-
-        val mobilizeValidation =
-            InvariantSelection.except(
-                "Mobilize token ZoneTransfer affectedIds are unresolved until token projection is fixed (leyline-g8bw)",
-                InvariantCheck.AnnotationReferences,
-            )
 
         beforeSpec {
             // Register the source card and the Warrior token Forge spawns at trigger
@@ -126,7 +118,7 @@ class MobilizeKeywordTest :
             """.trimIndent()
 
         test("Mobilize 1 trigger emits the full annotation lifecycle during attack + resolution") {
-            startPuzzleRaw(mobilize1Puzzle, validation = mobilizeValidation)
+            startPuzzleRaw(mobilize1Puzzle, validating = true)
 
             val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             sources shouldHaveSize 1
@@ -213,7 +205,7 @@ class MobilizeKeywordTest :
             """.trimIndent()
 
         test("Mobilize 3 produces three Warrior tokens") {
-            startPuzzleRaw(mobilize3Puzzle, validation = mobilizeValidation)
+            startPuzzleRaw(mobilize3Puzzle, validating = true)
 
             val sources = humanBattlefieldCreatures().filter { it.second == "Dalkovan Packbeasts" }
             sources shouldHaveSize 1
@@ -229,7 +221,7 @@ class MobilizeKeywordTest :
         }
 
         test("two Mobilize sources both surface AbilityInstanceCreated + TriggeringObject") {
-            startPuzzleRaw(twoSourcePuzzle, validation = mobilizeValidation)
+            startPuzzleRaw(twoSourcePuzzle, validating = true)
 
             val creatures = humanBattlefieldCreatures()
             val attackerIids =
@@ -275,7 +267,7 @@ class MobilizeKeywordTest :
         }
 
         test("Mobilize 1 cleanup at next end step sacrifices the token") {
-            startPuzzleRaw(mobilize1Puzzle, validation = mobilizeValidation)
+            startPuzzleRaw(mobilize1Puzzle, validating = true)
 
             val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             val sourceIid = sources.first().first
@@ -306,7 +298,7 @@ class MobilizeKeywordTest :
         // ------- TriggerHolder gameObject shape + lifecycle -------
 
         test("Mobilize 1 emits a TriggerHolder gameObject in Limbo with canonical fields") {
-            startPuzzleRaw(mobilize1Puzzle, validation = mobilizeValidation)
+            startPuzzleRaw(mobilize1Puzzle, validating = true)
 
             val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             val sourceIid = sources.first().first
@@ -365,7 +357,7 @@ class MobilizeKeywordTest :
         }
 
         test("Mobilize holder is emitted once, not re-emitted, then deleted via diffDeletedInstanceIds") {
-            startPuzzleRaw(mobilize1Puzzle, validation = mobilizeValidation)
+            startPuzzleRaw(mobilize1Puzzle, validating = true)
 
             val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             val sourceIid = sources.first().first

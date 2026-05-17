@@ -18,15 +18,10 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairInfo
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
 /**
- * Unit tests for [InvariantChecker.checkPhaseFirst] and
- * [InvariantChecker.checkResolutionSandwich].
+ * Unit tests for focused [InvariantChecker] diagnostics and hard checks.
  *
- * PhaseOrStepModified, when present in a GSM, must be at index 0 of
- * the annotation list. Detection only — no enforcement here.
- *
- * Resolve-category ZoneTransfer annotations, when both ResolutionStart
- * and ResolutionComplete are present in the same GSM, must sit between
- * them. Detection only.
+ * Phase and resolution ordering checks are diagnostics, so these tests select
+ * them explicitly instead of relying on the default hard-check set.
  */
 class InvariantCheckerTest :
     FunSpec({
@@ -123,10 +118,15 @@ class InvariantCheckerTest :
                 .setGameStateMessage(gsm)
                 .build()
 
+        fun checkerFor(
+            reason: String,
+            vararg checks: InvariantCheck,
+        ) = InvariantChecker(InvariantSelection.only(reason, *checks))
+
         // --- Tests ---
 
         test("phase_first violation when PhaseOrStepModified is not at index 0") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("phase diagnostic", InvariantCheck.PhaseFirst)
             val g =
                 gsm(
                     gsId = 1,
@@ -146,7 +146,7 @@ class InvariantCheckerTest :
         }
 
         test("no phase_first violation when PhaseOrStepModified is at index 0") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("phase diagnostic", InvariantCheck.PhaseFirst)
             val g =
                 gsm(
                     gsId = 1,
@@ -163,7 +163,7 @@ class InvariantCheckerTest :
         }
 
         test("no phase_first violation when PhaseOrStepModified is absent") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("phase diagnostic", InvariantCheck.PhaseFirst)
             val g =
                 gsm(
                     gsId = 1,
@@ -180,7 +180,7 @@ class InvariantCheckerTest :
         }
 
         test("no phase_first violation when multiple PhaseOrStepModified and first is at index 0") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("phase diagnostic", InvariantCheck.PhaseFirst)
             val g =
                 gsm(
                     gsId = 1,
@@ -200,7 +200,7 @@ class InvariantCheckerTest :
         // --- resolution_sandwich tests ---
 
         test("resolution_sandwich violation when Resolve ZT lands before ResolutionStart") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
             val g =
                 gsm(
                     gsId = 1,
@@ -221,7 +221,7 @@ class InvariantCheckerTest :
         }
 
         test("resolution_sandwich violation when Resolve ZT lands after ResolutionComplete") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
             val g =
                 gsm(
                     gsId = 1,
@@ -241,7 +241,7 @@ class InvariantCheckerTest :
         }
 
         test("resolution_sandwich records two violations when Resolve ZTs flank the bracket") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
             val g =
                 gsm(
                     gsId = 1,
@@ -261,7 +261,7 @@ class InvariantCheckerTest :
         }
 
         test("no resolution_sandwich violation when Resolve ZT sits between RS and RC") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
             val g =
                 gsm(
                     gsId = 1,
@@ -279,7 +279,7 @@ class InvariantCheckerTest :
         }
 
         test("no resolution_sandwich violation when RS and RC are absent") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
             val g =
                 gsm(
                     gsId = 1,
@@ -295,7 +295,7 @@ class InvariantCheckerTest :
         }
 
         test("no resolution_sandwich violation when non-Resolve ZT sits outside the bracket") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
             val g =
                 gsm(
                     gsId = 1,
@@ -313,7 +313,7 @@ class InvariantCheckerTest :
         }
 
         test("no resolution_sandwich violation when multiple Resolve ZTs all sit inside the bracket") {
-            val checker = InvariantChecker()
+            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
             val g =
                 gsm(
                     gsId = 1,

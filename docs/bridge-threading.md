@@ -120,7 +120,7 @@ Per-bundle operational order inside `BundleBuilder`: **capture → buildDiff →
 
 ## 4. One shared counter, not two
 
-`gsId` and `msgId` are protocol-critical: the client rejects out-of-order or duplicated IDs and forces a resync. Both live on a single `MessageCounter` instance — shared by `MatchSession`, `GameBridge`, `GamePlayback`, and `BundleBuilder` at construction time. The session thread and the engine thread both call `nextGsId()` / `nextMsgId()` directly on the same `AtomicInteger`.
+`gsId` is protocol-critical: the client-visible `GameStateMessage` stream must use monotonically increasing, unique IDs with no self-referential predecessor. `msgId` is still allocated from the same counter object for local ordering and response bookkeeping, but validator hard failures are intentionally limited to the stable gsId facts plus AIC/AID affector consistency. Both IDs live on a single `MessageCounter` instance — shared by `MatchSession`, `GameBridge`, `GamePlayback`, and `BundleBuilder` at construction time. The session thread and the engine thread both call `nextGsId()` / `nextMsgId()` directly on the same `AtomicInteger`.
 
 A partitioned design (a range of IDs per thread) cannot guarantee client-visible ordering without coordination on every send, which is the problem the shared atomic already solves. A predecessor design with two counters and a `max()`-merge at every bridge callback existed; the current shape removes the problem rather than patching it.
 

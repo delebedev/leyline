@@ -85,6 +85,11 @@ class ValidatingMessageSinkTest :
 
         fun selectedSink(selection: InvariantSelection) = ValidatingMessageSink(strict = false, selection = selection)
 
+        fun diagnosticSink(
+            reason: String,
+            vararg checks: InvariantCheck,
+        ) = selectedSink(InvariantSelection.only(reason, *checks))
+
         // --- Positive: clean stream ---
 
         test("Clean message stream produces no violations") {
@@ -174,7 +179,7 @@ class ValidatingMessageSinkTest :
         // --- prevGsId validity ---
 
         test("Detects prevGsId referencing unknown gsId") {
-            val sink = lenientSink()
+            val sink = diagnosticSink("prev gsId diagnostic", InvariantCheck.GsIdPrevKnown)
 
             val gsm1 = gsm(gsId = 1, type = GameStateType.Full)
             val gsm2 = gsm(gsId = 2, prevGsId = 99) // violation: 99 never seen
@@ -182,27 +187,28 @@ class ValidatingMessageSinkTest :
             sink.send(listOf(greMessage(msgId = 1, gsm = gsm1)))
             sink.send(listOf(greMessage(msgId = 2, gsm = gsm2)))
 
+            sink.violationsByCheck[InvariantCheck.GsIdPrevKnown.id] shouldBe 1
             sink.violations.shouldExist { "prevGsId 99 not in known set" in it }
         }
 
-        test("Selection can relax one invariant while preserving others") {
+        test("Selection can relax one protocol fact while preserving others") {
             val sink =
                 selectedSink(
-                    InvariantSelection.except(
+                    InvariantSelection.protocolFactsExcept(
                         "exercise partial validation selection",
-                        InvariantCheck.GsIdPrevKnown,
+                        InvariantCheck.GsIdNoSelfRef,
                     ),
                 )
 
             val gsm1 = gsm(gsId = 1, type = GameStateType.Full)
-            val gsm2 = gsm(gsId = 2, prevGsId = 99)
+            val gsm2 = gsm(gsId = 2, prevGsId = 2)
             val gsm3 = gsm(gsId = 1, prevGsId = 2)
 
             sink.send(listOf(greMessage(msgId = 1, gsm = gsm1)))
             sink.send(listOf(greMessage(msgId = 2, gsm = gsm2)))
             sink.send(listOf(greMessage(msgId = 3, gsm = gsm3)))
 
-            sink.violations.none { "prevGsId 99 not in known set" in it } shouldBe true
+            sink.violations.none { "Self-referential gsId" in it } shouldBe true
             sink.violations.shouldExist { "gsId not monotonic" in it }
         }
 
@@ -218,13 +224,14 @@ class ValidatingMessageSinkTest :
             val bad = gsm(gsId = 7, prevGsId = 7) // violation: self-ref
             sink.send(listOf(greMessage(msgId = 2, gsm = bad)))
 
+            sink.violationsByCheck[InvariantCheck.GsIdNoSelfRef.id] shouldBe 1
             sink.violations.shouldExist { "Self-referential gsId" in it }
         }
 
         // --- msgId monotonicity ---
 
         test("Detects non-monotonic msgId") {
-            val sink = lenientSink()
+            val sink = diagnosticSink("msgId diagnostic", InvariantCheck.MsgIdMonotonicity)
 
             val msg1 = gre(msgId = 5)
             val msg2 = gre(msgId = 3) // violation: 3 < 5
@@ -232,13 +239,14 @@ class ValidatingMessageSinkTest :
             sink.send(listOf(msg1))
             sink.send(listOf(msg2))
 
+            sink.violationsByCheck[InvariantCheck.MsgIdMonotonicity.id] shouldBe 1
             sink.violations.shouldExist { "msgId not monotonic" in it }
         }
 
         // --- Annotation ID sequentiality ---
 
         test("Detects non-sequential annotation IDs") {
-            val sink = lenientSink()
+            val sink = diagnosticSink("annotation id diagnostic", InvariantCheck.AnnotationSequentiality)
 
             // IDs must be contiguous: 1,5 has a gap (expected 2 after 1)
             val badGsm =
@@ -250,11 +258,12 @@ class ValidatingMessageSinkTest :
 
             sink.send(listOf(greMessage(msgId = 1, gsm = badGsm)))
 
+            sink.violationsByCheck[InvariantCheck.AnnotationSequentiality.id] shouldBe 1
             sink.violations.shouldExist { "Annotation IDs not sequential" in it }
         }
 
         test("Sequential annotation IDs starting from arbitrary value are OK") {
-            val sink = lenientSink()
+            val sink = diagnosticSink("annotation id diagnostic", InvariantCheck.AnnotationSequentiality)
 
             // IDs 50,51,52 — contiguous, just not starting from 1
             val goodGsm =
@@ -270,7 +279,7 @@ class ValidatingMessageSinkTest :
         }
 
         test("Detects zero annotation ID in mixed-id GSM") {
-            val sink = lenientSink()
+            val sink = diagnosticSink("annotation id diagnostic", InvariantCheck.AnnotationSequentiality)
 
             // Mix of assigned and unassigned IDs — id=0 among non-zero triggers violation
             val badGsm =
@@ -282,13 +291,14 @@ class ValidatingMessageSinkTest :
 
             sink.send(listOf(greMessage(msgId = 1, gsm = badGsm)))
 
+            sink.violationsByCheck[InvariantCheck.AnnotationSequentiality.id] shouldBe 1
             sink.violations.shouldExist { "id=0" in it }
         }
 
         // --- Action instanceId consistency ---
 
         test("Detects action instanceId missing from objects") {
-            val sink = lenientSink()
+            val sink = diagnosticSink("action iid diagnostic", InvariantCheck.ActionInstanceIds)
 
             // Send a Full GSM with no objects
             val fullGsm = gsm(gsId = 1, type = GameStateType.Full)
@@ -303,13 +313,14 @@ class ValidatingMessageSinkTest :
                 ),
             )
 
+            sink.violationsByCheck[InvariantCheck.ActionInstanceIds.id] shouldBe 1
             sink.violations.shouldExist { "Action instanceIds missing" in it }
         }
 
         // --- Zone-object consistency ---
 
         test("Detects zone object missing from objects map") {
-            val sink = lenientSink()
+            val sink = diagnosticSink("zone object diagnostic", InvariantCheck.ZoneObjects)
 
             // Full GSM with a visible zone referencing instanceId=42, but no matching object
             sink.send(
@@ -328,11 +339,12 @@ class ValidatingMessageSinkTest :
                 ),
             )
 
+            sink.violationsByCheck[InvariantCheck.ZoneObjects.id] shouldBe 1
             sink.violations.shouldExist { "Zone objects missing" in it }
         }
 
         test("Hidden/Private/Limbo zones are skipped for zone-object check") {
-            val sink = lenientSink()
+            val sink = diagnosticSink("zone object diagnostic", InvariantCheck.ZoneObjects)
 
             sink.send(
                 listOf(
@@ -418,8 +430,8 @@ class ValidatingMessageSinkTest :
             val sink = lenientSink()
 
             // Force a violation
-            sink.send(listOf(gre(msgId = 5)))
-            sink.send(listOf(gre(msgId = 3)))
+            sink.send(listOf(greMessage(msgId = 1, gsm = gsm(gsId = 5))))
+            sink.send(listOf(greMessage(msgId = 2, gsm = gsm(gsId = 3))))
 
             shouldThrow<AssertionError> {
                 sink.assertClean()
@@ -429,7 +441,7 @@ class ValidatingMessageSinkTest :
         // --- annotation ordering ---
 
         test("Detects ObjectIdChanged after annotation referencing its newId") {
-            val sink = lenientSink()
+            val sink = diagnosticSink("annotation ordering diagnostic", InvariantCheck.AnnotationOrdering)
 
             val zt =
                 AnnotationInfo
@@ -455,11 +467,12 @@ class ValidatingMessageSinkTest :
             val badGsm = gsm(gsId = 1, type = GameStateType.Full, annotations = listOf(zt, oic))
             sink.send(listOf(greMessage(msgId = 1, gsm = badGsm)))
 
+            sink.violationsByCheck[InvariantCheck.AnnotationOrdering.id] shouldBe 2
             sink.violations.shouldExist { "annotation ordering violation" in it }
         }
 
         test("No violation when ObjectIdChanged precedes referencing annotation") {
-            val sink = lenientSink()
+            val sink = diagnosticSink("annotation ordering diagnostic", InvariantCheck.AnnotationOrdering)
 
             val oic =
                 AnnotationInfo
