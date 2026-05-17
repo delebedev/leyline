@@ -23,6 +23,9 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *    "Sacrifice them at the next end step" row paired with every Mobilize
  *    keyword. Null for non-Mobilize cards. Drives StateMapper's
  *    TemporaryPermanent + DelayedTriggerAffectees pAnn emission.
+ *  - [decayedCleanup] is the hidden EndCombat sacrifice row paired with Decayed.
+ *    Null for non-Decayed cards. Drives StateMapper's TemporaryPermanent-only
+ *    delayed cleanup marker.
  *  - [parentLinkage] drives `parentId` emission on
  *    [leyline.game.mapping.ObjectMapper]'s GameObject build path. Auras /
  *    Equipment surface as [ParentLinkage.AttachedTo]; prepared-spell exile
@@ -37,6 +40,7 @@ data class BoundCard(
     val data: CardData?,
     val altCosts: List<AltCostBinding> = emptyList(),
     val mobilizeCleanup: Int? = null,
+    val decayedCleanup: Int? = null,
     val parentLinkage: ParentLinkage? = null,
     val designations: DesignationSet = DesignationSet(),
 ) {
@@ -148,6 +152,17 @@ data class BoundCard(
             if (data == null) return null
             val hasMobilize = altCosts.any { it.keywordBaseId == KeywordAbilityIds.MOBILIZE }
             if (!hasMobilize) return null
+            return repo.findHiddenTriggeredAbilityGrpId(data.grpId)
+        }
+
+        /** Resolve Decayed's hidden "sacrifice it at end of combat" row. */
+        fun bindDecayedCleanup(
+            data: CardData?,
+            repo: CardRepository,
+        ): Int? {
+            if (data == null) return null
+            val hasDecayed = repo.findKeywordAbilityGrpId(data.grpId, KeywordAbilityIds.DECAYED) != null
+            if (!hasDecayed) return null
             return repo.findHiddenTriggeredAbilityGrpId(data.grpId)
         }
     }

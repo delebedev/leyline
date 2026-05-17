@@ -1,0 +1,15 @@
+name: "Rot-Curse Rakshasa"
+grpId: 95606
+titleId: 926922
+abilities:
+  - id: 14
+    textId: 28
+    category: 3
+  - id: 214
+    textId: 530690
+    category: 3
+  - id: 188786
+    textId: 926923
+    category: 1
+    mana: "oXoBoB"
+expansionCode: "TDM"

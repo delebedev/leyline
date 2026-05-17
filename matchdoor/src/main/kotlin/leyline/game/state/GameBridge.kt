@@ -298,6 +298,22 @@ class GameBridge(
      */
     val delayedTriggerHolders = DelayedTriggerHolderTracker()
 
+    private val decayedCleanupSources = linkedSetOf<ForgeCardId>()
+
+    fun activeDecayedCleanupSources(): Set<ForgeCardId> = decayedCleanupSources.toSet()
+
+    fun recordDecayedCleanupSource(source: ForgeCardId) {
+        decayedCleanupSources.add(source)
+    }
+
+    fun clearDecayedCleanupSource(source: ForgeCardId) {
+        decayedCleanupSources.remove(source)
+    }
+
+    fun resetDecayedCleanupSources() {
+        decayedCleanupSources.clear()
+    }
+
     data class LibraryArrangementResult(
         val seatId: SeatId,
         val context: GroupingContext,
@@ -940,6 +956,7 @@ class GameBridge(
         effects.resetAll()
         annotations.resetAll()
         delayedTriggerHolders.resetAll()
+        resetDecayedCleanupSources()
         activeCrewEffects.clear()
         abilityRegistries.clear()
         tokenRegistry.clear()

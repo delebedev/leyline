@@ -31,6 +31,7 @@ internal object StackAbilityGrpIdResolver {
     ): Int {
         resolveChapterGrpId(entry, sourceCard, bridge)?.let { return it }
         if (entry.isTrigger && sourceCardGrpId != 0) {
+            decayedTriggerGrpId(entry, sourceCard, sourceCardGrpId, bridge)?.let { return it }
             val cardData = bridge.cardRepository.findByGrpId(sourceCardGrpId)
             val registry = if (cardData != null) bridge.abilityRegistryFor(sourceCard, cardData) else null
             entry.spellAbility?.trigger?.id?.let { triggerId ->
@@ -57,6 +58,23 @@ internal object StackAbilityGrpIdResolver {
             triggeredAbility?.first?.let { return it }
         }
         return sourceCardGrpId
+    }
+
+    private fun decayedTriggerGrpId(
+        entry: SpellAbilityStackInstance,
+        sourceCard: Card,
+        sourceCardGrpId: Int,
+        bridge: GameBridge,
+    ): Int? {
+        if (!sourceCard.hasKeyword("Decayed")) return null
+        val sa = entry.spellAbility ?: return null
+        if (sa.api == ApiType.DelayedTrigger && sa.trigger?.getParam("Mode") == "Attacks") {
+            return KeywordAbilityIds.DECAYED
+        }
+        if (sa.api == ApiType.Sacrifice && sa.trigger?.getParam("Phase") == "EndCombat") {
+            return bridge.cardRepository.findHiddenTriggeredAbilityGrpId(sourceCardGrpId)
+        }
+        return null
     }
 
     /** If [entry] is a Saga chapter trigger, return the chapter-specific ability grpId. */
