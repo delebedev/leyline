@@ -86,7 +86,7 @@ class MadnessLifecycleTest :
             val h =
                 MatchFlowHarness(
                     validation =
-                        InvariantSelection.except(
+                        InvariantSelection.protocolFactsExcept(
                             "Madness cast path currently emits AID with post-move affector (follow-up validator blocker)",
                             InvariantCheck.AidAffector,
                         ),

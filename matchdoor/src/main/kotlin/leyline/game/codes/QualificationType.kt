@@ -8,6 +8,15 @@ package leyline.game.codes
 enum class QualificationType(
     val wireValue: Int,
 ) {
+    /** Static restriction: affected creature can't attack. */
+    CantAttack(30),
+
+    /** Static restriction: affected creature can't block, or can't block listed attackers. */
+    CantBlock(31),
+
+    /** Static evasion: affected creature can't be blocked, or can't be blocked by listed blockers. */
+    CantBeBlocked(32),
+
     /** Combat keyword qualification (e.g. Menace). */
     CombatKeyword(40),
 

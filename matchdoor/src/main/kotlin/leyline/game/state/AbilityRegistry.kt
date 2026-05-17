@@ -75,6 +75,8 @@ class AbilityRegistry private constructor(
             mapStationThresholdStatics(card, abilityIds, staticMap)
             mapManaAbilities(card, fallbackGrpId, saMap)
             mapUnclaimedIntrinsicTriggers(card, cardData, abilityIds, keywordCount, triggerMap)
+            mapUnclaimedIntrinsicStatics(card, cardData, abilityIds, keywordCount, staticMap)
+            mapUnclaimedLegacyStatics(card, cardData, abilityIds, keywordCount, staticMap)
             mapUnclaimedIntrinsics(card, fallbackGrpId, staticMap, triggerMap)
 
             // Derive SlotLayout from the same data — single source of truth.
@@ -212,6 +214,56 @@ class AbilityRegistry private constructor(
             if (intrinsicSlots.size != triggers.size) return
             for ((trig, slotIdx) in triggers.zip(intrinsicSlots)) {
                 triggerMap[trig.id] = abilityIds[slotIdx].first
+            }
+        }
+
+        /** Map card-specific static abilities when Arena's remaining
+         *  intrinsic slots line up exactly with Forge's unclaimed statics. */
+        private fun mapUnclaimedIntrinsicStatics(
+            card: Card,
+            cardData: CardData,
+            abilityIds: List<Pair<Int, Int>>,
+            keywordCount: Int,
+            staticMap: MutableMap<Int, Int>,
+        ) {
+            if (cardData.abilityKinds.size != abilityIds.size) return
+            val statics =
+                card.staticAbilities
+                    ?.filter { it.id !in staticMap }
+                    .orEmpty()
+            if (statics.isEmpty()) return
+            val intrinsicSlots =
+                abilityIds.indices.filter { idx ->
+                    idx >= keywordCount && cardData.abilityKinds[idx] == SlotKind.Intrinsic
+                }
+            if (intrinsicSlots.size != statics.size) return
+            for ((staticAbility, slotIdx) in statics.zip(intrinsicSlots)) {
+                staticMap[staticAbility.id] = abilityIds[slotIdx].first
+            }
+        }
+
+        /** Legacy data without per-slot categories: map statics only when the
+         * remaining post-keyword slots line up exactly after activated abilities. */
+        private fun mapUnclaimedLegacyStatics(
+            card: Card,
+            cardData: CardData,
+            abilityIds: List<Pair<Int, Int>>,
+            keywordCount: Int,
+            staticMap: MutableMap<Int, Int>,
+        ) {
+            if (cardData.abilityKinds.size == abilityIds.size) return
+            val statics =
+                card.staticAbilities
+                    ?.filter { it.id !in staticMap }
+                    .orEmpty()
+            if (statics.isEmpty()) return
+            val activatedCount =
+                card.spellAbilities
+                    ?.count { it.isActivatedAbility && it.isIntrinsic && !it.isManaAbility() } ?: 0
+            val staticSlots = (keywordCount until abilityIds.size).drop(activatedCount)
+            if (staticSlots.size != statics.size) return
+            for ((staticAbility, slotIdx) in statics.zip(staticSlots)) {
+                staticMap[staticAbility.id] = abilityIds[slotIdx].first
             }
         }
 

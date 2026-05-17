@@ -1639,16 +1639,17 @@ class BundleBuilder(
     fun buildEchoDiffGsm(
         counter: MessageCounter,
         updateType: GameStateUpdate = GameStateUpdate.Send,
-        previousGsId: Int = counter.lastGameStateGsId().takeIf { it > 0 } ?: counter.currentGsId(),
+        previousGsId: Int? = null,
     ): GREToClientMessage {
-        val gsId = counter.nextGsId()
-        return makeGRE(GREMessageType.GameStateMessage_695e, gsId, counter.nextMsgId()) {
+        val link = counter.nextGameStateLink()
+        val prev = previousGsId ?: link.prevGsId
+        return makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
             it.gameStateMessage =
                 GameStateMessage
                     .newBuilder()
                     .setType(GameStateType.Diff)
-                    .setGameStateId(gsId)
-                    .setPrevGameStateId(previousGsId)
+                    .setGameStateId(link.gsId)
+                    .setPrevGameStateId(prev)
                     .setUpdate(updateType)
                     .build()
         }

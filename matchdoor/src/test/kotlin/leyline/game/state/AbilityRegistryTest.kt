@@ -1,5 +1,6 @@
 package leyline.game.state
 
+import forge.game.staticability.StaticAbilityMode
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
@@ -49,6 +50,52 @@ class AbilityRegistryTest :
 
             registry.forSpellAbility(ninjutsuAbility.id) shouldBe 5341
             registry.slotLayout.forgeIndexFor(5341) shouldBe 0
+        }
+
+        test("unclaimed intrinsic static maps to matching intrinsic ability slot") {
+            val (_, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Pacifism", human, ZoneType.Battlefield)
+                }
+            val pacifism =
+                game.players[0]
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Pacifism" }
+            val restriction =
+                pacifism.staticAbilities.single {
+                    it.checkMode(StaticAbilityMode.CantAttack) && it.checkMode(StaticAbilityMode.CantBlock)
+                }
+
+            val registry = AbilityRegistry.build(pacifism, CardDataDeriver.fromForgeCard(pacifism, "Pacifism"))
+
+            registry.forStaticAbility(restriction.id) shouldBe 1083
+        }
+
+        test("unclaimed printed static maps with legacy slot data") {
+            val (_, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Pacifism", human, ZoneType.Battlefield)
+                }
+            val pacifism =
+                game.players[0]
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Pacifism" }
+            val restriction =
+                pacifism.staticAbilities.single {
+                    it.checkMode(StaticAbilityMode.CantAttack) && it.checkMode(StaticAbilityMode.CantBlock)
+                }
+            restriction.setIntrinsic(false)
+            val cardData =
+                CardDataDeriver.fromForgeCard(pacifism, "Pacifism").copy(
+                    abilityIds = listOf(1027 to 605, 1083 to 62428),
+                    abilityKinds = emptyList(),
+                )
+
+            val registry = AbilityRegistry.build(pacifism, cardData)
+
+            registry.forStaticAbility(restriction.id) shouldBe 1083
         }
 
         test("planeswalker loyalty abilities map to distinct abilityGrpId slots") {

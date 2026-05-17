@@ -27,6 +27,7 @@ import leyline.testkit.hasDetail
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
+import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
 @Suppress("LargeClass")
 class AnnotationBuilderTest :
@@ -1127,10 +1128,14 @@ class AnnotationBuilderTest :
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.Qualification
                 ann.affectedIdsList shouldBe listOf(348)
-                ann.detailUint("QualificationType") shouldBe 47
-                ann.detailUint("QualificationSubtype") shouldBe 0
-                ann.detailUint("grpid") shouldBe 196
-                ann.detailUint("SourceParent") shouldBe 0
+                ann.detailInt("QualificationType") shouldBe 47
+                ann.detailInt("QualificationSubtype") shouldBe 0
+                ann.detailInt("grpid") shouldBe 196
+                ann.detailInt("SourceParent") shouldBe 0
+                ann.detail("QualificationType")?.type shouldBe KeyValuePairValueType.Int32
+                ann.detail("QualificationSubtype")?.type shouldBe KeyValuePairValueType.Int32
+                ann.detail("grpid")?.type shouldBe KeyValuePairValueType.Int32
+                ann.detail("SourceParent")?.type shouldBe KeyValuePairValueType.Int32
             }
             ann.affectorId shouldBe 0
         }
@@ -1191,10 +1196,14 @@ class AnnotationBuilderTest :
                 ann.affectedIdsList shouldContain 287
             }
             assertSoftly {
-                ann.detailUint("grpid") shouldBe 142
-                ann.detailUint("QualificationType") shouldBe QualificationType.CombatKeyword.wireValue
-                ann.detailUint("QualificationSubtype") shouldBe 0
-                ann.detailUint("SourceParent") shouldBe 287
+                ann.detailInt("grpid") shouldBe 142
+                ann.detailInt("QualificationType") shouldBe QualificationType.CombatKeyword.wireValue
+                ann.detailInt("QualificationSubtype") shouldBe 0
+                ann.detailInt("SourceParent") shouldBe 287
+                ann.detail("grpid")?.type shouldBe KeyValuePairValueType.Int32
+                ann.detail("QualificationType")?.type shouldBe KeyValuePairValueType.Int32
+                ann.detail("QualificationSubtype")?.type shouldBe KeyValuePairValueType.Int32
+                ann.detail("SourceParent")?.type shouldBe KeyValuePairValueType.Int32
             }
         }
     })

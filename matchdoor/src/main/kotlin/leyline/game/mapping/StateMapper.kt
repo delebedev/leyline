@@ -118,8 +118,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *   Highest-priority candidate to either lift or cover.
  *
  * Incidental in-stage writes:
- * - `bridge.evictAbilityRegistry(...)` — cache invalidation for transformed
- *   cards. Side-effectful but idempotent; ordering-irrelevant.
+ * - `bridge.evictAbilityRegistry(...)` — cache invalidation for zone-changed
+ *   and transformed cards. Side-effectful but idempotent; ordering-irrelevant.
  * - `bridge.ids.reserveNextInstanceId()` inside zone-transfer compute —
  *   reserves a counter slot without committing map writes. Monotonic, so
  *   replay on a fresh bridge starts from 1 and stays deterministic.
@@ -188,10 +188,11 @@ object StateMapper {
         if (prev != null) {
             eventsMutable += SnapDeltaSynthesizer.synthesize(prev, snap)
         }
-        // Evict stale AbilityRegistry entries for transformed cards so the next
-        // abilityRegistryFor() call rebuilds from the current face.
+        // Evict stale AbilityRegistry entries when card traits may be exposed
+        // differently on the new face or in the new zone.
         for (ev in eventsMutable) {
             if (ev is GameEvent.CardTransformed) bridge.evictAbilityRegistry(ev.cardId.value)
+            if (ev is GameEvent.ZoneChanged) bridge.evictAbilityRegistry(ev.cardId.value)
         }
         val initEffectDiff = bridge.effects.emitInitEffectsOnce()
         val boostSnapshot = bridge.snapshotBoosts()
@@ -375,7 +376,8 @@ object StateMapper {
         val qualificationPersistentFromSnap =
             snap.objects.values
                 .filter { it.isOnAdventure }
-                .map { AnnotationBuilder.qualification(instanceId = bridge.getOrAllocInstanceId(it.forgeCardId)) }
+                .map { AnnotationBuilder.qualification(instanceId = frameIds.cardIid(it.forgeCardId)) } +
+                CombatQualificationScanner.scan(snap, bridge, frameIds)
         val eotTokens = snap.objects.values.filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
         // Group EOT-sacrifice tokens by their source card so each delayed-trigger
         // registration gets its own TriggerHolder iid. The canonical shape mints

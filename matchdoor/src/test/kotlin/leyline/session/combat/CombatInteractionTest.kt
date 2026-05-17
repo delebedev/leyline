@@ -50,12 +50,9 @@ class CombatInteractionTest :
     SessionTest({
 
         val combatValidation =
-            InvariantSelection.except(
-                "combat playback can skip queued gsIds and combat damage refs are unresolved in some lanes",
+            InvariantSelection.protocolFactsExcept(
+                "combat playback can skip queued gsIds in some lanes",
                 InvariantCheck.GsIdMonotonicity,
-                InvariantCheck.GsIdPrevKnown,
-                InvariantCheck.MsgIdMonotonicity,
-                InvariantCheck.AnnotationReferences,
             )
 
         // ─── Setup helpers ────────────────────────────────────────────────────

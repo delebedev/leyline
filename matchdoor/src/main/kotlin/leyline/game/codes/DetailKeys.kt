@@ -60,6 +60,8 @@ object DetailKeys {
     const val QUALIFICATION_TYPE = "QualificationType"
     const val QUALIFICATION_SUBTYPE = "QualificationSubtype"
     const val SOURCE_PARENT = "SourceParent"
+    const val CANT_BLOCK_OBJECTS = "CantBlockObjects"
+    const val CANT_BE_BLOCKED_BY_OBJECTS = "CantBeBlockedByObjects"
     const val ALTERNATIVE_GRP_ID = "alternativeGrpId"
     const val ALTERNATE_COST_GRP_ID = "alternateCostGrpId"
     const val CAST_ABILITY_GRP_ID = "castAbilityGrpId"

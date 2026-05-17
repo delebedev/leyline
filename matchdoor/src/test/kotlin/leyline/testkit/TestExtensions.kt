@@ -3,10 +3,9 @@ package leyline.testkit
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.InvariantChecker
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 // ----- Tier 0: Content-addressed GSM lookup -----
@@ -93,8 +92,15 @@ fun AnnotationInfo.hasDetail(key: String): Boolean = detailsList.any { it.key ==
 /** Shorthand: get an int32 detail value. Fails if the key is missing. */
 fun AnnotationInfo.detailInt(key: String): Int = detail(key)?.getValueInt32(0) ?: error("No detail '$key' on annotation $typeList")
 
-/** Shorthand: get a uint32 detail value. Fails if the key is missing. */
-fun AnnotationInfo.detailUint(key: String): Int = detail(key)?.getValueUint32(0) ?: error("No detail '$key' on annotation $typeList")
+/** Shorthand: get a numeric detail value historically asserted as uint32. */
+fun AnnotationInfo.detailUint(key: String): Int =
+    detail(key)?.let { d ->
+        when {
+            d.valueUint32Count > 0 -> d.getValueUint32(0)
+            d.valueInt32Count > 0 -> d.getValueInt32(0)
+            else -> error("Detail '$key' is not numeric on annotation $typeList")
+        }
+    } ?: error("No detail '$key' on annotation $typeList")
 
 /** Shorthand: get a string detail value. Fails if the key is missing. */
 fun AnnotationInfo.detailString(key: String): String = detail(key)?.getValueString(0) ?: error("No detail '$key' on annotation $typeList")
@@ -165,9 +171,11 @@ fun ClientAccumulator.assertZoneCountMatchesObjects(zoneId: Int) {
 // ----- Tier 2: gsId chain validation -----
 
 /**
- * Assert gsId chain invariants across a sequence of GRE messages.
+ * Assert hard gsId chain facts across a sequence of GRE messages:
+ * monotonicity, uniqueness, and no self-reference.
+ *
  * @param messages the message sequence to validate
- * @param priorGsIds gsIds from messages sent before this sequence (for prevGsId lookups)
+ * @param priorGsIds gsIds from messages sent before this sequence
  * @param context label for assertion messages
  */
 fun assertGsIdChain(
@@ -176,40 +184,10 @@ fun assertGsIdChain(
     context: String = "",
 ) {
     val suffix = if (context.isNotEmpty()) " ($context)" else ""
-    val gsms = messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
-    val knownGsIds = priorGsIds.toMutableSet()
-
-    // gsIds strictly monotonic
-    for (i in 1 until gsms.size) {
-        gsms[i].gameStateId shouldBeGreaterThan gsms[i - 1].gameStateId
+    val violations = InvariantChecker.validateGsIdChain(messages, priorGsIds)
+    withClue("gsId chain violations$suffix: ${violations.joinToString { it.message }}") {
+        violations.shouldBeEmpty()
     }
-    // No self-referential prevGameStateId
-    for (gsm in gsms) {
-        if (gsm.prevGameStateId != 0) {
-            gsm.prevGameStateId shouldNotBe gsm.gameStateId
-        }
-    }
-    // prevGameStateId references a known gsId
-    for (gsm in gsms) {
-        if (gsm.prevGameStateId != 0) {
-            knownGsIds shouldContain gsm.prevGameStateId
-        }
-        knownGsIds.add(gsm.gameStateId)
-    }
-    // gsIds globally unique (no collisions from counter re-seeding)
-    val allGsIds = gsms.map { it.gameStateId }
-    val duplicates = allGsIds.groupBy { it }.filter { it.value.size > 1 }.keys
-    duplicates.shouldBeEmpty()
-
-    // msgIds strictly monotonic
-    val msgIds = messages.map { it.msgId }
-    for (i in 1 until msgIds.size) {
-        msgIds[i] shouldBeGreaterThan msgIds[i - 1]
-    }
-
-    // msgIds globally unique
-    val dupMsgIds = msgIds.groupBy { it }.filter { it.value.size > 1 }.keys
-    dupMsgIds.shouldBeEmpty()
 }
 
 // ----- Tier 1: GRE message filtering by transfer category -----
