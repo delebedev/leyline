@@ -1,0 +1,11 @@
+name: "Crawling Chorus"
+grpId: 83708
+titleId: 682877
+abilities:
+  - id: 50
+    textId: 165730
+    category: 2
+  - id: 51
+    textId: 165739
+    category: 2
+expansionCode: "ONE"

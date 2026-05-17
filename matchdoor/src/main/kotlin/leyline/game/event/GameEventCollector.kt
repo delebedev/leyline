@@ -720,6 +720,20 @@ class GameEventCollector(
         log.debug("event: CountersChanged card={} {} {}→{}", ev.card().name, ev.type(), ev.oldValue(), ev.newValue())
     }
 
+    override fun visit(ev: GameEventPlayerPoisoned) {
+        val seat = seatOf(ev.receiver()) ?: return
+        val newValue = ev.oldValue() + ev.amount()
+        frame.add(
+            GameEvent.PlayerCountersChanged(
+                seatId = seat,
+                counterType = "POISON",
+                oldCount = ev.oldValue(),
+                newCount = newValue,
+            ),
+        )
+        log.debug("event: PlayerCountersChanged seat={} POISON {}→{}", seat, ev.oldValue(), newValue)
+    }
+
     override fun visit(ev: GameEventShuffle) {
         val seat = seatOf(ev.player()) ?: return
         frame.add(GameEvent.LibraryShuffled(seat))

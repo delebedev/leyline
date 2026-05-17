@@ -219,18 +219,18 @@ object ZoneMapper {
         zones.removeIf { it.zoneId == arenaZoneId }
 
         for (fid in snap.zones[arenaZoneId]?.contents ?: emptyList()) {
-            val card = bridge.findCard(fid) ?: continue
-            // Filter synthetic engine objects (DetachedCardEffect etc.) — not real cards
-            if (card.gamePieceType != forge.card.GamePieceType.CARD && !card.isToken) continue
-            val ownerSeatId = if (card.owner == human) 1 else 2
-            val instanceId = bridge.getOrAllocInstanceId(fid).value
-            zoneBuilder.addObjectInstanceIds(instanceId)
-
             val cardSnap =
                 snap.objects[fid] ?: run {
                     log.warn("no snapshot for shared card {} in zone {} — skipping game object", fid, arenaZoneId)
                     continue
                 }
+            val liveCard = bridge.findCard(fid)
+            if (liveCard == null && arenaZoneId != ZoneIds.SUPPRESSED) continue
+            // Filter synthetic engine objects (DetachedCardEffect etc.) — not real cards.
+            if (liveCard != null && liveCard.gamePieceType != forge.card.GamePieceType.CARD && !liveCard.isToken) continue
+            val ownerSeatId = liveCard?.let { if (it.owner == human) 1 else 2 } ?: cardSnap.owner.value
+            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            zoneBuilder.addObjectInstanceIds(instanceId)
             gameObjects.add(
                 ObjectMapper.buildFromSnapshot(
                     cardSnap,

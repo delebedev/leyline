@@ -1,0 +1,17 @@
+[metadata]
+Name:Combat Smoke - First Strike Face
+Goal:Attack with a first striker and verify first-strike damage bracketing.
+Turns:1
+Difficulty:Easy
+Description:Youthful Knight attacks an empty board. Combat damage should land in FirstStrikeDamage.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Youthful Knight
+humanlibrary=Plains
+ailibrary=Mountain

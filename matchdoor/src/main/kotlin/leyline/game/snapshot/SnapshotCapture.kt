@@ -249,6 +249,7 @@ object SnapshotCapture {
         }
         captureSharedZone(game, ForgeZoneType.Battlefield, result)
         captureSharedZone(game, ForgeZoneType.Stack, result)
+        result[ZoneIds.SUPPRESSED] = MutateSnapshotSupport.captureMergedZone(game, bridge)
         captureSharedZone(game, ForgeZoneType.Exile, result)
         captureSharedZone(game, ForgeZoneType.Command, result)
         return result
@@ -343,7 +344,15 @@ object SnapshotCapture {
                 player.getZone(zoneType)?.cards?.forEach { cards[zoneId to ForgeCardId(it.id)] = it }
             }
         }
-        for (zoneType in listOf(ForgeZoneType.Battlefield, ForgeZoneType.Stack, ForgeZoneType.Exile, ForgeZoneType.Command)) {
+        cards.putAll(MutateSnapshotSupport.liveCardsByZoneId(game, bridge))
+        val sharedZoneTypes =
+            listOf(
+                ForgeZoneType.Battlefield,
+                ForgeZoneType.Stack,
+                ForgeZoneType.Exile,
+                ForgeZoneType.Command,
+            )
+        for (zoneType in sharedZoneTypes) {
             val zoneId = sharedZoneId(zoneType) ?: continue
             game.getCardsIn(zoneType).forEach { cards[zoneId to ForgeCardId(it.id)] = it }
         }
@@ -362,6 +371,7 @@ object SnapshotCapture {
         // face-down identity, prepared linkage, copy/token, attachment, combat,
         // designations). Each new mechanic adds one branch. Inherent.
         "CyclomaticComplexMethod",
+        "LongMethod",
     )
     private fun captureCard(
         card: Card,
@@ -401,6 +411,7 @@ object SnapshotCapture {
         // doesn't need bridge access at projection time.
         val attachedToInstanceId =
             card.attachedTo?.let { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
+        val mergedState = MutateSnapshotSupport.mergedState(card, bridge, bridge.cardRepository)
 
         val ownForgeId = ForgeCardId(card.id)
         val preparedRole = resolvePreparedRole(card, onBf, ownForgeId, preparedLinkage)
@@ -497,6 +508,11 @@ object SnapshotCapture {
                 onBf &&
                     card.isRoom &&
                     forge.card.CardStateName.RightSplit in card.unlockedRooms,
+            mergedToInstanceId = mergedState.targetInstanceId,
+            mergedComponentAbilityGrpIds = mergedState.componentAbilityGrpIds,
+            mergedComponentAbilityOriginalCardGrpIds = mergedState.componentAbilityOriginalCardGrpIds,
+            isMergedPermanent = mergedState.isMergedPermanent,
+            isTopMergedComponent = mergedState.isTopComponent,
         )
     }
 
@@ -649,6 +665,7 @@ object SnapshotCapture {
         when (fz) {
             ForgeZoneType.Battlefield -> ZoneIds.BATTLEFIELD
             ForgeZoneType.Stack -> ZoneIds.STACK
+            ForgeZoneType.Merged -> ZoneIds.SUPPRESSED
             ForgeZoneType.Exile -> ZoneIds.EXILE
             ForgeZoneType.Command -> ZoneIds.COMMAND
             ForgeZoneType.Hand,
@@ -657,7 +674,6 @@ object SnapshotCapture {
             ForgeZoneType.Flashback,
             ForgeZoneType.Sideboard,
             ForgeZoneType.Ante,
-            ForgeZoneType.Merged,
             ForgeZoneType.SchemeDeck,
             ForgeZoneType.PlanarDeck,
             ForgeZoneType.AttractionDeck,
@@ -678,10 +694,10 @@ object SnapshotCapture {
             ForgeZoneType.Command -> ZoneType.Command
             ForgeZoneType.Battlefield -> ZoneType.Battlefield
             ForgeZoneType.Stack -> ZoneType.Stack
+            ForgeZoneType.Merged -> ZoneType.Suppressed
             ForgeZoneType.Exile -> ZoneType.Exile
             ForgeZoneType.Flashback,
             ForgeZoneType.Ante,
-            ForgeZoneType.Merged,
             ForgeZoneType.SchemeDeck,
             ForgeZoneType.PlanarDeck,
             ForgeZoneType.AttractionDeck,

@@ -13,7 +13,7 @@ import kotlin.collections.iterator
 
 /**
  * Result of combat damage annotation generation.
- * [hasCombatDamage] signals that turnInfo should be overridden to CombatDamage.
+ * [hasCombatDamage] signals that turnInfo should be overridden to the combat damage step.
  * [damagedThisTurnPersistent] is a single-element list (or empty) containing the
  * `DamagedThisTurn` persistent annotation for this GSM's new victims; the store
  * merges it with any existing per-turn annotation rather than allocating a new
@@ -23,6 +23,7 @@ import kotlin.collections.iterator
 data class CombatAnnotationResult(
     val annotations: List<AnnotationInfo>,
     val hasCombatDamage: Boolean = false,
+    val damageStep: Step = Step.CombatDamage_a2cb,
     val damagedThisTurnPersistent: List<AnnotationInfo> = emptyList(),
     val clearDamagedThisTurn: Boolean = false,
 )
@@ -80,7 +81,9 @@ object CombatAnnotations {
     internal fun combatAnnotations(
         events: List<GameEvent>,
         idResolver: (ForgeCardId) -> InstanceId,
+        @Suppress("UnusedParameter")
         previousLifeTotals: Map<Int, Int>,
+        @Suppress("UnusedParameter")
         currentLifeTotals: Map<Int, Int>,
     ): CombatAnnotationResult {
         val cardDamage = events.filterIsInstance<GameEvent.DamageDealtToCard>()
@@ -123,10 +126,10 @@ object CombatAnnotations {
             annotations.add(AnnotationBuilder.syntheticEvent(firstPlayerDamageAttacker, playerDamageSeat))
         }
 
-        // --- ModifiedLife from baseline comparison ---
-        for ((seat, prevLife) in previousLifeTotals) {
-            val currentLife = currentLifeTotals[seat] ?: continue
-            val delta = currentLife - prevLife
+        // --- ModifiedLife from combat damage in this frame ---
+        val playerDamageBySeat = playerDamage.groupBy { it.targetSeatId.value }
+        for ((seat, eventsForSeat) in playerDamageBySeat) {
+            val delta = -eventsForSeat.sumOf { it.amount }
             if (delta != 0) {
                 annotations.add(
                     AnnotationBuilder.modifiedLife(
@@ -149,8 +152,23 @@ object CombatAnnotations {
         return CombatAnnotationResult(
             annotations = annotations,
             hasCombatDamage = true,
+            damageStep = events.combatDamageStep(),
             damagedThisTurnPersistent = damagedThisTurnPersistent,
             clearDamagedThisTurn = clearOnUpkeep,
         )
+    }
+
+    private fun List<GameEvent>.combatDamageStep(): Step {
+        var currentDamageStep = Step.CombatDamage_a2cb
+        for (event in this) {
+            if (event is GameEvent.PhaseChanged) {
+                if (event.step == Step.FirstStrikeDamage_a2cb.number) currentDamageStep = Step.FirstStrikeDamage_a2cb
+                if (event.step == Step.CombatDamage_a2cb.number) currentDamageStep = Step.CombatDamage_a2cb
+            }
+            if (event is GameEvent.DamageDealtToCard || event is GameEvent.DamageDealtToPlayer) {
+                return currentDamageStep
+            }
+        }
+        return Step.CombatDamage_a2cb
     }
 }

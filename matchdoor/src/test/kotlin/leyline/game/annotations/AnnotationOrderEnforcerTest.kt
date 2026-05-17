@@ -10,6 +10,7 @@ import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.eid
 import leyline.game.grp
 import leyline.game.iid
+import leyline.game.mapping.ZoneIds
 import leyline.game.sid
 import leyline.game.wid
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -77,8 +78,8 @@ class AnnotationOrderEnforcerTest :
             result.map { it.typeList.first() } shouldBe
                 listOf(
                     AnnotationType.ResolutionStart,
-                    AnnotationType.ZoneTransfer_af5a,
                     AnnotationType.ResolutionComplete,
+                    AnnotationType.ZoneTransfer_af5a,
                 )
         }
 
@@ -341,9 +342,9 @@ class AnnotationOrderEnforcerTest :
                 )
         }
 
-        // ===== Rule 5: ResolveTransferInsideResolution =====
+        // ===== Rule 5: ResolveTransferOrdering =====
 
-        test("Rule 5: moves Resolve ZoneTransfer before ResolutionComplete") {
+        test("Rule 5: moves Resolve ZoneTransfer after ResolutionComplete") {
             val rs = AnnotationBuilder.resolutionStart(instanceId = 200.iid, grpId = 12345.grp)
             val rc = AnnotationBuilder.resolutionComplete(instanceId = 200.iid, grpId = 12345.grp)
             val zt =
@@ -354,17 +355,17 @@ class AnnotationOrderEnforcerTest :
                     category = "Resolve",
                 )
 
-            val result = AnnotationOrderEnforcer.enforce(listOf(rs, rc, zt))
+            val result = AnnotationOrderEnforcer.enforce(listOf(rs, zt, rc))
 
             result.map { it.typeList.first() } shouldBe
                 listOf(
                     AnnotationType.ResolutionStart,
-                    AnnotationType.ZoneTransfer_af5a,
                     AnnotationType.ResolutionComplete,
+                    AnnotationType.ZoneTransfer_af5a,
                 )
         }
 
-        test("Rule 5: moves Resolve ZoneTransfer after ResolutionStart") {
+        test("Rule 5: moves Resolve ZoneTransfer after the RS/RC pair") {
             val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
             val zt =
                 AnnotationBuilder.zoneTransfer(
@@ -382,8 +383,8 @@ class AnnotationOrderEnforcerTest :
                 listOf(
                     AnnotationType.ObjectIdChanged,
                     AnnotationType.ResolutionStart,
-                    AnnotationType.ZoneTransfer_af5a,
                     AnnotationType.ResolutionComplete,
+                    AnnotationType.ZoneTransfer_af5a,
                 )
         }
 
@@ -402,5 +403,45 @@ class AnnotationOrderEnforcerTest :
             val result = AnnotationOrderEnforcer.enforce(input)
 
             result shouldBe input
+        }
+
+        test("Rule 5: leaves non-stack Resolve ZoneTransfer inside ResolutionStart and ResolutionComplete") {
+            val rs = AnnotationBuilder.resolutionStart(instanceId = 200.iid, grpId = 12345.grp)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 300.iid,
+                    srcZoneId = ZoneIds.P1_LIBRARY,
+                    destZoneId = ZoneIds.BATTLEFIELD,
+                    category = "Resolve",
+                )
+            val rc = AnnotationBuilder.resolutionComplete(instanceId = 200.iid, grpId = 12345.grp)
+
+            val input = listOf(rs, zt, rc)
+            val result = AnnotationOrderEnforcer.enforce(input)
+
+            result shouldBe input
+        }
+
+        test("Rule 5: moves non-stack Resolve ZoneTransfer inside the RS/RC pair") {
+            val rs = AnnotationBuilder.resolutionStart(instanceId = 200.iid, grpId = 12345.grp)
+            val oic = AnnotationBuilder.objectIdChanged(origId = 250.iid, newId = 300.iid)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 300.iid,
+                    srcZoneId = ZoneIds.P1_LIBRARY,
+                    destZoneId = ZoneIds.BATTLEFIELD,
+                    category = "Resolve",
+                )
+            val rc = AnnotationBuilder.resolutionComplete(instanceId = 200.iid, grpId = 12345.grp)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(oic, zt, rs, rc))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.ResolutionStart,
+                    AnnotationType.ObjectIdChanged,
+                    AnnotationType.ZoneTransfer_af5a,
+                    AnnotationType.ResolutionComplete,
+                )
         }
     })

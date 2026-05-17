@@ -11,6 +11,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
@@ -66,6 +67,10 @@ object RequestBuilder {
         val sourceGrpId = sourceCard?.let { bridge.resolveGrpId(it, sourceInstanceId) } ?: 0
         if (sourceGrpId != 0) builder.setAbilityGrpId(sourceGrpId)
         applyTargetSelectionMetadata(selBuilder, prompt, bridge, sourceInstanceId, sourceGrpId, chooserSeatId)
+        val mutateAbilityGrpId = mutateAbilityGrpId(prompt, bridge)
+        if (mutateAbilityGrpId != 0) {
+            applyMutateTargetShape(builder, selBuilder, sourceInstanceId, mutateAbilityGrpId)
+        }
 
         for (ref in prompt.request.candidateRefs) {
             val (instanceId, highlight) = resolveRefToIidAndHighlight(ref, bridge, opponentSeatId) ?: continue
@@ -126,6 +131,10 @@ object RequestBuilder {
         val sourceGrpId = sourceCard?.let { bridge.resolveGrpId(it, sourceInstanceId) } ?: 0
         if (sourceGrpId != 0) builder.setAbilityGrpId(sourceGrpId)
         applyTargetSelectionMetadata(selBuilder, prompt, bridge, sourceInstanceId, sourceGrpId, chooserSeatId)
+        val mutateAbilityGrpId = mutateAbilityGrpId(prompt, bridge)
+        if (mutateAbilityGrpId != 0) {
+            applyMutateTargetShape(builder, selBuilder, sourceInstanceId, mutateAbilityGrpId)
+        }
 
         val selectedSet = selectedInstanceIds.toSet()
         val opponentSeatId = if (chooserSeatId == 1) 2 else 1
@@ -178,6 +187,42 @@ object RequestBuilder {
 
         builder.addTargets(selBuilder)
         return builder.build()
+    }
+
+    private fun mutateAbilityGrpId(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Int {
+        val sa = prompt.targetingSa ?: return 0
+        if (!sa.isMutate) return 0
+        val cardName = sa.hostCard?.name ?: return 0
+        val grpId = bridge.cardRepository.findGrpIdByName(cardName) ?: return 0
+        return bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MUTATE) ?: 0
+    }
+
+    private fun applyMutateTargetShape(
+        builder: SelectTargetsReq.Builder,
+        selection: TargetSelection.Builder,
+        sourceInstanceId: Int,
+        mutateAbilityGrpId: Int,
+    ) {
+        builder.setAbilityGrpId(KeywordAbilityIds.MUTATE)
+        selection.setTargetSourceZoneId(ZoneIds.BATTLEFIELD)
+        selection.setTargetingAbilityGrpId(mutateAbilityGrpId)
+        if (sourceInstanceId != 0) {
+            selection.setPrompt(
+                Prompt
+                    .newBuilder()
+                    .setPromptId(PromptIds.MUTATE_TARGET)
+                    .addParameters(
+                        PromptParameter
+                            .newBuilder()
+                            .setParameterName("CardId")
+                            .setType(ParameterType.Number)
+                            .setNumberValue(sourceInstanceId),
+                    ),
+            )
+        }
     }
 
     /**
@@ -413,6 +458,14 @@ object RequestBuilder {
                                 .setPromptId(PromptIds.SELECT_N_INNER_PARAMETER),
                         ),
                 )
+            }
+            PromptSemantic.MutateTopBottom -> {
+                val sourceEntityId = prompt.request.sourceEntityId
+                if (sourceEntityId != null) {
+                    val sourceInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
+                    builder.setSourceId(sourceInstanceId)
+                }
+                builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
             }
             else -> {
                 val sourceEntityId = prompt.request.sourceEntityId

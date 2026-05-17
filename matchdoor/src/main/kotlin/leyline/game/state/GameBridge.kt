@@ -357,6 +357,29 @@ class GameBridge(
         return expired.mapNotNull { activeCrewEffects.remove(it) }
     }
 
+    data class EffectAllocation(
+        val effectId: Int,
+        val created: Boolean,
+    )
+
+    private val activeMutateMergeEffects = mutableMapOf<Pair<Int, Int>, Int>()
+
+    fun getOrAllocMutateMergeEffectId(
+        componentInstanceId: Int,
+        targetInstanceId: Int,
+    ): EffectAllocation {
+        val key = componentInstanceId to targetInstanceId
+        activeMutateMergeEffects[key]?.let { return EffectAllocation(it, created = false) }
+        val effectId = effects.nextEffectId()
+        activeMutateMergeEffects[key] = effectId
+        return EffectAllocation(effectId, created = true)
+    }
+
+    fun releaseMutateMergeEffects(currentKeys: Set<Pair<Int, Int>>): List<Int> {
+        val expired = activeMutateMergeEffects.keys - currentKeys
+        return expired.mapNotNull { activeMutateMergeEffects.remove(it) }
+    }
+
     /** Drain pending target specs from all seat prompt bridges. */
     fun drainPendingTargetSpecs(): List<InteractivePromptBridge.PendingTarget> =
         promptBridges.values.flatMap { it.drainPendingTargetSpecs() }
@@ -958,6 +981,7 @@ class GameBridge(
         delayedTriggerHolders.resetAll()
         resetDecayedCleanupSources()
         activeCrewEffects.clear()
+        activeMutateMergeEffects.clear()
         abilityRegistries.clear()
         tokenRegistry.clear()
         revealProxies.clear()
@@ -1142,12 +1166,24 @@ class GameBridge(
     }
 
     /**
-     * Seed persistent [AnnotationType.Counter_803b] annotations for permanents that
-     * start with counters (loyalty on planeswalkers, +1/+1 on creatures, etc.). Forge's
-     * puzzle loader bypasses the event chain when applying counters, so no
-     * [GameEvent.CountersChanged] fires.
+     * Seed persistent [AnnotationType.Counter_803b] annotations for player poison
+     * counters and permanents that start with counters (loyalty on planeswalkers,
+     * +1/+1 on creatures, etc.). Forge's puzzle loader bypasses the event chain
+     * when applying counters, so no counter-change event fires.
      */
     private fun seedCounterAnnotations(game: Game) {
+        for ((seatNum, player) in players) {
+            val poisonCount = player.poisonCounters
+            if (poisonCount <= 0) continue
+            val ann =
+                AnnotationBuilder
+                    .playerCounter(SeatId(seatNum), CounterTypes.counterTypeId("POISON"), poisonCount)
+                    .toBuilder()
+                    .setId(annotations.nextPersistentAnnotationId())
+                    .build()
+            annotations.add(ann)
+            log.debug("seedCounter: seat={} POISON = {}", seatNum, poisonCount)
+        }
         for (player in game.players) {
             for (card in player.getZone(ZoneType.Battlefield).cards) {
                 val counters = card.counters

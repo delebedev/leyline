@@ -10,6 +10,10 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
+import leyline.testkit.annotationsOfType
+import leyline.testkit.detailInt
+import leyline.testkit.detailString
+import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -178,5 +182,65 @@ class GameEndTest :
             // prevGameStateId chain
             gameOverGsms[1].prevGameStateId shouldBe gameOverGsms[0].gameStateId
             gameOverGsms[2].prevGameStateId shouldBe gameOverGsms[1].gameStateId
+        }
+
+        test("lethal poison produces poison loss annotation") {
+            val pzl =
+                """
+                [metadata]
+                Name:Poison Lethal Swing
+                Goal:Win
+                Turns:1
+                Difficulty:Easy
+                Description:Attack with ten toxic creatures to win by poison before life total reaches zero.
+
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                removesummoningsickness=true
+
+                humanbattlefield=Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus
+                humanlibrary=Forest
+                ailibrary=Forest
+                """.trimIndent()
+
+            startPuzzleRaw(pzl, validating = true)
+
+            val startTurn = turn()
+            passPriority()
+            harness.declareAllAttackers()
+            harness.submitAttackers()
+            harness.passThroughCombat(startTurn)
+
+            assertSoftly {
+                isGameOver().shouldBeTrue()
+                ai.life shouldBe 10
+                ai.poisonCounters shouldBe 10
+            }
+
+            val counterAdded = allMessages.annotationsOfType(AnnotationType.CounterAdded).single()
+            assertSoftly {
+                counterAdded.affectedIdsList shouldBe listOf(OPPONENT_SEAT)
+                counterAdded.detailInt("counter_type") shouldBe 3
+                counterAdded.detailInt("transaction_amount") shouldBe 10
+            }
+
+            val counterState = allMessages.persistentAnnotationsOfType(AnnotationType.Counter_803b).single()
+            assertSoftly {
+                counterState.affectedIdsList shouldBe listOf(OPPONENT_SEAT)
+                counterState.detailInt("count") shouldBe 10
+                counterState.detailInt("counter_type") shouldBe 3
+            }
+
+            val lossAnnotation = allMessages.annotationsOfType(AnnotationType.LossOfGame_af5a).single()
+            assertSoftly {
+                lossAnnotation.affectedIdsList shouldBe listOf(OPPONENT_SEAT)
+                lossAnnotation.detailString("reason") shouldBe "SBA_Poison"
+            }
+
+            val intermission = allMessages.first { it.hasIntermissionReq() }.intermissionReq
+            intermission.result.reason shouldBe ResultReason.Game_ae0a
         }
     })

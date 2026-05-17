@@ -158,6 +158,16 @@ data class CardSnapshot(
      * unlocked. See [isLeftDoorUnlocked] for the lifecycle invariant.
      */
     val isRightDoorUnlocked: Boolean = false,
+    /** Client iid of the battlefield permanent this component is merged into. */
+    val mergedToInstanceId: Int? = null,
+    /** Ability rows contributed by non-top merged components to this visible permanent. */
+    val mergedComponentAbilityGrpIds: List<Int> = emptyList(),
+    /** Origin card grpIds parallel to [mergedComponentAbilityGrpIds]. */
+    val mergedComponentAbilityOriginalCardGrpIds: List<Int> = emptyList(),
+    /** True for the visible battlefield object representing a merged permanent. */
+    val isMergedPermanent: Boolean = false,
+    /** True when this merged component is currently the top component. */
+    val isTopMergedComponent: Boolean = false,
 )
 
 /**

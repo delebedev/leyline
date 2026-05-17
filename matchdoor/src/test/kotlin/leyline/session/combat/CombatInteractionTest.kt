@@ -1,5 +1,6 @@
 package leyline.session.combat
 
+import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -334,6 +335,18 @@ class CombatInteractionTest :
             val annTypes = damageGsm.annotationsList.map { ann -> ann.typeList.first() }
             annTypes.first() shouldBe AnnotationType.PhaseOrStepModified
 
+            val phaseAnnotations =
+                damageGsm.annotationsList.filter { ann ->
+                    ann.typeList.any { it == AnnotationType.PhaseOrStepModified }
+                }
+            phaseAnnotations.size shouldBe 1
+            phaseAnnotations
+                .single()
+                .detailsList
+                .first { it.key == "step" }
+                .valueInt32List
+                .single() shouldBe Step.CombatDamage_a2cb.number
+
             // DamageDealt has correct affectorId (attacker) and affectedIds (target seat)
             val dmgAnn =
                 damageGsm.annotationsList.first { ann ->
@@ -358,6 +371,100 @@ class CombatInteractionTest :
 
             // Human-turn combat animation checkpoint must not reopen priority.
             allMessages.none { it.hasActionsAvailableReq() && it.gameStateId == damageGsm.gameStateId }.shouldBeTrue()
+
+            val damageIndex = allGsms.indexOfFirst { it.gameStateId == damageGsm.gameStateId }
+            damageIndex shouldBeGreaterThanOrEqualTo 0
+            val echoGsm = allGsms.getOrNull(damageIndex + 1)
+            assertSoftly {
+                echoGsm.shouldNotBeNull()
+                echoGsm.annotationsCount shouldBe 0
+                echoGsm.prevGameStateId shouldBe damageGsm.gameStateId
+            }
+
+            val endCombatGsm =
+                allGsms.drop(damageIndex + 2).firstOrNull { gsm ->
+                    gsm.annotationsList.any { ann ->
+                        ann.typeList.any { it == AnnotationType.PhaseOrStepModified } &&
+                            ann.detailsList.any { detail ->
+                                detail.key == "step" && detail.valueInt32List.contains(Step.EndCombat_a2cb.number)
+                            }
+                    }
+                }
+            endCombatGsm.shouldNotBeNull()
+            endCombatGsm.annotationsList.none { ann -> ann.typeList.any { it == AnnotationType.DamageDealt_af5a } }.shouldBeTrue()
+        }
+
+        test("first strike combat damage uses first-strike damage step") {
+            val attackerIid = setupSingleAttacker()
+            human
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .filter { it.isCreature }
+                .single()
+                .addIntrinsicKeyword("First Strike")
+
+            passPriority()
+            declareAttackers(listOf(attackerIid))
+            passThroughCombat(turn())
+
+            val damageGsm =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .firstOrNull { gsm ->
+                        gsm.annotationsList.any { AnnotationType.DamageDealt_af5a in it.typeList }
+                    }
+            damageGsm.shouldNotBeNull()
+            damageGsm.turnInfo.phase shouldBe Phase.Combat_a549
+            damageGsm.turnInfo.step shouldBe Step.FirstStrikeDamage_a2cb
+            damageGsm.annotationsList
+                .single { AnnotationType.PhaseOrStepModified in it.typeList }
+                .detailsList
+                .first { it.key == "step" }
+                .valueInt32List
+                .single() shouldBe Step.FirstStrikeDamage_a2cb.number
+        }
+
+        test("double strike combat damage uses first-strike and regular damage steps") {
+            val attackerIid = setupSingleAttacker()
+            human
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .filter { it.isCreature }
+                .single()
+                .addIntrinsicKeyword("Double Strike")
+
+            passPriority()
+            declareAttackers(listOf(attackerIid))
+            passThroughCombat(turn())
+
+            val damageGsms =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .filter { gsm ->
+                        gsm.annotationsList.any { AnnotationType.DamageDealt_af5a in it.typeList }
+                    }
+            assertSoftly {
+                damageGsms shouldHaveSize 2
+                damageGsms.map { it.turnInfo.step } shouldBe listOf(Step.FirstStrikeDamage_a2cb, Step.CombatDamage_a2cb)
+                damageGsms.map { gsm ->
+                    gsm.playersList.single { it.systemSeatNumber == OPPONENT_SEAT }.lifeTotal
+                } shouldBe listOf(19, 18)
+            }
+
+            for (gsm in damageGsms) {
+                val damage = gsm.annotationsList.single { AnnotationType.DamageDealt_af5a in it.typeList }
+                damage.detailsList
+                    .first { it.key == "damage" }
+                    .valueUint32List
+                    .single() shouldBe 1
+                val life = gsm.annotationsList.single { AnnotationType.ModifiedLife in it.typeList }
+                life.detailsList
+                    .first { it.key == "life" }
+                    .valueInt32List
+                    .single() shouldBe -1
+            }
         }
 
         test("combat death produces zone transfer") {

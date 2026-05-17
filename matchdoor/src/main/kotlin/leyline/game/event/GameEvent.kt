@@ -331,6 +331,14 @@ sealed interface GameEvent {
         val newCount: Int,
     ) : GameEvent
 
+    /** Counters added or removed on a player. Currently emitted for poison counters. */
+    data class PlayerCountersChanged(
+        val seatId: SeatId,
+        val counterType: String,
+        val oldCount: Int,
+        val newCount: Int,
+    ) : GameEvent
+
     /** A card's power or toughness changed (pump, anthem, equipment, SBA). */
     data class PowerToughnessChanged(
         val cardId: ForgeCardId,

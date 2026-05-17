@@ -190,6 +190,7 @@ class CastRailsTest :
                     listOf(
                         AltCostKind.WARP,
                         AltCostKind.SNEAK,
+                        AltCostKind.MUTATE,
                         AltCostKind.PLOT,
                         AltCostKind.FORETELL,
                         AltCostKind.DISGUISE,
