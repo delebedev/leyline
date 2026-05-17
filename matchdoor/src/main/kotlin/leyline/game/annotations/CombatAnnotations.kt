@@ -124,10 +124,10 @@ object CombatAnnotations {
             annotations.add(AnnotationBuilder.syntheticEvent(firstPlayerDamageAttacker, playerDamageSeat))
         }
 
-        // --- ModifiedLife from baseline comparison ---
-        for ((seat, prevLife) in previousLifeTotals) {
-            val currentLife = currentLifeTotals[seat] ?: continue
-            val delta = currentLife - prevLife
+        // --- ModifiedLife from combat damage in this frame ---
+        val playerDamageBySeat = playerDamage.groupBy { it.targetSeatId.value }
+        for ((seat, eventsForSeat) in playerDamageBySeat) {
+            val delta = -eventsForSeat.sumOf { it.amount }
             if (delta != 0) {
                 annotations.add(
                     AnnotationBuilder.modifiedLife(

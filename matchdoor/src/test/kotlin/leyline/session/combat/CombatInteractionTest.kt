@@ -423,6 +423,43 @@ class CombatInteractionTest :
                 .single() shouldBe Step.FirstStrikeDamage_a2cb.number
         }
 
+        test("double strike combat damage uses first-strike and regular damage steps") {
+            val attackerIid = setupSingleAttacker()
+            human
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .filter { it.isCreature }
+                .single()
+                .addIntrinsicKeyword("Double Strike")
+
+            passPriority()
+            declareAttackers(listOf(attackerIid))
+            passThroughCombat(turn())
+
+            val damageGsms =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .filter { gsm ->
+                        gsm.annotationsList.any { AnnotationType.DamageDealt_af5a in it.typeList }
+                    }
+            damageGsms shouldHaveSize 2
+            damageGsms.map { it.turnInfo.step } shouldBe listOf(Step.FirstStrikeDamage_a2cb, Step.CombatDamage_a2cb)
+
+            for (gsm in damageGsms) {
+                val damage = gsm.annotationsList.single { AnnotationType.DamageDealt_af5a in it.typeList }
+                damage.detailsList
+                    .first { it.key == "damage" }
+                    .valueUint32List
+                    .single() shouldBe 1
+                val life = gsm.annotationsList.single { AnnotationType.ModifiedLife in it.typeList }
+                life.detailsList
+                    .first { it.key == "life" }
+                    .valueInt32List
+                    .single() shouldBe -1
+            }
+        }
+
         test("combat death produces zone transfer") {
             // AI: play Mountain, cast Raging Goblin (blocker), skip attacking, decline blocking
             startGame(

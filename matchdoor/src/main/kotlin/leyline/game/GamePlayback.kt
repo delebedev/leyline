@@ -327,17 +327,15 @@ class GamePlayback(
         game: forge.game.Game,
         events: List<LeylineGameEvent>,
     ) {
-        val damageEvents =
-            events
-                .filterNot { event ->
-                    event is LeylineGameEvent.PhaseChanged
-                }.prependCombatDamagePhase(game, events)
+        val damageFrames = events.combatDamageFrames(game)
         val endCombatEvents =
             events.filter { event ->
                 event is LeylineGameEvent.PhaseChanged && event.step == Step.EndCombat_a2cb.number
             }
 
-        queue.add(buildDiffMessages(game, turnStarted = false, events = FrameEventLog(damageEvents)))
+        for (damageEvents in damageFrames) {
+            queue.add(buildDiffMessages(game, turnStarted = false, events = FrameEventLog(damageEvents)))
+        }
         if (endCombatEvents.isNotEmpty()) {
             queue.add(buildDiffMessages(game, turnStarted = false, events = FrameEventLog(endCombatEvents)))
         }
@@ -358,6 +356,38 @@ class GamePlayback(
 
     private fun List<LeylineGameEvent>.hasCombatDamage(): Boolean =
         any { it is LeylineGameEvent.DamageDealtToCard || it is LeylineGameEvent.DamageDealtToPlayer }
+
+    private fun List<LeylineGameEvent>.combatDamageFrames(game: forge.game.Game): List<List<LeylineGameEvent>> {
+        val frames = mutableListOf<List<LeylineGameEvent>>()
+        var current = mutableListOf<LeylineGameEvent>()
+
+        fun flushDamageFrame() {
+            if (current.hasCombatDamage()) frames += current.toList()
+            current = mutableListOf()
+        }
+
+        for (event in this) {
+            if (event is LeylineGameEvent.PhaseChanged) {
+                if (event.isDamageStep()) {
+                    flushDamageFrame()
+                    current += event
+                }
+                continue
+            }
+            if (current.isNotEmpty()) current += event
+        }
+
+        flushDamageFrame()
+        if (frames.isNotEmpty()) return frames
+
+        return listOf(
+            filterNot { event -> event is LeylineGameEvent.PhaseChanged }
+                .prependCombatDamagePhase(game, this),
+        )
+    }
+
+    private fun LeylineGameEvent.PhaseChanged.isDamageStep(): Boolean =
+        step == Step.FirstStrikeDamage_a2cb.number || step == Step.CombatDamage_a2cb.number
 
     private fun List<LeylineGameEvent>.prependCombatDamagePhase(
         game: forge.game.Game,
