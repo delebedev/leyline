@@ -123,25 +123,24 @@ class NumericInputHandler(
                 ).build()
 
         // Bare GSM diff with pendingMessageCount=1 — same pattern as OptionalActionHandler.
-        val prevGsId = counters.counter.lastGameStateGsId().takeIf { it > 0 } ?: counters.counter.currentGsId()
-        val gsId = counters.counter.nextGsId()
+        val link = counters.counter.nextGameStateLink()
         val pendingGsm =
             GameStateMessage
                 .newBuilder()
                 .setType(GameStateType.Diff)
-                .setGameStateId(gsId)
-                .setPrevGameStateId(prevGsId)
+                .setGameStateId(link.gsId)
+                .setPrevGameStateId(link.prevGsId)
                 .setPendingMessageCount(1)
                 .setUpdate(GameStateUpdate.SendAndRecord)
                 .build()
 
         val gsmGre =
-            sink.makeGRE(GREMessageType.GameStateMessage_695e, gsId, counters.counter.nextMsgId()) {
+            sink.makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counters.counter.nextMsgId()) {
                 it.gameStateMessage = pendingGsm
             }
 
         val numericGre =
-            sink.makeGRE(GREMessageType.NumericInputReq_695e, gsId, counters.counter.nextMsgId()) {
+            sink.makeGRE(GREMessageType.NumericInputReq_695e, link.gsId, counters.counter.nextMsgId()) {
                 it.numericInputReq = req
                 it.prompt = promptProto
                 it.allowCancel = AllowCancel.No_a526

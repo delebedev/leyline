@@ -21,6 +21,18 @@ class MessageCounter(
     initialGsId: Int = 0,
     initialMsgId: Int = 1,
 ) {
+    data class GameStateLink(
+        val gsId: Int,
+        val prevGsId: Int,
+    )
+
+    data class Snapshot(
+        val currentGsId: Int,
+        val currentMsgId: Int,
+        val lastPromptGsId: Int,
+        val lastGameStateGsId: Int,
+    )
+
     private val gsId = AtomicInteger(initialGsId)
     private val msgId = AtomicInteger(initialMsgId)
     private val lastPromptGsId = AtomicInteger(0)
@@ -28,6 +40,25 @@ class MessageCounter(
 
     /** Advance gsId and return the new value. */
     fun nextGsId(): Int = gsId.incrementAndGet()
+
+    /**
+     * Allocate the next GameStateMessage id with the best known predecessor.
+     *
+     * Most callers need both values together: the new GSM's `gameStateId` and
+     * its `prevGameStateId`. Prefer the last emitted GSM as the predecessor,
+     * then fall back to the counter's current value for early setup paths. The
+     * returned predecessor is always lower than the new id, preserving the hard
+     * no-self-reference contract.
+     */
+    fun nextGameStateLink(): GameStateLink {
+        val next = nextGsId()
+        val previous =
+            lastGameStateGsId
+                .get()
+                .takeIf { it in 1 until next }
+                ?: (next - 1).coerceAtLeast(0)
+        return GameStateLink(gsId = next, prevGsId = previous)
+    }
 
     /** Advance msgId and return the new value. */
     fun nextMsgId(): Int = msgId.incrementAndGet()
@@ -113,7 +144,17 @@ class MessageCounter(
         msgId.set(value)
     }
 
+    fun snapshot(): Snapshot =
+        Snapshot(
+            currentGsId = gsId.get(),
+            currentMsgId = msgId.get(),
+            lastPromptGsId = lastPromptGsId.get(),
+            lastGameStateGsId = lastGameStateGsId.get(),
+        )
+
     override fun toString(): String =
-        "MessageCounter(gsId=${gsId.get()}, msgId=${msgId.get()}, " +
-            "lastPromptGsId=${lastPromptGsId.get()}, lastGameStateGsId=${lastGameStateGsId.get()})"
+        snapshot().let {
+            "MessageCounter(gsId=${it.currentGsId}, msgId=${it.currentMsgId}, " +
+                "lastPromptGsId=${it.lastPromptGsId}, lastGameStateGsId=${it.lastGameStateGsId})"
+        }
 }

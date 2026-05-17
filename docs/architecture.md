@@ -171,4 +171,4 @@ After compute, `BundleBuilder` calls `bridge.applyMutations(result.mutations)`, 
 
 **Per-seat filtering.** Each seat receives its own `GameStateMessage`. Private zones (opponent's hand, face-down library) are stripped before send — the same engine state produces different protobuf payloads per seat.
 
-**gsId / msgId monotonicity.** The `MessageCounter` guarantees strictly increasing IDs across the interleaved message stream; any gap or duplicate forces a client resync. Thread-ownership rules live in [`bridge-threading.md`](bridge-threading.md#4-one-shared-counter-not-two).
+**Counter sequencing.** The `MessageCounter` guarantees strictly increasing gsIds across the interleaved `GameStateMessage` stream and keeps msgIds on the same shared atomic path for local ordering and response bookkeeping. Thread-ownership rules live in [`bridge-threading.md`](bridge-threading.md#4-one-shared-counter-not-two).
