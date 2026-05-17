@@ -86,11 +86,10 @@ class GamePlayback(
             val saId = ev.sa()?.id ?: 0
             if (saId != 0) pendingLocalTriggers[saId] = true
         }
-        // Specific keyword triggers (Mobilize today) always need their own diff
-        // on the local turn so the client renders the trigger landing on the
-        // stack before the resolution + tokens diff. Other triggers keep the
-        // legacy single-GSM-per-action bundling — broader rollout follows
-        // shape-survey of integration tests that asserted on the old shape.
+        // Specific keyword triggers always need their own diff on the local
+        // turn so the client renders the trigger landing on the stack before
+        // the resolution diff. Other triggers keep the legacy single-GSM-per-action
+        // bundling until their shape is verified.
         if (!isRemoteActing() && !splitForLocalTrigger) return
         captureAndPause(CAST_DELAY)
     }
@@ -107,8 +106,7 @@ class GamePlayback(
     }
 
     /** Decide whether to split this trigger's lifecycle into its own diff on
-     *  the local turn. Today: only Mobilize keyword triggers (so the warrior
-     *  tokens enter a beat before combat damage).
+     *  the local turn. Today: Mobilize and Training keyword triggers.
      *
      *  Widening to other keyword triggers (other combat triggers, ETB
      *  mechanics with delayed-trigger tokens, etc.) inserts an extra Diff
@@ -120,7 +118,8 @@ class GamePlayback(
         if (hostCardForgeId == null) return false
         val card = bridge.findCard(leyline.bridge.types.ForgeCardId(hostCardForgeId)) ?: return false
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return false
-        return bridge.cardRepository.findKeywordAbilityGrpId(grpId, leyline.game.data.KeywordAbilityIds.MOBILIZE) != null
+        return bridge.cardRepository.findKeywordAbilityGrpId(grpId, leyline.game.data.KeywordAbilityIds.MOBILIZE) != null ||
+            bridge.cardRepository.findKeywordAbilityGrpId(grpId, leyline.game.data.KeywordAbilityIds.TRAINING) != null
     }
 
     override fun visit(ev: GameEventTurnBegan) {

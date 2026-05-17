@@ -16,6 +16,7 @@ import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.detailUint
+import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -66,11 +67,28 @@ class TrainingKeywordTest :
             val abilityIid = aic.affectedIdsList.single()
             val counterAdded = post.annotationsOfType(AnnotationType.CounterAdded).first { hopefulIid in it.affectedIdsList }
             val counterState = post.persistentAnnotationsOfType(AnnotationType.Counter_803b).first { hopefulIid in it.affectedIdsList }
+            val gsms = post.gameStateMessages()
+            val triggerEnterIdx =
+                gsms.indexOfFirst { gsm ->
+                    gsm.annotationsList.any {
+                        AnnotationType.AbilityInstanceCreated in it.typeList &&
+                            it.affectorId == hopefulIid &&
+                            it.affectedIdsList.contains(abilityIid)
+                    }
+                }
+            val resolveIdx =
+                gsms.indexOfFirst { gsm ->
+                    gsm.annotationsList.any {
+                        AnnotationType.ResolutionStart in it.typeList && it.affectorId == abilityIid
+                    }
+                }
 
             assertSoftly {
                 trainingMarker.affectorId shouldBe hopefulIid
                 trainingMarker.affectedIdsList shouldContain bearIid
                 aic.detailInt("source_zone") shouldBe 28
+                triggerEnterIdx shouldBeGreaterThan -1
+                resolveIdx shouldBeGreaterThan triggerEnterIdx
                 post
                     .persistentAnnotationsOfType(AnnotationType.TriggeringObject)
                     .first { it.affectorId == abilityIid }
