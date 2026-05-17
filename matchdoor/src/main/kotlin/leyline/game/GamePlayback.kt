@@ -3,9 +3,11 @@ package leyline.game
 import com.google.common.eventbus.Subscribe
 import forge.game.event.*
 import forge.game.phase.PhaseType
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -106,7 +108,7 @@ class GamePlayback(
     }
 
     /** Decide whether to split this trigger's lifecycle into its own diff on
-     *  the local turn. Today: Mobilize, Training, and Decayed keyword triggers.
+     *  the local turn. Today: the keyword allowlist in [localTurnSplitTriggerKeywordIds].
      *
      *  Widening to other keyword triggers (other combat triggers, ETB
      *  mechanics with delayed-trigger tokens, etc.) inserts an extra Diff
@@ -116,11 +118,11 @@ class GamePlayback(
      *  before extending the list. */
     private fun shouldSplitOnLocalTurn(hostCardForgeId: Int?): Boolean {
         if (hostCardForgeId == null) return false
-        val card = bridge.findCard(leyline.bridge.types.ForgeCardId(hostCardForgeId)) ?: return false
+        val card = bridge.findCard(ForgeCardId(hostCardForgeId)) ?: return false
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return false
-        return bridge.cardRepository.findKeywordAbilityGrpId(grpId, leyline.game.data.KeywordAbilityIds.MOBILIZE) != null ||
-            bridge.cardRepository.findKeywordAbilityGrpId(grpId, leyline.game.data.KeywordAbilityIds.TRAINING) != null ||
-            bridge.cardRepository.findKeywordAbilityGrpId(grpId, leyline.game.data.KeywordAbilityIds.DECAYED) != null
+        return localTurnSplitTriggerKeywordIds.any { keywordId ->
+            bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) != null
+        }
     }
 
     override fun visit(ev: GameEventTurnBegan) {
@@ -272,5 +274,11 @@ class GamePlayback(
         const val CAST_DELAY = 400
         const val RESOLVE_DELAY = 400
         const val LAND_DELAY = 300
+        private val localTurnSplitTriggerKeywordIds =
+            setOf(
+                KeywordAbilityIds.MOBILIZE,
+                KeywordAbilityIds.TRAINING,
+                KeywordAbilityIds.DECAYED,
+            )
     }
 }
