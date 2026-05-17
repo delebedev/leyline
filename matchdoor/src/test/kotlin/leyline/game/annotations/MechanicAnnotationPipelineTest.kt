@@ -80,6 +80,36 @@ class MechanicAnnotationPipelineTest :
             annotations.shouldBeEmpty()
         }
 
+        test("playerPoisonCounterAnnotation") {
+            val events =
+                listOf(
+                    GameEvent.PlayerCountersChanged(seatId = SeatId(1), counterType = "POISON", oldCount = 8, newCount = 10),
+                )
+            val result =
+                MechanicAnnotations.mechanicAnnotations(
+                    events,
+                    idResolver = ::testResolver,
+                    playerCounterAffectorResolver = { _, _ -> InstanceId(277) },
+                )
+
+            assertSoftly {
+                result.transient.size shouldBe 1
+                result.transient[0].typeList shouldContain AnnotationType.CounterAdded
+                result.transient[0].affectorId shouldBe 277
+                result.transient[0].affectedIdsList shouldContain 1
+                result.transient[0].detailInt("counter_type") shouldBe 3
+                result.transient[0].detailInt("transaction_amount") shouldBe 2
+            }
+
+            assertSoftly {
+                result.persistent.size shouldBe 1
+                result.persistent[0].typeList shouldContain AnnotationType.Counter_803b
+                result.persistent[0].affectedIdsList shouldContain 1
+                result.persistent[0].detailInt("count") shouldBe 10
+                result.persistent[0].detailInt("counter_type") shouldBe 3
+            }
+        }
+
         // -- LibraryShuffled --
 
         xtest("shuffleAnnotation") {

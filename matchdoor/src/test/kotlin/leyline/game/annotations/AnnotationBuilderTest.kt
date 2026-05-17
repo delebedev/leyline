@@ -422,6 +422,26 @@ class AnnotationBuilderTest :
             ann.detailInt("life") shouldBe -5
         }
 
+        // --- LossOfGame ---
+
+        test("lossOfGameLifeTotalFields") {
+            val ann = AnnotationBuilder.lossOfGame(affectedPlayerSeatId = 1.sid, reason = AnnotationLossReason.LifeTotal)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.LossOfGame_af5a
+                ann.affectedIdsList shouldBe listOf(1)
+                ann.detailInt("reason") shouldBe 0
+            }
+        }
+
+        test("lossOfGamePoisonFields") {
+            val ann = AnnotationBuilder.lossOfGame(affectedPlayerSeatId = 1.sid, reason = AnnotationLossReason.Poison)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.LossOfGame_af5a
+                ann.affectedIdsList shouldBe listOf(1)
+                ann.detailString("reason") shouldBe "SBA_Poison"
+            }
+        }
+
         // --- SyntheticEvent ---
 
         test("syntheticEventFields") {
@@ -492,6 +512,17 @@ class AnnotationBuilderTest :
                 ann.affectedIdsList shouldContain 200
                 ann.detailString("counter_type") shouldBe "LOYALTY"
                 ann.detailInt("transaction_amount") shouldBe 3
+            }
+        }
+
+        test("playerCounterAddedFields") {
+            val ann = AnnotationBuilder.playerCounterAdded(seatId = 1.sid, counterType = 3, amount = 2, affectorId = 277.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.CounterAdded
+                ann.affectorId shouldBe 277
+                ann.affectedIdsList shouldBe listOf(1)
+                ann.detailInt("counter_type") shouldBe 3
+                ann.detailInt("transaction_amount") shouldBe 2
             }
         }
 
@@ -580,6 +611,16 @@ class AnnotationBuilderTest :
                 ann.affectedIdsList shouldContain 100
                 ann.detailInt("count") shouldBe 1
                 ann.detailInt("counter_type") shouldBe 1
+            }
+        }
+
+        test("playerCounterStateFields") {
+            val ann = AnnotationBuilder.playerCounter(seatId = 1.sid, counterType = 3, count = 10)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.Counter_803b
+                ann.affectedIdsList shouldContain 1
+                ann.detailInt("count") shouldBe 10
+                ann.detailInt("counter_type") shouldBe 3
             }
         }
 

@@ -391,7 +391,7 @@ object AnnotationBuilder {
     /**
      * Player lost the game. client annotation type 2 (LossOfGame_af5a).
      * [affectedPlayerSeatId] = seat of the losing player.
-     * [reason] = [AnnotationLossReason] (LifeTotal, Concede).
+     * [reason] = [AnnotationLossReason] (life total, concede, poison, empty library).
      */
     fun lossOfGame(
         affectedPlayerSeatId: SeatId,
@@ -401,7 +401,7 @@ object AnnotationBuilder {
             .newBuilder()
             .addType(AnnotationType.LossOfGame_af5a)
             .addAffectedIds(affectedPlayerSeatId.value)
-            .addDetails(int32Detail(DetailKeys.REASON, reason.wireValue))
+            .addDetails(lossReasonDetail(reason))
             .build()
 
     /** Generic combat result marker. Client dispatches synthetic GameRulesEvent based on type. */
@@ -545,6 +545,36 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.TRANSACTION_AMOUNT, amount))
             .build()
 
+    /** Counter added to a player. Player-counter wire uses numeric counter ids. */
+    fun playerCounterAdded(
+        seatId: SeatId,
+        counterType: Int,
+        amount: Int,
+        affectorId: InstanceId? = null,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.CounterAdded)
+            .apply { if (affectorId != null) setAffectorId(affectorId.value) }
+            .addAffectedIds(seatId.value)
+            .addDetails(int32Detail(DetailKeys.COUNTER_TYPE, counterType))
+            .addDetails(int32Detail(DetailKeys.TRANSACTION_AMOUNT, amount))
+            .build()
+
+    /** Counter removed from a player. Player-counter wire uses numeric counter ids. */
+    fun playerCounterRemoved(
+        seatId: SeatId,
+        counterType: Int,
+        amount: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.CounterRemoved)
+            .addAffectedIds(seatId.value)
+            .addDetails(int32Detail(DetailKeys.COUNTER_TYPE, counterType))
+            .addDetails(int32Detail(DetailKeys.TRANSACTION_AMOUNT, amount))
+            .build()
+
     /** Library shuffled. client type 56 (Shuffle). */
     fun shuffle(seatId: SeatId): AnnotationInfo =
         AnnotationInfo
@@ -583,6 +613,20 @@ object AnnotationBuilder {
             .newBuilder()
             .addType(AnnotationType.Counter_803b)
             .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.COUNT, count))
+            .addDetails(int32Detail(DetailKeys.COUNTER_TYPE, counterType))
+            .build()
+
+    /** Counter state on a player. */
+    fun playerCounter(
+        seatId: SeatId,
+        counterType: Int,
+        count: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Counter_803b)
+            .addAffectedIds(seatId.value)
             .addDetails(int32Detail(DetailKeys.COUNT, count))
             .addDetails(int32Detail(DetailKeys.COUNTER_TYPE, counterType))
             .build()
@@ -1405,6 +1449,13 @@ object AnnotationBuilder {
             .setType(KeyValuePairValueType.String)
             .addValueString(value)
             .build()
+
+    private fun lossReasonDetail(reason: AnnotationLossReason): KeyValuePairInfo =
+        reason.wireString?.let { typedStringDetail(DetailKeys.REASON, it) }
+            ?: int32Detail(
+                DetailKeys.REASON,
+                reason.wireInt ?: error("AnnotationLossReason ${reason.name} has no wire value"),
+            )
 
     private fun uint32Detail(
         key: String,
