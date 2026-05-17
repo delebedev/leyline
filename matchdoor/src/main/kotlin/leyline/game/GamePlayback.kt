@@ -12,10 +12,13 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.event.FrameEventLog
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.Step
 import java.util.concurrent.ConcurrentLinkedQueue
+import leyline.game.event.GameEvent as LeylineGameEvent
 
 /**
  * Captures per-action GRE state diffs for the client, pacing remote turns
@@ -244,7 +247,7 @@ class GamePlayback(
         // damage/life/death annotations can sit in the collector queue until the
         // next later priority stop and get folded into a post-combat action GSM.
         if (isRemoteActing()) return
-        captureAndPause(0)
+        captureLocalCombatEnd()
     }
 
     // -- Queue access (called from MatchHandler / Netty thread) --
@@ -272,9 +275,11 @@ class GamePlayback(
     private fun captureAndPause(
         delayMs: Int,
         turnStarted: Boolean = false,
+        gameOverride: forge.game.Game? = null,
+        eventsOverride: FrameEventLog? = null,
     ) {
         val game =
-            bridge.getGame() ?: run {
+            gameOverride ?: bridge.getGame() ?: run {
                 log.debug("GamePlayback: captureAndPause during teardown (game null), skipping")
                 return
             }
@@ -285,6 +290,7 @@ class GamePlayback(
                     game,
                     counter,
                     turnStarted = turnStarted,
+                    eventsOverride = eventsOverride,
                 )
 
             queue.add(result.messages)
@@ -312,6 +318,33 @@ class GamePlayback(
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
             }
+        }
+    }
+
+    private fun captureLocalCombatEnd() {
+        val game =
+            bridge.getGame() ?: run {
+                log.debug("GamePlayback: local combat end during teardown (game null), skipping")
+                return
+            }
+        val events = bridge.closeBundleFrame(seatId).events
+        if (events.none { it is LeylineGameEvent.DamageDealtToCard || it is LeylineGameEvent.DamageDealtToPlayer }) {
+            captureAndPause(0, eventsOverride = FrameEventLog(events))
+            return
+        }
+
+        val damageEvents =
+            events.filterNot { event ->
+                event is LeylineGameEvent.PhaseChanged && event.step != Step.CombatDamage_a2cb.number
+            }
+        val endCombatEvents =
+            events.filter { event ->
+                event is LeylineGameEvent.PhaseChanged && event.step == Step.EndCombat_a2cb.number
+            }
+
+        captureAndPause(0, gameOverride = game, eventsOverride = FrameEventLog(damageEvents))
+        if (endCombatEvents.isNotEmpty()) {
+            captureAndPause(0, gameOverride = game, eventsOverride = FrameEventLog(endCombatEvents))
         }
     }
 

@@ -334,6 +334,18 @@ class CombatInteractionTest :
             val annTypes = damageGsm.annotationsList.map { ann -> ann.typeList.first() }
             annTypes.first() shouldBe AnnotationType.PhaseOrStepModified
 
+            val phaseAnnotations =
+                damageGsm.annotationsList.filter { ann ->
+                    ann.typeList.any { it == AnnotationType.PhaseOrStepModified }
+                }
+            phaseAnnotations.size shouldBe 1
+            phaseAnnotations
+                .single()
+                .detailsList
+                .first { it.key == "step" }
+                .valueInt32List
+                .single() shouldBe Step.CombatDamage_a2cb.number
+
             // DamageDealt has correct affectorId (attacker) and affectedIds (target seat)
             val dmgAnn =
                 damageGsm.annotationsList.first { ann ->
@@ -358,6 +370,25 @@ class CombatInteractionTest :
 
             // Human-turn combat animation checkpoint must not reopen priority.
             allMessages.none { it.hasActionsAvailableReq() && it.gameStateId == damageGsm.gameStateId }.shouldBeTrue()
+
+            val damageIndex = allGsms.indexOfFirst { it.gameStateId == damageGsm.gameStateId }
+            damageIndex shouldBeGreaterThanOrEqualTo 0
+            val echoGsm = allGsms.getOrNull(damageIndex + 1)
+            echoGsm.shouldNotBeNull()
+            echoGsm.annotationsCount shouldBe 0
+            echoGsm.prevGameStateId shouldBe damageGsm.gameStateId
+
+            val endCombatGsm =
+                allGsms.drop(damageIndex + 2).firstOrNull { gsm ->
+                    gsm.annotationsList.any { ann ->
+                        ann.typeList.any { it == AnnotationType.PhaseOrStepModified } &&
+                            ann.detailsList.any { detail ->
+                                detail.key == "step" && detail.valueInt32List.contains(Step.EndCombat_a2cb.number)
+                            }
+                    }
+                }
+            endCombatGsm.shouldNotBeNull()
+            endCombatGsm.annotationsList.none { ann -> ann.typeList.any { it == AnnotationType.DamageDealt_af5a } }.shouldBeTrue()
         }
 
         test("combat death produces zone transfer") {
