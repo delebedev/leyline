@@ -13,7 +13,7 @@ enum class InvariantCheck(
     AnnotationSequentiality("annotation_seq"),
     AnnotationOrdering("annotation_ordering"),
     PhaseFirst("phase_first"),
-    ResolutionSandwich("resolution_sandwich"),
+    ResolutionTransferAfterComplete("resolution_transfer_after_complete"),
     AidAffector("aid_affector"),
     PendingMessageCount("pending_count"),
     ActionInstanceIds("action_iid"),

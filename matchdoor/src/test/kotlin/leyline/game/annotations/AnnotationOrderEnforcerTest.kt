@@ -77,8 +77,8 @@ class AnnotationOrderEnforcerTest :
             result.map { it.typeList.first() } shouldBe
                 listOf(
                     AnnotationType.ResolutionStart,
-                    AnnotationType.ZoneTransfer_af5a,
                     AnnotationType.ResolutionComplete,
+                    AnnotationType.ZoneTransfer_af5a,
                 )
         }
 
@@ -341,9 +341,9 @@ class AnnotationOrderEnforcerTest :
                 )
         }
 
-        // ===== Rule 5: ResolveTransferInsideResolution =====
+        // ===== Rule 5: ResolveTransferAfterResolutionComplete =====
 
-        test("Rule 5: moves Resolve ZoneTransfer before ResolutionComplete") {
+        test("Rule 5: moves Resolve ZoneTransfer after ResolutionComplete") {
             val rs = AnnotationBuilder.resolutionStart(instanceId = 200.iid, grpId = 12345.grp)
             val rc = AnnotationBuilder.resolutionComplete(instanceId = 200.iid, grpId = 12345.grp)
             val zt =
@@ -354,17 +354,17 @@ class AnnotationOrderEnforcerTest :
                     category = "Resolve",
                 )
 
-            val result = AnnotationOrderEnforcer.enforce(listOf(rs, rc, zt))
+            val result = AnnotationOrderEnforcer.enforce(listOf(rs, zt, rc))
 
             result.map { it.typeList.first() } shouldBe
                 listOf(
                     AnnotationType.ResolutionStart,
-                    AnnotationType.ZoneTransfer_af5a,
                     AnnotationType.ResolutionComplete,
+                    AnnotationType.ZoneTransfer_af5a,
                 )
         }
 
-        test("Rule 5: moves Resolve ZoneTransfer after ResolutionStart") {
+        test("Rule 5: moves Resolve ZoneTransfer after the RS/RC pair") {
             val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
             val zt =
                 AnnotationBuilder.zoneTransfer(
@@ -382,8 +382,8 @@ class AnnotationOrderEnforcerTest :
                 listOf(
                     AnnotationType.ObjectIdChanged,
                     AnnotationType.ResolutionStart,
-                    AnnotationType.ZoneTransfer_af5a,
                     AnnotationType.ResolutionComplete,
+                    AnnotationType.ZoneTransfer_af5a,
                 )
         }
 

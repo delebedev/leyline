@@ -18,15 +18,14 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairInfo
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
 /**
- * Unit tests for [InvariantChecker.checkPhaseFirst] and
- * [InvariantChecker.checkResolutionSandwich].
+ * Unit tests for phase and resolution annotation-order checks.
  *
  * PhaseOrStepModified, when present in a GSM, must be at index 0 of
  * the annotation list. Detection only — no enforcement here.
  *
  * Resolve-category ZoneTransfer annotations, when both ResolutionStart
- * and ResolutionComplete are present in the same GSM, must sit between
- * them. Detection only.
+ * and ResolutionComplete are present in the same GSM, must sit after
+ * ResolutionComplete. Detection only.
  */
 class InvariantCheckerTest :
     FunSpec({
@@ -186,9 +185,9 @@ class InvariantCheckerTest :
             checker.violations.filter { it.check == "phase_first" }.shouldBeEmpty()
         }
 
-        // --- resolution_sandwich tests ---
+        // --- resolution_transfer_after_complete tests ---
 
-        test("resolution_sandwich violation when Resolve ZT lands before ResolutionStart") {
+        test("resolution_transfer_after_complete violation when Resolve ZT lands before ResolutionStart") {
             val checker = InvariantChecker()
             val g =
                 gsm(
@@ -204,52 +203,12 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            val sandwich = checker.violations.filter { it.check == "resolution_sandwich" }
-            sandwich.shouldNotBeEmpty()
-            sandwich.size shouldBe 1
+            val ordering = checker.violations.filter { it.check == "resolution_transfer_after_complete" }
+            ordering.shouldNotBeEmpty()
+            ordering.size shouldBe 1
         }
 
-        test("resolution_sandwich violation when Resolve ZT lands after ResolutionComplete") {
-            val checker = InvariantChecker()
-            val g =
-                gsm(
-                    gsId = 1,
-                    annotations =
-                        listOf(
-                            annotation(1, AnnotationType.ResolutionStart),
-                            annotation(2, AnnotationType.ResolutionComplete),
-                            zoneTransferAnnotation(3, "Resolve"),
-                        ),
-                )
-
-            checker.process(greMessage(msgId = 1, gsm = g))
-
-            val sandwich = checker.violations.filter { it.check == "resolution_sandwich" }
-            sandwich.shouldNotBeEmpty()
-            sandwich.size shouldBe 1
-        }
-
-        test("resolution_sandwich records two violations when Resolve ZTs flank the bracket") {
-            val checker = InvariantChecker()
-            val g =
-                gsm(
-                    gsId = 1,
-                    annotations =
-                        listOf(
-                            zoneTransferAnnotation(1, "Resolve", affectedId = 100),
-                            annotation(2, AnnotationType.ResolutionStart),
-                            annotation(3, AnnotationType.ResolutionComplete),
-                            zoneTransferAnnotation(4, "Resolve", affectedId = 200),
-                        ),
-                )
-
-            checker.process(greMessage(msgId = 1, gsm = g))
-
-            val sandwich = checker.violations.filter { it.check == "resolution_sandwich" }
-            sandwich.size shouldBe 2
-        }
-
-        test("no resolution_sandwich violation when Resolve ZT sits between RS and RC") {
+        test("resolution_transfer_after_complete violation when Resolve ZT lands between ResolutionStart and ResolutionComplete") {
             val checker = InvariantChecker()
             val g =
                 gsm(
@@ -264,10 +223,50 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            checker.violations.filter { it.check == "resolution_sandwich" }.shouldBeEmpty()
+            val ordering = checker.violations.filter { it.check == "resolution_transfer_after_complete" }
+            ordering.shouldNotBeEmpty()
+            ordering.size shouldBe 1
         }
 
-        test("no resolution_sandwich violation when RS and RC are absent") {
+        test("resolution_transfer_after_complete records two violations when Resolve ZTs precede ResolutionComplete") {
+            val checker = InvariantChecker()
+            val g =
+                gsm(
+                    gsId = 1,
+                    annotations =
+                        listOf(
+                            zoneTransferAnnotation(1, "Resolve", affectedId = 100),
+                            annotation(2, AnnotationType.ResolutionStart),
+                            zoneTransferAnnotation(3, "Resolve", affectedId = 200),
+                            annotation(4, AnnotationType.ResolutionComplete),
+                        ),
+                )
+
+            checker.process(greMessage(msgId = 1, gsm = g))
+
+            val ordering = checker.violations.filter { it.check == "resolution_transfer_after_complete" }
+            ordering.size shouldBe 2
+        }
+
+        test("no resolution_transfer_after_complete violation when Resolve ZT follows ResolutionComplete") {
+            val checker = InvariantChecker()
+            val g =
+                gsm(
+                    gsId = 1,
+                    annotations =
+                        listOf(
+                            annotation(1, AnnotationType.ResolutionStart),
+                            annotation(2, AnnotationType.ResolutionComplete),
+                            zoneTransferAnnotation(3, "Resolve"),
+                        ),
+                )
+
+            checker.process(greMessage(msgId = 1, gsm = g))
+
+            checker.violations.filter { it.check == "resolution_transfer_after_complete" }.shouldBeEmpty()
+        }
+
+        test("no resolution_transfer_after_complete violation when RS and RC are absent") {
             val checker = InvariantChecker()
             val g =
                 gsm(
@@ -280,10 +279,10 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            checker.violations.filter { it.check == "resolution_sandwich" }.shouldBeEmpty()
+            checker.violations.filter { it.check == "resolution_transfer_after_complete" }.shouldBeEmpty()
         }
 
-        test("no resolution_sandwich violation when non-Resolve ZT sits outside the bracket") {
+        test("no resolution_transfer_after_complete violation when non-Resolve ZT sits before ResolutionComplete") {
             val checker = InvariantChecker()
             val g =
                 gsm(
@@ -298,10 +297,10 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            checker.violations.filter { it.check == "resolution_sandwich" }.shouldBeEmpty()
+            checker.violations.filter { it.check == "resolution_transfer_after_complete" }.shouldBeEmpty()
         }
 
-        test("no resolution_sandwich violation when multiple Resolve ZTs all sit inside the bracket") {
+        test("no resolution_transfer_after_complete violation when multiple Resolve ZTs follow ResolutionComplete") {
             val checker = InvariantChecker()
             val g =
                 gsm(
@@ -309,15 +308,15 @@ class InvariantCheckerTest :
                     annotations =
                         listOf(
                             annotation(1, AnnotationType.ResolutionStart),
-                            zoneTransferAnnotation(2, "Resolve", affectedId = 100),
-                            zoneTransferAnnotation(3, "Resolve", affectedId = 200),
-                            annotation(4, AnnotationType.ResolutionComplete),
+                            annotation(2, AnnotationType.ResolutionComplete),
+                            zoneTransferAnnotation(3, "Resolve", affectedId = 100),
+                            zoneTransferAnnotation(4, "Resolve", affectedId = 200),
                         ),
                 )
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            checker.violations.filter { it.check == "resolution_sandwich" }.shouldBeEmpty()
+            checker.violations.filter { it.check == "resolution_transfer_after_complete" }.shouldBeEmpty()
         }
 
         // --- aid_affector tests ---

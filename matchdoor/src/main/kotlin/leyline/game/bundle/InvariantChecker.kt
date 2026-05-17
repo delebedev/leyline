@@ -14,7 +14,7 @@ import kotlin.text.get
  * (post-hoc diagnostics).
  *
  * Checks: gsId monotonicity, prevGsId validity, annotation sequentiality,
- * annotation ordering, phase_first, resolution_sandwich, aid_affector
+ * annotation ordering, phase_first, resolution_transfer_after_complete, aid_affector
  * consistency, action instanceId consistency, zone-object consistency,
  * msgId monotonicity.
  */
@@ -59,7 +59,7 @@ class InvariantChecker(
             checkAnnotationIdSequentiality(gsm)
             checkAnnotationOrdering(gsm)
             checkPhaseFirst(gsm)
-            checkResolutionSandwich(gsm)
+            checkResolutionTransferAfterComplete(gsm)
             val aidIids = checkAidAffectorConsistency(gsm)
             recordAicAffectorHistory(gsm, aidIids)
             checkPendingMessageCountContract(gsm)
@@ -286,17 +286,13 @@ class InvariantChecker(
     /**
      * In any GSM that contains both [AnnotationType.ResolutionStart] and
      * [AnnotationType.ResolutionComplete], every Resolve-category
-     * [AnnotationType.ZoneTransfer_af5a] must sit at an index strictly
-     * between the first ResolutionStart and the last ResolutionComplete.
+     * [AnnotationType.ZoneTransfer_af5a] must sit after the last
+     * ResolutionComplete.
      *
-     * Resolution content (the zone change a resolving spell or ability
-     * causes) belongs inside the RS/RC bracket; if it lands outside, the
-     * client receives a zone event without its surrounding resolution
-     * wrapper.
-     *
-     * Detection only — the matching enforcer rule lands in a follow-up.
+     * The RS/RC pair identifies the object whose resolution is finishing; the
+     * resolve-category transfer applies the resulting stack exit after that pair.
      */
-    private fun checkResolutionSandwich(gsm: GameStateMessage) {
+    private fun checkResolutionTransferAfterComplete(gsm: GameStateMessage) {
         val annotations = gsm.annotationsList
         val rsIdx = annotations.indexOfFirst { AnnotationType.ResolutionStart in it.typeList }
         val rcIdx = annotations.indexOfLast { AnnotationType.ResolutionComplete in it.typeList }
@@ -310,13 +306,13 @@ class InvariantChecker(
                         detail.valueStringList.firstOrNull() == TransferCategory.Resolve.label
                 }
             if (!isResolve) return@forEachIndexed
-            if (idx < rsIdx || idx > rcIdx) {
+            if (idx <= rcIdx) {
                 val affected = ann.affectedIdsList.firstOrNull() ?: 0
                 record(
                     gsId,
-                    "resolution_sandwich",
+                    "resolution_transfer_after_complete",
                     "Resolve-category ZoneTransfer affected=$affected at index $idx " +
-                        "outside RS=$rsIdx..RC=$rcIdx (gsId=$gsId)",
+                        "not after ResolutionComplete at index $rcIdx (RS=$rsIdx, gsId=$gsId)",
                 )
             }
         }

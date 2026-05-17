@@ -36,7 +36,7 @@ object OrderRules {
             SameCardIncrementalRule,
             TokenCreatedFirstRule,
             PhaseOrStepFirstRule,
-            ResolveTransferInsideResolutionRule,
+            ResolveTransferAfterResolutionCompleteRule,
         )
 }
 
@@ -191,14 +191,14 @@ data object PhaseOrStepFirstRule : OrderRule {
 }
 
 /**
- * Rule 5: Resolve-category zone transfers belong inside the RS/RC bracket.
+ * Rule 5: Resolve-category zone transfers follow the RS/RC pair.
  *
- * ResolutionStart opens the client animation bracket and ResolutionComplete
- * closes it. A resolving spell's zone movement after RC renders as an
- * unbracketed state change, so each Resolve transfer gets RS -> ZT -> RC edges.
+ * The client-facing resolve shape puts ResolutionStart/ResolutionComplete first,
+ * then applies the resolving object's zone movement. Each Resolve transfer gets
+ * RS -> RC -> ZT edges.
  */
-data object ResolveTransferInsideResolutionRule : OrderRule {
-    override val name: String = "resolve_transfer_inside_resolution"
+data object ResolveTransferAfterResolutionCompleteRule : OrderRule {
+    override val name: String = "resolve_transfer_after_resolution_complete"
 
     override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
         val rs = annotations.indexOfFirst { AnnotationType.ResolutionStart in it.typeList }
@@ -209,8 +209,8 @@ data object ResolveTransferInsideResolutionRule : OrderRule {
         for ((i, ann) in annotations.withIndex()) {
             if (AnnotationType.ZoneTransfer_af5a !in ann.typeList) continue
             if (ann.detailString(DetailKeys.CATEGORY) != TransferCategory.Resolve.label) continue
-            edges.add(rs to i)
-            edges.add(i to rc)
+            edges.add(rs to rc)
+            edges.add(rc to i)
         }
         return edges
     }
