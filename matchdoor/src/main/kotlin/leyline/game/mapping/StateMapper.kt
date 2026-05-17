@@ -1050,7 +1050,7 @@ object StateMapper {
                     .turnInfo()
                     .toBuilder()
                     .setPhase(Phase.Combat_a549)
-                    .setStep(Step.CombatDamage_a2cb)
+                    .setStep(combatResult.damageStep)
             } else {
                 frame.turnInfo().toBuilder()
             }

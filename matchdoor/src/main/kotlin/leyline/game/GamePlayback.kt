@@ -364,14 +364,31 @@ class GamePlayback(
         sourceEvents: List<LeylineGameEvent>,
     ): List<LeylineGameEvent> {
         val activeSeat = combatDamageSourceSeat(sourceEvents) ?: currentTurnSeat(game) ?: seatId
+        val damageStep = sourceEvents.combatDamageStep()
         return listOf(
             LeylineGameEvent.PhaseChanged(
                 SeatId(activeSeat),
                 Phase.Combat_a549.number,
-                Step.CombatDamage_a2cb.number,
+                damageStep,
             ),
         ) + this
     }
+
+    private fun List<LeylineGameEvent>.combatDamageStep(): Int =
+        run {
+            var currentDamageStep = Step.CombatDamage_a2cb.number
+            for (event in this) {
+                if (event is LeylineGameEvent.PhaseChanged) {
+                    if (event.step == Step.FirstStrikeDamage_a2cb.number || event.step == Step.CombatDamage_a2cb.number) {
+                        currentDamageStep = event.step
+                    }
+                }
+                if (event is LeylineGameEvent.DamageDealtToCard || event is LeylineGameEvent.DamageDealtToPlayer) {
+                    return@run currentDamageStep
+                }
+            }
+            Step.CombatDamage_a2cb.number
+        }
 
     private fun combatDamageSourceSeat(events: List<LeylineGameEvent>): Int? {
         events

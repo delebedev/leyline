@@ -1,5 +1,6 @@
 package leyline.session.combat
 
+import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -389,6 +390,37 @@ class CombatInteractionTest :
                 }
             endCombatGsm.shouldNotBeNull()
             endCombatGsm.annotationsList.none { ann -> ann.typeList.any { it == AnnotationType.DamageDealt_af5a } }.shouldBeTrue()
+        }
+
+        test("first strike combat damage uses first-strike damage step") {
+            val attackerIid = setupSingleAttacker()
+            human
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .filter { it.isCreature }
+                .single()
+                .addIntrinsicKeyword("First Strike")
+
+            passPriority()
+            declareAttackers(listOf(attackerIid))
+            passThroughCombat(turn())
+
+            val damageGsm =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .firstOrNull { gsm ->
+                        gsm.annotationsList.any { AnnotationType.DamageDealt_af5a in it.typeList }
+                    }
+            damageGsm.shouldNotBeNull()
+            damageGsm.turnInfo.phase shouldBe Phase.Combat_a549
+            damageGsm.turnInfo.step shouldBe Step.FirstStrikeDamage_a2cb
+            damageGsm.annotationsList
+                .single { AnnotationType.PhaseOrStepModified in it.typeList }
+                .detailsList
+                .first { it.key == "step" }
+                .valueInt32List
+                .single() shouldBe Step.FirstStrikeDamage_a2cb.number
         }
 
         test("combat death produces zone transfer") {
