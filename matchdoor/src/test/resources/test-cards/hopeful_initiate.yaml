@@ -1,0 +1,12 @@
+name: "Hopeful Initiate"
+grpId: 78798
+titleId: 545600
+abilities:
+  - id: 220
+    textId: 58176
+    category: 2
+  - id: 146550
+    textId: 545601
+    category: 1
+    mana: "o2oW"
+expansionCode: "VOW"

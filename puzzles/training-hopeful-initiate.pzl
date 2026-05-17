@@ -1,0 +1,16 @@
+[metadata]
+Name:Training Hopeful Initiate
+Goal:Attack with Hopeful Initiate and a greater-power creature.
+Turns:5
+Difficulty:Easy
+Description:Hopeful Initiate attacks with Grizzly Bears so Training should trigger, put a +1/+1 counter on Hopeful Initiate, and show the Training marker.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Hopeful Initiate;Grizzly Bears
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

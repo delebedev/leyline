@@ -9,7 +9,8 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.UnitTag
+import leyline.BoardTag
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
@@ -31,7 +32,11 @@ import leyline.game.state.PersistentAnnotationStore
  */
 class PersistentAnnotationKindTest :
     FunSpec({
-        tags(UnitTag)
+        tags(BoardTag)
+
+        beforeSpec {
+            GameBootstrap.initializeCardDatabase(quiet = true)
+        }
 
         fun frame(
             phase: PhaseType?,
