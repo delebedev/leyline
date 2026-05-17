@@ -90,6 +90,17 @@ class InvariantCheckerTest :
                 .addAffectedIds(abilityIid)
                 .build()
 
+        fun resolutionStartAnnotation(
+            id: Int,
+            abilityIid: Int,
+        ): AnnotationInfo =
+            AnnotationInfo
+                .newBuilder()
+                .setId(id)
+                .addType(AnnotationType.ResolutionStart)
+                .setAffectorId(abilityIid)
+                .build()
+
         fun gsm(
             gsId: Int,
             annotations: List<AnnotationInfo>,
@@ -405,6 +416,25 @@ class InvariantCheckerTest :
                 mismatches.size shouldBe 1
                 mismatches[0].message shouldContain "ability=10"
             }
+        }
+
+        test("annotation_ref treats open ability lifecycles as known ids") {
+            val checker = InvariantChecker()
+            val g1 = gsm(gsId = 1, annotations = listOf(aicAnnotation(id = 1, abilityIid = 116, affectorId = 1)))
+            val g2 =
+                gsm(
+                    gsId = 2,
+                    annotations =
+                        listOf(
+                            resolutionStartAnnotation(id = 1, abilityIid = 116),
+                            aidAnnotation(id = 2, abilityIid = 116, affectorId = 1),
+                        ),
+                )
+
+            checker.process(greMessage(msgId = 1, gsm = g1))
+            checker.process(greMessage(msgId = 2, gsm = g2))
+
+            checker.violations.filter { it.check == "annotation_ref" }.shouldBeEmpty()
         }
 
         test("aid_affector entry is pruned after AID fires") {

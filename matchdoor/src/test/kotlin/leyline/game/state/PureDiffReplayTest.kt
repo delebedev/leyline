@@ -44,9 +44,16 @@ class PureDiffReplayTest :
 
         tags(BoardTag)
 
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+        beforeSpec { BoardTestBase().initCardDatabase() }
+
+        fun <T> withBase(block: BoardTestBase.() -> T): T {
+            val base = BoardTestBase()
+            return try {
+                base.block()
+            } finally {
+                base.tearDown()
+            }
+        }
 
         data class BundleStep(
             val prev: GsmSnapshot?,
@@ -57,144 +64,150 @@ class PureDiffReplayTest :
         )
 
         test("one-turn scripted scenario — snap-vs-snap diff byte-equal across replay") {
-            // LIVE: drive the scenario, capture per-bundle records.
-            val (liveBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
-            val liveRun = mutableListOf<BundleStep>()
+            withBase {
+                // LIVE: drive the scenario, capture per-bundle records.
+                val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
+                val liveRun = mutableListOf<BundleStep>()
 
-            liveBridge.diffListener = { prev, cur, events, gsId, diff ->
-                liveRun.add(BundleStep(prev, cur, events.toList(), gsId, diff))
-            }
-
-            // Scripted scenario: play land → cast creature (if possible) → pass to end of turn.
-            base.playLand(liveBridge)
-            base.castCreature(liveBridge) // null-safe: skipped if no creature in hand
-            advanceToEndOfTurn(liveBridge)
-
-            liveRun.shouldNotBeEmpty()
-
-            // Disarm listener so replay bundles don't re-record.
-            liveBridge.diffListener = null
-
-            // REPLAY: second bridge, same seed → identical initial state (same card IDs,
-            // same zone assignments, same annotation counters after seedDiffBaseline).
-            val (replayBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
-
-            val replayBytes =
-                liveRun.map { step ->
-                    val updateType = step.diff.update
-                    val replayResult =
-                        StateMapper.buildDiff(
-                            prev = step.prev,
-                            cur = step.cur,
-                            events = FrameEventLog(step.events),
-                            gameStateId = step.gameStateId,
-                            matchId = BoardTestBase.TEST_MATCH_ID,
-                            bridge = replayBridge,
-                            updateType = updateType,
-                            viewingSeatId = SEAT_ID,
-                        )
-                    replayBridge.applyMutations(replayResult.mutations)
-                    replayResult.gsm.toByteArray().toList()
+                liveBridge.diffListener = { prev, cur, events, gsId, diff ->
+                    liveRun.add(BundleStep(prev, cur, events.toList(), gsId, diff))
                 }
-            val liveBytes = liveRun.map { it.diff.toByteArray().toList() }
-            replayBytes shouldBe liveBytes
+
+                // Scripted scenario: play land → cast creature (if possible) → pass to end of turn.
+                playLand(liveBridge)
+                castCreature(liveBridge) // null-safe: skipped if no creature in hand
+                advanceToEndOfTurn(liveBridge)
+
+                liveRun.shouldNotBeEmpty()
+
+                // Disarm listener so replay bundles don't re-record.
+                liveBridge.diffListener = null
+
+                // REPLAY: second bridge, same seed → identical initial state (same card IDs,
+                // same zone assignments, same annotation counters after seedDiffBaseline).
+                val (replayBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
+
+                val replayBytes =
+                    liveRun.map { step ->
+                        val updateType = step.diff.update
+                        val replayResult =
+                            StateMapper.buildDiff(
+                                prev = step.prev,
+                                cur = step.cur,
+                                events = FrameEventLog(step.events),
+                                gameStateId = step.gameStateId,
+                                matchId = BoardTestBase.TEST_MATCH_ID,
+                                bridge = replayBridge,
+                                updateType = updateType,
+                                viewingSeatId = SEAT_ID,
+                            )
+                        replayBridge.applyMutations(replayResult.mutations)
+                        replayResult.gsm.toByteArray().toList()
+                    }
+                val liveBytes = liveRun.map { it.diff.toByteArray().toList() }
+                replayBytes shouldBe liveBytes
+            }
         }
 
         test("three-turn scripted scenario — snap-vs-snap diff byte-equal across replay") {
-            // Same shape as the one-turn test but drives three turns to exercise
-            // multi-turn invariants: cross-turn annotation lifecycle, cleanup
-            // transitions, monotonic counters across bundle boundaries.
-            val (liveBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
-            val liveRun = mutableListOf<BundleStep>()
-            liveBridge.diffListener = { prev, cur, events, gsId, diff ->
-                liveRun.add(BundleStep(prev, cur, events.toList(), gsId, diff))
-            }
-
-            repeat(3) {
-                base.playLand(liveBridge)
-                base.castCreature(liveBridge)
-                advanceToEndOfTurn(liveBridge)
-            }
-
-            liveRun.shouldNotBeEmpty()
-            liveBridge.diffListener = null
-
-            val (replayBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
-
-            val replayBytes =
-                liveRun.map { step ->
-                    val updateType = step.diff.update
-                    val replayResult =
-                        StateMapper.buildDiff(
-                            prev = step.prev,
-                            cur = step.cur,
-                            events = FrameEventLog(step.events),
-                            gameStateId = step.gameStateId,
-                            matchId = BoardTestBase.TEST_MATCH_ID,
-                            bridge = replayBridge,
-                            updateType = updateType,
-                            viewingSeatId = SEAT_ID,
-                        )
-                    replayBridge.applyMutations(replayResult.mutations)
-                    replayResult.gsm.toByteArray().toList()
+            withBase {
+                // Same shape as the one-turn test but drives three turns to exercise
+                // multi-turn invariants: cross-turn annotation lifecycle, cleanup
+                // transitions, monotonic counters across bundle boundaries.
+                val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
+                val liveRun = mutableListOf<BundleStep>()
+                liveBridge.diffListener = { prev, cur, events, gsId, diff ->
+                    liveRun.add(BundleStep(prev, cur, events.toList(), gsId, diff))
                 }
-            val liveBytes = liveRun.map { it.diff.toByteArray().toList() }
-            replayBytes shouldBe liveBytes
+
+                repeat(3) {
+                    playLand(liveBridge)
+                    castCreature(liveBridge)
+                    advanceToEndOfTurn(liveBridge)
+                }
+
+                liveRun.shouldNotBeEmpty()
+                liveBridge.diffListener = null
+
+                val (replayBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
+
+                val replayBytes =
+                    liveRun.map { step ->
+                        val updateType = step.diff.update
+                        val replayResult =
+                            StateMapper.buildDiff(
+                                prev = step.prev,
+                                cur = step.cur,
+                                events = FrameEventLog(step.events),
+                                gameStateId = step.gameStateId,
+                                matchId = BoardTestBase.TEST_MATCH_ID,
+                                bridge = replayBridge,
+                                updateType = updateType,
+                                viewingSeatId = SEAT_ID,
+                            )
+                        replayBridge.applyMutations(replayResult.mutations)
+                        replayResult.gsm.toByteArray().toList()
+                    }
+                val liveBytes = liveRun.map { it.diff.toByteArray().toList() }
+                replayBytes shouldBe liveBytes
+            }
         }
 
         // Regression guard: buildDiff MUST NOT commit id-realloc map writes during
         // compute. ZoneTransferDetector uses a local overlay; applyMutations is the
         // only place the forward/reverse maps advance.
         test("buildDiff defers bridge.ids realloc commits to applyMutations") {
-            val (liveBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
-            val captured = mutableListOf<BundleStep>()
-            liveBridge.diffListener = { prev, cur, events, gsId, diff ->
-                captured.add(BundleStep(prev, cur, events.toList(), gsId, diff))
-            }
-            base.playLand(liveBridge)
-            base.castCreature(liveBridge)
-            advanceToEndOfTurn(liveBridge)
-            liveBridge.diffListener = null
-
-            captured.shouldNotBeEmpty()
-
-            val (replayBridge, _, _) = base.startGameAtMain1(seed = SCENARIO_SEED)
-
-            // Walk the captured run. At each step with a non-trivial realloc: verify
-            // the forward map still reflects the OLD id pre-apply (compute did not
-            // commit), then the NEW id post-apply.
-            var exercisedRealloc = false
-            for (step in captured) {
-                val result =
-                    StateMapper.buildDiff(
-                        prev = step.prev,
-                        cur = step.cur,
-                        events = FrameEventLog(step.events),
-                        gameStateId = step.gameStateId,
-                        matchId = BoardTestBase.TEST_MATCH_ID,
-                        bridge = replayBridge,
-                        updateType = step.diff.update,
-                        viewingSeatId = SEAT_ID,
-                    )
-                val nonTrivial = result.mutations.idReallocations.filter { it.old != it.new }
-                for (r in nonTrivial) {
-                    val fid =
-                        replayBridge.getForgeCardId(r.old)
-                            ?: error("reverse lookup for realloc.old=${r.old} returned null; bridge state corrupt")
-                    // Pre-apply: compute must NOT have moved the forward map.
-                    replayBridge.ids.peek(fid) shouldBe r.old
+            withBase {
+                val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
+                val captured = mutableListOf<BundleStep>()
+                liveBridge.diffListener = { prev, cur, events, gsId, diff ->
+                    captured.add(BundleStep(prev, cur, events.toList(), gsId, diff))
                 }
-                replayBridge.applyMutations(result.mutations)
-                for (r in nonTrivial) {
-                    val fid =
-                        replayBridge.getForgeCardId(r.new)
-                            ?: error("reverse lookup for realloc.new=${r.new} returned null after apply")
-                    // Post-apply: the map now reflects the new id.
-                    replayBridge.ids.peek(fid) shouldBe r.new
+                playLand(liveBridge)
+                castCreature(liveBridge)
+                advanceToEndOfTurn(liveBridge)
+                liveBridge.diffListener = null
+
+                captured.shouldNotBeEmpty()
+
+                val (replayBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
+
+                // Walk the captured run. At each step with a non-trivial realloc: verify
+                // the forward map still reflects the OLD id pre-apply (compute did not
+                // commit), then the NEW id post-apply.
+                var exercisedRealloc = false
+                for (step in captured) {
+                    val result =
+                        StateMapper.buildDiff(
+                            prev = step.prev,
+                            cur = step.cur,
+                            events = FrameEventLog(step.events),
+                            gameStateId = step.gameStateId,
+                            matchId = BoardTestBase.TEST_MATCH_ID,
+                            bridge = replayBridge,
+                            updateType = step.diff.update,
+                            viewingSeatId = SEAT_ID,
+                        )
+                    val nonTrivial = result.mutations.idReallocations.filter { it.old != it.new }
+                    for (r in nonTrivial) {
+                        val fid =
+                            replayBridge.getForgeCardId(r.old)
+                                ?: error("reverse lookup for realloc.old=${r.old} returned null; bridge state corrupt")
+                        // Pre-apply: compute must NOT have moved the forward map.
+                        replayBridge.ids.peek(fid) shouldBe r.old
+                    }
+                    replayBridge.applyMutations(result.mutations)
+                    for (r in nonTrivial) {
+                        val fid =
+                            replayBridge.getForgeCardId(r.new)
+                                ?: error("reverse lookup for realloc.new=${r.new} returned null after apply")
+                        // Post-apply: the map now reflects the new id.
+                        replayBridge.ids.peek(fid) shouldBe r.new
+                    }
+                    if (nonTrivial.isNotEmpty()) exercisedRealloc = true
                 }
-                if (nonTrivial.isNotEmpty()) exercisedRealloc = true
+                exercisedRealloc shouldBe true
             }
-            exercisedRealloc shouldBe true
         }
     }) {
     companion object {

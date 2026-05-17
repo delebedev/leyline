@@ -422,6 +422,9 @@ enum class PromptSemantic {
      * `PayCostsReq` promptId while keeping the normal non-mana payment envelope.
      */
     StationTapCost,
+
+    /** Ninjutsu's "return an unblocked attacker" activation cost. */
+    ReturnUnblockedAttackerCost,
 }
 
 data class PromptRequest(

@@ -81,6 +81,9 @@ object PromptIds {
     /** Station activation cost — "Tap a creature to add charge counters equal to its power." */
     const val STATION_TAP_COST = 14726
 
+    /** Ninjutsu activation cost — "Return an unblocked attacking creature you control to its owner's hand." */
+    const val NINJUTSU_RETURN_UNBLOCKED_ATTACKER_COST = 8580
+
     /** sourceId on SelectNReq for legend rule. */
     const val SELECT_N_LEGEND_RULE_SOURCE = 15168
 
