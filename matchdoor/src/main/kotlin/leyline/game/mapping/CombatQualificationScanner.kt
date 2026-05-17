@@ -42,11 +42,13 @@ object CombatQualificationScanner {
         frameIds: FrameIdResolver,
     ): List<AnnotationInfo> {
         val game = bridge.getGame() ?: return emptyList()
+        if (!liveBattlefieldMatchesSnapshot(game, snap)) return emptyList()
+
         val creatures = battlefieldCreatures(game)
         if (creatures.isEmpty()) return emptyList()
 
         val rows = linkedMapOf<RowKey, Row>()
-        for (source in game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
+        for (source in game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES).sortedBy { it.id }) {
             for (staticAbility in source.staticAbilities.orEmpty()) {
                 if (staticAbility.keyword != null) continue
                 if (staticAbility.checkConditions(StaticAbilityMode.CantAttack)) {
@@ -199,8 +201,23 @@ object CombatQualificationScanner {
         frameIds: FrameIdResolver,
     ): InstanceId = frameIds.cardIid(ForgeCardId(card.id))
 
-    private fun battlefieldCreatures(game: Game): List<Card> =
-        game.players.flatMap { player -> player.getZone(ZoneType.Battlefield).cards }.filter { it.isCreature }
+    private fun battlefieldCreatures(game: Game): List<Card> = battlefieldCards(game).filter { it.isCreature }.sortedBy { it.id }
+
+    private fun battlefieldCards(game: Game): List<Card> =
+        game.players.flatMap { player -> player.getZone(ZoneType.Battlefield).cards }.sortedBy { it.id }
+
+    private fun liveBattlefieldMatchesSnapshot(
+        game: Game,
+        snap: GsmSnapshot,
+    ): Boolean {
+        val liveIds = battlefieldCards(game).map { it.id }.toSet()
+        val snapIds =
+            snap.objects.values
+                .filter { it.isOnBattlefield }
+                .map { it.forgeCardId.value }
+                .toSet()
+        return liveIds == snapIds
+    }
 
     private fun attackTargets(
         game: Game,
