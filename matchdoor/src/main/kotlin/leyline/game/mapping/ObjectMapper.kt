@@ -215,17 +215,26 @@ object ObjectMapper {
             keywordSnapshot[instanceId]
                 ?.mapNotNull { KeywordGrpIds.forKeyword(it.keyword) }
                 ?: emptyList()
-        return cardProto
-            .buildObjectInfo(cardSnap.grpId, extrinsicKeywordGrpIds = extrinsicKws)
-            .setInstanceId(instanceId)
-            .setType(objType)
-            .setZoneId(zoneId)
-            .setVisibility(visibility)
-            .setOwnerSeatId(ownerSeatId)
-            .setControllerSeatId(cardSnap.controller.value)
-            .setOthersideGrpId(cardSnap.othersideGrpId)
-            .applyFieldsFromSnapshot(cardSnap, parentLinkage)
-            .build()
+        val extraAbilityGrpIds = extrinsicKws + cardSnap.mergedComponentAbilityGrpIds
+        val builder =
+            cardProto
+                .buildObjectInfo(cardSnap.grpId, extrinsicKeywordGrpIds = extraAbilityGrpIds)
+                .setInstanceId(instanceId)
+                .setType(objType)
+                .setZoneId(zoneId)
+                .setVisibility(visibility)
+                .setOwnerSeatId(ownerSeatId)
+                .setControllerSeatId(cardSnap.controller.value)
+                .setOthersideGrpId(cardSnap.othersideGrpId)
+                .applyFieldsFromSnapshot(cardSnap, parentLinkage)
+        if (cardSnap.isMergedPermanent) {
+            builder.addAllAbilityOriginalCardGrpIds(
+                cardProto.staticAbilityGrpIds(cardSnap.grpId).map { cardSnap.grpId } +
+                    List(extrinsicKws.size) { cardSnap.grpId } +
+                    cardSnap.mergedComponentAbilityOriginalCardGrpIds,
+            )
+        }
+        return builder.build()
     }
 
     fun buildDisturbBackObject(

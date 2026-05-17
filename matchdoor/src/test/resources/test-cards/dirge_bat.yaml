@@ -1,0 +1,19 @@
+name: "Dirge Bat"
+grpId: 71151
+titleId: 71151
+abilities:
+  - id: 137228
+    textId: 0
+    category: 3
+    baseId: 203
+    mana: "o4oB"
+  - id: 7
+    textId: 0
+    category: 3
+  - id: 8
+    textId: 0
+    category: 3
+  - id: 137229
+    textId: 0
+    category: 2
+expansionCode: "IKO"

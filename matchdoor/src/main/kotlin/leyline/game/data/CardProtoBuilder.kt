@@ -108,22 +108,27 @@ class CardProtoBuilder(
         if (card.power.isNotEmpty()) builder.setPower(Int32Value.newBuilder().setValue(card.power.toIntOrNull() ?: 0))
         if (card.toughness.isNotEmpty()) builder.setToughness(Int32Value.newBuilder().setValue(card.toughness.toIntOrNull() ?: 0))
         var abilitySeqId = 50
-        if (isRoomCard(card.subtypes)) {
-            for (doorGrpId in roomDoorAbilityGrpIds) {
-                builder.addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(doorGrpId))
-            }
-        }
-        val abilities =
-            card.abilityIds.ifEmpty {
-                basicLandAbility(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()
-            }
-        abilities.forEach { (abilityGrpId, _) ->
+        staticAbilityGrpIds(grpId).forEach { abilityGrpId ->
             builder.addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(abilityGrpId))
         }
         for (kwGrpId in extrinsicKeywordGrpIds) {
             builder.addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(kwGrpId))
         }
         return builder
+    }
+
+    fun staticAbilityGrpIds(grpId: Int): List<Int> {
+        val card = cards.findByGrpId(grpId) ?: return emptyList()
+        return buildList {
+            if (isRoomCard(card.subtypes)) addAll(roomDoorAbilityGrpIds)
+            val abilities =
+                card.abilityIds.ifEmpty {
+                    basicLandAbility(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()
+                }
+            addAll(
+                abilities.map { it.first },
+            )
+        }
     }
 
     /** Build a [GameObjectInfo] from DB data, preserving template structure fields. */

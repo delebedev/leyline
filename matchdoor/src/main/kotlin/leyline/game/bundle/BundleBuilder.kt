@@ -822,6 +822,7 @@ class BundleBuilder(
         isLegendRule: Boolean = false,
         isRevealChoose: Boolean = false,
         isResolution: Boolean = false,
+        isMutateTopBottom: Boolean = false,
     ): BundleResult {
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
@@ -906,6 +907,10 @@ class BundleBuilder(
                                         .setNumberValue(req.maxSel),
                                 ).build(),
                         )
+                        it.allowCancel = AllowCancel.No_a526
+                    }
+                    isMutateTopBottom -> {
+                        it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
                         it.allowCancel = AllowCancel.No_a526
                     }
                     else -> {

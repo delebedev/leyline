@@ -692,10 +692,10 @@ object AnnotationBuilder {
             .newBuilder()
             .addType(AnnotationType.Qualification)
             .addAffectedIds(instanceId.value)
-            .addDetails(uint32Detail(DetailKeys.SOURCE_PARENT, sourceParent.value))
-            .addDetails(uint32Detail(DetailKeys.GRPID, grpId.value))
-            .addDetails(uint32Detail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
-            .addDetails(uint32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType.wireValue))
+            .addDetails(qualificationDetail(DetailKeys.SOURCE_PARENT, sourceParent.value))
+            .addDetails(qualificationDetail(DetailKeys.GRPID, grpId.value))
+            .addDetails(qualificationDetail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
+            .addDetails(qualificationDetail(DetailKeys.QUALIFICATION_TYPE, qualificationType.wireValue))
             .build()
 
     // -- Tier 1 state annotations (abilities, effects, designations) --
@@ -1039,6 +1039,25 @@ object AnnotationBuilder {
                 }
             }.build()
 
+    fun mutateLayeredEffect(
+        componentId: InstanceId,
+        targetId: InstanceId,
+        effectId: EffectId,
+        abilityGrpIds: List<Int>,
+        isTop: Boolean,
+        abilityGrpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.LayeredEffect)
+            .setAffectorId(componentId.value)
+            .addAffectedIds(targetId.value)
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+            .addDetails(int32ListDetail(DetailKeys.ABILITY_GRP_IDS, abilityGrpIds))
+            .addDetails(int32Detail(DetailKeys.IS_TOP, if (isTop) 1 else 0))
+            .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId.value))
+            .build()
+
     // -- Tier 2 detail-carrying annotations --
 
     /** Land color production for card frame rendering. client type 110 (ColorProduction).
@@ -1355,17 +1374,26 @@ object AnnotationBuilder {
         qualificationType: QualificationType,
         qualificationSubtype: Int = 0,
         sourceParent: InstanceId,
+        cantBlockObjects: List<Int> = emptyList(),
+        cantBeBlockedByObjects: List<Int> = emptyList(),
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.Qualification)
             .setAffectorId(affectorId.value)
             .addAffectedIds(instanceId.value)
-            .addDetails(uint32Detail(DetailKeys.GRPID, grpId.value))
-            .addDetails(uint32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType.wireValue))
-            .addDetails(uint32Detail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
-            .addDetails(uint32Detail(DetailKeys.SOURCE_PARENT, sourceParent.value))
-            .build()
+            .addDetails(qualificationDetail(DetailKeys.SOURCE_PARENT, sourceParent.value))
+            .addDetails(qualificationDetail(DetailKeys.GRPID, grpId.value))
+            .addDetails(qualificationDetail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
+            .addDetails(qualificationDetail(DetailKeys.QUALIFICATION_TYPE, qualificationType.wireValue))
+            .also { builder ->
+                if (cantBlockObjects.isNotEmpty()) {
+                    builder.addDetails(int32ListDetail(DetailKeys.CANT_BLOCK_OBJECTS, cantBlockObjects))
+                }
+                if (cantBeBlockedByObjects.isNotEmpty()) {
+                    builder.addDetails(int32ListDetail(DetailKeys.CANT_BE_BLOCKED_BY_OBJECTS, cantBeBlockedByObjects))
+                }
+            }.build()
 
     private fun typedStringDetail(
         key: String,
@@ -1399,6 +1427,13 @@ object AnnotationBuilder {
             .setType(KeyValuePairValueType.Int32)
             .addValueInt32(value)
             .build()
+
+    private fun qualificationDetail(
+        key: String,
+        value: Int,
+    ): KeyValuePairInfo =
+        // MTGA's Qualification badge parser reads these numeric details from int32 fields.
+        int32Detail(key, value)
 
     private fun int32ListDetail(
         key: String,

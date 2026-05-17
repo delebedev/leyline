@@ -20,6 +20,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
+import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 
@@ -57,6 +58,9 @@ class TargetingCoordinator(
         hasDelayedReveal: Boolean,
     ): T? {
         if (optionList.isEmpty()) return null
+        if (sa?.isMutate == true) {
+            return chooseMutateTopCard(optionList, sa, title, isOptional)
+        }
         if (optionList.size == 1 && !isOptional) return optionList.getFirst()
 
         val isLegendRule = sa?.api == ApiType.InternalLegendaryRule
@@ -116,6 +120,34 @@ class TargetingCoordinator(
         }
 
         return chosen
+    }
+
+    private fun <T : GameEntity> chooseMutateTopCard(
+        optionList: FCollectionView<T>,
+        sa: SpellAbility,
+        title: String?,
+        isOptional: Boolean,
+    ): T? {
+        val labels = optionList.map { it.entityLabel() }
+        val targetIndex = optionList.indexOfFirst { entity -> entity is Card && entity.id != sa.hostCard?.id }
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = title ?: "Choose creature to be on top",
+                options = labels,
+                min = if (isOptional) 0 else 1,
+                max = 1,
+                defaultIndex = targetIndex.takeIf { it >= 0 } ?: 0,
+                semantic = PromptSemantic.MutateTopBottom,
+                candidateRefs = buildCandidateRefs(optionList),
+                sourceEntityId = sa.hostCard?.id,
+            )
+        val idx = bridge.requestChoice(request).firstOrNull()
+        return if (idx != null && idx in 0 until optionList.size) {
+            optionList.get(idx)
+        } else {
+            if (isOptional) null else optionList.get(request.defaultIndex)
+        }
     }
 
     fun <T : GameEntity> chooseEntities(
@@ -503,6 +535,8 @@ class TargetingCoordinator(
                 targetForgeCardId = targetCardId,
                 targetSeatId = targetSeatId,
                 isTriggeredAbility = isTrigger,
+                abilityGrpId = if (sa.isMutate) 0 else null,
+                promptId = if (sa.isMutate) PromptIds.MUTATE_TARGET else null,
                 forgeAbilityId = if (isTrigger) sa.id else 0,
             ),
         )
