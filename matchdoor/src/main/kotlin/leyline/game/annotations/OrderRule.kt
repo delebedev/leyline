@@ -1,6 +1,7 @@
 package leyline.game.annotations
 
 import leyline.game.codes.DetailKeys
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -36,7 +37,7 @@ object OrderRules {
             SameCardIncrementalRule,
             TokenCreatedFirstRule,
             PhaseOrStepFirstRule,
-            ResolveTransferInsideResolutionRule,
+            ResolveTransferOrderingRule,
         )
 }
 
@@ -191,14 +192,14 @@ data object PhaseOrStepFirstRule : OrderRule {
 }
 
 /**
- * Rule 5: Resolve-category zone transfers belong inside the RS/RC bracket.
+ * Rule 5: Resolve-category transfers are ordered by source zone.
  *
- * ResolutionStart opens the client animation bracket and ResolutionComplete
- * closes it. A resolving spell's zone movement after RC renders as an
- * unbracketed state change, so each Resolve transfer gets RS -> ZT -> RC edges.
+ * Stack exits are the resolving spell object leaving the stack: RS -> RC -> ZT.
+ * Non-stack transfers are effects caused during ability resolution:
+ * RS -> OIC -> ZT -> RC.
  */
-data object ResolveTransferInsideResolutionRule : OrderRule {
-    override val name: String = "resolve_transfer_inside_resolution"
+data object ResolveTransferOrderingRule : OrderRule {
+    override val name: String = "resolve_transfer_ordering"
 
     override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
         val rs = annotations.indexOfFirst { AnnotationType.ResolutionStart in it.typeList }
@@ -209,10 +210,27 @@ data object ResolveTransferInsideResolutionRule : OrderRule {
         for ((i, ann) in annotations.withIndex()) {
             if (AnnotationType.ZoneTransfer_af5a !in ann.typeList) continue
             if (ann.detailString(DetailKeys.CATEGORY) != TransferCategory.Resolve.label) continue
-            edges.add(rs to i)
-            edges.add(i to rc)
+            if (ann.detailInt(DetailKeys.ZONE_SRC) == ZoneIds.STACK) {
+                edges.add(rs to rc)
+                edges.add(rc to i)
+            } else {
+                objectIdChangedIndexFor(annotations, ann)?.let { edges.add(rs to it) }
+                edges.add(rs to i)
+                edges.add(i to rc)
+            }
         }
         return edges
+    }
+
+    private fun objectIdChangedIndexFor(
+        annotations: List<AnnotationInfo>,
+        zoneTransfer: AnnotationInfo,
+    ): Int? {
+        val movedId = zoneTransfer.affectedIdsList.firstOrNull() ?: return null
+        return annotations
+            .indexOfFirst {
+                AnnotationType.ObjectIdChanged in it.typeList && it.detailInt(DetailKeys.NEW_ID) == movedId
+            }.takeIf { it >= 0 }
     }
 }
 

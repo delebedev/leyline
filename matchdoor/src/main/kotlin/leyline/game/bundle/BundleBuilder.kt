@@ -9,6 +9,7 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
+import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.mapping.ActionMapper
@@ -234,12 +235,13 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         turnStarted: Boolean = false,
+        eventsOverride: FrameEventLog? = null,
     ): BundleResult {
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
         val frame = GsmFrame.from(snap)
         // Build state first (triggers instanceId realloc), then actions with new IDs
-        val events = bridge.closeBundleFrame(seatId)
+        val events = eventsOverride ?: bridge.closeBundleFrame(seatId)
         val previousSnap = cursor.lastSent
         val remoteResult =
             StateMapper.buildDiff(

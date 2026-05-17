@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.annotations.TransferCategory
 import leyline.game.codes.DetailKeys
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
 import kotlin.text.get
@@ -72,8 +73,8 @@ class InvariantChecker(
             if (selection.includes(InvariantCheck.PhaseFirst)) {
                 checkPhaseFirst(gsm)
             }
-            if (selection.includes(InvariantCheck.ResolutionSandwich)) {
-                checkResolutionSandwich(gsm)
+            if (selection.includes(InvariantCheck.ResolutionTransferOrdering)) {
+                checkResolutionTransferOrdering(gsm)
             }
             if (selection.includes(InvariantCheck.AidAffector)) {
                 val aidIids = checkAidAffectorConsistency(gsm)
@@ -289,11 +290,15 @@ class InvariantChecker(
     }
 
     /**
-     * Diagnostic shape check for resolve-category zone transfers emitted
-     * outside their ResolutionStart/ResolutionComplete bracket. Kept opt-in so
-     * the default validator only enforces stable hard facts.
+     * In any GSM that contains both [AnnotationType.ResolutionStart] and
+     * [AnnotationType.ResolutionComplete], Resolve-category transfers are
+     * ordered by source zone.
+     *
+     * Stack-exit transfers apply after the RS/RC pair. Non-stack transfers caused
+     * by resolving ability effects stay inside the pair.
+     * Kept opt-in so the default validator only enforces stable hard facts.
      */
-    private fun checkResolutionSandwich(gsm: GameStateMessage) {
+    private fun checkResolutionTransferOrdering(gsm: GameStateMessage) {
         val annotations = gsm.annotationsList
         val rsIdx = annotations.indexOfFirst { AnnotationType.ResolutionStart in it.typeList }
         val rcIdx = annotations.indexOfLast { AnnotationType.ResolutionComplete in it.typeList }
@@ -307,13 +312,21 @@ class InvariantChecker(
                         detail.valueStringList.firstOrNull() == TransferCategory.Resolve.label
                 }
             if (!isResolve) return@forEachIndexed
-            if (idx < rsIdx || idx > rcIdx) {
+            val srcZone = ann.detailInt(DetailKeys.ZONE_SRC)
+            val invalid =
+                if (srcZone == ZoneIds.STACK) {
+                    idx <= rcIdx
+                } else {
+                    idx <= rsIdx || idx >= rcIdx
+                }
+            if (invalid) {
                 val affected = ann.affectedIdsList.firstOrNull() ?: 0
+                val expected = if (srcZone == ZoneIds.STACK) "after RC=$rcIdx" else "inside RS=$rsIdx..RC=$rcIdx"
                 record(
                     gsId,
-                    "resolution_sandwich",
+                    "resolution_transfer_ordering",
                     "Resolve-category ZoneTransfer affected=$affected at index $idx " +
-                        "outside RS=$rsIdx..RC=$rcIdx (gsId=$gsId)",
+                        "not $expected (srcZone=$srcZone, gsId=$gsId)",
                 )
             }
         }
@@ -508,6 +521,11 @@ class InvariantChecker(
             _violations.add(Violation(messageIndex, gsId, check, message))
         }
     }
+
+    private fun AnnotationInfo.detailInt(key: String): Int =
+        detailsList.firstOrNull { it.key == key }?.let {
+            if (it.valueInt32Count > 0) it.getValueInt32(0) else 0
+        } ?: 0
 }
 
 /**

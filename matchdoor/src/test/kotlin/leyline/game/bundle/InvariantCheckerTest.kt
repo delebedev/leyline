@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import leyline.UnitTag
 import leyline.game.codes.DetailKeys
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -44,6 +45,7 @@ class InvariantCheckerTest :
             id: Int,
             category: String,
             affectedId: Int = 100,
+            srcZoneId: Int = ZoneIds.STACK,
         ): AnnotationInfo =
             AnnotationInfo
                 .newBuilder()
@@ -56,6 +58,13 @@ class InvariantCheckerTest :
                         .setKey(DetailKeys.CATEGORY)
                         .setType(KeyValuePairValueType.String)
                         .addValueString(category)
+                        .build(),
+                ).addDetails(
+                    KeyValuePairInfo
+                        .newBuilder()
+                        .setKey(DetailKeys.ZONE_SRC)
+                        .setType(KeyValuePairValueType.Int32)
+                        .addValueInt32(srcZoneId)
                         .build(),
                 ).build()
 
@@ -197,10 +206,12 @@ class InvariantCheckerTest :
             checker.violations.filter { it.check == "phase_first" }.shouldBeEmpty()
         }
 
-        // --- resolution_sandwich tests ---
+        // --- resolution_transfer_ordering tests ---
 
-        test("resolution_sandwich violation when Resolve ZT lands before ResolutionStart") {
-            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
+        fun resolutionChecker() = checkerFor("resolution diagnostic", InvariantCheck.ResolutionTransferOrdering)
+
+        test("resolution_transfer_ordering violation when stack Resolve ZT lands before ResolutionStart") {
+            val checker = resolutionChecker()
             val g =
                 gsm(
                     gsId = 1,
@@ -215,53 +226,13 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            val sandwich = checker.violations.filter { it.check == "resolution_sandwich" }
-            sandwich.shouldNotBeEmpty()
-            sandwich.size shouldBe 1
+            val ordering = checker.violations.filter { it.check == "resolution_transfer_ordering" }
+            ordering.shouldNotBeEmpty()
+            ordering.size shouldBe 1
         }
 
-        test("resolution_sandwich violation when Resolve ZT lands after ResolutionComplete") {
-            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
-            val g =
-                gsm(
-                    gsId = 1,
-                    annotations =
-                        listOf(
-                            annotation(1, AnnotationType.ResolutionStart),
-                            annotation(2, AnnotationType.ResolutionComplete),
-                            zoneTransferAnnotation(3, "Resolve"),
-                        ),
-                )
-
-            checker.process(greMessage(msgId = 1, gsm = g))
-
-            val sandwich = checker.violations.filter { it.check == "resolution_sandwich" }
-            sandwich.shouldNotBeEmpty()
-            sandwich.size shouldBe 1
-        }
-
-        test("resolution_sandwich records two violations when Resolve ZTs flank the bracket") {
-            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
-            val g =
-                gsm(
-                    gsId = 1,
-                    annotations =
-                        listOf(
-                            zoneTransferAnnotation(1, "Resolve", affectedId = 100),
-                            annotation(2, AnnotationType.ResolutionStart),
-                            annotation(3, AnnotationType.ResolutionComplete),
-                            zoneTransferAnnotation(4, "Resolve", affectedId = 200),
-                        ),
-                )
-
-            checker.process(greMessage(msgId = 1, gsm = g))
-
-            val sandwich = checker.violations.filter { it.check == "resolution_sandwich" }
-            sandwich.size shouldBe 2
-        }
-
-        test("no resolution_sandwich violation when Resolve ZT sits between RS and RC") {
-            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
+        test("resolution_transfer_ordering violation when stack Resolve ZT lands between ResolutionStart and ResolutionComplete") {
+            val checker = resolutionChecker()
             val g =
                 gsm(
                     gsId = 1,
@@ -275,27 +246,59 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            checker.violations.filter { it.check == "resolution_sandwich" }.shouldBeEmpty()
+            val ordering = checker.violations.filter { it.check == "resolution_transfer_ordering" }
+            ordering.shouldNotBeEmpty()
+            ordering.size shouldBe 1
         }
 
-        test("no resolution_sandwich violation when RS and RC are absent") {
-            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
+        test("resolution_transfer_ordering records two violations when stack Resolve ZTs precede ResolutionComplete") {
+            val checker = resolutionChecker()
             val g =
                 gsm(
                     gsId = 1,
                     annotations =
                         listOf(
-                            zoneTransferAnnotation(1, "Resolve"),
+                            zoneTransferAnnotation(1, "Resolve", affectedId = 100),
+                            annotation(2, AnnotationType.ResolutionStart),
+                            zoneTransferAnnotation(3, "Resolve", affectedId = 200),
+                            annotation(4, AnnotationType.ResolutionComplete),
                         ),
                 )
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            checker.violations.filter { it.check == "resolution_sandwich" }.shouldBeEmpty()
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.size shouldBe 2
         }
 
-        test("no resolution_sandwich violation when non-Resolve ZT sits outside the bracket") {
-            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
+        test("no resolution_transfer_ordering violation when stack Resolve ZT follows ResolutionComplete") {
+            val checker = resolutionChecker()
+            val g =
+                gsm(
+                    gsId = 1,
+                    annotations =
+                        listOf(
+                            annotation(1, AnnotationType.ResolutionStart),
+                            annotation(2, AnnotationType.ResolutionComplete),
+                            zoneTransferAnnotation(3, "Resolve"),
+                        ),
+                )
+
+            checker.process(greMessage(msgId = 1, gsm = g))
+
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.shouldBeEmpty()
+        }
+
+        test("no resolution_transfer_ordering violation when RS and RC are absent") {
+            val checker = resolutionChecker()
+            val g = gsm(gsId = 1, annotations = listOf(zoneTransferAnnotation(1, "Resolve")))
+
+            checker.process(greMessage(msgId = 1, gsm = g))
+
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.shouldBeEmpty()
+        }
+
+        test("no resolution_transfer_ordering violation when non-Resolve ZT sits before ResolutionComplete") {
+            val checker = resolutionChecker()
             val g =
                 gsm(
                     gsId = 1,
@@ -309,26 +312,63 @@ class InvariantCheckerTest :
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            checker.violations.filter { it.check == "resolution_sandwich" }.shouldBeEmpty()
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.shouldBeEmpty()
         }
 
-        test("no resolution_sandwich violation when multiple Resolve ZTs all sit inside the bracket") {
-            val checker = checkerFor("resolution diagnostic", InvariantCheck.ResolutionSandwich)
+        test("no resolution_transfer_ordering violation when multiple stack Resolve ZTs follow ResolutionComplete") {
+            val checker = resolutionChecker()
             val g =
                 gsm(
                     gsId = 1,
                     annotations =
                         listOf(
                             annotation(1, AnnotationType.ResolutionStart),
-                            zoneTransferAnnotation(2, "Resolve", affectedId = 100),
-                            zoneTransferAnnotation(3, "Resolve", affectedId = 200),
-                            annotation(4, AnnotationType.ResolutionComplete),
+                            annotation(2, AnnotationType.ResolutionComplete),
+                            zoneTransferAnnotation(3, "Resolve", affectedId = 100),
+                            zoneTransferAnnotation(4, "Resolve", affectedId = 200),
                         ),
                 )
 
             checker.process(greMessage(msgId = 1, gsm = g))
 
-            checker.violations.filter { it.check == "resolution_sandwich" }.shouldBeEmpty()
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.shouldBeEmpty()
+        }
+
+        test(
+            "no resolution_transfer_ordering violation when non-stack Resolve ZT sits inside ResolutionStart and ResolutionComplete",
+        ) {
+            val checker = resolutionChecker()
+            val g =
+                gsm(
+                    gsId = 1,
+                    annotations =
+                        listOf(
+                            annotation(1, AnnotationType.ResolutionStart),
+                            zoneTransferAnnotation(2, "Resolve", srcZoneId = ZoneIds.P1_LIBRARY),
+                            annotation(3, AnnotationType.ResolutionComplete),
+                        ),
+                )
+
+            checker.process(greMessage(msgId = 1, gsm = g))
+
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.shouldBeEmpty()
+        }
+
+        test("resolution_transfer_ordering violation when non-stack Resolve ZT lands before ResolutionStart") {
+            val checker = resolutionChecker()
+            val g =
+                gsm(
+                    gsId = 1,
+                    annotations =
+                        listOf(
+                            zoneTransferAnnotation(1, "Resolve", srcZoneId = ZoneIds.P1_LIBRARY),
+                            annotation(2, AnnotationType.ResolutionStart),
+                            annotation(3, AnnotationType.ResolutionComplete),
+                        ),
+                )
+
+            checker.process(greMessage(msgId = 1, gsm = g))
+            checker.violations.filter { it.check == "resolution_transfer_ordering" }.size shouldBe 1
         }
 
         // --- aid_affector tests ---

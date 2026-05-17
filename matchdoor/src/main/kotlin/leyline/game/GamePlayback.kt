@@ -1,15 +1,25 @@
 package leyline.game
 
 import com.google.common.eventbus.Subscribe
+import forge.game.ability.ApiType
+import forge.game.cost.CostPartMana
 import forge.game.event.*
+import forge.game.keyword.Keyword
 import forge.game.phase.PhaseType
+import forge.game.spellability.SpellAbility
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
+import leyline.game.data.KeywordAbilityIds
+import leyline.game.event.FrameEventLog
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.Phase
+import wotc.mtgo.gre.external.messaging.Messages.Step
 import java.util.concurrent.ConcurrentLinkedQueue
+import leyline.game.event.GameEvent as LeylineGameEvent
 
 /**
  * Captures per-action GRE state diffs for the client, pacing remote turns
@@ -81,16 +91,14 @@ class GamePlayback(
 
     override fun visit(ev: GameEventSpellAbilityCast) {
         val isTrigger = ev.si()?.isTrigger == true
-        val splitForLocalTrigger = isTrigger && shouldSplitOnLocalTurn(ev.sa()?.hostCard?.id)
+        val splitForLocalTrigger = isTrigger && shouldSplitOnLocalTurn(ev.sa()?.hostCard?.id, liveStackSpellAbility(ev))
         if (splitForLocalTrigger) {
             val saId = ev.sa()?.id ?: 0
             if (saId != 0) pendingLocalTriggers[saId] = true
         }
-        // Specific keyword triggers (Mobilize today) always need their own diff
-        // on the local turn so the client renders the trigger landing on the
-        // stack before the resolution + tokens diff. Other triggers keep the
-        // legacy single-GSM-per-action bundling — broader rollout follows
-        // shape-survey of integration tests that asserted on the old shape.
+        // Verified local-turn triggers need their own diff so the client sees
+        // the stack entry before the resolution diff. Other triggers keep the
+        // legacy single-GSM-per-action bundling until their shape is verified.
         if (!isRemoteActing() && !splitForLocalTrigger) return
         captureAndPause(CAST_DELAY)
     }
@@ -98,17 +106,15 @@ class GamePlayback(
     override fun visit(ev: GameEventSpellResolved) {
         val saId = ev.spell()?.id ?: 0
         val splitForLocalTrigger = saId != 0 && pendingLocalTriggers.remove(saId) != null
-        // Mirror the cast hook above — trigger resolutions on a local turn need
-        // their own diff so TokenCreated lands before the next combat-damage
-        // diff. Gated on the same Mobilize-keyword check via the
-        // [pendingLocalTriggers] entry recorded at cast time.
+        // Mirror the cast hook above: trigger resolutions on a local turn need
+        // their own diff so trigger effects land before the next unrelated diff.
         if (!isRemoteActing() && !splitForLocalTrigger) return
         captureAndPause(RESOLVE_DELAY)
     }
 
     /** Decide whether to split this trigger's lifecycle into its own diff on
-     *  the local turn. Today: only Mobilize keyword triggers (so the warrior
-     *  tokens enter a beat before combat damage).
+     *  the local turn. Today: known keyword trigger shapes plus mandatory
+     *  non-interactive trigger chains such as Ajani's Pridemate.
      *
      *  Widening to other keyword triggers (other combat triggers, ETB
      *  mechanics with delayed-trigger tokens, etc.) inserts an extra Diff
@@ -116,12 +122,72 @@ class GamePlayback(
      *  asserting a single-GSM-per-action wire shape will need to update its
      *  assertions before the keyword can be added to the predicate. Audit
      *  before extending the list. */
-    private fun shouldSplitOnLocalTurn(hostCardForgeId: Int?): Boolean {
+    private fun shouldSplitOnLocalTurn(
+        hostCardForgeId: Int?,
+        sa: SpellAbility?,
+    ): Boolean {
         if (hostCardForgeId == null) return false
-        val card = bridge.findCard(leyline.bridge.types.ForgeCardId(hostCardForgeId)) ?: return false
-        val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return false
-        return bridge.cardRepository.findKeywordAbilityGrpId(grpId, leyline.game.data.KeywordAbilityIds.MOBILIZE) != null
+        if (sa == null) return false
+        if (hasLocalTurnSplitKeyword(hostCardForgeId, sa)) return true
+        return isNonInteractiveLocalTrigger(sa)
     }
+
+    private fun liveStackSpellAbility(ev: GameEventSpellAbilityCast): SpellAbility? {
+        val eventSa = ev.sa() ?: return null
+        val eventHostCardId = eventSa.hostCard?.id ?: return null
+        return bridge.getGame()?.stack?.peek()?.spellAbility?.takeIf { topSa ->
+            topSa.id == eventSa.id && topSa.hostCard?.id == eventHostCardId
+        } ?: findLiveSaOnCard(eventHostCardId, eventSa.id)
+    }
+
+    private fun findLiveSaOnCard(
+        cardId: Int,
+        evSaId: Int,
+    ): SpellAbility? {
+        if (evSaId == 0) return null
+        val card = bridge.findCard(ForgeCardId(cardId)) ?: return null
+        return card.spellAbilities.firstOrNull { it.id == evSaId }
+            ?: card.allSpellAbilities?.firstOrNull { it.id == evSaId }
+    }
+
+    private fun hasLocalTurnSplitKeyword(
+        hostCardForgeId: Int,
+        sa: SpellAbility,
+    ): Boolean {
+        val card = bridge.findCard(ForgeCardId(hostCardForgeId)) ?: return false
+        val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return false
+        return when {
+            hasKeywordGrpId(grpId, KeywordAbilityIds.MOBILIZE) ->
+                sa.api == ApiType.Token && sa.trigger?.getParam("Mode") == "Attacks"
+            hasKeywordGrpId(grpId, KeywordAbilityIds.TRAINING) ->
+                (sa.isKeyword(Keyword.TRAINING) || sa.hasParam("Training")) && sa.api == ApiType.PutCounter
+            hasKeywordGrpId(grpId, KeywordAbilityIds.DECAYED) ->
+                (sa.api == ApiType.DelayedTrigger && sa.trigger?.getParam("Mode") == "Attacks") ||
+                    (sa.api == ApiType.Sacrifice && sa.trigger?.getParam("Phase") == "EndCombat")
+            else -> false
+        }
+    }
+
+    private fun hasKeywordGrpId(
+        grpId: Int,
+        keywordId: Int,
+    ): Boolean = bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) != null
+
+    private fun isNonInteractiveLocalTrigger(sa: SpellAbility): Boolean {
+        if (sa.isOptionalTrigger) return false
+        var ability: SpellAbility? = sa
+        while (ability != null) {
+            // Pure trigger lane: no target/select/cost prompt before resolution.
+            if (ability.usesTargeting()) return false
+            if (!hasNoPromptCost(ability)) return false
+            if (ability.api !in localTurnSplitSafeApis) return false
+            ability = ability.subAbility
+        }
+        return true
+    }
+
+    private fun hasNoPromptCost(ability: SpellAbility): Boolean =
+        ability.payCosts.costParts.all { it is CostPartMana } && ability.payCosts.totalMana.isZero
 
     override fun visit(ev: GameEventTurnBegan) {
         if (!isRemoteActing()) return
@@ -210,22 +276,26 @@ class GamePlayback(
     private fun captureAndPause(
         delayMs: Int,
         turnStarted: Boolean = false,
+        gameOverride: forge.game.Game? = null,
+        eventsOverride: FrameEventLog? = null,
     ) {
         val game =
-            bridge.getGame() ?: run {
+            gameOverride ?: bridge.getGame() ?: run {
                 log.debug("GamePlayback: captureAndPause during teardown (game null), skipping")
                 return
             }
 
         try {
-            val result =
-                bundleBuilder.remoteActionDiff(
-                    game,
-                    counter,
-                    turnStarted = turnStarted,
-                )
-
-            queue.add(result.messages)
+            val events = eventsOverride ?: bridge.closeBundleFrame(seatId)
+            val messageCount =
+                if (eventsOverride == null && events.events.hasCombatDamage()) {
+                    captureSplitCombatDamage(game, events.events)
+                    2
+                } else {
+                    val messages = buildDiffMessages(game, turnStarted, events)
+                    queue.add(messages)
+                    messages.size
+                }
 
             // No need to advance the cursor here — buildDiff (called by remoteActionDiff)
             // writes cursor.lastSent after computing the diff. A redundant
@@ -236,7 +306,7 @@ class GamePlayback(
                 game.phaseHandler.phase,
                 game.phaseHandler.turn,
                 queue.size,
-                result.messages.size,
+                messageCount,
             )
         } catch (ex: Exception) {
             log.warn("Failed to capture AI action state: {}", ex.message, ex)
@@ -251,6 +321,202 @@ class GamePlayback(
                 Thread.currentThread().interrupt()
             }
         }
+    }
+
+    private fun captureSplitCombatDamage(
+        game: forge.game.Game,
+        events: List<LeylineGameEvent>,
+    ) {
+        val damageFrames = events.combatDamageFrames(game)
+        val endCombatEvents =
+            events.filter { event ->
+                event is LeylineGameEvent.PhaseChanged && event.step == Step.EndCombat_a2cb.number
+            }
+
+        for (damageFrame in damageFrames) {
+            val messages = buildDiffMessages(game, turnStarted = false, events = FrameEventLog(damageFrame.events))
+            queue.add(messages.withLifeTotals(damageFrame.lifeTotals))
+        }
+        if (endCombatEvents.isNotEmpty()) {
+            queue.add(buildDiffMessages(game, turnStarted = false, events = FrameEventLog(endCombatEvents)))
+        }
+    }
+
+    private fun buildDiffMessages(
+        game: forge.game.Game,
+        turnStarted: Boolean,
+        events: FrameEventLog,
+    ): List<GREToClientMessage> =
+        bundleBuilder
+            .remoteActionDiff(
+                game,
+                counter,
+                turnStarted = turnStarted,
+                eventsOverride = events,
+            ).messages
+
+    private fun List<LeylineGameEvent>.hasCombatDamage(): Boolean =
+        any { it is LeylineGameEvent.DamageDealtToCard || it is LeylineGameEvent.DamageDealtToPlayer }
+
+    private data class CombatDamageFrame(
+        val events: List<LeylineGameEvent>,
+        val lifeTotals: Map<Int, Int> = emptyMap(),
+    )
+
+    private fun List<LeylineGameEvent>.combatDamageFrames(game: forge.game.Game): List<CombatDamageFrame> {
+        if (!canSafelySplitCombatDamage()) {
+            return listOf(
+                CombatDamageFrame(
+                    filterNot { event -> event is LeylineGameEvent.PhaseChanged }
+                        .prependCombatDamagePhase(game, this),
+                ),
+            )
+        }
+
+        val frames = mutableListOf<CombatDamageFrame>()
+        var current = mutableListOf<LeylineGameEvent>()
+
+        fun flushFrame() {
+            if (current.hasCombatDamage()) {
+                frames += CombatDamageFrame(current.toList(), current.lifeTotals())
+            }
+            current = mutableListOf()
+        }
+
+        for (event in this) {
+            if (event is LeylineGameEvent.PhaseChanged) {
+                if (event.isDamageStep()) {
+                    if (current.hasCombatDamage()) {
+                        flushFrame()
+                    } else {
+                        current.removeAll { pending -> pending is LeylineGameEvent.PhaseChanged && pending.isDamageStep() }
+                    }
+                    current += event
+                }
+                continue
+            }
+            current += event
+        }
+
+        flushFrame()
+        if (frames.isNotEmpty()) return frames
+
+        return listOf(
+            CombatDamageFrame(
+                filterNot { event -> event is LeylineGameEvent.PhaseChanged }
+                    .prependCombatDamagePhase(game, this),
+            ),
+        )
+    }
+
+    private fun List<LeylineGameEvent>.canSafelySplitCombatDamage(): Boolean {
+        var inDamageStep = false
+        for (event in this) {
+            if (event is LeylineGameEvent.PhaseChanged) {
+                if (event.isDamageStep()) inDamageStep = true
+            } else if (event is LeylineGameEvent.DamageDealtToPlayer ||
+                event is LeylineGameEvent.LifeChanged ||
+                event == LeylineGameEvent.CombatEnded
+            ) {
+                if (!inDamageStep) return false
+            } else if (event is LeylineGameEvent.DamageDealtToCard) {
+                return false
+            } else {
+                if (!inDamageStep && !event.isSafeBeforeDamageStep()) return false
+            }
+        }
+        return true
+    }
+
+    private fun LeylineGameEvent.isSafeBeforeDamageStep(): Boolean =
+        this is LeylineGameEvent.CardTapped ||
+            this is LeylineGameEvent.AttackersDeclared ||
+            this is LeylineGameEvent.BlockersDeclared
+
+    private fun List<LeylineGameEvent>.lifeTotals(): Map<Int, Int> =
+        filterIsInstance<LeylineGameEvent.LifeChanged>()
+            .associate { event -> event.seatId.value to event.newLife }
+
+    private fun List<GREToClientMessage>.withLifeTotals(lifeTotals: Map<Int, Int>): List<GREToClientMessage> {
+        if (lifeTotals.isEmpty()) return this
+        return mapIndexed { index, message ->
+            if (index != 0 || !message.hasGameStateMessage()) return@mapIndexed message
+            val gsm = message.gameStateMessage
+            val patchedPlayers =
+                gsm.playersList.map { player ->
+                    val life = lifeTotals[player.systemSeatNumber]
+                    if (life == null) player else player.toBuilder().setLifeTotal(life).build()
+                }
+            message
+                .toBuilder()
+                .setGameStateMessage(
+                    gsm
+                        .toBuilder()
+                        .clearPlayers()
+                        .addAllPlayers(patchedPlayers)
+                        .build(),
+                ).build()
+        }
+    }
+
+    private fun LeylineGameEvent.PhaseChanged.isDamageStep(): Boolean =
+        step == Step.FirstStrikeDamage_a2cb.number || step == Step.CombatDamage_a2cb.number
+
+    private fun List<LeylineGameEvent>.prependCombatDamagePhase(
+        game: forge.game.Game,
+        sourceEvents: List<LeylineGameEvent>,
+    ): List<LeylineGameEvent> {
+        val activeSeat = combatDamageSourceSeat(sourceEvents) ?: currentTurnSeat(game) ?: seatId
+        val damageStep = sourceEvents.combatDamageStep()
+        return listOf(
+            LeylineGameEvent.PhaseChanged(
+                SeatId(activeSeat),
+                Phase.Combat_a549.number,
+                damageStep,
+            ),
+        ) + this
+    }
+
+    private fun List<LeylineGameEvent>.combatDamageStep(): Int =
+        run {
+            var currentDamageStep = Step.CombatDamage_a2cb.number
+            for (event in this) {
+                if (event is LeylineGameEvent.PhaseChanged) {
+                    if (event.step == Step.FirstStrikeDamage_a2cb.number || event.step == Step.CombatDamage_a2cb.number) {
+                        currentDamageStep = event.step
+                    }
+                }
+                if (event is LeylineGameEvent.DamageDealtToCard || event is LeylineGameEvent.DamageDealtToPlayer) {
+                    return@run currentDamageStep
+                }
+            }
+            Step.CombatDamage_a2cb.number
+        }
+
+    private fun combatDamageSourceSeat(events: List<LeylineGameEvent>): Int? {
+        events
+            .firstNotNullOfOrNull { event ->
+                (event as? LeylineGameEvent.DamageDealtToPlayer)?.targetSeatId?.value
+            }?.let { defenderSeat ->
+                val otherSeats = bridge.allSeatIds() - defenderSeat
+                if (otherSeats.size == 1) return otherSeats.single()
+                return if (defenderSeat == 1) 2 else 1
+            }
+        val sourceId =
+            events.firstNotNullOfOrNull { event ->
+                when (event) {
+                    is LeylineGameEvent.DamageDealtToCard -> event.sourceCardId
+                    is LeylineGameEvent.DamageDealtToPlayer -> event.sourceCardId
+                    else -> null
+                }
+            } ?: return null
+        val controller = bridge.findCard(sourceId)?.controller ?: return null
+        return bridge.allSeatIds().firstOrNull { seat -> bridge.getPlayer(SeatId(seat)) == controller }
+    }
+
+    private fun currentTurnSeat(game: forge.game.Game): Int? {
+        val turnPlayer = game.phaseHandler.playerTurn ?: return null
+        return bridge.allSeatIds().firstOrNull { seat -> bridge.getPlayer(SeatId(seat)) == turnPlayer }
     }
 
     /**
@@ -272,5 +538,17 @@ class GamePlayback(
         const val CAST_DELAY = 400
         const val RESOLVE_DELAY = 400
         const val LAND_DELAY = 300
+
+        // APIs that can resolve without prompts in the local trigger split path.
+        private val localTurnSplitSafeApis =
+            setOf(
+                ApiType.Draw,
+                ApiType.GainLife,
+                ApiType.Investigate,
+                ApiType.LoseLife,
+                ApiType.Pump,
+                ApiType.PutCounter,
+                ApiType.Token,
+            )
     }
 }
