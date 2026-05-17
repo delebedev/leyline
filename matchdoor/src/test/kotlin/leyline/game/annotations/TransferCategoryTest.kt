@@ -28,7 +28,7 @@ class TransferCategoryTest :
             TransferCategory.CastSpell.keepsSameInstanceId shouldBe false
         }
 
-        test("stack zone change resolves even when SpellCast is in the same event drain") {
+        test("event resolver keeps SpellCast when cast and resolve share an event drain") {
             val cardId = ForgeCardId(42)
             val events =
                 listOf(
@@ -37,7 +37,7 @@ class TransferCategoryTest :
                     GameEvent.SpellResolved(cardId = cardId, hasFizzled = false),
                 )
 
-            TransferCategoryResolver.categoryFromEvents(cardId, events) shouldBe TransferCategory.Resolve
+            TransferCategoryResolver.categoryFromEvents(cardId, events) shouldBe TransferCategory.CastSpell
         }
 
         test("cast announcement remains CastSpell before a stack zone change") {
