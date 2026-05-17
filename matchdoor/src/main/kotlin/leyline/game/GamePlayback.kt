@@ -16,6 +16,7 @@ import leyline.game.event.FrameEventLog
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.Step
 import java.util.concurrent.ConcurrentLinkedQueue
 import leyline.game.event.GameEvent as LeylineGameEvent
@@ -247,7 +248,7 @@ class GamePlayback(
         // damage/life/death annotations can sit in the collector queue until the
         // next later priority stop and get folded into a post-combat action GSM.
         if (isRemoteActing()) return
-        captureLocalCombatEnd()
+        captureAndPause(0)
     }
 
     // -- Queue access (called from MatchHandler / Netty thread) --
@@ -285,15 +286,16 @@ class GamePlayback(
             }
 
         try {
-            val result =
-                bundleBuilder.remoteActionDiff(
-                    game,
-                    counter,
-                    turnStarted = turnStarted,
-                    eventsOverride = eventsOverride,
-                )
-
-            queue.add(result.messages)
+            val events = eventsOverride ?: bridge.closeBundleFrame(seatId)
+            val messageCount =
+                if (eventsOverride == null && events.events.hasCombatDamage()) {
+                    captureSplitCombatDamage(game, events.events)
+                    2
+                } else {
+                    val messages = buildDiffMessages(game, turnStarted, events)
+                    queue.add(messages)
+                    messages.size
+                }
 
             // No need to advance the cursor here — buildDiff (called by remoteActionDiff)
             // writes cursor.lastSent after computing the diff. A redundant
@@ -304,7 +306,7 @@ class GamePlayback(
                 game.phaseHandler.phase,
                 game.phaseHandler.turn,
                 queue.size,
-                result.messages.size,
+                messageCount,
             )
         } catch (ex: Exception) {
             log.warn("Failed to capture AI action state: {}", ex.message, ex)
@@ -321,31 +323,80 @@ class GamePlayback(
         }
     }
 
-    private fun captureLocalCombatEnd() {
-        val game =
-            bridge.getGame() ?: run {
-                log.debug("GamePlayback: local combat end during teardown (game null), skipping")
-                return
-            }
-        val events = bridge.closeBundleFrame(seatId).events
-        if (events.none { it is LeylineGameEvent.DamageDealtToCard || it is LeylineGameEvent.DamageDealtToPlayer }) {
-            captureAndPause(0, eventsOverride = FrameEventLog(events))
-            return
-        }
-
+    private fun captureSplitCombatDamage(
+        game: forge.game.Game,
+        events: List<LeylineGameEvent>,
+    ) {
         val damageEvents =
-            events.filterNot { event ->
-                event is LeylineGameEvent.PhaseChanged && event.step != Step.CombatDamage_a2cb.number
-            }
+            events
+                .filterNot { event ->
+                    event is LeylineGameEvent.PhaseChanged
+                }.prependCombatDamagePhase(game, events)
         val endCombatEvents =
             events.filter { event ->
                 event is LeylineGameEvent.PhaseChanged && event.step == Step.EndCombat_a2cb.number
             }
 
-        captureAndPause(0, gameOverride = game, eventsOverride = FrameEventLog(damageEvents))
+        queue.add(buildDiffMessages(game, turnStarted = false, events = FrameEventLog(damageEvents)))
         if (endCombatEvents.isNotEmpty()) {
-            captureAndPause(0, gameOverride = game, eventsOverride = FrameEventLog(endCombatEvents))
+            queue.add(buildDiffMessages(game, turnStarted = false, events = FrameEventLog(endCombatEvents)))
         }
+    }
+
+    private fun buildDiffMessages(
+        game: forge.game.Game,
+        turnStarted: Boolean,
+        events: FrameEventLog,
+    ): List<GREToClientMessage> =
+        bundleBuilder
+            .remoteActionDiff(
+                game,
+                counter,
+                turnStarted = turnStarted,
+                eventsOverride = events,
+            ).messages
+
+    private fun List<LeylineGameEvent>.hasCombatDamage(): Boolean =
+        any { it is LeylineGameEvent.DamageDealtToCard || it is LeylineGameEvent.DamageDealtToPlayer }
+
+    private fun List<LeylineGameEvent>.prependCombatDamagePhase(
+        game: forge.game.Game,
+        sourceEvents: List<LeylineGameEvent>,
+    ): List<LeylineGameEvent> {
+        val activeSeat = combatDamageSourceSeat(sourceEvents) ?: currentTurnSeat(game) ?: seatId
+        return listOf(
+            LeylineGameEvent.PhaseChanged(
+                SeatId(activeSeat),
+                Phase.Combat_a549.number,
+                Step.CombatDamage_a2cb.number,
+            ),
+        ) + this
+    }
+
+    private fun combatDamageSourceSeat(events: List<LeylineGameEvent>): Int? {
+        events
+            .firstNotNullOfOrNull { event ->
+                (event as? LeylineGameEvent.DamageDealtToPlayer)?.targetSeatId?.value
+            }?.let { defenderSeat ->
+                val otherSeats = bridge.allSeatIds() - defenderSeat
+                if (otherSeats.size == 1) return otherSeats.single()
+                return if (defenderSeat == 1) 2 else 1
+            }
+        val sourceId =
+            events.firstNotNullOfOrNull { event ->
+                when (event) {
+                    is LeylineGameEvent.DamageDealtToCard -> event.sourceCardId
+                    is LeylineGameEvent.DamageDealtToPlayer -> event.sourceCardId
+                    else -> null
+                }
+            } ?: return null
+        val controller = bridge.findCard(sourceId)?.controller ?: return null
+        return bridge.allSeatIds().firstOrNull { seat -> bridge.getPlayer(SeatId(seat)) == controller }
+    }
+
+    private fun currentTurnSeat(game: forge.game.Game): Int? {
+        val turnPlayer = game.phaseHandler.playerTurn ?: return null
+        return bridge.allSeatIds().firstOrNull { seat -> bridge.getPlayer(SeatId(seat)) == turnPlayer }
     }
 
     /**
