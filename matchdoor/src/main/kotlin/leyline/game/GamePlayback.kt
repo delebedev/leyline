@@ -333,8 +333,9 @@ class GamePlayback(
                 event is LeylineGameEvent.PhaseChanged && event.step == Step.EndCombat_a2cb.number
             }
 
-        for (damageEvents in damageFrames) {
-            queue.add(buildDiffMessages(game, turnStarted = false, events = FrameEventLog(damageEvents)))
+        for (damageFrame in damageFrames) {
+            val messages = buildDiffMessages(game, turnStarted = false, events = FrameEventLog(damageFrame.events))
+            queue.add(messages.withLifeTotals(damageFrame.lifeTotals))
         }
         if (endCombatEvents.isNotEmpty()) {
             queue.add(buildDiffMessages(game, turnStarted = false, events = FrameEventLog(endCombatEvents)))
@@ -357,33 +358,104 @@ class GamePlayback(
     private fun List<LeylineGameEvent>.hasCombatDamage(): Boolean =
         any { it is LeylineGameEvent.DamageDealtToCard || it is LeylineGameEvent.DamageDealtToPlayer }
 
-    private fun List<LeylineGameEvent>.combatDamageFrames(game: forge.game.Game): List<List<LeylineGameEvent>> {
-        val frames = mutableListOf<List<LeylineGameEvent>>()
+    private data class CombatDamageFrame(
+        val events: List<LeylineGameEvent>,
+        val lifeTotals: Map<Int, Int> = emptyMap(),
+    )
+
+    private fun List<LeylineGameEvent>.combatDamageFrames(game: forge.game.Game): List<CombatDamageFrame> {
+        if (!canSafelySplitCombatDamage()) {
+            return listOf(
+                CombatDamageFrame(
+                    filterNot { event -> event is LeylineGameEvent.PhaseChanged }
+                        .prependCombatDamagePhase(game, this),
+                ),
+            )
+        }
+
+        val frames = mutableListOf<CombatDamageFrame>()
         var current = mutableListOf<LeylineGameEvent>()
 
-        fun flushDamageFrame() {
-            if (current.hasCombatDamage()) frames += current.toList()
+        fun flushFrame() {
+            if (current.hasCombatDamage()) {
+                frames += CombatDamageFrame(current.toList(), current.lifeTotals())
+            }
             current = mutableListOf()
         }
 
         for (event in this) {
             if (event is LeylineGameEvent.PhaseChanged) {
                 if (event.isDamageStep()) {
-                    flushDamageFrame()
+                    if (current.hasCombatDamage()) {
+                        flushFrame()
+                    } else {
+                        current.removeAll { pending -> pending is LeylineGameEvent.PhaseChanged && pending.isDamageStep() }
+                    }
                     current += event
                 }
                 continue
             }
-            if (current.isNotEmpty()) current += event
+            current += event
         }
 
-        flushDamageFrame()
+        flushFrame()
         if (frames.isNotEmpty()) return frames
 
         return listOf(
-            filterNot { event -> event is LeylineGameEvent.PhaseChanged }
-                .prependCombatDamagePhase(game, this),
+            CombatDamageFrame(
+                filterNot { event -> event is LeylineGameEvent.PhaseChanged }
+                    .prependCombatDamagePhase(game, this),
+            ),
         )
+    }
+
+    private fun List<LeylineGameEvent>.canSafelySplitCombatDamage(): Boolean {
+        var inDamageStep = false
+        for (event in this) {
+            when (event) {
+                is LeylineGameEvent.PhaseChanged -> {
+                    if (event.isDamageStep()) inDamageStep = true
+                }
+                is LeylineGameEvent.DamageDealtToPlayer,
+                is LeylineGameEvent.LifeChanged,
+                LeylineGameEvent.CombatEnded,
+                -> if (!inDamageStep) return false
+                is LeylineGameEvent.DamageDealtToCard -> return false
+                else -> if (!inDamageStep && !event.isSafeBeforeDamageStep()) return false
+            }
+        }
+        return true
+    }
+
+    private fun LeylineGameEvent.isSafeBeforeDamageStep(): Boolean =
+        this is LeylineGameEvent.CardTapped ||
+            this is LeylineGameEvent.AttackersDeclared ||
+            this is LeylineGameEvent.BlockersDeclared
+
+    private fun List<LeylineGameEvent>.lifeTotals(): Map<Int, Int> =
+        filterIsInstance<LeylineGameEvent.LifeChanged>()
+            .associate { event -> event.seatId.value to event.newLife }
+
+    private fun List<GREToClientMessage>.withLifeTotals(lifeTotals: Map<Int, Int>): List<GREToClientMessage> {
+        if (lifeTotals.isEmpty()) return this
+        return mapIndexed { index, message ->
+            if (index != 0 || !message.hasGameStateMessage()) return@mapIndexed message
+            val gsm = message.gameStateMessage
+            val patchedPlayers =
+                gsm.playersList.map { player ->
+                    val life = lifeTotals[player.systemSeatNumber]
+                    if (life == null) player else player.toBuilder().setLifeTotal(life).build()
+                }
+            message
+                .toBuilder()
+                .setGameStateMessage(
+                    gsm
+                        .toBuilder()
+                        .clearPlayers()
+                        .addAllPlayers(patchedPlayers)
+                        .build(),
+                ).build()
+        }
     }
 
     private fun LeylineGameEvent.PhaseChanged.isDamageStep(): Boolean =

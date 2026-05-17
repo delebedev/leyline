@@ -445,6 +445,9 @@ class CombatInteractionTest :
                     }
             damageGsms shouldHaveSize 2
             damageGsms.map { it.turnInfo.step } shouldBe listOf(Step.FirstStrikeDamage_a2cb, Step.CombatDamage_a2cb)
+            damageGsms.map { gsm ->
+                gsm.playersList.single { it.systemSeatNumber == OPPONENT_SEAT }.lifeTotal
+            } shouldBe listOf(19, 18)
 
             for (gsm in damageGsms) {
                 val damage = gsm.annotationsList.single { AnnotationType.DamageDealt_af5a in it.typeList }
