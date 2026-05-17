@@ -213,8 +213,11 @@ class GameEventCollector(
             }
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
         val keywordId = castThroughAbilityKeywordId(topSa, saAltCost)
+        val isParadigmCopyCast = isParadigmCopyCast(topSa)
         val altCostAbilityGrpId =
-            if (topSa?.isCastFaceDown == true) {
+            if (isParadigmCopyCast) {
+                149
+            } else if (topSa?.isCastFaceDown == true) {
                 // Disguise / Morph face-down hand-cast SAs have no
                 // AlternativeCost enum entry — they're plain Forge `Spell`s
                 // with `setCastFaceDown(true)`. The CastingTimeOption pAnn
@@ -227,6 +230,12 @@ class GameEventCollector(
                 bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
             } else {
                 0
+            }
+        val castAbilityGrpId =
+            if (isParadigmCopyCast) {
+                KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+            } else {
+                altCostAbilityGrpId
             }
         // Trigger / ability detection: StackItemView distinguishes spells from
         // Ability gameObjects (triggered or activated). SpellAbilityView does
@@ -248,10 +257,10 @@ class GameEventCollector(
         // Hand=31; unearth → Graveyard=33; …). Triggered abilities' "source
         // zone" is wherever the source card lives, computed elsewhere.
         val activationZoneId =
-            if (isAbility && !isTrigger) {
-                resolveActivationZoneId(topSa, card.id, seat, evSaId = ev.sa()?.id ?: 0)
-            } else {
-                0
+            when {
+                isTrigger && realCard != null && isParadigmDelayedTrigger(topSa, realCard) -> ZoneIds.STACK
+                isAbility && !isTrigger -> resolveActivationZoneId(topSa, card.id, seat, evSaId = ev.sa()?.id ?: 0)
+                else -> 0
             }
         val (kickerAbilityGrpId, chosenX) = readCastingTimeOptionState(topSa, card)
         frame.add(
@@ -262,6 +271,7 @@ class GameEventCollector(
                 isAdventure = isAdventure,
                 isOmen = isOmen,
                 altCostAbilityGrpId = altCostAbilityGrpId,
+                castAbilityGrpId = castAbilityGrpId,
                 isAbility = isAbility,
                 isTrigger = isTrigger,
                 abilityForgeId = abilityForgeId,
@@ -303,10 +313,7 @@ class GameEventCollector(
         sa: SpellAbility?,
     ): Int {
         if (sa == null) return 0
-        if (sa.isKeyword(Keyword.STATION)) return KeywordAbilityIds.STATION
-        if ((sa.isKeyword(Keyword.TRAINING) || sa.hasParam("Training")) && sa.api == ApiType.PutCounter) {
-            return KeywordAbilityIds.TRAINING
-        }
+        specialAbilityGrpIdFor(card, sa)?.let { return it }
         decayedAbilityGrpIdFor(card, sa)?.let { return it }
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
         val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return 0
@@ -316,6 +323,33 @@ class GameEventCollector(
         }
         return registry?.forSpellAbility(sa.id) ?: 0
     }
+
+    private fun specialAbilityGrpIdFor(
+        card: Card,
+        sa: SpellAbility,
+    ): Int? =
+        when {
+            isParadigmDelayedTrigger(sa, card) -> KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+            sa.isKeyword(Keyword.STATION) -> KeywordAbilityIds.STATION
+            (sa.isKeyword(Keyword.TRAINING) || sa.hasParam("Training")) && sa.api == ApiType.PutCounter ->
+                KeywordAbilityIds.TRAINING
+            else -> null
+        }
+
+    private fun isParadigmCopyCast(sa: SpellAbility?): Boolean {
+        val host = sa?.hostCard ?: return false
+        return sa.isCastFromPlayEffect &&
+            sa.hasParam("WithoutManaCost") &&
+            host.isToken &&
+            host.copiedPermanent?.hasKeyword("Paradigm") == true
+    }
+
+    private fun isParadigmDelayedTrigger(
+        sa: SpellAbility?,
+        card: Card,
+    ): Boolean =
+        sa?.trigger?.getParam("Execute") == "ParadigmCopy" &&
+            card.effectSource?.hasKeyword("Paradigm") == true
 
     private fun decayedAbilityGrpIdFor(
         card: Card,

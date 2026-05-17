@@ -12,6 +12,7 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -61,6 +62,10 @@ object RequestBuilder {
         if (sourceInstanceId != 0) {
             builder.setSourceId(sourceInstanceId)
         }
+        val sourceCard = sourceEntityId?.let { bridge.findCard(ForgeCardId(it)) }
+        val sourceGrpId = sourceCard?.let { bridge.resolveGrpId(it, sourceInstanceId) } ?: 0
+        if (sourceGrpId != 0) builder.setAbilityGrpId(sourceGrpId)
+        applyTargetSelectionMetadata(selBuilder, prompt, bridge, sourceInstanceId, sourceGrpId, chooserSeatId)
 
         for (ref in prompt.request.candidateRefs) {
             val (instanceId, highlight) = resolveRefToIidAndHighlight(ref, bridge, opponentSeatId) ?: continue
@@ -117,6 +122,10 @@ object RequestBuilder {
                 0
             }
         if (sourceInstanceId != 0) builder.setSourceId(sourceInstanceId)
+        val sourceCard = sourceEntityId?.let { bridge.findCard(ForgeCardId(it)) }
+        val sourceGrpId = sourceCard?.let { bridge.resolveGrpId(it, sourceInstanceId) } ?: 0
+        if (sourceGrpId != 0) builder.setAbilityGrpId(sourceGrpId)
+        applyTargetSelectionMetadata(selBuilder, prompt, bridge, sourceInstanceId, sourceGrpId, chooserSeatId)
 
         val selectedSet = selectedInstanceIds.toSet()
         val opponentSeatId = if (chooserSeatId == 1) 2 else 1
@@ -233,6 +242,76 @@ object RequestBuilder {
         }
         val iid = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
         return iid to HighlightType.Tepid
+    }
+
+    private fun applyTargetSelectionMetadata(
+        selBuilder: TargetSelection.Builder,
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+        sourceInstanceId: Int,
+        sourceGrpId: Int,
+        chooserSeatId: Int,
+    ) {
+        if (sourceInstanceId != 0) {
+            selBuilder.prompt =
+                Prompt
+                    .newBuilder()
+                    .setPromptId(PromptIds.SELECT_TARGETS)
+                    .addParameters(
+                        PromptParameter
+                            .newBuilder()
+                            .setParameterName("CardId")
+                            .setType(ParameterType.Number)
+                            .setNumberValue(sourceInstanceId),
+                    ).build()
+        }
+        val targetingAbilityGrpId = resolveTargetingAbilityGrpId(prompt.targetingSa, sourceGrpId, bridge)
+        if (targetingAbilityGrpId != 0) selBuilder.targetingAbilityGrpId = targetingAbilityGrpId
+        val sourceZoneId = targetSourceZoneId(prompt.request.candidateRefs, bridge, chooserSeatId)
+        if (sourceZoneId != 0) selBuilder.targetSourceZoneId = sourceZoneId
+    }
+
+    private fun resolveTargetingAbilityGrpId(
+        sa: SpellAbility?,
+        sourceGrpId: Int,
+        bridge: GameBridge,
+    ): Int {
+        val host = sa?.hostCard ?: return 0
+        val data = sourceGrpId.takeIf { it != 0 }?.let { bridge.cardRepository.findByGrpId(it) }
+        bridge
+            .abilityRegistryFor(host, data)
+            ?.forSpellAbility(sa.id)
+            ?.takeIf { it != 0 }
+            ?.let { return it }
+        return data
+            ?.abilityIds
+            ?.firstOrNull { (abilityGrpId, _) ->
+                bridge.cardRepository.findAbilityInfo(abilityGrpId)?.category == 4
+            }?.first
+            ?: data
+                ?.abilityIds
+                ?.firstOrNull()
+                ?.first
+            ?: 0
+    }
+
+    private fun targetSourceZoneId(
+        refs: List<PromptCandidateRefDto>,
+        bridge: GameBridge,
+        chooserSeatId: Int,
+    ): Int {
+        val ref = refs.firstOrNull { it.kind == "card" && it.zone != null } ?: return 0
+        val card = bridge.findCard(ForgeCardId(ref.entityId))
+        val ownerSeat = card?.owner?.let { owner -> if (owner == bridge.getPlayer(SeatId(1))) 1 else 2 } ?: chooserSeatId
+        return when (ref.zone) {
+            "Battlefield" -> ZoneIds.BATTLEFIELD
+            "Exile" -> ZoneIds.EXILE
+            "Stack" -> ZoneIds.STACK
+            "Graveyard" -> ZoneIds.graveyardOf(SeatId(ownerSeat))
+            "Hand" -> ZoneIds.handOf(SeatId(ownerSeat))
+            "Library" -> ZoneIds.libraryOf(SeatId(ownerSeat))
+            else -> 0
+        }
     }
 
     /**

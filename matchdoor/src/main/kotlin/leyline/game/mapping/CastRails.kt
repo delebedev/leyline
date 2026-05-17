@@ -57,6 +57,7 @@ enum class AltCostKind(
     WARP(KeywordAbilityIds.WARP),
     SNEAK(KeywordAbilityIds.SNEAK),
     DISGUISE(KeywordAbilityIds.DISGUISE),
+    PARADIGM(KeywordAbilityIds.PARADIGM),
 }
 
 /**
@@ -202,6 +203,20 @@ object CastRails {
                 abilityGrpIdMode = AbilityGrpIdMode.None,
                 emitManaCost = true,
                 echoAlternativeOnMana = true,
+            ),
+            FromExile(
+                kind = AltCostKind.PARADIGM,
+                saPredicate = { sa ->
+                    val host = sa.hostCard
+                    sa.isCastFromPlayEffect &&
+                        sa.hasParam("WithoutManaCost") &&
+                        host?.isToken == true &&
+                        host.copiedPermanent?.hasKeyword("Paradigm") == true
+                },
+                altGrpIdSource = AltGrpIdSource.Universal149,
+                abilityGrpIdMode = AbilityGrpIdMode.FixedKeyword(KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER),
+                emitManaCost = false,
+                echoAlternativeOnMana = false,
             ),
         )
 

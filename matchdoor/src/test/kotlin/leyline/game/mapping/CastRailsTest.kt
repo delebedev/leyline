@@ -182,7 +182,8 @@ class CastRailsTest :
 
         test("Rails inventory covers AltCostKind values without overlap loss") {
             assertSoftly {
-                CastRails.fromExile.map { it.kind } shouldContainExactly listOf(AltCostKind.PLOT, AltCostKind.FORETELL)
+                CastRails.fromExile.map { it.kind } shouldContainExactly
+                    listOf(AltCostKind.PLOT, AltCostKind.FORETELL, AltCostKind.PARADIGM)
                 CastRails.fromGraveyard.map { it.kind } shouldContainExactly
                     listOf(AltCostKind.FLASHBACK, AltCostKind.DISTURB, AltCostKind.ESCAPE, AltCostKind.JUMP_START)
                 CastRails.handWithAltCost.map { it.kind } shouldContainExactly
@@ -199,12 +200,12 @@ class CastRailsTest :
             }
         }
 
-        test("Universal-149 source is exclusively the Plot exile leg") {
+        test("Universal-149 source is explicit on Plot and Paradigm exile legs") {
             val universal149Rails =
                 CastRails.all.filter { rail ->
                     rail is ZoneCastRail && rail.altGrpIdSource is AltGrpIdSource.Universal149
                 }
-            universal149Rails.map { it.kind } shouldContainExactly listOf(AltCostKind.PLOT)
+            universal149Rails.map { it.kind } shouldContainExactly listOf(AltCostKind.PLOT, AltCostKind.PARADIGM)
         }
 
         test("Every AltCostKind appears in at least one rail") {

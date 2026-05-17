@@ -43,6 +43,7 @@ object TransferAnnotations {
         val grpId = GrpId(transfer.grpId)
         val affectorId = if (transfer.affectorId != 0) InstanceId(transfer.affectorId) else null
         val altCostGrpId = GrpId(transfer.altCostAbilityGrpId)
+        val castAbilityGrpId = GrpId(transfer.castAbilityGrpId)
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
 
@@ -110,7 +111,7 @@ object TransferAnnotations {
         // deleted via diffDeletedPersistentAnnotationIds when the spell
         // leaves the stack — see leyline-ucbf for the resolver that lets a
         // PersistentAnnotationKind close the lifecycle cleanly.
-        emitCastingTimeOptions(persistent, transfer, category, newId, altCostGrpId)
+        emitCastingTimeOptions(persistent, transfer, category, newId, altCostGrpId, castAbilityGrpId)
 
         // Persistent: ColorProduction for lands entering the battlefield
         if (category == TransferCategory.PlayLand && transfer.colorOrdinals.isNotEmpty()) {
@@ -147,6 +148,7 @@ object TransferAnnotations {
         category: TransferCategory,
         newId: InstanceId,
         altCostGrpId: GrpId,
+        castAbilityGrpId: GrpId,
     ) {
         if (category != TransferCategory.CastSpell) return
         if (altCostGrpId.value != 0) {
@@ -155,6 +157,7 @@ object TransferAnnotations {
                     stackInstanceId = newId,
                     type = CastingTimeOptionType.CastThroughAbility,
                     alternateCostGrpId = altCostGrpId,
+                    castAbilityGrpId = castAbilityGrpId.takeIf { it.value != 0 } ?: altCostGrpId,
                 ),
             )
         }
@@ -312,14 +315,13 @@ object TransferAnnotations {
                 else -> ActionType.Cast
             }
         val altCostGrpId = GrpId(ev.altCostAbilityGrpId)
+        val castAbilityGrpId = GrpId(ev.castAbilityGrpId.takeIf { it != 0 } ?: ev.altCostAbilityGrpId)
         annotations.add(
             AnnotationBuilder.userActionTaken(
                 instanceId = spellIid,
                 seatId = ev.seatId,
                 actionType = castActionType,
-                // Alt-cost casts (Madness, Flashback, Warp, Cycling, Impending)
-                // populate both fields with the alt-cost ability grpId.
-                abilityGrpId = altCostGrpId,
+                abilityGrpId = castAbilityGrpId,
                 alternativeGrpId = altCostGrpId,
             ),
         )

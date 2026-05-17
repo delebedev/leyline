@@ -1486,7 +1486,7 @@ object StateMapper {
         for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }) {
             val sourceCardIid = frameIds.cardIid(cast.cardId).value
             val abilityIid = stackAbilityIidFor(cast.abilityForgeId, cast.cardId, frameIds)
-            val sourceZone = currentSourceZoneId(cast.cardId, bridge)
+            val sourceZone = cast.activationZoneId.takeIf { it != 0 } ?: currentSourceZoneId(cast.cardId, bridge)
 
             if (sourceCardIid in snapshotSourceIids) continue
             bridge.abilityLineage.record(

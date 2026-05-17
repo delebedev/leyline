@@ -88,6 +88,7 @@ data class BoundCard(
                 KeywordAbilityIds.WARP,
                 KeywordAbilityIds.SNEAK,
                 KeywordAbilityIds.DISGUISE,
+                KeywordAbilityIds.PARADIGM,
             )
 
         /**

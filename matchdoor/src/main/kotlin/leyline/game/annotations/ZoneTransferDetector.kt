@@ -5,6 +5,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.game.data.BasicLandAbilities
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.mapping.FrameIdResolver
@@ -47,6 +48,8 @@ data class AppliedTransfer(
     /** Non-zero when this CastSpell transfer used an alternate cost (Madness, Flashback,
      *  Warp, Cycling, Impending). Carries the client ability grpId for the alt-cost. */
     val altCostAbilityGrpId: Int = 0,
+    /** Cast-through ability identity when it differs from [altCostAbilityGrpId]. */
+    val castAbilityGrpId: Int = altCostAbilityGrpId,
     /** Non-zero when the cast paid Kicker. Carries the per-card Kicker ability grpId. */
     val kickerAbilityGrpId: Int = 0,
     /** Non-zero when the cast chose an X value. Drives CastingTimeOption type=ChooseX. */
@@ -250,13 +253,7 @@ object ZoneTransferDetector {
             val prevZone = previousZones[obj.instanceId]
             if (prevZone != null && prevZone != obj.zoneId) {
                 val forgeCardId = forgeIdLookup(InstanceId(obj.instanceId))
-                val baseCategory =
-                    if (forgeCardId != null && events.isNotEmpty()) {
-                        TransferCategoryResolver.categoryFromEvents(forgeCardId, events)
-                            ?: inferCategory(obj, prevZone, obj.zoneId)
-                    } else {
-                        inferCategory(obj, prevZone, obj.zoneId)
-                    }
+                val baseCategory = categoryForTransfer(obj, prevZone, obj.zoneId, forgeCardId, events)
                 // Foretell override: a Hand→Exile transfer where the destination card
                 // is foretold (Card.foretold==true && Card.isInZone(Exile)) is the
                 // foretell action, not a generic Exile. Forge fires no card-specific
@@ -346,6 +343,7 @@ object ZoneTransferDetector {
                     } ?: emptyList()
                 val isAdventureCast = spellCastEvent?.isAdventure == true
                 val altCostAbilityGrpId = spellCastEvent?.altCostAbilityGrpId ?: 0
+                val castAbilityGrpId = spellCastEvent?.castAbilityGrpId ?: altCostAbilityGrpId
                 val kickerAbilityGrpId = spellCastEvent?.kickerAbilityGrpId ?: 0
                 val chosenX = spellCastEvent?.chosenX ?: 0
 
@@ -364,6 +362,7 @@ object ZoneTransferDetector {
                         manaPayments = manaPayments,
                         isAdventureCast = isAdventureCast,
                         altCostAbilityGrpId = altCostAbilityGrpId,
+                        castAbilityGrpId = castAbilityGrpId,
                         kickerAbilityGrpId = kickerAbilityGrpId,
                         chosenX = chosenX,
                     ),
@@ -452,6 +451,11 @@ object ZoneTransferDetector {
             appendToZone(patchedZones, ZoneIds.LIMBO, id)
         }
 
+        detectEventOnlyParadigmCopyCasts(patchedObjects, previousZones, events, forgeIdLookup).forEach { transfer ->
+            transfers.add(transfer)
+            zoneRecordings.add(transfer.newId to transfer.destZoneId)
+        }
+
         // Record zones for instanceIds that appear only in zone objectInstanceIds
         // but not in gameObjects (e.g. library cards — hidden, no GameObjectInfo).
         for (zone in patchedZones) {
@@ -472,6 +476,43 @@ object ZoneTransferDetector {
             stackAbilityAppearances = appearances,
             stackAbilityDisappearances = disappearances,
         )
+    }
+
+    private fun detectEventOnlyParadigmCopyCasts(
+        objects: List<GameObjectInfo>,
+        previousZones: Map<Int, Int>,
+        events: List<GameEvent>,
+        forgeIdLookup: (InstanceId) -> ForgeCardId?,
+    ): List<AppliedTransfer> {
+        val copyCastIds =
+            events
+                .filterIsInstance<GameEvent.SpellCast>()
+                .filter {
+                    !it.isAbility &&
+                        !it.isTrigger &&
+                        it.altCostAbilityGrpId == 149 &&
+                        it.castAbilityGrpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+                }.map { it.cardId }
+                .toSet()
+        return objects.mapNotNull { obj ->
+            if (obj.zoneId != ZoneIds.STACK) return@mapNotNull null
+            if (previousZones.containsKey(obj.instanceId)) return@mapNotNull null
+            val forgeCardId = forgeIdLookup(InstanceId(obj.instanceId)) ?: return@mapNotNull null
+            val isParadigmStackCopy = obj.isCopy && obj.hasParadigmAbility()
+            if (forgeCardId !in copyCastIds && !isParadigmStackCopy) return@mapNotNull null
+            AppliedTransfer(
+                origId = obj.instanceId,
+                newId = obj.instanceId,
+                category = TransferCategory.CastSpell,
+                srcZoneId = ZoneIds.EXILE,
+                destZoneId = ZoneIds.STACK,
+                forgeCardId = forgeCardId,
+                grpId = obj.grpId,
+                ownerSeatId = obj.ownerSeatId,
+                altCostAbilityGrpId = 149,
+                castAbilityGrpId = KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER,
+            )
+        }
     }
 
     /** Infer category for a zone transfer annotation from zone IDs. */
@@ -514,6 +555,24 @@ object ZoneTransferDetector {
                 }
             else -> TransferCategory.ZoneTransfer
         }
+
+    private fun categoryForTransfer(
+        obj: GameObjectInfo,
+        srcZone: Int,
+        destZone: Int,
+        forgeCardId: ForgeCardId?,
+        events: List<GameEvent>,
+    ): TransferCategory {
+        if (srcZone == ZoneIds.STACK && destZone == ZoneIds.EXILE && obj.hasParadigmAbility()) return TransferCategory.Exile
+        return if (forgeCardId != null && events.isNotEmpty()) {
+            TransferCategoryResolver.categoryFromEvents(forgeCardId, events)
+                ?: inferCategory(obj, srcZone, destZone)
+        } else {
+            inferCategory(obj, srcZone, destZone)
+        }
+    }
+
+    private fun GameObjectInfo.hasParadigmAbility(): Boolean = uniqueAbilitiesList.any { it.grpId == KeywordAbilityIds.PARADIGM }
 
     @Suppress("LongParameterList")
     private fun detectZoneOnlyTransfers(
@@ -594,12 +653,7 @@ object ZoneTransferDetector {
                 continue
             }
             val category =
-                if (events.isNotEmpty()) {
-                    TransferCategoryResolver.categoryFromEvents(forgeCardId, events)
-                        ?: inferCategory(GameObjectInfo.getDefaultInstance(), prevZone, destZone)
-                } else {
-                    inferCategory(GameObjectInfo.getDefaultInstance(), prevZone, destZone)
-                }
+                categoryForTransfer(GameObjectInfo.getDefaultInstance(), prevZone, destZone, forgeCardId, events)
             val handoff =
                 if (!category.keepsSameInstanceId) {
                     ZoneHandoff.fromRealloc(idAllocator(forgeCardId), destZone)
