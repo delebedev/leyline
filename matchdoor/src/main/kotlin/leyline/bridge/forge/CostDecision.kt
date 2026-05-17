@@ -93,6 +93,7 @@ class CostDecision(
                 defaultIndex = 0,
                 candidateRefs = refs,
                 semantic = semantic,
+                sourceEntityId = source.id.takeIf { it > 0 },
             )
         val indices = bridge.requestChoice(request)
         if (indices.isEmpty() && cancelAllowed) return null
@@ -884,9 +885,19 @@ class CostDecision(
                 c,
                 c,
                 cancelAllowed = !mandatory,
+                semantic = returnCostSemantic(cost),
             ) ?: return null
         return PaymentDecision.card(selected)
     }
+
+    private fun returnCostSemantic(cost: CostReturn): PromptSemantic =
+        if (cost.type.contains("attacking+unblocked") ||
+            cost.descriptiveType.contains("unblocked attacker", ignoreCase = true)
+        ) {
+            PromptSemantic.ReturnUnblockedAttackerCost
+        } else {
+            PromptSemantic.Generic
+        }
 
     override fun visit(cost: CostReveal): PaymentDecision? {
         if (cost.payCostFromSource()) return PaymentDecision.card(source)

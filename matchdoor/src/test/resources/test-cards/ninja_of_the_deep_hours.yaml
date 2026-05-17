@@ -1,0 +1,13 @@
+name: "Ninja of the Deep Hours"
+grpId: 79274
+titleId: 9272
+abilities:
+  - id: 5341
+    textId: 9044
+    category: 1
+    baseId: 50
+    mana: "o1oU"
+  - id: 89540
+    textId: 76780
+    category: 2
+expansionCode: "J21"

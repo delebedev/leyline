@@ -290,6 +290,8 @@ class TargetingHandler(
                             sendExileFromGravePayCostsReq(classified.pendingPrompt)
                         ClassifiedPrompt.SelectN.Reason.StationTapCost ->
                             sendStationTapCostPayCostsReq(classified.pendingPrompt)
+                        ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost ->
+                            sendReturnUnblockedAttackerPayCostsReq(classified.pendingPrompt)
                         else -> sendSelectNReq(classified.pendingPrompt, classified.reason)
                     }
                     return true
@@ -368,6 +370,8 @@ class TargetingHandler(
                         sendExileFromGravePayCostsReq(classified.pendingPrompt)
                     ClassifiedPrompt.SelectN.Reason.StationTapCost ->
                         sendStationTapCostPayCostsReq(classified.pendingPrompt)
+                    ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost ->
+                        sendReturnUnblockedAttackerPayCostsReq(classified.pendingPrompt)
                     ClassifiedPrompt.SelectN.Reason.LegendRule,
                     ClassifiedPrompt.SelectN.Reason.Discard,
                     ClassifiedPrompt.SelectN.Reason.SacrificeEffect,
@@ -1224,6 +1228,19 @@ class TargetingHandler(
         val (req, prompt) = RequestBuilder.buildStationTapCostPayCostsReq(pendingPrompt, bridge)
         val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
         Tap.outboundTemplate("PayCostsReq(station) seat=${counters.seatId}")
+        sink.sendBundledGRE(result.messages)
+    }
+
+    private fun sendReturnUnblockedAttackerPayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
+        val bridge = ctx.bridge
+        val (req, prompt) =
+            RequestBuilder.buildSelectCostPayCostsReq(
+                pendingPrompt,
+                bridge,
+                leyline.game.mapping.PromptIds.NINJUTSU_RETURN_UNBLOCKED_ATTACKER_COST,
+            )
+        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
+        Tap.outboundTemplate("PayCostsReq(return-unblocked-attacker) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 

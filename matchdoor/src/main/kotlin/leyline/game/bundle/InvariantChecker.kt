@@ -448,6 +448,11 @@ class InvariantChecker(
                 .filter { it.typeList.any { t -> t == AnnotationType.AbilityInstanceCreated } }
                 .flatMap { it.affectedIdsList }
                 .toSet()
+        val closingAbilityIds =
+            annotations
+                .filter { it.typeList.any { t -> t == AnnotationType.AbilityInstanceDeleted } }
+                .flatMap { it.affectedIdsList }
+                .toSet()
         val sameGsmKnownIds =
             gsm.diffDeletedInstanceIdsList.toSet() +
                 annotations
@@ -458,7 +463,12 @@ class InvariantChecker(
                             .flatMap { detail -> (0 until detail.valueInt32Count).map { detail.getValueInt32(it) } }
                     }.toSet()
 
-        fun isKnown(id: Int) = accumulator.isKnownEntity(id) || id in transientAbilityIds || id in sameGsmKnownIds
+        fun isKnown(id: Int) =
+            accumulator.isKnownEntity(id) ||
+                id in transientAbilityIds ||
+                id in closingAbilityIds ||
+                id in aicAffectorByAbilityIid ||
+                id in sameGsmKnownIds
 
         for (ann in annotations) {
             // ObjectIdChanged references old (replaced) instanceIds — skip entirely
