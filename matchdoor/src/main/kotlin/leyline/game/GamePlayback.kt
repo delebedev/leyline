@@ -1,8 +1,11 @@
 package leyline.game
 
 import com.google.common.eventbus.Subscribe
+import forge.game.ability.ApiType
+import forge.game.cost.CostPartMana
 import forge.game.event.*
 import forge.game.phase.PhaseType
+import forge.game.spellability.SpellAbility
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
@@ -83,15 +86,14 @@ class GamePlayback(
 
     override fun visit(ev: GameEventSpellAbilityCast) {
         val isTrigger = ev.si()?.isTrigger == true
-        val splitForLocalTrigger = isTrigger && shouldSplitOnLocalTurn(ev.sa()?.hostCard?.id)
+        val splitForLocalTrigger = isTrigger && shouldSplitOnLocalTurn(ev.sa()?.hostCard?.id, liveStackSpellAbility(ev))
         if (splitForLocalTrigger) {
             val saId = ev.sa()?.id ?: 0
             if (saId != 0) pendingLocalTriggers[saId] = true
         }
-        // Specific keyword triggers always need their own diff on the local
-        // turn so the client renders the trigger landing on the stack before
-        // the resolution diff. Other triggers keep the legacy single-GSM-per-action
-        // bundling until their shape is verified.
+        // Verified local-turn triggers need their own diff so the client sees
+        // the stack entry before the resolution diff. Other triggers keep the
+        // legacy single-GSM-per-action bundling until their shape is verified.
         if (!isRemoteActing() && !splitForLocalTrigger) return
         captureAndPause(CAST_DELAY)
     }
@@ -99,16 +101,15 @@ class GamePlayback(
     override fun visit(ev: GameEventSpellResolved) {
         val saId = ev.spell()?.id ?: 0
         val splitForLocalTrigger = saId != 0 && pendingLocalTriggers.remove(saId) != null
-        // Mirror the cast hook above — trigger resolutions on a local turn need
-        // their own diff so TokenCreated lands before the next combat-damage
-        // diff. Gated on the same Mobilize-keyword check via the
-        // [pendingLocalTriggers] entry recorded at cast time.
+        // Mirror the cast hook above: trigger resolutions on a local turn need
+        // their own diff so trigger effects land before the next unrelated diff.
         if (!isRemoteActing() && !splitForLocalTrigger) return
         captureAndPause(RESOLVE_DELAY)
     }
 
     /** Decide whether to split this trigger's lifecycle into its own diff on
-     *  the local turn. Today: the keyword allowlist in [localTurnSplitTriggerKeywordIds].
+     *  the local turn. Today: the keyword allowlist in [localTurnSplitTriggerKeywordIds]
+     *  plus mandatory non-interactive trigger chains such as Ajani's Pridemate.
      *
      *  Widening to other keyword triggers (other combat triggers, ETB
      *  mechanics with delayed-trigger tokens, etc.) inserts an extra Diff
@@ -116,14 +117,57 @@ class GamePlayback(
      *  asserting a single-GSM-per-action wire shape will need to update its
      *  assertions before the keyword can be added to the predicate. Audit
      *  before extending the list. */
-    private fun shouldSplitOnLocalTurn(hostCardForgeId: Int?): Boolean {
+    private fun shouldSplitOnLocalTurn(
+        hostCardForgeId: Int?,
+        sa: SpellAbility?,
+    ): Boolean {
         if (hostCardForgeId == null) return false
+        if (hasLocalTurnSplitKeyword(hostCardForgeId)) return true
+        if (sa == null) return false
+        return isNonInteractiveLocalTrigger(sa)
+    }
+
+    private fun liveStackSpellAbility(ev: GameEventSpellAbilityCast): SpellAbility? {
+        val eventSa = ev.sa() ?: return null
+        val eventHostCardId = eventSa.hostCard?.id ?: return null
+        return bridge.getGame()?.stack?.peek()?.spellAbility?.takeIf { topSa ->
+            topSa.id == eventSa.id && topSa.hostCard?.id == eventHostCardId
+        } ?: findLiveSaOnCard(eventHostCardId, eventSa.id)
+    }
+
+    private fun findLiveSaOnCard(
+        cardId: Int,
+        evSaId: Int,
+    ): SpellAbility? {
+        if (evSaId == 0) return null
+        val card = bridge.findCard(ForgeCardId(cardId)) ?: return null
+        return card.spellAbilities.firstOrNull { it.id == evSaId }
+            ?: card.allSpellAbilities?.firstOrNull { it.id == evSaId }
+    }
+
+    private fun hasLocalTurnSplitKeyword(hostCardForgeId: Int): Boolean {
         val card = bridge.findCard(ForgeCardId(hostCardForgeId)) ?: return false
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return false
         return localTurnSplitTriggerKeywordIds.any { keywordId ->
             bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) != null
         }
     }
+
+    private fun isNonInteractiveLocalTrigger(sa: SpellAbility): Boolean {
+        if (sa.isOptionalTrigger) return false
+        var ability: SpellAbility? = sa
+        while (ability != null) {
+            // Corpus-backed pure trigger lane: no target/select/cost prompt before resolution.
+            if (ability.usesTargeting()) return false
+            if (!hasNoPromptCost(ability)) return false
+            if (ability.api !in localTurnSplitSafeApis) return false
+            ability = ability.subAbility
+        }
+        return true
+    }
+
+    private fun hasNoPromptCost(ability: SpellAbility): Boolean =
+        ability.payCosts.costParts.all { it is CostPartMana } && ability.payCosts.totalMana.isZero
 
     override fun visit(ev: GameEventTurnBegan) {
         if (!isRemoteActing()) return
@@ -279,6 +323,18 @@ class GamePlayback(
                 KeywordAbilityIds.MOBILIZE,
                 KeywordAbilityIds.TRAINING,
                 KeywordAbilityIds.DECAYED,
+            )
+
+        // APIs observed in pure STATE_ONLY trigger-enter/resolve clusters.
+        private val localTurnSplitSafeApis =
+            setOf(
+                ApiType.Draw,
+                ApiType.GainLife,
+                ApiType.Investigate,
+                ApiType.LoseLife,
+                ApiType.Pump,
+                ApiType.PutCounter,
+                ApiType.Token,
             )
     }
 }
