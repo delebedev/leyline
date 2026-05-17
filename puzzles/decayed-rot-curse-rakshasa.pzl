@@ -1,0 +1,16 @@
+[metadata]
+Name:Decayed Rot-Curse Rakshasa
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Rot-Curse Rakshasa attacks, registers EndCombat cleanup, then sacrifices itself.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Rot-Curse Rakshasa
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains

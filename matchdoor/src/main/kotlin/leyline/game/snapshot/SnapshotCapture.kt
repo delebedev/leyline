@@ -83,7 +83,7 @@ object SnapshotCapture {
 
     /**
      * Pair every [CardSnapshot] with its static [leyline.game.data.CardData]
-     * plus pre-resolved consumer queries (alt-cost rows, Mobilize cleanup,
+     * plus pre-resolved consumer queries (alt-cost rows, Mobilize/Decayed cleanup,
      * parent linkage, designations) so mappers don't re-call
      * `bridge.cardRepository.*` per consumer site.
      *
@@ -101,6 +101,7 @@ object SnapshotCapture {
             val data = if (snap.grpId > 0) repo.findByGrpId(snap.grpId) else null
             val altCosts = BoundCard.bindAltCosts(data, repo)
             val mobilizeCleanup = BoundCard.bindMobilizeCleanup(data, altCosts, repo)
+            val decayedCleanup = BoundCard.bindDecayedCleanup(data, repo)
             val parentLinkage = bindParentLinkage(snap)
             val designations =
                 DesignationSet(
@@ -114,7 +115,7 @@ object SnapshotCapture {
                     isLeftDoorUnlocked = snap.isLeftDoorUnlocked,
                     isRightDoorUnlocked = snap.isRightDoorUnlocked,
                 )
-            out[fid] = BoundCard(fid, snap, data, altCosts, mobilizeCleanup, parentLinkage, designations)
+            out[fid] = BoundCard(fid, snap, data, altCosts, mobilizeCleanup, decayedCleanup, parentLinkage, designations)
         }
         return out
     }

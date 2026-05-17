@@ -307,6 +307,7 @@ class GameEventCollector(
         if ((sa.isKeyword(Keyword.TRAINING) || sa.hasParam("Training")) && sa.api == ApiType.PutCounter) {
             return KeywordAbilityIds.TRAINING
         }
+        decayedAbilityGrpIdFor(card, sa)?.let { return it }
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
         val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return 0
         val registry = bridge.abilityRegistryFor(card, cardData)
@@ -314,6 +315,21 @@ class GameEventCollector(
             registry?.forTrigger(triggerId)?.takeIf { it != 0 }?.let { return it }
         }
         return registry?.forSpellAbility(sa.id) ?: 0
+    }
+
+    private fun decayedAbilityGrpIdFor(
+        card: Card,
+        sa: SpellAbility,
+    ): Int? {
+        if (!card.hasKeyword("Decayed")) return null
+        if (sa.api == ApiType.DelayedTrigger && sa.trigger?.getParam("Mode") == "Attacks") {
+            return KeywordAbilityIds.DECAYED
+        }
+        if (sa.api == ApiType.Sacrifice && sa.trigger?.getParam("Phase") == "EndCombat") {
+            val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return null
+            return bridge.cardRepository.findHiddenTriggeredAbilityGrpId(grpId)
+        }
+        return null
     }
 
     /**
