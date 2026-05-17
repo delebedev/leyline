@@ -5,8 +5,6 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.game.bundle.InvariantCheck
-import leyline.game.bundle.InvariantSelection
 import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -44,14 +42,7 @@ class ExileUnderCardPuzzleTest :
                 ailibrary=Forest
                 """.trimIndent()
 
-            startPuzzleRaw(
-                pzl,
-                validation =
-                    InvariantSelection.except(
-                        "exile-under-card ZoneTransfer affector is unresolved until zone-transfer ref projection is fixed",
-                        InvariantCheck.AnnotationReferences,
-                    ),
-            )
+            startPuzzleRaw(pzl, validating = true)
             phase() shouldBe "MAIN1"
 
             val bearsIid = ai.battlefield.iid("Grizzly Bears")
