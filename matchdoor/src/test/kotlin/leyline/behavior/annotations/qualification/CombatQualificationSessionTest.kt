@@ -32,6 +32,7 @@ class CombatQualificationSessionTest :
                 aibattlefield=Grizzly Bears
                 ailibrary=Island
                 """.trimIndent(),
+                validating = true,
             )
 
             val targetIid = ai.battlefield.iid("Grizzly Bears")

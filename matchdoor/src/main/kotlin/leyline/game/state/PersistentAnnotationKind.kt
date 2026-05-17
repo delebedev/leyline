@@ -86,7 +86,7 @@ sealed interface PersistentAnnotationKind {
 /** Strategy for upsert collisions where an incoming row's identity matches an
  *  existing active row's identity. */
 enum class CollisionStrategy {
-    /** Active row stays — incoming row is dropped. Used by Qualification, ModifiedType-for-crew,
+    /** Active row stays — incoming row is dropped. Used by ModifiedType-for-crew,
      *  TemporaryPermanent, DelayedTriggerAffectees, TargetSpec — all "appears once, value rarely
      *  changes" kinds. */
     KEEP_EXISTING,
