@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 import leyline.testkit.annotationsOfType
 import leyline.testkit.beInGraveyardOf
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -26,6 +27,29 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  */
 class BushwhackFightTest :
     SessionTest({
+
+        test("Charm spell with zero legal modes is not offered as castable") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Destroy Evil;Plains
+                humanbattlefield=Plains;Plains
+                humanlibrary=Plains
+                aibattlefield=Trufflesnout
+                ailibrary=Mountain
+                """,
+                name = "Destroy Evil no legal modes",
+                validating = true,
+            )
+
+            val actions = harness.accumulator.actions.shouldNotBeNull()
+            val destroyEvilIid = human.hand.iid("Destroy Evil")
+            actions.actionsList.filter { it.actionType == ActionType.Cast && it.instanceId == destroyEvilIid } shouldBe emptyList()
+        }
 
         test("Bushwhack Fight mode emits SelectTargetsReq for both target groups") {
             startPuzzleFile("puzzles/bushwhack-fight.pzl")
