@@ -183,6 +183,7 @@ data class AbilityInfo(
     val baseId: Int,
     val manaCost: List<Pair<ManaColor, Int>>,
     val category: Int = 0,
+    val subCategory: Int = 0,
 )
 
 /**

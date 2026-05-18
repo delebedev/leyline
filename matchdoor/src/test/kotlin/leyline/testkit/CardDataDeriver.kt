@@ -71,7 +71,7 @@ object CardDataDeriver {
         val manaCost = ManaColorMapping.deriveManaCost(rules.manaCost)
 
         val abilityIds = identity.abilities.map { it.id to it.textId }
-        val abilityKinds = identity.abilities.map { ab -> SlotKind.fromCategory(ab.category) }
+        val abilityKinds = identity.abilities.map { ab -> SlotKind.fromAbilityInfo(ab.category, ab.subCategory) }
 
         return CardData(
             grpId = identity.grpId,

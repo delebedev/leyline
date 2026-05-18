@@ -111,7 +111,7 @@ object FixtureCardLoader {
         val identity = fixture.identity
         val rules = requireNotNull(fixture.rules)
         val abilityIds = identity.abilities.map { it.id to it.textId }
-        val abilityKinds = identity.abilities.map { ab -> SlotKind.fromCategory(ab.category) }
+        val abilityKinds = identity.abilities.map { ab -> SlotKind.fromAbilityInfo(ab.category, ab.subCategory) }
         return CardData(
             grpId = identity.grpId,
             titleId = identity.titleId,
@@ -136,7 +136,7 @@ object FixtureCardLoader {
     ) {
         for (ab in identity.abilities) {
             if (ab.baseId != 0 || ab.activationMana.isNotEmpty()) {
-                repo.registerAbilityInfo(ab.id, AbilityInfo(ab.baseId, ab.activationMana))
+                repo.registerAbilityInfo(ab.id, AbilityInfo(ab.baseId, ab.activationMana, ab.category, ab.subCategory))
             }
             if (ab.modalChildren.isNotEmpty()) {
                 repo.registerModalOptions(identity.grpId, ModalAbilityInfo(ab.id, ab.modalChildren))

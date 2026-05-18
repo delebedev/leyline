@@ -224,4 +224,26 @@ class AbilityRegistryTest :
                 forgeIndexFor(175798) shouldBe 2 // [-9]
             }
         }
+
+        test("mana slot interleaved before activated land ability does not shift mapping") {
+            val cardName = "Racers' Ring"
+            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val injected = TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
+            val card = injected.card
+            val manaAbility = card.spellAbilities.single { it.isManaAbility() && it.isIntrinsic }
+            val drawAbility =
+                card.spellAbilities.single {
+                    it.isActivatedAbility && !it.isManaAbility() && it.isIntrinsic
+                }
+            val cardData = CardDataDeriver.fromForgeCard(card, cardName)
+
+            val registry = AbilityRegistry.build(card, cardData)
+
+            assertSoftly {
+                cardData.abilityKinds shouldBe listOf(SlotKind.Intrinsic, SlotKind.Mana, SlotKind.Activated)
+                registry.forSpellAbility(manaAbility.id) shouldBe 1131
+                registry.forSpellAbility(drawAbility.id) shouldBe 149629
+                registry.slotLayout.forgeIndexFor(149629) shouldBe 0
+            }
+        }
     })
