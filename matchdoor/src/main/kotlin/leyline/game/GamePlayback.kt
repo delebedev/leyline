@@ -72,7 +72,7 @@ class GamePlayback(
         captureAndPause(LAND_DELAY)
     }
 
-    /** Local stack objects captured at their cast/enter event and awaiting a
+    /** Local stack objects seen at their cast/enter event and awaiting a
      * matching resolve event. Independent of GameEventCollector's trigger maps:
      * collector and playback are separate EventBus subscribers. */
     private val pendingLocalTriggers = ConcurrentHashMap<LocalStackKey, Int>()
