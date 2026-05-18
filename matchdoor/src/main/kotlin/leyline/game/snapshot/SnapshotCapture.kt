@@ -209,7 +209,7 @@ object SnapshotCapture {
             val controller = entry.activatingPlayer
             val ownerSeat = SeatId(if (sourceCard.owner == human) 1 else 2)
             val controllerSeat = SeatId(if (controller == human) 1 else 2)
-            val sourceCardGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: 0
+            val sourceCardGrpId = resolveStackSourceCardGrpId(sourceCard, bridge.cardRepository)
             val grpId = StackAbilityGrpIdResolver.resolveEntryAbilityGrpId(entry, sourceCard, sourceCardGrpId, bridge)
             val targets = entry.targetChoices?.targetCards?.map { ForgeCardId(it.id) } ?: emptyList()
             entries.add(
@@ -227,6 +227,14 @@ object SnapshotCapture {
         }
         return StackSnapshot(entries)
     }
+
+    private fun resolveStackSourceCardGrpId(
+        sourceCard: Card,
+        cards: CardRepository,
+    ): Int =
+        cards.findGrpIdByName(sourceCard.name)
+            ?: sourceCard.effectSource?.let { source -> cards.findGrpIdByName(source.name) }
+            ?: 0
 
     private fun captureZones(
         game: Game,

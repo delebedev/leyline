@@ -1,0 +1,17 @@
+[metadata]
+Name:Paradigm - Germination Live
+Goal:Cast Germination Practicum, then cast the recurring copy.
+Turns:6
+Difficulty:Easy
+Description:Resolve an untargeted Paradigm spell and its free copy.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Germination Practicum
+humanbattlefield=Forest;Forest;Forest;Forest;Forest;Grizzly Bears
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

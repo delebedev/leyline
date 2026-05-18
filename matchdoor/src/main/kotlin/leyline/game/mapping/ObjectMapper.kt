@@ -34,18 +34,22 @@ object ObjectMapper {
         instanceId: Int,
         ownerSeatId: Int,
         cardProto: CardProtoBuilder,
-    ): GameObjectInfo =
-        cardProto
-            .buildObjectInfo(sourceCardGrpId)
-            .setGrpId(grpId)
-            .setInstanceId(instanceId)
-            .setType(GameObjectType.Ability)
-            .setZoneId(ZoneIds.STACK)
-            .setVisibility(Visibility.Public)
-            .setOwnerSeatId(ownerSeatId)
-            .setControllerSeatId(ownerSeatId)
-            .setObjectSourceGrpId(sourceCardGrpId)
-            .build()
+        parentInstanceId: Int = 0,
+    ): GameObjectInfo {
+        val builder =
+            cardProto
+                .buildObjectInfo(sourceCardGrpId)
+                .setGrpId(grpId)
+                .setInstanceId(instanceId)
+                .setType(GameObjectType.Ability)
+                .setZoneId(ZoneIds.STACK)
+                .setVisibility(Visibility.Public)
+                .setOwnerSeatId(ownerSeatId)
+                .setControllerSeatId(ownerSeatId)
+                .setObjectSourceGrpId(sourceCardGrpId)
+        if (parentInstanceId != 0) builder.parentId = parentInstanceId
+        return builder.build()
+    }
 
     /**
      * Build a [GameObjectInfo] for a transient `TriggerHolder` object that owns a
@@ -110,12 +114,13 @@ object ObjectMapper {
         cardProto: CardProtoBuilder,
         parentLinkage: ParentLinkage? = null,
     ): GameObjectInfo {
+        val isStackCopySpell = zoneId == ZoneIds.STACK && cardSnap.isCopyToken
         val objType =
-            if (cardSnap.isToken && cardSnap.preparedRole !is PreparedRole.Copy) {
+            if (cardSnap.isToken && cardSnap.preparedRole !is PreparedRole.Copy && !isStackCopySpell) {
                 GameObjectType.Token
             } else {
-                // Prepared-spell copies are Forge TOKEN-piece-typed but represent a
-                // normal castable spell — projected as plain Cards.
+                // Prepared spells and copied spells on the stack are Forge TOKEN-piece-typed
+                // but represent normal castable spells — projected as plain Cards.
                 GameObjectType.Card
             }
         return cardProto
@@ -203,12 +208,13 @@ object ObjectMapper {
                 }.build()
         }
 
+        val isStackCopySpell = zoneId == ZoneIds.STACK && cardSnap.isCopyToken
         val objType =
-            if (cardSnap.isToken && cardSnap.preparedRole !is PreparedRole.Copy) {
+            if (cardSnap.isToken && cardSnap.preparedRole !is PreparedRole.Copy && !isStackCopySpell) {
                 GameObjectType.Token
             } else {
-                // Prepared-spell copies are Forge TOKEN-piece-typed but represent a
-                // normal castable spell — projected as plain Cards.
+                // Prepared spells and copied spells on the stack are Forge TOKEN-piece-typed
+                // but represent normal castable spells — projected as plain Cards.
                 GameObjectType.Card
             }
         val extrinsicKws =

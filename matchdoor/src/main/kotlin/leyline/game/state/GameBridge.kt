@@ -97,6 +97,14 @@ class GameBridge(
 
     val abilityLineage = AbilityLineageRegistry()
 
+    val paradigmSourceStackIids = ConcurrentHashMap<ForgeCardId, Int>()
+
+    fun paradigmSourceStackIidFor(fid: ForgeCardId): Int? =
+        paradigmSourceStackIids[fid]
+            ?: findCard(fid)
+                ?.effectSource
+                ?.let { source -> paradigmSourceStackIids[ForgeCardId(source.id)] }
+
     /** Shared signal — bridges notify when they have a pending item, replacing poll loops. */
     val prioritySignal = PrioritySignal()
 

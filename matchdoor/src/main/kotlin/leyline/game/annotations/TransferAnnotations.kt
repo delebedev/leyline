@@ -43,6 +43,7 @@ object TransferAnnotations {
         val grpId = GrpId(transfer.grpId)
         val affectorId = if (transfer.affectorId != 0) InstanceId(transfer.affectorId) else null
         val altCostGrpId = GrpId(transfer.altCostAbilityGrpId)
+        val castAbilityGrpId = GrpId(transfer.castAbilityGrpId)
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
 
@@ -61,8 +62,8 @@ object TransferAnnotations {
                 // drain Forge produces the populated SpellCast event in (same drain
                 // as the zone-change for untargeted spells; the post-target-submit
                 // drain for targeted spells, when Forge has actually paid mana).
-                annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
-                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
+                if (origId != newId) annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
+                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId))
             }
             TransferCategory.Resolve -> {
                 val resolvingId = if (origId != newId) origId else newId
@@ -110,7 +111,7 @@ object TransferAnnotations {
         // deleted via diffDeletedPersistentAnnotationIds when the spell
         // leaves the stack — see leyline-ucbf for the resolver that lets a
         // PersistentAnnotationKind close the lifecycle cleanly.
-        emitCastingTimeOptions(persistent, transfer, category, newId, altCostGrpId)
+        emitCastingTimeOptions(persistent, transfer, category, newId, altCostGrpId, castAbilityGrpId)
 
         // Persistent: ColorProduction for lands entering the battlefield
         if (category == TransferCategory.PlayLand && transfer.colorOrdinals.isNotEmpty()) {
@@ -147,6 +148,7 @@ object TransferAnnotations {
         category: TransferCategory,
         newId: InstanceId,
         altCostGrpId: GrpId,
+        castAbilityGrpId: GrpId,
     ) {
         if (category != TransferCategory.CastSpell) return
         if (altCostGrpId.value != 0) {
@@ -155,6 +157,7 @@ object TransferAnnotations {
                     stackInstanceId = newId,
                     type = CastingTimeOptionType.CastThroughAbility,
                     alternateCostGrpId = altCostGrpId,
+                    castAbilityGrpId = castAbilityGrpId.takeIf { it.value != 0 } ?: altCostGrpId,
                 ),
             )
         }
@@ -279,10 +282,11 @@ object TransferAnnotations {
         ev: GameEvent.SpellCast,
         idResolver: (ForgeCardId) -> InstanceId,
         manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
+        stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
     ): List<AnnotationInfo> {
         if (ev.isAbility) return emptyList()
         val annotations = mutableListOf<AnnotationInfo>()
-        val spellIid = idResolver(ev.cardId)
+        val spellIid = stackInstanceResolver(ev) ?: ev.stackInstanceId.takeIf { it != 0 }?.let(::InstanceId) ?: idResolver(ev.cardId)
         for ((i, mp) in ev.manaPayments.withIndex()) {
             val landIid = idResolver(mp.sourceCardId)
             val manaAbilityIid = idResolver(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId))
@@ -312,14 +316,13 @@ object TransferAnnotations {
                 else -> ActionType.Cast
             }
         val altCostGrpId = GrpId(ev.altCostAbilityGrpId)
+        val castAbilityGrpId = GrpId(ev.castAbilityGrpId.takeIf { it != 0 } ?: ev.altCostAbilityGrpId)
         annotations.add(
             AnnotationBuilder.userActionTaken(
                 instanceId = spellIid,
                 seatId = ev.seatId,
                 actionType = castActionType,
-                // Alt-cost casts (Madness, Flashback, Warp, Cycling, Impending)
-                // populate both fields with the alt-cost ability grpId.
-                abilityGrpId = altCostGrpId,
+                abilityGrpId = castAbilityGrpId,
                 alternativeGrpId = altCostGrpId,
             ),
         )

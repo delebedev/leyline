@@ -1,0 +1,11 @@
+name: "Restoration Seminar"
+grpId: 102489
+titleId: 1110921
+abilities:
+  - id: 204319
+    textId: 1110922
+    category: 4
+  - id: 405
+    textId: 1110923
+    category: 4
+expansionCode: "SOS"
