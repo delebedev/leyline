@@ -703,6 +703,16 @@ class GameBridge(
         }
     }
 
+    /** Commander grpIds for the initial handshake deck message. */
+    fun getCommanderGrpIds(seatId: SeatId): List<Int> {
+        val seatFirst = listOfNotNull(getPlayer(seatId))
+        val remaining = players.values.filterNot { it === seatFirst.firstOrNull() }
+        return (seatFirst + remaining).flatMap { player -> player.commanders }.map { card ->
+            DevCheck.requireOrNull(cardRepository.findGrpIdByName(card.name)) { "commander grpId miss: '${card.name}'" }
+                ?: FALLBACK_GRPID
+        }
+    }
+
     override fun getGame(): Game? = game
 
     override fun getPlayer(seatId: SeatId): Player? = players[seatId.value]

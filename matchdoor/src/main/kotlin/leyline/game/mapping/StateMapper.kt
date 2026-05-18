@@ -231,7 +231,7 @@ object StateMapper {
                     .setMaxDeckSize(59)
                     .setMaxSideboardSize(1)
                     .setMinCommanderSize(1)
-                    .setMaxCommanderSize(2),
+                    .setMaxCommanderSize(1),
             )
             gameInfo.setFreeMulliganCount(1)
         }

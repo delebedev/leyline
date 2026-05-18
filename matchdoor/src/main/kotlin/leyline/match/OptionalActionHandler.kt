@@ -2,7 +2,15 @@ package leyline.match
 
 import leyline.bridge.forge.PlayerController
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
+import leyline.game.annotations.AnnotationBuilder
+import leyline.game.bundle.GsmFrame
+import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.ZoneIds
+import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -72,8 +80,15 @@ class OptionalActionHandler(
             prompt.hostCard?.name ?: "unknown",
         )
 
+        val acceptedCommanderReturn = accepted && prompt.customPromptId == PromptIds.COMMANDER_RETURN_TO_COMMAND
+        if (acceptedCommanderReturn) {
+            prompt.temporaryRecipientInstanceId?.let { bridge.retireToLimbo(InstanceId(it)) }
+        }
         prompt.future.complete(accepted)
         bridge.awaitPriority()
+        if (acceptedCommanderReturn) {
+            sink.sendRealGameState(bridge)
+        }
         autoPass()
     }
 
@@ -88,7 +103,12 @@ class OptionalActionHandler(
             return
         }
 
-        val sourceId = bridge.getOrAllocInstanceId(ForgeCardId(hostCard.id)).value
+        val isCommanderReturnPrompt = prompt.customPromptId == PromptIds.COMMANDER_RETURN_TO_COMMAND
+        val hostCardId = ForgeCardId(hostCard.id)
+        val sourceId = bridge.getOrAllocInstanceId(hostCardId).value
+        val recipientId = if (isCommanderReturnPrompt) bridge.ids.reserveNextInstanceId().value else sourceId
+        val optionalSourceId = if (isCommanderReturnPrompt) recipientId else sourceId
+        if (isCommanderReturnPrompt) prompt.temporaryRecipientInstanceId = recipientId
 
         // For mid-resolution prompts (e.g. Madness: the card moves Hand→Exile via
         // replacement BEFORE the engine asks "cast for madness?"), force a full
@@ -99,40 +119,74 @@ class OptionalActionHandler(
             sink.sendRealGameState(bridge)
         }
 
-        val optionalMsg =
+        val optionalMsgBuilder =
             OptionalActionMessage
                 .newBuilder()
-                .setSourceId(sourceId)
-                .build()
+                .setSourceId(optionalSourceId)
+        if (isCommanderReturnPrompt) {
+            optionalMsgBuilder
+                .addOptionalActionTypes(CardMechanicType.ZoneTransfer_a57f)
+                .addRecipientIds(recipientId)
+        }
+        val optionalMsg = optionalMsgBuilder.build()
 
         // TODO: shock land ETB needs promptId 2233 + ReplacementEffect pAnn with
         // allocated affectorId as sourceId. Currently uses generic prompt for all,
         // unless overridden via prompt.customPromptId (e.g. Endure → ENDURE_PUT_COUNTERS).
-        val promptProto =
+        val promptBuilder =
             Prompt
                 .newBuilder()
                 .setPromptId(prompt.customPromptId ?: PromptIds.OPTIONAL_ACTION)
+        if (isCommanderReturnPrompt) {
+            promptBuilder.addParameters(
+                PromptParameter
+                    .newBuilder()
+                    .setParameterName("CardId")
+                    .setType(ParameterType.Number)
+                    .setNumberValue(0),
+            )
+        }
+        val promptProto =
+            promptBuilder
                 .addParameters(
                     PromptParameter
                         .newBuilder()
                         .setParameterName("CardId")
                         .setType(ParameterType.Number)
-                        .setNumberValue(sourceId),
+                        .setNumberValue(recipientId),
                 ).build()
 
         // Bare GSM diff with pendingMessageCount=1 — signals the client that
         // OptionalActionMessage follows. Without this, the client may process
         // the preceding GSM before the prompt arrives.
         val link = counters.counter.nextGameStateLink()
-        val pendingGsm =
+        val pendingGsmBuilder =
             GameStateMessage
                 .newBuilder()
                 .setType(GameStateType.Diff)
                 .setGameStateId(link.gsId)
                 .setPrevGameStateId(link.prevGsId)
                 .setPendingMessageCount(1)
-                .setUpdate(GameStateUpdate.SendAndRecord)
-                .build()
+        if (isCommanderReturnPrompt) {
+            val snap = GsmSnapshot.capture(ctx.game, bridge, "", link.gsId)
+            pendingGsmBuilder
+                .setTurnInfo(GsmFrame.from(snap).turnInfo())
+                .addAllTimers(PlayerMapper.buildTimers())
+                .setUpdate(GameStateUpdate.Send)
+            addCommanderGraveyardContext(pendingGsmBuilder, snap, hostCard.id, sourceId, recipientId)
+            val actions = ActionMapper.buildFromSnapshot(counters.seatId.value, snap, bridge)
+            for (action in actions.actionsList) {
+                pendingGsmBuilder.addActions(
+                    ActionInfo
+                        .newBuilder()
+                        .setSeatId(counters.seatId.value)
+                        .setAction(ActionMapper.stripActionForGsm(action)),
+                )
+            }
+        } else {
+            pendingGsmBuilder.setUpdate(GameStateUpdate.SendAndRecord)
+        }
+        val pendingGsm = pendingGsmBuilder.build()
 
         val gsmGre =
             sink.makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counters.counter.nextMsgId()) {
@@ -149,5 +203,67 @@ class OptionalActionHandler(
             }
 
         sink.sendBundledGRE(listOf(gsmGre, optionalGre))
+    }
+
+    private fun addCommanderGraveyardContext(
+        builder: GameStateMessage.Builder,
+        snap: GsmSnapshot,
+        forgeCardId: Int,
+        oldInstanceId: Int,
+        newInstanceId: Int,
+    ) {
+        val cardId = ForgeCardId(forgeCardId)
+        val bound = snap.boundCards[cardId] ?: return
+        val ownerSeat = bound.snapshot.owner.value
+        val graveyardZoneId = ZoneIds.graveyardOf(ownerSeat)
+
+        fun zoneWithContents(
+            zoneId: Int,
+            extraIds: List<Int> = emptyList(),
+            dropId: Int? = null,
+        ): ZoneInfo {
+            val zone = snap.zones[zoneId]
+            val contents =
+                zone
+                    ?.contents
+                    ?.map { ctx.bridge.getOrAllocInstanceId(it).value }
+                    ?.filter { it != dropId }
+                    .orEmpty() + extraIds
+            return ZoneInfo
+                .newBuilder()
+                .setZoneId(zoneId)
+                .setType(zone?.type ?: if (zoneId == ZoneIds.BATTLEFIELD) ZoneType.Battlefield else ZoneType.Graveyard)
+                .setVisibility(zone?.visibility ?: Visibility.Public)
+                .apply { zone?.owner?.let { setOwnerSeatId(it.value) } }
+                .addAllObjectInstanceIds(contents.distinct())
+                .build()
+        }
+
+        builder
+            .addZones(zoneWithContents(ZoneIds.BATTLEFIELD, dropId = oldInstanceId))
+            .addZones(zoneWithContents(graveyardZoneId, extraIds = listOf(newInstanceId)))
+            .addGameObjects(
+                ObjectMapper.buildFromSnapshot(
+                    bound.snapshot,
+                    newInstanceId,
+                    graveyardZoneId,
+                    ownerSeat,
+                    ctx.bridge.cardProto,
+                    Visibility.Public,
+                    parentLinkage = bound.parentLinkage,
+                ),
+            ).addAnnotations(
+                AnnotationBuilder.objectIdChanged(
+                    InstanceId(oldInstanceId),
+                    InstanceId(newInstanceId),
+                ).toBuilder().setId(ctx.bridge.nextAnnotationId()).build(),
+            ).addAnnotations(
+                AnnotationBuilder.zoneTransfer(
+                    InstanceId(newInstanceId),
+                    ZoneIds.BATTLEFIELD,
+                    graveyardZoneId,
+                    "Destroy",
+                ).toBuilder().setId(ctx.bridge.nextAnnotationId()).build(),
+            )
     }
 }

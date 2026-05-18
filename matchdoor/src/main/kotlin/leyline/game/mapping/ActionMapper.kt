@@ -2,6 +2,7 @@ package leyline.game.mapping
 
 import forge.ai.ComputerUtilMana
 import forge.card.CardStateName
+import forge.card.mana.ManaCost
 import forge.game.ability.ApiType
 import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
@@ -533,7 +534,7 @@ object ActionMapper {
                 if (rail != null) {
                     configureZoneCastRailShape(actionBuilder, sa, rail, bound, player)
                 } else {
-                    configureZoneCastFallback(actionBuilder, sa, bound)
+                    configureZoneCastFallback(actionBuilder, sa, bound, player)
                 }
                 builder.addActions(actionBuilder)
             }
@@ -684,13 +685,19 @@ object ActionMapper {
         actionBuilder: Action.Builder,
         sa: SpellAbility,
         bound: BoundCard?,
+        player: Player,
     ) {
         val altCost = sa.alternativeCost
         if (altCost == null) {
-            val cardData = bound?.data
-            if (cardData != null) {
-                for ((color, count) in cardData.manaCost) {
-                    actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
+            val effectiveCost = computeEffectiveCost(sa, player)
+            if (effectiveCost != null && !effectiveCost.isNoCost) {
+                addManaCostFromForge(effectiveCost, actionBuilder)
+            } else {
+                val cardData = bound?.data
+                if (cardData != null) {
+                    for ((color, count) in cardData.manaCost) {
+                        actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
+                    }
                 }
             }
         } else {
@@ -1621,7 +1628,20 @@ object ActionMapper {
         if (manaCost.isNoCost) return null
         val beingPaid = ManaCostBeingPaid(manaCost)
         CostAdjustment.adjust(beingPaid, sa, player, null, true, false)
-        return beingPaid.toManaCost()
+        val effective = beingPaid.toManaCost()
+
+        val hostCard = sa.hostCard
+        val commanderTax =
+            if (hostCard?.isCommander == true && hostCard.zone?.zoneType == ForgeZoneType.Command) {
+                player.getCommanderCast(hostCard.realCommander ?: hostCard) * 2
+            } else {
+                0
+            }
+        if (commanderTax > 0 && effective.genericCost < manaCost.genericCost + commanderTax) {
+            return ManaCost.combine(effective, ManaCost.get(commanderTax))
+        }
+
+        return effective
     }
 
     /** Aggregate colored shards from a Forge [ManaCost] into a color→count map. */

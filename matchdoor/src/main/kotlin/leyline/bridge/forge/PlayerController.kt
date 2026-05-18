@@ -261,6 +261,7 @@ class PlayerController(
          *  (e.g. Endure → ENDURE_PUT_COUNTERS) that ride the same Yes/No surface
          *  but need a different rendered prompt text. */
         val customPromptId: Int? = null,
+        var temporaryRecipientInstanceId: Int? = null,
     )
 
     data class NumericInputPrompt(
@@ -646,6 +647,18 @@ class PlayerController(
         affected: GameEntity?,
         prompt: String?,
     ): Boolean {
+        if (replacementEffect.hasParam("CommanderMoveReplacement")) {
+            val hostCard = (affected as? Card) ?: replacementEffect.hostCard
+            return optionalActionGate.await(
+                wrapper = null,
+                hostCard = hostCard,
+                forceSnapshotBeforePrompt = true,
+                defaultOnTimeout = true,
+                logContext = "confirmReplacementEffect:Commander",
+                customPromptId = PromptIds.COMMANDER_RETURN_TO_COMMAND,
+            )
+        }
+
         // PCHuman uses GuiBase + InputConfirm
         val message = prompt ?: replacementEffect.toString()
         val request =
