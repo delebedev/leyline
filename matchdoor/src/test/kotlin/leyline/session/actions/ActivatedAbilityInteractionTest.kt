@@ -39,4 +39,34 @@ class ActivatedAbilityInteractionTest :
             passUntil(maxPasses = 10) { ai.life < 5 }.shouldBeTrue()
             ai.life shouldBe 4
         }
+
+        test("modal activated sacrifice ability asks mode before target and costs") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Goblin Cratermaker;Mountain;Mountain
+                humanlibrary=Mountain
+                aibattlefield=Centaur Courser
+                ailibrary=Mountain
+                """,
+                name = "Cratermaker Modal Activate",
+            )
+
+            val slice = after { activateAbility("Goblin Cratermaker").shouldBeTrue() }
+
+            slice.expectNoPayCostsReq()
+            slice.expectNoSelectTargetsReq()
+            val modalReq =
+                slice
+                    .expectOneCastingTimeOptionsReq()
+                    .castingTimeOptionReqList
+                    .single()
+                    .modalReq
+            modalReq.modalOptionsList.map { it.grpId } shouldBe listOf(121501)
+            modalReq.excludedOptionsList.map { it.grpId } shouldBe listOf(121502)
+        }
     })
