@@ -34,7 +34,52 @@ class StateMapperTrainingTest :
                 )
             val events = listOf(trainingCounter, trainingResolved, unrelatedCounter, unrelatedResolved)
 
-            StateMapper.trainingResolutionForCounterEvent(0, trainingCounter, events)?.abilityForgeId shouldBe 10
-            StateMapper.trainingResolutionForCounterEvent(2, unrelatedCounter, events).shouldBeNull()
+            StateMapper.keywordCounterResolutionForEvent(0, trainingCounter, events)?.abilityForgeId shouldBe 10
+            StateMapper.keywordCounterResolutionForEvent(2, unrelatedCounter, events).shouldBeNull()
+        }
+
+        test("Backup counter on another target inherits resolving ability affector") {
+            val source = ForgeCardId(101)
+            val target = ForgeCardId(202)
+            val backupOne = 166477
+            val counter = GameEvent.CountersChanged(target, "P1P1", oldCount = 0, newCount = 1)
+            val resolved =
+                GameEvent.SpellResolved(
+                    cardId = source,
+                    hasFizzled = false,
+                    isTrigger = true,
+                    abilityForgeId = 12,
+                    abilityGrpId = backupOne,
+                )
+            val events = listOf(counter, resolved)
+
+            StateMapper
+                .keywordCounterResolutionForEvent(0, counter, events) { it.abilityGrpId == backupOne }
+                ?.abilityForgeId shouldBe 12
+        }
+
+        test("earlier counter before Backup resolution does not inherit affector when another counter intervenes") {
+            val source = ForgeCardId(101)
+            val firstTarget = ForgeCardId(202)
+            val secondTarget = ForgeCardId(303)
+            val backupOne = 166477
+            val firstCounter = GameEvent.CountersChanged(firstTarget, "P1P1", oldCount = 0, newCount = 1)
+            val secondCounter = GameEvent.CountersChanged(secondTarget, "P1P1", oldCount = 0, newCount = 1)
+            val resolved =
+                GameEvent.SpellResolved(
+                    cardId = source,
+                    hasFizzled = false,
+                    isTrigger = true,
+                    abilityForgeId = 12,
+                    abilityGrpId = backupOne,
+                )
+            val events = listOf(firstCounter, secondCounter, resolved)
+
+            StateMapper
+                .keywordCounterResolutionForEvent(0, firstCounter, events) { it.abilityGrpId == backupOne }
+                .shouldBeNull()
+            StateMapper
+                .keywordCounterResolutionForEvent(1, secondCounter, events) { it.abilityGrpId == backupOne }
+                ?.abilityForgeId shouldBe 12
         }
     })

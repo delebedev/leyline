@@ -58,6 +58,9 @@ object PromptIds {
     /** Mutate target group — "Target a non-Human creature you own." */
     const val MUTATE_TARGET = 141
 
+    /** Mentor target group — "target attacking creature with lesser power." */
+    const val MENTOR_TARGET = 2247
+
     /**
      * Stock Up's outer-prompt loc key — "Put two of them into your hand."
      *

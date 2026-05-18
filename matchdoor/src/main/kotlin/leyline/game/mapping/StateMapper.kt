@@ -1234,7 +1234,7 @@ object StateMapper {
                         }
                     leyline.bridge.types.GrpId(grpId)
                 },
-                counterAffectorResolver = { eventIndex, ev -> counterAffectorFor(eventIndex, ev, events, frameIds) },
+                counterAffectorResolver = { eventIndex, ev -> counterAffectorFor(eventIndex, ev, events, frameIds, snap, bridge) },
                 playerCounterAffectorResolver = { eventIndex, ev -> playerCounterAffectorFor(eventIndex, ev, events, frameIds) },
                 stackInstanceResolver = { ev -> castStackIidsByCard[ev.cardId] },
                 castSpellTransferCardIds = castSpellTransferCardIds,
@@ -1303,7 +1303,7 @@ object StateMapper {
         val delayedTriggerAffecteesPersistent = delayedTriggerAffecteesPersistentFromSnap
 
         // TargetSpec pAnn for each targeted spell/ability on the stack
-        val targetSpecPersistent = buildTargetSpecAnnotations(bridge, frameIds)
+        val targetSpecPersistent = buildTargetSpecAnnotations(bridge, frameIds, snap)
         val (mutateMergeTransient, mutateMergePersistent) = buildMutateMergeAnnotations(snap, bridge, frameIds)
         annotations.addAll(mutateMergeTransient)
 
@@ -1923,25 +1923,33 @@ object StateMapper {
         ev: GameEvent.CountersChanged,
         events: List<GameEvent>,
         frameIds: FrameIdResolver,
+        snap: GsmSnapshot,
+        bridge: GameBridge,
     ): InstanceId? {
         if (ev.affectorAbilityForgeId != 0 && ev.affectorCardId != null) {
             return InstanceId(stackAbilityIidFor(ev.affectorAbilityForgeId, ev.affectorCardId, frameIds))
         }
-        val resolvedTraining = trainingResolutionForCounterEvent(eventIndex, ev, events) ?: return null
-        return InstanceId(stackAbilityIidFor(resolvedTraining.abilityForgeId, resolvedTraining.cardId, frameIds))
+        val resolved =
+            keywordCounterResolutionForEvent(eventIndex, ev, events) { resolved ->
+                isCounterAffectingKeywordResolution(resolved, snap, bridge)
+            } ?: return null
+        return InstanceId(stackAbilityIidFor(resolved.abilityForgeId, resolved.cardId, frameIds))
     }
 
-    internal fun trainingResolutionForCounterEvent(
+    internal fun keywordCounterResolutionForEvent(
         eventIndex: Int,
         ev: GameEvent.CountersChanged,
         events: List<GameEvent>,
+        isCounterAffectingResolution: (GameEvent.SpellResolved) -> Boolean = { resolved ->
+            resolved.abilityGrpId in counterAffectingKeywordTriggerIds
+        },
     ): GameEvent.SpellResolved? {
         if (ev.counterType != "P1P1" && ev.counterType != "+1/+1") return null
         for (next in events.asSequence().drop(eventIndex + 1)) {
             when {
-                next is GameEvent.CountersChanged && next.cardId == ev.cardId -> return null
-                next is GameEvent.SpellResolved && next.cardId == ev.cardId -> {
-                    if (next.isTrigger && next.abilityGrpId == KeywordAbilityIds.TRAINING) {
+                next is GameEvent.CountersChanged -> return null
+                next is GameEvent.SpellResolved -> {
+                    if (next.isTrigger && isCounterAffectingResolution(next)) {
                         return next
                     }
                     return null
@@ -1949,6 +1957,16 @@ object StateMapper {
             }
         }
         return null
+    }
+
+    private fun isCounterAffectingKeywordResolution(
+        resolved: GameEvent.SpellResolved,
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+    ): Boolean {
+        if (resolved.abilityGrpId in counterAffectingKeywordTriggerIds) return true
+        val sourceGrpId = snap.boundCards[resolved.cardId]?.snapshot?.grpId ?: return false
+        return bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, KeywordAbilityIds.BACKUP) == resolved.abilityGrpId
     }
 
     private fun playerCounterAffectorFor(
@@ -1970,7 +1988,16 @@ object StateMapper {
     /** Keywords whose triggers we want to surface on the wire as
      *  `ResolutionStart`/`Complete grpid = <keyword ability id>`. Extend as new
      *  combat/ETB/state-trigger keywords ship and need precise grpId fidelity. */
-    private val keywordTriggerIds = listOf(KeywordAbilityIds.MOBILIZE, KeywordAbilityIds.DECAYED)
+    private val keywordTriggerIds =
+        listOf(
+            KeywordAbilityIds.BACKUP,
+            KeywordAbilityIds.MENTOR,
+            KeywordAbilityIds.MOBILIZE,
+            KeywordAbilityIds.DECAYED,
+        )
+
+    private val counterAffectingKeywordTriggerIds =
+        setOf(KeywordAbilityIds.BACKUP, KeywordAbilityIds.MENTOR, KeywordAbilityIds.TRAINING)
 
     /** Forge id of the source card that spawned [tokenForgeId], or null when
      *  the token has no `tokenSpawningAbility` (puzzle-injected tokens, copy
@@ -2053,6 +2080,7 @@ object StateMapper {
     private fun buildTargetSpecAnnotations(
         bridge: GameBridge,
         frameIds: FrameIdResolver,
+        snap: GsmSnapshot,
     ): List<AnnotationInfo> {
         // Drain target picks recorded during selectTargetsInteractively.
         // The spell may have already resolved by now (auto-pass), so we can't
@@ -2100,16 +2128,29 @@ object StateMapper {
                     spec.targetSeatId != null -> InstanceId(spec.targetSeatId)
                     else -> return@mapNotNull null
                 }
-            val grpId = GrpId(bridge.cardRepository.findGrpIdByName(spec.spellName) ?: 0)
+            val abilityGrpId = targetSpecAbilityGrpId(spec, bridge, snap)
             AnnotationBuilder.targetSpec(
                 instanceId = targetIid,
                 affectorId = affectorIid,
-                abilityGrpId = GrpId(spec.abilityGrpId ?: grpId.value),
+                abilityGrpId = GrpId(abilityGrpId),
                 index = spec.index,
                 promptId = spec.promptId ?: 0,
                 promptParameters = affectorIid.value,
             )
         }
+    }
+
+    private fun targetSpecAbilityGrpId(
+        spec: leyline.bridge.handoff.InteractivePromptBridge.PendingTarget,
+        bridge: GameBridge,
+        snap: GsmSnapshot,
+    ): Int {
+        spec.abilityGrpId?.let { return it }
+        if (spec.isTriggeredAbility && spec.forgeAbilityId != 0) {
+            val resolved = abilityGrpIdForSource(ForgeCardId(spec.spellForgeCardId), spec.forgeAbilityId, bridge, snap)
+            if (resolved != 0) return resolved
+        }
+        return bridge.cardRepository.findGrpIdByName(spec.spellName) ?: 0
     }
 
     private fun buildMutateMergeAnnotations(

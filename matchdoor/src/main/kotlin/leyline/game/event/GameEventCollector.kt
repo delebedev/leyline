@@ -320,9 +320,20 @@ class GameEventCollector(
         sa: SpellAbility?,
     ): Int {
         if (sa == null) return 0
-        specialAbilityGrpIdFor(card, sa)?.let { return it }
-        decayedAbilityGrpIdFor(card, sa)?.let { return it }
+        return specialAbilityGrpIdFor(card, sa)
+            ?: decayedAbilityGrpIdFor(card, sa)
+            ?: namedAbilityGrpIdFor(card, sa)
+    }
+
+    private fun namedAbilityGrpIdFor(
+        card: Card,
+        sa: SpellAbility,
+    ): Int {
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
+        if (isBackupTrigger(sa)) {
+            return bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.BACKUP) ?: 0
+        }
+        if (isMentorTrigger(sa)) return KeywordAbilityIds.MENTOR
         val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return 0
         val registry = bridge.abilityRegistryFor(card, cardData)
         sa.trigger?.id?.let { triggerId ->
@@ -330,6 +341,11 @@ class GameEventCollector(
         }
         return registry?.forSpellAbility(sa.id) ?: 0
     }
+
+    private fun isBackupTrigger(sa: SpellAbility): Boolean =
+        sa.isBackup || sa.trigger?.getParam("TriggerDescription")?.startsWith("Backup ") == true
+
+    private fun isMentorTrigger(sa: SpellAbility): Boolean = sa.trigger?.getParam("TriggerDescription")?.startsWith("Mentor") == true
 
     private fun specialAbilityGrpIdFor(
         card: Card,

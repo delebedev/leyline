@@ -1,0 +1,16 @@
+[metadata]
+Name:Mentor - Sunhome Stalwart
+Goal:Attack with Sunhome Stalwart and a smaller creature.
+Turns:5
+Difficulty:Easy
+Description:Attack with Sunhome Stalwart and Enduring Bondwarden so Mentor targets the smaller attacking creature and gives it a +1/+1 counter.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Sunhome Stalwart;Enduring Bondwarden;Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain

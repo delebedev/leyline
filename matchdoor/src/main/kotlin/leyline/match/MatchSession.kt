@@ -287,7 +287,7 @@ class MatchSession(
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
     override fun onSelectTargets(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
-            targetingHandler.onSelectTargets(greMsg)
+            targetingHandler.onSelectTargets(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */

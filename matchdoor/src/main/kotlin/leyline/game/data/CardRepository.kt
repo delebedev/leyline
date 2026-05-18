@@ -213,6 +213,7 @@ object KeywordAbilityIds {
     const val MADNESS = 36
     const val OVERLOAD = 97
     const val JUMP_START = 170
+    const val MENTOR = 171
     const val ESCAPE = 199
     const val MUTATE = 203
     const val FORETELL = 208
@@ -223,6 +224,7 @@ object KeywordAbilityIds {
     const val DISGUISE = 307
     const val IMPENDING = 352
     const val PLOT = 328
+    const val BACKUP = 287
     const val MOBILIZE = 363
     const val WARP = 371
     const val SNEAK = 394
