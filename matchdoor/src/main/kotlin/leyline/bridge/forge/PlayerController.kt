@@ -1064,10 +1064,7 @@ class PlayerController(
         num: Int,
         allowRepeat: Boolean,
     ): List<AbilitySub> {
-        if (!allowRepeat && min == num && num == possible.size) return possible
         if (possible.isEmpty()) return emptyList()
-
-        val labels = possible.map { it.description ?: it.toString() }
 
         // Derive structural data the session layer needs to resolve grpIds.
         // PlayerController doesn't import the card-DB layer (bridge → game
@@ -1084,6 +1081,12 @@ class PlayerController(
         // `possible` when modes are pruned (e.g. Spree's counter mode with no
         // stack target) — response indices then map to the wrong AbilitySub.
         val shape = deriveModalChoiceShape(sa, possible)
+
+        if (!allowRepeat && min == num && num == possible.size && shape.excludedFullIndices.orEmpty().isEmpty()) {
+            return possible
+        }
+
+        val labels = possible.map { it.description ?: it.toString() }
 
         val request =
             PromptRequest(

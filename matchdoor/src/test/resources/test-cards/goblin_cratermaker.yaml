@@ -1,0 +1,10 @@
+name: "Goblin Cratermaker"
+grpId: 68564
+titleId: 272805
+abilities:
+  - id: 121505
+    textId: 937499
+    category: 1
+    mana: "o1"
+    modalChildren: [121501, 121502]
+expansionCode: "GRN"
