@@ -82,7 +82,7 @@ object MechanicAnnotations {
      * **Pure function** — uses [idResolver] to map forgeCardId → instanceId.
      * Returns [MechanicAnnotationResult] with both transient and persistent annotations.
      */
-    @Suppress("CyclomaticComplexMethod", "LongMethod")
+    @Suppress("CyclomaticComplexMethod", "LongMethod", "LongParameterList")
     fun mechanicAnnotations(
         events: List<GameEvent>,
         manaPaidForgeCardIds: Set<ForgeCardId> = emptySet(),
@@ -92,6 +92,8 @@ object MechanicAnnotations {
         manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
         counterAffectorResolver: (Int, GameEvent.CountersChanged) -> InstanceId? = { _, _ -> null },
         playerCounterAffectorResolver: (Int, GameEvent.PlayerCountersChanged) -> InstanceId? = { _, _ -> null },
+        stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
+        castSpellTransferCardIds: Set<ForgeCardId> = emptySet(),
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
@@ -179,8 +181,22 @@ object MechanicAnnotations {
                 }
                 is GameEvent.SpellCast -> {
                     annotations.addAll(
-                        TransferAnnotations.castSpellEventAnnotations(ev, idResolver, manaAbilityGrpIdResolver),
+                        TransferAnnotations.castSpellEventAnnotations(
+                            ev,
+                            idResolver,
+                            manaAbilityGrpIdResolver,
+                            stackInstanceResolver,
+                        ),
                     )
+                    if (ev.cardId !in castSpellTransferCardIds) {
+                        persistent.addAll(
+                            TransferAnnotations.castSpellEventPersistentAnnotations(
+                                ev,
+                                idResolver,
+                                stackInstanceResolver,
+                            ),
+                        )
+                    }
                     log.debug(
                         "mechanic: spellCast iid={} payments={} adventure={} altCost={} trigger={}",
                         idResolver(ev.cardId).value,

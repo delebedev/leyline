@@ -228,6 +228,10 @@ object KeywordAbilityIds {
     const val MOBILIZE = 363
     const val WARP = 371
     const val SNEAK = 394
+    const val PARADIGM = 405
+
+    // Triggered ability row used by the recurring Paradigm copy trigger.
+    const val PARADIGM_DELAYED_TRIGGER = 205572
 
     // Single-row shared keyword ability ids (BaseId=0, every card references the same Id).
     const val CASCADE = 86
@@ -257,6 +261,7 @@ object KeywordAbilityIds {
             "IMPENDING" -> IMPENDING
             "MOBILIZE" -> MOBILIZE
             "DISGUISE" -> DISGUISE
+            "PARADIGM" -> PARADIGM
             else -> null
         }
 }

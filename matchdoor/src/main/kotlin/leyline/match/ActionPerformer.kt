@@ -336,6 +336,7 @@ class ActionPerformer(
 
         // Wait for engine to reach next priority stop
         bridge.awaitPriority()
+        autoPassEngine.drainPlayback()
 
         // leyline-jxa: LAND_PLAY must emit a standalone Diff GSM (no paired
         // ActionsAvailableReq) so its wire shape is update=SendAndRecord

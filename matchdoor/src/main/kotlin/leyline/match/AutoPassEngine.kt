@@ -195,7 +195,7 @@ class AutoPassEngine(
      * With the shared [MessageCounter], no counter syncing is needed — messages
      * produced by [GamePlayback] already have correct sequence numbers.
      */
-    private fun drainPlayback(): Boolean {
+    fun drainPlayback(): Boolean {
         val playback = ctx.bridge.playbacks[counters.seatId] ?: return false
         if (!playback.hasPendingMessages()) return false
         val batches = playback.drainQueue()

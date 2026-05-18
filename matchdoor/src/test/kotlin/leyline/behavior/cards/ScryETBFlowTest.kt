@@ -246,20 +246,20 @@ class ScryETBFlowTest :
         test("ETB trigger emits TriggeringObject persistent annotation, deleted on resolve") {
             startScryEtb()
             playLand().shouldBeTrue()
-            val req = harness.castSpellUntilGroupReq("Wall of Runes")
 
-            // Auto-pass defers the resolution bundle until after the scry
-            // GroupReq completes. The ETB trigger ability is created AND
-            // resolved in that same bundle, so TriggeringObject lands in
-            // persistentAnnotations and its id appears in
-            // diffDeletedPersistentAnnotationIds within the same flush.
+            val snap = messageSnapshot()
+            val req = harness.castSpellUntilGroupReq("Wall of Runes")
+            val triggerMessages = messagesSince(snap)
+
+            // The ETB trigger enters the stack before GroupReq, then the scry
+            // response resolves and deletes that same persistent annotation.
             val resolveMessages =
                 after {
                     harness.respondToScry(bottomInstanceIds = req.instanceIdsList, allInstanceIds = req.instanceIdsList)
                 }.messages
 
             val triggering =
-                resolveMessages
+                triggerMessages
                     .filter { it.hasGameStateMessage() }
                     .flatMap { it.gameStateMessage.persistentAnnotationsList }
                     .firstOrNull { ann -> AnnotationType.TriggeringObject in ann.typeList }

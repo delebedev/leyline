@@ -143,12 +143,20 @@ class EffectLifecycleTest :
             swiftspear.netPower shouldBeGreaterThan 1
             swiftspear.netToughness shouldBeGreaterThan 2
 
-            // Build full GSM to capture all annotations including effects
+            val playbackGsms =
+                b.playback
+                    ?.drainQueue()
+                    .orEmpty()
+                    .flatten()
+                    .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+
+            // Build full GSM as a final state sanity check; event-backed effect
+            // annotations may already have been emitted by playback split frames.
             val snapEff3 = GsmSnapshot.capture(game, b, "test", 2)
             val gsm2 = StateMapper.buildFromSnapshot(snapEff3, 2, "test", b).gsm
 
-            val allTransient = gsm2.annotationsList
-            val allPersistent = gsm2.persistentAnnotationsList
+            val allTransient = playbackGsms.flatMap { it.annotationsList } + gsm2.annotationsList
+            val allPersistent = playbackGsms.flatMap { it.persistentAnnotationsList } + gsm2.persistentAnnotationsList
 
             // --- LayeredEffectCreated transient ---
             val created =

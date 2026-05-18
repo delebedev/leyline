@@ -82,8 +82,8 @@ import java.util.concurrent.ConcurrentHashMap
  * retroactively correlating events here. See [GameEventCardSurveiled] for the pattern:
  * fire per-card from `Player.surveil()`, handle with a simple visit override.
  *
- * @param bridge used only to resolve Player → seatId and access prompt bridge flags
- *   (never mutated beyond flag consumption)
+ * @param bridge used to resolve Player → seatId, access prompt bridge flags, and
+ *   allocate stack iids for copy-cast events that can resolve before a snapshot
  */
 
 /** Immutable per-frame snapshot of game events in firing order. */
@@ -95,6 +95,7 @@ class FrameEventLog(
     }
 }
 
+@Suppress("LargeClass")
 class GameEventCollector(
     private val bridge: GameBridge,
 ) : IGameEventVisitor.Base<Unit>() {
@@ -133,6 +134,9 @@ class GameEventCollector(
 
     /** Ability grpIds paired with pending stack ability ids. */
     private val pendingAbilityGrpIds = ConcurrentHashMap<Int, Int>()
+
+    /** Stack iids for Paradigm copy casts, keyed by Forge SpellAbility id until resolution. */
+    private val pendingParadigmCopyStackIids = ConcurrentHashMap<Int, Int>()
 
     /** Non-consuming check: is this SpellAbility a triggered ability currently on the stack?
      *  Used by [leyline.game.GamePlayback] to decide whether to insert a per-step diff
@@ -176,7 +180,7 @@ class GameEventCollector(
         log.debug("event: LandPlayed card={} seat={} colors={}", ev.land().name, seat, colorOrdinals)
     }
 
-    @Suppress("CyclomaticComplexMethod")
+    @Suppress("CyclomaticComplexMethod", "LongMethod")
     override fun visit(ev: GameEventSpellAbilityCast) {
         val card = ev.sa().hostCard ?: return
         val seat = seatOf(card.controller) ?: return
@@ -213,8 +217,11 @@ class GameEventCollector(
             }
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
         val keywordId = castThroughAbilityKeywordId(topSa, saAltCost)
+        val isParadigmCopyCast = isParadigmCopyCast(topSa)
         val altCostAbilityGrpId =
-            if (topSa?.isCastFaceDown == true) {
+            if (isParadigmCopyCast) {
+                149
+            } else if (topSa?.isCastFaceDown == true) {
                 // Disguise / Morph face-down hand-cast SAs have no
                 // AlternativeCost enum entry — they're plain Forge `Spell`s
                 // with `setCastFaceDown(true)`. The CastingTimeOption pAnn
@@ -228,14 +235,22 @@ class GameEventCollector(
             } else {
                 0
             }
+        val castAbilityGrpId =
+            if (isParadigmCopyCast) {
+                KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+            } else {
+                altCostAbilityGrpId
+            }
         // Trigger / ability detection: StackItemView distinguishes spells from
         // Ability gameObjects (triggered or activated). SpellAbilityView does
         // not expose either flag.
         val isTrigger = ev.si()?.isTrigger ?: false
         val isAbility = ev.si()?.isAbility ?: false
+        val spellAbilityId = ev.sa()?.id ?: 0
+        val paradigmCopyStackIid = paradigmCopyStackIid(isParadigmCopyCast, spellAbilityId, ForgeCardId(card.id))
         // The SA's Forge id is needed for both triggered and activated abilities;
         // both surface through the AbilityInstance lifecycle path keyed on it.
-        val abilityForgeId = if (isTrigger || isAbility) ev.sa()?.id ?: 0 else 0
+        val abilityForgeId = if (isTrigger || isAbility) spellAbilityId else 0
         val abilityGrpId = if ((isTrigger || isAbility) && realCard != null) abilityGrpIdFor(realCard, topSa) else 0
         if (isTrigger && abilityForgeId != 0) {
             pendingTriggers[abilityForgeId] = ForgeCardId(card.id)
@@ -248,10 +263,10 @@ class GameEventCollector(
         // Hand=31; unearth → Graveyard=33; …). Triggered abilities' "source
         // zone" is wherever the source card lives, computed elsewhere.
         val activationZoneId =
-            if (isAbility && !isTrigger) {
-                resolveActivationZoneId(topSa, card.id, seat, evSaId = ev.sa()?.id ?: 0)
-            } else {
-                0
+            when {
+                isTrigger && realCard != null && isParadigmDelayedTrigger(topSa, realCard) -> ZoneIds.STACK
+                isAbility && !isTrigger -> resolveActivationZoneId(topSa, card.id, seat, evSaId = ev.sa()?.id ?: 0)
+                else -> 0
             }
         val (kickerAbilityGrpId, chosenX) = readCastingTimeOptionState(topSa, card)
         frame.add(
@@ -262,6 +277,8 @@ class GameEventCollector(
                 isAdventure = isAdventure,
                 isOmen = isOmen,
                 altCostAbilityGrpId = altCostAbilityGrpId,
+                castAbilityGrpId = castAbilityGrpId,
+                stackInstanceId = paradigmCopyStackIid,
                 isAbility = isAbility,
                 isTrigger = isTrigger,
                 abilityForgeId = abilityForgeId,
@@ -303,7 +320,8 @@ class GameEventCollector(
         sa: SpellAbility?,
     ): Int {
         if (sa == null) return 0
-        keywordAbilityGrpIdFor(card, sa)?.let { return it }
+        specialAbilityGrpIdFor(card, sa)?.let { return it }
+        decayedAbilityGrpIdFor(card, sa)?.let { return it }
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
         if (isBackupTrigger(sa)) {
             return bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.BACKUP) ?: 0
@@ -317,20 +335,48 @@ class GameEventCollector(
         return registry?.forSpellAbility(sa.id) ?: 0
     }
 
-    private fun keywordAbilityGrpIdFor(
-        card: Card,
-        sa: SpellAbility,
-    ): Int? =
-        when {
-            sa.isKeyword(Keyword.STATION) -> KeywordAbilityIds.STATION
-            (sa.isKeyword(Keyword.TRAINING) || sa.hasParam("Training")) && sa.api == ApiType.PutCounter -> KeywordAbilityIds.TRAINING
-            else -> decayedAbilityGrpIdFor(card, sa)
-        }
-
     private fun isBackupTrigger(sa: SpellAbility): Boolean =
         sa.isBackup || sa.trigger?.getParam("TriggerDescription")?.startsWith("Backup ") == true
 
     private fun isMentorTrigger(sa: SpellAbility): Boolean = sa.trigger?.getParam("TriggerDescription")?.startsWith("Mentor") == true
+
+    private fun specialAbilityGrpIdFor(
+        card: Card,
+        sa: SpellAbility,
+    ): Int? =
+        when {
+            isParadigmDelayedTrigger(sa, card) -> KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+            sa.isKeyword(Keyword.STATION) -> KeywordAbilityIds.STATION
+            (sa.isKeyword(Keyword.TRAINING) || sa.hasParam("Training")) && sa.api == ApiType.PutCounter ->
+                KeywordAbilityIds.TRAINING
+            else -> null
+        }
+
+    private fun isParadigmCopyCast(sa: SpellAbility?): Boolean {
+        val host = sa?.hostCard ?: return false
+        return sa.isCastFromPlayEffect &&
+            sa.hasParam("WithoutManaCost") &&
+            host.isToken &&
+            host.copiedPermanent?.hasKeyword("Paradigm") == true
+    }
+
+    private fun paradigmCopyStackIid(
+        isParadigmCopyCast: Boolean,
+        spellAbilityId: Int,
+        cardId: ForgeCardId,
+    ): Int {
+        if (!isParadigmCopyCast) return 0
+        val stackIid = bridge.getOrAllocInstanceId(cardId).value
+        if (spellAbilityId != 0) pendingParadigmCopyStackIids[spellAbilityId] = stackIid
+        return stackIid
+    }
+
+    private fun isParadigmDelayedTrigger(
+        sa: SpellAbility?,
+        card: Card,
+    ): Boolean =
+        sa?.trigger?.getParam("Execute") == "ParadigmCopy" &&
+            card.effectSource?.hasKeyword("Paradigm") == true
 
     private fun decayedAbilityGrpIdFor(
         card: Card,
@@ -484,6 +530,7 @@ class GameEventCollector(
         val isTrigger = pendingTriggers.remove(saId) != null
         val isAbility = !isTrigger && pendingActivations.remove(saId) != null
         val abilityGrpId = pendingAbilityGrpIds.remove(saId) ?: 0
+        val paradigmCopyStackIid = pendingParadigmCopyStackIids.remove(saId) ?: 0
         frame.add(
             GameEvent.SpellResolved(
                 cardId = ForgeCardId(card.id),
@@ -492,6 +539,8 @@ class GameEventCollector(
                 isAbility = isAbility,
                 abilityForgeId = if (isTrigger || isAbility) saId else 0,
                 abilityGrpId = if (isTrigger || isAbility) abilityGrpId else 0,
+                isParadigmCopy = !isTrigger && !isAbility && paradigmCopyStackIid != 0,
+                stackInstanceId = paradigmCopyStackIid,
             ),
         )
         log.debug(
@@ -670,16 +719,26 @@ class GameEventCollector(
     // -- Group B: annotation-producing events --
 
     override fun visit(ev: GameEventCardCounters) {
+        val cardId = ForgeCardId(ev.card().id)
+        val affectorAbilityForgeId = trainingTriggerAbilityIdFor(cardId) ?: 0
         frame.add(
             GameEvent.CountersChanged(
-                cardId = ForgeCardId(ev.card().id),
+                cardId = cardId,
                 counterType = ev.type().name,
                 oldCount = ev.oldValue(),
                 newCount = ev.newValue(),
+                affectorAbilityForgeId = affectorAbilityForgeId,
+                affectorCardId = cardId.takeIf { affectorAbilityForgeId != 0 },
             ),
         )
         log.debug("event: CountersChanged card={} {} {}→{}", ev.card().name, ev.type(), ev.oldValue(), ev.newValue())
     }
+
+    private fun trainingTriggerAbilityIdFor(cardId: ForgeCardId): Int? =
+        pendingTriggers.entries
+            .firstOrNull { (abilityId, sourceCardId) ->
+                sourceCardId == cardId && pendingAbilityGrpIds[abilityId] == KeywordAbilityIds.TRAINING
+            }?.key
 
     override fun visit(ev: GameEventPlayerPoisoned) {
         val seat = seatOf(ev.receiver()) ?: return

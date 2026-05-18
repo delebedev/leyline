@@ -303,7 +303,16 @@ open class BoardTestBase {
         game: Game,
         b: GameBridge,
         counter: MessageCounter,
-    ): BundleBuilder.BundleResult = bundleBuilder(b).postAction(game, counter)
+    ): BundleBuilder.BundleResult {
+        val playbackMessages =
+            b.playback
+                ?.drainQueue()
+                .orEmpty()
+                .flatten()
+        val postAction = bundleBuilder(b).postAction(game, counter)
+        if (playbackMessages.isEmpty()) return postAction
+        return BundleBuilder.BundleResult(playbackMessages + postAction.messages)
+    }
 
     /** Build a gameStart bundle (phaseTransitionDiff) with standard test constants. */
     fun gameStart(
