@@ -5,6 +5,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.game.data.BasicLandAbilities
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.mapping.FrameIdResolver
@@ -47,6 +48,8 @@ data class AppliedTransfer(
     /** Non-zero when this CastSpell transfer used an alternate cost (Madness, Flashback,
      *  Warp, Cycling, Impending). Carries the client ability grpId for the alt-cost. */
     val altCostAbilityGrpId: Int = 0,
+    /** Cast-through ability identity when it differs from [altCostAbilityGrpId]. */
+    val castAbilityGrpId: Int = altCostAbilityGrpId,
     /** Non-zero when the cast paid Kicker. Carries the per-card Kicker ability grpId. */
     val kickerAbilityGrpId: Int = 0,
     /** Non-zero when the cast chose an X value. Drives CastingTimeOption type=ChooseX. */
@@ -194,6 +197,7 @@ object ZoneTransferDetector {
                 forgeCardKnown = { fid ->
                     bridge.getGame()?.let { findCard(it, fid) } != null
                 },
+                paradigmSourceIidLookup = { fid -> bridge.paradigmSourceStackIidFor(fid) },
             )
         return result.copy(idReallocations = plannedReallocs.toList())
     }
@@ -238,6 +242,7 @@ object ZoneTransferDetector {
          *  unrelated card ids when no in-window event disambiguates. Defaults to `true` for
          *  the legacy callers that don't know the difference. */
         forgeCardKnown: (ForgeCardId) -> Boolean = { true },
+        paradigmSourceIidLookup: (ForgeCardId) -> Int? = { null },
     ): TransferResult {
         val patchedObjects = gameObjects.toMutableList()
         val patchedZones = zones.toMutableList()
@@ -253,8 +258,27 @@ object ZoneTransferDetector {
                     zoneRecordings.add(obj.instanceId to obj.zoneId)
                     continue
                 }
-                val forgeCardId = forgeIdLookup(InstanceId(obj.instanceId))
-                val baseCategory = eventOrInferredCategory(forgeCardId, events, obj, prevZone, obj.zoneId)
+                val forgeCardId = forgeIdLookup(InstanceId(obj.instanceId)) ?: paradigmCopyCardIdFor(obj.instanceId, events)
+                if (isCollapsedParadigmOriginal(obj, prevZone, forgeCardId, events)) {
+                    val collapsedForgeCardId = forgeCardId ?: continue
+                    addCollapsedParadigmOriginalTransfers(
+                        obj = obj,
+                        objectIndex = i,
+                        prevZone = prevZone,
+                        forgeCardId = collapsedForgeCardId,
+                        events = events,
+                        patchedObjects = patchedObjects,
+                        patchedZones = patchedZones,
+                        transfers = transfers,
+                        retiredIds = retiredIds,
+                        zoneRecordings = zoneRecordings,
+                        idAllocator = idAllocator,
+                        idLookup = idLookup,
+                        manaAbilityGrpIdResolver = manaAbilityGrpIdResolver,
+                    )
+                    continue
+                }
+                val baseCategory = categoryForTransfer(obj, prevZone, obj.zoneId, forgeCardId, events)
                 // Foretell override: a Hand→Exile transfer where the destination card
                 // is foretold (Card.foretold==true && Card.isInZone(Exile)) is the
                 // foretell action, not a generic Exile. Forge fires no card-specific
@@ -344,8 +368,15 @@ object ZoneTransferDetector {
                     } ?: emptyList()
                 val isAdventureCast = spellCastEvent?.isAdventure == true
                 val altCostAbilityGrpId = spellCastEvent?.altCostAbilityGrpId ?: 0
+                val castAbilityGrpId = spellCastEvent?.castAbilityGrpId ?: altCostAbilityGrpId
                 val kickerAbilityGrpId = spellCastEvent?.kickerAbilityGrpId ?: 0
                 val chosenX = spellCastEvent?.chosenX ?: 0
+                val transferAffectorId =
+                    if (category == TransferCategory.CastSpell && spellCastEvent?.isParadigmCopyCastEvent() == true) {
+                        paradigmDelayedTriggerIid(events, idLookup)
+                    } else {
+                        affectorId
+                    }
 
                 transfers.add(
                     AppliedTransfer(
@@ -357,11 +388,12 @@ object ZoneTransferDetector {
                         forgeCardId = forgeCardId,
                         grpId = obj.grpId,
                         ownerSeatId = obj.ownerSeatId,
-                        affectorId = affectorId,
+                        affectorId = transferAffectorId,
                         colorOrdinals = colorOrdinals,
                         manaPayments = manaPayments,
                         isAdventureCast = isAdventureCast,
                         altCostAbilityGrpId = altCostAbilityGrpId,
+                        castAbilityGrpId = castAbilityGrpId,
                         kickerAbilityGrpId = kickerAbilityGrpId,
                         chosenX = chosenX,
                     ),
@@ -431,6 +463,7 @@ object ZoneTransferDetector {
                 idLookup,
                 events,
                 forgeCardKnown,
+                paradigmSourceIidLookup,
             )
         val (disappearances, disappearedRetiredIds) =
             detectStackAbilityDisappearances(
@@ -449,6 +482,23 @@ object ZoneTransferDetector {
             retiredIds.add(id)
             appendToZone(patchedZones, ZoneIds.LIMBO, id)
         }
+
+        detectEventOnlyParadigmCopyCasts(patchedObjects, previousZones, events, forgeIdLookup, idLookup).forEach { transfer ->
+            transfers.add(transfer)
+            zoneRecordings.add(transfer.newId to transfer.destZoneId)
+        }
+        detectCollapsedParadigmCopyTransfers(
+            events = events,
+            previousZones = previousZones,
+            patchedObjects = patchedObjects,
+            transfers = transfers,
+            patchedZones = patchedZones,
+            retiredIds = retiredIds,
+            zoneRecordings = zoneRecordings,
+            idAllocator = idAllocator,
+            idLookup = idLookup,
+            grpIdResolver = grpIdResolver,
+        )
 
         // Record zones for instanceIds that appear only in zone objectInstanceIds
         // but not in gameObjects (e.g. library cards — hidden, no GameObjectInfo).
@@ -471,6 +521,200 @@ object ZoneTransferDetector {
             stackAbilityDisappearances = disappearances,
         )
     }
+
+    private fun detectEventOnlyParadigmCopyCasts(
+        objects: List<GameObjectInfo>,
+        previousZones: Map<Int, Int>,
+        events: List<GameEvent>,
+        forgeIdLookup: (InstanceId) -> ForgeCardId?,
+        idLookup: (ForgeCardId) -> InstanceId,
+    ): List<AppliedTransfer> {
+        val affectorId = paradigmDelayedTriggerIid(events, idLookup).takeIf { it != 0 } ?: paradigmDelayedTriggerIid(objects)
+        val copyCastIds =
+            events
+                .filterIsInstance<GameEvent.SpellCast>()
+                .filter {
+                    !it.isAbility &&
+                        !it.isTrigger &&
+                        it.altCostAbilityGrpId == 149 &&
+                        it.castAbilityGrpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+                }.map { it.cardId }
+                .toSet()
+        val copyCastsWithStackIids =
+            events
+                .filterIsInstance<GameEvent.SpellCast>()
+                .filter { it.isParadigmCopyCastEvent() && it.stackInstanceId != 0 }
+                .map { it.cardId }
+                .toSet()
+        return objects.mapNotNull { obj ->
+            if (obj.zoneId != ZoneIds.STACK) return@mapNotNull null
+            if (previousZones.containsKey(obj.instanceId)) return@mapNotNull null
+            val forgeCardId = forgeIdLookup(InstanceId(obj.instanceId)) ?: return@mapNotNull null
+            if (forgeCardId in copyCastsWithStackIids) return@mapNotNull null
+            val isParadigmStackCopy = obj.isCopy && obj.hasParadigmAbility()
+            if (forgeCardId !in copyCastIds && !isParadigmStackCopy) return@mapNotNull null
+            AppliedTransfer(
+                origId = obj.instanceId,
+                newId = obj.instanceId,
+                category = TransferCategory.CastSpell,
+                srcZoneId = ZoneIds.EXILE,
+                destZoneId = ZoneIds.STACK,
+                forgeCardId = forgeCardId,
+                grpId = obj.grpId,
+                ownerSeatId = obj.ownerSeatId,
+                affectorId = affectorId,
+                altCostAbilityGrpId = 149,
+                castAbilityGrpId = KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER,
+            )
+        }
+    }
+
+    @Suppress("LongParameterList")
+    private fun detectCollapsedParadigmCopyTransfers(
+        events: List<GameEvent>,
+        previousZones: Map<Int, Int>,
+        patchedObjects: MutableList<GameObjectInfo>,
+        transfers: MutableList<AppliedTransfer>,
+        patchedZones: MutableList<ZoneInfo>,
+        retiredIds: MutableList<Int>,
+        zoneRecordings: MutableList<Pair<Int, Int>>,
+        idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
+        idLookup: (ForgeCardId) -> InstanceId,
+        grpIdResolver: (ForgeCardId) -> GrpId,
+    ) {
+        val affectorId = paradigmDelayedTriggerIid(events, idLookup)
+        val resolvedCopyIds =
+            events
+                .filterIsInstance<GameEvent.SpellResolved>()
+                .filter { it.isParadigmCopy && !it.hasFizzled && it.stackInstanceId != 0 }
+                .associateBy { it.cardId }
+        val stackIdsByCard = mutableMapOf<ForgeCardId, Int>()
+        for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isParadigmCopyCastEvent() }) {
+            val currentId = cast.stackInstanceId
+            if (currentId == 0) continue
+            if (previousZones[currentId] == ZoneIds.STACK) continue
+            val existingCastIndex = transfers.indexOfFirst { it.forgeCardId == cast.cardId && it.category == TransferCategory.CastSpell }
+            if (existingCastIndex >= 0) {
+                val existingCast = transfers[existingCastIndex]
+                stackIdsByCard[cast.cardId] = existingCast.newId
+                transfers[existingCastIndex] =
+                    existingCast.copy(
+                        affectorId = existingCast.affectorId.takeIf { it != 0 } ?: affectorId,
+                        altCostAbilityGrpId = existingCast.altCostAbilityGrpId.takeIf { it != 0 } ?: 149,
+                        castAbilityGrpId =
+                            existingCast.castAbilityGrpId
+                                .takeIf { it != 0 }
+                                ?: KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER,
+                    )
+                continue
+            }
+            val handoff = ZoneHandoff.fromRealloc(paradigmCopyStackRealloc(cast.cardId, currentId, idAllocator), ZoneIds.STACK)
+            val exileId = handoff.realloc.old.value
+            val stackId = handoff.realloc.new.value
+            stackIdsByCard[cast.cardId] = stackId
+            retiredIds.add(exileId)
+            appendToZone(patchedZones, ZoneIds.LIMBO, exileId)
+            patchedObjects.indexOfFirst { it.instanceId == currentId }.takeIf { it >= 0 }?.let { index ->
+                patchedObjects[index] = patchedObjects[index].toBuilder().setInstanceId(stackId).build()
+            }
+            patchZoneInstanceId(patchedZones, ZoneIds.STACK, currentId, stackId)
+            transfers.add(
+                AppliedTransfer(
+                    origId = exileId,
+                    newId = stackId,
+                    category = TransferCategory.CastSpell,
+                    srcZoneId = ZoneIds.EXILE,
+                    destZoneId = ZoneIds.STACK,
+                    forgeCardId = cast.cardId,
+                    grpId = grpIdResolver(cast.cardId).value,
+                    ownerSeatId = cast.seatId.value,
+                    affectorId = affectorId,
+                    altCostAbilityGrpId = 149,
+                    castAbilityGrpId = KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER,
+                ),
+            )
+            if (cast.cardId !in resolvedCopyIds) zoneRecordings.add(stackId to ZoneIds.STACK)
+        }
+
+        for (resolved in resolvedCopyIds.values) {
+            val stackId = stackIdsByCard[resolved.cardId] ?: resolved.stackInstanceId
+            if (transfers.any { it.origId == stackId && it.srcZoneId == ZoneIds.STACK && it.destZoneId == ZoneIds.EXILE }) {
+                continue
+            }
+            val handoff = ZoneHandoff.fromRealloc(idAllocator(resolved.cardId), ZoneIds.EXILE)
+            val exileId = handoff.realloc.new.value
+            transfers.add(
+                AppliedTransfer(
+                    origId = stackId,
+                    newId = exileId,
+                    category = TransferCategory.Exile,
+                    srcZoneId = ZoneIds.STACK,
+                    destZoneId = ZoneIds.EXILE,
+                    forgeCardId = resolved.cardId,
+                    grpId = grpIdResolver(resolved.cardId).value,
+                    ownerSeatId = 0,
+                ),
+            )
+            retiredIds.add(stackId)
+            appendToZone(patchedZones, ZoneIds.LIMBO, stackId)
+            appendToZone(patchedZones, ZoneIds.EXILE, exileId)
+            zoneRecordings.add(exileId to ZoneIds.EXILE)
+        }
+    }
+
+    private fun GameEvent.SpellCast.isParadigmCopyCastEvent(): Boolean =
+        !isAbility &&
+            !isTrigger &&
+            altCostAbilityGrpId == 149 &&
+            castAbilityGrpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+
+    private fun paradigmCopyStackRealloc(
+        cardId: ForgeCardId,
+        currentStackId: Int,
+        idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
+    ): InstanceIdRegistry.IdReallocation {
+        val first = idAllocator(cardId)
+        if (first.old.value != first.new.value || first.new.value != currentStackId) return first
+
+        val second = idAllocator(cardId)
+        return InstanceIdRegistry.IdReallocation(InstanceId(currentStackId), second.new)
+    }
+
+    private fun paradigmCopyCardIdFor(
+        instanceId: Int,
+        events: List<GameEvent>,
+    ): ForgeCardId? =
+        events
+            .filterIsInstance<GameEvent.SpellCast>()
+            .firstOrNull { it.stackInstanceId == instanceId && it.isParadigmCopyCastEvent() }
+            ?.cardId
+
+    private fun paradigmDelayedTriggerIid(
+        events: List<GameEvent>,
+        idLookup: (ForgeCardId) -> InstanceId,
+    ): Int {
+        val abilityForgeId =
+            events
+                .filterIsInstance<GameEvent.SpellCast>()
+                .firstOrNull { it.isTrigger && it.abilityGrpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER }
+                ?.abilityForgeId
+                ?: events
+                    .filterIsInstance<GameEvent.SpellResolved>()
+                    .firstOrNull { it.isTrigger && it.abilityGrpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER }
+                    ?.abilityForgeId
+        return abilityForgeId
+            ?.takeIf { it != 0 }
+            ?.let { idLookup(FrameIdResolver.triggerStackAbilityForgeId(it)).value }
+            ?: 0
+    }
+
+    private fun paradigmDelayedTriggerIid(objects: List<GameObjectInfo>): Int =
+        objects
+            .firstOrNull {
+                it.zoneId == ZoneIds.STACK &&
+                    it.type == GameObjectType.Ability &&
+                    it.grpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+            }?.instanceId ?: 0
 
     /** Infer category for a zone transfer annotation from zone IDs. */
     @Suppress("CyclomaticComplexMethod", "UnusedParameter")
@@ -513,6 +757,29 @@ object ZoneTransferDetector {
             else -> TransferCategory.ZoneTransfer
         }
 
+    private fun categoryForTransfer(
+        obj: GameObjectInfo,
+        srcZone: Int,
+        destZone: Int,
+        forgeCardId: ForgeCardId?,
+        events: List<GameEvent>,
+    ): TransferCategory {
+        if (srcZone == ZoneIds.STACK && destZone == ZoneIds.EXILE && isParadigmStackSpell(obj, forgeCardId, events)) {
+            return TransferCategory.Exile
+        }
+        return eventOrInferredCategory(forgeCardId, events, obj, srcZone, destZone)
+    }
+
+    private fun isParadigmStackSpell(
+        obj: GameObjectInfo,
+        forgeCardId: ForgeCardId?,
+        events: List<GameEvent>,
+    ): Boolean =
+        obj.hasParadigmAbility() ||
+            events.any { it is GameEvent.SpellResolved && it.cardId == forgeCardId && it.isParadigmCopy }
+
+    private fun GameObjectInfo.hasParadigmAbility(): Boolean = uniqueAbilitiesList.any { it.grpId == KeywordAbilityIds.PARADIGM }
+
     private fun eventOrInferredCategory(
         forgeCardId: ForgeCardId?,
         events: List<GameEvent>,
@@ -535,6 +802,85 @@ object ZoneTransferDetector {
     }
 
     private val CAST_OR_RESOLVE = setOf(TransferCategory.CastSpell, TransferCategory.Resolve)
+
+    private fun isCollapsedParadigmOriginal(
+        obj: GameObjectInfo,
+        prevZone: Int,
+        forgeCardId: ForgeCardId?,
+        events: List<GameEvent>,
+    ): Boolean {
+        val handToExile = (prevZone == ZoneIds.P1_HAND || prevZone == ZoneIds.P2_HAND) && obj.zoneId == ZoneIds.EXILE
+        if (!handToExile || forgeCardId == null || !obj.hasParadigmAbility()) return false
+        return events.any { it is GameEvent.SpellCast && it.cardId == forgeCardId && !it.isAbility && !it.isTrigger } &&
+            events.any { it is GameEvent.SpellResolved && it.cardId == forgeCardId && !it.hasFizzled && !it.isParadigmCopy }
+    }
+
+    @Suppress("LongParameterList")
+    private fun addCollapsedParadigmOriginalTransfers(
+        obj: GameObjectInfo,
+        objectIndex: Int,
+        prevZone: Int,
+        forgeCardId: ForgeCardId,
+        events: List<GameEvent>,
+        patchedObjects: MutableList<GameObjectInfo>,
+        patchedZones: MutableList<ZoneInfo>,
+        transfers: MutableList<AppliedTransfer>,
+        retiredIds: MutableList<Int>,
+        zoneRecordings: MutableList<Pair<Int, Int>>,
+        idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
+        idLookup: (ForgeCardId) -> InstanceId,
+        manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
+    ) {
+        val stackHandoff = ZoneHandoff.fromRealloc(idAllocator(forgeCardId), ZoneIds.STACK)
+        val exileHandoff = ZoneHandoff.fromRealloc(idAllocator(forgeCardId), ZoneIds.EXILE)
+        val handId = stackHandoff.realloc.old.value
+        val stackId = stackHandoff.realloc.new.value
+        val exileId = exileHandoff.realloc.new.value
+        val spellCastEvent = events.filterIsInstance<GameEvent.SpellCast>().firstOrNull { it.cardId == forgeCardId }
+        val manaPayments =
+            spellCastEvent?.manaPayments?.map { mp ->
+                ManaPaymentRecord(
+                    landInstanceId = idLookup(mp.sourceCardId).value,
+                    manaAbilityInstanceId = idLookup(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId)).value,
+                    color = mp.color,
+                    abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId).value,
+                    spellInstanceId = stackId,
+                )
+            } ?: emptyList()
+
+        patchedObjects[objectIndex] = obj.toBuilder().setInstanceId(exileId).build()
+        patchZoneInstanceId(patchedZones, ZoneIds.EXILE, obj.instanceId, exileId)
+        retiredIds.add(handId)
+        appendToZone(patchedZones, ZoneIds.LIMBO, handId)
+        retiredIds.add(stackId)
+        appendToZone(patchedZones, ZoneIds.LIMBO, stackId)
+        transfers.add(
+            AppliedTransfer(
+                origId = handId,
+                newId = stackId,
+                category = TransferCategory.CastSpell,
+                srcZoneId = prevZone,
+                destZoneId = ZoneIds.STACK,
+                forgeCardId = forgeCardId,
+                grpId = obj.grpId,
+                ownerSeatId = obj.ownerSeatId,
+                manaPayments = manaPayments,
+            ),
+        )
+        transfers.add(
+            AppliedTransfer(
+                origId = stackId,
+                newId = exileId,
+                category = TransferCategory.Exile,
+                srcZoneId = ZoneIds.STACK,
+                destZoneId = ZoneIds.EXILE,
+                forgeCardId = forgeCardId,
+                grpId = obj.grpId,
+                ownerSeatId = obj.ownerSeatId,
+            ),
+        )
+        zoneRecordings.add(exileId to ZoneIds.EXILE)
+    }
 
     @Suppress("LongParameterList")
     private fun detectZoneOnlyTransfers(
@@ -614,7 +960,7 @@ object ZoneTransferDetector {
                 )
                 continue
             }
-            val category = eventOrInferredCategory(forgeCardId, events, GameObjectInfo.getDefaultInstance(), prevZone, destZone)
+            val category = categoryForTransfer(GameObjectInfo.getDefaultInstance(), prevZone, destZone, forgeCardId, events)
             val spellCastEvent =
                 if (category == TransferCategory.CastSpell) {
                     events
@@ -763,6 +1109,7 @@ object ZoneTransferDetector {
         idLookup: (ForgeCardId) -> InstanceId,
         events: List<GameEvent>,
         forgeCardKnown: (ForgeCardId) -> Boolean,
+        paradigmSourceIidLookup: (ForgeCardId) -> Int?,
     ): List<StackAbilityAppearance> {
         val appearances = mutableListOf<StackAbilityAppearance>()
         for (obj in patchedObjects) {
@@ -779,8 +1126,6 @@ object ZoneTransferDetector {
                     eventFilter = { ev -> ev is GameEvent.SpellCast },
                     forgeCardKnown = forgeCardKnown,
                 ) ?: continue
-            val sourceCardIid = idLookup(sourceCardForgeId).value
-            val sourceZoneId = if (sourceCardIid > 0) previousZones[sourceCardIid] ?: 0 else 0
             // Discriminate trigger vs activated. The matching SpellCast event
             // (same source card, isAbility set by the collector) tells us
             // which lifecycle path applies. Activated abilities skip the
@@ -790,6 +1135,18 @@ object ZoneTransferDetector {
                     .filterIsInstance<GameEvent.SpellCast>()
                     .firstOrNull { it.cardId == sourceCardForgeId }
             val isActivated = matchingCast?.let { it.isAbility && !it.isTrigger } ?: false
+            val isParadigmTrigger = matchingCast?.abilityGrpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+            val sourceCardIid =
+                if (isParadigmTrigger) {
+                    paradigmSourceIidLookup(sourceCardForgeId) ?: idLookup(sourceCardForgeId).value
+                } else {
+                    idLookup(sourceCardForgeId).value
+                }
+            val sourceZoneId =
+                matchingCast
+                    ?.activationZoneId
+                    ?.takeIf { it != 0 }
+                    ?: if (sourceCardIid > 0) previousZones[sourceCardIid] ?: 0 else 0
             val activationZone =
                 if (isActivated) matchingCast?.activationZoneId ?: 0 else 0
 

@@ -472,6 +472,8 @@ class PlayerController(
         cardToShow: Card?,
         params: MutableMap<String, Any>?,
     ): Boolean {
+        if (isParadigmCopyCast(sa) || isParadigmCopyCard(cardToShow)) return true
+
         // Endure: binary mode pick at trigger resolution. Yes → +1/+1 counters
         // (engine adds counters when confirmAction returns true); No → Spirit
         // token (engine creates the token in the else branch). Rides the same
@@ -510,6 +512,7 @@ class PlayerController(
 
     override fun confirmTrigger(wrapper: WrappedAbility): Boolean {
         if (wrapper.isMandatory) return true
+        if (isParadigmDelayedTrigger(wrapper)) return true
         // Route through OptionalActionGate → pendingOptionalAction → OptionalActionMessage
         // (GRE type 45). Auto-accept on timeout is safe: the ability resolves normally.
         val accepted =
@@ -586,6 +589,8 @@ class PlayerController(
      * priority-flow changes.
      */
     override fun playSaFromPlayEffect(tgtSA: SpellAbility): Boolean {
+        if (isParadigmCopyCast(tgtSA)) return super.playSaFromPlayEffect(tgtSA)
+
         val hostCard = tgtSA.hostCard
         log.info(
             "playSaFromPlayEffect: prompting for optional cast of {} (alt-cost={})",
@@ -604,6 +609,17 @@ class PlayerController(
             )
         return if (accepted) super.playSaFromPlayEffect(tgtSA) else false
     }
+
+    private fun isParadigmDelayedTrigger(wrapper: WrappedAbility): Boolean =
+        wrapper.trigger?.getParam("Execute") == "ParadigmCopy" &&
+            wrapper.hostCard?.effectSource?.hasKeyword("Paradigm") == true
+
+    private fun isParadigmCopyCast(sa: SpellAbility?): Boolean =
+        sa?.isCastFromPlayEffect == true &&
+            sa.hasParam("WithoutManaCost") &&
+            isParadigmCopyCard(sa.hostCard)
+
+    private fun isParadigmCopyCard(card: Card?): Boolean = card?.isToken == true && card.copiedPermanent?.hasKeyword("Paradigm") == true
 
     override fun confirmPayment(
         costPart: CostPart?,

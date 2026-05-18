@@ -1,0 +1,11 @@
+name: "Germination Practicum"
+grpId: 102608
+titleId: 1111287
+abilities:
+  - id: 117130
+    textId: 181907
+    category: 4
+  - id: 405
+    textId: 1110923
+    category: 4
+expansionCode: "SOS"

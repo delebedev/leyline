@@ -30,6 +30,9 @@ internal object StackAbilityGrpIdResolver {
         bridge: GameBridge,
     ): Int {
         resolveChapterGrpId(entry, sourceCard, bridge)?.let { return it }
+        if (entry.isTrigger && isParadigmDelayedTrigger(entry, sourceCard)) {
+            return KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+        }
         if (entry.isTrigger && sourceCardGrpId != 0) {
             decayedTriggerGrpId(entry, sourceCard, sourceCardGrpId, bridge)?.let { return it }
             val cardData = bridge.cardRepository.findByGrpId(sourceCardGrpId)
@@ -59,6 +62,13 @@ internal object StackAbilityGrpIdResolver {
         }
         return sourceCardGrpId
     }
+
+    private fun isParadigmDelayedTrigger(
+        entry: SpellAbilityStackInstance,
+        sourceCard: Card,
+    ): Boolean =
+        entry.spellAbility?.trigger?.getParam("Execute") == "ParadigmCopy" &&
+            sourceCard.effectSource?.hasKeyword("Paradigm") == true
 
     private fun decayedTriggerGrpId(
         entry: SpellAbilityStackInstance,

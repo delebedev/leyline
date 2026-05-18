@@ -92,6 +92,7 @@ object MechanicAnnotations {
         manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
         counterAffectorResolver: (Int, GameEvent.CountersChanged) -> InstanceId? = { _, _ -> null },
         playerCounterAffectorResolver: (Int, GameEvent.PlayerCountersChanged) -> InstanceId? = { _, _ -> null },
+        stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
@@ -179,7 +180,12 @@ object MechanicAnnotations {
                 }
                 is GameEvent.SpellCast -> {
                     annotations.addAll(
-                        TransferAnnotations.castSpellEventAnnotations(ev, idResolver, manaAbilityGrpIdResolver),
+                        TransferAnnotations.castSpellEventAnnotations(
+                            ev,
+                            idResolver,
+                            manaAbilityGrpIdResolver,
+                            stackInstanceResolver,
+                        ),
                     )
                     log.debug(
                         "mechanic: spellCast iid={} payments={} adventure={} altCost={} trigger={}",

@@ -88,6 +88,10 @@ sealed interface GameEvent {
         val isAdventure: Boolean = false,
         val isOmen: Boolean = false,
         val altCostAbilityGrpId: Int = 0,
+        /** Cast-through ability identity when it differs from [altCostAbilityGrpId]. */
+        val castAbilityGrpId: Int = altCostAbilityGrpId,
+        /** Explicit stack iid for collapsed copy-cast flows that may resolve before the next snapshot. */
+        val stackInstanceId: Int = 0,
         /**
          * True when the stack item is an Ability gameObject (triggered OR
          * activated), not a player-cast spell. The SpellCast-driven
@@ -107,7 +111,9 @@ sealed interface GameEvent {
          * activated abilities ([isAbility] && ![isTrigger]) so the
          * `AbilityInstanceCreated` annotation carries the right `source_zone`
          * detail (31=Hand for cycling/channel, 33=Graveyard for unearth/embalm).
-         * Zero when not applicable (spells, triggers).
+         * Zero when not applicable. Paradigm triggers also use this as an
+         * explicit source-zone override because the client keys the trigger to
+         * the stack spell, not the command-zone effect holder.
          */
         val activationZoneId: Int = 0,
         /** Non-zero when the cast paid Kicker. The per-card kicker ability grpId
@@ -144,6 +150,10 @@ sealed interface GameEvent {
         val abilityForgeId: Int = 0,
         /** Client ability grpId for ability lifecycle annotations, when known. */
         val abilityGrpId: Int = 0,
+        /** True when the resolved spell is a Paradigm copy cast from exile. */
+        val isParadigmCopy: Boolean = false,
+        /** Stack iid allocated when the Paradigm copy was cast. */
+        val stackInstanceId: Int = 0,
     ) : GameEvent
 
     /** A card changed zones (generic — covers destroy, exile, sacrifice, bounce, etc.). */

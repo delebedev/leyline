@@ -1,0 +1,11 @@
+name: "Decorum Dissertation"
+grpId: 102537
+titleId: 1111056
+abilities:
+  - id: 2135
+    textId: 10555
+    category: 4
+  - id: 405
+    textId: 1110923
+    category: 4
+expansionCode: "SOS"
