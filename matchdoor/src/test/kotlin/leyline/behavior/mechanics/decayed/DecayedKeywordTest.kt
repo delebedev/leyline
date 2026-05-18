@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.data.AbilityInfo
@@ -79,6 +80,7 @@ class DecayedKeywordTest :
                 post.annotationsOfType(AnnotationType.ResolutionStart).filter {
                     it.detailUint("grpid") == DECAYED_CLEANUP_GRP_ID
                 }
+            val cleanupAbilityIid = cleanupResolutions.singleOrNull()?.affectorId
             val decayedResolution =
                 post.annotationsOfType(AnnotationType.ResolutionStart).first {
                     it.detailUint("grpid") == KeywordAbilityIds.DECAYED
@@ -98,6 +100,21 @@ class DecayedKeywordTest :
                         AnnotationType.ResolutionStart in it.typeList && it.affectorId == decayedAbilityIid
                     }
                 }
+            val cleanupEnterIdx =
+                gsms.indexOfFirst { gsm ->
+                    cleanupAbilityIid != null &&
+                        gsm.annotationsList.any {
+                            AnnotationType.AbilityInstanceCreated in it.typeList &&
+                                it.affectedIdsList.contains(cleanupAbilityIid)
+                        }
+                }
+            val cleanupResolveIdx =
+                gsms.indexOfFirst { gsm ->
+                    cleanupAbilityIid != null &&
+                        gsm.annotationsList.any {
+                            AnnotationType.ResolutionStart in it.typeList && it.affectorId == cleanupAbilityIid
+                        }
+                }
             val sourceTransferIids =
                 post
                     .annotationsOfType(AnnotationType.ObjectIdChanged)
@@ -108,6 +125,13 @@ class DecayedKeywordTest :
                 post.annotationsOfType(AnnotationType.ZoneTransfer_af5a).filter { ann ->
                     ann.affectedIdsList.any { it in sourceTransferIids } &&
                         ann.detailsList.any { d -> d.key == "category" && "Sacrifice" in d.valueStringList }
+                }
+            val sacrificeIdx =
+                gsms.indexOfFirst { gsm ->
+                    gsm.annotationsList.any { ann ->
+                        ann.affectedIdsList.any { it in sourceTransferIids } &&
+                            ann.detailsList.any { d -> d.key == "category" && "Sacrifice" in d.valueStringList }
+                    }
                 }
 
             assertSoftly("Decayed lifecycle") {
@@ -120,6 +144,9 @@ class DecayedKeywordTest :
                 post.persistentAnnotationsOfType(AnnotationType.DelayedTriggerAffectees).shouldBeEmpty()
                 triggerEnterIdx shouldBeGreaterThan -1
                 resolveIdx shouldBeGreaterThan triggerEnterIdx
+                cleanupEnterIdx shouldBeGreaterThan -1
+                cleanupResolveIdx shouldBeGreaterThan cleanupEnterIdx
+                sacrificeIdx shouldBeGreaterThanOrEqualTo cleanupResolveIdx
 
                 post
                     .annotationsOfType(AnnotationType.ResolutionStart)

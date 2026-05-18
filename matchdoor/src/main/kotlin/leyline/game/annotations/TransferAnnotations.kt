@@ -328,4 +328,38 @@ object TransferAnnotations {
         )
         return annotations
     }
+
+    internal fun castSpellEventPersistentAnnotations(
+        ev: GameEvent.SpellCast,
+        idResolver: (ForgeCardId) -> InstanceId,
+        stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
+    ): List<AnnotationInfo> {
+        if (ev.isAbility) return emptyList()
+        val spellIid = stackInstanceResolver(ev) ?: ev.stackInstanceId.takeIf { it != 0 }?.let(::InstanceId) ?: idResolver(ev.cardId)
+        val annotations = mutableListOf<AnnotationInfo>()
+        if (ev.altCostAbilityGrpId != 0) {
+            val altCostGrpId = GrpId(ev.altCostAbilityGrpId)
+            annotations.add(
+                AnnotationBuilder.castingTimeOption(
+                    stackInstanceId = spellIid,
+                    type = CastingTimeOptionType.CastThroughAbility,
+                    alternateCostGrpId = altCostGrpId,
+                    castAbilityGrpId = GrpId(ev.castAbilityGrpId.takeIf { it != 0 } ?: ev.altCostAbilityGrpId),
+                ),
+            )
+        }
+        if (ev.kickerAbilityGrpId != 0) {
+            annotations.add(
+                AnnotationBuilder.castingTimeOptionKicker(
+                    stackInstanceId = spellIid,
+                    kickerAbilityGrpId = GrpId(ev.kickerAbilityGrpId),
+                    castAbilityGrpId = GrpId(ev.castAbilityGrpId.takeIf { it != 0 } ?: ev.kickerAbilityGrpId),
+                ),
+            )
+        }
+        if (ev.chosenX != 0) {
+            annotations.add(AnnotationBuilder.castingTimeOptionChooseX(spellIid, ev.chosenX))
+        }
+        return annotations
+    }
 }

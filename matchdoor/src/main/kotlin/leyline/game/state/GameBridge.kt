@@ -97,6 +97,49 @@ class GameBridge(
 
     val abilityLineage = AbilityLineageRegistry()
 
+    private val pendingSpellCasts = ConcurrentHashMap<ForgeCardId, GameEvent.SpellCast>()
+    private val pendingSpellCastsByGrpId = ConcurrentHashMap<Int, GameEvent.SpellCast>()
+    private val pendingSpellResolutions = ConcurrentHashMap<ForgeCardId, GameEvent.SpellResolved>()
+    private val pendingSpellResolutionsByGrpId = ConcurrentHashMap<Int, GameEvent.SpellResolved>()
+
+    fun recordPendingSpellCasts(events: List<GameEvent>) {
+        events
+            .filterIsInstance<GameEvent.SpellCast>()
+            .filter { !it.isAbility && !it.isTrigger }
+            .forEach {
+                pendingSpellCasts[it.cardId] = it
+                grpIdFor(it.cardId)?.let { grpId -> pendingSpellCastsByGrpId[grpId] = it }
+            }
+    }
+
+    fun recordPendingSpellResolutions(events: List<GameEvent>) {
+        events
+            .filterIsInstance<GameEvent.SpellResolved>()
+            .filter { !it.isAbility && !it.isTrigger }
+            .forEach {
+                pendingSpellResolutions[it.cardId] = it
+                grpIdFor(it.cardId)?.let { grpId -> pendingSpellResolutionsByGrpId[grpId] = it }
+            }
+    }
+
+    fun pendingSpellCast(cardId: ForgeCardId): GameEvent.SpellCast? =
+        pendingSpellCasts[cardId] ?: grpIdFor(cardId)?.let { pendingSpellCastsByGrpId[it] }
+
+    fun pendingSpellResolution(cardId: ForgeCardId): GameEvent.SpellResolved? =
+        pendingSpellResolutions[cardId] ?: grpIdFor(cardId)?.let { pendingSpellResolutionsByGrpId[it] }
+
+    fun consumePendingSpellCast(cardId: ForgeCardId) {
+        pendingSpellCasts.remove(cardId)
+        grpIdFor(cardId)?.let { pendingSpellCastsByGrpId.remove(it) }
+    }
+
+    fun consumePendingSpellResolution(cardId: ForgeCardId) {
+        pendingSpellResolutions.remove(cardId)
+        grpIdFor(cardId)?.let { pendingSpellResolutionsByGrpId.remove(it) }
+    }
+
+    private fun grpIdFor(cardId: ForgeCardId): Int? = findCard(cardId)?.name?.let { cardRepository.findGrpIdByName(it) }
+
     val paradigmSourceStackIids = ConcurrentHashMap<ForgeCardId, Int>()
 
     fun paradigmSourceStackIidFor(fid: ForgeCardId): Int? =

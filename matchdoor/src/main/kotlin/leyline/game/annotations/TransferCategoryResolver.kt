@@ -80,7 +80,7 @@ internal object CategoryRules {
                 // discard belongs in Discard, not CastSpell. Filter on isAbility so
                 // activated-ability cost transfers fall through to the discard /
                 // sacrifice / zone-pair rules below.
-                events.any { it is GameEvent.SpellCast && it.cardId == fid && !it.isTrigger && !it.isAbility }
+                events.any { it is GameEvent.SpellCast && it.cardId == fid && !it.isAbility }
             },
             CategoryRule(100, TransferCategory.Resolve) { events, fid ->
                 events.any { it is GameEvent.SpellResolved && it.cardId == fid && !it.hasFizzled }

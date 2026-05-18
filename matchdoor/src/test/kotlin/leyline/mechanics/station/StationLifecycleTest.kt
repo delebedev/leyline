@@ -34,26 +34,35 @@ class StationLifecycleTest :
             val bearIid = human.battlefield.iid("Grizzly Bears")
 
             val slice = after { respondToEffectCost(listOf(bearIid)) }
+            val gsms = slice.messages.gameStateMessages()
+            val tapGsm =
+                gsms.first { gsm ->
+                    gsm.annotationsList.any { AnnotationType.TappedUntappedPermanent in it.typeList }
+                }
+            val counterGsm =
+                gsms.first { gsm ->
+                    gsm.annotationsList.any { AnnotationType.CounterAdded in it.typeList }
+                }
             val resolutionGsm =
-                slice.messages.gameStateMessages().last { gsm ->
+                gsms.last { gsm ->
                     gsm.annotationsList.any { AnnotationType.ResolutionStart in it.typeList }
                 }
 
             val threshold12 =
-                resolutionGsm.persistentAnnotationsList.first {
+                counterGsm.persistentAnnotationsList.first {
                     AnnotationType.AbilityWordActive in it.typeList && it.detailInt("threshold") == 12
                 }
             assertSoftly {
                 resolutionGsm.annotation(AnnotationType.ResolutionStart).detailUint("grpid") shouldBe 373
                 resolutionGsm.annotation(AnnotationType.ResolutionComplete).detailUint("grpid") shouldBe 373
-                resolutionGsm.annotation(AnnotationType.CounterAdded).detailInt("transaction_amount") shouldBe 2
-                resolutionGsm.persistentAnnotation(AnnotationType.Counter_803b).detailInt("count") shouldBe 2
+                counterGsm.annotation(AnnotationType.CounterAdded).detailInt("transaction_amount") shouldBe 2
+                counterGsm.persistentAnnotation(AnnotationType.Counter_803b).detailInt("count") shouldBe 2
                 threshold12.detailInt("AbilityGrpId") shouldBe 60024
-                resolutionGsm.gameObjectsList
+                tapGsm.gameObjectsList
                     .first { it.instanceId == bearIid }
                     .isTapped
                     .shouldBeTrue()
-                resolutionGsm.annotationsList.map { it.typeList.first() } shouldContain AnnotationType.TappedUntappedPermanent
+                tapGsm.annotationsList.map { it.typeList.first() } shouldContain AnnotationType.TappedUntappedPermanent
             }
         }
     })

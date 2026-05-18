@@ -329,6 +329,8 @@ sealed interface GameEvent {
         val counterType: String,
         val oldCount: Int,
         val newCount: Int,
+        val affectorAbilityForgeId: Int = 0,
+        val affectorCardId: ForgeCardId? = null,
     ) : GameEvent
 
     /** Counters added or removed on a player. Currently emitted for poison counters. */
