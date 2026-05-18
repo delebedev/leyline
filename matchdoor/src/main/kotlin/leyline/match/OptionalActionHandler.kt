@@ -13,6 +13,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
+import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Handles "you may" trigger decisions via OptionalActionMessage (GRE type 45).
@@ -239,13 +240,13 @@ class OptionalActionHandler(
         }
 
         builder
-            .addZones(zoneWithContents(context.originZoneId, dropId = context.oldInstanceId))
-            .addZones(zoneWithContents(context.destinationZoneId, extraIds = listOf(context.promptInstanceId)))
+            .addZones(zoneWithContents(originZoneId(context), dropId = context.oldInstanceId))
+            .addZones(zoneWithContents(destinationZoneId(context), extraIds = listOf(context.promptInstanceId)))
             .addGameObjects(
                 ObjectMapper.buildFromSnapshot(
                     bound.snapshot,
                     context.promptInstanceId,
-                    context.destinationZoneId,
+                    destinationZoneId(context),
                     ownerSeat,
                     ctx.bridge.cardProto,
                     Visibility.Public,
@@ -263,8 +264,8 @@ class OptionalActionHandler(
                 AnnotationBuilder
                     .zoneTransfer(
                         InstanceId(context.promptInstanceId),
-                        context.originZoneId,
-                        context.destinationZoneId,
+                        originZoneId(context),
+                        destinationZoneId(context),
                         context.transferCategory,
                     ).toBuilder()
                     .setId(ctx.bridge.nextAnnotationId())
@@ -276,12 +277,13 @@ class OptionalActionHandler(
         val bridge = ctx.bridge
         val link = counters.counter.nextGameStateLink()
         val snap = GsmSnapshot.capture(ctx.game, bridge, "", link.gsId)
-        val destinationZone = snap.zones[context.destinationZoneId]
+        val destinationZoneId = destinationZoneId(context)
+        val destinationZone = snap.zones[destinationZoneId]
         val zoneInfo =
             ZoneInfo
                 .newBuilder()
-                .setZoneId(context.destinationZoneId)
-                .setType(destinationZone?.type ?: zoneTypeFor(context.destinationZoneId))
+                .setZoneId(destinationZoneId)
+                .setType(destinationZone?.type ?: zoneTypeFor(destinationZoneId))
                 .setVisibility(destinationZone?.visibility ?: Visibility.Public)
                 .apply { destinationZone?.owner?.let { setOwnerSeatId(it.value) } }
                 .addAllObjectInstanceIds(
@@ -318,5 +320,26 @@ class OptionalActionHandler(
             ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY -> ZoneType.Library
             ZoneIds.P1_GRAVEYARD, ZoneIds.P2_GRAVEYARD -> ZoneType.Graveyard
             else -> ZoneType.Limbo
+        }
+
+    private fun originZoneId(context: PlayerController.CommanderReturnPromptContext): Int =
+        protocolZoneId(context.originZone, context.ownerSeatId)
+
+    private fun destinationZoneId(context: PlayerController.CommanderReturnPromptContext): Int =
+        protocolZoneId(context.destinationZone, context.ownerSeatId)
+
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+    private fun protocolZoneId(
+        zone: ForgeZoneType,
+        ownerSeatId: Int,
+    ): Int =
+        when (zone) {
+            ForgeZoneType.Battlefield -> ZoneIds.BATTLEFIELD
+            ForgeZoneType.Graveyard -> ZoneIds.graveyardOf(ownerSeatId)
+            ForgeZoneType.Exile -> ZoneIds.EXILE
+            ForgeZoneType.Hand -> ZoneIds.handOf(ownerSeatId)
+            ForgeZoneType.Library -> ZoneIds.libraryOf(ownerSeatId)
+            ForgeZoneType.Command -> ZoneIds.COMMAND
+            else -> ZoneIds.LIMBO
         }
 }
