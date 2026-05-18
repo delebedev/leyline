@@ -2,6 +2,8 @@ package leyline.game.mapping
 
 import forge.ai.ComputerUtilMana
 import forge.card.CardStateName
+import forge.game.ability.ApiType
+import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
 import forge.game.card.CardLists
 import forge.game.card.CardPredicates
@@ -271,7 +273,7 @@ object ActionMapper {
                 continue
             }
             val sa = chooseCastAbility(forgeCard, player) ?: continue
-            val noLegalTargets = hasUnmetTargeting(sa)
+            val noLegalTargets = hasUnmetTargeting(sa) || hasNoLegalCharmModes(sa)
             val canPay = canPayManaCost(sa, player)
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             val grpId = cardSnap.grpId
@@ -1005,8 +1007,8 @@ object ActionMapper {
         for ((abilityIndex, sa) in castable.withIndex()) {
             if (sa.isAdventure) continue
             if (CastRails.handWithAltCost.any { it.saPredicate(sa) }) continue
-            if (hasUnmetTargeting(sa)) {
-                log.debug("ActionMapper: skipping {} variant — no legal targets", card.name)
+            if (hasUnmetTargeting(sa) || hasNoLegalCharmModes(sa)) {
+                log.debug("ActionMapper: skipping {} variant — no legal targets or modes", card.name)
                 continue
             }
             val canPay = canPayManaCost(sa, player)
@@ -1733,5 +1735,10 @@ object ActionMapper {
             node = node.subAbility
         }
         return false
+    }
+
+    private fun hasNoLegalCharmModes(sa: SpellAbility): Boolean {
+        if (sa.api != ApiType.Charm) return false
+        return CharmEffect.makePossibleOptions(sa).isEmpty()
     }
 }
