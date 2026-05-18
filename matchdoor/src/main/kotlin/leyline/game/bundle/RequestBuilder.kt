@@ -12,6 +12,7 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
@@ -53,20 +54,11 @@ object RequestBuilder {
         selBuilder.setTargetingPlayer(chooserSeatId)
 
         // sourceId: map the spell's entity ID to its client instanceId
-        val sourceEntityId = prompt.request.sourceEntityId
-        val sourceInstanceId =
-            if (sourceEntityId != null) {
-                bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
-            } else {
-                0
-            }
+        val sourceInstanceId = sourceInstanceId(prompt, bridge)
         if (sourceInstanceId != 0) {
             builder.setSourceId(sourceInstanceId)
         }
-        val mutateAbilityGrpId = mutateAbilityGrpId(prompt, bridge)
-        if (mutateAbilityGrpId != 0) {
-            applyMutateTargetShape(builder, selBuilder, sourceInstanceId, mutateAbilityGrpId)
-        }
+        applyTargetPromptShape(prompt, bridge, builder, selBuilder, sourceInstanceId)
 
         for (ref in prompt.request.candidateRefs) {
             val (instanceId, highlight) = resolveRefToIidAndHighlight(ref, bridge, opponentSeatId) ?: continue
@@ -115,18 +107,9 @@ object RequestBuilder {
         selBuilder.setMaxTargets(prompt.request.max)
         selBuilder.setSelectedTargets(selectedInstanceIds.size)
 
-        val sourceEntityId = prompt.request.sourceEntityId
-        val sourceInstanceId =
-            if (sourceEntityId != null) {
-                bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
-            } else {
-                0
-            }
+        val sourceInstanceId = sourceInstanceId(prompt, bridge)
         if (sourceInstanceId != 0) builder.setSourceId(sourceInstanceId)
-        val mutateAbilityGrpId = mutateAbilityGrpId(prompt, bridge)
-        if (mutateAbilityGrpId != 0) {
-            applyMutateTargetShape(builder, selBuilder, sourceInstanceId, mutateAbilityGrpId)
-        }
+        applyTargetPromptShape(prompt, bridge, builder, selBuilder, sourceInstanceId)
 
         val selectedSet = selectedInstanceIds.toSet()
         val opponentSeatId = if (chooserSeatId == 1) 2 else 1
@@ -181,31 +164,33 @@ object RequestBuilder {
         return builder.build()
     }
 
-    private fun mutateAbilityGrpId(
+    private fun sourceInstanceId(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
     ): Int {
-        val sa = prompt.targetingSa ?: return 0
-        if (!sa.isMutate) return 0
-        val cardName = sa.hostCard?.name ?: return 0
-        val grpId = bridge.cardRepository.findGrpIdByName(cardName) ?: return 0
-        return bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MUTATE) ?: 0
+        if (prompt.request.isTriggeredAbility && prompt.request.forgeAbilityId != 0) {
+            return bridge.getOrAllocInstanceId(FrameIdResolver.triggerStackAbilityForgeId(prompt.request.forgeAbilityId)).value
+        }
+        val sourceEntityId = prompt.request.sourceEntityId ?: return 0
+        return bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
     }
 
-    private fun applyMutateTargetShape(
+    private fun applyTargetPromptShape(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
         builder: SelectTargetsReq.Builder,
         selection: TargetSelection.Builder,
         sourceInstanceId: Int,
-        mutateAbilityGrpId: Int,
     ) {
-        builder.setAbilityGrpId(KeywordAbilityIds.MUTATE)
-        selection.setTargetSourceZoneId(ZoneIds.BATTLEFIELD)
-        selection.setTargetingAbilityGrpId(mutateAbilityGrpId)
-        if (sourceInstanceId != 0) {
+        val shape = targetPromptShape(prompt, bridge) ?: return
+        if (shape.outerAbilityGrpId != 0) builder.setAbilityGrpId(shape.outerAbilityGrpId)
+        if (shape.targetingAbilityGrpId != 0) selection.setTargetingAbilityGrpId(shape.targetingAbilityGrpId)
+        if (shape.targetSourceZoneId != 0) selection.setTargetSourceZoneId(shape.targetSourceZoneId)
+        if (shape.promptId != null && sourceInstanceId != 0) {
             selection.setPrompt(
                 Prompt
                     .newBuilder()
-                    .setPromptId(PromptIds.MUTATE_TARGET)
+                    .setPromptId(shape.promptId)
                     .addParameters(
                         PromptParameter
                             .newBuilder()
@@ -216,6 +201,52 @@ object RequestBuilder {
             )
         }
     }
+
+    private data class TargetPromptShape(
+        val outerAbilityGrpId: Int,
+        val targetingAbilityGrpId: Int,
+        val promptId: Int? = null,
+        val targetSourceZoneId: Int = 0,
+    )
+
+    private fun targetPromptShape(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): TargetPromptShape? {
+        val sa = prompt.targetingSa ?: return null
+        if (isMentorTrigger(sa)) {
+            return TargetPromptShape(
+                outerAbilityGrpId = KeywordAbilityIds.MENTOR,
+                targetingAbilityGrpId = KeywordAbilityIds.MENTOR,
+                promptId = PromptIds.MENTOR_TARGET,
+            )
+        }
+        val cardName = sa.hostCard?.name ?: return null
+        val grpId = bridge.cardRepository.findGrpIdByName(cardName) ?: return null
+        return when {
+            sa.isMutate ->
+                TargetPromptShape(
+                    outerAbilityGrpId = KeywordAbilityIds.MUTATE,
+                    targetingAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MUTATE) ?: 0,
+                    promptId = PromptIds.MUTATE_TARGET,
+                    targetSourceZoneId = ZoneIds.BATTLEFIELD,
+                )
+            isBackupTrigger(sa) ->
+                bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.BACKUP)?.let { backupGrpId ->
+                    TargetPromptShape(
+                        outerAbilityGrpId = backupGrpId,
+                        targetingAbilityGrpId = KeywordAbilityIds.BACKUP,
+                    )
+                }
+            else -> null
+        }
+    }
+
+    private fun isBackupTrigger(sa: forge.game.spellability.SpellAbility): Boolean =
+        sa.isBackup || sa.trigger?.getParam("TriggerDescription")?.startsWith("Backup ") == true
+
+    private fun isMentorTrigger(sa: forge.game.spellability.SpellAbility): Boolean =
+        sa.trigger?.getParam("TriggerDescription")?.startsWith("Mentor") == true
 
     /**
      * Check whether [candidate] is still a legal target for [sa] given that

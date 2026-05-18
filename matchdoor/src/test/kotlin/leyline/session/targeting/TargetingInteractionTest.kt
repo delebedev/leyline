@@ -314,6 +314,10 @@ class TargetingInteractionTest :
             val targetGroup = rePromptMsg.selectTargetsReq.getTargets(0)
 
             assertSoftly {
+                rePromptMsg.hasPrompt().shouldBeTrue()
+                rePromptMsg.prompt.promptId shouldBe 10
+                rePromptMsg.allowCancel shouldBe AllowCancel.Abort
+                rePromptMsg.allowUndo.shouldBeTrue()
                 targetGroup.targetsList shouldHaveSize 1
                 targetGroup.targetsList[0].targetInstanceId shouldBe OPPONENT_SEAT
                 targetGroup.targetsList[0].legalAction shouldBe SelectAction.Unselect

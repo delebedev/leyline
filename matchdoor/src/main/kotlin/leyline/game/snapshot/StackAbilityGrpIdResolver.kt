@@ -31,19 +31,14 @@ internal object StackAbilityGrpIdResolver {
     ): Int {
         resolveChapterGrpId(entry, sourceCard, bridge)?.let { return it }
         if (entry.isTrigger && sourceCardGrpId != 0) {
-            decayedTriggerGrpId(entry, sourceCard, sourceCardGrpId, bridge)?.let { return it }
+            knownKeywordTriggerGrpId(entry, sourceCard, sourceCardGrpId, bridge)?.let { return it }
             val cardData = bridge.cardRepository.findByGrpId(sourceCardGrpId)
             val registry = if (cardData != null) bridge.abilityRegistryFor(sourceCard, cardData) else null
             entry.spellAbility?.trigger?.id?.let { triggerId ->
                 registry?.forTrigger(triggerId)?.takeIf { it != 0 }?.let { return it }
             }
         }
-        if (entry.isTrigger && sourceCard.hasKeyword("Cascade")) {
-            return KeywordAbilityIds.CASCADE
-        }
-        if (entry.isTrigger && entry.spellAbility?.hasParam("Training") == true && entry.spellAbility?.api == ApiType.PutCounter) {
-            return KeywordAbilityIds.TRAINING
-        }
+        if (entry.isTrigger) cascadeOrTrainingGrpId(entry, sourceCard)?.let { return it }
         // Discover (Forge `DB$ Discover | Num$ N`): per-card Arena ability row.
         // Pick the first Triggered ability on the source card; for cards with a
         // single triggered ability (Etali's Favor, Geological Appraiser, Trumpeting
@@ -58,6 +53,45 @@ internal object StackAbilityGrpIdResolver {
             triggeredAbility?.first?.let { return it }
         }
         return sourceCardGrpId
+    }
+
+    private fun knownKeywordTriggerGrpId(
+        entry: SpellAbilityStackInstance,
+        sourceCard: Card,
+        sourceCardGrpId: Int,
+        bridge: GameBridge,
+    ): Int? =
+        decayedTriggerGrpId(entry, sourceCard, sourceCardGrpId, bridge)
+            ?: backupTriggerGrpId(entry, sourceCardGrpId, bridge)
+            ?: KeywordAbilityIds.MENTOR.takeIf { isMentorTrigger(entry) }
+
+    private fun cascadeOrTrainingGrpId(
+        entry: SpellAbilityStackInstance,
+        sourceCard: Card,
+    ): Int? =
+        when {
+            sourceCard.hasKeyword("Cascade") -> KeywordAbilityIds.CASCADE
+            entry.spellAbility?.hasParam("Training") == true && entry.spellAbility?.api == ApiType.PutCounter -> KeywordAbilityIds.TRAINING
+            else -> null
+        }
+
+    private fun backupTriggerGrpId(
+        entry: SpellAbilityStackInstance,
+        sourceCardGrpId: Int,
+        bridge: GameBridge,
+    ): Int? {
+        if (!isBackupTrigger(entry)) return null
+        return bridge.cardRepository.findKeywordAbilityGrpId(sourceCardGrpId, KeywordAbilityIds.BACKUP)
+    }
+
+    private fun isBackupTrigger(entry: SpellAbilityStackInstance): Boolean {
+        val sa = entry.spellAbility ?: return false
+        return sa.isBackup || sa.trigger?.getParam("TriggerDescription")?.startsWith("Backup ") == true
+    }
+
+    private fun isMentorTrigger(entry: SpellAbilityStackInstance): Boolean {
+        val sa = entry.spellAbility ?: return false
+        return sa.trigger?.getParam("TriggerDescription")?.startsWith("Mentor") == true
     }
 
     private fun decayedTriggerGrpId(

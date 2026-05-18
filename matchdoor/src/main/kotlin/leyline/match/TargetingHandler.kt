@@ -62,7 +62,10 @@ class TargetingHandler(
      *
      * Player targets use seatId (1/2) as instanceId.
      */
-    fun onSelectTargets(greMsg: ClientToGREMessage) {
+    fun onSelectTargets(
+        greMsg: ClientToGREMessage,
+        autoPass: () -> Unit,
+    ) {
         val bridge = ctx.bridge
         val seatBridge = bridge.seat(counters.seatId)
         val resp = greMsg.selectTargetsResp
@@ -128,6 +131,13 @@ class TargetingHandler(
                 sourceEntityId = pendingPrompt.request.sourceEntityId ?: 0,
             )
 
+        val pending = pendingInteraction as PendingClientInteraction.TargetSelection
+        if (shouldSubmitSingleTargetTrigger(pendingPrompt, selectedIndices)) {
+            log.info("TargetingHandler: mandatory triggered target selected — submitting indices={}", selectedIndices)
+            submitTargetSelection(pending, autoPass)
+            return
+        }
+
         // Echo-back: actions-only GSM diff + re-prompt with selection reflected
         val echoDiff = bundles.bundleBuilder.buildEchoDiffGsm(counters.counter)
         val gsId = counters.counter.currentGsId()
@@ -135,6 +145,9 @@ class TargetingHandler(
         val rePromptMsg =
             sink.makeGRE(GREMessageType.SelectTargetsReq_695e, gsId, counters.counter.nextMsgId()) {
                 it.selectTargetsReq = rePrompt
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
+                it.allowCancel = AllowCancel.Abort
+                it.allowUndo = true
             }
         Tap.outboundTemplate("SelectTargetsReq re-prompt seat=${counters.seatId}")
         sink.sendBundledGRE(listOf(echoDiff, rePromptMsg))
@@ -146,13 +159,30 @@ class TargetingHandler(
      * Type-only message (no payload). Uses selection stored by [onSelectTargets].
      */
     fun onSubmitTargets(autoPass: () -> Unit) {
-        val bridge = ctx.bridge
         val pending = pendingInteraction as? PendingClientInteraction.TargetSelection
         if (pending == null) {
             log.warn("TargetingHandler: SubmitTargetsReq but no pending target selection (likely timeout race)")
             DevCheck.failOnAutoPass { "SubmitTargetsReq but no pending target selection" }
             return
         }
+
+        submitTargetSelection(pending, autoPass)
+    }
+
+    private fun shouldSubmitSingleTargetTrigger(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        selectedIndices: List<Int>,
+    ): Boolean =
+        pendingPrompt.request.isTriggeredAbility &&
+            pendingPrompt.request.min == 1 &&
+            pendingPrompt.request.max == 1 &&
+            selectedIndices.size == 1
+
+    private fun submitTargetSelection(
+        pending: PendingClientInteraction.TargetSelection,
+        autoPass: () -> Unit,
+    ) {
+        val bridge = ctx.bridge
         pendingInteraction = null
 
         log.info("TargetingHandler: SubmitTargetsReq — submitting indices={}", pending.selectedIndices)
