@@ -45,6 +45,9 @@ class InteractivePromptBridge(
     @Volatile
     var forgeIidResolver: ((ForgeCardId) -> InstanceId)? = null
 
+    @Volatile
+    var instanceIdReservoir: (() -> InstanceId)? = null
+
     /**
      * Typed per-seat journal of prompt side-effects. Coordinators record
      * [PromptSideEffect] entries on the engine thread; consumers

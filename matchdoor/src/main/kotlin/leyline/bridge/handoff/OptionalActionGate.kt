@@ -90,6 +90,7 @@ class OptionalActionGate(
         defaultOnTimeout: Boolean,
         logContext: String,
         customPromptId: Int? = null,
+        commanderReturn: PlayerController.CommanderReturnPromptContext? = null,
     ): Boolean {
         val future = CompletableFuture<Boolean>()
         owner.pendingOptionalAction =
@@ -99,6 +100,7 @@ class OptionalActionGate(
                 future = future,
                 forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
                 customPromptId = customPromptId,
+                commanderReturn = commanderReturn,
             )
         actionBridge?.prioritySignal?.signal()
 

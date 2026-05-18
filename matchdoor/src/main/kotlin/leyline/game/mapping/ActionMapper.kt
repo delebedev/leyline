@@ -2,7 +2,6 @@ package leyline.game.mapping
 
 import forge.ai.ComputerUtilMana
 import forge.card.CardStateName
-import forge.card.mana.ManaCost
 import forge.game.ability.ApiType
 import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
@@ -1623,25 +1622,23 @@ object ActionMapper {
         player: Player,
     ): forge.card.mana.ManaCost? {
         val baseCost = sa.payCosts ?: return null
-        val adjusted = CostAdjustment.adjust(baseCost, sa, false)
-        val manaCost = adjusted.totalMana ?: return null
-        if (manaCost.isNoCost) return null
-        val beingPaid = ManaCostBeingPaid(manaCost)
-        CostAdjustment.adjust(beingPaid, sa, player, null, true, false)
-        val effective = beingPaid.toManaCost()
-
         val hostCard = sa.hostCard
-        val commanderTax =
-            if (hostCard?.isCommander == true && hostCard.zone?.zoneType == ForgeZoneType.Command) {
-                player.getCommanderCast(hostCard.realCommander ?: hostCard) * 2
-            } else {
-                0
-            }
-        if (commanderTax > 0 && effective.genericCost < manaCost.genericCost + commanderTax) {
-            return ManaCost.combine(effective, ManaCost.get(commanderTax))
+        val originalCastFrom = hostCard?.castFrom
+        val seededCastFrom =
+            hostCard?.isCommander == true &&
+                originalCastFrom == null &&
+                hostCard.zone?.zoneType == ForgeZoneType.Command
+        if (seededCastFrom) hostCard?.setCastFrom(hostCard.zone)
+        try {
+            val adjusted = CostAdjustment.adjust(baseCost, sa, false)
+            val manaCost = adjusted.totalMana ?: return null
+            if (manaCost.isNoCost) return null
+            val beingPaid = ManaCostBeingPaid(manaCost)
+            CostAdjustment.adjust(beingPaid, sa, player, null, true, false)
+            return beingPaid.toManaCost()
+        } finally {
+            if (seededCastFrom) hostCard?.setCastFrom(originalCastFrom)
         }
-
-        return effective
     }
 
     /** Aggregate colored shards from a Forge [ManaCost] into a color→count map. */

@@ -9,6 +9,7 @@ import forge.game.GameActionUtil
 import forge.game.GameEntity
 import forge.game.GameObject
 import forge.game.ability.AbilityUtils
+import forge.game.ability.AbilityKey
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
@@ -56,6 +57,7 @@ import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.Seating
 import leyline.bridge.types.manaTokenToPair
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.ZoneIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -184,7 +186,7 @@ class PlayerController(
     player: Player,
     lobbyPlayer: LobbyPlayer,
     private val bridge: InteractivePromptBridge,
-    seating: Seating,
+    private val seating: Seating,
     private val actionBridge: GameActionBridge? = null,
     private val mulliganBridge: MulliganBridge? = null,
     private val phaseStopProfile: PhaseStopProfile? = null,
@@ -261,7 +263,15 @@ class PlayerController(
          *  (e.g. Endure → ENDURE_PUT_COUNTERS) that ride the same Yes/No surface
          *  but need a different rendered prompt text. */
         val customPromptId: Int? = null,
-        var temporaryRecipientInstanceId: Int? = null,
+        val commanderReturn: CommanderReturnPromptContext? = null,
+    )
+
+    data class CommanderReturnPromptContext(
+        val oldInstanceId: Int,
+        val promptInstanceId: Int,
+        val originZoneId: Int,
+        val destinationZoneId: Int,
+        val transferCategory: String,
     )
 
     data class NumericInputPrompt(
@@ -656,6 +666,7 @@ class PlayerController(
                 defaultOnTimeout = true,
                 logContext = "confirmReplacementEffect:Commander",
                 customPromptId = PromptIds.COMMANDER_RETURN_TO_COMMAND,
+                commanderReturn = hostCard?.let { commanderReturnContext(it, sa) },
             )
         }
 
@@ -673,6 +684,52 @@ class PlayerController(
         val result = bridge.requestChoice(request)
         return result.firstOrNull() == 0
     }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun commanderReturnContext(
+        card: Card,
+        sa: SpellAbility?,
+    ): CommanderReturnPromptContext? {
+        val originalParams = sa?.getReplacingObject(AbilityKey.OriginalParams) as? Map<AbilityKey, Any?>
+        val origin = originalParams?.get(AbilityKey.Origin) as? ZoneType ?: card.zone?.zoneType ?: ZoneType.Battlefield
+        val destination = originalParams?.get(AbilityKey.Destination) as? ZoneType ?: ZoneType.Graveyard
+        val ownerSeat = seating.humanSeat
+        val oldInstanceId = bridge.forgeIidResolver?.invoke(ForgeCardId(card.id))?.value ?: return null
+        val promptInstanceId = bridge.instanceIdReservoir?.invoke()?.value ?: return null
+        return CommanderReturnPromptContext(
+            oldInstanceId = oldInstanceId,
+            promptInstanceId = promptInstanceId,
+            originZoneId = protocolZoneId(origin, ownerSeat.value),
+            destinationZoneId = protocolZoneId(destination, ownerSeat.value),
+            transferCategory = commanderTransferCategory(origin, destination),
+        )
+    }
+
+    private fun protocolZoneId(
+        zone: ZoneType,
+        ownerSeatId: Int,
+    ): Int =
+        when (zone) {
+            ZoneType.Battlefield -> ZoneIds.BATTLEFIELD
+            ZoneType.Graveyard -> ZoneIds.graveyardOf(ownerSeatId)
+            ZoneType.Exile -> ZoneIds.EXILE
+            ZoneType.Hand -> ZoneIds.handOf(ownerSeatId)
+            ZoneType.Library -> ZoneIds.libraryOf(ownerSeatId)
+            ZoneType.Command -> ZoneIds.COMMAND
+            else -> ZoneIds.LIMBO
+        }
+
+    private fun commanderTransferCategory(
+        origin: ZoneType,
+        destination: ZoneType,
+    ): String =
+        when (destination) {
+            ZoneType.Graveyard -> if (origin == ZoneType.Battlefield) "Destroy" else "Put"
+            ZoneType.Exile -> "Exile"
+            ZoneType.Hand -> "Bounce"
+            ZoneType.Library -> "Put"
+            else -> "ZoneTransfer"
+        }
 
     override fun chooseBinary(
         sa: SpellAbility?,

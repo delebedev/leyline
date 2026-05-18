@@ -176,6 +176,7 @@ class GameBridge(
         promptBridges[1] =
             InteractivePromptBridge(timeoutMs = promptFailsafeTimeoutMs, prioritySignal = prioritySignal).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
+                it.instanceIdReservoir = { ids.reserveNextInstanceId() }
             }
         mulliganBridges[1] =
             MulliganBridge(
@@ -235,6 +236,7 @@ class GameBridge(
         promptBridges[seatId.value] =
             InteractivePromptBridge(timeoutMs = 0, prioritySignal = prioritySignal).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
+                it.instanceIdReservoir = { ids.reserveNextInstanceId() }
             }
         mulliganBridges[seatId.value] = MulliganBridge(autoKeep = true, timeoutMs = 0)
         log.info("GameBridge: seat {} configured as synthetic (auto-pass)", seatId.value)

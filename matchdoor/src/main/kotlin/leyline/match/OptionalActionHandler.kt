@@ -80,13 +80,14 @@ class OptionalActionHandler(
             prompt.hostCard?.name ?: "unknown",
         )
 
-        val acceptedCommanderReturn = accepted && prompt.customPromptId == PromptIds.COMMANDER_RETURN_TO_COMMAND
-        if (acceptedCommanderReturn) {
-            prompt.temporaryRecipientInstanceId?.let { bridge.retireToLimbo(InstanceId(it)) }
+        val commanderReturn = prompt.commanderReturn
+        if (commanderReturn != null) {
+            bridge.retireToLimbo(InstanceId(commanderReturn.promptInstanceId))
         }
         prompt.future.complete(accepted)
         bridge.awaitPriority()
-        if (acceptedCommanderReturn) {
+        if (commanderReturn != null) {
+            sendCommanderPromptCleanup(commanderReturn)
             sink.sendRealGameState(bridge)
         }
         autoPass()
@@ -103,12 +104,12 @@ class OptionalActionHandler(
             return
         }
 
-        val isCommanderReturnPrompt = prompt.customPromptId == PromptIds.COMMANDER_RETURN_TO_COMMAND
+        val commanderReturn = prompt.commanderReturn
+        val isCommanderReturnPrompt = commanderReturn != null
         val hostCardId = ForgeCardId(hostCard.id)
-        val sourceId = bridge.getOrAllocInstanceId(hostCardId).value
-        val recipientId = if (isCommanderReturnPrompt) bridge.ids.reserveNextInstanceId().value else sourceId
+        val sourceId = commanderReturn?.oldInstanceId ?: bridge.getOrAllocInstanceId(hostCardId).value
+        val recipientId = commanderReturn?.promptInstanceId ?: sourceId
         val optionalSourceId = if (isCommanderReturnPrompt) recipientId else sourceId
-        if (isCommanderReturnPrompt) prompt.temporaryRecipientInstanceId = recipientId
 
         // For mid-resolution prompts (e.g. Madness: the card moves Hand→Exile via
         // replacement BEFORE the engine asks "cast for madness?"), force a full
@@ -173,7 +174,7 @@ class OptionalActionHandler(
                 .setTurnInfo(GsmFrame.from(snap).turnInfo())
                 .addAllTimers(PlayerMapper.buildTimers())
                 .setUpdate(GameStateUpdate.Send)
-            addCommanderGraveyardContext(pendingGsmBuilder, snap, hostCard.id, sourceId, recipientId)
+            addReplacementPromptContext(pendingGsmBuilder, snap, hostCard.id, commanderReturn)
             val actions = ActionMapper.buildFromSnapshot(counters.seatId.value, snap, bridge)
             for (action in actions.actionsList) {
                 pendingGsmBuilder.addActions(
@@ -205,17 +206,15 @@ class OptionalActionHandler(
         sink.sendBundledGRE(listOf(gsmGre, optionalGre))
     }
 
-    private fun addCommanderGraveyardContext(
+    private fun addReplacementPromptContext(
         builder: GameStateMessage.Builder,
         snap: GsmSnapshot,
         forgeCardId: Int,
-        oldInstanceId: Int,
-        newInstanceId: Int,
+        context: PlayerController.CommanderReturnPromptContext,
     ) {
         val cardId = ForgeCardId(forgeCardId)
         val bound = snap.boundCards[cardId] ?: return
         val ownerSeat = bound.snapshot.owner.value
-        val graveyardZoneId = ZoneIds.graveyardOf(ownerSeat)
 
         fun zoneWithContents(
             zoneId: Int,
@@ -232,7 +231,7 @@ class OptionalActionHandler(
             return ZoneInfo
                 .newBuilder()
                 .setZoneId(zoneId)
-                .setType(zone?.type ?: if (zoneId == ZoneIds.BATTLEFIELD) ZoneType.Battlefield else ZoneType.Graveyard)
+                .setType(zone?.type ?: zoneTypeFor(zoneId))
                 .setVisibility(zone?.visibility ?: Visibility.Public)
                 .apply { zone?.owner?.let { setOwnerSeatId(it.value) } }
                 .addAllObjectInstanceIds(contents.distinct())
@@ -240,13 +239,13 @@ class OptionalActionHandler(
         }
 
         builder
-            .addZones(zoneWithContents(ZoneIds.BATTLEFIELD, dropId = oldInstanceId))
-            .addZones(zoneWithContents(graveyardZoneId, extraIds = listOf(newInstanceId)))
+            .addZones(zoneWithContents(context.originZoneId, dropId = context.oldInstanceId))
+            .addZones(zoneWithContents(context.destinationZoneId, extraIds = listOf(context.promptInstanceId)))
             .addGameObjects(
                 ObjectMapper.buildFromSnapshot(
                     bound.snapshot,
-                    newInstanceId,
-                    graveyardZoneId,
+                    context.promptInstanceId,
+                    context.destinationZoneId,
                     ownerSeat,
                     ctx.bridge.cardProto,
                     Visibility.Public,
@@ -254,16 +253,64 @@ class OptionalActionHandler(
                 ),
             ).addAnnotations(
                 AnnotationBuilder.objectIdChanged(
-                    InstanceId(oldInstanceId),
-                    InstanceId(newInstanceId),
+                    InstanceId(context.oldInstanceId),
+                    InstanceId(context.promptInstanceId),
                 ).toBuilder().setId(ctx.bridge.nextAnnotationId()).build(),
             ).addAnnotations(
                 AnnotationBuilder.zoneTransfer(
-                    InstanceId(newInstanceId),
-                    ZoneIds.BATTLEFIELD,
-                    graveyardZoneId,
-                    "Destroy",
+                    InstanceId(context.promptInstanceId),
+                    context.originZoneId,
+                    context.destinationZoneId,
+                    context.transferCategory,
                 ).toBuilder().setId(ctx.bridge.nextAnnotationId()).build(),
             )
     }
+
+    private fun sendCommanderPromptCleanup(context: PlayerController.CommanderReturnPromptContext) {
+        val bridge = ctx.bridge
+        val link = counters.counter.nextGameStateLink()
+        val snap = GsmSnapshot.capture(ctx.game, bridge, "", link.gsId)
+        val destinationZone = snap.zones[context.destinationZoneId]
+        val zoneInfo =
+            ZoneInfo
+                .newBuilder()
+                .setZoneId(context.destinationZoneId)
+                .setType(destinationZone?.type ?: zoneTypeFor(context.destinationZoneId))
+                .setVisibility(destinationZone?.visibility ?: Visibility.Public)
+                .apply { destinationZone?.owner?.let { setOwnerSeatId(it.value) } }
+                .addAllObjectInstanceIds(
+                    destinationZone
+                        ?.contents
+                        ?.map { bridge.getOrAllocInstanceId(it).value }
+                        .orEmpty(),
+                ).build()
+
+        val cleanupGsm =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(link.gsId)
+                .setPrevGameStateId(link.prevGsId)
+                .setUpdate(GameStateUpdate.Send)
+                .addDiffDeletedInstanceIds(context.promptInstanceId)
+                .addZones(zoneInfo)
+                .build()
+
+        val cleanupGre =
+            sink.makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counters.counter.nextMsgId()) {
+                it.gameStateMessage = cleanupGsm
+            }
+        sink.sendBundledGRE(listOf(cleanupGre))
+    }
+
+    private fun zoneTypeFor(zoneId: Int): ZoneType =
+        when (zoneId) {
+            ZoneIds.BATTLEFIELD -> ZoneType.Battlefield
+            ZoneIds.EXILE -> ZoneType.Exile
+            ZoneIds.COMMAND -> ZoneType.Command
+            ZoneIds.P1_HAND, ZoneIds.P2_HAND -> ZoneType.Hand
+            ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY -> ZoneType.Library
+            ZoneIds.P1_GRAVEYARD, ZoneIds.P2_GRAVEYARD -> ZoneType.Graveyard
+            else -> ZoneType.Limbo
+        }
 }
