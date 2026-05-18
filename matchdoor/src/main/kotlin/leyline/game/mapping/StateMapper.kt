@@ -2088,9 +2088,8 @@ object StateMapper {
         val pending = bridge.drainPendingTargetSpecs()
         if (pending.isEmpty()) return emptyList()
 
-        // TODO: abilityGrpId needs sub-ability registry lookup, promptId needs
-        //  prompt-type mapping. Both require deeper card-DB plumbing. Falls
-        //  back to card grpId and 0 until wired.
+        // promptId still needs per-ability prompt-shape mapping. Fall back to
+        // 0 until a local mapping exists for the targeting prompt copy.
         return pending.mapNotNull { spec ->
             // Use the iid recorded at target-pick time for non-triggers (see
             // PendingTarget KDoc for the multi-target-spell rationale).
@@ -2146,7 +2145,7 @@ object StateMapper {
         snap: GsmSnapshot,
     ): Int {
         spec.abilityGrpId?.let { return it }
-        if (spec.isTriggeredAbility && spec.forgeAbilityId != 0) {
+        if (spec.forgeAbilityId != 0) {
             val resolved = abilityGrpIdForSource(ForgeCardId(spec.spellForgeCardId), spec.forgeAbilityId, bridge, snap)
             if (resolved != 0) return resolved
         }

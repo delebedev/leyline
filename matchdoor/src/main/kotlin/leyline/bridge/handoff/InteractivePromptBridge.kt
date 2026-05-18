@@ -62,6 +62,11 @@ class InteractivePromptBridge(
      * [isTriggeredAbility] flips the affector iid from the spell card's iid to the synthesised
      * stack-resident-ability iid via [leyline.game.mapping.FrameIdResolver.stackAbilityForgeId].
      *
+     * [forgeAbilityId] is the Forge `SpellAbility.id` for the targeting
+     * spell/ability. It drives TargetSpec abilityGrpId resolution; for
+     * triggered abilities it also drives stack-ability iid resolution when
+     * [affectorInstanceIdAtRecord] is the deferred-resolution sentinel `0`.
+     *
      * [affectorInstanceIdAtRecord] is the spell/ability iid as it stood at
      * record time (when the player picked targets and the spell was on the
      * stack). Multi-target spells (e.g. Bite Down) emit one TargetSpec per
@@ -81,13 +86,7 @@ class InteractivePromptBridge(
         val isTriggeredAbility: Boolean = false,
         val abilityGrpId: Int? = null,
         val promptId: Int? = null,
-        /**
-         * Forge `SpellAbility.id` for triggered abilities. Drives SA-id-keyed
-         * surrogate iid resolution at TargetSpec emission time when
-         * [affectorInstanceIdAtRecord] is the deferred-resolution sentinel `0`.
-         * Zero for non-triggered casts (the affector iid is the card's own iid,
-         * recorded directly).
-         */
+        /** Forge `SpellAbility.id` for the targeting spell/ability. */
         val forgeAbilityId: Int = 0,
     )
 

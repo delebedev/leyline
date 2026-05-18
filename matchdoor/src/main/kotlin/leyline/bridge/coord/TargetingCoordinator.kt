@@ -542,7 +542,7 @@ class TargetingCoordinator(
                 isTriggeredAbility = isTrigger,
                 abilityGrpId = targetSpecShape?.abilityGrpId ?: if (sa.isMutate) 0 else null,
                 promptId = targetSpecShape?.promptId ?: if (sa.isMutate) PromptIds.MUTATE_TARGET else null,
-                forgeAbilityId = if (isTrigger) sa.id else 0,
+                forgeAbilityId = sa.id,
             ),
         )
     }
