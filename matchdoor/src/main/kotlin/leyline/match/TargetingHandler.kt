@@ -483,10 +483,6 @@ class TargetingHandler(
 
         seatBridge.prompt.submitResponse(pendingPrompt.promptId, selectedIndices)
         bridge.awaitPriority()
-
-        // Send intermediate state so the client sees the zone transfer
-        // (card moving to graveyard or staying on top of library).
-        sink.sendRealGameState(bridge)
         autoPass()
     }
 

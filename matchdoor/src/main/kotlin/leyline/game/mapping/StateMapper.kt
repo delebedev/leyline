@@ -1213,6 +1213,7 @@ object StateMapper {
                 .filter { it.category == TransferCategory.CastSpell }
                 .mapNotNull { transfer -> transfer.forgeCardId?.let { it to InstanceId(transfer.newId) } }
                 .toMap()
+        val castSpellTransferCardIds = castStackIidsByCard.keys
         val mechanicResult =
             MechanicAnnotations.mechanicAnnotations(
                 events,
@@ -1236,6 +1237,7 @@ object StateMapper {
                 counterAffectorResolver = { eventIndex, ev -> counterAffectorFor(eventIndex, ev, events, frameIds) },
                 playerCounterAffectorResolver = { eventIndex, ev -> playerCounterAffectorFor(eventIndex, ev, events, frameIds) },
                 stackInstanceResolver = { ev -> castStackIidsByCard[ev.cardId] },
+                castSpellTransferCardIds = castSpellTransferCardIds,
             )
         // Token entries belong before combat damage: a Mobilize trigger that
         // resolves between attacker declaration and combat damage produces tokens
@@ -1377,7 +1379,7 @@ object StateMapper {
      * Assemble stages 2-3 around the key invariant for lethal damage:
      * DamageDealt must land before the victim's destroy transfer.
      */
-    @Suppress("LongMethod")
+    @Suppress("LongMethod", "CyclomaticComplexMethod")
     internal fun assembleTransferAndCombatAnnotations(
         events: List<GameEvent>,
         transferResult: TransferResult,
@@ -1452,6 +1454,21 @@ object StateMapper {
         // Snapshot-derived appearances (cast spells visible on the stack at snapshot time).
         val snapshotSourceIids = transferResult.stackAbilityAppearances.map { it.sourceCardInstanceId }.toSet()
         val snapshotAppearanceIids = transferResult.stackAbilityAppearances.map { it.abilityInstanceId }.toSet()
+        val abilityLineage = bridge?.abilityLineage
+        val eventAbilityGrpIdsByIid =
+            if (bridge != null && snap != null && frameIds != null) {
+                events
+                    .filterIsInstance<GameEvent.SpellCast>()
+                    .associate { cast ->
+                        val abilityIid = stackAbilityIidFor(cast.abilityForgeId, cast.cardId, frameIds)
+                        val grpId =
+                            cast.abilityGrpId.takeIf { it != 0 }
+                                ?: abilityGrpIdForSource(cast.cardId, cast.abilityForgeId, bridge, snap)
+                        abilityIid to grpId
+                    }
+            } else {
+                emptyMap()
+            }
         for (a in transferResult.stackAbilityAppearances) {
             // Snapshot-derived sourceZoneId reads `previousZones[sourceCardIid]`
             // which is 0 when the source card wasn't tracked through the diff
@@ -1459,12 +1476,13 @@ object StateMapper {
             // SpellCast event carries an explicit activationZoneId — prefer it
             // when non-zero so cycling=Hand and unearth=Graveyard both land.
             val sourceZone = if (a.activationZoneId != 0) a.activationZoneId else a.sourceZoneId
-            bridge?.abilityLineage?.record(
+            val abilityGrpId = eventAbilityGrpIdsByIid[a.abilityInstanceId] ?: a.grpId
+            abilityLineage?.record(
                 AbilityWireIdentity(
                     abilityIid = a.abilityInstanceId,
                     sourceIidAtCreate = a.sourceCardInstanceId,
                     sourceZoneAtCreate = sourceZone,
-                    abilityGrpId = a.grpId,
+                    abilityGrpId = abilityGrpId,
                 ),
             )
             annotations.add(
@@ -1509,7 +1527,7 @@ object StateMapper {
             )
         }
         for (d in transferResult.stackAbilityDisappearances) {
-            val lineage = bridge?.abilityLineage?.consume(d.abilityInstanceId)
+            val lineage = abilityLineage?.consume(d.abilityInstanceId)
             val sourceCardInstanceId = lineage?.sourceIidAtCreate ?: d.sourceCardInstanceId
             annotations.add(
                 AnnotationBuilder.abilityInstanceDeleted(
@@ -1906,6 +1924,9 @@ object StateMapper {
         events: List<GameEvent>,
         frameIds: FrameIdResolver,
     ): InstanceId? {
+        if (ev.affectorAbilityForgeId != 0 && ev.affectorCardId != null) {
+            return InstanceId(stackAbilityIidFor(ev.affectorAbilityForgeId, ev.affectorCardId, frameIds))
+        }
         val resolvedTraining = trainingResolutionForCounterEvent(eventIndex, ev, events) ?: return null
         return InstanceId(stackAbilityIidFor(resolvedTraining.abilityForgeId, resolvedTraining.cardId, frameIds))
     }

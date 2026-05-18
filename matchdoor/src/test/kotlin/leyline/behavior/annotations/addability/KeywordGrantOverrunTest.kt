@@ -56,15 +56,8 @@ class KeywordGrantOverrunTest :
             // Pass priority to let Overrun resolve
             passPriority()
 
-            // Get the latest GSM with game objects
-            val lastGsm =
-                allMessages
-                    .filter { it.hasGameStateMessage() }
-                    .last { it.gameStateMessage.gameObjectsCount > 0 }
-                    .gameStateMessage
-
             val bearIids = bears.map { human.battlefield.iid(it) }.toSet()
-            val bearObjects = lastGsm.gameObjectsList.filter { it.instanceId in bearIids }
+            val bearObjects = bearIids.mapNotNull { harness.accumulator.objects[it] }
             bearObjects.shouldNotBeEmpty()
 
             for (obj in bearObjects) {

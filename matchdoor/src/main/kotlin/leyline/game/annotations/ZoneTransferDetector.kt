@@ -141,6 +141,8 @@ object ZoneTransferDetector {
         events: List<GameEvent>,
     ): TransferResult {
         val plannedReallocs = mutableListOf<InstanceIdRegistry.IdReallocation>()
+        bridge.recordPendingSpellCasts(events)
+        bridge.recordPendingSpellResolutions(events)
 
         // Compute plans without mutating forward/reverse maps. Reserve a counter
         // slot per plan so monotonic getOrAlloc calls later in the same buildDiff
@@ -194,11 +196,21 @@ object ZoneTransferDetector {
                 isForetoldLookup = { fid ->
                     bridge.getGame()?.let { findCard(it, fid) }?.let { Foretell.isForetold(it) } ?: false
                 },
+                pendingSpellCastLookup = { fid -> bridge.pendingSpellCast(fid) },
+                pendingSpellResolutionLookup = { fid -> bridge.pendingSpellResolution(fid) },
                 forgeCardKnown = { fid ->
                     bridge.getGame()?.let { findCard(it, fid) } != null
                 },
                 paradigmSourceIidLookup = { fid -> bridge.paradigmSourceStackIidFor(fid) },
             )
+        result.transfers
+            .filter { it.category == TransferCategory.CastSpell }
+            .mapNotNull { it.forgeCardId }
+            .forEach { bridge.consumePendingSpellCast(it) }
+        result.transfers
+            .filter { it.category == TransferCategory.Resolve || it.category == TransferCategory.Countered }
+            .mapNotNull { it.forgeCardId }
+            .forEach { bridge.consumePendingSpellResolution(it) }
         return result.copy(idReallocations = plannedReallocs.toList())
     }
 
@@ -237,6 +249,8 @@ object ZoneTransferDetector {
          *  foretell-action transfer (Forge fires no dedicated GameEvent we can dispatch on
          *  — `GameEventCardForetold` carries only the activating player). */
         isForetoldLookup: (ForgeCardId) -> Boolean = { false },
+        pendingSpellCastLookup: (ForgeCardId) -> GameEvent.SpellCast? = { null },
+        pendingSpellResolutionLookup: (ForgeCardId) -> GameEvent.SpellResolved? = { null },
         /** True when a Forge card with this id exists. Used by the stack-ability surrogate
          *  inverse-mapping fallback to reject SA ids that happen to numerically collide with
          *  unrelated card ids when no in-window event disambiguates. Defaults to `true` for
@@ -258,7 +272,11 @@ object ZoneTransferDetector {
                     zoneRecordings.add(obj.instanceId to obj.zoneId)
                     continue
                 }
-                val forgeCardId = forgeIdLookup(InstanceId(obj.instanceId)) ?: paradigmCopyCardIdFor(obj.instanceId, events)
+                val forgeCardId =
+                    forgeIdLookup(InstanceId(obj.instanceId))
+                        ?: spellCastCardIdFor(obj.grpId, events, grpIdResolver)
+                        ?: spellResolvedCardIdFor(obj.grpId, events, grpIdResolver)
+                        ?: paradigmCopyCardIdFor(obj.instanceId, events)
                 if (isCollapsedParadigmOriginal(obj, prevZone, forgeCardId, events)) {
                     val collapsedForgeCardId = forgeCardId ?: continue
                     addCollapsedParadigmOriginalTransfers(
@@ -278,7 +296,19 @@ object ZoneTransferDetector {
                     )
                     continue
                 }
-                val baseCategory = categoryForTransfer(obj, prevZone, obj.zoneId, forgeCardId, events)
+                val baseCategory =
+                    if (obj.zoneId == ZoneIds.STACK && forgeCardId != null && pendingSpellCastLookup(forgeCardId) != null) {
+                        TransferCategory.CastSpell
+                    } else if (prevZone == ZoneIds.STACK && obj.zoneId != ZoneIds.EXILE && forgeCardId != null) {
+                        val pendingResolution = pendingSpellResolutionLookup(forgeCardId)
+                        when {
+                            pendingResolution?.hasFizzled == true -> TransferCategory.Countered
+                            pendingResolution != null -> TransferCategory.Resolve
+                            else -> categoryForTransfer(obj, prevZone, obj.zoneId, forgeCardId, events)
+                        }
+                    } else {
+                        categoryForTransfer(obj, prevZone, obj.zoneId, forgeCardId, events)
+                    }
                 // Foretell override: a Hand→Exile transfer where the destination card
                 // is foretold (Card.foretold==true && Card.isInZone(Exile)) is the
                 // foretell action, not a generic Exile. Forge fires no card-specific
@@ -350,6 +380,7 @@ object ZoneTransferDetector {
                         events
                             .filterIsInstance<GameEvent.SpellCast>()
                             .firstOrNull { it.cardId == forgeCardId }
+                            ?: pendingSpellCastLookup(forgeCardId)
                     } else {
                         null
                     }
@@ -373,7 +404,7 @@ object ZoneTransferDetector {
                 val chosenX = spellCastEvent?.chosenX ?: 0
                 val transferAffectorId =
                     if (category == TransferCategory.CastSpell && spellCastEvent?.isParadigmCopyCastEvent() == true) {
-                        paradigmDelayedTriggerIid(events, idLookup)
+                        paradigmDelayedTriggerIid(events, idLookup).takeIf { it != 0 } ?: paradigmDelayedTriggerIid(patchedObjects)
                     } else {
                         affectorId
                     }
@@ -582,7 +613,7 @@ object ZoneTransferDetector {
         idLookup: (ForgeCardId) -> InstanceId,
         grpIdResolver: (ForgeCardId) -> GrpId,
     ) {
-        val affectorId = paradigmDelayedTriggerIid(events, idLookup)
+        val affectorId = paradigmDelayedTriggerIid(events, idLookup).takeIf { it != 0 } ?: paradigmDelayedTriggerIid(patchedObjects)
         val resolvedCopyIds =
             events
                 .filterIsInstance<GameEvent.SpellResolved>()
@@ -779,6 +810,26 @@ object ZoneTransferDetector {
             events.any { it is GameEvent.SpellResolved && it.cardId == forgeCardId && it.isParadigmCopy }
 
     private fun GameObjectInfo.hasParadigmAbility(): Boolean = uniqueAbilitiesList.any { it.grpId == KeywordAbilityIds.PARADIGM }
+
+    private fun spellCastCardIdFor(
+        grpId: Int,
+        events: List<GameEvent>,
+        grpIdResolver: (ForgeCardId) -> GrpId,
+    ): ForgeCardId? =
+        events
+            .filterIsInstance<GameEvent.SpellCast>()
+            .firstOrNull { grpIdResolver(it.cardId).value == grpId }
+            ?.cardId
+
+    private fun spellResolvedCardIdFor(
+        grpId: Int,
+        events: List<GameEvent>,
+        grpIdResolver: (ForgeCardId) -> GrpId,
+    ): ForgeCardId? =
+        events
+            .filterIsInstance<GameEvent.SpellResolved>()
+            .firstOrNull { grpIdResolver(it.cardId).value == grpId }
+            ?.cardId
 
     private fun eventOrInferredCategory(
         forgeCardId: ForgeCardId?,

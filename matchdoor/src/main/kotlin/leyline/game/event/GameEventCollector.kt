@@ -95,6 +95,7 @@ class FrameEventLog(
     }
 }
 
+@Suppress("LargeClass")
 class GameEventCollector(
     private val bridge: GameBridge,
 ) : IGameEventVisitor.Base<Unit>() {
@@ -709,16 +710,26 @@ class GameEventCollector(
     // -- Group B: annotation-producing events --
 
     override fun visit(ev: GameEventCardCounters) {
+        val cardId = ForgeCardId(ev.card().id)
+        val affectorAbilityForgeId = trainingTriggerAbilityIdFor(cardId) ?: 0
         frame.add(
             GameEvent.CountersChanged(
-                cardId = ForgeCardId(ev.card().id),
+                cardId = cardId,
                 counterType = ev.type().name,
                 oldCount = ev.oldValue(),
                 newCount = ev.newValue(),
+                affectorAbilityForgeId = affectorAbilityForgeId,
+                affectorCardId = cardId.takeIf { affectorAbilityForgeId != 0 },
             ),
         )
         log.debug("event: CountersChanged card={} {} {}→{}", ev.card().name, ev.type(), ev.oldValue(), ev.newValue())
     }
+
+    private fun trainingTriggerAbilityIdFor(cardId: ForgeCardId): Int? =
+        pendingTriggers.entries
+            .firstOrNull { (abilityId, sourceCardId) ->
+                sourceCardId == cardId && pendingAbilityGrpIds[abilityId] == KeywordAbilityIds.TRAINING
+            }?.key
 
     override fun visit(ev: GameEventPlayerPoisoned) {
         val seat = seatOf(ev.receiver()) ?: return
