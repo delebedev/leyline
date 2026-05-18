@@ -43,6 +43,7 @@ class BushwhackFightTest :
                 ailibrary=Mountain
                 """,
                 name = "Destroy Evil no legal modes",
+                validating = true,
             )
 
             val actions = harness.accumulator.actions.shouldNotBeNull()
