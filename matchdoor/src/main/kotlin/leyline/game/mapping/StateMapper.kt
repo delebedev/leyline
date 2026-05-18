@@ -675,6 +675,12 @@ object StateMapper {
         // are synthesised against [FrameIdResolver.stackAbilityForgeId] and
         // don't appear in the snapshot's zone contents.
         val stackIids: Set<Int> = frameIds.stackInstanceIds(snap)
+        val resolvingStackIids: Set<Int> =
+            eventsMutable
+                .filterIsInstance<GameEvent.SpellResolved>()
+                .filter { it.isTrigger || it.isAbility }
+                .map { stackAbilityIidFor(it.abilityForgeId, it.cardId, frameIds) }
+                .toSet()
         val controllerOf: Map<Int, SeatId> =
             snap.boundCards.values.associate { bound ->
                 bridge.getOrAllocInstanceId(bound.forgeCardId).value to bound.snapshot.controller
@@ -686,6 +692,7 @@ object StateMapper {
                 battlefieldIids = battlefieldIids,
                 controllerOf = controllerOf,
                 stackIids = stackIids,
+                resolvingStackIids = resolvingStackIids,
             )
         val remaining =
             computeRemainingAnnotations(

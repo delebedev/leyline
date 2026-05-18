@@ -30,6 +30,11 @@ data class FrameContext(
      *  ability iid is no longer present). Includes both card spells and
      *  Ability gameObjects in zone 27. */
     val stackIids: Set<Int> = emptySet(),
+    /** Stack ability iids resolving in this frame. Forge can fire the resolve
+     *  event before removing the Ability object from the live stack snapshot;
+     *  this set lets lifecycle pruning still delete TriggeringObject in the
+     *  resolution GSM. */
+    val resolvingStackIids: Set<Int> = emptySet(),
 ) {
     companion object {
         /** No-op context — phase=null, empty battlefield, empty stack, empty
@@ -469,7 +474,7 @@ data object TriggeringObjectKind : PersistentAnnotationKind {
     override fun shouldExpire(
         ann: AnnotationInfo,
         frame: FrameContext,
-    ): Boolean = ann.affectorId !in frame.stackIids
+    ): Boolean = ann.affectorId !in frame.stackIids || ann.affectorId in frame.resolvingStackIids
 }
 
 object PersistentAnnotationKinds {
