@@ -252,17 +252,23 @@ class OptionalActionHandler(
                     parentLinkage = bound.parentLinkage,
                 ),
             ).addAnnotations(
-                AnnotationBuilder.objectIdChanged(
-                    InstanceId(context.oldInstanceId),
-                    InstanceId(context.promptInstanceId),
-                ).toBuilder().setId(ctx.bridge.nextAnnotationId()).build(),
+                AnnotationBuilder
+                    .objectIdChanged(
+                        InstanceId(context.oldInstanceId),
+                        InstanceId(context.promptInstanceId),
+                    ).toBuilder()
+                    .setId(ctx.bridge.nextAnnotationId())
+                    .build(),
             ).addAnnotations(
-                AnnotationBuilder.zoneTransfer(
-                    InstanceId(context.promptInstanceId),
-                    context.originZoneId,
-                    context.destinationZoneId,
-                    context.transferCategory,
-                ).toBuilder().setId(ctx.bridge.nextAnnotationId()).build(),
+                AnnotationBuilder
+                    .zoneTransfer(
+                        InstanceId(context.promptInstanceId),
+                        context.originZoneId,
+                        context.destinationZoneId,
+                        context.transferCategory,
+                    ).toBuilder()
+                    .setId(ctx.bridge.nextAnnotationId())
+                    .build(),
             )
     }
 

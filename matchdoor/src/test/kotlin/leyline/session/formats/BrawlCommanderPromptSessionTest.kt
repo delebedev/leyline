@@ -37,7 +37,9 @@ class BrawlCommanderPromptSessionTest :
                 optional.sourceId shouldBe recipientId
                 optionalGre.prompt.parametersList.map { it.numberValue } shouldBe listOf(0, recipientId)
                 human.getZone(ZoneType.Command).cards.count { it.name == commanderName } shouldBe 1
-                harness.accumulator.objects.containsKey(recipientId).shouldBeFalse()
+                harness.accumulator.objects
+                    .containsKey(recipientId)
+                    .shouldBeFalse()
                 assertAccumulatorConsistent("after accepted commander return prompt")
             }
         }
@@ -59,7 +61,9 @@ class BrawlCommanderPromptSessionTest :
 
             assertSoftly {
                 optionalGre.prompt.promptId shouldBe PromptIds.COMMANDER_RETURN_TO_COMMAND
-                harness.accumulator.objects.containsKey(recipientId).shouldBeFalse()
+                harness.accumulator.objects
+                    .containsKey(recipientId)
+                    .shouldBeFalse()
                 assertAccumulatorConsistent("after declined commander return prompt")
             }
         }

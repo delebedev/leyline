@@ -8,8 +8,8 @@ import forge.game.Game
 import forge.game.GameActionUtil
 import forge.game.GameEntity
 import forge.game.GameObject
-import forge.game.ability.AbilityUtils
 import forge.game.ability.AbilityKey
+import forge.game.ability.AbilityUtils
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
@@ -705,6 +705,7 @@ class PlayerController(
         )
     }
 
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun protocolZoneId(
         zone: ZoneType,
         ownerSeatId: Int,
@@ -719,6 +720,7 @@ class PlayerController(
             else -> ZoneIds.LIMBO
         }
 
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun commanderTransferCategory(
         origin: ZoneType,
         destination: ZoneType,
