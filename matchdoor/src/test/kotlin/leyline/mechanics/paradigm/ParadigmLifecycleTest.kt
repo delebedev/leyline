@@ -63,7 +63,7 @@ private val DECORUM_PUZZLE =
 class ParadigmLifecycleTest :
     SessionTest({
         test("untargeted Paradigm original self-exiles, creates Main1 trigger, and casts copy for free") {
-            startPuzzleRaw(GERMINATION_PUZZLE)
+            startPuzzleRaw(GERMINATION_PUZZLE, validating = true)
 
             harness.resolveSpell("Germination Practicum").shouldBeTrue()
             human
@@ -145,7 +145,7 @@ class ParadigmLifecycleTest :
         }
 
         test("targeted Paradigm copy prompt uses copied card source and targeting metadata") {
-            startPuzzleRaw(DECORUM_PUZZLE)
+            startPuzzleRaw(DECORUM_PUZZLE, validating = true)
 
             harness.castSpellByName("Decorum Dissertation").shouldBeTrue()
             val originalTargetSourceId = allMessages.last { it.hasSelectTargetsReq() }.selectTargetsReq.sourceId
