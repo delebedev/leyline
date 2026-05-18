@@ -69,6 +69,7 @@ class ExposedCardRepository(
         // 2 = Trigger/Static/Passive. Anything we don't recognize is treated
         // as non-activated by the consumer.
         val category = integer("Category").default(0)
+        val subCategory = integer("SubCategory").default(0)
         override val primaryKey = PrimaryKey(id)
     }
 
@@ -177,6 +178,7 @@ class ExposedCardRepository(
                             baseId = row[Abilities.baseId],
                             manaCost = parseManaCost(row[Abilities.oldSchoolManaText]),
                             category = row[Abilities.category],
+                            subCategory = row[Abilities.subCategory],
                         )
                     }
             }
@@ -236,22 +238,21 @@ class ExposedCardRepository(
         }
 
     /**
-     * Resolve Arena ability ids to per-slot [SlotKind] using `Abilities.Category`.
-     * Category=1 → Activated; everything else (2 = trigger, 3+ = static/passive)
-     * → Intrinsic. Both a missing row and Category=0 (schema default, never
-     * populated) collapse to Activated — both mean "unknown classification";
-     * we preserve the pre-enrichment legacy of treating unknown abilities as
-     * activate-able.
+     * Resolve Arena ability ids to per-slot [SlotKind] using `Abilities`
+     * metadata. Category=1/SubCategory=1 is a mana ability; Category=1 is a
+     * non-mana activation; everything else is intrinsic. Both a missing row
+     * and Category=0 collapse to Activated to preserve the legacy treatment
+     * for unknown synthetic rows.
      */
     private fun lookupAbilityKinds(ids: List<Int>): List<SlotKind> {
         if (ids.isEmpty()) return emptyList()
         val distinctIds = ids.distinct()
-        val categories = mutableMapOf<Int, Int>()
+        val kinds = mutableMapOf<Int, SlotKind>()
         for (id in distinctIds) {
             val row = Abilities.selectAll().where { Abilities.id eq id }.firstOrNull() ?: continue
-            categories[id] = row[Abilities.category]
+            kinds[id] = SlotKind.fromAbilityInfo(row[Abilities.category], row[Abilities.subCategory])
         }
-        return ids.map { id -> SlotKind.fromCategory(categories[id]) }
+        return ids.map { id -> kinds[id] ?: SlotKind.fromCategory(null) }
     }
 
     private fun queryNameByGrpId(grpId: Int): String? =

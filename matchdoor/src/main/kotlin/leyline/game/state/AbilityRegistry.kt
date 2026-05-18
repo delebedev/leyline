@@ -59,8 +59,8 @@ class AbilityRegistry private constructor(
                         else -> SlotKind.Activated
                     }
                 }
-            // Indices in abilityIds that are eligible for activated SAs.
-            // For Arena-sourced cards: slots whose `Abilities.Category=1`.
+            // Indices in abilityIds that are eligible for non-mana activated SAs.
+            // For Arena-sourced cards: slots whose ability metadata is Activated.
             // For data without per-slot kinds (legacy / puzzle deriver): fall back
             // to "all slots after keywords are activated" — matches old behavior.
             val activatedSlotIndices =
@@ -71,9 +71,17 @@ class AbilityRegistry private constructor(
                 } else {
                     (keywordCount until abilityIds.size).toList()
                 }
+            val manaSlotIndices =
+                if (cardData.abilityKinds.size == abilityIds.size) {
+                    abilityIds.indices.filter {
+                        it >= keywordCount && slotKinds[it] == SlotKind.Mana
+                    }
+                } else {
+                    emptyList()
+                }
             mapActivatedAbilities(card, abilityIds, activatedSlotIndices, saMap)
             mapStationThresholdStatics(card, abilityIds, staticMap)
-            mapManaAbilities(card, fallbackGrpId, saMap)
+            mapManaAbilities(card, abilityIds, manaSlotIndices, fallbackGrpId, saMap)
             mapUnclaimedIntrinsicTriggers(card, cardData, abilityIds, keywordCount, triggerMap)
             mapUnclaimedIntrinsicStatics(card, cardData, abilityIds, keywordCount, staticMap)
             mapUnclaimedLegacyStatics(card, cardData, abilityIds, keywordCount, staticMap)
@@ -178,15 +186,21 @@ class AbilityRegistry private constructor(
             }
         }
 
-        /** Phase 3: Mana abilities fall back to slot 0. */
+        /** Phase 3: Map mana abilities to mana slots, with legacy fallback to slot 0. */
         private fun mapManaAbilities(
             card: Card,
+            abilityIds: List<Pair<Int, Int>>,
+            manaSlotIndices: List<Int>,
             fallbackGrpId: Int,
             saMap: MutableMap<Int, Int>,
         ) {
+            var idx = 0
             for (sa in card.spellAbilities ?: emptyList()) {
                 if (!sa.isManaAbility() || !sa.isIntrinsic) continue
-                saMap.putIfAbsent(sa.id, fallbackGrpId)
+                val slotIdx = manaSlotIndices.getOrNull(idx)
+                val grpId = if (slotIdx != null && slotIdx < abilityIds.size) abilityIds[slotIdx].first else fallbackGrpId
+                saMap.putIfAbsent(sa.id, grpId)
+                idx++
             }
         }
 

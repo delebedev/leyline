@@ -1,0 +1,16 @@
+[metadata]
+Name:Racers' Ring Draw
+Goal:Activate
+Turns:1
+Difficulty:Easy
+Description:Activate Racers' Ring's draw ability. Final state should have Racers' Ring in graveyard and the top library card in hand.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Racers' Ring;Mountain;Mountain;Mountain;Forest
+humanlibrary=Lightning Bolt;Mountain
+ailibrary=Mountain;Mountain

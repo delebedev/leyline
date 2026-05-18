@@ -1,0 +1,15 @@
+name: "Racers' Ring"
+grpId: 80404
+titleId: 567893
+abilities:
+  - id: 180111
+    textId: 894988
+    category: 3
+  - id: 1131
+    textId: 232072
+    category: 1
+    subCategory: 1
+  - id: 149629
+    textId: 958250
+    category: 1
+expansionCode: "SNC"

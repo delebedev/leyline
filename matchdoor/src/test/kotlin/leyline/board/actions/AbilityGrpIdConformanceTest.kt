@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
@@ -70,5 +71,25 @@ class AbilityGrpIdConformanceTest :
             // keyword/activated bucketing).
             val cardAbilityIds = cardData.abilityIds.map { it.first }.toSet()
             grpIds.forEach { cardAbilityIds shouldContain it }
+        }
+
+        test("land with mana and non-mana activations emits matching abilityGrpIds") {
+            val cardName = "Racers' Ring"
+            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val injected = TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
+            val cardData = CardDataDeriver.fromForgeCard(injected.card, cardName)
+            TestCardRegistry.repo.registerData(cardData, cardName)
+
+            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
+            val manaAction =
+                actions.actionsList.single {
+                    it.actionType == ActionType.ActivateMana && it.instanceId == injected.instanceId
+                }
+            val activateActions =
+                (actions.actionsList + actions.inactiveActionsList)
+                    .filter { it.actionType == ActionType.Activate_add3 && it.instanceId == injected.instanceId }
+
+            manaAction.abilityGrpId shouldBe 1131
+            activateActions.map { it.abilityGrpId } shouldContain 149629
         }
     })

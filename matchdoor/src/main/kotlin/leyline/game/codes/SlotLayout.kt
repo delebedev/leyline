@@ -69,13 +69,13 @@ enum class SlotKind {
 
     companion object {
         /**
-         * Map an ability category integer (the client's `Abilities.Category`
-         * column) to a [SlotKind].
+         * Map ability row metadata from the client's `Abilities` table to a
+         * [SlotKind].
          *
-         * Category=1 → [Activated]. Category=0 (schema default, never
-         * populated) and "row absent" → [Activated] (treat unknown as
-         * activate-able for compat — `ExposedCardRepository` does the same).
-         * Anything else (2 = trigger, 3+ = static/passive) → [Intrinsic].
+         * Category=1 + SubCategory=1 → [Mana]. Category=1 → [Activated].
+         * Category=0 (schema default, never populated) and "row absent" →
+         * [Activated] (treat unknown as activate-able for compat). Anything
+         * else (2 = trigger, 3+ = static/passive) → [Intrinsic].
          *
          * Single source of truth shared by [ExposedCardRepository] (prod)
          * and the YAML fixture loader (test). Keeps prod and test on the
@@ -85,6 +85,15 @@ enum class SlotKind {
             when (category) {
                 1, 0, null -> Activated
                 else -> Intrinsic
+            }
+
+        fun fromAbilityInfo(
+            category: Int?,
+            subCategory: Int?,
+        ): SlotKind =
+            when {
+                category == 1 && subCategory == 1 -> Mana
+                else -> fromCategory(category)
             }
     }
 }
