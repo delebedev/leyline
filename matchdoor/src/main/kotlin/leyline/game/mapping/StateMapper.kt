@@ -77,7 +77,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * [leyline.game.state.BridgeMutations] as data; callers apply via [leyline.game.state.GameBridge.applyMutations].
  * No inline writes during compute, no mode flags. Ordering-sensitive writes
  * (id reallocations, limbo retires, zone recordings, persistent annotation
- * batch, nextAnnotationId) flow exclusively through the returned mutations.
+ * batch, nextAnnotationId, delayed-trigger holder lifecycle) flow exclusively
+ * through the returned mutations.
  *
  * Inputs to [buildDiff] are pure values: `prev: GsmSnapshot?`, `cur: GsmSnapshot`,
  * `events: FrameEventLog`. Outputs are pure: `GameStateMessage` + [leyline.game.state.BridgeMutations].
@@ -479,8 +480,7 @@ object StateMapper {
                 }
         // Diff against the bridge-side tracker. The client keeps cached holders
         // across GSMs by instanceId, so we only emit a gameObject for newly-added
-        // holders; removed holders flow through
-        // [bridge.delayedTriggerHolders.drainDeletions] into
+        // holders; removed holders flow through BridgeMutations into
         // diffDeletedInstanceIds in [buildDiff]. The Limbo zone listing,
         // however, must reflect the **post-diff** active set every GSM —
         // otherwise the deletion GSM ships the iid both in Limbo and in
@@ -525,7 +525,6 @@ object StateMapper {
                 patchedZones.add(limboBuilder.build())
                 transferResultWithDecayedAffectors.copy(patchedZones = patchedZones, patchedObjects = patchedObjects)
             }
-        bridge.delayedTriggerHolders.apply(holderBatch)
         val abilityWordPersistentFromSnap =
             snap.abilityWordEntries.map { entry ->
                 AnnotationBuilder.abilityWordActive(
@@ -753,6 +752,7 @@ object StateMapper {
                 zoneRecordings = transferResult.zoneRecordings.map { (iid, zid) -> InstanceId(iid) to zid },
                 persistentBatch = remaining.batch,
                 nextAnnotationId = remaining.nextAnnotationId,
+                holderBatch = holderBatch,
             )
 
         val hasCastSpell = transferResult.transfers.any { it.category == TransferCategory.CastSpell }
@@ -1009,11 +1009,10 @@ object StateMapper {
                 .setUpdate(updateType)
                 .setPrevGameStateId(prev.gameStateId)
 
-        // Fold any TriggerHolder gameObjects retired this GSM into the delete
-        // list. The tracker queues them in `apply` (which ran inside the
-        // wrapped buildFromSnapshot above) and we drain here so the client
-        // retires the cached holder via instance-id.
-        val holderDeletions = bridge.delayedTriggerHolders.drainDeletions()
+        // Fold TriggerHolder gameObjects retired this GSM into the delete list.
+        // The batch is compute-time data; applyMutations commits tracker state
+        // only after this GSM is assembled.
+        val holderDeletions = fullResult.mutations.holderBatch.removed
         val allDeletedIds = deletedIds + holderDeletions
         if (allDeletedIds.isNotEmpty()) {
             builder.addAllDiffDeletedInstanceIds(allDeletedIds)

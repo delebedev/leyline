@@ -209,6 +209,47 @@ class PureDiffReplayTest :
                 exercisedRealloc shouldBe true
             }
         }
+
+        test("buildDiff defers delayed-trigger holder removals to applyMutations") {
+            withBase {
+                val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
+                val captured = mutableListOf<BundleStep>()
+                liveBridge.diffListener = { prev, cur, events, gsId, diff ->
+                    captured.add(BundleStep(prev, cur, events.toList(), gsId, diff))
+                }
+                playLand(liveBridge)
+                castCreature(liveBridge)
+                advanceToEndOfTurn(liveBridge)
+                liveBridge.diffListener = null
+
+                captured.shouldNotBeEmpty()
+
+                liveBridge.shutdown()
+                bridge = null
+                val (replayBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
+                val holder = HolderRecord(iid = 777, ownerSeat = 1, objectSourceGrpId = 188698, parentIid = 100, cleanupGrpId = 189931)
+                replayBridge.delayedTriggerHolders.apply(HolderBatch(added = listOf(holder), removed = emptyList()))
+                val activeBefore = replayBridge.delayedTriggerHolders.activeIids()
+                val step = captured.first()
+                val replayResult =
+                    StateMapper.buildDiff(
+                        prev = step.prev,
+                        cur = step.cur,
+                        events = FrameEventLog(step.events),
+                        gameStateId = step.gameStateId,
+                        matchId = BoardTestBase.TEST_MATCH_ID,
+                        bridge = replayBridge,
+                        updateType = step.diff.update,
+                        viewingSeatId = SEAT_ID,
+                    )
+
+                replayBridge.delayedTriggerHolders.activeIids() shouldBe activeBefore
+                replayResult.mutations.holderBatch.removed shouldBe listOf(777)
+                (777 in replayResult.gsm.diffDeletedInstanceIdsList) shouldBe true
+                replayBridge.applyMutations(replayResult.mutations)
+                replayBridge.delayedTriggerHolders.activeIids() shouldBe emptySet()
+            }
+        }
     }) {
     companion object {
         private const val SCENARIO_SEED = 42L
