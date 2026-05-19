@@ -923,7 +923,14 @@ object StateMapper {
         val changedZones =
             current.zonesList.filter { zone ->
                 zone.zoneId in changedZoneIds ||
-                    (zone.zoneId == ZoneIds.LIMBO && zone.objectInstanceIdsCount > 0) ||
+                    (
+                        zone.zoneId == ZoneIds.LIMBO &&
+                            (
+                                zone.objectInstanceIdsCount > 0 ||
+                                    fullResult.mutations.holderBatch.removed
+                                        .isNotEmpty()
+                            )
+                    ) ||
                     (zone.zoneId == ZoneIds.REVEALED_P1 || zone.zoneId == ZoneIds.REVEALED_P2) ||
                     (opponentRevealedHandZoneId != null && zone.zoneId == opponentRevealedHandZoneId)
             }

@@ -18,6 +18,9 @@ import leyline.bridge.types.InstanceId
  * 5. `nextAnnotationId` — transient annotation ID counter update
  * 6. `holderBatch` — delayed-trigger holder lifecycle writes (writes to [DelayedTriggerHolderTracker])
  *
+ * `diffDeletedInstanceIds` is compute-time output for GSM assembly only. It is
+ * not applied to bridge state; the rest of this batch still owns bridge writes.
+ *
  * Scope: only ordering-sensitive mutations. Monotonic allocators
  * ([InstanceIdRegistry.getOrAlloc] for new cards, [EffectTracker.nextEffectId],
  * etc.) stay as in-place mutations inside `buildDiff` — their ordering doesn't
@@ -30,6 +33,7 @@ data class BridgeMutations(
     val persistentBatch: PersistentAnnotationStore.BatchResult,
     val nextAnnotationId: Int,
     val holderBatch: HolderBatch,
+    /** Extra object deletions emitted in this Diff GSM, without bridge-state writes. */
     val diffDeletedInstanceIds: List<InstanceId> = emptyList(),
 ) {
     companion object {

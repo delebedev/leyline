@@ -4,6 +4,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
@@ -400,6 +401,8 @@ class MobilizeKeywordTest :
             }
 
             // Sanity: the deleted iid is the one that was emitted.
-            gsms[deletionGsmIndices.first()].diffDeletedInstanceIdsList shouldContain holderIid
+            val deletionGsm = gsms[deletionGsmIndices.first()]
+            deletionGsm.diffDeletedInstanceIdsList shouldContain holderIid
+            deletionGsm.zonesList.first { it.zoneId == 30 }.objectInstanceIdsList shouldNotContain holderIid
         }
     })
