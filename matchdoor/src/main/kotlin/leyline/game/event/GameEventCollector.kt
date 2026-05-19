@@ -16,6 +16,7 @@ import forge.game.spellability.AlternativeCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.codes.ManaColorMapping
 import leyline.game.data.KeywordAbilityIds
@@ -138,6 +139,13 @@ class GameEventCollector(
     /** Stack iids for Paradigm copy casts, keyed by Forge SpellAbility id until resolution. */
     private val pendingParadigmCopyStackIids = ConcurrentHashMap<Int, Int>()
 
+    /** Enlist taps are paid before the trigger resolves; carry tapped creature → attacker across frames. */
+    private val pendingEnlistAffectors = ConcurrentHashMap<ForgeCardId, ForgeCardId>()
+
+    /** Enlist's linked trigger points at the paid tap object, not a target. */
+    private val pendingEnlistedByAttacker = ConcurrentHashMap<ForgeCardId, ForgeCardId>()
+    private val pendingEnlistedIidsByAttacker = ConcurrentHashMap<ForgeCardId, InstanceId>()
+
     /** Non-consuming check: is this SpellAbility a triggered ability currently on the stack?
      *  Used by [leyline.game.GamePlayback] to decide whether to insert a per-step diff
      *  for trigger resolutions on the local player's turn. */
@@ -251,7 +259,23 @@ class GameEventCollector(
         // The SA's Forge id is needed for both triggered and activated abilities;
         // both surface through the AbilityInstance lifecycle path keyed on it.
         val abilityForgeId = if (isTrigger || isAbility) spellAbilityId else 0
-        val abilityGrpId = if ((isTrigger || isAbility) && realCard != null) abilityGrpIdFor(realCard, topSa) else 0
+        val abilityGrpId = if ((isTrigger || isAbility) && realCard != null) abilityGrpIdFor(realCard, topSa, isTrigger) else 0
+        val triggeringObjectCardId =
+            if (isTrigger && abilityGrpId == KeywordAbilityIds.ENLIST) {
+                enlistTriggerObjectFor(ForgeCardId(card.id), topSa)
+            } else {
+                null
+            }
+        val triggeringObjectInstanceId =
+            if (isTrigger && abilityGrpId == KeywordAbilityIds.ENLIST) {
+                pendingEnlistedIidsByAttacker.remove(ForgeCardId(card.id))
+                    ?: triggeringObjectCardId?.let { bridge.getOrAllocInstanceId(it) }
+            } else {
+                null
+            }
+        if (triggeringObjectCardId != null) {
+            pendingEnlistAffectors[triggeringObjectCardId] = ForgeCardId(card.id)
+        }
         if (isTrigger && abilityForgeId != 0) {
             pendingTriggers[abilityForgeId] = ForgeCardId(card.id)
             if (abilityGrpId != 0) pendingAbilityGrpIds[abilityForgeId] = abilityGrpId
@@ -283,6 +307,8 @@ class GameEventCollector(
                 isTrigger = isTrigger,
                 abilityForgeId = abilityForgeId,
                 abilityGrpId = abilityGrpId,
+                triggeringObjectCardId = triggeringObjectCardId,
+                triggeringObjectInstanceId = triggeringObjectInstanceId,
                 activationZoneId = activationZoneId,
                 kickerAbilityGrpId = kickerAbilityGrpId,
                 chosenX = chosenX,
@@ -318,8 +344,15 @@ class GameEventCollector(
     private fun abilityGrpIdFor(
         card: Card,
         sa: SpellAbility?,
+        isTrigger: Boolean,
     ): Int {
         if (sa == null) return 0
+        if (isTrigger &&
+            card.hasKeyword("Enlist") &&
+            enlistTriggerObjectFor(ForgeCardId(card.id), sa, consumePending = false) != null
+        ) {
+            return KeywordAbilityIds.ENLIST
+        }
         return specialAbilityGrpIdFor(card, sa)
             ?: decayedAbilityGrpIdFor(card, sa)
             ?: namedAbilityGrpIdFor(card, sa)
@@ -398,6 +431,31 @@ class GameEventCollector(
             return bridge.cardRepository.findHiddenTriggeredAbilityGrpId(grpId)
         }
         return null
+    }
+
+    private fun enlistedCardId(sa: SpellAbility?): ForgeCardId? =
+        sa
+            ?.getTriggerRemembered()
+            ?.filterIsInstance<Card>()
+            ?.firstOrNull()
+            ?.let { ForgeCardId(it.id) }
+
+    private fun enlistTriggerObjectFor(
+        attackerForgeCardId: ForgeCardId,
+        sa: SpellAbility?,
+        consumePending: Boolean = true,
+    ): ForgeCardId? {
+        val pending =
+            if (consumePending) {
+                pendingEnlistedByAttacker.remove(
+                    attackerForgeCardId,
+                )
+            } else {
+                pendingEnlistedByAttacker[attackerForgeCardId]
+            }
+        val peek = peekEnlistedByAttacker(attackerForgeCardId)
+        val remembered = enlistedCardId(sa)?.takeIf { it != attackerForgeCardId }
+        return pending ?: peek ?: remembered
     }
 
     /**
@@ -626,7 +684,13 @@ class GameEventCollector(
     }
 
     override fun visit(ev: GameEventCardTapped) {
-        frame.add(GameEvent.CardTapped(ForgeCardId(ev.card().id), ev.tapped()))
+        val cardId = ForgeCardId(ev.card().id)
+        val enlistAttacker = consumeEnlistTapAffector(cardId) ?: pendingEnlistAffectors.remove(cardId)
+        if (ev.tapped() && enlistAttacker != null) {
+            pendingEnlistedByAttacker[enlistAttacker] = cardId
+            pendingEnlistedIidsByAttacker[enlistAttacker] = bridge.getOrAllocInstanceId(cardId)
+        }
+        frame.add(GameEvent.CardTapped(cardId, ev.tapped(), enlistAttacker))
         log.debug("event: CardTapped card={} tapped={}", ev.card().name, ev.tapped())
     }
 
@@ -877,6 +941,28 @@ class GameEventCollector(
             if (bridge.promptBridge(SeatId(seat)).journal.consumeLegendVictim(id)) return true
         }
         return false
+    }
+
+    private fun consumeEnlistTapAffector(forgeCardId: ForgeCardId): ForgeCardId? {
+        for (seat in bridge.allSeatIds()) {
+            bridge
+                .promptBridge(SeatId(seat))
+                .journal
+                .consumeEnlistTapAffector(forgeCardId)
+                ?.let { return it }
+        }
+        return null
+    }
+
+    private fun peekEnlistedByAttacker(attackerForgeCardId: ForgeCardId): ForgeCardId? {
+        for (seat in bridge.allSeatIds()) {
+            bridge
+                .promptBridge(SeatId(seat))
+                .journal
+                .peekEnlistedByAttacker(attackerForgeCardId)
+                ?.let { return it }
+        }
+        return null
     }
 
     /**

@@ -21,6 +21,12 @@ sealed interface PromptSideEffect {
         val forgeCardId: ForgeCardId,
     ) : PromptSideEffect
 
+    /** Enlist cost tap; consumer emits tap annotation with the attacker as affector. */
+    data class EnlistTapAffector(
+        val tappedForgeCardId: ForgeCardId,
+        val attackerForgeCardId: ForgeCardId,
+    ) : PromptSideEffect
+
     /** Reveal-choose effect in progress; consumers synthesize RevealedCard proxies. */
     data class RevealStarted(
         val allHandCardIds: List<ForgeCardId>,

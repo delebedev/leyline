@@ -114,6 +114,31 @@ Sidecar shape (matches scry-ts `GameMeta`):
 `just simclient` copies the `.log` and `.meta.json` into `~/.scry/games/` so
 scry-ts picks them up. The `.stats.json` stays in the build dir.
 
+## Iteration Loop For Mechanic Fixes
+
+Use simclient as the fast deck-level bracket after a focused SessionTest passes.
+Keep the loop small and evidence-driven:
+
+1. Start with the smallest deck pair that exercises the mechanic. Prefer one
+   built-in deck plus one seed range, e.g. `just simclient "my-deck" 1..10`.
+2. Inspect `.stats.json` first. A useful run has `gameOver=true`, low/no WARNs,
+   and no repeated prompt stall. If stats are noisy, fix the loop before reading
+   individual logs.
+3. Use `scry` only after ingest: `scry games --source simclient`, then
+   `scry trace "Card Name" --source simclient` / `scry prompts --source simclient`.
+   The trace should confirm the same prompt and annotation shape the SessionTest
+   asserted.
+4. When a run stalls, reduce to one deck + one seed and reproduce with
+   `SIMCLIENT_DECKS=<deck> SIMCLIENT_SEEDS=<seed> ./gradlew :matchdoor:simclient`.
+   Patch the smallest failing boundary: prompt response, action translator,
+   event capture, or annotation emission.
+5. Add or update the focused SessionTest for the root cause before widening the
+   simclient matrix again. Simclient proves deck-level survivability; SessionTest
+   pins the behavior.
+
+Don't debug broad matrices by eyeballing dozens of logs. Collapse to one seed,
+make the failure deterministic, patch, then widen.
+
 ## Policy modes — what each prompt does
 
 `SIMCLIENT_POLICY=greedy` (default) or `forge-ai`. Forge-AI mode falls through

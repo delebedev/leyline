@@ -1,0 +1,11 @@
+name: "Benalish Faithbonder"
+grpId: 82059
+titleId: 82059
+abilities:
+  - id: 260
+    textId: 260
+    category: 3
+  - id: 261
+    textId: 261
+    category: 3
+expansionCode: "YDMU"

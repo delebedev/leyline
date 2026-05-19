@@ -87,6 +87,9 @@ object PromptIds {
     /** Pay-cost-via-select for "exile N from graveyard" — Escape's additional cost. */
     const val CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE = 5500
 
+    /** Enlist attack cost — "Tap a creature for {CardId} to enlist." */
+    const val ENLIST_TAP_COST = 11225
+
     /** Station activation cost — "Tap a creature to add charge counters equal to its power." */
     const val STATION_TAP_COST = 14726
 

@@ -1,0 +1,15 @@
+[metadata]
+Name:Enlist Demo
+Goal:Win
+Turns:5
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Benalish Faithbonder;Centaur Courser
+humanlibrary=Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain

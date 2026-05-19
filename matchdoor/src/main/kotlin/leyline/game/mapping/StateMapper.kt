@@ -1308,6 +1308,21 @@ object StateMapper {
                         ?.let { bridge.getOrAllocInstanceId(it.cardId) }
                         ?: leyline.bridge.types.InstanceId(0)
                 },
+                boostAffectorResolver = { effect, sourceAbilityGrpId ->
+                    if (sourceAbilityGrpId?.value == KeywordAbilityIds.ENLIST) {
+                        events
+                            .filterIsInstance<GameEvent.SpellResolved>()
+                            .lastOrNull { resolved ->
+                                resolved.isTrigger &&
+                                    resolved.abilityGrpId == KeywordAbilityIds.ENLIST &&
+                                    frameIds.cardIid(resolved.cardId).value == effect.cardInstanceId
+                            }?.let { resolved ->
+                                InstanceId(stackAbilityIidFor(resolved.abilityForgeId, resolved.cardId, frameIds))
+                            }
+                    } else {
+                        null
+                    }
+                },
                 uniqueAbilityIdAllocator = { bridge.effects.nextEffectId() },
             )
         annotations.addAll(effectTransient)
@@ -1519,7 +1534,7 @@ object StateMapper {
                 transferPersistent.add(
                     AnnotationBuilder.triggeringObject(
                         abilityInstanceId = InstanceId(a.abilityInstanceId),
-                        sourceCardInstanceId = InstanceId(a.sourceCardInstanceId),
+                        sourceCardInstanceId = InstanceId(a.triggeringObjectInstanceId ?: a.sourceCardInstanceId),
                         sourceZone = sourceZone,
                     ),
                 )
@@ -1576,7 +1591,7 @@ object StateMapper {
      * distinct iids; falls back to source-card-keyed surrogate when the
      * collector didn't surface the SA id (legacy paths, defensive 0).
      */
-    @Suppress("CyclomaticComplexMethod")
+    @Suppress("CyclomaticComplexMethod", "LongMethod")
     private fun emitTriggerLifecycleAnnotations(
         events: List<GameEvent>,
         snapshotSourceIids: Set<Int>,
@@ -1588,6 +1603,12 @@ object StateMapper {
         snap: GsmSnapshot,
         frameIds: FrameIdResolver,
     ) {
+        val enlistedIidsByAttacker =
+            events
+                .filterIsInstance<GameEvent.CardTapped>()
+                .mapNotNull { tap -> tap.affectorCardId?.let { attacker -> attacker to frameIds.cardIid(tap.cardId).value } }
+                .toMap()
+
         // Cast half: AbilityInstanceCreated (when snap-diff missed it) + persistent TriggeringObject.
         for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isTrigger }) {
             val isParadigmTrigger = cast.isParadigmDelayedTrigger()
@@ -1598,6 +1619,13 @@ object StateMapper {
                     frameIds.cardIid(cast.cardId).value
                 }
             val abilityIid = stackAbilityIidFor(cast.abilityForgeId, cast.cardId, frameIds)
+            val enlistTriggeringObjectIid =
+                if (cast.abilityGrpId == KeywordAbilityIds.ENLIST) enlistedIidsByAttacker[cast.cardId] else null
+            val triggeringObjectIid: Int =
+                cast.triggeringObjectInstanceId?.value
+                    ?: enlistTriggeringObjectIid
+                    ?: cast.triggeringObjectCardId?.let { frameIds.cardIid(it).value }
+                    ?: sourceCardIid
             val sourceZone =
                 if (isParadigmTrigger) {
                     ZoneIds.STACK
@@ -1626,7 +1654,7 @@ object StateMapper {
             transferPersistent.add(
                 AnnotationBuilder.triggeringObject(
                     abilityInstanceId = InstanceId(abilityIid),
-                    sourceCardInstanceId = InstanceId(sourceCardIid),
+                    sourceCardInstanceId = InstanceId(triggeringObjectIid),
                     sourceZone = sourceZone,
                 ),
             )
@@ -1767,6 +1795,7 @@ object StateMapper {
             registry?.forTrigger(abilityForgeId)?.takeIf { it != 0 }?.let { return it }
         }
         for (keywordId in keywordTriggerIds) {
+            bridge.cardRepository.findKeywordAbilityGrpId(bound.snapshot.grpId, keywordId)?.let { return it }
             bound.altCost(keywordId)?.abilityGrpId?.let { return it }
             bridge.cardRepository.findKeywordAbilityGrpId(bound.snapshot.grpId, keywordId)?.let { return it }
         }
@@ -2015,6 +2044,7 @@ object StateMapper {
             KeywordAbilityIds.MENTOR,
             KeywordAbilityIds.MOBILIZE,
             KeywordAbilityIds.DECAYED,
+            KeywordAbilityIds.ENLIST,
         )
 
     private val counterAffectingKeywordTriggerIds =

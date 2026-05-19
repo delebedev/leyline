@@ -211,7 +211,13 @@ object MechanicAnnotations {
                         log.debug("mechanic: skipping tapped for mana-paid land forgeId={}", ev.cardId)
                     } else {
                         val instanceId = idResolver(ev.cardId)
-                        annotations.add(AnnotationBuilder.tappedUntappedPermanent(instanceId, instanceId, ev.tapped))
+                        annotations.add(
+                            AnnotationBuilder.tappedUntappedPermanent(
+                                instanceId,
+                                ev.affectorCardId?.let(idResolver) ?: instanceId,
+                                ev.tapped,
+                            ),
+                        )
                         log.debug("mechanic: tapped={} iid={}", ev.tapped, instanceId.value)
                     }
                 }
@@ -393,6 +399,7 @@ object MechanicAnnotations {
         sourceAbilityResolver: ((InstanceId, Long) -> GrpId?)? = null,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
         keywordAffectorResolver: ((String, Long, Long) -> InstanceId)? = null,
+        boostAffectorResolver: ((EffectTracker.TrackedEffect, GrpId?) -> InstanceId?)? = null,
         uniqueAbilityIdAllocator: (() -> Int)? = null,
     ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
         val hasBoosts = diff.created.isNotEmpty() || diff.destroyed.isNotEmpty()
@@ -414,12 +421,13 @@ object MechanicAnnotations {
 
             val cardIid = InstanceId(effect.cardInstanceId)
             val effectId = EffectId(effect.syntheticId)
+            val affectorId = boostAffectorResolver?.invoke(effect, sourceAbilityGrpId) ?: cardIid
 
             // Transient: LayeredEffectCreated with affectorId = card instance
             transient.add(
                 AnnotationBuilder.layeredEffectCreated(
                     effectId = effectId,
-                    affectorId = cardIid,
+                    affectorId = affectorId,
                 ),
             )
 
@@ -430,7 +438,7 @@ object MechanicAnnotations {
                         instanceId = cardIid,
                         power = effect.powerDelta,
                         toughness = effect.toughnessDelta,
-                        affectorId = cardIid,
+                        affectorId = affectorId,
                     ),
                 )
             }
@@ -443,7 +451,7 @@ object MechanicAnnotations {
                     effectId = effectId,
                     powerDelta = effect.powerDelta,
                     toughnessDelta = effect.toughnessDelta,
-                    affectorId = cardIid,
+                    affectorId = affectorId,
                     sourceAbilityGrpId = sourceAbilityGrpId,
                 ),
             )

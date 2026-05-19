@@ -75,6 +75,7 @@ data class StackAbilityAppearance(
     val grpId: Int,
     val isActivatedAbility: Boolean = false,
     val activationZoneId: Int = 0,
+    val triggeringObjectInstanceId: Int? = null,
 )
 
 /** A triggered ability that was on the stack and is now gone (resolved or fizzled). */
@@ -1209,6 +1210,7 @@ object ZoneTransferDetector {
                     grpId = obj.grpId,
                     isActivatedAbility = isActivated,
                     activationZoneId = activationZone,
+                    triggeringObjectInstanceId = matchingCast?.triggeringObjectInstanceId?.value,
                 ),
             )
             log.debug(

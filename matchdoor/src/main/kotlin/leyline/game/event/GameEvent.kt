@@ -107,6 +107,12 @@ sealed interface GameEvent {
         /** Client ability grpId for ability lifecycle annotations, when known. */
         val abilityGrpId: Int = 0,
         /**
+         * Triggering object override for linked-cost triggers. Most triggers point
+         * at their source card; Enlist points at the creature tapped to pay the cost.
+         */
+        val triggeringObjectCardId: ForgeCardId? = null,
+        val triggeringObjectInstanceId: InstanceId? = null,
+        /**
          * Source zone (ZoneIds) the ability was activated from. Populated for
          * activated abilities ([isAbility] && ![isTrigger]) so the
          * `AbilityInstanceCreated` annotation carries the right `source_zone`
@@ -167,6 +173,7 @@ sealed interface GameEvent {
     data class CardTapped(
         val cardId: ForgeCardId,
         val tapped: Boolean,
+        val affectorCardId: ForgeCardId? = null,
     ) : GameEvent
 
     /** Damage was dealt to a creature. */

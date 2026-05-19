@@ -159,14 +159,14 @@ The full pattern (single-inheritance constraint, coordinator / helper structure,
 
 Shape invariants to know:
 
-- **42 overrides, pinned by `PlayerControllerStructureTest`.** Adding or removing one requires updating the test and the table below in the same commit.
+- **45 overrides, pinned by `PlayerControllerStructureTest`.** Adding or removing one requires updating the test and the table below in the same commit.
 - **Cross-class state stays on the class.** `pendingOptionalAction`, `pendingDamageAssignment`, `damageAssignCache`, `autoPassState`, `recentDecisions` have external readers (`GameBridge`, `CombatHandler`, `OptionalActionHandler`, `DebugServer`, `MatchFlowHarness`).
 - **Prompt side-effects flow through `PromptJournal`.** `InteractivePromptBridge.journal` carries typed `PromptSideEffect` entries (`SearchedToHand`, `LegendVictim`, `RevealStarted`/`RevealEnded`, `OptionalCostStash`); producers record, consumers (`GameEventCollector`, `CostPaymentCoordinator`, `StateMapper`) drain. `promptJustResolved` lives on `PrioritySignal`. Reveal proxy IDs are encapsulated as `GameBridge.revealProxies: RevealProxyTracker`.
 - **The `pendingOptionalAction` future lifecycle belongs to `OptionalActionGate`.** The three override sites (`confirmTrigger`, `playSaFromPlayEffect`, `payCostToPreventEffect`) delegate to `gate.await(...)`.
 
 ### Override reference
 
-All 42 overrides, by concern. "Bridge" column names the primary mechanism each uses.
+All 45 overrides, by concern. "Bridge" column names the primary mechanism each uses.
 
 **Priority loop.** Uses `GameActionBridge`.
 
@@ -174,6 +174,7 @@ All 42 overrides, by concern. "Bridge" column names the primary mechanism each u
 |---|---|
 | `chooseSpellAbilityToPlay` | Main priority window — notify state, await client action, return spell or null (pass) |
 | `declareAttackers` | Await attacker declaration, wire into `Combat` |
+| `enlistAttackers` | Return attackers whose DeclareAttackers option selected Enlist |
 | `declareBlockers` | Await blocker assignments, wire into `Combat` |
 | `assignCombatDamage` | Manual damage distribution — blocks on `pendingDamageAssignment` future |
 

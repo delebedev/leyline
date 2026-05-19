@@ -90,7 +90,7 @@ fun performAction(block: Action.Builder.() -> Unit): ClientToGREMessage =
 // ---------------------------------------------------------------------------
 
 /**
- * [DeclareAttackersResp] — iterative attacker selection or "Attack All".
+ * [DeclareAttackersResp] — attacker option toggle or "Attack All".
  *
  * ```kotlin
  * declareAttackersResp(attackers = listOf(iid1, iid2))          // select specific
@@ -99,6 +99,7 @@ fun performAction(block: Action.Builder.() -> Unit): ClientToGREMessage =
  */
 fun declareAttackersResp(
     attackers: List<Int> = emptyList(),
+    attackerAlternatives: Map<Int, Int> = emptyMap(),
     autoDeclare: Boolean = false,
     autoDeclareTarget: Int? = null,
 ): ClientToGREMessage =
@@ -117,7 +118,15 @@ fun declareAttackersResp(
                     }
                 }
                 for (iid in attackers) {
-                    addSelectedAttackers(Attacker.newBuilder().setAttackerInstanceId(iid))
+                    addSelectedAttackers(
+                        Attacker
+                            .newBuilder()
+                            .setAttackerInstanceId(iid)
+                            .apply {
+                                val alternativeGrpId = attackerAlternatives[iid] ?: 0
+                                if (alternativeGrpId != 0) setAlternativeGrpId(alternativeGrpId)
+                            },
+                    )
                 }
             },
         )

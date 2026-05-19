@@ -35,6 +35,7 @@ sealed interface ClassifiedPrompt {
             RevealChoose,
             Resolution,
             ExileFromGrave,
+            EnlistCost,
             StationTapCost,
             ReturnUnblockedAttackerCost,
             MutateTopBottom,
@@ -82,6 +83,8 @@ object PromptClassifier {
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.Sacrifice)
             PromptSemantic.SelectNCostExileFromGrave ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.ExileFromGrave)
+            PromptSemantic.EnlistCost ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.EnlistCost)
             PromptSemantic.StationTapCost ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.StationTapCost)
             PromptSemantic.ReturnUnblockedAttackerCost ->
