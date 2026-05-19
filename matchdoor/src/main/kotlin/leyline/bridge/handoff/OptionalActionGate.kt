@@ -51,8 +51,8 @@ interface OwnerContext {
 
 /**
  * Owns the [PlayerController.pendingOptionalAction] future lifecycle for the
- * three override sites that share it (`confirmTrigger`, `playSaFromPlayEffect`,
- * `payCostToPreventEffect`).
+ * override sites that share it (`confirmTrigger`, `confirmReplacementEffect`,
+ * `playSaFromPlayEffect`, `payCostToPreventEffect`).
  *
  * Each site used to assemble the future, assign the pending field, signal the
  * priority bridge, `get()` the future with a timeout, and clear the field in a
@@ -90,6 +90,7 @@ class OptionalActionGate(
         defaultOnTimeout: Boolean,
         logContext: String,
         customPromptId: Int? = null,
+        commanderReturn: PlayerController.CommanderReturnPromptContext? = null,
     ): Boolean {
         val future = CompletableFuture<Boolean>()
         owner.pendingOptionalAction =
@@ -99,6 +100,7 @@ class OptionalActionGate(
                 future = future,
                 forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
                 customPromptId = customPromptId,
+                commanderReturn = commanderReturn,
             )
         actionBridge?.prioritySignal?.signal()
 

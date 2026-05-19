@@ -1,0 +1,18 @@
+[metadata]
+Name:Commander Return Self-Bolt
+Goal:Destroy a commander, return it to command, and verify commander tax.
+Turns:3
+Difficulty:Tutorial
+Description:Arabella starts on the battlefield as the human commander and already has one commander cast for tax visibility after return.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=25
+AILife=25
+
+humanhand=Lightning Bolt
+humanbattlefield=Arabella, Abandoned Doll|IsCommander|CommanderCast:1;Plains;Plains;Mountain;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aibattlefield=Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

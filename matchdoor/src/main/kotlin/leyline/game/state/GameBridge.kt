@@ -176,6 +176,7 @@ class GameBridge(
         promptBridges[1] =
             InteractivePromptBridge(timeoutMs = promptFailsafeTimeoutMs, prioritySignal = prioritySignal).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
+                it.instanceIdReservoir = { ids.reserveNextInstanceId() }
             }
         mulliganBridges[1] =
             MulliganBridge(
@@ -235,6 +236,7 @@ class GameBridge(
         promptBridges[seatId.value] =
             InteractivePromptBridge(timeoutMs = 0, prioritySignal = prioritySignal).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
+                it.instanceIdReservoir = { ids.reserveNextInstanceId() }
             }
         mulliganBridges[seatId.value] = MulliganBridge(autoKeep = true, timeoutMs = 0)
         log.info("GameBridge: seat {} configured as synthetic (auto-pass)", seatId.value)
@@ -699,6 +701,16 @@ class GameBridge(
         }
         return allCards.map {
             DevCheck.requireOrNull(cardRepository.findGrpIdByName(it)) { "deck grpId miss: '$it'" }
+                ?: FALLBACK_GRPID
+        }
+    }
+
+    /** Commander grpIds for the initial handshake deck message. */
+    fun getCommanderGrpIds(seatId: SeatId): List<Int> {
+        val seatFirst = listOfNotNull(getPlayer(seatId))
+        val remaining = players.values.filterNot { it === seatFirst.firstOrNull() }
+        return (seatFirst + remaining).flatMap { player -> player.commanders }.map { card ->
+            DevCheck.requireOrNull(cardRepository.findGrpIdByName(card.name)) { "commander grpId miss: '${card.name}'" }
                 ?: FALLBACK_GRPID
         }
     }

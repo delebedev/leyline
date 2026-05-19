@@ -363,8 +363,9 @@ class MatchHandler(
         val s = session ?: return
         val bridge = registry.getMatch(matchId)?.bridge ?: return
         val gsId = s.counter.nextGsId()
-        val deckGrpIds = bridge.getDeckGrpIds(SeatId(seatId))
-        val deck = GsmBuilder.buildDeckMessage(deckGrpIds)
+        val seat = SeatId(seatId)
+        val deckGrpIds = bridge.getDeckGrpIds(seat)
+        val deck = GsmBuilder.buildDeckMessage(deckGrpIds, bridge.getCommanderGrpIds(seat))
         val (msg, nextMsgId) =
             HandshakeMessages.initialBundle(
                 SeatId(seatId),

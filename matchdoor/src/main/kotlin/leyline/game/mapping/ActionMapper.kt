@@ -533,7 +533,7 @@ object ActionMapper {
                 if (rail != null) {
                     configureZoneCastRailShape(actionBuilder, sa, rail, bound, player)
                 } else {
-                    configureZoneCastFallback(actionBuilder, sa, bound)
+                    configureZoneCastFallback(actionBuilder, sa, bound, player)
                 }
                 builder.addActions(actionBuilder)
             }
@@ -684,13 +684,19 @@ object ActionMapper {
         actionBuilder: Action.Builder,
         sa: SpellAbility,
         bound: BoundCard?,
+        player: Player,
     ) {
         val altCost = sa.alternativeCost
         if (altCost == null) {
-            val cardData = bound?.data
-            if (cardData != null) {
-                for ((color, count) in cardData.manaCost) {
-                    actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
+            val effectiveCost = computeEffectiveCost(sa, player)
+            if (effectiveCost != null && !effectiveCost.isNoCost) {
+                addManaCostFromForge(effectiveCost, actionBuilder)
+            } else {
+                val cardData = bound?.data
+                if (cardData != null) {
+                    for ((color, count) in cardData.manaCost) {
+                        actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
+                    }
                 }
             }
         } else {
@@ -1616,12 +1622,23 @@ object ActionMapper {
         player: Player,
     ): forge.card.mana.ManaCost? {
         val baseCost = sa.payCosts ?: return null
-        val adjusted = CostAdjustment.adjust(baseCost, sa, false)
-        val manaCost = adjusted.totalMana ?: return null
-        if (manaCost.isNoCost) return null
-        val beingPaid = ManaCostBeingPaid(manaCost)
-        CostAdjustment.adjust(beingPaid, sa, player, null, true, false)
-        return beingPaid.toManaCost()
+        val hostCard = sa.hostCard
+        val originalCastFrom = hostCard?.castFrom
+        val seededCastFrom =
+            hostCard?.isCommander == true &&
+                originalCastFrom == null &&
+                hostCard.zone?.zoneType == ForgeZoneType.Command
+        if (seededCastFrom) hostCard?.setCastFrom(hostCard.zone)
+        try {
+            val adjusted = CostAdjustment.adjust(baseCost, sa, false)
+            val manaCost = adjusted.totalMana ?: return null
+            if (manaCost.isNoCost) return null
+            val beingPaid = ManaCostBeingPaid(manaCost)
+            CostAdjustment.adjust(beingPaid, sa, player, null, true, false)
+            return beingPaid.toManaCost()
+        } finally {
+            if (seededCastFrom) hostCard?.setCastFrom(originalCastFrom)
+        }
     }
 
     /** Aggregate colored shards from a Forge [ManaCost] into a color→count map. */

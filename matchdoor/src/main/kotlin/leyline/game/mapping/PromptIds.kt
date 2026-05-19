@@ -46,6 +46,9 @@ object PromptIds {
     /** "You may" trigger decision (OptionalActionMessage). */
     const val OPTIONAL_ACTION = 1159
 
+    /** Commander zone replacement decision: "Move your commander to the command zone?" */
+    const val COMMANDER_RETURN_TO_COMMAND = 144
+
     /** Shock land ETB "pay life or enter tapped" (OptionalActionMessage). */
     const val SHOCK_LAND_ETB = 2233
 

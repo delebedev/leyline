@@ -75,9 +75,13 @@ object GsmBuilder {
     /**
      * Build a DeckMessage from a list of grpIds (one per card in the deck).
      */
-    fun buildDeckMessage(deckGrpIds: List<Int>): DeckMessage {
+    fun buildDeckMessage(
+        deckGrpIds: List<Int>,
+        commanderGrpIds: List<Int> = emptyList(),
+    ): DeckMessage {
         val builder = DeckMessage.newBuilder()
         deckGrpIds.forEach { builder.addDeckCards(it) }
+        commanderGrpIds.forEach { builder.addCommanderCards(it) }
         return builder.build()
     }
 
@@ -378,7 +382,7 @@ object GsmBuilder {
                     .setMaxDeckSize(59)
                     .setMaxSideboardSize(1)
                     .setMinCommanderSize(1)
-                    .setMaxCommanderSize(2)
+                    .setMaxCommanderSize(1)
             } else {
                 DeckConstraintInfo
                     .newBuilder()

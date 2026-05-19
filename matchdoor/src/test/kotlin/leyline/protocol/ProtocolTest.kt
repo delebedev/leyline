@@ -143,13 +143,14 @@ class ProtocolTest :
 
         test("build deck message from grp id list") {
             val grpIds = listOf(100, 100, 200, 200, 300)
-            val msg = GsmBuilder.buildDeckMessage(grpIds)
+            val msg = GsmBuilder.buildDeckMessage(grpIds, commanderGrpIds = listOf(400))
 
             assertSoftly {
                 msg.deckCardsCount shouldBe 5
                 msg.getDeckCards(0) shouldBe 100
                 msg.getDeckCards(2) shouldBe 200
                 msg.getDeckCards(4) shouldBe 300
+                msg.commanderCardsList shouldBe listOf(400)
             }
         }
 

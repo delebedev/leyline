@@ -8,6 +8,7 @@ import forge.game.Game
 import forge.game.GameActionUtil
 import forge.game.GameEntity
 import forge.game.GameObject
+import forge.game.ability.AbilityKey
 import forge.game.ability.AbilityUtils
 import forge.game.ability.ApiType
 import forge.game.card.Card
@@ -184,7 +185,7 @@ class PlayerController(
     player: Player,
     lobbyPlayer: LobbyPlayer,
     private val bridge: InteractivePromptBridge,
-    seating: Seating,
+    private val seating: Seating,
     private val actionBridge: GameActionBridge? = null,
     private val mulliganBridge: MulliganBridge? = null,
     private val phaseStopProfile: PhaseStopProfile? = null,
@@ -261,6 +262,16 @@ class PlayerController(
          *  (e.g. Endure → ENDURE_PUT_COUNTERS) that ride the same Yes/No surface
          *  but need a different rendered prompt text. */
         val customPromptId: Int? = null,
+        val commanderReturn: CommanderReturnPromptContext? = null,
+    )
+
+    data class CommanderReturnPromptContext(
+        val oldInstanceId: Int,
+        val promptInstanceId: Int,
+        val originZone: ZoneType,
+        val destinationZone: ZoneType,
+        val ownerSeatId: Int,
+        val transferCategory: String,
     )
 
     data class NumericInputPrompt(
@@ -646,6 +657,19 @@ class PlayerController(
         affected: GameEntity?,
         prompt: String?,
     ): Boolean {
+        if (replacementEffect.hasParam("CommanderMoveReplacement")) {
+            val hostCard = (affected as? Card) ?: replacementEffect.hostCard
+            return optionalActionGate.await(
+                wrapper = null,
+                hostCard = hostCard,
+                forceSnapshotBeforePrompt = true,
+                defaultOnTimeout = true,
+                logContext = "confirmReplacementEffect:Commander",
+                customPromptId = PromptIds.COMMANDER_RETURN_TO_COMMAND,
+                commanderReturn = hostCard?.let { commanderReturnContext(it, sa) },
+            )
+        }
+
         // PCHuman uses GuiBase + InputConfirm
         val message = prompt ?: replacementEffect.toString()
         val request =
@@ -660,6 +684,39 @@ class PlayerController(
         val result = bridge.requestChoice(request)
         return result.firstOrNull() == 0
     }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun commanderReturnContext(
+        card: Card,
+        sa: SpellAbility?,
+    ): CommanderReturnPromptContext? {
+        val originalParams = sa?.getReplacingObject(AbilityKey.OriginalParams) as? Map<AbilityKey, Any?>
+        val origin = originalParams?.get(AbilityKey.Origin) as? ZoneType ?: card.zone?.zoneType ?: ZoneType.Battlefield
+        val destination = originalParams?.get(AbilityKey.Destination) as? ZoneType ?: ZoneType.Graveyard
+        val oldInstanceId = bridge.forgeIidResolver?.invoke(ForgeCardId(card.id))?.value ?: return null
+        val promptInstanceId = bridge.instanceIdReservoir?.invoke()?.value ?: return null
+        return CommanderReturnPromptContext(
+            oldInstanceId = oldInstanceId,
+            promptInstanceId = promptInstanceId,
+            originZone = origin,
+            destinationZone = destination,
+            ownerSeatId = seating.humanSeat.value,
+            transferCategory = commanderTransferCategory(origin, destination),
+        )
+    }
+
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+    private fun commanderTransferCategory(
+        origin: ZoneType,
+        destination: ZoneType,
+    ): String =
+        when (destination) {
+            ZoneType.Graveyard -> if (origin == ZoneType.Battlefield) "Destroy" else "Put"
+            ZoneType.Exile -> "Exile"
+            ZoneType.Hand -> "Bounce"
+            ZoneType.Library -> "Put"
+            else -> "ZoneTransfer"
+        }
 
     override fun chooseBinary(
         sa: SpellAbility?,

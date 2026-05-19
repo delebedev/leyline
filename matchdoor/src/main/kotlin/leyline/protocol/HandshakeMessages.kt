@@ -428,9 +428,8 @@ object HandshakeMessages {
 
         // Role gate: only the human seat gets a ConnectResp handshake.
         if (seatId == bridge.seating.humanSeat) {
-            // ConnectResp with empty deck (puzzle doesn't use deck message)
-            val emptyDeck = GsmBuilder.buildDeckMessage(emptyList())
-            messages.add(buildConnectResp(msgId++, seatId, emptyDeck))
+            val deck = GsmBuilder.buildDeckMessage(bridge.getDeckGrpIds(seatId), bridge.getCommanderGrpIds(seatId))
+            messages.add(buildConnectResp(msgId++, seatId, deck))
         }
 
         // Full GSM built from live game state (stage=Play, cards in zones)

@@ -94,6 +94,7 @@ class MatchFlowHarness(
     /** When set, the next auto-accepted optional-action prompt declines instead.
      *  Use [declineNextOptionalAction] to set this. Cleared after one use. */
     private var nextOptionalResponse: OptionResponse? = null
+    private var holdNextOptionalResponse = false
     private var nextNumericInputValue: Int? = null
 
     lateinit var session: MatchSession
@@ -1067,6 +1068,10 @@ class MatchFlowHarness(
         val wpc = bridge.humanController ?: return false
         wpc.pendingOptionalAction ?: return false
         val msg = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e } ?: return false
+        if (holdNextOptionalResponse) {
+            holdNextOptionalResponse = false
+            return false
+        }
 
         // If a test pre-seeded a one-shot response via [declineNextOptionalAction],
         // use it and clear the slot. Otherwise default to AllowYes to keep existing
@@ -1102,6 +1107,11 @@ class MatchFlowHarness(
      */
     fun declineNextOptionalAction() {
         nextOptionalResponse = OptionResponse.CancelNo
+    }
+
+    /** Leave the next OptionalActionMessage pending so the test can call [respondToOptionalAction]. */
+    fun holdNextOptionalAction() {
+        holdNextOptionalResponse = true
     }
 
     private fun autoRespondToNumericInput(): Boolean {
