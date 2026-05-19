@@ -14,7 +14,6 @@ import leyline.FdTag
 import leyline.frontdoor.domain.CollationPool
 import leyline.frontdoor.domain.Course
 import leyline.frontdoor.domain.CourseId
-import leyline.frontdoor.domain.CourseModule
 import leyline.frontdoor.domain.Deck
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.DraftSession
@@ -187,7 +186,7 @@ class AppMatchCoordinatorTest :
             entry100.jsonObject["quantity"]?.jsonPrimitive?.int shouldBe 3
         }
 
-        test("resolveOpponentDeckJson rotates bot selection by course wins+losses") {
+        test("resolveOpponentDeckJson rotates bot selection per match launch") {
             val draftRepo = FakeDraftRepo()
             val courseRepo = FakeCourseRepo()
             val sessionId = DraftSessionId("d1")
@@ -207,16 +206,6 @@ class AppMatchCoordinatorTest :
             firstMain.size shouldBe 1
             firstMain[0].jsonObject["cardId"]?.jsonPrimitive?.int shouldBe 700
 
-            courseRepo.save(
-                Course(
-                    id = CourseId("c1"),
-                    playerId = playerId,
-                    eventName = event,
-                    module = CourseModule.CreateMatch,
-                    wins = 1,
-                    losses = 0,
-                ),
-            )
             val secondMain = Json.parseToJsonElement(coord.resolveOpponentDeckJson(event)!!).jsonObject["MainDeck"]!!.jsonArray
             secondMain.size shouldBe 1
             secondMain[0].jsonObject["cardId"]?.jsonPrimitive?.int shouldBe 701

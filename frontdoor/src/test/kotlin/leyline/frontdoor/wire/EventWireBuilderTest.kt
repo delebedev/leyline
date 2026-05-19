@@ -1,5 +1,6 @@
 package leyline.frontdoor.wire
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -119,7 +120,57 @@ class EventWireBuilderTest :
             val course = sealedCourse(losses = 1)
             val reportJson = EventWireBuilder.buildMatchResultReport(course)
             val obj = json.parseToJsonElement(reportJson).jsonObject
-            obj["CurrentModule"].shouldNotBeNull()
-            obj["CurrentModule"]!!.jsonPrimitive.content shouldBe "CreateMatch"
+            assertSoftly {
+                obj["CurrentModule"].shouldNotBeNull()
+                obj["CurrentModule"]!!.jsonPrimitive.content shouldBe "CreateMatch"
+                obj["rankUpdates"].shouldNotBeNull()
+            }
+        }
+
+        test("draft event has quick draft prize placeholders and booster display") {
+            val draftDef = EventRegistry.findEvent("QuickDraft_EOE_20260511")!!
+            val eventsJson = EventWireBuilder.toActiveEventsJson(listOf(draftDef))
+            val event =
+                json
+                    .parseToJsonElement(eventsJson)
+                    .jsonObject["Events"]!!
+                    .jsonArray[0]
+                    .jsonObject
+            val uxInfo = event["EventUXInfo"]!!.jsonObject
+            val prizes = uxInfo["Prizes"]!!.jsonObject
+            val boosterPacks = uxInfo["EventComponentData"]!!.jsonObject["BoosterPacksDisplay"]!!.jsonObject
+
+            assertSoftly {
+                prizes.size shouldBe 8
+                prizes["0"]?.jsonPrimitive?.content shouldBe "00000000-0000-4000-8000-000000000000"
+                prizes["7"]?.jsonPrimitive?.content shouldBe "00000000-0000-4000-8000-000000000007"
+                boosterPacks["CollationIds"]!!.jsonArray.size shouldBe 3
+                boosterPacks["CollationIds"]!!.jsonArray[0].jsonPrimitive.int shouldBe 200055
+            }
+        }
+
+        test("ClaimPrize course uses current module spelling and empty payload") {
+            val obj = EventWireBuilder.buildCourseJson(sealedCourse(module = CourseModule.ClaimPrize))
+            assertSoftly {
+                obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "ClaimPrize"
+                obj["ModulePayload"]?.jsonPrimitive?.content shouldBe ""
+            }
+        }
+
+        test("claim prize response returns completed course with payload object") {
+            val responseJson =
+                EventWireBuilder.buildClaimPrizeResponse(
+                    sealedCourse(
+                        module = CourseModule.Complete,
+                        deck = testDeck(),
+                        deckSummary = testDeckSummary(),
+                    ),
+                )
+            val course = json.parseToJsonElement(responseJson).jsonObject["Course"]!!.jsonObject
+            assertSoftly {
+                course["CurrentModule"]?.jsonPrimitive?.content shouldBe "Complete"
+                course["ModulePayload"]?.jsonPrimitive?.content shouldBe "{}"
+                course["CourseDeck"]!!.jsonObject["MainDeck"]!!.jsonArray.size shouldBe 40
+            }
         }
     })

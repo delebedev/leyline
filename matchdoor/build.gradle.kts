@@ -77,6 +77,8 @@ protobuf {
 
 // --- Testing (base config from leyline.test-conventions) ---
 
+val ciSerialism = System.getenv("CI") == "true"
+
 tasks.named<Test>("test") {
     // Simclient runs are slow, env-driven, and intentionally opt-in via the
     // dedicated `:matchdoor:simclient` task.
@@ -98,9 +100,11 @@ val testBoard by tasks.registering(Test::class) {
 val testIntegration by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "IntegrationTag")
-    maxParallelForks = 4
+    maxParallelForks = if (ciSerialism) 1 else 4
     // Integration: MatchSession tests have their own thread pools.
     // Layering Kotest parallelism on top flakes (damage/ETB/flashback).
+    // CI also runs in small shared runners where concurrent forks can reorder
+    // GRE streams from long-lived engine threads, so keep CI serial.
 }
 
 // Cache-disabled integration variant. The default `testIntegration` task is
@@ -112,7 +116,7 @@ val testIntegration by tasks.registering(Test::class) {
 val testIntegrationStrict by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "IntegrationTag")
-    maxParallelForks = 4
+    maxParallelForks = if (ciSerialism) 1 else 4
     outputs.cacheIf { false }
     outputs.upToDateWhen { false }
 }
@@ -132,10 +136,12 @@ val testGate by tasks.registering(Test::class) {
     // Exclude SimClientTag — those are slow log-generation runs, opt-in via
     // the dedicated `:simclient` task.
     systemProperty("kotest.tags", "(UnitTag | BoardTag) & !SimClientTag")
-    systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "8"))
+    systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: if (ciSerialism) "1" else "8"))
     // Kotest spec-level parallelism: 136 small suites, JVM-fork overhead
     // would dominate. In-JVM concurrency at 8 = ~25-27s (was ~33s serial).
     // Forge's static MyRandom race guarded by BoardTestBase.RNG_LOCK.
+    // CI uses serial specs because several older board tests still touch Forge
+    // globals outside the seeded shuffle window.
 }
 
 // Sim-client log generation. Drives full games via real MatchSession + bridge,

@@ -336,6 +336,10 @@ class FrontDoorHandler(
                 val eventName = req?.eventName
                 log.info("Front Door: Event_Join event={}", eventName)
                 if (eventName != null) {
+                    val existingCourse = courseService.getCourse(playerId, eventName)
+                    if (EventRegistry.isDraft(eventName) && existingCourse?.module == CourseModule.Complete) {
+                        draftService.drop(playerId, eventName)
+                    }
                     val course = courseService.join(playerId, eventName)
                     writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildJoinResponse(course)))
                 } else {
@@ -531,7 +535,9 @@ class FrontDoorHandler(
                                 deckId = resolvedDeckId,
                                 name = req.deckName ?: "Draft Deck",
                                 tileId = req.tileId ?: 0,
-                                format = "Limited",
+                                format = req.deckFormat ?: "Limited",
+                                deckArtId = req.deckArtId ?: 0,
+                                preferredSleeve = req.preferredSleeve.orEmpty(),
                             )
                         val course = courseService.setDeck(playerId, req.eventName, deck, summary)
                         writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))

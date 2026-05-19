@@ -127,6 +127,8 @@ class SqlitePlayerStore(
         val name: String,
         val tileId: Int,
         val format: String,
+        val deckArtId: Int = 0,
+        val preferredSleeve: String = "",
     )
 
     @Serializable
@@ -314,7 +316,7 @@ class SqlitePlayerStore(
             val summaryJson =
                 course.deckSummary?.let { s ->
                     json.encodeToString(
-                        CourseDeckSummaryDto(s.deckId.value, s.name, s.tileId, s.format),
+                        CourseDeckSummaryDto(s.deckId.value, s.name, s.tileId, s.format, s.deckArtId, s.preferredSleeve),
                     )
                 }
             if (existing) {
@@ -530,7 +532,7 @@ class SqlitePlayerStore(
             deckSummary =
                 summaryJson?.let { s ->
                     val dto = json.decodeFromString<CourseDeckSummaryDto>(s)
-                    CourseDeckSummary(DeckId(dto.deckId), dto.name, dto.tileId, dto.format)
+                    CourseDeckSummary(DeckId(dto.deckId), dto.name, dto.tileId, dto.format, dto.deckArtId, dto.preferredSleeve)
                 },
         )
     }

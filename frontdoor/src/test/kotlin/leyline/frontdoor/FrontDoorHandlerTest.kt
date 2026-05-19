@@ -672,6 +672,50 @@ class FrontDoorHandlerTest :
             }
         }
 
+        test("CmdType 627 - Event_SetCourseDeck accepts nested draft deck") {
+            val ch = fdChannelWithCourseService()
+            val event = "QuickDraft_EOE_20260511"
+            ch.writeCmd(600, """{"EventName":"$event"}""")
+            ch.readOutbound<ByteBuf>()!!.release()
+
+            val obj =
+                sendJson(
+                    627,
+                    """
+                    {"EventName":"$event",
+                     "Summary":{
+                       "DeckId":"draft-deck-001",
+                       "Name":"Draft Deck",
+                       "Attributes":[{"name":"Format","value":"Draft"}],
+                       "DeckTileId":0,
+                       "DeckArtId":450699,
+                       "PreferredCosmetics":{"Avatar":"","Sleeve":"CardBack_FIN_448363","Pet":"","Title":"","Emotes":[]}
+                     },
+                     "Deck":{
+                       "MainDeck":[{"cardId":96774,"quantity":1},{"cardId":102740,"quantity":8}],
+                       "Sideboard":[{"cardId":96726,"quantity":1}],
+                       "CommandZone":[],
+                       "Companions":[],
+                       "CardSkins":[]
+                     }}
+                    """.trimIndent(),
+                    ch,
+                )
+
+            val summary = obj["CourseDeckSummary"]!!.jsonObject
+            assertSoftly {
+                obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "CreateMatch"
+                obj["CourseDeck"]!!.jsonObject["MainDeck"]!!.jsonArray.size shouldBe 2
+                summary["DeckArtId"]?.jsonPrimitive?.int shouldBe 450699
+                summary["PreferredCosmetics"]!!.jsonObject["Sleeve"]?.jsonPrimitive?.content shouldBe "CardBack_FIN_448363"
+                summary["Attributes"]!!
+                    .jsonArray[0]
+                    .jsonObject["value"]
+                    ?.jsonPrimitive
+                    ?.content shouldBe "Draft"
+            }
+        }
+
         test("CmdType 1800 - BotDraft_StartDraft returns draft response with first pack") {
             val ch = fdChannelWithCourseService()
             // Join first
@@ -760,7 +804,15 @@ class FrontDoorHandlerTest :
             assertSoftly {
                 outer["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"
                 payload["DraftStatus"]?.jsonPrimitive?.content shouldBe "Completed"
+                payload["PickNumber"]?.jsonPrimitive?.int shouldBe 12
                 payload["PickedCards"]!!.jsonArray.size shouldBe 39
+            }
+            val inventory = outer["DTO_InventoryInfo"]!!.jsonObject
+            val change = inventory["Changes"]!!.jsonArray.single().jsonObject
+            val firstGrant = change["GrantedCards"]!!.jsonArray.first().jsonObject
+            assertSoftly {
+                change["InventoryCustomTokens"]!!.jsonObject.keys shouldBe emptySet()
+                firstGrant["SetCode"]?.jsonPrimitive?.content shouldBe "FDN"
             }
 
             // Course should have transitioned to DeckSelect with card pool
@@ -777,6 +829,49 @@ class FrontDoorHandlerTest :
                 draftCourse.shouldNotBeNull()
                 draftCourse.jsonObject["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"
                 draftCourse.jsonObject["CardPool"]!!.jsonArray.size shouldBe 39
+            }
+        }
+
+        test("CmdType 600 - joining draft after complete course resets completed draft session") {
+            val event = "QuickDraft_FDN_20260223"
+            val ch = fdChannelWithCourseService()
+            ch.writeCmd(600, """{"EventName":"$event"}""")
+            ch.readOutbound<ByteBuf>()!!.release()
+
+            ch.writeCmd(1800, """{"EventName":"$event"}""")
+            var resp = ch.readOutbound<ByteBuf>()!!
+            var msg = decodeResponse(resp)
+            var outer = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
+            var payload = json.parseToJsonElement(outer["Payload"]!!.jsonPrimitive.content).jsonObject
+
+            repeat(39) {
+                val card = payload["DraftPack"]!!.jsonArray[0].jsonPrimitive.content
+                val packNum = payload["PackNumber"]!!.jsonPrimitive.int
+                val pickNum = payload["PickNumber"]!!.jsonPrimitive.int
+                ch.writeCmd(
+                    1801,
+                    """{"EventName":"$event","PickInfo":{"CardIds":["$card"],"PackNumber":$packNum,"PickNumber":$pickNum}}""",
+                )
+                resp = ch.readOutbound<ByteBuf>()!!
+                msg = decodeResponse(resp)
+                outer = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
+                payload = json.parseToJsonElement(outer["Payload"]!!.jsonPrimitive.content).jsonObject
+            }
+            payload["DraftStatus"]?.jsonPrimitive?.content shouldBe "Completed"
+
+            val claimObj = sendJson(607, """{"EventName":"$event"}""", ch)
+            claimObj["Course"]!!.jsonObject["CurrentModule"]?.jsonPrimitive?.content shouldBe "Complete"
+            ch.writeCmd(600, """{"EventName":"$event"}""")
+            ch.readOutbound<ByteBuf>()!!.release()
+
+            val restartObj = sendJson(1800, """{"EventName":"$event"}""", ch)
+            val restartPayload = json.parseToJsonElement(restartObj["Payload"]!!.jsonPrimitive.content).jsonObject
+            assertSoftly {
+                restartPayload["DraftStatus"]?.jsonPrimitive?.content shouldBe "PickNext"
+                restartPayload["PackNumber"]?.jsonPrimitive?.int shouldBe 0
+                restartPayload["PickNumber"]?.jsonPrimitive?.int shouldBe 0
+                restartPayload["DraftPack"]!!.jsonArray.size shouldBe 13
+                restartPayload["PickedCards"]!!.jsonArray.size shouldBe 0
             }
         }
 
@@ -806,14 +901,19 @@ class FrontDoorHandlerTest :
  */
 private fun stubDraftDriver(packs: List<List<Int>>): DraftService.Driver =
     object : DraftService.Driver {
-        private val remaining = packs.map { it.toMutableList() }.toMutableList()
+        private var remaining = packs.map { it.toMutableList() }.toMutableList()
         private var idx = 0
         private var pickN = 0
 
         override fun start(
             sessionKey: String,
             setCode: String,
-        ): List<Int> = remaining.getOrNull(idx)?.toList() ?: emptyList()
+        ): List<Int> {
+            remaining = packs.map { it.toMutableList() }.toMutableList()
+            idx = 0
+            pickN = 0
+            return remaining.getOrNull(idx)?.toList() ?: emptyList()
+        }
 
         override fun pick(
             sessionKey: String,
@@ -822,6 +922,7 @@ private fun stubDraftDriver(packs: List<List<Int>>): DraftService.Driver =
             require(idx < remaining.size) { "no pack to pick from" }
             require(remaining[idx].remove(grpId)) { "card $grpId not in current pack" }
             pickN++
+            val completedPackPickN = pickN - 1
             if (remaining[idx].isEmpty()) {
                 idx++
                 pickN = 0
@@ -829,7 +930,7 @@ private fun stubDraftDriver(packs: List<List<Int>>): DraftService.Driver =
             val complete = idx >= remaining.size
             return DraftService.PickOutcome(
                 packNumber = if (complete) idx - 1 else idx,
-                pickNumber = pickN,
+                pickNumber = if (complete) completedPackPickN else pickN,
                 nextPack = if (complete) emptyList() else remaining[idx].toList(),
                 complete = complete,
             )

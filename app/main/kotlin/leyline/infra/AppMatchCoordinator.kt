@@ -12,6 +12,8 @@ import leyline.frontdoor.service.DeckService
 import leyline.frontdoor.service.MatchCoordinator
 import leyline.frontdoor.wire.DeckWireBuilder
 import org.slf4j.LoggerFactory
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Production [MatchCoordinator] — wired in [LeylineServer.startLocal].
@@ -26,6 +28,7 @@ class AppMatchCoordinator(
     private val draftRepo: DraftSessionRepository,
 ) : MatchCoordinator {
     private val log = LoggerFactory.getLogger(AppMatchCoordinator::class.java)
+    private val opponentRotationByEvent = ConcurrentHashMap<String, AtomicInteger>()
 
     @Volatile
     override var selectedDeckId: String? = null
@@ -72,8 +75,8 @@ class AppMatchCoordinator(
         val pod = draftRepo.findPodResults(session.id)
         if (pod.isEmpty()) return null
 
-        val course = courseService.getCourse(playerId, eventName)
-        val rotation = (course?.let { it.wins + it.losses } ?: 0) % pod.size
+        val counter = opponentRotationByEvent.computeIfAbsent(eventName) { AtomicInteger(0) }
+        val rotation = Math.floorMod(counter.getAndIncrement(), pod.size)
         val botDeck = pod[rotation]
         log.info(
             "Pod-bot opponent: event={} seat={} cards={}",

@@ -68,6 +68,8 @@
     "displayPriority": 61,
     "flags": [
       "IsArenaPlayModeEvent",
+      "UpdateQuests",
+      "UpdateDailyWeeklyRewards",
       "Ranked"
     ],
     "bladeBehavior": null,
@@ -88,6 +90,11 @@
       {
         "currencyType": "Gem",
         "quantity": 750
+      },
+      {
+        "currencyType": "CustomToken",
+        "quantity": 1,
+        "referenceId": "QuickDraftToken"
       }
     ],
     "dynamicFilterTagIds": [
@@ -104,6 +111,8 @@
     "displayPriority": 62,
     "flags": [
       "IsArenaPlayModeEvent",
+      "UpdateQuests",
+      "UpdateDailyWeeklyRewards",
       "Ranked"
     ],
     "bladeBehavior": null,
@@ -124,6 +133,11 @@
       {
         "currencyType": "Gem",
         "quantity": 750
+      },
+      {
+        "currencyType": "CustomToken",
+        "quantity": 1,
+        "referenceId": "QuickDraftToken"
       }
     ],
     "dynamicFilterTagIds": [
@@ -140,6 +154,8 @@
     "displayPriority": 63,
     "flags": [
       "IsArenaPlayModeEvent",
+      "UpdateQuests",
+      "UpdateDailyWeeklyRewards",
       "Ranked"
     ],
     "bladeBehavior": null,
@@ -160,6 +176,11 @@
       {
         "currencyType": "Gem",
         "quantity": 750
+      },
+      {
+        "currencyType": "CustomToken",
+        "quantity": 1,
+        "referenceId": "QuickDraftToken"
       }
     ],
     "dynamicFilterTagIds": [
@@ -169,13 +190,15 @@
     "collationId": 100062
   },
   {
-    "internalName": "QuickDraft_EOE_20250804",
+    "internalName": "QuickDraft_EOE_20260511",
     "publicName": "EOE_Quick_Draft",
     "deckSelectFormat": "Draft",
     "formatType": "Draft",
     "displayPriority": 64,
     "flags": [
       "IsArenaPlayModeEvent",
+      "UpdateQuests",
+      "UpdateDailyWeeklyRewards",
       "Ranked"
     ],
     "bladeBehavior": null,
@@ -196,12 +219,22 @@
       {
         "currencyType": "Gem",
         "quantity": 750
+      },
+      {
+        "currencyType": "CustomToken",
+        "quantity": 1,
+        "referenceId": "QuickDraftToken"
       }
     ],
     "dynamicFilterTagIds": [
       "EOE Limited"
     ],
     "editableDeck": true,
-    "collationId": 100063
+    "collationId": 100063,
+    "boosterCollationIds": [
+      200055,
+      200055,
+      200055
+    ]
   }
 ]

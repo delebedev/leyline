@@ -40,6 +40,7 @@ private class ScriptedDraftDriver(
         require(currentPackIdx < remainingByPack.size) { "no pack to pick from" }
         require(remainingByPack[currentPackIdx].remove(grpId)) { "card $grpId not in current pack" }
         pickIdx++
+        val completedPackPickIdx = pickIdx - 1
 
         if (remainingByPack[currentPackIdx].isEmpty()) {
             currentPackIdx++
@@ -50,7 +51,7 @@ private class ScriptedDraftDriver(
         val nextPack = if (complete) emptyList() else remainingByPack[currentPackIdx].toList()
         return DraftService.PickOutcome(
             packNumber = if (complete) currentPackIdx - 1 else currentPackIdx,
-            pickNumber = pickIdx,
+            pickNumber = if (complete) completedPackPickIdx else pickIdx,
             nextPack = nextPack,
             complete = complete,
         )
@@ -147,6 +148,7 @@ class DraftServiceTest :
 
             assertSoftly {
                 session.status shouldBe DraftStatus.Completed
+                session.pickNumber shouldBe 12
                 session.pickedCards shouldHaveSize 39
                 session.draftPack shouldHaveSize 0
                 driver.completedKey() shouldBe session.id.value
@@ -227,6 +229,7 @@ class DraftServiceTest :
 
             assertSoftly {
                 session.status shouldBe DraftStatus.Completed
+                session.pickNumber shouldBe 12
                 session.pickedCards shouldHaveSize totalCards
                 session.draftPack shouldHaveSize 0
             }
