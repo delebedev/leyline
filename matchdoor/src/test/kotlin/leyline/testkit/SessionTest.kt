@@ -236,7 +236,10 @@ abstract class SessionTest(
 
     fun submitAttackers() = harness.submitAttackers()
 
-    fun toggleAttackers(attackerInstanceIds: List<Int>): List<GREToClientMessage> = harness.toggleAttackers(attackerInstanceIds)
+    fun toggleAttackers(
+        attackerInstanceIds: List<Int>,
+        attackerAlternatives: Map<Int, Int> = emptyMap(),
+    ): List<GREToClientMessage> = harness.toggleAttackers(attackerInstanceIds, attackerAlternatives)
 
     // --- Combat: declare blockers ---
 

@@ -421,6 +421,9 @@ enum class PromptSemantic {
      */
     SelectNCostExileFromGrave,
 
+    /** Enlist's optional attack cost: a PayCostsReq, not target selection. */
+    EnlistCost,
+
     /**
      * Station's tap-a-creature activation cost. Routes to the Station-specific
      * `PayCostsReq` promptId while keeping the normal non-mana payment envelope.

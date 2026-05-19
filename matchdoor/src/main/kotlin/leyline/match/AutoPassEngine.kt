@@ -109,6 +109,17 @@ class AutoPassEngine(
             // precedence and should surface AssignDamageReq immediately.
             if (combatHandler.checkPendingDamageAssignment()) return
 
+            // Combat-time costs and triggered choices can arrive while Forge still
+            // reports the current combat step. Surface the pending prompt before
+            // offering the same combat declaration prompt again.
+            if (optionalActionHandler.checkPendingOptionalAction()) return
+            if (numericInputHandler.checkPendingNumericInput()) return
+            when (targetingHandler.checkPendingPrompt()) {
+                TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
+                TargetingHandler.PromptResult.AUTO_RESOLVED -> return@repeat // re-evaluate
+                TargetingHandler.PromptResult.NONE -> {} // continue
+            }
+
             // Combat phase handling
             when (combatHandler.checkCombatPhase(phase, isHumanTurn, isAiTurn)) {
                 CombatHandler.Signal.STOP -> return
@@ -146,19 +157,6 @@ class AutoPassEngine(
                     }
                 }
                 CombatHandler.Signal.CONTINUE -> {} // fall through to action check
-            }
-
-            // Optional action prompt — "you may" trigger (dedicated future)
-            if (optionalActionHandler.checkPendingOptionalAction()) return
-
-            // Numeric input prompt — Cost$ X, Announce$ X, etc. (dedicated future)
-            if (numericInputHandler.checkPendingNumericInput()) return
-
-            // Interactive prompt (targeting, sacrifice, discard, etc.)
-            when (targetingHandler.checkPendingPrompt()) {
-                TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
-                TargetingHandler.PromptResult.AUTO_RESOLVED -> return@repeat // re-evaluate
-                TargetingHandler.PromptResult.NONE -> {} // continue
             }
 
             // Action check — prompt human if meaningful actions exist

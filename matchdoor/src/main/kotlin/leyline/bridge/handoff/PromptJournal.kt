@@ -46,6 +46,7 @@ class PromptJournal {
         when (effect) {
             is PromptSideEffect.SearchedToHand,
             is PromptSideEffect.LegendVictim,
+            is PromptSideEffect.EnlistTapAffector,
             -> drains.add(effect)
             is PromptSideEffect.RevealStarted -> currentReveal = effect
             PromptSideEffect.RevealEnded -> currentReveal = null
@@ -59,6 +60,29 @@ class PromptJournal {
 
     /** Remove + return `true` iff a [PromptSideEffect.LegendVictim] for [id] was present. */
     fun consumeLegendVictim(id: ForgeCardId): Boolean = drainFirstMatching { it is PromptSideEffect.LegendVictim && it.forgeCardId == id }
+
+    /** Remove + return attacker iff an Enlist cost tap for [id] was present. */
+    fun consumeEnlistTapAffector(id: ForgeCardId): ForgeCardId? {
+        val iter = drains.iterator()
+        while (iter.hasNext()) {
+            val effect = iter.next()
+            if (effect is PromptSideEffect.EnlistTapAffector && effect.tappedForgeCardId == id) {
+                iter.remove()
+                return effect.attackerForgeCardId
+            }
+        }
+        return null
+    }
+
+    /** Return the enlisted creature for an Enlist attacker without consuming the tap-affector entry. */
+    fun peekEnlistedByAttacker(id: ForgeCardId): ForgeCardId? {
+        for (effect in drains) {
+            if (effect is PromptSideEffect.EnlistTapAffector && effect.attackerForgeCardId == id) {
+                return effect.tappedForgeCardId
+            }
+        }
+        return null
+    }
 
     private inline fun drainFirstMatching(predicate: (PromptSideEffect) -> Boolean): Boolean {
         val iter = drains.iterator()

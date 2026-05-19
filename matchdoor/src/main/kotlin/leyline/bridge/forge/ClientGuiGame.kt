@@ -266,7 +266,7 @@ class ClientGuiGame(
         remainingObjectsMin: Int,
         remainingObjectsMax: Int,
         sourceChoices: List<T>,
-        destChoices: List<T>,
+        destChoices: List<T>?,
         referenceCard: CardView?,
         sideboardingMode: Boolean,
     ): List<T> {
@@ -283,7 +283,8 @@ class ClientGuiGame(
         // PCHuman currently passes exactly one non-empty list; if a future
         // partial-preselect mode ever populates both, prefer dest (the
         // preselected order is the load-bearing input).
-        val payload = if (sourceChoices.isNotEmpty()) sourceChoices else destChoices
+        val orderedDest = destChoices.orEmpty()
+        val payload = if (sourceChoices.isNotEmpty()) sourceChoices else orderedDest
         if (payload.firstOrNull { it != null } is SpellAbilityView) {
             return payload.toList()
         }

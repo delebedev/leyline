@@ -551,8 +551,11 @@ class BundleBuilderTest :
             gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
             gsm.pendingMessageCount shouldBe 0
 
-            // Conformance: no attackState/blockState on echo objects
-            for (obj in gsm.gameObjectsList) {
+            val selected = gsm.gameObjectsList.first { it.instanceId == selectedIds.first() }
+            selected.attackState shouldBe Messages.AttackState.None_a3a9
+            selected.blockState shouldBe Messages.BlockState.None_aa2d
+
+            for (obj in gsm.gameObjectsList.filter { it.instanceId != selectedIds.first() }) {
                 obj.attackState shouldBe Messages.AttackState.None_a3a9
                 obj.blockState shouldBe Messages.BlockState.None_aa2d
             }

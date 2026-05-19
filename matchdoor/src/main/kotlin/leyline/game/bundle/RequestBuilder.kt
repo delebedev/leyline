@@ -525,6 +525,11 @@ object RequestBuilder {
         bridge: GameBridge,
     ): Pair<PayCostsReq, Prompt> = buildSelectCostPayCostsReq(prompt, bridge, PromptIds.STATION_TAP_COST)
 
+    fun buildEnlistCostPayCostsReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Pair<PayCostsReq, Prompt> = buildSelectCostPayCostsReq(prompt, bridge, PromptIds.ENLIST_TAP_COST)
+
     /**
      * Build a `PayCostsReq` for an additional cost paid by selecting N cards
      * (sacrifice, exile-from-grave, etc). Builder is uniform —
@@ -612,12 +617,14 @@ object RequestBuilder {
      *
      * @param committedAttackerIds instanceIds of attackers already selected (echo-back).
      *   Committed attackers get [selectedDamageRecipient] set to the opponent player.
+     * @param committedAttackAlternatives selected attack alternative per attacker; 0 means normal attack.
      *   Initial request passes empty set (no pre-selection).
      */
     fun buildDeclareAttackersReq(
         seatId: SeatId,
         bridge: GameBridge,
         committedAttackerIds: Set<Int> = emptySet(),
+        committedAttackAlternatives: Map<Int, Int> = emptyMap(),
     ): DeclareAttackersReq {
         val player = bridge.getPlayer(seatId) ?: return DeclareAttackersReq.getDefaultInstance()
         val builder = DeclareAttackersReq.newBuilder()
@@ -635,22 +642,34 @@ object RequestBuilder {
             if (!CombatUtil.canAttack(card)) continue
 
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-            val attacker =
+            val hasEnlist = card.hasKeyword("Enlist")
+            val isCommitted = instanceId in committedAttackerIds
+            val selectedAlternativeGrpId = committedAttackAlternatives[instanceId] ?: 0
+
+            fun attackerOption(alternativeGrpId: Int = 0): Attacker.Builder =
                 Attacker
                     .newBuilder()
                     .setAttackerInstanceId(instanceId)
                     .addLegalDamageRecipients(defaultRecipient)
-            if (instanceId in committedAttackerIds) {
-                attacker.setSelectedDamageRecipient(defaultRecipient)
-            }
+                    .apply {
+                        if (alternativeGrpId != 0) setAlternativeGrpId(alternativeGrpId)
+                    }
+
+            val attacker = attackerOption()
+            if (isCommitted && selectedAlternativeGrpId == 0) attacker.setSelectedDamageRecipient(defaultRecipient)
             builder.addAttackers(attacker)
+
+            if (hasEnlist) {
+                val enlistAttacker = attackerOption(KeywordAbilityIds.ENLIST)
+                if (isCommitted && selectedAlternativeGrpId == KeywordAbilityIds.ENLIST) {
+                    enlistAttacker.setSelectedDamageRecipient(defaultRecipient)
+                }
+                builder.addAttackers(enlistAttacker)
+            }
+
             // qualifiedAttackers never has selectedDamageRecipient
-            val qualified =
-                Attacker
-                    .newBuilder()
-                    .setAttackerInstanceId(instanceId)
-                    .addLegalDamageRecipients(defaultRecipient)
-            builder.addQualifiedAttackers(qualified)
+            builder.addQualifiedAttackers(attackerOption())
+            if (hasEnlist) builder.addQualifiedAttackers(attackerOption(KeywordAbilityIds.ENLIST))
         }
         builder.setCanSubmitAttackers(true)
         // Conformance: client expects an empty manaCost entry entry.

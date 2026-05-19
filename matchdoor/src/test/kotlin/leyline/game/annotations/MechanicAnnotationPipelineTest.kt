@@ -56,6 +56,21 @@ class MechanicAnnotationPipelineTest :
             }
         }
 
+        test("enlist tap payment uses enlisting attacker as affector") {
+            val events =
+                listOf(
+                    GameEvent.CardTapped(cardId = ForgeCardId(51), tapped = true, affectorCardId = ForgeCardId(42)),
+                )
+            val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
+
+            val tap = result.transient.single { AnnotationType.TappedUntappedPermanent in it.typeList }
+            assertSoftly {
+                tap.affectorId shouldBe 1042
+                tap.affectedIdsList shouldContain 1051
+                tap.detailInt("tapped") shouldBe 1
+            }
+        }
+
         test("counterRemovedAnnotation") {
             // Forge sends "LOYAL" for loyalty counters (CounterEnumType.LOYALTY.getName())
             val events =

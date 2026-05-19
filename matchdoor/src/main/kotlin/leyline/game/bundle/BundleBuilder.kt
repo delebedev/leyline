@@ -523,12 +523,11 @@ class BundleBuilder(
     }
 
     /**
-     * Echo-back bundle for iterative attacker toggle: thin Diff with provisional
-     * combat state on toggled creatures + fresh DeclareAttackersReq.
+     * Echo-back bundle for iterative attacker toggle: thin Diff with base creature
+     * objects + fresh DeclareAttackersReq.
      *
-     * Client expects `objects=1` per toggle with the creature's attack state
-     * and tap state reflecting the provisional selection. We synthesize this
-     * because the engine's combat object doesn't track provisional toggles.
+     * Echo objects carry no combat state; the refreshed DeclareAttackersReq carries
+     * selectedDamageRecipient on currently selected attacker options.
      *
      * @param selectedAttackerIds instanceIds currently selected as attackers
      * @param allLegalAttackerIds all instanceIds eligible to attack (for deselect detection)
@@ -539,13 +538,14 @@ class BundleBuilder(
         counter: MessageCounter,
         selectedAttackerIds: List<Int>,
         allLegalAttackerIds: List<Int>,
+        selectedAttackAlternatives: Map<Int, Int> = emptyMap(),
     ): BundleResult {
         val nextGs = counter.nextGsId()
         val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         // Build provisional creature objects for ALL legal attackers.
-        // Echo objects carry NO combat state — only base card fields.
+        // Echo objects carry no combat state; selection lives in the re-prompt.
         val objects = mutableListOf<GameObjectInfo>()
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
@@ -590,6 +590,7 @@ class BundleBuilder(
                 SeatId(seatId),
                 bridge,
                 committedAttackerIds = selectedAttackerIds.toSet(),
+                committedAttackAlternatives = selectedAttackAlternatives,
             )
         val msg2 =
             makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, counter.nextMsgId()) {

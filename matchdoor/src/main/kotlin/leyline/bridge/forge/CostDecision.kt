@@ -21,6 +21,8 @@ import forge.util.*
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import org.slf4j.LoggerFactory
 import java.util.*
@@ -738,14 +740,34 @@ class CostDecision(
     override fun visit(cost: CostEnlist): PaymentDecision? {
         val list = CostEnlist.getCardsForEnlisting(player)
         if (list.isEmpty()) return null
-        val selected =
-            selectCards(
-                Localizer.getInstance().getMessage("lblSelectACostToEnlist", cost.descriptiveType, "%d"),
-                list,
-                1,
-                1,
-                cancelAllowed = true,
-            ) ?: return null
+        val refs =
+            list.mapIndexed { idx, card ->
+                PromptCandidateRefDto(idx, "card", card.id, card.zone?.zoneType?.name)
+            }
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = Localizer.getInstance().getMessage("lblSelectACostToEnlist", cost.descriptiveType, "%d"),
+                options = list.map { it.name },
+                min = 1,
+                max = 1,
+                candidateRefs = refs,
+                semantic = PromptSemantic.EnlistCost,
+                sourceEntityId = source.id,
+            )
+        val indices = bridge.requestChoice(request)
+        if (indices.isEmpty()) return null
+        val selected = CardCollection()
+        for (idx in indices) {
+            if (idx in 0 until list.size) selected.add(list[idx])
+        }
+        if (selected.isEmpty()) return null
+        bridge.journal.record(
+            PromptSideEffect.EnlistTapAffector(
+                tappedForgeCardId = ForgeCardId(selected.first().id),
+                attackerForgeCardId = ForgeCardId(source.id),
+            ),
+        )
         return PaymentDecision.card(selected)
     }
 

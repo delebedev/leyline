@@ -318,6 +318,8 @@ class TargetingHandler(
                             sendSacrificePayCostsReq(classified.pendingPrompt)
                         ClassifiedPrompt.SelectN.Reason.ExileFromGrave ->
                             sendExileFromGravePayCostsReq(classified.pendingPrompt)
+                        ClassifiedPrompt.SelectN.Reason.EnlistCost ->
+                            sendEnlistCostPayCostsReq(classified.pendingPrompt)
                         ClassifiedPrompt.SelectN.Reason.StationTapCost ->
                             sendStationTapCostPayCostsReq(classified.pendingPrompt)
                         ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost ->
@@ -398,6 +400,8 @@ class TargetingHandler(
                         sendSacrificePayCostsReq(classified.pendingPrompt)
                     ClassifiedPrompt.SelectN.Reason.ExileFromGrave ->
                         sendExileFromGravePayCostsReq(classified.pendingPrompt)
+                    ClassifiedPrompt.SelectN.Reason.EnlistCost ->
+                        sendEnlistCostPayCostsReq(classified.pendingPrompt)
                     ClassifiedPrompt.SelectN.Reason.StationTapCost ->
                         sendStationTapCostPayCostsReq(classified.pendingPrompt)
                     ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost ->
@@ -1269,6 +1273,14 @@ class TargetingHandler(
             )
         val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
         Tap.outboundTemplate("PayCostsReq(return-unblocked-attacker) seat=${counters.seatId}")
+        sink.sendBundledGRE(result.messages)
+    }
+
+    private fun sendEnlistCostPayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
+        val bridge = ctx.bridge
+        val (req, prompt) = RequestBuilder.buildEnlistCostPayCostsReq(pendingPrompt, bridge)
+        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
+        Tap.outboundTemplate("PayCostsReq(enlist) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 

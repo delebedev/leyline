@@ -4,6 +4,7 @@ import forge.game.phase.PhaseType
 import leyline.DevCheck
 import leyline.bridge.findCard
 import leyline.bridge.forge.PlayerController
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.handoff.Target
 import leyline.bridge.types.ForgeCardId
@@ -46,6 +47,7 @@ open class CombatHandler(
      *  send DeclareAttackersReq with pre-selected attackers. Used by SubmitAttackersReq
      *  (the "Done" button, which carries no payload). */
     private var lastDeclaredAttackerIds: List<Int> = emptyList()
+    private var lastDeclaredAttackAlternatives: Map<Int, Int> = emptyMap()
 
     /** Last declared blocker assignments: blockerInstanceId → attackerInstanceId.
      *  Updated by iterative DeclareBlockersResp, consumed by SubmitBlockersReq. */
@@ -61,6 +63,7 @@ open class CombatHandler(
     fun reset() {
         pendingLegalAttackers = emptyList()
         lastDeclaredAttackerIds = emptyList()
+        lastDeclaredAttackAlternatives = emptyMap()
         lastDeclaredBlockAssignments.clear()
         pendingBlockersSent = false
     }
@@ -128,25 +131,36 @@ open class CombatHandler(
             if (resp.autoDeclare) {
                 // "Attack All" — select all legal attackers
                 lastDeclaredAttackerIds = pendingLegalAttackers.toList()
+                lastDeclaredAttackAlternatives = lastDeclaredAttackerIds.associateWith { 0 }
                 log.info("CombatHandler: Attack All — selected all {} pending attackers", lastDeclaredAttackerIds.size)
             } else {
-                // XOR toggle: selectedAttackers contains the toggled creature(s).
-                // If already committed → deselect. If not committed → select.
-                val toggled = resp.selectedAttackersList.map { it.attackerInstanceId }
-                val current = lastDeclaredAttackerIds.toMutableSet()
-                for (id in toggled) {
-                    if (id in current) current.remove(id) else current.add(id)
+                // XOR toggle: selectedAttackers contains the clicked attacker option.
+                // Same option toggles off; a different alternativeGrpId switches the option.
+                val current = lastDeclaredAttackAlternatives.toMutableMap()
+                for (attacker in resp.selectedAttackersList) {
+                    val id = attacker.attackerInstanceId
+                    val alternativeGrpId = attacker.alternativeGrpId
+                    if (current[id] == alternativeGrpId) {
+                        current.remove(id)
+                    } else {
+                        current[id] = alternativeGrpId
+                    }
                 }
-                lastDeclaredAttackerIds = current.toList()
-                log.info("CombatHandler: toggle {} → committed {}", toggled, lastDeclaredAttackerIds)
+                lastDeclaredAttackAlternatives = current
+                lastDeclaredAttackerIds = current.keys.toList()
+                log.info("CombatHandler: toggle {} → committed {}", resp.selectedAttackersList, lastDeclaredAttackAlternatives)
             }
-            // Echo back GSM with creature object (no combat state) + DeclareAttackersReq.
-            // Echo carries NO attackState — only base card fields.
+            // Echo back GSM with creature objects (no combat state) + DeclareAttackersReq.
             sendAttackerEchoBack()
             return
         }
 
-        // SubmitAttackersReq: finalize — use last known selection
+        submitAttackers(autoPass)
+    }
+
+    private fun submitAttackers(autoPass: () -> Unit) {
+        // Finalize — use last known selection
+        val bridge = ctx.bridge
         val seatBridge = bridge.seat(counters.seatId)
         val pending =
             seatBridge.action.getPending() ?: run {
@@ -169,8 +183,17 @@ open class CombatHandler(
                     "CombatHandler: instanceId $instanceId not in map (map size=${bridge.getInstanceIdMap().size})"
                 }
             }
+        val selectedAlternatives = lastDeclaredAttackAlternatives
+        val attackAlternativeByAttacker =
+            selectedInstanceIds
+                .mapNotNull { instanceId ->
+                    val cardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@mapNotNull null
+                    val alternativeGrpId = selectedAlternatives[instanceId] ?: 0
+                    if (alternativeGrpId == 0) null else cardId to alternativeGrpId
+                }.toMap()
         pendingLegalAttackers = emptyList()
         lastDeclaredAttackerIds = emptyList()
+        lastDeclaredAttackAlternatives = emptyMap()
 
         log.info("CombatHandler: SubmitAttackers forgeCardIds={}", attackerCardIds)
 
@@ -192,7 +215,11 @@ open class CombatHandler(
 
         seatBridge.action.submitAction(
             pending.actionId,
-            PlayerAction.DeclareAttackers(attackerCardIds, defender = defenderPlayerId?.let { Target.Player(ForgePlayerId(it)) }),
+            PlayerAction.DeclareAttackers(
+                attackerCardIds,
+                attackAlternativeByAttacker = attackAlternativeByAttacker,
+                defender = defenderPlayerId?.let { Target.Player(ForgePlayerId(it)) },
+            ),
         )
         bridge.awaitPriority()
         autoPass()
@@ -220,6 +247,7 @@ open class CombatHandler(
 
         pendingLegalAttackers = emptyList()
         lastDeclaredAttackerIds = emptyList()
+        lastDeclaredAttackAlternatives = emptyMap()
 
         sink.sendBundledGRE(
             listOf(
@@ -350,6 +378,14 @@ open class CombatHandler(
                     if (combat != null && combat.attackers.isNotEmpty()) {
                         return Signal.CONTINUE
                     }
+                    val pending =
+                        ctx.bridge
+                            .seat(counters.seatId)
+                            .action
+                            .getPending()
+                    if (pending?.state?.kind != PendingActionKind.DECLARE_ATTACKERS) {
+                        return Signal.CONTINUE
+                    }
                     val req = bundles.bundleBuilder.buildDeclareAttackersReq()
                     if (req.attackersCount > 0) {
                         tracer.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
@@ -372,14 +408,22 @@ open class CombatHandler(
                     // Drain any pending playback messages — the engine thread may have
                     // queued AI actions between the last drain and now.
                     drainPendingPlayback()
+                    val pending =
+                        ctx.bridge
+                            .seat(counters.seatId)
+                            .action
+                            .getPending()
+                    if (pending?.state?.kind != PendingActionKind.DECLARE_BLOCKERS) {
+                        return Signal.CONTINUE
+                    }
                     tracer.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
                     val skipBlockers = sendDeclareBlockersReq()
                     if (skipBlockers) {
                         // Zero legal blockers — submit empty declaration and advance
                         val seatBridge = ctx.bridge.seat(counters.seatId)
-                        val pending = seatBridge.action.getPending()
-                        if (pending != null) {
-                            seatBridge.action.submitAction(pending.actionId, PlayerAction.DeclareBlockers(emptyMap()))
+                        val blockerPending = seatBridge.action.getPending()
+                        if (blockerPending != null) {
+                            seatBridge.action.submitAction(blockerPending.actionId, PlayerAction.DeclareBlockers(emptyMap()))
                             ctx.bridge.awaitPriority()
                         }
                         return Signal.SEND_STATE
@@ -401,7 +445,17 @@ open class CombatHandler(
                 tracer.traceEvent(MatchEventType.SEND_STATE, game, "combat end")
                 return Signal.SEND_STATE
             }
-            else -> {}
+            PhaseType.UNTAP,
+            PhaseType.UPKEEP,
+            PhaseType.DRAW,
+            PhaseType.MAIN1,
+            PhaseType.COMBAT_BEGIN,
+            PhaseType.COMBAT_FIRST_STRIKE_DAMAGE,
+            PhaseType.MAIN2,
+            PhaseType.END_OF_TURN,
+            PhaseType.CLEANUP,
+            null,
+            -> {}
         }
         return Signal.CONTINUE
     }
@@ -615,6 +669,7 @@ open class CombatHandler(
                 ctx.game,
                 counters.counter,
                 selectedAttackerIds = lastDeclaredAttackerIds,
+                selectedAttackAlternatives = lastDeclaredAttackAlternatives,
                 allLegalAttackerIds = pendingLegalAttackers,
             )
         Tap.outboundTemplate("DeclareAttackersReq echo seat=${counters.seatId}")

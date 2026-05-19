@@ -206,6 +206,8 @@ object KeywordAbilityIds {
     // Direct ability ids — well-known shared row used verbatim per card.
     const val HASTE = 9
     const val PROWESS = 137
+    const val TRAINING = 220
+    const val ENLIST = 261
     const val STATION = 373
 
     // BaseId roots — each printing has its own ability row chaining to this.
@@ -220,7 +222,6 @@ object KeywordAbilityIds {
     const val FORETELL = 208
     const val DECAYED = 214
     const val DISTURB = 215
-    const val TRAINING = 220
     const val CLEAVE = 221
     const val DISGUISE = 307
     const val IMPENDING = 352
