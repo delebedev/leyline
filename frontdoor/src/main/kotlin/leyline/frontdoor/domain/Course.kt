@@ -50,6 +50,8 @@ data class CourseDeckSummary(
     val name: String,
     val tileId: Int,
     val format: String,
+    val deckArtId: Int = 0,
+    val preferredSleeve: String = "",
 )
 
 data class Course(

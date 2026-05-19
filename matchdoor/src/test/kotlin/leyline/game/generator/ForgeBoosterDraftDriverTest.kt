@@ -73,6 +73,7 @@ class ForgeBoosterDraftDriverTest :
             val driver = ForgeBoosterDraftDriver(AutoMappingCardRepository())
             var pack = driver.start("session-2", "FDN")
             var lastResult: PickResult? = null
+            var requestPickNumber = 0
             var picks = 0
 
             while (pack.isNotEmpty() && picks < 200) {
@@ -80,10 +81,12 @@ class ForgeBoosterDraftDriverTest :
                 pack = lastResult.nextPack
                 picks++
                 if (lastResult.complete) break
+                requestPickNumber = lastResult.pickNumber
             }
 
             assertSoftly {
                 lastResult!!.complete shouldBe true
+                lastResult.pickNumber shouldBe requestPickNumber
                 pack shouldHaveSize 0
             }
 

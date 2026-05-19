@@ -55,12 +55,15 @@ object FdRequests {
         val matchId: String?,
     )
 
-    /** CmdType 622 — eventName + deckId extracted from Summary, deck contents from Deck. */
+    /** CmdType 622/627 — eventName + deck metadata from Summary, deck contents from Deck. */
     data class SetDeck(
         val eventName: String,
         val deckId: String?,
         val deckName: String? = null,
         val tileId: Int? = null,
+        val deckArtId: Int? = null,
+        val deckFormat: String? = null,
+        val preferredSleeve: String? = null,
         val mainDeck: List<DeckCard> = emptyList(),
         val sideboard: List<DeckCard> = emptyList(),
     )
@@ -114,15 +117,33 @@ object FdRequests {
     fun parseSetDeck(json: String?): SetDeck? =
         parse(json) { obj ->
             val summary = obj["Summary"]?.jsonObject
-            // 622 nests MainDeck/Sideboard under "Deck"; 627 (Arena 58-0-1) puts them at the top level.
+            // Current clients nest MainDeck/Sideboard under "Deck"; tolerate top-level arrays from older builds.
             val deck = obj["Deck"]?.jsonObject
             val mainElement = obj["MainDeck"] ?: deck?.get("MainDeck")
             val sideElement = obj["Sideboard"] ?: deck?.get("Sideboard")
+            val attributes = summary?.get("Attributes")?.jsonArray
+            val format =
+                attributes
+                    ?.mapNotNull { it.jsonObject }
+                    ?.firstOrNull { it["name"]?.jsonPrimitive?.content == "Format" }
+                    ?.get("value")
+                    ?.jsonPrimitive
+                    ?.content
+            val preferredSleeve =
+                summary
+                    ?.get("PreferredCosmetics")
+                    ?.jsonObject
+                    ?.get("Sleeve")
+                    ?.jsonPrimitive
+                    ?.content
             SetDeck(
                 eventName = obj["EventName"]?.jsonPrimitive?.content ?: return@parse null,
                 deckId = summary?.get("DeckId")?.jsonPrimitive?.content,
                 deckName = summary?.get("Name")?.jsonPrimitive?.content,
                 tileId = summary?.get("DeckTileId")?.jsonPrimitive?.int,
+                deckArtId = summary?.get("DeckArtId")?.jsonPrimitive?.int,
+                deckFormat = format,
+                preferredSleeve = preferredSleeve,
                 mainDeck = parseDeckCards(mainElement),
                 sideboard = parseDeckCards(sideElement),
             )

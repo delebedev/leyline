@@ -8,9 +8,8 @@ import io.kotest.matchers.shouldBe
 import leyline.frontdoor.FdTag
 
 /**
- * `Event_SetDeckV2` (622) and `Event_SetCourseDeck` (627) ship the deck under
- * different envelopes. Both flow through `FdRequests.parseSetDeck` and need to
- * parse cleanly into the same domain model.
+ * `Event_SetDeckV2` (622) and `Event_SetCourseDeck` (627) flow through
+ * `FdRequests.parseSetDeck` and need to parse cleanly into the same domain model.
  */
 class FdRequestsParseSetDeckTest :
     FunSpec({
@@ -44,14 +43,26 @@ class FdRequestsParseSetDeckTest :
             }
         }
 
-        test("627 envelope puts MainDeck and Sideboard at the top level") {
+        test("627 envelope nests MainDeck and Sideboard under Deck") {
             val json =
                 """
                 {
                   "EventName": "QuickDraft_FDN_20260223",
-                  "Summary": {"DeckId":"def-456","Name":"Draft Deck","DeckTileId":7},
-                  "MainDeck": [{"cardId":93947,"quantity":1},{"cardId":102738,"quantity":4}],
-                  "Sideboard": []
+                  "Summary": {
+                    "DeckId":"def-456",
+                    "Name":"Draft Deck",
+                    "Attributes":[{"name":"Format","value":"Draft"}],
+                    "DeckTileId":7,
+                    "DeckArtId":450699,
+                    "PreferredCosmetics":{"Avatar":"","Sleeve":"CardBack_FIN_448363","Pet":"","Title":"","Emotes":[]}
+                  },
+                  "Deck": {
+                    "MainDeck": [{"cardId":93947,"quantity":1},{"cardId":102738,"quantity":4}],
+                    "Sideboard": [],
+                    "CommandZone": [],
+                    "Companions": [],
+                    "CardSkins": []
+                  }
                 }
                 """.trimIndent()
 
@@ -62,6 +73,9 @@ class FdRequestsParseSetDeckTest :
                 parsed.deckId shouldBe "def-456"
                 parsed.deckName shouldBe "Draft Deck"
                 parsed.tileId shouldBe 7
+                parsed.deckArtId shouldBe 450699
+                parsed.deckFormat shouldBe "Draft"
+                parsed.preferredSleeve shouldBe "CardBack_FIN_448363"
                 parsed.mainDeck shouldHaveSize 2
                 parsed.mainDeck[0].grpId shouldBe 93947
                 parsed.sideboard shouldHaveSize 0

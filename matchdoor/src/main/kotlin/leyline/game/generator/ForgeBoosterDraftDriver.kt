@@ -96,7 +96,7 @@ class ForgeBoosterDraftDriver(
 
         val nextPickIndex =
             if (complete) {
-                active.pickIndex + 1
+                active.pickIndex
             } else if (nextPackIndex == active.packIndex) {
                 active.pickIndex + 1
             } else {

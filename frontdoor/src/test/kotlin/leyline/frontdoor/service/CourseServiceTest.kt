@@ -95,6 +95,19 @@ class CourseServiceTest :
             }
         }
 
+        test("recordMatchResult lands on ClaimPrize at maxWins (QuickDraft maxWins=7)") {
+            val freshPlayer = PlayerId("claim-player-wins")
+            service.join(freshPlayer, "QuickDraft_FDN_20260223")
+            repeat(6) {
+                service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = true)
+            }
+            val seventh = service.recordMatchResult(freshPlayer, "QuickDraft_FDN_20260223", won = true)
+            assertSoftly {
+                seventh.wins shouldBe 7
+                seventh.module shouldBe CourseModule.ClaimPrize
+            }
+        }
+
         test("claimPrize flips ClaimPrize to Complete (wins/losses preserved)") {
             val freshPlayer = PlayerId("claim-player-B")
             service.join(freshPlayer, "QuickDraft_FDN_20260223")

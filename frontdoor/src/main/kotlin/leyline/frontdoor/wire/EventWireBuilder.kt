@@ -8,7 +8,6 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import leyline.frontdoor.domain.Course
-import leyline.frontdoor.domain.CourseModule
 import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.service.AiBotMatchDef
 import leyline.frontdoor.service.EventDef
@@ -21,6 +20,11 @@ import leyline.frontdoor.service.QueueEntry
  * Parallel to [DeckWireBuilder] / [PlayerWireBuilder].
  */
 object EventWireBuilder {
+    private fun quickDraftPrizeIds(maxWins: Int?): Map<String, String> =
+        (0..(maxWins ?: 7)).associate { wins ->
+            wins.toString() to "00000000-0000-4000-8000-${wins.toString(16).padStart(12, '0')}"
+        }
+
     fun toQueueConfigJson(queues: List<QueueEntry>): String =
         buildJsonArray {
             for (q in queues) {
@@ -97,26 +101,31 @@ object EventWireBuilder {
     fun buildCourseJson(
         course: Course,
         includeDeck: Boolean = true,
+        modulePayload: String? = null,
     ) = buildJsonObject {
         put("CourseId", course.id.value)
         put("InternalEventName", course.eventName)
         put("CurrentModule", currentModuleWire(course))
-        // ClaimPrize state expects ModulePayload="{}" so the client surfaces the
-        // claim button; other modules use the empty string.
-        put(
-            "ModulePayload",
-            if (course.module == CourseModule.ClaimPrize) "{}" else "",
-        )
+        put("ModulePayload", modulePayload.orEmpty())
         putJsonObject("CourseDeckSummary") {
             val s = course.deckSummary
             put("DeckId", s?.deckId?.value ?: "00000000-0000-0000-0000-000000000000")
             put("Name", s?.name.orEmpty())
-            putJsonArray("Attributes") {}
+            putJsonArray("Attributes") {
+                if (s?.format?.isNotBlank() == true) {
+                    add(
+                        buildJsonObject {
+                            put("name", "Format")
+                            put("value", s.format)
+                        },
+                    )
+                }
+            }
             put("DeckTileId", s?.tileId ?: 0)
-            put("DeckArtId", 0)
+            put("DeckArtId", s?.deckArtId ?: 0)
             putJsonObject("PreferredCosmetics") {
                 put("Avatar", "")
-                put("Sleeve", "")
+                put("Sleeve", s?.preferredSleeve.orEmpty())
                 put("Pet", "")
                 put("Title", "")
                 putJsonArray("Emotes") {}
@@ -170,17 +179,11 @@ object EventWireBuilder {
      */
     fun buildClaimPrizeResponse(course: Course): String =
         buildJsonObject {
-            put("Course", buildCourseJson(course, includeDeck = false))
+            put("Course", buildCourseJson(course, modulePayload = "{}"))
             putStubInventoryInfo()
         }.toString()
 
-    /**
-     * Wire spelling for the current course module. Arena 58-0-1 clients expect
-     * `ClaimPrizeV2` for the post-match prize state — the V1 string still
-     * round-trips on older builds but the lobby UI ignores it.
-     */
-    private fun currentModuleWire(course: Course): String =
-        if (course.module == CourseModule.ClaimPrize) "ClaimPrizeV2" else course.module.wireName()
+    private fun currentModuleWire(course: Course): String = course.module.wireName()
 
     fun buildMatchResultReport(course: Course): String =
         buildJsonObject {
@@ -188,6 +191,7 @@ object EventWireBuilder {
             put("FoundMatch", true)
             putStubInventoryInfo()
             putJsonArray("questUpdates") {}
+            putJsonObject("rankUpdates") {}
             putJsonObject("periodicRewardsProgress") {}
         }.toString()
 
@@ -244,13 +248,10 @@ object EventWireBuilder {
                 }
                 putJsonArray("FactionSealedUXInfo") {}
                 put("DeckSelectFormat", e.deckSelectFormat)
-                // Schema: `Dictionary<Int32, Guid>` — keys 0..maxWins, values are
-                // reward UUIDs the client looks up against its content. Empty for now;
-                // a populated map with zero-UUIDs renders the prize wall but breaks the
-                // Claim Prize click flow because the client tries to grant a content
-                // entry that doesn't exist. Wire real cosmetic UUIDs per tier when we
-                // actually need the claim path (tracked in a follow-up bead).
-                putJsonObject("Prizes") {}
+                val prizes = e.prizes.ifEmpty { if (e.isBotDraft) quickDraftPrizeIds(e.maxWins) else emptyMap() }
+                putJsonObject("Prizes") {
+                    prizes.forEach { (wins, prizeId) -> put(wins, prizeId) }
+                }
                 putJsonObject("EventComponentData") {
                     putJsonObject("DescriptionText") {
                         put("LocKey", e.descLocKey)
@@ -276,6 +277,13 @@ object EventWireBuilder {
                                 put("Games", e.maxLosses)
                             } else {
                                 put("LossDetailsType", "PlayUntilEventEnds")
+                            }
+                        }
+                        if (e.boosterCollationIds.isNotEmpty()) {
+                            putJsonObject("BoosterPacksDisplay") {
+                                putJsonArray("CollationIds") {
+                                    e.boosterCollationIds.forEach { add(JsonPrimitive(it)) }
+                                }
                             }
                         }
                         if (e.editableDeck) {

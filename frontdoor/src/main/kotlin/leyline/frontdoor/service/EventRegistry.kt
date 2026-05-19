@@ -55,6 +55,10 @@ data class EventDef(
     val preconDeckIds: List<String> = emptyList(),
     /** Deck button behavior override (e.g. "Fixed" for precon events). */
     val deckButtonBehavior: String? = null,
+    /** Optional prize resource IDs keyed by win count; bot drafts get local placeholders when empty. */
+    val prizes: Map<String, String> = emptyMap(),
+    /** Booster collation IDs rendered on limited event pages. */
+    val boosterCollationIds: List<Int> = emptyList(),
 ) {
     val isSealed: Boolean get() = formatType == "Sealed"
 }

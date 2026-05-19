@@ -4,6 +4,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import leyline.frontdoor.domain.DraftSession
 import leyline.frontdoor.domain.DraftStatus
 
@@ -27,41 +29,62 @@ object DraftWireBuilder {
     private fun buildInventoryInfo(session: DraftSession) =
         buildJsonObject {
             put("SeqId", 1)
-            put(
-                "Changes",
-                buildJsonArray {
-                    if (session.status == DraftStatus.Completed) {
-                        add(
-                            buildJsonObject {
-                                put("Source", "EventGrantCardPool")
-                                put("SourceId", session.eventName)
-                                put(
-                                    "GrantedCards",
-                                    buildJsonArray {
-                                        session.pickedCards.forEach { grpId ->
-                                            add(
-                                                buildJsonObject {
-                                                    put("GrpId", grpId)
-                                                    put("CardAdded", true)
-                                                },
-                                            )
-                                        }
-                                    },
-                                )
-                            },
-                        )
-                    }
-                },
-            )
+            putJsonArray("Changes") {
+                if (session.status == DraftStatus.Completed) add(buildCardPoolGrantChange(session))
+            }
             put("Gems", 0)
             put("Gold", 0)
             put("TotalVaultProgress", 0)
+            put("wcTrackPosition", 0)
             put("WildCardCommons", 0)
             put("WildCardUnCommons", 0)
             put("WildCardRares", 0)
             put("WildCardMythics", 0)
-            put("CustomTokens", buildJsonObject {})
-            put("Boosters", buildJsonArray {})
+            putJsonObject("CustomTokens") {}
+            putJsonArray("Boosters") {}
+            putJsonObject("Vouchers") {}
+            putJsonArray("PrizeWallsUnlocked") {}
+            putJsonObject("Cosmetics") {
+                putJsonArray("ArtStyles") {}
+                putJsonArray("Avatars") {}
+                putJsonArray("Pets") {}
+                putJsonArray("Sleeves") {}
+                putJsonArray("Emotes") {}
+                putJsonArray("Titles") {}
+            }
+        }
+
+    private fun buildCardPoolGrantChange(session: DraftSession) =
+        buildJsonObject {
+            val setCode = extractSetCode(session.eventName)
+            put("Source", "EventGrantCardPool")
+            put("SourceId", session.eventName)
+            putJsonObject("InventoryCustomTokens") {}
+            putJsonArray("ArtStyles") {}
+            putJsonArray("Avatars") {}
+            putJsonArray("Sleeves") {}
+            putJsonArray("Pets") {}
+            putJsonArray("Emotes") {}
+            putJsonArray("Titles") {}
+            putJsonArray("Decks") {}
+            putJsonArray("DecksV2") {}
+            putJsonArray("DecksV3") {}
+            putJsonObject("DeckCards") {}
+            putJsonArray("Boosters") {}
+            putJsonArray("GrantedCards") {
+                session.pickedCards.forEach { grpId ->
+                    add(
+                        buildJsonObject {
+                            put("GrpId", grpId)
+                            put("CardAdded", true)
+                            put("SetCode", setCode)
+                        },
+                    )
+                }
+            }
+            putJsonObject("Vouchers") {}
+            putJsonArray("NewLetters") {}
+            putJsonArray("PrizeWallsUnlocked") {}
         }
 
     private fun buildPayloadJson(session: DraftSession): String =
@@ -87,4 +110,9 @@ object DraftWireBuilder {
             )
             put("PickedStyles", buildJsonArray {})
         }.toString()
+
+    private fun extractSetCode(eventName: String): String {
+        val parts = eventName.split("_")
+        return if (parts.size >= 2 && parts[0].equals("QuickDraft", ignoreCase = true)) parts[1] else "FDN"
+    }
 }
