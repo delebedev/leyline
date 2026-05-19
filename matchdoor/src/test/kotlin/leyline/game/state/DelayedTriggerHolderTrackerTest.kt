@@ -7,9 +7,6 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.game.iid
-import leyline.game.state.DelayedTriggerHolderTracker
-import leyline.game.state.HolderRecord
 
 class DelayedTriggerHolderTrackerTest :
     FunSpec({
@@ -32,7 +29,6 @@ class DelayedTriggerHolderTrackerTest :
             batch.removed.shouldBeEmpty()
             t.apply(batch)
             t.activeSize shouldBe 2
-            t.drainDeletions().shouldBeEmpty()
         }
 
         test("unchanged holders produce empty batch — no re-emit, no deletion") {
@@ -43,10 +39,9 @@ class DelayedTriggerHolderTrackerTest :
             batch.added.shouldBeEmpty()
             batch.removed.shouldBeEmpty()
             t.apply(batch)
-            t.drainDeletions().shouldBeEmpty()
         }
 
-        test("removed holder enters deletion queue and drains exactly once") {
+        test("removed holder is returned in the batch and apply updates active state") {
             val t = DelayedTriggerHolderTracker()
             t.apply(t.computeBatch(listOf(rec(119))))
 
@@ -55,12 +50,7 @@ class DelayedTriggerHolderTrackerTest :
             batch.removed shouldContainExactly listOf(119)
 
             t.apply(batch)
-            assertSoftly("post-removal state") {
-                t.activeSize shouldBe 0
-                t.drainDeletions() shouldContainExactly listOf(119)
-                // Drained — second call returns nothing.
-                t.drainDeletions().shouldBeEmpty()
-            }
+            t.activeSize shouldBe 0
         }
 
         test("swap one holder for another — same call returns added + removed") {
@@ -73,7 +63,6 @@ class DelayedTriggerHolderTrackerTest :
 
             t.apply(batch)
             t.activeSize shouldBe 1
-            t.drainDeletions() shouldContainExactly listOf(119)
         }
 
         test("multi-GSM lifecycle — add, hold, hold, remove") {
@@ -82,34 +71,30 @@ class DelayedTriggerHolderTrackerTest :
             val gsm1 = t.computeBatch(listOf(rec(119)))
             gsm1.added.map { it.iid } shouldContainExactly listOf(119)
             t.apply(gsm1)
-            t.drainDeletions().shouldBeEmpty()
 
             // GSM 2 — combat damage, holder still alive.
             val gsm2 = t.computeBatch(listOf(rec(119)))
             gsm2.added.shouldBeEmpty()
             gsm2.removed.shouldBeEmpty()
             t.apply(gsm2)
-            t.drainDeletions().shouldBeEmpty()
 
             // GSM 3 — main2, holder still alive (tokens haven't been sacrificed).
             val gsm3 = t.computeBatch(listOf(rec(119)))
             gsm3.added.shouldBeEmpty()
             gsm3.removed.shouldBeEmpty()
             t.apply(gsm3)
-            t.drainDeletions().shouldBeEmpty()
 
             // GSM 4 — end-step cleanup fires, tokens sacrificed, holder retired.
             val gsm4 = t.computeBatch(emptyList())
             gsm4.removed shouldContainExactly listOf(119)
             t.apply(gsm4)
-            t.drainDeletions() shouldContainExactly listOf(119)
+            t.activeSize shouldBe 0
 
             // GSM 5 — post-cleanup, nothing happens.
             val gsm5 = t.computeBatch(emptyList())
             gsm5.added.shouldBeEmpty()
             gsm5.removed.shouldBeEmpty()
             t.apply(gsm5)
-            t.drainDeletions().shouldBeEmpty()
         }
 
         test("computeBatch is non-mutating — repeated calls before apply give same result") {
@@ -123,7 +108,6 @@ class DelayedTriggerHolderTrackerTest :
                 first.removed shouldContainExactly second.removed
                 // State unchanged — 119 still active.
                 t.activeSize shouldBe 1
-                t.drainDeletions().shouldBeEmpty()
             }
         }
     })
