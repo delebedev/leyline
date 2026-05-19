@@ -1,5 +1,6 @@
 package leyline.game.state
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
@@ -243,9 +244,11 @@ class PureDiffReplayTest :
                         viewingSeatId = SEAT_ID,
                     )
 
-                replayBridge.delayedTriggerHolders.activeIids() shouldBe activeBefore
-                replayResult.mutations.holderBatch.removed shouldBe listOf(777)
-                (777 in replayResult.gsm.diffDeletedInstanceIdsList) shouldBe true
+                assertSoftly("holder deletion is compute-time only until mutations apply") {
+                    replayBridge.delayedTriggerHolders.activeIids() shouldBe activeBefore
+                    replayResult.mutations.holderBatch.removed shouldBe listOf(777)
+                    (777 in replayResult.gsm.diffDeletedInstanceIdsList) shouldBe true
+                }
                 replayBridge.applyMutations(replayResult.mutations)
                 replayBridge.delayedTriggerHolders.activeIids() shouldBe emptySet()
             }

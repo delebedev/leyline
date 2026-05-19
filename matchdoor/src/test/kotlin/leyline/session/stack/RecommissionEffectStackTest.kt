@@ -2,6 +2,7 @@ package leyline.session.stack
 
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
@@ -79,5 +80,6 @@ class RecommissionEffectStackTest :
                     .shouldNotBeNull()
 
             clearFrame.diffDeletedInstanceIdsList shouldContain stackIid
+            clearFrame.diffDeletedInstanceIdsList shouldHaveSize 1
         }
     })
