@@ -150,6 +150,22 @@ object StateMapper {
         val mutations: BridgeMutations = BridgeMutations.Companion.EMPTY,
     )
 
+    /** Snap- or event-derived persistent annotation inputs for one GSM build. */
+    private data class PersistentFeedSet(
+        val qualification: List<AnnotationInfo> = emptyList(),
+        val temporaryPermanent: List<AnnotationInfo> = emptyList(),
+        val delayedTriggerAffectees: List<AnnotationInfo> = emptyList(),
+        val abilityWord: List<AnnotationInfo> = emptyList(),
+        val preparedDesignation: List<AnnotationInfo> = emptyList(),
+        val plottedDesignation: List<AnnotationInfo> = emptyList(),
+        val saddledDesignation: List<AnnotationInfo> = emptyList(),
+        val commanderDesignation: List<AnnotationInfo> = emptyList(),
+        val leftUnlockedDesignation: List<AnnotationInfo> = emptyList(),
+        val rightUnlockedDesignation: List<AnnotationInfo> = emptyList(),
+        val dayNightDesignation: List<AnnotationInfo> = emptyList(),
+        val faceDownDisguise: List<AnnotationInfo> = emptyList(),
+    )
+
     /**
      * Build a Full [GameStateMessage] from an immutable [leyline.game.snapshot.GsmSnapshot].
      * Maps cards to client instanceIds via the bridge's card ID mapping.
@@ -653,6 +669,21 @@ object StateMapper {
                     ),
                 )
             } ?: emptyList()
+        val persistentFeeds =
+            PersistentFeedSet(
+                qualification = qualificationPersistentFromSnap,
+                temporaryPermanent = temporaryPermanentPersistentFromSnap,
+                delayedTriggerAffectees = delayedTriggerAffecteesFromSnap,
+                abilityWord = abilityWordPersistentFromSnap + trainingAbilityWordPersistentFromEvents,
+                preparedDesignation = preparedDesignationPersistentFromSnap,
+                plottedDesignation = plottedDesignationPersistentFromSnap,
+                saddledDesignation = saddledDesignationPersistentFromSnap,
+                commanderDesignation = commanderDesignationPersistentFromSnap,
+                leftUnlockedDesignation = leftUnlockedDesignationPersistentFromSnap,
+                rightUnlockedDesignation = rightUnlockedDesignationPersistentFromSnap,
+                dayNightDesignation = dayNightDesignationPersistentFromSnap,
+                faceDownDisguise = faceDownDisguisePersistentFromSnap,
+            )
         // Transient gain/lose Designation annotations — diff prev vs cur on the
         // `Source on battlefield with isPrepared` set. Gains insert before the
         // Stack→Battlefield Resolve ZoneTransfer for the same source iid to match
@@ -710,18 +741,7 @@ object StateMapper {
                 frameIds,
                 keywordDiff,
                 combatResult,
-                qualificationPersistentFromSnap = qualificationPersistentFromSnap,
-                temporaryPermanentPersistentFromSnap = temporaryPermanentPersistentFromSnap,
-                delayedTriggerAffecteesPersistentFromSnap = delayedTriggerAffecteesFromSnap,
-                abilityWordPersistentFromSnap = abilityWordPersistentFromSnap + trainingAbilityWordPersistentFromEvents,
-                preparedDesignationPersistentFromSnap = preparedDesignationPersistentFromSnap,
-                plottedDesignationPersistentFromSnap = plottedDesignationPersistentFromSnap,
-                saddledDesignationPersistentFromSnap = saddledDesignationPersistentFromSnap,
-                commanderDesignationPersistentFromSnap = commanderDesignationPersistentFromSnap,
-                leftUnlockedDesignationPersistentFromSnap = leftUnlockedDesignationPersistentFromSnap,
-                rightUnlockedDesignationPersistentFromSnap = rightUnlockedDesignationPersistentFromSnap,
-                dayNightDesignationPersistentFromSnap = dayNightDesignationPersistentFromSnap,
-                faceDownDisguisePersistentFromSnap = faceDownDisguisePersistentFromSnap,
+                persistentFeeds,
                 transferResult = transferResult,
             )
 
@@ -1180,18 +1200,7 @@ object StateMapper {
         frameIds: FrameIdResolver,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
-        qualificationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
-        temporaryPermanentPersistentFromSnap: List<AnnotationInfo> = emptyList(),
-        delayedTriggerAffecteesPersistentFromSnap: List<AnnotationInfo> = emptyList(),
-        abilityWordPersistentFromSnap: List<AnnotationInfo> = emptyList(),
-        preparedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
-        plottedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
-        saddledDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
-        commanderDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
-        leftUnlockedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
-        rightUnlockedDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
-        dayNightDesignationPersistentFromSnap: List<AnnotationInfo> = emptyList(),
-        faceDownDisguisePersistentFromSnap: List<AnnotationInfo> = emptyList(),
+        persistentFeeds: PersistentFeedSet = PersistentFeedSet(),
         transferResult: TransferResult,
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds =
@@ -1264,7 +1273,7 @@ object StateMapper {
         annotations.addAll(otherMechanic)
 
         // AbilityWordActive: consumed from pre-computed snap entries
-        val abilityWordPersistent = abilityWordPersistentFromSnap
+        val abilityWordPersistent = persistentFeeds.abilityWord
 
         if (initEffectDiff.created.isNotEmpty()) {
             val (initTransient, _) = MechanicAnnotations.effectAnnotations(initEffectDiff)
@@ -1291,15 +1300,15 @@ object StateMapper {
         annotations.addAll(effectTransient)
 
         // Qualification pAnn for adventure-exiled cards (cast-from-exile eligibility marker)
-        val qualificationPersistent = qualificationPersistentFromSnap
+        val qualificationPersistent = persistentFeeds.qualification
 
         // TemporaryPermanent pAnn for any token with EOT-sacrifice (copy or otherwise)
-        val temporaryPermanentPersistent = temporaryPermanentPersistentFromSnap
+        val temporaryPermanentPersistent = persistentFeeds.temporaryPermanent
 
         // DelayedTriggerAffectees groups EOT-sacrifice tokens that share a
         // delayed trigger (Mobilize, EOT-sacrifice copies). One annotation per
         // group, persistent until the trigger resolves.
-        val delayedTriggerAffecteesPersistent = delayedTriggerAffecteesPersistentFromSnap
+        val delayedTriggerAffecteesPersistent = persistentFeeds.delayedTriggerAffectees
 
         // TargetSpec pAnn for each targeted spell/ability on the stack
         val targetSpecPersistent = buildTargetSpecAnnotations(bridge, frameIds, snap)
@@ -1328,14 +1337,14 @@ object StateMapper {
                         put(DelayedTriggerAffecteesKind, delayedTriggerAffecteesPersistent)
                         put(TargetSpecKind, targetSpecPersistent)
                         put(MutateLayeredEffectKind, mutateMergePersistent)
-                        put(PreparedDesignationKind, preparedDesignationPersistentFromSnap)
-                        put(PlottedDesignationKind, plottedDesignationPersistentFromSnap)
-                        put(CommanderDesignationKind, commanderDesignationPersistentFromSnap)
-                        put(SaddledDesignationKind, saddledDesignationPersistentFromSnap)
-                        put(LeftUnlockedDesignationKind, leftUnlockedDesignationPersistentFromSnap)
-                        put(RightUnlockedDesignationKind, rightUnlockedDesignationPersistentFromSnap)
-                        put(DayNightDesignationKind, dayNightDesignationPersistentFromSnap)
-                        put(FaceDownDisguiseKind, faceDownDisguisePersistentFromSnap)
+                        put(PreparedDesignationKind, persistentFeeds.preparedDesignation)
+                        put(PlottedDesignationKind, persistentFeeds.plottedDesignation)
+                        put(CommanderDesignationKind, persistentFeeds.commanderDesignation)
+                        put(SaddledDesignationKind, persistentFeeds.saddledDesignation)
+                        put(LeftUnlockedDesignationKind, persistentFeeds.leftUnlockedDesignation)
+                        put(RightUnlockedDesignationKind, persistentFeeds.rightUnlockedDesignation)
+                        put(DayNightDesignationKind, persistentFeeds.dayNightDesignation)
+                        put(FaceDownDisguiseKind, persistentFeeds.faceDownDisguise)
                     },
             )
         val batch =
