@@ -30,6 +30,7 @@ data class BridgeMutations(
     val persistentBatch: PersistentAnnotationStore.BatchResult,
     val nextAnnotationId: Int,
     val holderBatch: HolderBatch,
+    val diffDeletedInstanceIds: List<InstanceId> = emptyList(),
 ) {
     companion object {
         val EMPTY: BridgeMutations =

@@ -773,6 +773,7 @@ object StateMapper {
                 persistentBatch = remaining.batch,
                 nextAnnotationId = remaining.nextAnnotationId,
                 holderBatch = holderBatch,
+                diffDeletedInstanceIds = stackTransferDeletedIds(transferResult).map { InstanceId(it) },
             )
 
         val hasCastSpell = transferResult.transfers.any { it.category == TransferCategory.CastSpell }
@@ -804,6 +805,11 @@ object StateMapper {
             }
         }
     }
+
+    private fun stackTransferDeletedIds(transferResult: TransferResult): List<Int> =
+        transferResult.transfers
+            .filter { it.srcZoneId == ZoneIds.STACK && it.destZoneId != ZoneIds.BATTLEFIELD }
+            .map { it.origId }
 
     /**
      * Build a Diff [GameStateMessage] by snap-vs-snap field comparison.
@@ -1033,7 +1039,7 @@ object StateMapper {
         // The batch is compute-time data; applyMutations commits tracker state
         // only after this GSM is assembled.
         val holderDeletions = fullResult.mutations.holderBatch.removed
-        val allDeletedIds = deletedIds + holderDeletions
+        val allDeletedIds = (deletedIds + holderDeletions + fullResult.mutations.diffDeletedInstanceIds.map { it.value }).distinct()
         if (allDeletedIds.isNotEmpty()) {
             builder.addAllDiffDeletedInstanceIds(allDeletedIds)
         }
