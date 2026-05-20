@@ -12,6 +12,10 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.time.LocalDateTime
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -28,6 +32,14 @@ class SimClientBatchTest :
     FunSpec({
         tags(SimClientTag)
         val outDir = File("build/simclient").also { it.mkdirs() }
+        val configuredBatchTimeoutMinutes =
+            System.getProperty("simclient.test.timeout.minutes")
+                ?: System.getenv("SIMCLIENT_TEST_TIMEOUT_MINUTES")
+                ?: "120"
+        val batchTimeoutMinutes =
+            configuredBatchTimeoutMinutes.trim().toLong().coerceAtLeast(1)
+
+        fun envOrProp(name: String): String? = System.getProperty(name.lowercase().replace('_', '.')) ?: System.getenv(name)
 
         // SQLite-backed card repo, built lazily on first test execution —
         // bypasses the YAML fixture path so any deck of installed cards runs
@@ -38,7 +50,7 @@ class SimClientBatchTest :
         // the body.
         val cardRepo: CardRepository by lazy {
             val cardDbPath =
-                requireNotNull(System.getenv("LEYLINE_CARD_DB")) {
+                requireNotNull(envOrProp("LEYLINE_CARD_DB")) {
                     "LEYLINE_CARD_DB is not set. Point it at the local Raw_CardDatabase_*.mtga / *.sqlite file. " +
                         "For just recipes: set LEYLINE_CARD_DB to your Raw_CardDatabase path before `just simclient`. " +
                         "Custom decks live in data/decks/<name>.txt and are selected by basename."
@@ -65,8 +77,6 @@ class SimClientBatchTest :
          *   SIMCLIENT_DECKS=mono-r-burn SIMCLIENT_SEEDS=1..20 ./gradlew :simclient
          *   SIMCLIENT_DECKS=Auras.txt SIMCLIENT_SEEDS=42 ./gradlew :simclient
          */
-        fun envOrProp(name: String): String? = System.getenv(name) ?: System.getProperty(name.lowercase().replace('_', '.'))
-
         fun simclientRelaxedValidation(): InvariantSelection =
             InvariantSelection.protocolFactsExcept(
                 "simclient driver can replay older queued ids around play-land diffs (leyline-qiws)",
@@ -80,6 +90,10 @@ class SimClientBatchTest :
             }
             return spec.split(",").map { it.trim().toLong() }
         }
+
+        fun gameTimeoutMs(): Long = ((envOrProp("SIMCLIENT_GAME_TIMEOUT_SECONDS") ?: "120").trim().toLong().coerceAtLeast(1)) * 1_000
+
+        fun maxTurns(): Int = (envOrProp("SIMCLIENT_MAX_TURNS") ?: "25").trim().toInt().coerceAtLeast(1)
 
         /** Read a deckfile from leyline's data/decks/, return its body. */
         fun readDeck(name: String): String {
@@ -119,10 +133,19 @@ class SimClientBatchTest :
 
         fun mapToJson(m: Map<String, Int>): String = m.entries.joinToString(",", "{", "}") { (k, v) -> "${jsonString(k)}:$v" }
 
+        fun longMapToJson(m: Map<String, Long>): String = m.entries.joinToString(",", "{", "}") { (k, v) -> "${jsonString(k)}:$v" }
+
         fun stringsToJson(values: List<String>): String = values.joinToString(",", "[", "]") { jsonString(it) }
+
+        fun fileSafeName(value: String): String =
+            value
+                .replace(Regex("[^A-Za-z0-9._-]+"), "-")
+                .trim('-')
+                .ifBlank { "deck" }
 
         fun statsToJson(
             deckName: String,
+            opponentDeckName: String?,
             seed: Long,
             stats: GameStats,
         ): String {
@@ -134,6 +157,7 @@ class SimClientBatchTest :
             return buildString {
                 append('{')
                 append("\"deck\":${jsonString(deckName)},")
+                opponentDeckName?.let { append("\"opponentDeck\":${jsonString(it)},") }
                 append("\"seed\":$seed,")
                 append("\"policy\":${jsonString(policy)},")
                 append("\"durationMs\":${stats.durationMs},")
@@ -148,6 +172,9 @@ class SimClientBatchTest :
                 append("\"aiChose\":${stats.aiChose},")
                 append("\"aiConsultedByPrompt\":${mapToJson(stats.aiConsultedByPrompt)},")
                 append("\"aiChoseByPrompt\":${mapToJson(stats.aiChoseByPrompt)},")
+                append("\"aiTotalMs\":${stats.aiTotalMs},")
+                append("\"aiTotalMsByPrompt\":${longMapToJson(stats.aiTotalMsByPrompt)},")
+                append("\"aiMaxMsByPrompt\":${longMapToJson(stats.aiMaxMsByPrompt)},")
                 append("\"promptHistogram\":$histo,")
                 append("\"warnsByLogger\":${mapToJson(stats.warnsByLogger)},")
                 append("\"errorsByType\":${mapToJson(stats.errorsByType)},")
@@ -158,69 +185,130 @@ class SimClientBatchTest :
                 append("\"actionAttemptsByType\":${mapToJson(stats.actionAttemptsByType)},")
                 append("\"noPendingByDecision\":${mapToJson(stats.noPendingByDecision)},")
                 append("\"skippedAlreadyTried\":${stats.skippedAlreadyTried},")
+                append("\"connectMs\":${stats.connectMs},")
+                append("\"stepTotalMs\":${stats.stepTotalMs},")
+                append("\"stepMaxMs\":${stats.stepMaxMs},")
+                append("\"flushTotalMs\":${stats.flushTotalMs},")
+                append("\"flushMaxMs\":${stats.flushMaxMs},")
+                append("\"autoPassTotalMs\":${stats.autoPassTotalMs},")
+                append("\"autoPassMaxMs\":${stats.autoPassMaxMs},")
+                append("\"policyTotalMsByPrompt\":${longMapToJson(stats.policyTotalMsByPrompt)},")
+                append("\"policyMaxMsByPrompt\":${longMapToJson(stats.policyMaxMsByPrompt)},")
+                append("\"submitTotalMsByDecision\":${longMapToJson(stats.submitTotalMsByDecision)},")
+                append("\"submitMaxMsByDecision\":${longMapToJson(stats.submitMaxMsByDecision)},")
                 append("\"stalledPrompt\":${stats.stalledPrompt?.let(::jsonString) ?: "null"},")
                 append("\"stalledFingerprint\":${stats.stalledFingerprint?.let(::jsonString) ?: "null"}")
                 append('}')
             }
         }
 
+        fun timeoutStats(
+            harness: MatchFlowHarness?,
+            timeoutMs: Long,
+        ): GameStats {
+            val messages = runCatching { harness?.allMessages?.toList().orEmpty() }.getOrDefault(emptyList())
+            val histogram =
+                messages
+                    .filter { isSimPrompt(it) }
+                    .groupingBy { it.type }
+                    .eachCount()
+            return GameStats(
+                turn = runCatching { harness?.turn() ?: 0 }.getOrDefault(0),
+                gameOver = runCatching { harness?.isGameOver() ?: false }.getOrDefault(false),
+                iterations = 0,
+                totalMessages = messages.size,
+                promptHistogram = histogram,
+                hitIterCap = false,
+                durationMs = timeoutMs,
+                errorsByType = mapOf(TimeoutException::class.qualifiedName.orEmpty() to 1),
+                completionReason = "wall-timeout",
+            )
+        }
+
         fun runOne(
             deckName: String,
             deckList: String,
+            opponentDeckName: String?,
+            opponentDeckList: String?,
             seed: Long,
             maxTurns: Int,
             maxIterations: Int = 3_000,
         ): GameStats {
-            val harness =
-                MatchFlowHarness(
-                    seed = seed,
-                    deckList = deckList,
-                    validation = simclientRelaxedValidation(),
-                    validationStrict = false,
-                    cardRepositoryOverride = cardRepo,
-                )
-            val tag = "$deckName-s$seed"
+            val runName = opponentDeckName?.let { "$deckName-vs-$it" } ?: deckName
+            val tag = "${fileSafeName(runName)}-s$seed"
             val logFile = File(outDir, "$tag.log")
-            var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
-            val writer = logFile.bufferedWriter()
-            val playerLog =
-                PlayerLogWriter(
-                    out = writer,
-                    matchId = "simclient-$tag",
-                    clock = {
-                        fakeNow = fakeNow.plusSeconds(1)
-                        fakeNow
-                    },
-                )
-            val forgeAi =
-                if (usingForgeAi) {
-                    ForgeAiPolicy(harness, leyline.bridge.types.SeatId(1))
-                } else {
-                    null
+            val harnessRef = AtomicReference<MatchFlowHarness?>()
+            val timeoutMs = gameTimeoutMs()
+            val executor =
+                Executors.newSingleThreadExecutor { runnable ->
+                    Thread(runnable, "simclient-$tag").apply { isDaemon = true }
                 }
-            val driver =
-                SimClientDriver(
-                    harness,
-                    playerLog,
-                    maxTurns = maxTurns,
-                    maxIterations = maxIterations,
-                    forgeAi = forgeAi,
-                )
-            val stats = driver.runOneGame()
-            writer.close()
-            // Tag the log so scry-ts (and any downstream harness) can filter
-            // synthetic logs out of conformance baselines.
+            val future =
+                executor.submit<GameStats> {
+                    val harness =
+                        MatchFlowHarness(
+                            seed = seed,
+                            deckList = deckList,
+                            opponentDeckList = opponentDeckList,
+                            validation = simclientRelaxedValidation(),
+                            validationStrict = false,
+                            cardRepositoryOverride = cardRepo,
+                        )
+                    harnessRef.set(harness)
+                    var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
+                    val writer = logFile.bufferedWriter()
+                    try {
+                        val playerLog =
+                            PlayerLogWriter(
+                                out = writer,
+                                matchId = "simclient-$tag",
+                                clock = {
+                                    fakeNow = fakeNow.plusSeconds(1)
+                                    fakeNow
+                                },
+                            )
+                        val forgeAi =
+                            if (usingForgeAi) {
+                                ForgeAiPolicy(harness, leyline.bridge.types.SeatId(1))
+                            } else {
+                                null
+                            }
+                        SimClientDriver(
+                            harness,
+                            playerLog,
+                            maxTurns = maxTurns,
+                            maxIterations = maxIterations,
+                            forgeAi = forgeAi,
+                        ).runOneGame()
+                    } finally {
+                        runCatching { writer.close() }
+                        runCatching { harness.shutdown() }
+                    }
+                }
+            val stats =
+                try {
+                    future.get(timeoutMs, TimeUnit.MILLISECONDS)
+                } catch (_: TimeoutException) {
+                    val statsAtTimeout = timeoutStats(harnessRef.get(), timeoutMs)
+                    future.cancel(true)
+                    runCatching { harnessRef.get()?.shutdown() }
+                    statsAtTimeout
+                } finally {
+                    executor.shutdownNow()
+                }
             writeSimClientSidecar(
                 logFile = logFile,
                 matchId = "simclient-$tag",
                 runLabel = deckName,
+                opponentRunLabel = opponentDeckName,
                 seed = seed,
                 generatedAt = LocalDateTime.now(),
                 runKind = "deck",
             )
-            // Per-game telemetry sidecar — tools/playwheel reads these to
-            // attribute warns/errors and timing back to (deck × seed).
-            File(outDir, "$tag.stats.json").writeText(statsToJson(deckName, seed, stats))
+            File(outDir, "$tag.stats.json").writeText(statsToJson(deckName, opponentDeckName, seed, stats))
+            if (stats.completionReason == "wall-timeout") {
+                error("simclient game timed out after ${timeoutMs}ms: $tag")
+            }
             return stats
         }
 
@@ -240,37 +328,60 @@ class SimClientBatchTest :
             maxTurns: Int = 30,
             maxIterations: Int = 3_000,
         ): GameStats {
-            val harness =
-                MatchFlowHarness(
-                    seed = seed,
-                    deckList = null,
-                    validation = simclientRelaxedValidation(),
-                    validationStrict = false,
-                    cardRepositoryOverride = cardRepo,
-                )
             val tag = "$puzzleName-s$seed"
             val logFile = File(outDir, "$tag.log")
-            var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
-            val writer = logFile.bufferedWriter()
-            val playerLog =
-                PlayerLogWriter(
-                    out = writer,
-                    matchId = "simclient-$tag",
-                    clock = {
-                        fakeNow = fakeNow.plusSeconds(1)
-                        fakeNow
-                    },
-                )
-            val driver =
-                SimClientDriver(
-                    harness,
-                    playerLog,
-                    maxTurns = maxTurns,
-                    maxIterations = maxIterations,
-                    connect = { harness.connectAndKeepPuzzleText(puzzleText) },
-                )
-            val stats = driver.runOneGame()
-            writer.close()
+            val harnessRef = AtomicReference<MatchFlowHarness?>()
+            val timeoutMs = gameTimeoutMs()
+            val executor =
+                Executors.newSingleThreadExecutor { runnable ->
+                    Thread(runnable, "simclient-$tag").apply { isDaemon = true }
+                }
+            val future =
+                executor.submit<GameStats> {
+                    val harness =
+                        MatchFlowHarness(
+                            seed = seed,
+                            deckList = null,
+                            validation = simclientRelaxedValidation(),
+                            validationStrict = false,
+                            cardRepositoryOverride = cardRepo,
+                        )
+                    harnessRef.set(harness)
+                    var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
+                    val writer = logFile.bufferedWriter()
+                    try {
+                        val playerLog =
+                            PlayerLogWriter(
+                                out = writer,
+                                matchId = "simclient-$tag",
+                                clock = {
+                                    fakeNow = fakeNow.plusSeconds(1)
+                                    fakeNow
+                                },
+                            )
+                        SimClientDriver(
+                            harness,
+                            playerLog,
+                            maxTurns = maxTurns,
+                            maxIterations = maxIterations,
+                            connect = { harness.connectAndKeepPuzzleText(puzzleText) },
+                        ).runOneGame()
+                    } finally {
+                        runCatching { writer.close() }
+                        runCatching { harness.shutdown() }
+                    }
+                }
+            val stats =
+                try {
+                    future.get(timeoutMs, TimeUnit.MILLISECONDS)
+                } catch (_: TimeoutException) {
+                    val statsAtTimeout = timeoutStats(harnessRef.get(), timeoutMs)
+                    future.cancel(true)
+                    runCatching { harnessRef.get()?.shutdown() }
+                    statsAtTimeout
+                } finally {
+                    executor.shutdownNow()
+                }
             writeSimClientSidecar(
                 logFile = logFile,
                 matchId = "simclient-$tag",
@@ -279,6 +390,10 @@ class SimClientBatchTest :
                 generatedAt = LocalDateTime.now(),
                 runKind = "puzzle",
             )
+            File(outDir, "$tag.stats.json").writeText(statsToJson(puzzleName, null, seed, stats))
+            if (stats.completionReason == "wall-timeout") {
+                error("simclient game timed out after ${timeoutMs}ms: $tag")
+            }
             return stats
         }
 
@@ -336,25 +451,43 @@ class SimClientBatchTest :
             return name.removeSuffix(".txt") to readDeck(if (name.endsWith(".txt")) name else "$name.txt")
         }
 
-        test("batch — configurable deck × seed matrix").config(timeout = 8.minutes) {
+        test("batch — configurable deck × seed matrix").config(timeout = batchTimeoutMinutes.minutes) {
             // Mutually exclusive with the puzzle-matrix test below.
             if (envOrProp("SIMCLIENT_PUZZLE") != null) return@config
             val deckSpec = envOrProp("SIMCLIENT_DECKS") ?: "forest-only,bears,mono-g-curve,mono-r-burn"
+            val opponentDeck =
+                envOrProp("SIMCLIENT_OPPONENT_DECK")
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { resolveDeck(it) }
             val seedSpec = envOrProp("SIMCLIENT_SEEDS") ?: "7,13,42,99,314"
+            val maxTurns = maxTurns()
             val decks = deckSpec.split(",").map { it.trim() }.map { resolveDeck(it) }
             val seeds = parseSeeds(seedSpec)
-            println("=== matrix: ${decks.size} deck(s) × ${seeds.size} seed(s) = ${decks.size * seeds.size} games ===")
+            println(
+                "=== matrix: ${decks.size} deck(s) × ${seeds.size} seed(s) = ${decks.size * seeds.size} games " +
+                    "maxTurns=$maxTurns gameTimeoutMs=${gameTimeoutMs()} " +
+                    "opponent=${opponentDeck?.first ?: "mirror"} ===",
+            )
             val all = mutableListOf<Triple<String, Long, GameStats>>()
             for ((deckName, deckList) in decks) {
                 for (seed in seeds) {
-                    val stats = runOne(deckName, deckList, seed, maxTurns = 30)
+                    val stats =
+                        runOne(
+                            deckName,
+                            deckList,
+                            opponentDeckName = opponentDeck?.first,
+                            opponentDeckList = opponentDeck?.second,
+                            seed = seed,
+                            maxTurns = maxTurns,
+                        )
                     all.add(Triple(deckName, seed, stats))
                     val warnTotal = stats.warnsByLogger.values.sum()
                     val errTotal = stats.errorsByType.values.sum()
                     val validationTotal = stats.validationViolationsByCheck.values.sum()
                     val aiSummary =
                         if (stats.aiConsulted > 0) {
-                            "ai=${stats.aiChose}/${stats.aiConsulted} "
+                            "ai=${stats.aiChose}/${stats.aiConsulted} aiMs=${stats.aiTotalMs} "
                         } else {
                             ""
                         }
@@ -368,9 +501,18 @@ class SimClientBatchTest :
                     if (stats.aiConsulted > 0) {
                         stats.aiConsultedByPrompt.entries.sortedBy { it.key }.forEach { (prompt, consulted) ->
                             val chose = stats.aiChoseByPrompt[prompt] ?: 0
-                            println("    ai    $prompt = $chose / $consulted")
+                            val totalMs = stats.aiTotalMsByPrompt[prompt] ?: 0
+                            val maxMs = stats.aiMaxMsByPrompt[prompt] ?: 0
+                            println("    ai    $prompt = $chose / $consulted totalMs=$totalMs maxMs=$maxMs")
                         }
                     }
+                    stats.submitTotalMsByDecision.entries
+                        .sortedByDescending { it.value }
+                        .take(4)
+                        .forEach { (decision, totalMs) ->
+                            val maxMs = stats.submitMaxMsByDecision[decision] ?: 0
+                            println("    submit $decision totalMs=$totalMs maxMs=$maxMs")
+                        }
                     if (warnTotal > 0) {
                         stats.warnsByLogger.entries
                             .sortedByDescending { it.value }
@@ -415,44 +557,6 @@ class SimClientBatchTest :
             println("avg msgs: ${"%.0f".format(all.map { it.third.totalMessages }.average())}")
         }
 
-        test("batch — Simple test.txt (real seed deck) ×3 seeds").config(timeout = 5.minutes) {
-            if (envOrProp("SIMCLIENT_PUZZLE") != null) return@config
-            val deckList =
-                try {
-                    readDeck("Simple test.txt")
-                } catch (e: Exception) {
-                    println("skipping: ${e.message}")
-                    null
-                }
-            if (deckList == null) return@config
-            val seeds = listOf(42L, 7L, 99L)
-            val results = mutableListOf<GameStats>()
-            for (seed in seeds) {
-                try {
-                    val stats = runOne("simple", deckList, seed, maxTurns = 25, maxIterations = 1_500)
-                    results.add(stats)
-                    println(
-                        "[simple s=$seed] turn=${stats.turn} gameOver=${stats.gameOver} " +
-                            "iter=${stats.iterations} msgs=${stats.totalMessages} hitCap=${stats.hitIterCap}",
-                    )
-                    println("  prompt mix:")
-                    stats.promptHistogram.entries.sortedByDescending { it.value }.take(8).forEach {
-                        println("    ${it.key.name} = ${it.value}")
-                    }
-                } catch (t: Throwable) {
-                    println("[simple s=$seed] CRASH: ${t::class.qualifiedName}: ${t.message}")
-                    t.stackTrace.take(15).forEach { println("    at $it") }
-                    t.cause?.let { println("  caused by: ${it::class.qualifiedName}: ${it.message}") }
-                }
-            }
-            println("\n=== Simple test summary ===")
-            println("games completed: ${results.size}/${seeds.size}")
-            if (results.isNotEmpty()) {
-                println("avg turns: ${"%.1f".format(results.map { it.turn }.average())}")
-                println("hit iter cap: ${results.count { it.hitIterCap }}")
-            }
-        }
-
         /**
          * Puzzle-driven matrix.
          *
@@ -466,7 +570,7 @@ class SimClientBatchTest :
          * later RNG decisions (random-target selection, AI choices) rather
          * than the opening hand.
          */
-        test("batch — puzzle matrix").config(timeout = 8.minutes) {
+        test("batch — puzzle matrix").config(timeout = batchTimeoutMinutes.minutes) {
             val puzzleSpec = envOrProp("SIMCLIENT_PUZZLE") ?: return@config
             val seedSpec = envOrProp("SIMCLIENT_SEEDS") ?: "7,13,42,99,314"
             val puzzleNames = puzzleSpec.split(",").map { it.trim() }.filter { it.isNotBlank() }
@@ -492,6 +596,7 @@ class SimClientBatchTest :
                                 "hitCap=${stats.hitIterCap} prompts=${stats.promptHistogram.size}",
                         )
                     } catch (t: Throwable) {
+                        if (t.message?.contains("simclient game timed out") == true) throw t
                         println("[$basename s=$seed] CRASH: ${t::class.qualifiedName}: ${t.message}")
                         t.stackTrace.take(15).forEach { println("    at $it") }
                     }

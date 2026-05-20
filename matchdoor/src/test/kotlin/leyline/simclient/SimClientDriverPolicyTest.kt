@@ -5,11 +5,15 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
+import wotc.mtgo.gre.external.messaging.Messages.DeclareAttackersReq
 import wotc.mtgo.gre.external.messaging.Messages.EffectCostReq
 import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.ModalOption
+import wotc.mtgo.gre.external.messaging.Messages.ModalReq
 import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 import wotc.mtgo.gre.external.messaging.Messages.SearchReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
@@ -29,12 +33,38 @@ class SimClientDriverPolicyTest :
                         .addCastingTimeOptionReq(CastingTimeOptionReq.newBuilder().setCtoId(0)),
                 ).build()
 
+        fun modalCtoPrompt(): GREToClientMessage =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.CastingTimeOptionsReq_695e)
+                .setCastingTimeOptionsReq(
+                    CastingTimeOptionsReq
+                        .newBuilder()
+                        .addCastingTimeOptionReq(
+                            CastingTimeOptionReq
+                                .newBuilder()
+                                .setCastingTimeOptionType(CastingTimeOptionType.Modal_a7b4)
+                                .setModalReq(
+                                    ModalReq
+                                        .newBuilder()
+                                        .setMinSel(1)
+                                        .setMaxSel(1)
+                                        .addModalOptions(ModalOption.newBuilder().setGrpId(138314))
+                                        .addModalOptions(ModalOption.newBuilder().setGrpId(143736)),
+                                ),
+                        ),
+                ).build()
+
         test("greedy CTO policy declines optional costs by default") {
             chooseSimClientCastingTimeOptionId(ctoPrompt(), acceptOptionalCosts = false) shouldBe 0
         }
 
         test("greedy CTO policy can opt into optional costs for focused runs") {
             chooseSimClientCastingTimeOptionId(ctoPrompt(), acceptOptionalCosts = true) shouldBe 7
+        }
+
+        test("greedy CTO policy answers required modal choices with grpIds") {
+            chooseSimClientModalGrpIds(modalCtoPrompt()) shouldBe listOf(138314)
         }
 
         test("greedy search policy chooses up to maxFind from sought items") {
@@ -89,5 +119,26 @@ class SimClientDriverPolicyTest :
             val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
 
             response.decision shouldBe SimDecision.EffectCost(listOf(201, 202))
+        }
+
+        test("Forge AI attacker advice can choose no attackers") {
+            val harness = MatchFlowHarness()
+            val msg =
+                GREToClientMessage
+                    .newBuilder()
+                    .setMsgId(3)
+                    .setGameStateId(13)
+                    .setType(GREMessageType.DeclareAttackersReq_695e)
+                    .setDeclareAttackersReq(DeclareAttackersReq.getDefaultInstance())
+                    .build()
+            harness.allMessages += msg
+
+            val prompt = SimPromptLedger(harness).activePrompt()!!
+            val response =
+                object : GreedyPromptPolicy(harness) {
+                    override fun advisedAttackers(): List<Int>? = emptyList()
+                }.respondToPrompt(prompt, ActionAttemptLedger { 1 })
+
+            response.decision shouldBe SimDecision.DeclareAttackers(emptyList())
         }
     })

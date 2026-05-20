@@ -16,13 +16,14 @@ excludes it.
   prompt ids, prompt-bound AAR payloads, stall fingerprints.
 - `SimPromptPolicy.kt` — greedy + Forge-AI policy. Policies return `SimDecision`;
   they do not submit directly.
+- `ForgeAiPromptAdapter.kt` — prompt-specific Forge-AI translations. Keeps
+  adapter code out of the driver and falls back to greedy when AI has no answer.
 - `SimDecision.kt` — decision model and submitter. The submitter owns all
   `MatchFlowHarness` response calls.
 - `ActionAttemptLedger.kt` — per-turn AAR attempt/skip/outcome tracking.
 - `ForgeAiPolicy.kt` — Forge-AI advisor. Builds a parallel `PlayerControllerAi`
-  consulted on `ActionsAvailableReq` and `DeclareBlockersReq`. **Not** registered
-  as the player's actual controller (see "Forge-AI advisor — load-bearing rules"
-  below for why).
+  consulted through prompt adapters. **Not** registered as the player's actual
+  controller (see "Forge-AI advisor — load-bearing rules" below for why).
 - `GameLogCapture.kt` — programmatic logback `ListAppender`, attached to the
   root logger for the duration of one game. Drained at game end and folded
   into `GameStats.warnsByLogger` / `errorsByType`.
@@ -47,7 +48,7 @@ batch, copies logs into `~/.scry/games/`:
 # Required for arbitrary decks: point at the local Arena card DB.
 export LEYLINE_CARD_DB="$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_<hash>.mtga"
 
-# Defaults: 4 decks × 5 seeds + Simple test deck × 3 seeds
+# Defaults: 4 decks × 5 seeds, maxTurns=25, 120s per-game watchdog
 just simclient
 
 # Custom matrix
@@ -57,6 +58,10 @@ just simclient "Auras,Black aggro" 1,2,3   # 6 games using data/decks/*.txt
 
 # Pick the policy (greedy default; forge-ai consults Forge AI as advisor)
 SIMCLIENT_POLICY=forge-ai just simclient bears 1..5
+
+# Fixed seat-2 deck instead of mirror matches
+SIMCLIENT_OPPONENT_DECK="Pauper Blue Tempo" SIMCLIENT_POLICY=forge-ai \
+  just simclient "Green stompy,Pauper Red Burn" 1..10
 ```
 
 Add a custom deck by saving Arena/export-style deck text as
@@ -78,6 +83,20 @@ SIMCLIENT_DECKS=mono-r-burn SIMCLIENT_SEEDS=1..20 \
 ls matchdoor/build/simclient/   # *.log + *.meta.json
 ```
 
+Useful direct-gradle knobs, all accepted as env vars or lower-case system
+properties (`SIMCLIENT_OPPONENT_DECK` ↔ `-Dsimclient.opponent.deck`):
+
+| Knob | Default | Meaning |
+|---|---|---|
+| `SIMCLIENT_DECKS` | `forest-only,bears,mono-g-curve,mono-r-burn` | Seat-1 deck matrix; built-ins or `data/decks/<name>.txt` |
+| `SIMCLIENT_OPPONENT_DECK` | unset | Seat-2 fixed deck; unset means mirror |
+| `SIMCLIENT_SEEDS` | `7,13,42,99,314` | Comma list or inclusive range, e.g. `1..20` |
+| `SIMCLIENT_POLICY` | `greedy` | `greedy` or `forge-ai` |
+| `SIMCLIENT_MAX_TURNS` | `25` | Unresolved-game cap before cleanup concede |
+| `SIMCLIENT_GAME_TIMEOUT_SECONDS` | `120` | Wall-clock watchdog per game |
+| `SIMCLIENT_TEST_TIMEOUT_MINUTES` | `120` | Whole Gradle test timeout; keep above matrix size × per-game watchdog |
+| `LEYLINE_CARD_DB` | required for deck files | Raw card DB path for non-fixture decks |
+
 **Single E2E smoke** (fastest, ~10s, no env):
 
 ```bash
@@ -89,9 +108,9 @@ ls matchdoor/build/simclient/   # *.log + *.meta.json
 Each game produces three files:
 
 ```
-matchdoor/build/simclient/<deck>-s<seed>.log         # Player.log-shaped JSON blocks
-matchdoor/build/simclient/<deck>-s<seed>.meta.json   # provenance sidecar (scry-ts shape)
-matchdoor/build/simclient/<deck>-s<seed>.stats.json  # per-game telemetry (see Telemetry below)
+matchdoor/build/simclient/<deck>[-vs-<opponent>]-s<seed>.log         # Player.log-shaped JSON blocks
+matchdoor/build/simclient/<deck>[-vs-<opponent>]-s<seed>.meta.json   # provenance sidecar (scry-ts shape)
+matchdoor/build/simclient/<deck>[-vs-<opponent>]-s<seed>.stats.json  # per-game telemetry (see Telemetry below)
 ```
 
 Sidecar shape (matches scry-ts `GameMeta`):
@@ -99,13 +118,13 @@ Sidecar shape (matches scry-ts `GameMeta`):
 ```json
 {
   "cards": [],
-  "tags": ["simclient", "deck:mono-r-burn", "seed:42"],
+  "tags": ["simclient", "deck:mono-r-burn", "opponent:Pauper Blue Tempo", "seed:42"],
   "notes": [],
   "provenance": {
     "source": "simclient",
     "confidence": "explicit",
-    "matchId": "simclient-mono-r-burn-s42",
-    "eventName": "simclient-mono-r-burn",
+    "matchId": "simclient-mono-r-burn-vs-Pauper-Blue-Tempo-s42",
+    "eventName": "simclient-mono-r-burn-vs-Pauper Blue Tempo",
     "recordedAt": "2026-05-01T..."
   }
 }
@@ -113,6 +132,10 @@ Sidecar shape (matches scry-ts `GameMeta`):
 
 `just simclient` copies the `.log` and `.meta.json` into `~/.scry/games/` so
 scry-ts picks them up. The `.stats.json` stays in the build dir.
+
+Output filenames are file-safe labels derived from deck names. Fixed-opponent
+runs include `-vs-<opponent>` to avoid overwriting mirror runs for the same
+deck/seed.
 
 ## Iteration Loop For Mechanic Fixes
 
@@ -142,16 +165,17 @@ make the failure deterministic, patch, then widen.
 ## Policy modes — what each prompt does
 
 `SIMCLIENT_POLICY=greedy` (default) or `forge-ai`. Forge-AI mode falls through
-to greedy on prompts not yet wired through an AI translator.
+to greedy on prompts not yet wired through an AI translator or when the advisor
+returns no useful choice.
 
 | Prompt | greedy | forge-ai |
 |---|---|---|
 | `MulliganReq` | always keep (via `connectAndKeep`) | same |
 | `ActionsAvailableReq` | prompt-bound land then first castable spell, else pass | AI picks from the active prompt's AAR actions; falls through to greedy on null / no-castable |
-| `DeclareAttackersReq` | declare all, then submit | greedy (translator not yet wired) |
+| `DeclareAttackersReq` | declare all, then submit | AI chooses attackers; falls through to greedy on null |
 | `DeclareBlockersReq` | submit empty | AI mutates live `Combat`; emits the resulting blocker→attacker map |
 | `SelectTargetsReq` | first legal target across slots | greedy (translator not yet wired) |
-| `SelectNreq` | choose minimum required ids | greedy |
+| `SelectNReq` | choose minimum required ids | AI handles hand-card choices; greedy otherwise |
 | `SearchReq` | choose up to `maxFind` from sought ids | greedy |
 | `PayCostsReq` | choose minimum required non-mana cost ids | greedy |
 | `GroupReq` | scry-style top-all | greedy |
@@ -170,6 +194,14 @@ Two safety nets keep games terminating:
 - **Cleanup concede**: if the loop exits while the game is still active
   (max-turns hit, no-progress break, iter cap), concede + drain so every
   game produces `gameOver=true`.
+- **Wall-clock watchdog**: if a game exceeds `SIMCLIENT_GAME_TIMEOUT_SECONDS`,
+  snapshot live harness state (`turn`, `totalMessages`, prompt histogram) before
+  cancellation and fail the task. Treat `wall-timeout` as unresolved, not as a
+  game result.
+
+`max-turns`, `turn-stall`, `no-progress`, `iter-cap`, `cleanup`, and
+`wall-timeout` are unresolved outcomes. They are useful triage signals, not
+win/loss data.
 
 ## Forge-AI advisor — load-bearing rules
 
@@ -200,9 +232,8 @@ Adding a new AI translator (`SelectTargets`, `OptionalAction`, etc.):
    `aiController.<method>(…)` under `seatPlayer.runWithController { ... }`.
 2. Read the resulting Forge-side decision (a `SpellAbility`, a mutated
    `Combat`, a chosen card list, etc.) and translate it into a GRE response.
-3. Wire a `consultForgeAiFor<X>()` helper in `SimClientDriver` that calls the
-   translator, bumps the per-prompt counters via `bumpConsulted/bumpChose`,
-   and submits via the existing `harness.session.onXxx` paths.
+3. Wire the translator through `ForgeAiPromptAdapter` / `ForgeAiPromptPolicy` so
+   `SimClientDriver` stays orchestration-only.
 4. Greedy fallback stays — when AI returns null, the existing greedy branch
    handles it.
 
@@ -223,6 +254,8 @@ via `harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id))`.
 - prompt lifecycle — `promptRetiredByReason`, `stalledPrompt`, `stalledFingerprint`
 - action attempts — `decisionOutcomes`, `actionAttemptsByType`,
   `noPendingByDecision`, `skippedAlreadyTried`
+- timing attribution — `connectMs`, `stepTotalMs`, `flushTotalMs`,
+  `autoPassTotalMs`, `policyTotalMsByPrompt`, `submitTotalMsByDecision`
 
 `noPendingByDecision` is the structured form of the old
 `ActionPerformer: PerformActionResp but no pending action` smell. A high
@@ -277,16 +310,20 @@ in `PlayerLogWriter.translateToScryFormat`:
 
 ## Adding a new built-in deck
 
-1. Pick cards that have YAML fixtures in `matchdoor/src/test/resources/test-cards/`
-   — `TestCardRegistry.ensureDeckRegistered` will fail loudly if a card isn't
-   there. Run `just card-grp "<name>"` to verify card name → grpId mapping.
+1. For fixture-only smoke tests, pick cards that have YAML fixtures in
+   `matchdoor/src/test/resources/test-cards/` — `TestCardRegistry.ensureDeckRegistered`
+   will fail loudly if a card isn't there. For `:matchdoor:simclient` deck-file
+   runs, SQLite-backed resolution handles arbitrary installed cards.
 2. Add an entry to `builtinDecks` in `SimClientBatchTest.kt`:
    `"my-deck" to "20 Mountain\n4 Lightning Bolt\n..."`.
 3. Run `just simclient my-deck 1..5` to verify games complete with
    `gameOver=true` and reasonable iteration counts.
 
 For decks under `data/decks/<name>.txt` no code change is needed — pass
-`just simclient "Simple test"` and `resolveDeck` will load the file.
+`just simclient "Green stompy" 1..5` and `resolveDeck` will load the file.
+
+Use `SIMCLIENT_OPPONENT_DECK="<name>"` when you need a fixed seat-2 deck. If
+unset, `GameBridge.start` receives a single deck and seat 2 mirrors seat 1.
 
 ## Adding a new responder branch
 
@@ -317,6 +354,8 @@ ratio in the 20-50% range, `warnsByLogger` mostly empty, `errorsByType` ≤ 1
 | signal | what to suspect |
 |---|---|
 | `hitIterCap: true` | engine never reached game-over; usually a prompt the responder doesn't handle, or an edge case in mana/cost resolution |
+| `completionReason: max-turns` | long but progressing game; cleanup concede produced game-over |
+| `completionReason: wall-timeout` | wall-clock watchdog fired; inspect `turn`, `totalMessages`, prompt histogram to distinguish hang from slow progress |
 | `iter` ≈ 200 with `turn ≤ 2` | turn-1 stall — see "Same-turn 200-iter stall" below |
 | `aiChose / aiConsulted` < 5% | most AAR consults yield no playable spell. Mana-screw, defensive AI position, OR a deck where Forge AI dislikes the available actions |
 | `warnsByLogger["leyline.match.ActionPerformer"]` ≥ 10 | the `no pending action` race is firing — should be 0 with the `hasPendingAction()` guard. If it's back, the guard regressed |
@@ -356,19 +395,20 @@ report XML at `matchdoor/build/test-results/simclient/TEST-*.xml`) carries
 the message text with card / annotation context. Stats sidecar only counts;
 text is in the gradle report.
 
-For the GRE trace itself: `<deck>-s<seed>.log` is Player.log-shaped and
-parseable by anything that reads Player.log (the same classifier the test
-suite uses).
+For the GRE trace itself: `<deck>[-vs-<opponent>]-s<seed>.log` is Player.log-
+shaped and parseable by anything that reads Player.log (the same classifier the
+test suite uses).
 
 ## Known limits
 
-- **AI translators incomplete.** Only `ActionsAvailableReq` and
-  `DeclareBlockersReq` are AI-driven under `SIMCLIENT_POLICY=forge-ai`.
-  `SelectTargets` / `OptionalAction` / `CastingTimeOptions` / `NumericInput` /
-  `Group` / `AssignDamage` still use greedy. Each is a small translator —
-  see "Forge-AI advisor" above. **Smarter-greedy** is in place for CTO (accept
-  first non-zero option) and NumericInput (pick max) so kicker / Bargain /
-  X-cost paths get exercised.
+- **AI translators incomplete.** `ActionsAvailableReq`, `DeclareAttackersReq`,
+  `DeclareBlockersReq`, and hand-card `SelectNReq` have Forge-AI translators
+  under `SIMCLIENT_POLICY=forge-ai`. `SelectTargets` / `OptionalAction` /
+  `CastingTimeOptions` / `NumericInput` / `Group` / `AssignDamage` still use
+  greedy. Each is a small translator — see "Forge-AI advisor" above. Greedy CTO
+  declines optional costs unless `SIMCLIENT_ACCEPT_OPTIONAL_COSTS=true` is set;
+  greedy NumericInput picks a small bounded value (currently max 3) for X-cost
+  coverage without exploding board states.
 - **Same-turn 200-iter stall.** When the engine sits on the same turn for
   more than 200 driver iterations, the simclient calls `session.onConcede()`
   to end the game cleanly. Triggers when the AI / engine is genuinely stuck

@@ -84,6 +84,44 @@ class DiscardInteractionTest :
             }
         }
 
+        test("targeted reveal discard emits SelectNReq") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Duress
+                humanbattlefield=Swamp
+                humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp
+                aihand=Divination;Walking Corpse;Swamp
+                ailibrary=Island;Island;Island;Island;Island
+                """,
+                name = "Duress reveal discard",
+                turns = 2,
+            )
+
+            castSpellByName("Duress") shouldBe true
+            passPriority()
+
+            val req = lastSelectNReq()
+            val divinationId = findInstanceId(req.idsList, "Divination")
+            assertSoftly {
+                req.context shouldBe SelectionContext.Resolution_a163
+                req.minSel shouldBe 1
+                req.maxSel shouldBe 1
+                req.idsList shouldHaveSize 1
+            }
+
+            respondToSelectN(listOf(divinationId))
+
+            ai
+                .getZone(ForgeZoneType.Graveyard)
+                .cards
+                .filter { it.name == "Divination" } shouldHaveSize 1
+        }
+
         // --- Cleanup discard (hand exceeds max hand size) ---
 
         // TODO: cleanup discard is currently auto-resolved by TargetingHandler

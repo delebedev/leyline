@@ -34,6 +34,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class MatchFlowHarness(
     private val seed: Long = 42L,
     private val deckList: String? = null,
+    private val opponentDeckList: String? = null,
     validating: Boolean = true,
     private val validation: InvariantSelection = defaultValidation(validating),
     private val validationStrict: Boolean = true,
@@ -108,10 +109,12 @@ class MatchFlowHarness(
         val repo: leyline.game.data.CardRepository =
             if (cardRepositoryOverride != null) {
                 ensureForgeKnowsDeck(deckList)
+                ensureForgeKnowsDeck(opponentDeckList)
                 cardRepositoryOverride
             } else {
                 TestCardRegistry.ensureRegistered()
                 if (deckList != null) TestCardRegistry.ensureDeckRegistered(deckList)
+                if (opponentDeckList != null) TestCardRegistry.ensureDeckRegistered(opponentDeckList)
                 TestCardRegistry.repo
             }
 
@@ -123,7 +126,7 @@ class MatchFlowHarness(
                 cardRepository = repo,
             )
         bridge.priorityWaitMs = 2_000L
-        bridge.start(seed = seed, deckList = deckList, variant = variant)
+        bridge.start(seed = seed, deckList1 = deckList, deckList2 = opponentDeckList, variant = variant)
 
         session =
             MatchSession(

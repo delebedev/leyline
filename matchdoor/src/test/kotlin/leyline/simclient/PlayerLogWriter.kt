@@ -23,29 +23,59 @@ fun writeSimClientSidecar(
     logFile: File,
     matchId: String,
     runLabel: String,
+    opponentRunLabel: String? = null,
     seed: Long,
     generatedAt: LocalDateTime,
     runKind: String = "deck",
 ) {
     val sidecar = File(logFile.parentFile, logFile.nameWithoutExtension + ".meta.json")
     val ts = generatedAt.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+    val runTags =
+        listOfNotNull(
+            "simclient",
+            "$runKind:$runLabel",
+            opponentRunLabel?.let { "opponent:$it" },
+            "seed:$seed",
+        ).joinToString(", ") { jsonString(it) }
+    val eventName =
+        if (opponentRunLabel == null) {
+            "simclient-$runLabel"
+        } else {
+            "simclient-$runLabel-vs-$opponentRunLabel"
+        }
     val json =
         """
         {
           "cards": [],
-          "tags": ["simclient", "$runKind:$runLabel", "seed:$seed"],
+          "tags": [$runTags],
           "notes": [],
           "provenance": {
             "source": "simclient",
             "confidence": "explicit",
-            "matchId": "$matchId",
-            "eventName": "simclient-$runLabel",
-            "recordedAt": "$ts"
+            "matchId": ${jsonString(matchId)},
+            "eventName": ${jsonString(eventName)},
+            "recordedAt": ${jsonString(ts)}
           }
         }
         """.trimIndent()
     sidecar.writeText(json)
 }
+
+private fun jsonString(value: String): String =
+    buildString {
+        append('"')
+        value.forEach { c ->
+            when (c) {
+                '\\', '"' -> append('\\').append(c)
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                in '\u0000'..'\u001f' -> append("\\u%04x".format(c.code))
+                else -> append(c)
+            }
+        }
+        append('"')
+    }
 
 /**
  * Writes Player.log-shaped lines for outbound GRE traffic.

@@ -159,12 +159,30 @@ class AutoPassEngine(
                 CombatHandler.Signal.CONTINUE -> {} // fall through to action check
             }
 
-            // Action check — prompt human if meaningful actions exist
-            val decision = checkHumanActions(game, isAiTurn)
-            if (decision is PriorityDecision.Grant) {
-                if (drainPlayback()) return@repeat
-                sink.sendRealGameState(bridge)
-                return
+            // Optional action prompt — "you may" trigger (dedicated future)
+            if (optionalActionHandler.checkPendingOptionalAction()) return
+
+            // Numeric input prompt — Cost$ X, Announce$ X, etc. (dedicated future)
+            if (numericInputHandler.checkPendingNumericInput()) return
+
+            // Interactive prompt (targeting, sacrifice, discard, etc.)
+            when (targetingHandler.checkPendingPrompt()) {
+                TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
+                TargetingHandler.PromptResult.AUTO_RESOLVED -> return@repeat // re-evaluate
+                TargetingHandler.PromptResult.NONE -> {} // continue
+            }
+
+            // Action check — prompt human if meaningful actions exist. On the
+            // AI turn, only offer actions after Forge has actually yielded a
+            // human priority window; otherwise instant-speed actions can make
+            // us emit an ActionsAvailableReq while the AI still has priority.
+            if (shouldCheckHumanActions(isAiTurn)) {
+                val decision = checkHumanActions(game, isAiTurn)
+                if (decision is PriorityDecision.Grant) {
+                    if (drainPlayback()) return@repeat
+                    sink.sendRealGameState(bridge)
+                    return
+                }
             }
 
             // Auto-pass or wait
@@ -185,6 +203,13 @@ class AutoPassEngine(
             sink.sendRealGameState(bridge)
         }
     }
+
+    internal fun shouldCheckHumanActions(isAiTurn: Boolean): Boolean =
+        !isAiTurn ||
+            ctx.bridge
+                .seat(counters.seatId)
+                .action
+                .getPending() != null
 
     /**
      * Drain pending AI-action playback diffs. Returns true if diffs were sent

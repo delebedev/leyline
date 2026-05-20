@@ -30,6 +30,9 @@ data class GameStats(
     val aiChose: Int = 0,
     val aiConsultedByPrompt: Map<String, Int> = emptyMap(),
     val aiChoseByPrompt: Map<String, Int> = emptyMap(),
+    val aiTotalMs: Long = 0,
+    val aiTotalMsByPrompt: Map<String, Long> = emptyMap(),
+    val aiMaxMsByPrompt: Map<String, Long> = emptyMap(),
     val warnsByLogger: Map<String, Int> = emptyMap(),
     val errorsByType: Map<String, Int> = emptyMap(),
     val validationViolationsByCheck: Map<String, Int> = emptyMap(),
@@ -43,6 +46,17 @@ data class GameStats(
     val actionAttemptsByType: Map<String, Int> = emptyMap(),
     val noPendingByDecision: Map<String, Int> = emptyMap(),
     val skippedAlreadyTried: Int = 0,
+    val connectMs: Long = 0,
+    val stepTotalMs: Long = 0,
+    val stepMaxMs: Long = 0,
+    val flushTotalMs: Long = 0,
+    val flushMaxMs: Long = 0,
+    val autoPassTotalMs: Long = 0,
+    val autoPassMaxMs: Long = 0,
+    val policyTotalMsByPrompt: Map<String, Long> = emptyMap(),
+    val policyMaxMsByPrompt: Map<String, Long> = emptyMap(),
+    val submitTotalMsByDecision: Map<String, Long> = emptyMap(),
+    val submitMaxMsByDecision: Map<String, Long> = emptyMap(),
 )
 
 class SimClientDriver(
@@ -69,6 +83,17 @@ class SimClientDriver(
     private val submitter = SimDecisionSubmitter(harness)
     private val promptPolicy: SimPromptPolicy =
         forgeAi?.let { ForgeAiPromptPolicy(harness, it) } ?: GreedyPromptPolicy(harness)
+    private var connectMs = 0L
+    private var stepTotalMs = 0L
+    private var stepMaxMs = 0L
+    private var flushTotalMs = 0L
+    private var flushMaxMs = 0L
+    private var autoPassTotalMs = 0L
+    private var autoPassMaxMs = 0L
+    private val policyTotalMsByPrompt = mutableMapOf<String, Long>()
+    private val policyMaxMsByPrompt = mutableMapOf<String, Long>()
+    private val submitTotalMsByDecision = mutableMapOf<String, Long>()
+    private val submitMaxMsByDecision = mutableMapOf<String, Long>()
 
     private companion object {
         const val TURN_STALL_THRESHOLD = 200
@@ -78,7 +103,9 @@ class SimClientDriver(
     fun runOneGame(): GameStats {
         val tap = GameLogCapture().apply { start() }
         val t0 = System.nanoTime()
+        val connectT0 = System.nanoTime()
         connect()
+        connectMs = elapsedMsSince(connectT0)
         flushNewMessagesToLog()
 
         var iter = 0
@@ -103,7 +130,9 @@ class SimClientDriver(
             }
             iter++
             val before = harness.allMessages.size
+            val stepT0 = System.nanoTime()
             val acted = takeOneStep()
+            recordStep(elapsedMsSince(stepT0))
             flushNewMessagesToLog()
             // Only count "no-progress" iterations when we actually tried to
             // submit something. Race-guard skips (no pending action) leave the
@@ -169,6 +198,9 @@ class SimClientDriver(
             aiChose = policyTelemetry.choseTotal,
             aiConsultedByPrompt = policyTelemetry.consulted,
             aiChoseByPrompt = policyTelemetry.chose,
+            aiTotalMs = policyTelemetry.totalAiMs,
+            aiTotalMsByPrompt = policyTelemetry.totalMs,
+            aiMaxMsByPrompt = policyTelemetry.maxMs,
             warnsByLogger = warns,
             errorsByType = errors,
             validationViolationsByCheck =
@@ -190,6 +222,17 @@ class SimClientDriver(
             actionAttemptsByType = attemptStats.submittedByType,
             noPendingByDecision = attemptStats.noPendingByDecision,
             skippedAlreadyTried = attemptStats.skippedAlreadyTried,
+            connectMs = connectMs,
+            stepTotalMs = stepTotalMs,
+            stepMaxMs = stepMaxMs,
+            flushTotalMs = flushTotalMs,
+            flushMaxMs = flushMaxMs,
+            autoPassTotalMs = autoPassTotalMs,
+            autoPassMaxMs = autoPassMaxMs,
+            policyTotalMsByPrompt = policyTotalMsByPrompt.toMap(),
+            policyMaxMsByPrompt = policyMaxMsByPrompt.toMap(),
+            submitTotalMsByDecision = submitTotalMsByDecision.toMap(),
+            submitMaxMsByDecision = submitMaxMsByDecision.toMap(),
         )
     }
 
@@ -231,24 +274,44 @@ class SimClientDriver(
                 promptLedger.retire(prompt, "no-pending")
                 attemptLedger.markNoPending("pre-submit:${prompt.type.name}")
             }
-            val before = harness.allMessages.size
-            runCatching { harness.triggerAutoPass() }
-            harness.drainSink()
-            if (harness.allMessages.size > before) return true
-            return false
+            return triggerAutoPassAndDrain()
         }
         val active =
             prompt ?: run {
+                if (harness.isAiTurn()) return triggerAutoPassAndDrain()
                 harness.passPriority()
                 return true
             }
         return respondToPrompt(active)
     }
 
+    private fun triggerAutoPassAndDrain(): Boolean {
+        val before = harness.allMessages.size
+        val autoPassT0 = System.nanoTime()
+        runCatching { harness.triggerAutoPass() }
+        harness.drainSink()
+        recordAutoPass(elapsedMsSince(autoPassT0))
+        return harness.allMessages.size > before
+    }
+
     private fun respondToPrompt(prompt: ActivePrompt): Boolean {
+        val policyT0 = System.nanoTime()
         val response = promptPolicy.respondToPrompt(prompt, attemptLedger)
+        recordMapTiming(
+            totals = policyTotalMsByPrompt,
+            maxes = policyMaxMsByPrompt,
+            key = prompt.type.name,
+            elapsedMs = elapsedMsSince(policyT0),
+        )
         response.aarActionFingerprint?.let { attemptLedger.markSubmitted(it, response.decision.kind) }
+        val submitT0 = System.nanoTime()
         val submitResult = submitter.submit(response.decision)
+        recordMapTiming(
+            totals = submitTotalMsByDecision,
+            maxes = submitMaxMsByDecision,
+            key = response.decision.kind,
+            elapsedMs = elapsedMsSince(submitT0),
+        )
         when (submitResult) {
             SimSubmitResult.Submitted -> Unit
             SimSubmitResult.NoPending -> {
@@ -259,7 +322,7 @@ class SimClientDriver(
                 if (response.decision == SimDecision.RetirePrompt) promptLedger.retire(prompt, "policy-retired")
             }
         }
-        response.markAllHandledOfType?.let { promptLedger.markAllHandled(it) }
+        response.markAllHandledOfType?.let { promptLedger.markAllHandled(it, throughMsgId = prompt.msgId) }
         if (response.markHandled && submitResult != SimSubmitResult.NoPending) promptLedger.markHandled(prompt)
         if (response.decision == SimDecision.Terminal) sawTerminalIntermission = true
         return submitResult == SimSubmitResult.Submitted
@@ -277,9 +340,38 @@ class SimClientDriver(
     private fun flushNewMessagesToLog() {
         val total = harness.allMessages.size
         if (total <= lastFlushedSize) return
+        val flushT0 = System.nanoTime()
         val fresh = harness.allMessages.subList(lastFlushedSize, total).toList()
         log.writeBundle(fresh)
         lastFlushedSize = total
+        recordFlush(elapsedMsSince(flushT0))
+    }
+
+    private fun elapsedMsSince(t0: Long): Long = (System.nanoTime() - t0) / 1_000_000
+
+    private fun recordStep(elapsedMs: Long) {
+        stepTotalMs += elapsedMs
+        stepMaxMs = maxOf(stepMaxMs, elapsedMs)
+    }
+
+    private fun recordFlush(elapsedMs: Long) {
+        flushTotalMs += elapsedMs
+        flushMaxMs = maxOf(flushMaxMs, elapsedMs)
+    }
+
+    private fun recordAutoPass(elapsedMs: Long) {
+        autoPassTotalMs += elapsedMs
+        autoPassMaxMs = maxOf(autoPassMaxMs, elapsedMs)
+    }
+
+    private fun recordMapTiming(
+        totals: MutableMap<String, Long>,
+        maxes: MutableMap<String, Long>,
+        key: String,
+        elapsedMs: Long,
+    ) {
+        totals.merge(key, elapsedMs) { a, b -> a + b }
+        maxes.merge(key, elapsedMs) { a, b -> maxOf(a, b) }
     }
 }
 

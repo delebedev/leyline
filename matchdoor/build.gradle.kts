@@ -154,12 +154,32 @@ val testGate by tasks.registering(Test::class) {
 val simclient by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "SimClientTag")
+    filter {
+        includeTestsMatching("leyline.simclient.SimClientBatchTest")
+    }
     // Forge's static MyRandom forces serial execution.
     maxParallelForks = 1
     // Only pass through env vars that are actually set — pushing an empty
     // string clobbers the test's `?: default` fallbacks.
-    listOf("SIMCLIENT_DECKS", "SIMCLIENT_SEEDS", "SIMCLIENT_PUZZLE", "LEYLINE_CARD_DB").forEach { name ->
-        System.getenv(name)?.takeIf { it.isNotEmpty() }?.let { environment(name, it) }
+    val simclientKnobs =
+        listOf(
+            "SIMCLIENT_DECKS",
+            "SIMCLIENT_OPPONENT_DECK",
+            "SIMCLIENT_SEEDS",
+            "SIMCLIENT_PUZZLE",
+            "SIMCLIENT_POLICY",
+            "SIMCLIENT_MAX_TURNS",
+            "SIMCLIENT_GAME_TIMEOUT_SECONDS",
+            "SIMCLIENT_TEST_TIMEOUT_MINUTES",
+            "LEYLINE_CARD_DB",
+        )
+    simclientKnobs.forEach { name ->
+        val propertyName = name.lowercase().replace('_', '.')
+        val knobValue = providers.systemProperty(propertyName).orElse(providers.environmentVariable(name)).orNull
+        knobValue?.takeIf { it.isNotEmpty() }?.let { configuredValue ->
+            environment(name, configuredValue)
+            systemProperty(propertyName, configuredValue)
+        }
     }
     // Always re-execute — the matrix is env-driven, not source-driven, so
     // gradle's input fingerprint can't tell when we want a different run.

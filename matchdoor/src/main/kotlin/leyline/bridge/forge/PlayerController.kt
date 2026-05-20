@@ -401,6 +401,15 @@ class PlayerController(
         max: Int,
     ): CardCollection = targetingCoordinator.chooseCardsToDiscardFrom(sa, validCards, min, max)
 
+    override fun chooseCardsToDiscardFrom(
+        p: Player,
+        sa: SpellAbility?,
+        validCards: CardCollection,
+        min: Int,
+        max: Int,
+        visibleToChooser: CardCollectionView,
+    ): CardCollectionView = targetingCoordinator.chooseCardsToDiscardFrom(sa, validCards, min, max)
+
     override fun chooseCardsToDiscardToMaximumHandSize(nDiscard: Int): CardCollection =
         targetingCoordinator.chooseCardsToDiscardToMaximumHandSize(nDiscard, player.getZone(ZoneType.Hand).cards)
 

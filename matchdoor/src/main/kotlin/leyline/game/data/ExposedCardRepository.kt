@@ -83,6 +83,8 @@ class ExposedCardRepository(
     private val dataCache = ConcurrentHashMap<Int, CardData?>()
     private val grpIdToName = ConcurrentHashMap<Int, String>()
     private val nameToGrpId = ConcurrentHashMap<String, Int>()
+    private val missingNames = ConcurrentHashMap.newKeySet<String>()
+    private val missingAnyFaceNames = ConcurrentHashMap.newKeySet<String>()
     private val modalCache = ConcurrentHashMap<Int, ModalAbilityInfo?>()
     private val abilityInfoCache = ConcurrentHashMap<Int, java.util.Optional<AbilityInfo>>()
 
@@ -102,22 +104,36 @@ class ExposedCardRepository(
         return queryNameByGrpId(grpId)?.also { name ->
             grpIdToName[grpId] = name
             nameToGrpId[name] = grpId
+            missingNames.remove(name)
+            missingAnyFaceNames.remove(name)
         }
     }
 
     override fun findGrpIdByName(name: String): Int? {
         nameToGrpId[name]?.let { return it }
-        return queryGrpIdByName(name)?.also { grpId ->
-            nameToGrpId[name] = grpId
-            grpIdToName[grpId] = name
+        if (name in missingNames) return null
+        return queryGrpIdByName(name).also { grpId ->
+            if (grpId == null) {
+                missingNames.add(name)
+            } else {
+                nameToGrpId[name] = grpId
+                grpIdToName[grpId] = name
+                missingAnyFaceNames.remove(name)
+            }
         }
     }
 
     override fun findGrpIdByNameAnyFace(name: String): Int? {
         nameToGrpId[name]?.let { return it }
-        return queryGrpIdByNameAnyFace(name)?.also { grpId ->
-            nameToGrpId[name] = grpId
-            grpIdToName[grpId] = name
+        if (name in missingAnyFaceNames) return null
+        return queryGrpIdByNameAnyFace(name).also { grpId ->
+            if (grpId == null) {
+                missingAnyFaceNames.add(name)
+            } else {
+                nameToGrpId[name] = grpId
+                grpIdToName[grpId] = name
+                missingNames.remove(name)
+            }
         }
     }
 
@@ -128,6 +144,8 @@ class ExposedCardRepository(
         queryGrpIdByNameAndSet(name, setCode)?.also { grpId ->
             nameToGrpId[name] = grpId
             grpIdToName[grpId] = name
+            missingNames.remove(name)
+            missingAnyFaceNames.remove(name)
         }
 
     override fun findAllGrpIds(): List<Int> =
