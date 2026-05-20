@@ -116,7 +116,7 @@ object AbilityWordScanner {
      * @param instanceIdResolver ForgeCardId → InstanceId
      * @param registryResolver Card → AbilityRegistry? (for abilityGrpId)
      */
-    @Suppress("CyclomaticComplexMethod")
+    @Suppress("CyclomaticComplexMethod", "LongMethod")
     fun scan(
         battlefieldCards: List<Card>,
         instanceIdResolver: (ForgeCardId) -> InstanceId,

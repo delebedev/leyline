@@ -288,7 +288,7 @@ class SimClientBatchTest :
             val stats =
                 try {
                     future.get(timeoutMs, TimeUnit.MILLISECONDS)
-                } catch (t: TimeoutException) {
+                } catch (_: TimeoutException) {
                     val statsAtTimeout = timeoutStats(harnessRef.get(), timeoutMs)
                     future.cancel(true)
                     runCatching { harnessRef.get()?.shutdown() }
@@ -374,7 +374,7 @@ class SimClientBatchTest :
             val stats =
                 try {
                     future.get(timeoutMs, TimeUnit.MILLISECONDS)
-                } catch (t: TimeoutException) {
+                } catch (_: TimeoutException) {
                     val statsAtTimeout = timeoutStats(harnessRef.get(), timeoutMs)
                     future.cancel(true)
                     runCatching { harnessRef.get()?.shutdown() }

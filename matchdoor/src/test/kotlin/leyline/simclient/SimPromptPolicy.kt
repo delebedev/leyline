@@ -293,7 +293,13 @@ private fun HighlightType.targetPreference(): Int =
         HighlightType.Hot -> 3
         HighlightType.Tepid -> 2
         HighlightType.Cold -> 1
-        else -> 0
+        HighlightType.None_ad60,
+        HighlightType.Counterspell,
+        HighlightType.Random,
+        HighlightType.CopySpell,
+        HighlightType.ReplaceRole,
+        HighlightType.UNRECOGNIZED,
+        -> 0
     }
 
 internal fun chooseSimClientModalGrpIds(msg: GREToClientMessage?): List<Int>? {
