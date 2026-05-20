@@ -8,6 +8,7 @@ import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
+import wotc.mtgo.gre.external.messaging.Messages.DeclareAttackersReq
 import wotc.mtgo.gre.external.messaging.Messages.EffectCostReq
 import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -39,6 +40,15 @@ class SimPromptLedgerTest :
                                 .setGrpId(1234),
                         ),
                 ).build()
+
+        fun declareAttackers(msgId: Int): GREToClientMessage =
+            GREToClientMessage
+                .newBuilder()
+                .setMsgId(msgId)
+                .setGameStateId(msgId + 10)
+                .setType(GREMessageType.DeclareAttackersReq_695e)
+                .setDeclareAttackersReq(DeclareAttackersReq.getDefaultInstance())
+                .build()
 
         test("active prompt is newest unhandled prompt with prompt-bound AAR payload") {
             val harness = MatchFlowHarness()
@@ -75,6 +85,18 @@ class SimPromptLedgerTest :
             ledger.retire(ledger.activePrompt()!!, "no-pending")
             ledger.activePrompt() shouldBe null
             ledger.stats().retiredByReason shouldBe mapOf("superseded" to 1, "no-pending" to 1)
+        }
+
+        test("mark all handled only marks prompts through answered message") {
+            val harness = MatchFlowHarness()
+            harness.allMessages += declareAttackers(msgId = 1)
+            harness.allMessages += declareAttackers(msgId = 2)
+            harness.allMessages += declareAttackers(msgId = 3)
+            val ledger = SimPromptLedger(harness)
+
+            ledger.markAllHandled(GREMessageType.DeclareAttackersReq_695e, throughMsgId = 2)
+
+            ledger.activePrompt()!!.msgId shouldBe 3
         }
 
         test("PayCostsReq is active prompt and fingerprints cost selection") {

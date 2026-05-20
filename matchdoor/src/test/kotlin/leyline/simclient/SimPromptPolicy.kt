@@ -3,8 +3,10 @@ package leyline.simclient
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.HighlightType
 
 internal interface SimPromptPolicy {
     fun respondToPrompt(
@@ -16,12 +18,15 @@ internal interface SimPromptPolicy {
 internal data class SimPromptPolicyTelemetry(
     val consulted: Map<String, Int>,
     val chose: Map<String, Int>,
+    val totalMs: Map<String, Long>,
+    val maxMs: Map<String, Long>,
 ) {
     val consultedTotal: Int get() = consulted.values.sum()
     val choseTotal: Int get() = chose.values.sum()
+    val totalAiMs: Long get() = totalMs.values.sum()
 
     companion object {
-        val Empty = SimPromptPolicyTelemetry(emptyMap(), emptyMap())
+        val Empty = SimPromptPolicyTelemetry(emptyMap(), emptyMap(), emptyMap(), emptyMap())
     }
 }
 
@@ -35,11 +40,7 @@ internal open class GreedyPromptPolicy(
         @Suppress("ElseCaseInsteadOfExhaustiveWhen")
         when (prompt.type) {
             GREMessageType.DeclareAttackersReq_695e ->
-                SimPromptResponse(
-                    decision = SimDecision.DeclareAllAttackers,
-                    markHandled = false,
-                    markAllHandledOfType = prompt.type,
-                )
+                respondDeclareAttackers(prompt)
             GREMessageType.DeclareBlockersReq_695e ->
                 respondDeclareBlockers()
             GREMessageType.ActionsAvailableReq_695e ->
@@ -73,7 +74,23 @@ internal open class GreedyPromptPolicy(
 
     protected open fun advisedBlockers(): Map<Int, Int>? = null
 
+    protected open fun advisedAttackers(): List<Int>? = null
+
     protected fun hasActionableAar(prompt: ActivePrompt): Boolean = prompt.aarActions().any { it.isActionableAarAction() }
+
+    private fun respondDeclareAttackers(prompt: ActivePrompt): SimPromptResponse {
+        val attackers = advisedAttackers()
+        return SimPromptResponse(
+            decision =
+                if (attackers == null) {
+                    SimDecision.DeclareAllAttackers
+                } else {
+                    SimDecision.DeclareAttackers(attackers)
+                },
+            markHandled = false,
+            markAllHandledOfType = prompt.type,
+        )
+    }
 
     private fun respondDeclareBlockers(): SimPromptResponse {
         val assignments = advisedBlockers()
@@ -145,6 +162,7 @@ internal open class GreedyPromptPolicy(
                     val count = sel.minTargets.coerceAtLeast(0)
                     sel.targetsList
                         .filter { it.legalAction == wotc.mtgo.gre.external.messaging.Messages.SelectAction.Select_a1ad }
+                        .sortedByDescending { it.highlight.targetPreference() }
                         .take(count)
                         .map { it.targetInstanceId }
                 }.filter { it != 0 }
@@ -176,6 +194,7 @@ internal open class GreedyPromptPolicy(
     }
 
     private fun respondCastingTimeOptions(msg: GREToClientMessage): SimDecision {
+        chooseSimClientModalGrpIds(msg)?.let { return SimDecision.ModalChoice(it) }
         val acceptOptionalCosts = System.getenv("SIMCLIENT_ACCEPT_OPTIONAL_COSTS").equals("true", ignoreCase = true)
         return SimDecision.OptionalCost(chooseSimClientCastingTimeOptionId(msg, acceptOptionalCosts))
     }
@@ -211,24 +230,53 @@ internal class ForgeAiPromptPolicy(
 ) : GreedyPromptPolicy(harness) {
     private val aiConsultedByPrompt = mutableMapOf<String, Int>()
     private val aiChoseByPrompt = mutableMapOf<String, Int>()
+    private val aiTotalMsByPrompt = mutableMapOf<String, Long>()
+    private val aiMaxMsByPrompt = mutableMapOf<String, Long>()
+    private val adapters: Map<GREMessageType, ForgeAiPromptAdapter> =
+        listOf(
+            ForgeAiAarAdapter,
+            ForgeAiDeclareAttackersAdapter,
+            ForgeAiDeclareBlockersAdapter,
+            ForgeAiSelectNAdapter,
+        ).associateBy { it.promptType }
 
-    fun telemetry(): SimPromptPolicyTelemetry = SimPromptPolicyTelemetry(aiConsultedByPrompt.toMap(), aiChoseByPrompt.toMap())
+    fun telemetry(): SimPromptPolicyTelemetry =
+        SimPromptPolicyTelemetry(
+            consulted = aiConsultedByPrompt.toMap(),
+            chose = aiChoseByPrompt.toMap(),
+            totalMs = aiTotalMsByPrompt.toMap(),
+            maxMs = aiMaxMsByPrompt.toMap(),
+        )
 
-    override fun advisedAarAction(
+    override fun respondToPrompt(
         prompt: ActivePrompt,
         attempts: ActionAttemptLedger,
-    ): Action? {
-        bumpConsulted("ActionsAvailableReq")
-        val choice = forgeAi.chooseAarAction(prompt.aarActions(), attempts.skipFingerprints()) ?: return null
-        bumpChose("ActionsAvailableReq")
-        return choice.action
+    ): SimPromptResponse {
+        val adapter = adapters[prompt.type]
+        val context = ForgeAiPromptContext(harness, forgeAi, attempts)
+        if (adapter != null && adapter.shouldConsult(prompt, context)) {
+            bumpConsulted(adapter.telemetryName)
+            val response = timed(adapter.telemetryName) { adapter.decide(prompt, context) }
+            if (response != null) {
+                bumpChose(adapter.telemetryName)
+                return response
+            }
+        }
+        return super.respondToPrompt(prompt, attempts)
     }
 
-    override fun advisedBlockers(): Map<Int, Int>? {
-        bumpConsulted("DeclareBlockersReq")
-        val assignments = forgeAi.chooseBlockers() ?: return null
-        bumpChose("DeclareBlockersReq")
-        return assignments
+    private inline fun <T> timed(
+        prompt: String,
+        block: () -> T,
+    ): T {
+        val t0 = System.nanoTime()
+        return try {
+            block()
+        } finally {
+            val elapsedMs = (System.nanoTime() - t0) / 1_000_000
+            aiTotalMsByPrompt.merge(prompt, elapsedMs) { a, b -> a + b }
+            aiMaxMsByPrompt.merge(prompt, elapsedMs) { a, b -> maxOf(a, b) }
+        }
     }
 
     private fun bumpConsulted(prompt: String) {
@@ -240,7 +288,29 @@ internal class ForgeAiPromptPolicy(
     }
 }
 
-private fun ActivePrompt.aarActions(): List<Action> = (payload as? PromptPayload.ActionsAvailable)?.req?.actionsList.orEmpty()
+private fun HighlightType.targetPreference(): Int =
+    when (this) {
+        HighlightType.Hot -> 3
+        HighlightType.Tepid -> 2
+        HighlightType.Cold -> 1
+        else -> 0
+    }
 
-private fun Action.isActionableAarAction(): Boolean =
+internal fun chooseSimClientModalGrpIds(msg: GREToClientMessage?): List<Int>? {
+    val option =
+        msg
+            ?.castingTimeOptionsReq
+            ?.castingTimeOptionReqList
+            ?.firstOrNull { it.castingTimeOptionType == CastingTimeOptionType.Modal_a7b4 && it.hasModalReq() }
+            ?: return null
+    val req = option.modalReq
+    val min = req.minSel.coerceAtLeast(0)
+    val max = if (req.maxSel > 0) req.maxSel else min
+    val count = min.coerceAtMost(max)
+    return req.modalOptionsList.map { it.grpId }.take(count)
+}
+
+internal fun ActivePrompt.aarActions(): List<Action> = (payload as? PromptPayload.ActionsAvailable)?.req?.actionsList.orEmpty()
+
+internal fun Action.isActionableAarAction(): Boolean =
     actionType == ActionType.Cast || actionType == ActionType.Play_add3 || actionType == ActionType.Activate_add3

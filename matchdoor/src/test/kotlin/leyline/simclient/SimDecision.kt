@@ -51,6 +51,12 @@ internal sealed interface SimDecision {
         override val kind: String = "optional-cost"
     }
 
+    data class ModalChoice(
+        val selectedGrpIds: List<Int>,
+    ) : SimDecision {
+        override val kind: String = "modal-choice"
+    }
+
     data class NumericInput(
         val value: Int,
     ) : SimDecision {
@@ -65,6 +71,12 @@ internal sealed interface SimDecision {
 
     data object DeclareAllAttackers : SimDecision {
         override val kind: String = "declare-all-attackers"
+    }
+
+    data class DeclareAttackers(
+        val attackerInstanceIds: List<Int>,
+    ) : SimDecision {
+        override val kind: String = "declare-attackers"
     }
 
     data class DeclareBlockers(
@@ -140,6 +152,7 @@ internal class SimDecisionSubmitter(
                     }
                 SimSubmitResult.Submitted
             }
+            is SimDecision.ModalChoice -> submitted { harness.respondModalChoice(decision.selectedGrpIds) }
             is SimDecision.NumericInput -> submitted { harness.respondToNumericInput(decision.value) }
             is SimDecision.AssignDamage -> submitted { harness.assignDamage(decision.assigners) }
             SimDecision.DeclareAllAttackers ->
@@ -147,6 +160,7 @@ internal class SimDecisionSubmitter(
                     harness.declareAllAttackers()
                     harness.submitAttackers()
                 }
+            is SimDecision.DeclareAttackers -> submitted { harness.declareAttackers(decision.attackerInstanceIds) }
             is SimDecision.DeclareBlockers -> submitted { harness.declareBlockers(decision.assignments) }
             SimDecision.DeclareNoBlockers -> submitted { harness.declareNoBlockers() }
             SimDecision.CancelAction -> submitted { harness.cancelAction() }

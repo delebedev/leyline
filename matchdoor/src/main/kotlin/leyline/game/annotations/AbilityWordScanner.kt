@@ -133,7 +133,17 @@ object AbilityWordScanner {
         for (card in battlefieldCards) {
             val controller = card.controller ?: continue
             val iid = instanceIdResolver(ForgeCardId(card.id)).value
-            val registry = registryResolver(card)
+            var registryResolved = false
+            var registry: AbilityRegistry? = null
+
+            fun registryForCard(): AbilityRegistry? {
+                if (!registryResolved) {
+                    registry = registryResolver(card)
+                    registryResolved = true
+                }
+                return registry
+            }
+
             val game = controller.game
             val seatIdx = game.registeredPlayers.indexOf(controller) + 1
 
@@ -158,7 +168,7 @@ object AbilityWordScanner {
                             abilityWordName = condition,
                             value = spec.value?.invoke(controller, card),
                             threshold = spec.threshold,
-                            abilityGrpId = registry?.forStaticAbility(sa.id)?.takeIf { it > 0 },
+                            abilityGrpId = registryForCard()?.forStaticAbility(sa.id)?.takeIf { it > 0 },
                         ),
                     )
                 }
@@ -195,14 +205,16 @@ object AbilityWordScanner {
                                 abilityWordName = conditionName,
                                 value = spec.value?.invoke(controller, card),
                                 threshold = spec.threshold,
-                                abilityGrpId = registry?.forTrigger(trigger.id)?.takeIf { it > 0 },
+                                abilityGrpId = registryForCard()?.forTrigger(trigger.id)?.takeIf { it > 0 },
                             ),
                         )
                     }
                 }
             }
 
-            results.addAll(stationThresholdEntries(card, iid, registry))
+            if (card.getKeywordMagnitude(Keyword.STATION) > 0 && card.getCounters(CounterEnumType.CHARGE) > 0) {
+                results.addAll(stationThresholdEntries(card, iid, registryForCard()))
+            }
         }
 
         // Phase 3: emit one pAnn per player for perPlayer conditions (only when condition is true)

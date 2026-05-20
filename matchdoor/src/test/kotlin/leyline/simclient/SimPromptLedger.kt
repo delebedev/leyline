@@ -68,9 +68,12 @@ internal class SimPromptLedger(
         handledPromptMsgIds += msg.msgId
     }
 
-    fun markAllHandled(type: GREMessageType) {
+    fun markAllHandled(
+        type: GREMessageType,
+        throughMsgId: Int = Int.MAX_VALUE,
+    ) {
         harness.allMessages
-            .filter { it.type == type }
+            .filter { it.type == type && it.msgId <= throughMsgId }
             .forEach { markHandled(it) }
     }
 

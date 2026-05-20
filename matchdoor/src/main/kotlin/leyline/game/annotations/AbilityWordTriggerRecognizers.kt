@@ -149,10 +149,20 @@ object AbilityWordTriggerRecognizers {
             val controller = card.controller ?: continue
             val iid = instanceIdResolver(ForgeCardId(card.id)).value
             val seatIdx = controller.game.registeredPlayers.indexOf(controller) + 1
-            val registry = registryResolver(card)
+            var registryResolved = false
+            var registry: AbilityRegistry? = null
+
+            fun registryForCard(): AbilityRegistry? {
+                if (!registryResolved) {
+                    registry = registryResolver(card)
+                    registryResolved = true
+                }
+                return registry
+            }
+
             for ((word, recognizer) in recognizers) {
                 if (!cardHasAbilityWordPrefix(card, word)) continue
-                results.addAll(recognizer.evaluate(card, controller, iid, seatIdx, registry))
+                results.addAll(recognizer.evaluate(card, controller, iid, seatIdx, registryForCard()))
             }
         }
 

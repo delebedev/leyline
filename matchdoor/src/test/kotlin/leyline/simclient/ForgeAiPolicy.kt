@@ -1,16 +1,21 @@
 package leyline.simclient
 
 import forge.ai.PlayerControllerAi
+import forge.game.card.Card
+import forge.game.card.CardCollection
 import forge.game.combat.Combat
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
+import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.testkit.MatchFlowHarness
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
 /**
  * Forge-AI advisor that picks an AAR action to submit on behalf of the
@@ -47,10 +52,10 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  *    causing a state resync that pollutes the trace with a spurious GSM.
  *    The driver's race guard handles this; translators here don't need to.
  *
- * Iteration 1 scope: only `chooseAarAction` (ActionsAvailableReq) and
- * `chooseBlockers` (DeclareBlockersReq). Other prompt types
- * (SelectTargets, OptionalAction, CTO, NumericInput, Group) fall through
- * to the greedy responder in [SimClientDriver].
+ * Scope: `chooseAarAction` (ActionsAvailableReq), `chooseAttackers`
+ * (DeclareAttackersReq), and `chooseBlockers` (DeclareBlockersReq). Other
+ * prompt types (SelectTargets, OptionalAction, CTO, NumericInput, Group) fall
+ * through to the greedy responder in [SimClientDriver].
  */
 class ForgeAiPolicy(
     private val harness: MatchFlowHarness,
@@ -90,27 +95,7 @@ class ForgeAiPolicy(
         promptActions: List<Action>,
         skipFingerprints: Set<String> = emptySet(),
     ): Choice? {
-        // Forge AI internals (AttachAi etc.) cast `player.getController()` to
-        // PlayerControllerAi during decision-making. Use Forge's built-in
-        // runWithController to temporarily install our AI controller for the
-        // duration of the decision, then restore the bridged controller.
-        var abilities: List<SpellAbility>? = null
-        var threw: Throwable? = null
-        seatPlayer.runWithController({
-            try {
-                abilities = aiController.chooseSpellAbilityToPlay()
-            } catch (t: Throwable) {
-                threw = t
-            }
-        }, aiController)
-        if (threw != null) {
-            log.warn(
-                "Forge AI chooseSpellAbilityToPlay threw: {}: {}",
-                threw!!::class.simpleName,
-                threw!!.message,
-            )
-            return null
-        }
+        val abilities = askAi("chooseSpellAbilityToPlay") { aiController.chooseSpellAbilityToPlay() }
         if (abilities.isNullOrEmpty()) return null
 
         for (sa in abilities) {
@@ -164,6 +149,19 @@ class ForgeAiPolicy(
     }
 
     /**
+     * Ask the AI which creatures should attack. Uses a throwaway [Combat]
+     * object so the consult does not mutate Forge's live combat before the
+     * bridge receives a DeclareAttackers response.
+     */
+    fun chooseAttackers(): List<Int>? {
+        val probeCombat = Combat(seatPlayer)
+        askAi("declareAttackers") { aiController.declareAttackers(seatPlayer, probeCombat) } ?: return null
+        return probeCombat.getAttackers().map { attacker ->
+            harness.bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
+        }
+    }
+
+    /**
      * Ask the AI which of the seat's creatures should block the current
      * attackers. Mutates the engine's live [Combat] under runWithController so
      * Forge AI's internals see the expected controller type. Returns a
@@ -176,22 +174,7 @@ class ForgeAiPolicy(
     fun chooseBlockers(): Map<Int, Int>? {
         val combat: Combat = harness.game().combat ?: return null
         if (combat.getAttackers().isEmpty()) return null
-        var threw: Throwable? = null
-        seatPlayer.runWithController({
-            try {
-                aiController.declareBlockers(seatPlayer, combat)
-            } catch (t: Throwable) {
-                threw = t
-            }
-        }, aiController)
-        if (threw != null) {
-            log.warn(
-                "Forge AI declareBlockers threw: {}: {}",
-                threw!!::class.simpleName,
-                threw!!.message,
-            )
-            return null
-        }
+        askAi("declareBlockers") { aiController.declareBlockers(seatPlayer, combat) } ?: return null
         val pairs = mutableListOf<Pair<Int, Int>>()
         for (attacker in combat.getAttackers()) {
             val blockers = combat.getBlockers(attacker)
@@ -208,6 +191,63 @@ class ForgeAiPolicy(
         // last assignment per blocker. Acceptable for iteration 2; refine if AI
         // ever banding-blocks.
         return pairs.toMap()
+    }
+
+    fun canChooseSelectN(req: SelectNReq): Boolean {
+        val count = selectNCount(req)
+        if (count <= 0) return false
+        val cards = req.idsList.mapNotNull { cardForInstance(it) }
+        return cards.size == req.idsList.size && cards.all { it.zone?.zoneType == ZoneType.Hand }
+    }
+
+    fun chooseSelectN(req: SelectNReq): List<Int>? {
+        val count = selectNCount(req)
+        if (count <= 0) return emptyList()
+        val candidates = req.idsList.mapNotNull { cardForInstance(it) }
+        if (candidates.size != req.idsList.size || candidates.any { it.zone?.zoneType != ZoneType.Hand }) return null
+        val targetPlayer = candidates.firstOrNull()?.owner ?: return null
+        if (candidates.any { it.owner != targetPlayer }) return null
+        val sourceSa = cardForInstance(req.sourceId)?.spellAbilities?.firstOrNull()
+        val validCards = CardCollection(candidates)
+        val chosen =
+            askAi("chooseCardsToDiscardFrom") {
+                aiController.chooseCardsToDiscardFrom(targetPlayer, sourceSa, validCards, count, count, validCards)
+            } ?: return null
+        val chosenIds = chosen.map { instanceIdForCard(it) }.filter { it != 0 }
+        return chosenIds.takeIf { it.size >= count }?.take(count)
+    }
+
+    private fun selectNCount(req: SelectNReq): Int {
+        val min = req.minSel.coerceAtLeast(0)
+        val max = if (req.maxSel > 0) req.maxSel else min
+        return min.coerceAtMost(max)
+    }
+
+    private fun cardForInstance(instanceId: Int): Card? {
+        if (instanceId == 0) return null
+        val forgeId = harness.bridge.getForgeCardId(InstanceId(instanceId)) ?: return null
+        return harness.bridge.findCard(forgeId)
+    }
+
+    private fun instanceIdForCard(card: Card): Int = harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+
+    private fun <T> askAi(
+        label: String,
+        block: () -> T,
+    ): T? {
+        var result: T? = null
+        var threw: Throwable? = null
+        seatPlayer.runWithController({
+            try {
+                result = block()
+            } catch (t: Throwable) {
+                threw = t
+            }
+        }, aiController)
+        if (threw != null) {
+            log.warn("Forge AI {} threw: {}: {}", label, threw!!::class.simpleName, threw!!.message)
+        }
+        return result
     }
 
     companion object {

@@ -102,6 +102,33 @@ class AutoPassEngineTest :
             ops.hasTraceContaining("opponentTurn") shouldBe true
         }
 
+        test("shouldCheckHumanActions — AI turn waits for pending human priority") {
+            val (bridge, game, counter) =
+                base.startWithBoard { _, human, ai ->
+                    base.addCard("Burst Lightning", human, ZoneType.Hand)
+                    base.addCard("Mountain", human, ZoneType.Battlefield)
+                    base.addCard("Raging Goblin", ai, ZoneType.Battlefield)
+                }
+            game.phaseHandler.devModeSet(PhaseType.MAIN1, game.aiPlayer)
+            game.phaseHandler.onStackResolved()
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
+            val engine =
+                AutoPassEngine(
+                    sink = ops,
+                    counters = ops,
+                    tracer = ops,
+                    bundles = ops,
+                    pacing = ops,
+                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
+                    ctx = ops.ctx,
+                )
+
+            engine.shouldCheckHumanActions(isAiTurn = true) shouldBe false
+        }
+
         test("checkHumanActions — AI turn with only sorcery-speed hand actions skips") {
             val (bridge, game, counter) =
                 base.startWithBoard { _, human, ai ->

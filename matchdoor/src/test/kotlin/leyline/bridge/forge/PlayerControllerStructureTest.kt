@@ -93,8 +93,9 @@ class PlayerControllerStructureTest :
 
             overridingMethods.map { it.name }.toSet() shouldBe expectedOverrides
             // chooseNumber has three overloads (range, range+params, list-of-values),
-            // so the (name, paramTypes) count exceeds the unique-name count by 2.
-            overridingMethods.size shouldBe expectedOverrides.size + 2
+            // and chooseCardsToDiscardFrom has two overloads (with/without visible cards),
+            // so the (name, paramTypes) count exceeds the unique-name count by 3.
+            overridingMethods.size shouldBe expectedOverrides.size + 3
         }
     })
 
