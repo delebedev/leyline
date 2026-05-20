@@ -57,6 +57,13 @@ class PersistentAnnotationKindTest :
                 persistent = emptyList(),
             )
 
+        fun colorProductionResult(vararg annotations: wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo): MechanicAnnotationResult =
+            MechanicAnnotationResult(
+                transient = emptyList(),
+                persistent = emptyList(),
+                perKindPersistent = mapOf(ColorProductionKind to annotations.toList()),
+            )
+
         fun annotationDetailInt(
             ann: wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo,
             key: String,
@@ -167,7 +174,7 @@ class PersistentAnnotationKindTest :
                     effectPersistent = emptyList(),
                     effectDiff = emptyEffectDiff,
                     transferPersistent = emptyList(),
-                    mechanicResult = emptyMechanicResult(),
+                    mechanicResult = colorProductionResult(cp),
                     resolveInstanceId = { InstanceId(it.value) },
                 )
 
@@ -242,7 +249,7 @@ class PersistentAnnotationKindTest :
 
         test("INERT FrameContext leaves EZTT alone — preserves legacy callers that don't pass a frame") {
             // INERT has phase=null so EZTT survives. ColorProduction is excluded from this
-            // test because INERT's empty battlefieldIids would correctly expire it.
+            // test because it is pruned when absent from the incoming source snapshot.
             val eztt =
                 AnnotationBuilder
                     .enteredZoneThisTurn(zoneId = 7, instanceId = InstanceId(101))
@@ -420,7 +427,7 @@ class PersistentAnnotationKindTest :
                     effectPersistent = emptyList(),
                     effectDiff = emptyEffectDiff,
                     transferPersistent = emptyList(),
-                    mechanicResult = emptyMechanicResult(),
+                    mechanicResult = colorProductionResult(cp),
                     resolveInstanceId = { ForgeCardId(it.value).let { _ -> InstanceId(it.value) } },
                 )
 

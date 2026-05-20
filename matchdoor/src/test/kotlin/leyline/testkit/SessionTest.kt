@@ -186,6 +186,11 @@ abstract class SessionTest(
 
     fun castCreature() = harness.castCreature()
 
+    fun activateMana(
+        cardName: String,
+        abilityIndex: Int = 0,
+    ) = harness.activateMana(cardName, abilityIndex)
+
     fun humanBattlefieldCreatures(): List<Pair<Int, String>> = harness.humanBattlefieldCreatures()
 
     fun passPriority() = harness.passPriority()

@@ -26,6 +26,8 @@ data class CardSnapshot(
     val isRoom: Boolean = false,
     /** True when the card has at least one mana ability (used for ActivateMana action shape). */
     val hasManaAbilities: Boolean = false,
+    /** ManaColor enum numbers this battlefield source can produce. */
+    val manaProductionColors: List<Int> = emptyList(),
     /**
      * True when the card has at least one non-mana activated ability.
      * Needed to know whether to iterate spellAbilities during action enumeration.

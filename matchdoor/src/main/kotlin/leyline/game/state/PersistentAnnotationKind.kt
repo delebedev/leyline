@@ -60,8 +60,8 @@ data class FrameContext(
  *
  *  - [matches] — does an existing active row belong to this kind?
  *  - [identityKey] — dedup key for upsert dispatch (null for kinds whose
- *    rows aren't upserted, e.g. EZTT / ColorProduction which arrive via the
- *    transfer-originated pipeline and are removed by [shouldExpire]).
+ *    rows aren't upserted, e.g. EZTT which arrives via the transfer-originated
+ *    pipeline and is removed by [shouldExpire]).
  *  - [pruneStale] — when true, active rows of this kind whose identity isn't
  *    in this frame's incoming set get pruned (full-replacement upsert).
  *  - [collisionStrategy] — how to handle an incoming row whose identity
@@ -430,18 +430,17 @@ data object EnteredZoneThisTurnKind : PersistentAnnotationKind {
 }
 
 /**
- * Land's color-production marker. Removed when the source card leaves the
- * battlefield — the client has nothing to render the badge against once
- * the source is no longer present.
+ * Source color-production marker. Upserted from the current battlefield mana
+ * sources, and removed when the source leaves or stops producing mana.
  */
 data object ColorProductionKind : PersistentAnnotationKind {
     override val name = "ColorProduction"
-    override val pruneStale = false
-    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
 
     override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.ColorProduction in ann.typeList
 
-    override fun identityKey(ann: AnnotationInfo): Any? = null
+    override fun identityKey(ann: AnnotationInfo): Any? = ann.affectedIdsList.firstOrNull()
 
     override fun shouldExpire(
         ann: AnnotationInfo,
@@ -496,6 +495,7 @@ object PersistentAnnotationKinds {
             DelayedTriggerAffecteesKind,
             TargetSpecKind,
             MutateLayeredEffectKind,
+            ColorProductionKind,
             PreparedDesignationKind,
             PlottedDesignationKind,
             CommanderDesignationKind,
@@ -511,7 +511,6 @@ object PersistentAnnotationKinds {
     val lifecycleOnly: List<PersistentAnnotationKind> =
         listOf(
             EnteredZoneThisTurnKind,
-            ColorProductionKind,
             TriggeringObjectKind,
         )
 

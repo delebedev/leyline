@@ -42,6 +42,7 @@ object SnapshotCapture {
                     life = player.life,
                     startingLife = player.startingLife,
                     maxHandSize = player.maxHandSize,
+                    manaPool = ManaSnapshotCapture.capturePool(player, bridge),
                 )
             }
         val zones = captureZones(game, bridge)
@@ -451,6 +452,7 @@ object SnapshotCapture {
                 card.getState(forge.card.CardStateName.Secondary).type.hasSubtype("Omen")
         val isRoom = card.isRoom
         val hasManaAbilities = card.manaAbilities.isNotEmpty()
+        val manaProductionColors = ManaSnapshotCapture.captureProductionColors(card, onBf)
         val hasNonManaActivatedAbilities =
             card.spellAbilities.any { sa ->
                 sa.isActivatedAbility && !sa.isManaAbility()
@@ -467,6 +469,7 @@ object SnapshotCapture {
             isOmenCard = isOmenCard,
             isRoom = isRoom,
             hasManaAbilities = hasManaAbilities,
+            manaProductionColors = manaProductionColors,
             hasNonManaActivatedAbilities = hasNonManaActivatedAbilities,
             isOnBattlefield = onBf,
             // P/T captured for all creatures so off-battlefield object shape stays stable.

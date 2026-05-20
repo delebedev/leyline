@@ -76,21 +76,27 @@ class SpellExecutor(
     }
 
     /**
-     * Activate a mana ability: tap the permanent, prompt for color if multiple
-     * abilities apply, pay the cost, resolve to add mana to the pool.
+     * Activate a mana ability: tap the permanent, use the selected ability when
+     * provided, otherwise prompt for color if multiple abilities apply, pay the
+     * cost, resolve to add mana to the pool.
      *
      * Unlike the other methods, this one fully resolves on the engine thread —
      * mana abilities do not use the stack, so the player retains priority and
      * the outer loop returns `continue` to `awaitAction`.
      */
-    fun activateMana(cardId: ForgeCardId): Boolean {
+    fun activateMana(
+        cardId: ForgeCardId,
+        abilityId: Int? = null,
+    ): Boolean {
         val card = findCard(game, cardId) ?: return false
         val playableAbilities = getPlayableManaAbilities(card, player)
         if (playableAbilities.isEmpty()) return false
         log.debug("activateMana: {} ({} abilities)", card.name, playableAbilities.size)
 
         val manaAbility =
-            if (playableAbilities.size == 1) {
+            if (abilityId != null && abilityId in playableAbilities.indices) {
+                playableAbilities[abilityId]
+            } else if (playableAbilities.size == 1) {
                 playableAbilities.first()
             } else {
                 // Multiple distinct mana abilities — prompt to pick which one.

@@ -170,6 +170,20 @@ class LandManaTest :
                 .shouldContainExactlyInAnyOrder(ManaColor.Black_afc9.number, ManaColor.Green_afc9.number)
         }
 
+        test("Llanowar Elves — ColorProduction [5] from battlefield snapshot") {
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Llanowar Elves", human, ZoneType.Battlefield)
+                }
+            val elf = humanPlayer(b).getZone(ZoneType.Battlefield).cards.single { it.name == "Llanowar Elves" }
+            val elfIid = b.getOrAllocInstanceId(ForgeCardId(elf.id)).value
+
+            handshakeFull(game, b, counter.currentGsId())
+                .persistentAnnotationsList
+                .single { AnnotationType.ColorProduction in it.typeList && elfIid in it.affectedIdsList }
+                .detailIntList("colors") shouldBe listOf(ManaColor.Green_afc9.number)
+        }
+
         // --- Action fields ---
 
         test("Play action — shouldStop, no abilityGrpId, no manaCost") {
@@ -276,11 +290,17 @@ class LandManaTest :
             cast.shouldHaveSize(1)
 
             val a = cast[0]
-            a.hasAutoTapSolution().shouldBeTrue()
-            a.autoTapSolution.autoTapActionsCount shouldBeGreaterThan 0
-            for (tap in a.autoTapSolution.autoTapActionsList) {
-                tap.instanceId shouldNotBe 0
-                tap.hasManaPaymentOption().shouldBeTrue()
+            assertSoftly {
+                a.hasAutoTapSolution().shouldBeTrue()
+                a.autoTapSolution.autoTapActionsCount shouldBe 2
+                a.autoTapSolution.autoTapActionsList
+                    .map { it.instanceId }
+                    .toSet()
+                    .size shouldBe a.autoTapSolution.autoTapActionsCount
+                for (tap in a.autoTapSolution.autoTapActionsList) {
+                    tap.instanceId shouldNotBe 0
+                    tap.hasManaPaymentOption().shouldBeTrue()
+                }
             }
         }
 

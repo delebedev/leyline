@@ -37,6 +37,17 @@ object PlayerMapper {
                 .setLifeTotal(seat.life)
                 .setStartingLifeTotal(seat.startingLife)
                 .setMaxHandSize(seat.maxHandSize)
+            for (mana in seat.manaPool) {
+                builder.addManaPool(
+                    ManaInfo
+                        .newBuilder()
+                        .setManaId(mana.manaId)
+                        .setColor(mana.color)
+                        .setSrcInstanceId(mana.srcInstanceId)
+                        .setAbilityGrpId(mana.abilityGrpId)
+                        .setCount(mana.count),
+                )
+            }
         }
         return builder.build()
     }
