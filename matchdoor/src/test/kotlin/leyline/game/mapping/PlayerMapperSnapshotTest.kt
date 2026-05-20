@@ -6,7 +6,9 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.SeatId
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.ManaPoolEntry
 import leyline.game.snapshot.SeatSnapshot
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 class PlayerMapperSnapshotTest :
     FunSpec({
@@ -36,5 +38,40 @@ class PlayerMapperSnapshotTest :
             val info = PlayerMapper.buildFromSnapshot(snap, seatId = 1)
             info.systemSeatNumber shouldBe 1
             info.lifeTotal shouldBe 0
+        }
+
+        test("buildFromSnapshot projects floating mana pool entries") {
+            val snap =
+                GsmSnapshot.forTest(
+                    seats =
+                        listOf(
+                            SeatSnapshot(
+                                SeatId(1),
+                                life = 20,
+                                startingLife = 20,
+                                maxHandSize = 7,
+                                manaPool =
+                                    listOf(
+                                        ManaPoolEntry(
+                                            manaId = 10,
+                                            color = ManaColor.Green_afc9,
+                                            srcInstanceId = 42,
+                                            abilityGrpId = 123,
+                                            count = 1,
+                                        ),
+                                    ),
+                            ),
+                        ),
+                )
+
+            val mana = PlayerMapper.buildFromSnapshot(snap, seatId = 1).manaPoolList.single()
+
+            assertSoftly {
+                mana.manaId shouldBe 10
+                mana.color shouldBe ManaColor.Green_afc9
+                mana.srcInstanceId shouldBe 42
+                mana.abilityGrpId shouldBe 123
+                mana.count shouldBe 1
+            }
         }
     })

@@ -1,0 +1,65 @@
+package leyline.game.snapshot
+
+import forge.card.MagicColor
+import forge.game.card.Card
+import forge.game.player.Player
+import leyline.bridge.types.ForgeCardId
+import leyline.game.codes.ManaColorMapping
+import leyline.game.state.GameBridge
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+
+internal object ManaSnapshotCapture {
+    private const val INITIAL_MANA_ID = 10
+
+    fun capturePool(
+        player: Player,
+        bridge: GameBridge,
+    ): List<ManaPoolEntry> {
+        data class PoolKey(
+            val color: ManaColor,
+            val srcInstanceId: Int,
+            val abilityGrpId: Int,
+        )
+
+        val counts = linkedMapOf<PoolKey, Int>()
+        for (mana in player.manaPool) {
+            val color = ManaColorMapping.fromProduced(MagicColor.toShortString(mana.color)) ?: continue
+            val source = mana.sourceCard ?: continue
+            val srcInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(source.id)).value
+            val sourceGrpId = bridge.resolveGrpId(source, srcInstanceId)
+            val cardData = bridge.cardRepository.findByGrpId(sourceGrpId)
+            val abilityId = mana.manaAbility?.sourceSA?.id ?: 0
+            val abilityGrpId =
+                if (abilityId != 0) {
+                    bridge.abilityRegistryFor(source, cardData)?.forSpellAbility(abilityId) ?: 0
+                } else {
+                    0
+                }
+            val key = PoolKey(color, srcInstanceId, abilityGrpId)
+            counts[key] = (counts[key] ?: 0) + 1
+        }
+        var nextManaId = INITIAL_MANA_ID
+        return counts.map { (key, count) ->
+            ManaPoolEntry(
+                manaId = nextManaId++,
+                color = key.color,
+                srcInstanceId = key.srcInstanceId,
+                abilityGrpId = key.abilityGrpId,
+                count = count,
+            )
+        }
+    }
+
+    fun captureProductionColors(
+        card: Card,
+        onBattlefield: Boolean,
+    ): List<Int> {
+        if (!onBattlefield) return emptyList()
+        return card.manaAbilities
+            .flatMap { sa ->
+                val mana = sa.manaPart ?: return@flatMap emptyList()
+                val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
+                produced.split(" ").mapNotNull { ManaColorMapping.fromProduced(it)?.number }
+            }.distinct()
+    }
+}

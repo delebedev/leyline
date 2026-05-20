@@ -181,6 +181,22 @@ class StackCastResolveTest :
             tups.forEach { it.detailInt("tapped") shouldBe 1 }
         }
 
+        test("CastSpell: ManaPaid source and color are populated") {
+            val gsm = castSpellAndCapture() ?: error("No cast at seed 42")
+            val tappedSources =
+                gsm
+                    .annotations(AnnotationType.TappedUntappedPermanent)
+                    .flatMap { it.affectedIdsList }
+
+            for (manaPaid in gsm.annotations(AnnotationType.ManaPaid)) {
+                assertSoftly {
+                    tappedSources shouldContain manaPaid.affectorId.toInt()
+                    manaPaid.detailInt("id") shouldBeGreaterThan 0
+                    manaPaid.detailInt("color") shouldBeGreaterThan 0
+                }
+            }
+        }
+
         // ===================================================================
         // 3. Resolve — annotations & instanceId lifecycle
         // ===================================================================

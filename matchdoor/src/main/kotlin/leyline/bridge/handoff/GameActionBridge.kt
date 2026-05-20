@@ -282,6 +282,7 @@ sealed class PlayerAction {
 
     data class ActivateMana(
         val cardId: ForgeCardId,
+        val abilityId: Int? = null,
     ) : PlayerAction()
 
     data class PlayLand(

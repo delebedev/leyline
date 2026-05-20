@@ -32,6 +32,7 @@ import leyline.game.snapshot.PreparedRole
 import leyline.game.state.AbilityWireIdentity
 import leyline.game.state.AbilityWordActiveKind
 import leyline.game.state.BridgeMutations
+import leyline.game.state.ColorProductionKind
 import leyline.game.state.CommanderDesignationKind
 import leyline.game.state.CrewedThisTurnKind
 import leyline.game.state.DayNightDesignationKind
@@ -164,6 +165,7 @@ object StateMapper {
         val rightUnlockedDesignation: List<AnnotationInfo> = emptyList(),
         val dayNightDesignation: List<AnnotationInfo> = emptyList(),
         val faceDownDisguise: List<AnnotationInfo> = emptyList(),
+        val colorProduction: List<AnnotationInfo> = emptyList(),
     )
 
     /**
@@ -669,6 +671,7 @@ object StateMapper {
                     ),
                 )
             } ?: emptyList()
+        val colorProductionPersistentFromSnap = buildColorProductionAnnotations(snap, frameIds)
         val persistentFeeds =
             PersistentFeedSet(
                 qualification = qualificationPersistentFromSnap,
@@ -683,6 +686,7 @@ object StateMapper {
                 rightUnlockedDesignation = rightUnlockedDesignationPersistentFromSnap,
                 dayNightDesignation = dayNightDesignationPersistentFromSnap,
                 faceDownDisguise = faceDownDisguisePersistentFromSnap,
+                colorProduction = colorProductionPersistentFromSnap,
             )
         // Transient gain/lose Designation annotations — diff prev vs cur on the
         // `Source on battlefield with isPrepared` set. Gains insert before the
@@ -1188,6 +1192,17 @@ object StateMapper {
                 bridge.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(fid)).value
             }
 
+    private fun buildColorProductionAnnotations(
+        snap: GsmSnapshot,
+        frameIds: FrameIdResolver,
+    ): List<AnnotationInfo> =
+        snap.boundCards.values.mapNotNull { bound ->
+            if (!bound.snapshot.isOnBattlefield) return@mapNotNull null
+            val colors = bound.snapshot.manaProductionColors
+            if (colors.isEmpty()) return@mapNotNull null
+            AnnotationBuilder.colorProduction(frameIds.cardIid(bound.forgeCardId), colors)
+        }
+
     /** Result of stages 4-5 + persistent annotation computation. */
     private data class RemainingAnnotationsResult(
         val numbered: List<AnnotationInfo>,
@@ -1373,6 +1388,7 @@ object StateMapper {
                         put(RightUnlockedDesignationKind, persistentFeeds.rightUnlockedDesignation)
                         put(DayNightDesignationKind, persistentFeeds.dayNightDesignation)
                         put(FaceDownDisguiseKind, persistentFeeds.faceDownDisguise)
+                        put(ColorProductionKind, persistentFeeds.colorProduction)
                     },
             )
         val batch =

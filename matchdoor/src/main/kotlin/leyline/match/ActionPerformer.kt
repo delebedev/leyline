@@ -3,6 +3,7 @@ package leyline.match
 import leyline.bridge.findCard
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
+import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
@@ -190,11 +191,12 @@ class ActionPerformer(
             }
             ActionType.ActivateMana -> {
                 val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val abilityIndex = resolveManaAbilityIndex(action, bridge)
                 val submitted =
                     if (cardId != null) {
                         seatBridge.action.submitAction(
                             pending.actionId,
-                            PlayerAction.ActivateMana(cardId),
+                            PlayerAction.ActivateMana(cardId, abilityIndex),
                         )
                     } else {
                         seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
@@ -348,6 +350,11 @@ class ActionPerformer(
             sink.sendBundle(bb.stateOnlyDiff(game, counters.counter))
         }
 
+        if (action.actionType == ActionType.ActivateMana) {
+            sink.sendRealGameState(bridge)
+            return
+        }
+
         // After a cast or activate, check for targeting prompt or intermediate stack state.
         // Pass clientAutoResolve when the client opts in to auto-resolving stack effects (#92).
         if (isCastOrActivate && targetingHandler.handlePostCastPrompt(autoPassState.shouldAutoPass())) return
@@ -415,6 +422,24 @@ class ActionPerformer(
 
         val index = registry.slotLayout.forgeIndexFor(abilityGrpId)
         return if (index != null && index >= 0) index else 0
+    }
+
+    private fun resolveManaAbilityIndex(
+        action: Action,
+        bridge: GameBridge,
+    ): Int? {
+        val abilityGrpId = action.abilityGrpId
+        if (abilityGrpId == 0) return null
+        val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return null
+        val game = bridge.getGame() ?: return null
+        val player = bridge.getPlayer(counters.seatId) ?: return null
+        val card = findCard(game, forgeCardId) ?: return null
+        val grpId = bridge.resolveGrpId(card, action.instanceId)
+        val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return null
+        val registry = bridge.abilityRegistryFor(card, cardData) ?: return null
+        return getPlayableManaAbilities(card, player)
+            .indexOfFirst { registry.forSpellAbility(it.id) == abilityGrpId }
+            .takeIf { it >= 0 }
     }
 
     private fun resolveCastAbilityIndex(

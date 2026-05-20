@@ -128,7 +128,7 @@ object ActionMapper {
             if (!card.tapped && card.hasManaAbilities) {
                 val forgeCard = bridge.findCard(fid) ?: continue
                 val boundData = snap.boundCards[fid]?.data
-                builder.addActions(
+                builder.addAllActions(
                     buildActivateManaAction(
                         forgeCard,
                         instanceId,
@@ -760,7 +760,7 @@ object ActionMapper {
 
             // ActivateMana — untapped permanents with mana abilities
             if (!card.isTapped && card.manaAbilities.isNotEmpty()) {
-                builder.addActions(buildActivateManaAction(card, instanceId, grpId, cardDataLookup, abilityRegistryLookup))
+                builder.addAllActions(buildActivateManaAction(card, instanceId, grpId, cardDataLookup, abilityRegistryLookup))
             }
 
             // Activate — non-mana activated abilities (only with legality checks)
@@ -1103,58 +1103,68 @@ object ActionMapper {
                 }
             }.build()
 
-    /** Build an ActivateMana action for an untapped permanent with mana abilities. */
+    /** Build ActivateMana actions for an untapped permanent's playable mana abilities. */
     private fun buildActivateManaAction(
         card: Card,
         instanceId: Int,
         grpId: Int,
         cardDataLookup: (GrpId) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
-    ): Action {
+    ): List<Action> {
         val cardData = cardDataLookup(GrpId(grpId))
-        val sa = card.manaAbilities.first()
         val registry = abilityRegistryLookup(card, cardData)
-        val abilityGrpId = registry?.forSpellAbility(sa.id) ?: 0
-        val mana = sa.manaPart
-        val produced = if (mana != null && mana.isComboMana) mana.getComboColors(sa) else mana?.origProduced.orEmpty()
-        val manaColor = produced.split(" ").firstNotNullOfOrNull { producedToManaColor(it) } ?: ManaColor.Generic
+        return getPlayableManaAbilities(card, card.controller).mapNotNull { sa ->
+            val abilityGrpId = registry?.forSpellAbility(sa.id) ?: 0
+            val colors = producedManaColors(sa)
+            if (colors.isEmpty()) return@mapNotNull null
 
-        val actionBuilder =
-            Action
-                .newBuilder()
-                .setActionType(ActionType.ActivateMana)
-                .setInstanceId(instanceId)
-                .setGrpId(grpId)
-                .setFacetId(instanceId)
-                .setIsBatchable(true)
-        if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-
-        actionBuilder.addManaPaymentOptions(
-            ManaPaymentOption.newBuilder().addMana(
-                ManaInfo
+            val actionBuilder =
+                Action
                     .newBuilder()
-                    .setManaId(10)
-                    .setColor(manaColor)
-                    .setSrcInstanceId(instanceId)
-                    .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
-                    .setAbilityGrpId(abilityGrpId)
-                    .setCount(1),
-            ),
-        )
+                    .setActionType(ActionType.ActivateMana)
+                    .setInstanceId(instanceId)
+                    .setGrpId(grpId)
+                    .setFacetId(instanceId)
+                    .setIsBatchable(true)
+            if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
 
-        actionBuilder.addManaSelections(
-            ManaSelection
-                .newBuilder()
-                .setInstanceId(instanceId)
-                .setAbilityGrpId(abilityGrpId)
-                .addOptions(
+            val paymentOption = ManaPaymentOption.newBuilder()
+            for ((idx, manaColor) in colors.withIndex()) {
+                paymentOption.addMana(
+                    ManaInfo
+                        .newBuilder()
+                        .setManaId(INITIAL_MANA_ID + idx)
+                        .setColor(manaColor)
+                        .setSrcInstanceId(instanceId)
+                        .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
+                        .setAbilityGrpId(abilityGrpId)
+                        .setCount(1),
+                )
+            }
+            actionBuilder.addManaPaymentOptions(paymentOption)
+
+            val selection =
+                ManaSelection
+                    .newBuilder()
+                    .setInstanceId(instanceId)
+                    .setAbilityGrpId(abilityGrpId)
+            for (manaColor in colors) {
+                selection.addOptions(
                     ManaSelectionOption.newBuilder().addMana(
                         ManaColorCount.newBuilder().setColor(manaColor).setCount(1),
                     ),
-                ),
-        )
+                )
+            }
+            actionBuilder.addManaSelections(selection)
 
-        return actionBuilder.build()
+            actionBuilder.build()
+        }
+    }
+
+    private fun producedManaColors(sa: SpellAbility): List<ManaColor> {
+        val mana = sa.manaPart ?: return emptyList()
+        val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
+        return produced.split(" ").mapNotNull { producedToManaColor(it) }.distinct()
     }
 
     /**
@@ -1546,7 +1556,7 @@ object ActionMapper {
         }
 
         // Greedy match: colored requirements first, then generic
-        val used = mutableSetOf<Int>() // indices into sources
+        val usedSourceInstanceIds = mutableSetOf<Int>()
         val matched = mutableListOf<Pair<ManaSource, ManaColor>>() // (source, paying color)
         val coloredReqs = manaCost.filter { it.first != ManaColor.Generic }
         val genericReqs = manaCost.filter { it.first == ManaColor.Generic }
@@ -1554,11 +1564,11 @@ object ActionMapper {
         // Match colored requirements
         for ((reqColor, reqCount) in coloredReqs) {
             var remaining = reqCount
-            for ((idx, src) in sources.withIndex()) {
+            for (src in sources) {
                 if (remaining <= 0) break
-                if (idx in used) continue
+                if (src.instanceId in usedSourceInstanceIds) continue
                 if (src.color == reqColor) {
-                    used.add(idx)
+                    usedSourceInstanceIds.add(src.instanceId)
                     matched.add(src to reqColor)
                     remaining--
                 }
@@ -1569,10 +1579,10 @@ object ActionMapper {
         // Match generic requirements (any color)
         for ((_, reqCount) in genericReqs) {
             var remaining = reqCount
-            for ((idx, src) in sources.withIndex()) {
+            for (src in sources) {
                 if (remaining <= 0) break
-                if (idx in used) continue
-                used.add(idx)
+                if (src.instanceId in usedSourceInstanceIds) continue
+                usedSourceInstanceIds.add(src.instanceId)
                 matched.add(src to src.color)
                 remaining--
             }

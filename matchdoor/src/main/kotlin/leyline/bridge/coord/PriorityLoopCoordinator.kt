@@ -127,7 +127,7 @@ class PriorityLoopCoordinator(
                 is PlayerAction.CastSpell -> return spellExecutor.castSpell(action.cardId, action.abilityId, action.targets)
                 is PlayerAction.ActivateAbility -> return spellExecutor.activateAbility(action.cardId, action.abilityId, action.targets)
                 is PlayerAction.ActivateMana -> {
-                    if (!spellExecutor.activateMana(action.cardId)) {
+                    if (!spellExecutor.activateMana(action.cardId, action.abilityId)) {
                         log.debug("Mana activation failed for card {}", action.cardId.value)
                     }
                     continue

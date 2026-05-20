@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.getNonManaActivatedAbilities
+import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
@@ -306,6 +307,35 @@ class MatchFlowHarness(
                 grpId = bridge.cardRepository.findGrpIdByName(creature.name) ?: 0
             }
 
+        session.onPerformAction(submitWithGsId(msg))
+        drainSink()
+        return true
+    }
+
+    /** Activate a battlefield mana ability and drain the resulting state update. */
+    fun activateMana(
+        cardName: String,
+        abilityIndex: Int = 0,
+    ): Boolean {
+        val player = bridge.getPlayer(seatId) ?: return false
+        val card =
+            player
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
+        val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+        val grpId = bridge.resolveGrpId(card, iid)
+        val cardData = bridge.cardRepository.findByGrpId(grpId)
+        val ability = getPlayableManaAbilities(card, player).getOrNull(abilityIndex) ?: return false
+        val abilityGrpId = bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability.id) ?: 0
+
+        val msg =
+            performAction {
+                actionType = ActionType.ActivateMana
+                instanceId = iid
+                this.grpId = grpId
+                this.abilityGrpId = abilityGrpId
+            }
         session.onPerformAction(submitWithGsId(msg))
         drainSink()
         return true
