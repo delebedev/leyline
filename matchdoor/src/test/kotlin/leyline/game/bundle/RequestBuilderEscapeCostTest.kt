@@ -201,4 +201,42 @@ class RequestBuilderEscapeCostTest :
                 prompt.parametersList.first { it.parameterName == "CardId" }.numberValue shouldBe stationAbilityIid
             }
         }
+
+        test("buildEnlistCostPayCostsReq uses Enlist prompt id with cost envelope") {
+            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val attackerForgeId = 400
+            val enlistedForgeId = 401
+            val attackerIid = b.getOrAllocInstanceId(ForgeCardId(attackerForgeId)).value
+            val enlistedIid = b.getOrAllocInstanceId(ForgeCardId(enlistedForgeId)).value
+
+            val request =
+                PromptRequest(
+                    promptType = "choose_cards",
+                    message = "Tap a creature to enlist",
+                    options = listOf("Creature"),
+                    min = 1,
+                    max = 1,
+                    semantic = PromptSemantic.EnlistCost,
+                    candidateRefs = listOf(PromptCandidateRefDto(0, "card", enlistedForgeId)),
+                    sourceEntityId = attackerForgeId,
+                )
+            val pending =
+                InteractivePromptBridge.PendingPrompt(
+                    promptId = "test-enlist",
+                    request = request,
+                    future = java.util.concurrent.CompletableFuture(),
+                )
+
+            val (req, prompt) = RequestBuilder.buildEnlistCostPayCostsReq(pending, b)
+
+            assertSoftly {
+                req.hasPaymentActions() shouldBe true
+                req.effectCostReq.effectCostType shouldBe EffectCostType.Select_a59c
+                req.effectCostReq.costSelection.context shouldBe SelectionContext.NonManaPayment
+                req.effectCostReq.costSelection.idsList
+                    .toList() shouldBe listOf(enlistedIid)
+                prompt.promptId shouldBe PromptIds.ENLIST_TAP_COST
+                prompt.parametersList.first { it.parameterName == "CardId" }.numberValue shouldBe attackerIid
+            }
+        }
     })

@@ -242,7 +242,14 @@ data class PendingActionState(
     val turn: Int,
     val activePlayerId: Int,
     val priorityPlayerId: Int,
+    val kind: PendingActionKind = PendingActionKind.PRIORITY,
 )
+
+enum class PendingActionKind {
+    PRIORITY,
+    DECLARE_ATTACKERS,
+    DECLARE_BLOCKERS,
+}
 
 /** A game entity that can be targeted: card or player. */
 sealed class Target {
@@ -283,6 +290,7 @@ sealed class PlayerAction {
 
     data class DeclareAttackers(
         val attackerIds: List<ForgeCardId>,
+        val attackAlternativeByAttacker: Map<ForgeCardId, Int> = emptyMap(),
         val defender: Target? = null,
     ) : PlayerAction()
 

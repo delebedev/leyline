@@ -19,7 +19,7 @@ class PlayerControllerStructureTest :
 
         tags(UnitTag)
 
-        // The current set of 44 PCHuman overrides. Alphabetical for review stability.
+        // The current set of 45 PCHuman overrides. Alphabetical for review stability.
         val expectedOverrides =
             setOf(
                 "announceRequirements",
@@ -53,6 +53,7 @@ class PlayerControllerStructureTest :
                 "confirmTrigger",
                 "declareAttackers",
                 "declareBlockers",
+                "enlistAttackers",
                 "getCostDecisionMaker",
                 "isAI",
                 "mulliganKeepHand",
@@ -68,8 +69,8 @@ class PlayerControllerStructureTest :
                 "willPutCardOnTop",
             )
 
-        test("override count is pinned at 44") {
-            expectedOverrides.size shouldBe 44
+        test("override count is pinned at 45") {
+            expectedOverrides.size shouldBe 45
         }
 
         test("PlayerController declares exactly the expected overrides") {

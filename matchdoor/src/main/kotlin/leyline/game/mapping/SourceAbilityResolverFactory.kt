@@ -24,7 +24,7 @@ import leyline.game.state.GameBridge
  */
 object SourceAbilityResolverFactory {
     /** Keyword ability ids whose triggered/resolved effects produce P/T boosts with staticId=0. */
-    private val PT_BOOST_KEYWORDS = setOf(KeywordAbilityIds.PROWESS)
+    private val PT_BOOST_KEYWORDS = setOf(KeywordAbilityIds.PROWESS, KeywordAbilityIds.ENLIST)
 
     fun build(bridge: GameBridge): (InstanceId, Long) -> GrpId? {
         val game: Game = bridge.getGame() ?: return { _, _ -> null }

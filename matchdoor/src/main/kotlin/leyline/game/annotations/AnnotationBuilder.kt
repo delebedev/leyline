@@ -525,7 +525,7 @@ object AnnotationBuilder {
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.CounterAdded)
-            .apply { if (affectorId != null) setAffectorId(affectorId.value) }
+            .setOptionalAffector(affectorId)
             .addAffectedIds(instanceId.value)
             .addDetails(typedStringDetail(DetailKeys.COUNTER_TYPE, counterType))
             .addDetails(int32Detail(DetailKeys.TRANSACTION_AMOUNT, amount))

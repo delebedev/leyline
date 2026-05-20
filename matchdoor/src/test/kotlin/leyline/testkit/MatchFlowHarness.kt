@@ -462,12 +462,22 @@ class MatchFlowHarness(
     }
 
     /**
-     * Send only the iterative DeclareAttackersResp (no Submit) — simulates a single
-     * creature toggle click. Returns messages produced by the echo-back.
+     * Send only the iterative DeclareAttackersResp (no Submit) — simulates an Arena
+     * attacker-option toggle. Returns messages produced by the echo-back.
      */
-    fun toggleAttackers(attackerInstanceIds: List<Int>): List<GREToClientMessage> {
+    fun toggleAttackers(
+        attackerInstanceIds: List<Int>,
+        attackerAlternatives: Map<Int, Int> = emptyMap(),
+    ): List<GREToClientMessage> {
         val snap = messageSnapshot()
-        session.onDeclareAttackers(submitWithGsId(declareAttackersResp(attackers = attackerInstanceIds)))
+        session.onDeclareAttackers(
+            submitWithGsId(
+                declareAttackersResp(
+                    attackers = attackerInstanceIds,
+                    attackerAlternatives = attackerAlternatives,
+                ),
+            ),
+        )
         drainSink()
         return messagesSince(snap)
     }

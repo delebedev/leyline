@@ -478,7 +478,7 @@ class GameBridge(
     /**
      * Apply ordering-sensitive mutations returned by [leyline.game.mapping.StateMapper.buildDiff].
      * Fixed order: id reallocations → limbo retires → zone recordings →
-     * persistent annotation batch → next annotation ID counter.
+     * persistent annotation batch → next annotation ID counter → delayed-trigger holders.
      *
      * Called by [leyline.game.bundle.BundleBuilder] between diff compute and action build.
      */
@@ -488,6 +488,7 @@ class GameBridge(
         for ((iid, zid) in m.zoneRecordings) recordZone(iid, zid)
         annotations.applyBatchResult(m.persistentBatch)
         annotations.setAnnotationId(m.nextAnnotationId)
+        delayedTriggerHolders.apply(m.holderBatch)
     }
 
     override fun closeFrame(): FrameEventLog = eventCollector?.closeFrame() ?: FrameEventLog.EMPTY

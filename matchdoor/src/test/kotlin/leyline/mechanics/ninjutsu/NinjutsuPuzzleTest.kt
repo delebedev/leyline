@@ -5,13 +5,17 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
+import leyline.testkit.allGameObjects
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AttackState
 
 private const val NINJUTSU_GRP_ID = 5341
 
@@ -97,7 +101,9 @@ class NinjutsuPuzzleTest :
                     .numberValue shouldNotBe 0
                 returnCostReq.idsList.shouldContain(attackerIid)
             }
+            val postCostSnap = harness.messageSnapshot()
             respondToEffectCost(listOf(attackerIid))
+            val postCostMessages = harness.messagesSince(postCostSnap)
 
             passUntil(maxPasses = 10) {
                 human.getZone(ZoneType.Battlefield).cards.any { it.name == "Ninja of the Deep Hours" }
@@ -113,9 +119,15 @@ class NinjutsuPuzzleTest :
                     .cards
                     .map { it.name }
                     .shouldContain("Raging Goblin")
+                ai.life shouldBe 18
                 ninja.isTapped.shouldBeTrue()
-                game().combat.isAttacking(ninja).shouldBeTrue()
-                game().combat.isUnblocked(ninja).shouldBeTrue()
+                val ninjaIid = harness.bridge.getOrAllocInstanceId(ForgeCardId(ninja.id)).value
+                postCostMessages
+                    .allGameObjects()
+                    .firstOrNull { it.instanceId == ninjaIid && it.attackState == AttackState.Attacking }
+                    .shouldNotBeNull()
+                    .isTapped
+                    .shouldBeTrue()
             }
         }
     })

@@ -15,12 +15,15 @@ import leyline.bridge.findCard
 import leyline.bridge.forge.PlayerController
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.OwnerContext
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.resolveAttackDefender
 import leyline.bridge.types.AutoPassReason
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PriorityDecision
+import leyline.game.data.KeywordAbilityIds
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -48,6 +51,7 @@ class PriorityLoopCoordinator(
     private val spellExecutor: SpellExecutor,
 ) {
     private val log = LoggerFactory.getLogger(PriorityLoopCoordinator::class.java)
+    private var pendingAttackAlternativeByAttacker: Map<ForgeCardId, Int> = emptyMap()
 
     private var lastSeenTurn: Int = -1
 
@@ -140,6 +144,7 @@ class PriorityLoopCoordinator(
     ) {
         log.info("declareAttackers: waiting for {}", attacker.name)
         owner.notifyStateChanged()
+        pendingAttackAlternativeByAttacker = emptyMap()
 
         val state =
             PendingActionState(
@@ -147,9 +152,11 @@ class PriorityLoopCoordinator(
                 turn = game.phaseHandler.turn,
                 activePlayerId = attacker.id,
                 priorityPlayerId = attacker.id,
+                kind = PendingActionKind.DECLARE_ATTACKERS,
             )
         when (val action = actionBridge.awaitAction(state)) {
             is PlayerAction.DeclareAttackers -> {
+                pendingAttackAlternativeByAttacker = action.attackAlternativeByAttacker
                 val resolvedDefender = resolveAttackDefender(game, attacker, action.defender)
                 for (cardId in action.attackerIds) {
                     val card = findCard(game, cardId) ?: continue
@@ -161,6 +168,13 @@ class PriorityLoopCoordinator(
             is PlayerAction.PassPriority -> {}
             else -> {}
         }
+    }
+
+    fun enlistAttackers(attackers: List<Card>): List<Card> {
+        val selected = pendingAttackAlternativeByAttacker
+        if (selected.isEmpty()) return emptyList()
+        pendingAttackAlternativeByAttacker = emptyMap()
+        return attackers.filter { card -> selected[ForgeCardId(card.id)] == KeywordAbilityIds.ENLIST }
     }
 
     fun declareBlockers(
@@ -176,6 +190,7 @@ class PriorityLoopCoordinator(
                 turn = game.phaseHandler.turn,
                 activePlayerId = defender.id,
                 priorityPlayerId = defender.id,
+                kind = PendingActionKind.DECLARE_BLOCKERS,
             )
         when (val action = actionBridge.awaitAction(state)) {
             is PlayerAction.DeclareBlockers -> {
