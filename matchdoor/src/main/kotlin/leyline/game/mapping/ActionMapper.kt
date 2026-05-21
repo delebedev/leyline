@@ -48,6 +48,7 @@ object ActionMapper {
     )
 
     private const val INITIAL_MANA_ID = 10
+    private const val INITIAL_UNIQUE_ABILITY_ID = 50
 
     private fun canPayManaCost(
         sa: SpellAbility,
@@ -1127,38 +1128,57 @@ object ActionMapper {
                     .setFacetId(instanceId)
                     .setIsBatchable(true)
             if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+            uniqueAbilityIdFor(cardData, abilityGrpId)?.let(actionBuilder::setUniqueAbilityId)
 
-            val paymentOption = ManaPaymentOption.newBuilder()
             for ((idx, manaColor) in colors.withIndex()) {
-                paymentOption.addMana(
-                    ManaInfo
-                        .newBuilder()
-                        .setManaId(INITIAL_MANA_ID + idx)
-                        .setColor(manaColor)
-                        .setSrcInstanceId(instanceId)
-                        .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
-                        .setAbilityGrpId(abilityGrpId)
-                        .setCount(1),
+                actionBuilder.addManaPaymentOptions(
+                    ManaPaymentOption.newBuilder().addMana(
+                        ManaInfo
+                            .newBuilder()
+                            .setManaId(INITIAL_MANA_ID + idx)
+                            .setColor(manaColor)
+                            .setSrcInstanceId(instanceId)
+                            .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
+                            .setAbilityGrpId(abilityGrpId)
+                            .setCount(1),
+                    ),
                 )
             }
-            actionBuilder.addManaPaymentOptions(paymentOption)
 
             val selection =
                 ManaSelection
                     .newBuilder()
                     .setInstanceId(instanceId)
                     .setAbilityGrpId(abilityGrpId)
+                    .setSelectionCount(1)
+                    .setValidationType(SelectionValidationType.NonRepeatable)
             for (manaColor in colors) {
                 selection.addOptions(
-                    ManaSelectionOption.newBuilder().addMana(
-                        ManaColorCount.newBuilder().setColor(manaColor).setCount(1),
-                    ),
+                    ManaSelectionOption
+                        .newBuilder()
+                        .setSelectedColor(manaColor)
+                        .addMana(
+                            ManaColorCount.newBuilder().setColor(manaColor).setCount(1),
+                        ),
                 )
             }
             actionBuilder.addManaSelections(selection)
 
             actionBuilder.build()
         }
+    }
+
+    /** Match the source object's UniqueAbilityInfo.id for the emitted ability row. */
+    private fun uniqueAbilityIdFor(
+        cardData: CardData?,
+        abilityGrpId: Int,
+    ): Int? {
+        if (cardData == null || abilityGrpId == 0) return null
+        val index =
+            cardData.abilityIds.indexOfFirst { (grpId, _) ->
+                grpId == abilityGrpId
+            }
+        return index.takeIf { it >= 0 }?.let { INITIAL_UNIQUE_ABILITY_ID + it }
     }
 
     private fun producedManaColors(sa: SpellAbility): List<ManaColor> {

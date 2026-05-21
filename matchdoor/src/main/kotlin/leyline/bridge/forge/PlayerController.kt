@@ -317,6 +317,8 @@ class PlayerController(
     /** Recent priority decisions for debug observability. */
     private val recentDecisions = ArrayDeque<PriorityDecisionEntry>()
 
+    private var pendingManaColorChoice: Byte? = null
+
     data class PriorityDecisionEntry(
         val ts: Long,
         val phase: String?,
@@ -341,6 +343,20 @@ class PlayerController(
         synchronized(recentDecisions) {
             recentDecisions.addLast(entry)
             while (recentDecisions.size > MAX_DECISIONS) recentDecisions.removeFirst()
+        }
+    }
+
+    fun <T> withManaColorChoice(
+        colorMask: Byte?,
+        block: () -> T,
+    ): T {
+        if (colorMask == null) return block()
+        val previous = pendingManaColorChoice
+        pendingManaColorChoice = colorMask
+        return try {
+            block()
+        } finally {
+            pendingManaColorChoice = previous
         }
     }
 
@@ -767,6 +783,11 @@ class PlayerController(
         val cntColors = colors.countColors()
         if (cntColors == 0) return 0
         if (cntColors == 1) return colors.color
+        pendingManaColorChoice?.let { selectedColor ->
+            pendingManaColorChoice = null
+            if (colors.orderedColors.any { it.colorMask == selectedColor }) return selectedColor
+        }
+        if (sa?.isManaAbility() == true) return colors.orderedColors.first().colorMask
         // PCHuman uses InputConfirm.confirm → showAndWait (desktop-only).
         // Route through our prompt bridge instead.
         val colorOptions = colors.orderedColors.map { it.translatedName }

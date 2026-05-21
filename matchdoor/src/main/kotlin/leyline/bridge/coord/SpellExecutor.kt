@@ -8,6 +8,7 @@ import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
 import leyline.bridge.findCard
+import leyline.bridge.forge.PlayerController
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
@@ -87,6 +88,7 @@ class SpellExecutor(
     fun activateMana(
         cardId: ForgeCardId,
         abilityId: Int? = null,
+        selectedColor: Byte? = null,
     ): Boolean {
         val card = findCard(game, cardId) ?: return false
         val playableAbilities = getPlayableManaAbilities(card, player)
@@ -131,7 +133,12 @@ class SpellExecutor(
             if (!payment.payComputerCosts(AiCostDecision(player, manaAbility, false))) return false
         }
         try {
-            manaAbility.resolve()
+            val controller = player.controller as? PlayerController
+            if (controller != null) {
+                controller.withManaColorChoice(selectedColor) { manaAbility.resolve() }
+            } else {
+                manaAbility.resolve()
+            }
         } catch (ex: Exception) {
             log.error("activateMana: resolve() failed for {}: {}", card.name, ex.message, ex)
             return false

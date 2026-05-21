@@ -1,5 +1,6 @@
 package leyline.match
 
+import forge.card.MagicColor
 import leyline.bridge.findCard
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
@@ -196,7 +197,7 @@ class ActionPerformer(
                     if (cardId != null) {
                         seatBridge.action.submitAction(
                             pending.actionId,
-                            PlayerAction.ActivateMana(cardId, abilityIndex),
+                            PlayerAction.ActivateMana(cardId, abilityIndex, selectedManaColor(action)),
                         )
                     } else {
                         seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
@@ -441,6 +442,50 @@ class ActionPerformer(
             .indexOfFirst { registry.forSpellAbility(it.id) == abilityGrpId }
             .takeIf { it >= 0 }
     }
+
+    private fun selectedManaColor(action: Action): Byte? {
+        val paymentColors =
+            action.manaPaymentOptionsList
+                .asSequence()
+                .flatMap { it.manaList.asSequence() }
+                .filter { it.srcInstanceId == 0 || it.srcInstanceId == action.instanceId }
+                .map { it.color }
+                .filter { it != ManaColor.None_afc9 }
+                .distinct()
+                .toList()
+        paymentColors.singleOrNull()?.toMagicColorMask()?.let { return it }
+
+        val explicitSelections =
+            action.manaSelectionsList
+                .asSequence()
+                .filter { it.instanceId == 0 || it.instanceId == action.instanceId }
+                .flatMap { it.optionsList.asSequence() }
+                .map { it.selectedColor }
+                .filter { it != ManaColor.None_afc9 }
+                .distinct()
+                .toList()
+        return explicitSelections.singleOrNull()?.toMagicColorMask()
+    }
+
+    private fun ManaColor.toMagicColorMask(): Byte? =
+        when (this) {
+            ManaColor.White_afc9 -> MagicColor.WHITE
+            ManaColor.Blue_afc9 -> MagicColor.BLUE
+            ManaColor.Black_afc9 -> MagicColor.BLACK
+            ManaColor.Red_afc9 -> MagicColor.RED
+            ManaColor.Green_afc9 -> MagicColor.GREEN
+            ManaColor.None_afc9,
+            ManaColor.Phyrexian_afc9,
+            ManaColor.Generic,
+            ManaColor.X,
+            ManaColor.Y,
+            ManaColor.TwoGeneric,
+            ManaColor.AnyColor,
+            ManaColor.Colorless_afc9,
+            ManaColor.Snow_afc9,
+            ManaColor.UNRECOGNIZED,
+            -> null
+        }
 
     private fun resolveCastAbilityIndex(
         action: Action,
