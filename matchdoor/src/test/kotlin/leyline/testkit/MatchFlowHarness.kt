@@ -13,6 +13,7 @@ import leyline.config.ServerConfig
 import leyline.game.bundle.InvariantSelection
 import leyline.game.bundle.MessageCounter
 import leyline.game.generator.PuzzleSource
+import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -316,6 +317,7 @@ class MatchFlowHarness(
     fun activateMana(
         cardName: String,
         abilityIndex: Int = 0,
+        selectedColor: ManaColor? = null,
     ): Boolean {
         val player = bridge.getPlayer(seatId) ?: return false
         val card =
@@ -328,13 +330,33 @@ class MatchFlowHarness(
         val cardData = bridge.cardRepository.findByGrpId(grpId)
         val ability = getPlayableManaAbilities(card, player).getOrNull(abilityIndex) ?: return false
         val abilityGrpId = bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability.id) ?: 0
+        val offer =
+            ActionMapper
+                .buildFromSnapshot(seatId.value, GsmSnapshot.capture(game(), bridge, "activateMana", 0), bridge)
+                .actionsList
+                .firstOrNull { action ->
+                    action.actionType == ActionType.ActivateMana &&
+                        action.instanceId == iid &&
+                        action.abilityGrpId == abilityGrpId
+                } ?: return false
+        val action =
+            if (selectedColor == null) {
+                offer
+            } else {
+                val paymentOption =
+                    offer.manaPaymentOptionsList.firstOrNull { option ->
+                        option.manaList.any { it.color == selectedColor }
+                    } ?: return false
+                offer
+                    .toBuilder()
+                    .clearManaPaymentOptions()
+                    .addManaPaymentOptions(paymentOption)
+                    .build()
+            }
 
         val msg =
             performAction {
-                actionType = ActionType.ActivateMana
-                instanceId = iid
-                this.grpId = grpId
-                this.abilityGrpId = abilityGrpId
+                mergeFrom(action)
             }
         session.onPerformAction(submitWithGsId(msg))
         drainSink()

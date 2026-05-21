@@ -14,6 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GroupReq
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
 /**
@@ -189,7 +190,8 @@ abstract class SessionTest(
     fun activateMana(
         cardName: String,
         abilityIndex: Int = 0,
-    ) = harness.activateMana(cardName, abilityIndex)
+        selectedColor: ManaColor? = null,
+    ) = harness.activateMana(cardName, abilityIndex, selectedColor)
 
     fun humanBattlefieldCreatures(): List<Pair<Int, String>> = harness.humanBattlefieldCreatures()
 

@@ -37,6 +37,7 @@ import leyline.testkit.persistentAnnotation
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
 /**
@@ -239,6 +240,38 @@ class LandManaTest :
                     a.manaPaymentOptionsCount shouldBeGreaterThan 0
                     a.manaSelectionsCount shouldBeGreaterThan 0
                 }
+            }
+        }
+
+        test("dual land ActivateMana exposes selectable colors") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Jungle Hollow", human, ZoneType.Battlefield)
+                }
+
+            val action =
+                ActionMapper
+                    .buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
+                    .ofType(ActionType.ActivateMana)
+                    .single()
+            val colors = listOf(ManaColor.Black_afc9, ManaColor.Green_afc9)
+            val selection = action.manaSelectionsList.single()
+            val cardData = b.cardRepository.findByGrpId(action.grpId) ?: error("missing card data")
+            val abilityIndex = cardData.abilityIds.indexOfFirst { (grpId, _) -> grpId == action.abilityGrpId }
+            val expectedUniqueAbilityId = 50 + abilityIndex
+
+            assertSoftly {
+                action.abilityGrpId shouldNotBe 0
+                abilityIndex shouldNotBe -1
+                action.uniqueAbilityId shouldBe expectedUniqueAbilityId
+                action.manaPaymentOptionsList
+                    .map { it.manaList.single().color } shouldContainExactlyInAnyOrder colors
+
+                selection.selectionCount shouldBe 1
+                selection.validationType shouldBe SelectionValidationType.NonRepeatable
+                selection.optionsList.map { it.selectedColor } shouldContainExactlyInAnyOrder colors
+                selection.optionsList
+                    .map { it.manaList.single().color } shouldContainExactlyInAnyOrder colors
             }
         }
 
