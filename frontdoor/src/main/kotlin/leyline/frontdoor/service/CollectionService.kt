@@ -2,6 +2,7 @@ package leyline.frontdoor.service
 
 import leyline.frontdoor.domain.PlayerId
 import org.slf4j.LoggerFactory
+import java.util.zip.CRC32
 
 /**
  * Player card collection — what cards a player owns and how many copies.
@@ -15,8 +16,11 @@ import org.slf4j.LoggerFactory
  * Server responds `{"cacheVersion": N, "cards": {"<grpId>": <count>, ...}}`.
  *
  * The protocol supports incremental updates — only changed cards after the
- * client's cached version. We always return the full set with a stable positive
- * cache version so the client accepts the replacement collection.
+ * client's cached version. We always return the full set, with the cache version
+ * derived from a content hash of the cards. A degraded boot that yields an empty
+ * collection therefore reports a different version than a full one, so the client
+ * re-fetches automatically once the underlying card data recovers — and an
+ * unchanged collection keeps the same version, avoiding spurious re-fetches.
  */
 class CollectionService(
     /** Provides all available card grpIds. Injected from CardRepository at wiring time. */
@@ -40,9 +44,22 @@ class CollectionService(
         return grpIds.associateWith { 250 }
     }
 
-    /** Serialize collection to the wire format expected by CmdType 551. */
+    /** Serialize collection to the JSON payload expected by CmdType 551. */
     fun toJson(collection: Map<Int, Int>): String {
-        val cards = collection.entries.joinToString(",") { (grpId, count) -> "\"$grpId\":$count" }
-        return """{"cacheVersion":2,"cards":{$cards}}"""
+        val cards =
+            collection.entries
+                .sortedBy { it.key }
+                .joinToString(",") { (grpId, count) -> "\"$grpId\":$count" }
+        return """{"cacheVersion":${cacheVersion(cards)},"cards":{$cards}}"""
+    }
+
+    /**
+     * Content-derived cache version: CRC32 of the (sorted) cards payload, masked
+     * to a non-negative Int. Same cards → same version; any change → new version.
+     */
+    private fun cacheVersion(cards: String): Int {
+        val crc = CRC32()
+        crc.update(cards.toByteArray())
+        return (crc.value and 0x7FFF_FFFF).toInt()
     }
 }
