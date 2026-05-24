@@ -171,6 +171,7 @@ class GameBridge(
     private val actionBridges = mutableMapOf<Int, GameActionBridge>()
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
     private val mulliganBridges = mutableMapOf<Int, MulliganBridge>()
+
     @Volatile
     var autoAdvanceRequester: ((String) -> Unit)? = null
     private val promptTimeoutNeedsAutoAdvance = AtomicBoolean(false)
