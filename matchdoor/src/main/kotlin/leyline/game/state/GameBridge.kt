@@ -51,6 +51,7 @@ import java.lang.reflect.InvocationTargetException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Bridges the client protocol to a real Forge [Game] engine.
@@ -69,7 +70,9 @@ import java.util.concurrent.ConcurrentLinkedQueue
  */
 class GameBridge(
     /** Timeout for player priority/action windows. Null waits indefinitely. */
-    private val bridgeTimeoutMs: Long? = 45_000L,
+    private val bridgeTimeoutMs: Long? = null,
+    /** Timeout for client-visible prompts. Null waits indefinitely. */
+    private val promptFailsafeMs: Long? = DEFAULT_PROMPT_FAILSAFE_TIMEOUT_MS,
     /** Playtest config — controls AI speed, die roll, etc. */
     val matchConfig: MatchConfig = MatchConfig(),
     /** Shared protocol counter for GRE message sequencing.
@@ -168,20 +171,23 @@ class GameBridge(
     private val actionBridges = mutableMapOf<Int, GameActionBridge>()
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
     private val mulliganBridges = mutableMapOf<Int, MulliganBridge>()
-    private val promptFailsafeTimeoutMs: Long = bridgeTimeoutMs ?: DEFAULT_PROMPT_FAILSAFE_TIMEOUT_MS
+    @Volatile
+    var autoAdvanceRequester: ((String) -> Unit)? = null
+    private val promptTimeoutNeedsAutoAdvance = AtomicBoolean(false)
 
     init {
         // Seed seat-1 bridges (human seat) — matches previous singleton behaviour.
         actionBridges[1] = GameActionBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
         promptBridges[1] =
-            InteractivePromptBridge(timeoutMs = promptFailsafeTimeoutMs, prioritySignal = prioritySignal).also {
+            InteractivePromptBridge(timeoutMs = promptFailsafeMs, prioritySignal = prioritySignal).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
                 it.instanceIdReservoir = { ids.reserveNextInstanceId() }
+                it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
         mulliganBridges[1] =
             MulliganBridge(
                 autoKeep = matchConfig.game.skipMulligan,
-                timeoutMs = promptFailsafeTimeoutMs,
+                timeoutMs = matchConfig.server.mulliganWaitMs,
             )
     }
 
@@ -224,6 +230,8 @@ class GameBridge(
             seat(SeatId(viewingSeatId)).drainReveals()
         }
 
+    fun consumePromptTimeoutNeedsAutoAdvance(): Boolean = promptTimeoutNeedsAutoAdvance.getAndSet(false)
+
     /**
      * Pre-populate auto-pass bridges for a synthetic seat.
      * Used by tests that need an extra passive seat without AI wiring.
@@ -237,6 +245,7 @@ class GameBridge(
             InteractivePromptBridge(timeoutMs = 0, prioritySignal = prioritySignal).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
                 it.instanceIdReservoir = { ids.reserveNextInstanceId() }
+                it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
         mulliganBridges[seatId.value] = MulliganBridge(autoKeep = true, timeoutMs = 0)
         log.info("GameBridge: seat {} configured as synthetic (auto-pass)", seatId.value)

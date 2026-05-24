@@ -48,6 +48,9 @@ class InteractivePromptBridge(
     @Volatile
     var instanceIdReservoir: (() -> InstanceId)? = null
 
+    @Volatile
+    var timeoutListener: (() -> Unit)? = null
+
     /**
      * Typed per-seat journal of prompt side-effects. Coordinators record
      * [PromptSideEffect] entries on the engine thread; consumers
@@ -314,6 +317,7 @@ class InteractivePromptBridge(
             DevCheck.failOnAutoPass { "Prompt timed out (type=${request.promptType}, msg=${request.message})" }
             val fallback = listOf(request.defaultIndex)
             record(request, PromptCallStatus.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
+            timeoutListener?.invoke()
             fallback
         } catch (ex: Exception) {
             log.error("Prompt failed with exception, using default", ex)

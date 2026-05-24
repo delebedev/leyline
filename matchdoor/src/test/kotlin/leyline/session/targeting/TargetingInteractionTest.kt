@@ -14,6 +14,11 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
+import leyline.bridge.types.SeatId
+import leyline.config.AiConfig
+import leyline.config.MatchConfig
+import leyline.config.ServerConfig
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.beInHandOf
@@ -99,6 +104,61 @@ class TargetingInteractionTest :
 
             assertAccumulatorConsistent("after targeting flow")
             assertGsIdChain(allMessages, context = "targeting flow")
+        }
+
+        test("Giant Growth — prompt timeout drains queued playback and offers priority") {
+            val h =
+                MatchFlowHarness(
+                    validating = false,
+                    matchConfig =
+                        MatchConfig(
+                            ai = AiConfig(speed = 0.0),
+                            server =
+                                ServerConfig(
+                                    bridgeTimeoutMs = 5_000L,
+                                    promptFailsafeMs = 100L,
+                                    aiTurnWaitMs = 500L,
+                                    mulliganWaitMs = 500L,
+                                ),
+                        ),
+                )
+            try {
+                h.connectAndKeepPuzzleText(
+                    """
+                    [metadata]
+                    Name:Targeted Prompt Timeout
+                    Goal:Resolve prompt timeout
+                    Turns:1
+
+                    [state]
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+
+                    humanhand=Giant Growth
+                    humanbattlefield=Forest;Grizzly Bears
+                    humanlibrary=Forest
+                    ailibrary=Mountain
+                    """.trimIndent(),
+                )
+
+                h.castSpellByName("Giant Growth").shouldBeTrue()
+                val promptGsId = h.allMessages.last { it.hasSelectTargetsReq() }.gameStateId
+
+                waitFor(timeoutMs = 2_000L) {
+                    h.drainSink()
+                    h.allMessages.any { it.gameStateId > promptGsId }
+                }.shouldBeTrue()
+
+                h.bridge.promptBridge(SeatId(1)).getPendingPrompt() shouldBe null
+                h.allMessages
+                    .filter { it.gameStateId > promptGsId }
+                    .any { it.hasGameStateMessage() }
+                    .shouldBeTrue()
+            } finally {
+                h.shutdown()
+            }
         }
 
         test("Giant Growth — multiple spells stack +3/+3 twice") {
@@ -623,3 +683,16 @@ class TargetingInteractionTest :
             }
         }
     })
+
+@Suppress("NoThreadSleepInTests")
+private fun waitFor(
+    timeoutMs: Long,
+    predicate: () -> Boolean,
+): Boolean {
+    val deadline = System.currentTimeMillis() + timeoutMs
+    while (System.currentTimeMillis() < deadline) {
+        if (predicate()) return true
+        Thread.sleep(20)
+    }
+    return predicate()
+}

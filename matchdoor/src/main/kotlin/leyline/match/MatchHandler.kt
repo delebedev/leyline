@@ -235,6 +235,7 @@ class MatchHandler(
                             val bridge =
                                 GameBridge(
                                     bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
+                                    promptFailsafeMs = matchConfig.server.promptFailsafeMs,
                                     matchConfig = matchConfig,
                                     messageCounter = MessageCounter(),
                                     cardRepository = cardRepository,

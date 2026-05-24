@@ -13,8 +13,11 @@
 
 # Bridge timeout — how long the engine waits for human priority/action responses (ms).
 # Leave unset for local gameplay: priority/action windows wait indefinitely.
-# Prompts still keep a finite fail-safe so unrendered engine prompts cannot stall forever.
 #bridge_timeout_ms = 45000
+
+# Prompt fail-safe — how long targeted/modal/search prompts wait before defaulting (ms).
+# Leave set for smoke/playtest robustness; unset only for fully manual prompt debugging.
+#prompt_failsafe_ms = 45000
 
 # Player database path (relative to CWD or absolute).
 #player_db = "data/player.db"
