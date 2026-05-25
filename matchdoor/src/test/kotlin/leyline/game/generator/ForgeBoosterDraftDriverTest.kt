@@ -1,8 +1,10 @@
 package leyline.game.generator
 
+import forge.gamemodes.limited.DraftPickStrategy
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.shouldBe
@@ -10,8 +12,6 @@ import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
-import leyline.game.generator.ForgeBoosterDraftDriver
-import leyline.game.generator.PickResult
 import java.util.concurrent.atomic.AtomicInteger
 
 private class AutoMappingCardRepository : CardRepository {
@@ -141,6 +141,23 @@ class ForgeBoosterDraftDriverTest :
             allBotIds.size shouldBeGreaterThanOrEqual 1
             for (grpId in allBotIds) {
                 repo.findNameByGrpId(grpId) shouldBe repo.findNameByGrpId(grpId)
+            }
+        }
+
+        test("headless draft invokes custom bot pick strategy") {
+            val calls = AtomicInteger(0)
+            val strategy =
+                DraftPickStrategy { context ->
+                    calls.incrementAndGet()
+                    context.pack.last()
+                }
+            val draft = HeadlessBoosterDraft("FDN", strategy)
+            val pack = draft.currentPackPaperCards()
+
+            assertSoftly {
+                draft.chooseLocally(pack.first()) shouldBe true
+                draft.currentPackPaperCards().shouldNotBeEmpty()
+                calls.get() shouldBeGreaterThanOrEqual 1
             }
         }
     })

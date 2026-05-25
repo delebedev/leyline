@@ -9,10 +9,11 @@ import java.io.File
 /**
  * Top-level configuration loaded from `leyline.toml`.
  *
- * Four sections:
+ * Five sections:
  * - [server] — ports, timeouts, paths (infra)
  * - [game]   — seed, die roll, mulligan, timer (match setup)
  * - [ai]     — animation speed
+ * - [draft]  — booster draft picker settings
  * - [dev]    — strict checking knobs for development
  *
  * Loaded once at startup; immutable after that.
@@ -23,6 +24,7 @@ data class MatchConfig(
     val server: ServerConfig = ServerConfig(),
     val game: GameConfig = GameConfig(),
     val ai: AiConfig = AiConfig(),
+    val draft: DraftConfig = DraftConfig(),
     val dev: DevConfig = DevConfig(),
 ) {
     companion object {
@@ -71,6 +73,9 @@ data class MatchConfig(
                 "server.bridge_timeout_ms must be positive when set, got $it"
             }
         }
+        require(draft.picker in setOf("forge", "model")) {
+            "draft.picker must be 'forge' or 'model', got ${draft.picker}"
+        }
     }
 
     /**
@@ -90,6 +95,7 @@ data class MatchConfig(
             append(" skipMulligan=${game.skipMulligan}")
             append(" aiSpeed=${ai.speed}x")
             append(" bridgeTimeout=${server.bridgeTimeoutMs?.let { "${it}ms" } ?: "none"}")
+            append(" draftPicker=${draft.picker}")
             if (dev.strict || dev.strictPass) {
                 append(" dev.strict=${dev.strict} dev.strict_pass=${dev.strictPass}")
             }
@@ -176,6 +182,15 @@ data class AiConfig(
      * 0 = instant (no delays).
      */
     val speed: Double = 1.0,
+)
+
+@Serializable
+data class DraftConfig(
+    /** Pick strategy for computer seats during booster drafts. */
+    val picker: String = "forge",
+    /** Directory containing one subdirectory per set with weights.json(.gz) and card_meta.json. */
+    @SerialName("model_dir")
+    val modelDir: String = "data/draft-models",
 )
 
 /**
