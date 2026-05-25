@@ -1031,11 +1031,13 @@ object StateMapper {
                         AnnotationType.ResolutionComplete in ann.typeList
                 }
         val previousPlayers = listOf(PlayerMapper.buildFromSnapshot(prev, 1), PlayerMapper.buildFromSnapshot(prev, 2))
-        val includePlayers =
-            current.playersList != previousPlayers ||
+        val playerPayloadNeeded =
+            events.events.any { it is GameEvent.ManaAbilityActivated } ||
                 current.annotationsList.any { ann ->
                     AnnotationType.ModifiedLife in ann.typeList || AnnotationType.LossOfGame_af5a in ann.typeList
                 }
+        val includePlayers =
+            current.playersList != previousPlayers || playerPayloadNeeded
 
         val builder =
             GameStateMessage

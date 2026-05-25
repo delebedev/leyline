@@ -4,6 +4,7 @@ import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
@@ -43,7 +44,9 @@ class ManaPoolSessionTest :
             val forestPool = forestMessages.latestHumanManaPool()
             assertSoftly {
                 forestPool.size shouldBe 1
-                forestPool.hasGreenFrom(forestIid).shouldBeTrue()
+                withClue("forestPool=$forestPool forestIid=$forestIid") {
+                    forestPool.hasGreenFrom(forestIid).shouldBeTrue()
+                }
             }
 
             val elfPool =

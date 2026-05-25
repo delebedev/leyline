@@ -632,9 +632,9 @@ class GameBridgeTest :
             val gs = result.messages.first().gameStateMessage
 
             gs.type shouldBe Messages.GameStateType.Diff
-            // Diff always has players and turnInfo (metadata)
-            gs.playersCount shouldBeGreaterThan 0
-            gs.hasTurnInfo().shouldBeTrue()
+            // Unchanged metadata is trimmed from Diff frames.
+            gs.playersCount shouldBe 0
+            gs.hasTurnInfo().shouldBeFalse()
         }
 
         test("diff falls back to Full without snapshot") {
