@@ -384,7 +384,6 @@ class PlayerController(
         addMsgSuffix: Boolean,
     ) {
         targetingCoordinator.captureReveal(cards, zone, owner)
-        super.reveal(cards, zone, owner, messagePrefix, addMsgSuffix)
     }
 
     // -- Sacrifice / Destroy ----------------------------------------------
@@ -424,7 +423,7 @@ class PlayerController(
         min: Int,
         max: Int,
         visibleToChooser: CardCollectionView,
-    ): CardCollectionView = targetingCoordinator.chooseCardsToDiscardFrom(sa, validCards, min, max)
+    ): CardCollectionView = targetingCoordinator.chooseCardsToDiscardFrom(p, sa, validCards, min, max, visibleToChooser)
 
     override fun chooseCardsToDiscardToMaximumHandSize(nDiscard: Int): CardCollection =
         targetingCoordinator.chooseCardsToDiscardToMaximumHandSize(nDiscard, player.getZone(ZoneType.Hand).cards)
