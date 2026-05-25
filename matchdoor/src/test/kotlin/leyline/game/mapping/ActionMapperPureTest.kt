@@ -127,8 +127,8 @@ class ActionMapperPureTest :
                     cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
                 )
 
-            val hasActivateMana = actions.actionsList.any { it.actionType == ActionType.ActivateMana }
-            hasActivateMana.shouldBeTrue()
+            val activateMana = actions.actionsList.first { it.actionType == ActionType.ActivateMana }
+            activateMana.abilityGrpId shouldBe 1002
         }
 
         // -----------------------------------------------------------------------

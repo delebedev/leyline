@@ -14,6 +14,7 @@ import leyline.game.annotations.MechanicAnnotationResult
 import leyline.game.annotations.MechanicAnnotations
 import leyline.game.event.GameEvent
 import leyline.game.iid
+import leyline.game.mapping.ZoneIds
 import leyline.game.state.EffectTracker
 import leyline.game.state.PersistentAnnotationStore
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -138,5 +139,35 @@ class PersistentAnnotationPipelineTest :
                 )
             result.allAnnotations.shouldBeEmpty()
             result.deletedIds shouldBe listOf(3)
+        }
+
+        test("computeBatchRemovesStackEnteredZoneThisTurnOnResolve") {
+            val stackAnn =
+                AnnotationBuilder
+                    .enteredZoneThisTurn(ZoneIds.STACK, 100.iid)
+                    .toBuilder()
+                    .setId(1)
+                    .build()
+            val battlefieldAnn =
+                AnnotationBuilder
+                    .enteredZoneThisTurn(ZoneIds.BATTLEFIELD, 200.iid)
+                    .toBuilder()
+                    .setId(2)
+                    .build()
+
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = mapOf(1 to stackAnn, 2 to battlefieldAnn),
+                    startPersistentId = 10,
+                    frame = FrameContext.INERT.copy(resolvingStackIids = setOf(100)),
+                    effectPersistent = emptyList(),
+                    effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    transferPersistent = emptyList(),
+                    mechanicResult = MechanicAnnotationResult(transient = emptyList(), persistent = emptyList()),
+                    resolveInstanceId = { fid -> InstanceId(fid.value + 1000) },
+                )
+
+            result.deletedIds shouldBe listOf(1)
+            result.allAnnotations.map { it.id } shouldBe listOf(2)
         }
     })

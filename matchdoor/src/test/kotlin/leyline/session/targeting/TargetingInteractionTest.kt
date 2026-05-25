@@ -20,7 +20,6 @@ import leyline.testkit.beInHandOf
 import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.clientMessage
 import leyline.testkit.detailInt
-import leyline.testkit.detailUint
 import leyline.testkit.firstWithTransferCategory
 import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
@@ -514,7 +513,7 @@ class TargetingInteractionTest :
                 // affectorId = dealing creature (not the spell iid)
                 damageAnn.affectorId shouldBe dealerIid
                 // Damage amount = dealer power (Grizzly Bears = 2)
-                damageAnn.detailUint("damage") shouldBe 2
+                damageAnn.detailInt("damage") shouldBe 2
                 // affectedIds = reallocated target iid
                 damageAnn.affectedIdsCount shouldBe 1
                 damageAnn.getAffectedIds(0) shouldBeGreaterThan 0

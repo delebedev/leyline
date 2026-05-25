@@ -21,6 +21,7 @@ import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.codes.ManaColorMapping
+import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
@@ -1115,7 +1116,7 @@ object ActionMapper {
         val cardData = cardDataLookup(GrpId(grpId))
         val registry = abilityRegistryLookup(card, cardData)
         return getPlayableManaAbilities(card, card.controller).mapNotNull { sa ->
-            val abilityGrpId = registry?.forSpellAbility(sa.id) ?: 0
+            val abilityGrpId = registry?.forSpellAbility(sa.id) ?: basicLandAbilityGrpId(card)
             val colors = producedManaColors(sa)
             if (colors.isEmpty()) return@mapNotNull null
 
@@ -1166,6 +1167,11 @@ object ActionMapper {
 
             actionBuilder.build()
         }
+    }
+
+    private fun basicLandAbilityGrpId(card: Card): Int {
+        val subtypes = card.type.subtypes.map { it.lowercase() }
+        return BasicLandAbilities.BY_SUBTYPE.firstOrNull { it.first in subtypes }?.second ?: 0
     }
 
     /** Match the source object's UniqueAbilityInfo.id for the emitted ability row. */
@@ -1568,7 +1574,7 @@ object ActionMapper {
                 val grpId = grpIdResolver(card).value
                 val cardData = cardDataLookup(GrpId(grpId))
                 val registry = abilityRegistryLookup(card, cardData)
-                val abilityGrpId = registry?.forSpellAbility(sa.id) ?: 0
+                val abilityGrpId = registry?.forSpellAbility(sa.id) ?: basicLandAbilityGrpId(card)
                 for (color in colors) {
                     sources.add(ManaSource(card, instanceId, color, abilityGrpId))
                 }

@@ -4,6 +4,7 @@ import forge.game.phase.PhaseType
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -418,6 +419,9 @@ data object EnteredZoneThisTurnKind : PersistentAnnotationKind {
         ann: AnnotationInfo,
         frame: FrameContext,
     ): Boolean {
+        if (ann.affectorId == ZoneIds.STACK && ann.affectedIdsList.any { it in frame.resolvingStackIids }) {
+            return true
+        }
         if (frame.phase != PhaseType.UPKEEP) return false
         val affected = ann.affectedIdsList.firstOrNull() ?: return false
         val controller = frame.controllerOf[affected]
