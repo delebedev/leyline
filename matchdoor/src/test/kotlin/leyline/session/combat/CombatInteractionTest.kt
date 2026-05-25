@@ -19,6 +19,7 @@ import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
 import leyline.testkit.allAnnotations
 import leyline.testkit.assertGsIdChain
+import leyline.testkit.detailInt
 import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -455,15 +456,9 @@ class CombatInteractionTest :
 
             for (gsm in damageGsms) {
                 val damage = gsm.annotationsList.single { AnnotationType.DamageDealt_af5a in it.typeList }
-                damage.detailsList
-                    .first { it.key == "damage" }
-                    .valueUint32List
-                    .single() shouldBe 1
+                damage.detailInt("damage") shouldBe 1
                 val life = gsm.annotationsList.single { AnnotationType.ModifiedLife in it.typeList }
-                life.detailsList
-                    .first { it.key == "life" }
-                    .valueInt32List
-                    .single() shouldBe -1
+                life.detailInt("life") shouldBe -1
             }
         }
 

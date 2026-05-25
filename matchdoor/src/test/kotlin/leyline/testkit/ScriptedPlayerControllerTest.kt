@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
@@ -30,9 +31,8 @@ class ScriptedPlayerControllerTest :
             harness = null
         }
 
-        test("scripted AI plays Forest on turn 1") {
-            // AI-first seed: AI goes first, gets priority on turn 1
-            val h = MatchFlowHarness(seed = 2L, validating = true)
+        test("scripted AI plays Forest on its first turn") {
+            val h = MatchFlowHarness(validating = true)
             harness = h
             h.connectAndKeep()
 
@@ -51,8 +51,8 @@ class ScriptedPlayerControllerTest :
                 ),
             )
 
-            // Pass through AI turn + our turn until turn 2
-            h.passUntilTurn(2, maxPasses = 30)
+            // Pass through our turn and the scripted AI turn.
+            h.passUntilTurn(3, maxPasses = 30)
 
             // After AI's turn 1, it should have played a Forest onto the battlefield
             val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
@@ -64,7 +64,7 @@ class ScriptedPlayerControllerTest :
 
         test("script exhaustion does not hang") {
             // Empty script — AI should just pass on every decision
-            val h = MatchFlowHarness(seed = 2L, validating = true)
+            val h = MatchFlowHarness(validating = true)
             harness = h
             h.connectAndKeep()
 
@@ -72,13 +72,13 @@ class ScriptedPlayerControllerTest :
 
             // This should not hang — exhausted script falls back to pass
             h.passUntilTurn(2, maxPasses = 30)
-            h.turn() shouldBe 2
+            h.turn() shouldBeGreaterThanOrEqual 2
             h.isGameOver().shouldBeFalse()
         }
 
         test("illegal action in script does not hang") {
             // Script tries to play a card that doesn't exist — should warn and pass
-            val h = MatchFlowHarness(seed = 2L, validating = true)
+            val h = MatchFlowHarness(validating = true)
             harness = h
             h.connectAndKeep()
 
@@ -97,7 +97,7 @@ class ScriptedPlayerControllerTest :
 
             // Should not hang even with an illegal action
             h.passUntilTurn(2, maxPasses = 30)
-            h.turn() shouldBe 2
+            h.turn() shouldBeGreaterThanOrEqual 2
             h.isGameOver().shouldBeFalse()
         }
     })

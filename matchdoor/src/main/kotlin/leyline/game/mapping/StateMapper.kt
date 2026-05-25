@@ -711,11 +711,15 @@ object StateMapper {
         // don't appear in the snapshot's zone contents.
         val stackIids: Set<Int> = frameIds.stackInstanceIds(snap)
         val resolvingStackIids: Set<Int> =
-            eventsMutable
-                .filterIsInstance<GameEvent.SpellResolved>()
-                .filter { it.isTrigger || it.isAbility }
-                .map { stackAbilityIidFor(it.abilityForgeId, it.cardId, frameIds) }
-                .toSet()
+            (
+                transferResult.transfers
+                    .filter { it.srcZoneId == ZoneIds.STACK }
+                    .map { it.origId } +
+                    eventsMutable
+                        .filterIsInstance<GameEvent.SpellResolved>()
+                        .filter { it.isTrigger || it.isAbility }
+                        .map { stackAbilityIidFor(it.abilityForgeId, it.cardId, frameIds) }
+            ).toSet()
         val controllerOf: Map<Int, SeatId> =
             snap.boundCards.values.associate { bound ->
                 bridge.getOrAllocInstanceId(bound.forgeCardId).value to bound.snapshot.controller
@@ -1018,13 +1022,28 @@ object StateMapper {
             ((prev.objects.keys - cur.objects.keys).map { bridge.getOrAllocInstanceId(it).value } + deletedDisturbBackIds)
                 .filter { it !in currentObjIds && it !in currentZoneTrackedIds }
 
+        val previousTurnInfo = GsmFrame.Companion.from(prev).turnInfo()
+        val includeTurnInfo =
+            current.turnInfo != previousTurnInfo ||
+                current.annotationsList.any { ann ->
+                    AnnotationType.PhaseOrStepModified in ann.typeList ||
+                        AnnotationType.ResolutionStart in ann.typeList ||
+                        AnnotationType.ResolutionComplete in ann.typeList
+                }
+        val previousPlayers = listOf(PlayerMapper.buildFromSnapshot(prev, 1), PlayerMapper.buildFromSnapshot(prev, 2))
+        val playerPayloadNeeded =
+            events.events.any { it is GameEvent.ManaAbilityActivated } ||
+                current.annotationsList.any { ann ->
+                    AnnotationType.ModifiedLife in ann.typeList || AnnotationType.LossOfGame_af5a in ann.typeList
+                }
+        val includePlayers =
+            current.playersList != previousPlayers || playerPayloadNeeded
+
         val builder =
             GameStateMessage
                 .newBuilder()
                 .setType(GameStateType.Diff)
                 .setGameStateId(gameStateId)
-                .setTurnInfo(current.turnInfo)
-                .addAllPlayers(current.playersList)
                 .addAllZones(changedZones.sortedBy { it.zoneId })
                 .addAllGameObjects(changedObjects)
                 .addAllAnnotations(current.annotationsList)
@@ -1045,6 +1064,9 @@ object StateMapper {
                 .addAllTimers(PlayerMapper.buildTimers())
                 .setUpdate(updateType)
                 .setPrevGameStateId(prev.gameStateId)
+
+        if (includeTurnInfo) builder.setTurnInfo(current.turnInfo)
+        if (includePlayers) builder.addAllPlayers(current.playersList)
 
         // Fold TriggerHolder gameObjects retired this GSM into the delete list.
         // The batch is compute-time data; applyMutations commits tracker state

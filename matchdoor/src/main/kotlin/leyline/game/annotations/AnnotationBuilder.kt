@@ -99,7 +99,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.ResolutionStart)
             .setAffectorId(instanceId.value)
             .addAffectedIds(instanceId.value)
-            .addDetails(uint32Detail(DetailKeys.GRPID, grpId.value))
+            .addDetails(int32Detail(DetailKeys.GRPID, grpId.value))
             .build()
 
     /** A new turn started. Client uses this to reset turn-scoped state.
@@ -329,7 +329,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.ResolutionComplete)
             .setAffectorId(instanceId.value)
             .addAffectedIds(instanceId.value)
-            .addDetails(uint32Detail(DetailKeys.GRPID, grpId.value))
+            .addDetails(int32Detail(DetailKeys.GRPID, grpId.value))
             .build()
 
     /**
@@ -351,9 +351,9 @@ object AnnotationBuilder {
             .addType(AnnotationType.DamageDealt_af5a)
             .setAffectorId(sourceInstanceId.value)
             .addAffectedIds(targetId.value)
-            .addDetails(uint32Detail(DetailKeys.DAMAGE, amount))
-            .addDetails(uint32Detail(DetailKeys.TYPE, COMBAT_DAMAGE_TYPE))
-            .addDetails(uint32Detail(DetailKeys.MARK_DAMAGE, MARK_DAMAGE_FLAG))
+            .addDetails(int32Detail(DetailKeys.DAMAGE, amount))
+            .addDetails(int32Detail(DetailKeys.TYPE, COMBAT_DAMAGE_TYPE))
+            .addDetails(int32Detail(DetailKeys.MARK_DAMAGE, MARK_DAMAGE_FLAG))
             .build()
 
     /** Player life total changed. Client uses this for life counter animation. */
@@ -414,7 +414,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.SyntheticEvent)
             .setAffectorId(attackerIid.value)
             .addAffectedIds(targetSeatId.value)
-            .addDetails(uint32Detail(DetailKeys.TYPE, 1))
+            .addDetails(int32Detail(DetailKeys.TYPE, 1))
             .build()
 
     /** Persistent annotation: card entered a zone this turn. Client uses for summoning sickness, ETB display. */
@@ -681,7 +681,7 @@ object AnnotationBuilder {
                 .addType(AnnotationType.AddAbility_af5a)
                 .addType(AnnotationType.LayeredEffect)
                 .setAffectorId(affectorId.value)
-                .addDetails(uint32Detail(DetailKeys.GRPID, grpId.value))
+                .addDetails(int32Detail(DetailKeys.GRPID, grpId.value))
                 .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
                 .addDetails(int32Detail(DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID, originalAbilityObjectZcid))
         affectedIds.forEach { builder.addAffectedIds(it.value) }
@@ -710,7 +710,7 @@ object AnnotationBuilder {
                 .setAffectorId(affectorId.value)
                 .addAffectedIds(affectedId.value)
                 .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
-        grpIds.forEach { builder.addDetails(uint32Detail(DetailKeys.GRPID, it.value)) }
+        grpIds.forEach { builder.addDetails(int32Detail(DetailKeys.GRPID, it.value)) }
         uniqueAbilityIds.forEach { builder.addDetails(int32Detail(DetailKeys.UNIQUE_ABILITY_ID, it)) }
         originalAbilityObjectZcids.forEach {
             builder.addDetails(int32Detail(DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID, it))
@@ -1456,17 +1456,6 @@ object AnnotationBuilder {
                 DetailKeys.REASON,
                 reason.wireInt ?: error("AnnotationLossReason ${reason.name} has no wire value"),
             )
-
-    private fun uint32Detail(
-        key: String,
-        value: Int,
-    ): KeyValuePairInfo =
-        KeyValuePairInfo
-            .newBuilder()
-            .setKey(key)
-            .setType(KeyValuePairValueType.Uint32)
-            .addValueUint32(value)
-            .build()
 
     private fun int32Detail(
         key: String,

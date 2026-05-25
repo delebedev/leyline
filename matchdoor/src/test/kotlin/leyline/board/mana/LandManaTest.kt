@@ -112,6 +112,9 @@ class LandManaTest :
                 landObj.zoneId shouldBe ZoneIds.BATTLEFIELD
                 landObj.uniqueAbilitiesCount shouldBeGreaterThan 0
 
+                val retiredObj = gsm.gameObjectsList.first { it.instanceId == origId }
+                retiredObj.zoneId shouldBe ZoneIds.LIMBO
+
                 assertLimboContains(gsm, origId)
                 gsm.diffDeletedInstanceIdsList shouldNotContain origId
             }
@@ -234,6 +237,7 @@ class LandManaTest :
                 for (a in manaActions) {
                     a.instanceId shouldNotBe 0
                     a.grpId shouldNotBe 0
+                    a.abilityGrpId shouldBe 1005
                     a.facetId shouldBe a.instanceId
                     a.shouldStop.shouldBeFalse()
                     a.isBatchable.shouldBeTrue()
@@ -301,9 +305,11 @@ class LandManaTest :
 
                 for (tap in a.autoTapSolution.autoTapActionsList) {
                     tap.instanceId shouldNotBe 0
+                    tap.abilityGrpId shouldBe 1005
                     tap.hasManaPaymentOption().shouldBeTrue()
                     for (m in tap.manaPaymentOption.manaList) {
                         m.srcInstanceId shouldNotBe 0
+                        m.abilityGrpId shouldBe 1005
                         m.color shouldBe ManaColor.Green_afc9
                         m.count shouldBe 1
                     }

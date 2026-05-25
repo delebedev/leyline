@@ -22,7 +22,6 @@ import leyline.testkit.detail
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList
 import leyline.testkit.detailString
-import leyline.testkit.detailUint
 import leyline.testkit.hasDetail
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -243,9 +242,9 @@ class AnnotationBuilderTest :
                 ann.typeList shouldContain AnnotationType.ResolutionStart
                 ann.affectorId shouldBe 500
                 ann.affectedIdsList shouldContain 500
+                ann.detailInt("grpid") shouldBe 12345
+                ann.detail("grpid")?.type shouldBe KeyValuePairValueType.Int32
             }
-
-            ann.detailUint("grpid") shouldBe 12345
         }
 
         // --- ResolutionComplete ---
@@ -256,9 +255,9 @@ class AnnotationBuilderTest :
                 ann.typeList shouldContain AnnotationType.ResolutionComplete
                 ann.affectorId shouldBe 500
                 ann.affectedIdsList shouldContain 500
+                ann.detailInt("grpid") shouldBe 12345
+                ann.detail("grpid")?.type shouldBe KeyValuePairValueType.Int32
             }
-
-            ann.detailUint("grpid") shouldBe 12345
         }
 
         // --- PhaseOrStepModified ---
@@ -401,9 +400,12 @@ class AnnotationBuilderTest :
             }
 
             assertSoftly {
-                ann.detailUint("damage") shouldBe 3
-                ann.detailUint("type") shouldBe 1
-                ann.detailUint("markDamage") shouldBe 1
+                ann.detailInt("damage") shouldBe 3
+                ann.detail("damage")?.type shouldBe KeyValuePairValueType.Int32
+                ann.detailInt("type") shouldBe 1
+                ann.detail("type")?.type shouldBe KeyValuePairValueType.Int32
+                ann.detailInt("markDamage") shouldBe 1
+                ann.detail("markDamage")?.type shouldBe KeyValuePairValueType.Int32
             }
         }
 
@@ -450,7 +452,8 @@ class AnnotationBuilderTest :
                 ann.typeList shouldContain AnnotationType.SyntheticEvent
                 ann.affectorId shouldBe 290
                 ann.affectedIdsList shouldBe listOf(2)
-                ann.detailUint("type") shouldBe 1
+                ann.detailInt("type") shouldBe 1
+                ann.detail("type")?.type shouldBe KeyValuePairValueType.Int32
             }
         }
 
@@ -657,9 +660,45 @@ class AnnotationBuilderTest :
                 ann.typeList shouldContain AnnotationType.AddAbility_af5a
                 ann.affectedIdsList shouldContain 100
                 ann.detailInt("grpid") shouldBe 6
+                ann.detail("grpid")?.type shouldBe KeyValuePairValueType.Int32
                 ann.detailInt("effect_id") shouldBe 7005
                 ann.detailInt("UniqueAbilityId") shouldBe 217
                 ann.detailInt("originalAbilityObjectZcid") shouldBe 372
+            }
+        }
+
+        test("addAbilityMultiUsesInt32GrpId") {
+            val ann =
+                AnnotationBuilder.addAbilityMulti(
+                    affectedIds = listOf(100.iid, 101.iid),
+                    grpId = 6.grp,
+                    effectId = 7005.eid,
+                    uniqueAbilityIds = listOf(217, 218),
+                    originalAbilityObjectZcid = 372,
+                    affectorId = 300.iid,
+                )
+
+            assertSoftly {
+                ann.detailInt("grpid") shouldBe 6
+                ann.detail("grpid")?.type shouldBe KeyValuePairValueType.Int32
+            }
+        }
+
+        test("addAbilityPackedUsesInt32GrpIds") {
+            val ann =
+                AnnotationBuilder.addAbilityPacked(
+                    affectedId = 100.iid,
+                    grpIds = listOf(6.grp, 14.grp),
+                    effectId = 7005.eid,
+                    uniqueAbilityIds = listOf(217, 218),
+                    originalAbilityObjectZcids = listOf(372, 373),
+                    affectorId = 300.iid,
+                )
+
+            val grpIdDetails = ann.detailsList.filter { it.key == "grpid" }
+            assertSoftly {
+                grpIdDetails.map { it.getValueInt32(0) } shouldBe listOf(6, 14)
+                grpIdDetails.map { it.type } shouldBe listOf(KeyValuePairValueType.Int32, KeyValuePairValueType.Int32)
             }
         }
 

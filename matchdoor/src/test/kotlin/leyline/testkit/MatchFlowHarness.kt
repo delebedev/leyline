@@ -1,6 +1,7 @@
 package leyline.testkit
 
 import forge.game.Game
+import forge.game.card.Card
 import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.getNonManaActivatedAbilities
@@ -12,6 +13,7 @@ import leyline.config.MatchConfig
 import leyline.config.ServerConfig
 import leyline.game.bundle.InvariantSelection
 import leyline.game.bundle.MessageCounter
+import leyline.game.data.BasicLandAbilities
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.StateMapper
@@ -329,7 +331,9 @@ class MatchFlowHarness(
         val grpId = bridge.resolveGrpId(card, iid)
         val cardData = bridge.cardRepository.findByGrpId(grpId)
         val ability = getPlayableManaAbilities(card, player).getOrNull(abilityIndex) ?: return false
-        val abilityGrpId = bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability.id) ?: 0
+        val abilityGrpId =
+            bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability.id)
+                ?: basicLandAbilityGrpId(card)
         val offer =
             ActionMapper
                 .buildFromSnapshot(seatId.value, GsmSnapshot.capture(game(), bridge, "activateMana", 0), bridge)
@@ -361,6 +365,11 @@ class MatchFlowHarness(
         session.onPerformAction(submitWithGsId(msg))
         drainSink()
         return true
+    }
+
+    private fun basicLandAbilityGrpId(card: Card): Int {
+        val subtypes = card.type.subtypes.map { it.lowercase() }
+        return BasicLandAbilities.BY_SUBTYPE.firstOrNull { it.first in subtypes }?.second ?: 0
     }
 
     /** Pass priority — sends a real Pass action through MatchSession. */

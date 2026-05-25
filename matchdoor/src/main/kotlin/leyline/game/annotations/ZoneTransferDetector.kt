@@ -1551,6 +1551,7 @@ object ZoneTransferDetector {
         val origId = limbo.value
         val newId = handoff.realloc.new.value
         val obj = patchedObjects[objectIndex]
+        patchedObjects.add(obj.toBuilder().setZoneId(ZoneIds.LIMBO).build())
         patchedObjects[objectIndex] = obj.toBuilder().setInstanceId(newId).build()
         patchZoneInstanceId(patchedZones, sourceZoneId, origId, newId)
         retiredIds.add(origId)

@@ -348,16 +348,14 @@ class AiTurnInteractionTest :
             startGame(seed = 2L, deckList = COMBAT_DECK, validating = true)
             passUntilTurn(2)
 
-            val turn1PlayLand =
+            val playLandMessages =
                 allMessages.filter { it.hasGameStateMessage() }.filter { gre ->
                     val gsm = gre.gameStateMessage
-                    gsm.turnInfo.turnNumber == 1 &&
-                        gsm.annotationsList.any { ann ->
-                            AnnotationType.ZoneTransfer_af5a in ann.typeList &&
-                                ann.detail("category")?.getValueString(0) == "PlayLand"
-                        }
+                    gsm.annotationsList.any { ann ->
+                        AnnotationType.ZoneTransfer_af5a in ann.typeList &&
+                            ann.detail("category")?.getValueString(0) == "PlayLand"
+                    }
                 }
-            turn1PlayLand.size shouldBe 1
-            turn1PlayLand.shouldNotBeEmpty()
+            playLandMessages.size shouldBe 1
         }
     })
