@@ -269,7 +269,30 @@ class ClientGuiGame(
         destChoices: List<T>?,
         referenceCard: CardView?,
         sideboardingMode: Boolean,
-    ): List<T> {
+    ): List<T> =
+        order(
+            title,
+            top,
+            remainingObjectsMin,
+            remainingObjectsMax,
+            sourceChoices,
+            destChoices,
+            referenceCard,
+            sideboardingMode,
+            false,
+        ).ordered()
+
+    override fun <T : Any?> order(
+        title: String,
+        top: String,
+        remainingObjectsMin: Int,
+        remainingObjectsMax: Int,
+        sourceChoices: List<T>,
+        destChoices: List<T>?,
+        referenceCard: CardView?,
+        sideboardingMode: Boolean,
+        showRememberCheckbox: Boolean,
+    ): IGuiGame.OrderResult<T> {
         // Trigger-order auto-resolve. Forge's `PCHuman.orderSimultaneousSa`
         // routes through here with `SpellAbilityView` choices for simultaneous
         // triggers. The protocol does not surface a stepper for that decision —
@@ -286,10 +309,10 @@ class ClientGuiGame(
         val orderedDest = destChoices.orEmpty()
         val payload = if (sourceChoices.isNotEmpty()) sourceChoices else orderedDest
         if (payload.firstOrNull { it != null } is SpellAbilityView) {
-            return payload.toList()
+            return IGuiGame.OrderResult(payload.toList(), false)
         }
 
-        if (sourceChoices.size <= 1) return sourceChoices.toList()
+        if (sourceChoices.size <= 1) return IGuiGame.OrderResult(sourceChoices.toList(), false)
         // Library / graveyard / search ordering: present as repeated "pick next" via choose_one.
         val remaining = sourceChoices.toMutableList()
         val result = mutableListOf<T>()
@@ -309,7 +332,7 @@ class ClientGuiGame(
             result.add(remaining.removeAt(idx))
         }
         result.addAll(remaining)
-        return result
+        return IGuiGame.OrderResult(result, false)
     }
 
     override fun <T : Any?> insertInList(
@@ -705,7 +728,7 @@ class ClientGuiGame(
     ) {}
 
     override fun setHighlighted(
-        pv: GameEntityView,
+        entities: Iterable<GameEntityView>,
         b: Boolean,
     ) {}
 
