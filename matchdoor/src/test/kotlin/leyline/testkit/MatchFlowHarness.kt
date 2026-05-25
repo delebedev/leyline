@@ -1006,7 +1006,10 @@ class MatchFlowHarness(
      */
     fun hasPendingAction(seat: SeatId = seatId): Boolean = bridge.actionBridge(seat).getPending() != null
 
-    fun shutdown() = bridge.shutdown()
+    fun shutdown() {
+        if (::session.isInitialized) session.close()
+        bridge.shutdown()
+    }
 
     // --- Real-client gsId reflection ---
     //

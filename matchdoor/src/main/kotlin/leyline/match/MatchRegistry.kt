@@ -90,9 +90,11 @@ class MatchRegistry {
         recorder?.shutdown()
 
         val matchHandlers = handlers.remove(matchId)?.values.orEmpty()
-        val sessionsRemoved = sessions.remove(matchId)?.size ?: 0
+        val removedSessions = sessions.remove(matchId)?.values.orEmpty()
+        val sessionsRemoved = removedSessions.size
         val match = matches.remove(matchId)
 
+        removedSessions.filterIsInstance<MatchSession>().forEach { it.close() }
         matchHandlers.forEach { it.detachAfterTeardown() }
 
         if (match != null) {

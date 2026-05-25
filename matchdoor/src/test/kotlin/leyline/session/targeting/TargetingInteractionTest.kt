@@ -106,10 +106,9 @@ class TargetingInteractionTest :
             assertGsIdChain(allMessages, context = "targeting flow")
         }
 
-        test("Giant Growth — prompt timeout drains queued playback and offers priority") {
+        test("Giant Growth — prompt timeout drains queued playback") {
             val h =
                 MatchFlowHarness(
-                    validating = false,
                     matchConfig =
                         MatchConfig(
                             ai = AiConfig(speed = 0.0),
