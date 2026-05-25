@@ -276,6 +276,32 @@ class TargetingCoordinator(
         return chooseCardsViaBridge(validCards, min, max, "Choose cards to discard")
     }
 
+    fun chooseCardsToDiscardFrom(
+        discarder: Player,
+        sa: SpellAbility?,
+        validCards: CardCollection,
+        min: Int,
+        max: Int,
+        visibleToChooser: CardCollectionView,
+    ): CardCollection {
+        val reveal = bridge.journal.activeReveal() ?: revealFromVisibleHand(discarder, visibleToChooser)
+        if (reveal != null) {
+            return chooseCardsViaBridgeForReveal(validCards, min, max, sa, reveal)
+        }
+        return chooseCardsViaBridge(validCards, min, max, "Choose cards to discard")
+    }
+
+    private fun revealFromVisibleHand(
+        discarder: Player,
+        visibleToChooser: CardCollectionView,
+    ): PromptSideEffect.RevealStarted? {
+        if (visibleToChooser.isEmpty()) return null
+        val visibleIds = visibleToChooser.mapNotNull { (it as? Card)?.let { card -> ForgeCardId(card.id) } }
+        if (!revealsWholeCurrentHand(visibleIds, discarder)) return null
+        val ownerSeat = if (discarder.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+        return PromptSideEffect.RevealStarted(visibleIds, ownerSeat)
+    }
+
     fun chooseCardsToDiscardToMaximumHandSize(
         nDiscard: Int,
         hand: CardCollectionView,
