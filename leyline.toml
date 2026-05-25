@@ -43,6 +43,11 @@ timer = false
 # AI animation speed. 2 = twice as fast, 1 = default, 0 = instant.
 speed = 1.0
 
+[draft]
+# Bot draft picker: "forge" uses Forge's built-in picker, "model" uses a bundled local model.
+#picker = "model"
+#model_dir = "data/draft-models"
+
 [dev]
 # Crash on unexpected nulls/fallbacks (missing grpId, instanceId not in map,
 # protocol sequencing errors). Off = warn + fallback (production behavior).

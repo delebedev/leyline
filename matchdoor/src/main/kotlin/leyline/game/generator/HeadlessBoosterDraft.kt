@@ -3,6 +3,8 @@ package leyline.game.generator
 import forge.deck.Deck
 import forge.deck.DeckSection
 import forge.gamemodes.limited.BoosterDraft
+import forge.gamemodes.limited.DefaultDraftPickStrategy
+import forge.gamemodes.limited.DraftPickStrategy
 import forge.gamemodes.limited.IBoosterDraft
 import forge.gamemodes.limited.LimitedPoolType
 import forge.item.PaperCard
@@ -18,7 +20,8 @@ import forge.model.FModel
  */
 class HeadlessBoosterDraft(
     setCode: String,
-) : BoosterDraft(LimitedPoolType.Full, POD_SIZE) {
+    draftPickStrategy: DraftPickStrategy = DefaultDraftPickStrategy(),
+) : BoosterDraft(LimitedPoolType.Full, POD_SIZE, draftPickStrategy) {
     init {
         val booster =
             FModel.getMagicDb().getBoosters().get(setCode)

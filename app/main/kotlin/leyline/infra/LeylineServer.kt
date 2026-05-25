@@ -161,7 +161,7 @@ class LeylineServer(
                 )
             }
         val draftRepo = store.asDraftSessionRepository()
-        val forgeDriver = ForgeBoosterDraftDriver(cardRepo)
+        val forgeDriver = ForgeBoosterDraftDriver(cardRepo, matchConfig.draft)
         val draftService =
             DraftService(
                 draftRepo,
