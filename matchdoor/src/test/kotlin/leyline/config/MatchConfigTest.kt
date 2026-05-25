@@ -4,7 +4,9 @@ import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import java.io.File
 
 class MatchConfigTest :
     FunSpec({
@@ -18,6 +20,28 @@ class MatchConfigTest :
         test("bridge timeout must be positive when configured") {
             shouldThrow<IllegalArgumentException> {
                 MatchConfig(server = ServerConfig(bridgeTimeoutMs = 0)).validate()
+            }
+        }
+
+        test("draft picker can be configured from toml") {
+            val file = File.createTempFile("leyline-config", ".toml")
+            file.writeText(
+                """
+                [draft]
+                picker = "model"
+                model_dir = "custom/draft-models"
+                """.trimIndent(),
+            )
+
+            val config = MatchConfig.load(file)
+
+            config.draft.picker shouldBe "model"
+            config.draft.modelDir shouldBe "custom/draft-models"
+        }
+
+        test("draft picker rejects unknown values") {
+            shouldThrow<IllegalArgumentException> {
+                MatchConfig(draft = DraftConfig(picker = "remote")).validate()
             }
         }
     })

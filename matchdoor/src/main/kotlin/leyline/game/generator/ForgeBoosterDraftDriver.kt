@@ -5,6 +5,7 @@ import forge.gamemodes.limited.IBoosterDraft
 import forge.item.PaperCard
 import forge.model.FModel
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.config.DraftConfig
 import leyline.game.data.CardRepository
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
@@ -30,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class ForgeBoosterDraftDriver(
     private val cards: CardRepository,
+    private val draftConfig: DraftConfig = DraftConfig(),
 ) : BoosterDraftDriver {
     private val log = LoggerFactory.getLogger(ForgeBoosterDraftDriver::class.java)
 
@@ -64,7 +66,12 @@ class ForgeBoosterDraftDriver(
             "Cannot start draft for $effectiveSet — concurrent session ${mismatched!!.setCode} in flight " +
                 "(LAND_SET_CODE[0] is process-global)"
         }
-        val draft = HeadlessBoosterDraft(effectiveSet)
+        val strategy =
+            when (draftConfig.picker) {
+                "model" -> DraftPickStrategies.modelBacked(effectiveSet, draftConfig.modelDir)
+                else -> DraftPickStrategies.default()
+            }
+        val draft = HeadlessBoosterDraft(effectiveSet, strategy)
         sessions[sessionKey] = Active(draft, effectiveSet, packIndex = 0, pickIndex = 0)
         return packToGrpIds(draft.currentPackPaperCards())
     }
