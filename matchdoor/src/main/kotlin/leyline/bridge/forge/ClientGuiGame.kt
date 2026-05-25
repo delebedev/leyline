@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory
  * This allows [PlayerController] to extend [forge.player.PlayerControllerHuman]
  * and inherit all 157 correctly-implemented card interaction methods.
  */
+@Suppress("LargeClass") // IGuiGame adapter: override surface tracks Forge's GUI contract.
 class ClientGuiGame(
     private val bridge: InteractivePromptBridge,
 ) : IGuiGame {
