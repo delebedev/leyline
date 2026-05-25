@@ -125,6 +125,7 @@ class MatchFlowHarness(
         bridge =
             GameBridge(
                 bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
+                promptFailsafeMs = matchConfig.server.promptFailsafeMs,
                 matchConfig = matchConfig,
                 messageCounter = MessageCounter(),
                 cardRepository = repo,
@@ -212,6 +213,7 @@ class MatchFlowHarness(
         bridge =
             GameBridge(
                 bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
+                promptFailsafeMs = matchConfig.server.promptFailsafeMs,
                 matchConfig = matchConfig,
                 messageCounter = MessageCounter(),
                 cardRepository = repo,
@@ -402,10 +404,10 @@ class MatchFlowHarness(
         stopWhen: MatchFlowHarness.() -> Boolean,
     ): Boolean {
         repeat(maxPasses) {
-            if (stopWhen() || isGameOver()) return true
+            if (isGameOver() || stopWhen()) return true
             advanceDefaultStop()
         }
-        return stopWhen() || isGameOver()
+        return isGameOver() || stopWhen()
     }
 
     /**
@@ -1004,7 +1006,10 @@ class MatchFlowHarness(
      */
     fun hasPendingAction(seat: SeatId = seatId): Boolean = bridge.actionBridge(seat).getPending() != null
 
-    fun shutdown() = bridge.shutdown()
+    fun shutdown() {
+        if (::session.isInitialized) session.close()
+        bridge.shutdown()
+    }
 
     // --- Real-client gsId reflection ---
     //

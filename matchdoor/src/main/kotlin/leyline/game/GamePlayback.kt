@@ -234,6 +234,9 @@ class GamePlayback(
                 } else {
                     val messages = buildDiffMessages(game, turnStarted, events)
                     queue.add(messages)
+                    if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
+                        bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
+                    }
                     messages.size
                 }
 

@@ -76,6 +76,11 @@ data class MatchConfig(
         require(draft.picker in setOf("forge", "model")) {
             "draft.picker must be 'forge' or 'model', got ${draft.picker}"
         }
+        server.promptFailsafeMs?.let {
+            require(it > 0) {
+                "server.prompt_failsafe_ms must be positive when set, got $it"
+            }
+        }
     }
 
     /**
@@ -96,6 +101,7 @@ data class MatchConfig(
             append(" aiSpeed=${ai.speed}x")
             append(" bridgeTimeout=${server.bridgeTimeoutMs?.let { "${it}ms" } ?: "none"}")
             append(" draftPicker=${draft.picker}")
+            append(" promptFailsafe=${server.promptFailsafeMs?.let { "${it}ms" } ?: "none"}")
             if (dev.strict || dev.strictPass) {
                 append(" dev.strict=${dev.strict} dev.strict_pass=${dev.strictPass}")
             }
@@ -126,6 +132,9 @@ data class ServerConfig(
     /** Priority/action timeout. Null disables human action-window timeout; prompt fail-safes stay finite. */
     @SerialName("bridge_timeout_ms")
     val bridgeTimeoutMs: Long? = null,
+    /** Client-visible prompt fail-safe. Null disables prompt timeout for fully manual local play. */
+    @SerialName("prompt_failsafe_ms")
+    val promptFailsafeMs: Long? = 45_000L,
     /**
      * How long `advanceOrWait` waits for the AI's turn to return priority
      * before giving up and suppressing [ActionsAvailableReq]. Large in production

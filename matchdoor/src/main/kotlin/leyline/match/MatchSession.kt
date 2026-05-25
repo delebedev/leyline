@@ -20,6 +20,9 @@ import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Game orchestration session — thin dispatcher for post-mulligan game logic.
@@ -67,6 +70,14 @@ class MatchSession(
     val autoPassState: ClientAutoPassState get() = connection.autoPassState
 
     private val sessionLock get() = connection.sessionLock
+    private val autoAdvanceExecutor =
+        Executors.newSingleThreadExecutor { r ->
+            Thread(r, "match-autoadvance-${matchId.take(8)}-${seatId.value}").apply { isDaemon = true }
+        }
+    private val autoAdvanceRequested = AtomicBoolean(false)
+    private val autoAdvanceRunning = AtomicBoolean(false)
+    private val autoAdvanceClosed = AtomicBoolean(false)
+    private val autoAdvanceRequest: (String) -> Unit = { reason -> requestAutoAdvance(reason) }
 
     /**
      * Game + bridge bound at construction. MatchSession is per-game; on
@@ -136,6 +147,10 @@ class MatchSession(
             autoPassState = autoPassState,
             ctx = ctx,
         )
+
+    init {
+        gameBridge.autoAdvanceRequester = autoAdvanceRequest
+    }
 
     // --- Public entry points (called by MatchHandler) ---
 
@@ -215,6 +230,7 @@ class MatchSession(
             // and the next PerformActionResp builds a Diff against unrelated game
             // state, producing spurious diffDeletedInstanceIds.
             registry.getHandler(matchId, seatId)?.session = replacement
+            close()
             replacement to deletedIds
         }
 
@@ -649,13 +665,55 @@ class MatchSession(
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
             markIfPrompt(counter, m.type, m.gameStateId)
         }
+        bindPendingActionPrompt(messages)
         recorder?.recordOutbound(messages)
         sink.send(messages)
         mirrorToFamiliar(messages)
     }
 
+    private fun requestAutoAdvance(reason: String) {
+        if (autoAdvanceClosed.get()) return
+        autoAdvanceRequested.set(true)
+        if (!autoAdvanceRunning.compareAndSet(false, true)) return
+
+        try {
+            autoAdvanceExecutor.execute {
+                try {
+                    do {
+                        autoAdvanceRequested.set(false)
+                        synchronized(sessionLock) {
+                            if (gameBridge.getGame() == null) return@synchronized
+                            log.debug("MatchSession: auto-advance pump ({})", reason)
+                            autoPassEngine.autoPassAndAdvance()
+                        }
+                    } while (autoAdvanceRequested.get())
+                } catch (t: Throwable) {
+                    log.warn("MatchSession: auto-advance pump failed: {}", t.message, t)
+                } finally {
+                    autoAdvanceRunning.set(false)
+                    if (autoAdvanceRequested.get()) requestAutoAdvance("reschedule")
+                }
+            }
+        } catch (_: RejectedExecutionException) {
+            autoAdvanceRunning.set(false)
+        }
+    }
+
+    fun close() {
+        autoAdvanceClosed.set(true)
+        autoAdvanceRequested.set(false)
+        if (gameBridge.autoAdvanceRequester === autoAdvanceRequest) {
+            gameBridge.autoAdvanceRequester = null
+        }
+        autoAdvanceExecutor.shutdownNow()
+    }
+
     private fun bindPendingActionPrompt(result: BundleBuilder.BundleResult) {
-        val promptGsId = result.messages.firstOrNull { it.hasActionsAvailableReq() }?.gameStateId ?: return
+        bindPendingActionPrompt(result.messages)
+    }
+
+    private fun bindPendingActionPrompt(messages: List<GREToClientMessage>) {
+        val promptGsId = messages.firstOrNull { it.hasActionsAvailableReq() }?.gameStateId ?: return
         val bound = gameBridge.seat(seatId).action.markCurrentPromptEmitted(promptGsId)
         if (!bound) {
             log.debug("MatchSession: ActionsAvailableReq gsId={} emitted without a pending action", promptGsId)

@@ -17,12 +17,16 @@ class MatchConfigTest :
             shouldNotThrowAny { MatchConfig().validate() }
         }
 
+        test("prompt failsafe defaults to finite and can be disabled") {
+            MatchConfig().server.promptFailsafeMs shouldBe 45_000L
+            ServerConfig(promptFailsafeMs = null).promptFailsafeMs.shouldBeNull()
+        }
+
         test("bridge timeout must be positive when configured") {
             shouldThrow<IllegalArgumentException> {
                 MatchConfig(server = ServerConfig(bridgeTimeoutMs = 0)).validate()
             }
         }
-
         test("draft picker can be configured from toml") {
             val file = File.createTempFile("leyline-config", ".toml")
             file.writeText(
@@ -42,6 +46,12 @@ class MatchConfigTest :
         test("draft picker rejects unknown values") {
             shouldThrow<IllegalArgumentException> {
                 MatchConfig(draft = DraftConfig(picker = "remote")).validate()
+            }
+        }
+
+        test("prompt failsafe must be positive when configured") {
+            shouldThrow<IllegalArgumentException> {
+                MatchConfig(server = ServerConfig(promptFailsafeMs = 0)).validate()
             }
         }
     })
