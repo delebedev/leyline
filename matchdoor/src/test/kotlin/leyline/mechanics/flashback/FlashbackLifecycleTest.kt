@@ -3,8 +3,13 @@ package leyline.mechanics.flashback
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
+import leyline.testkit.detailString
+import leyline.testkit.gameStateMessages
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 private val PUZZLE =
     """
@@ -33,7 +38,28 @@ class FlashbackLifecycleTest :
 
             val handBefore = human.getZone(ZoneType.Hand).size()
             castSpellByName("Think Twice").shouldBeTrue()
-            passPriority()
+            val handResolveMessages =
+                after {
+                    passPriority()
+                }.messages
+            val handResolveFrame =
+                handResolveMessages
+                    .gameStateMessages()
+                    .first { gsm ->
+                        gsm.annotationsList.any { ann ->
+                            AnnotationType.ZoneTransfer_af5a in ann.typeList &&
+                                ann.detailString("category") == "Resolve" &&
+                                ann.detailsList.any { it.key == "zone_src" && it.getValueInt32(0) == ZoneIds.STACK } &&
+                                ann.detailsList.any { it.key == "zone_dest" && it.getValueInt32(0) == ZoneIds.P1_GRAVEYARD }
+                        }
+                    }
+            val graveyardIid =
+                handResolveFrame
+                    .annotationsList
+                    .first { AnnotationType.ZoneTransfer_af5a in it.typeList && it.detailString("category") == "Resolve" }
+                    .affectedIdsList
+                    .single()
+            handResolveFrame.diffDeletedInstanceIdsList shouldNotContain graveyardIid
 
             assertSoftly {
                 human.getZone(ZoneType.Hand).size() shouldBe handBefore

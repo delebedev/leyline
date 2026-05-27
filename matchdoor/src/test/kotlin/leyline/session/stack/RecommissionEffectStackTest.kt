@@ -1,9 +1,11 @@
 package leyline.session.stack
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
 import leyline.testkit.detailString
@@ -36,7 +38,7 @@ class RecommissionEffectStackTest :
                     ann.detailsList.any { it.key == "zone_dest" && it.getValueInt32(0) == dest }
             }
 
-        test("Recommission silent SP Effect resolution clears the stack object") {
+        test("Recommission silent SP Effect resolution moves the spell off stack into graveyard") {
             startPuzzle(
                 """
                 ActivePlayer=Human
@@ -79,7 +81,12 @@ class RecommissionEffectStackTest :
                     .firstOrNull { it.hasZoneTransfer("Resolve", src = ZoneIds.STACK, dest = ZoneIds.P1_GRAVEYARD) }
                     .shouldNotBeNull()
 
-            clearFrame.diffDeletedInstanceIdsList shouldContain stackIid
-            clearFrame.diffDeletedInstanceIdsList shouldHaveSize 1
+            val graveyardObject = clearFrame.gameObjectsList.first { it.instanceId == stackIid }
+            assertSoftly {
+                clearFrame.zonesList.first { it.zoneId == ZoneIds.STACK }.objectInstanceIdsList shouldNotContain stackIid
+                clearFrame.zonesList.first { it.zoneId == ZoneIds.P1_GRAVEYARD }.objectInstanceIdsList shouldContain stackIid
+                graveyardObject.zoneId shouldBe ZoneIds.P1_GRAVEYARD
+                clearFrame.diffDeletedInstanceIdsList shouldNotContain stackIid
+            }
         }
     })
