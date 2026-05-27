@@ -2,6 +2,7 @@ package leyline.game.mapping
 
 import forge.ai.ComputerUtilMana
 import forge.card.CardStateName
+import forge.card.mana.ManaCost
 import forge.game.ability.ApiType
 import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
@@ -50,6 +51,15 @@ object ActionMapper {
 
     private const val INITIAL_MANA_ID = 10
     private const val INITIAL_UNIQUE_ABILITY_ID = 50
+
+    private enum class ActivatedActionEnvelope(
+        val includesSourceIdentity: Boolean,
+        val activeShouldStop: Boolean,
+        val activeManaCost: Boolean,
+    ) {
+        PERMANENT_SOURCE(includesSourceIdentity = true, activeShouldStop = true, activeManaCost = false),
+        ABILITY_ONLY(includesSourceIdentity = false, activeShouldStop = false, activeManaCost = true),
+    }
 
     private fun canPayManaCost(
         sa: SpellAbility,
@@ -155,32 +165,15 @@ object ActionMapper {
                     val canPay = canPayManaCost(ability, player)
                     val registry = bridge.abilityRegistryFor(forgeCard, cardData)
                     val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
-                    if (canPay) {
-                        val actionBuilder =
-                            Action
-                                .newBuilder()
-                                .setActionType(ActionType.Activate_add3)
-                                .setInstanceId(instanceId)
-                                .setGrpId(grpId)
-                                .setFacetId(instanceId)
-                                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
-                        if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-                        builder.addActions(actionBuilder)
-                    } else {
-                        val inactiveBuilder =
-                            Action
-                                .newBuilder()
-                                .setActionType(ActionType.Activate_add3)
-                                .setInstanceId(instanceId)
-                                .setGrpId(grpId)
-                                .setFacetId(instanceId)
-                        if (abilityGrpId > 0) inactiveBuilder.setAbilityGrpId(abilityGrpId)
-                        val abilityCost = ability.payCosts?.totalMana
-                        if (abilityCost != null && !abilityCost.isNoCost) {
-                            addManaCostFromForge(abilityCost, inactiveBuilder, abilityGrpId)
-                        }
-                        builder.addInactiveActions(inactiveBuilder)
-                    }
+                    emitActivatedAbilityAction(
+                        builder = builder,
+                        instanceId = instanceId,
+                        grpId = grpId,
+                        abilityGrpId = abilityGrpId,
+                        abilityCost = ability.payCosts?.totalMana,
+                        canPay = canPay,
+                        envelope = ActivatedActionEnvelope.PERMANENT_SOURCE,
+                    )
                 }
             }
         }
@@ -395,30 +388,15 @@ object ActionMapper {
                 val cardData = snap.boundCards[fid]?.data
                 val registry = bridge.abilityRegistryFor(forgeCard, cardData)
                 val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
-                val abilityCost = ability.payCosts?.totalMana
-                if (canPay) {
-                    val actionBuilder =
-                        Action
-                            .newBuilder()
-                            .setActionType(ActionType.Activate_add3)
-                            .setInstanceId(instanceId)
-                    if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-                    if (abilityCost != null && !abilityCost.isNoCost) {
-                        addManaCostFromForge(abilityCost, actionBuilder, abilityGrpId)
-                    }
-                    builder.addActions(actionBuilder)
-                } else {
-                    val inactiveBuilder =
-                        Action
-                            .newBuilder()
-                            .setActionType(ActionType.Activate_add3)
-                            .setInstanceId(instanceId)
-                    if (abilityGrpId > 0) inactiveBuilder.setAbilityGrpId(abilityGrpId)
-                    if (abilityCost != null && !abilityCost.isNoCost) {
-                        addManaCostFromForge(abilityCost, inactiveBuilder, abilityGrpId)
-                    }
-                    builder.addInactiveActions(inactiveBuilder)
-                }
+                emitActivatedAbilityAction(
+                    builder = builder,
+                    instanceId = instanceId,
+                    grpId = grpId,
+                    abilityGrpId = abilityGrpId,
+                    abilityCost = ability.payCosts?.totalMana,
+                    canPay = canPay,
+                    envelope = ActivatedActionEnvelope.ABILITY_ONLY,
+                )
             }
         }
 
@@ -594,31 +572,50 @@ object ActionMapper {
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
                 val registry = bridge.abilityRegistryFor(forgeCard, cardData)
                 val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
-                val abilityCost = ability.payCosts?.totalMana
-                if (canPay) {
-                    val actionBuilder =
-                        Action
-                            .newBuilder()
-                            .setActionType(ActionType.Activate_add3)
-                            .setInstanceId(instanceId)
-                    if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-                    if (abilityCost != null && !abilityCost.isNoCost) {
-                        addManaCostFromForge(abilityCost, actionBuilder, abilityGrpId)
-                    }
-                    builder.addActions(actionBuilder)
-                } else {
-                    val inactiveBuilder =
-                        Action
-                            .newBuilder()
-                            .setActionType(ActionType.Activate_add3)
-                            .setInstanceId(instanceId)
-                    if (abilityGrpId > 0) inactiveBuilder.setAbilityGrpId(abilityGrpId)
-                    if (abilityCost != null && !abilityCost.isNoCost) {
-                        addManaCostFromForge(abilityCost, inactiveBuilder, abilityGrpId)
-                    }
-                    builder.addInactiveActions(inactiveBuilder)
-                }
+                emitActivatedAbilityAction(
+                    builder = builder,
+                    instanceId = instanceId,
+                    grpId = cardSnap.grpId,
+                    abilityGrpId = abilityGrpId,
+                    abilityCost = ability.payCosts?.totalMana,
+                    canPay = canPay,
+                    envelope = ActivatedActionEnvelope.ABILITY_ONLY,
+                )
             }
+        }
+    }
+
+    @Suppress("LongParameterList") // mirrors the proto fields whose shape differs by activation zone.
+    private fun emitActivatedAbilityAction(
+        builder: ActionsAvailableReq.Builder,
+        instanceId: Int,
+        grpId: Int,
+        abilityGrpId: Int,
+        abilityCost: ManaCost?,
+        canPay: Boolean,
+        envelope: ActivatedActionEnvelope,
+    ) {
+        val actionBuilder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.Activate_add3)
+                .setInstanceId(instanceId)
+        if (envelope.includesSourceIdentity) {
+            actionBuilder
+                .setGrpId(grpId)
+                .setFacetId(instanceId)
+        }
+        if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+        if (canPay && envelope.activeShouldStop) {
+            actionBuilder.setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
+        }
+        if ((!canPay || envelope.activeManaCost) && abilityCost != null && !abilityCost.isNoCost) {
+            addManaCostFromForge(abilityCost, actionBuilder, abilityGrpId)
+        }
+        if (canPay) {
+            builder.addActions(actionBuilder)
+        } else {
+            builder.addInactiveActions(actionBuilder)
         }
     }
 
@@ -773,32 +770,15 @@ object ActionMapper {
                     val canPay = canPayManaCost(ability, player)
                     val registry = abilityRegistryLookup(card, cardData)
                     val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
-                    if (canPay) {
-                        val actionBuilder =
-                            Action
-                                .newBuilder()
-                                .setActionType(ActionType.Activate_add3)
-                                .setInstanceId(instanceId)
-                                .setGrpId(grpId)
-                                .setFacetId(instanceId)
-                                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
-                        if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-                        builder.addActions(actionBuilder)
-                    } else {
-                        val inactiveBuilder =
-                            Action
-                                .newBuilder()
-                                .setActionType(ActionType.Activate_add3)
-                                .setInstanceId(instanceId)
-                                .setGrpId(grpId)
-                                .setFacetId(instanceId)
-                        if (abilityGrpId > 0) inactiveBuilder.setAbilityGrpId(abilityGrpId)
-                        val abilityCost = ability.payCosts?.totalMana
-                        if (abilityCost != null && !abilityCost.isNoCost) {
-                            addManaCostFromForge(abilityCost, inactiveBuilder, abilityGrpId)
-                        }
-                        builder.addInactiveActions(inactiveBuilder)
-                    }
+                    emitActivatedAbilityAction(
+                        builder = builder,
+                        instanceId = instanceId,
+                        grpId = grpId,
+                        abilityGrpId = abilityGrpId,
+                        abilityCost = ability.payCosts?.totalMana,
+                        canPay = canPay,
+                        envelope = ActivatedActionEnvelope.PERMANENT_SOURCE,
+                    )
                 }
             }
         }
@@ -901,31 +881,15 @@ object ActionMapper {
                     val cardData = cardDataLookup(GrpId(grpId))
                     val registry = abilityRegistryLookup(card, cardData)
                     val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
-                    val abilityCost = ability.payCosts?.totalMana
-                    if (canPay) {
-                        val actionBuilder =
-                            Action
-                                .newBuilder()
-                                .setActionType(ActionType.Activate_add3)
-                                .setInstanceId(instanceId)
-                        if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-                        // Wire requires manaCost with abilityGrpId echoed in each ManaRequirement
-                        if (abilityCost != null && !abilityCost.isNoCost) {
-                            addManaCostFromForge(abilityCost, actionBuilder, abilityGrpId)
-                        }
-                        builder.addActions(actionBuilder)
-                    } else {
-                        val inactiveBuilder =
-                            Action
-                                .newBuilder()
-                                .setActionType(ActionType.Activate_add3)
-                                .setInstanceId(instanceId)
-                        if (abilityGrpId > 0) inactiveBuilder.setAbilityGrpId(abilityGrpId)
-                        if (abilityCost != null && !abilityCost.isNoCost) {
-                            addManaCostFromForge(abilityCost, inactiveBuilder, abilityGrpId)
-                        }
-                        builder.addInactiveActions(inactiveBuilder)
-                    }
+                    emitActivatedAbilityAction(
+                        builder = builder,
+                        instanceId = instanceId,
+                        grpId = grpId,
+                        abilityGrpId = abilityGrpId,
+                        abilityCost = ability.payCosts?.totalMana,
+                        canPay = canPay,
+                        envelope = ActivatedActionEnvelope.ABILITY_ONLY,
+                    )
                 }
             }
         }
