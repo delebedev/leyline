@@ -10,7 +10,6 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.annotations.AnnotationBuilder
-import leyline.game.annotations.AnnotationConstants
 import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.annotations.AppliedTransfer
 import leyline.game.annotations.CombatAnnotationResult
@@ -26,9 +25,7 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.SnapDeltaSynthesizer
-import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
-import leyline.game.snapshot.PreparedRole
 import leyline.game.state.AbilityWireIdentity
 import leyline.game.state.AbilityWordActiveKind
 import leyline.game.state.BridgeMutations
@@ -41,7 +38,6 @@ import leyline.game.state.EffectTracker
 import leyline.game.state.FaceDownDisguiseKind
 import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
-import leyline.game.state.HolderRecord
 import leyline.game.state.LeftUnlockedDesignationKind
 import leyline.game.state.ModifiedTypeForCrewKind
 import leyline.game.state.MutateLayeredEffectKind
@@ -145,27 +141,8 @@ object StateMapper {
     /** Result of [buildFromSnapshot] / [buildDiff] — GSM plus metadata for message framing. */
     data class BuildResult(
         val gsm: GameStateMessage,
-        /** True if a CastSpell zone transfer was detected (triggers QueuedGSM split). */
-        val hasCastSpell: Boolean = false,
         /** Ordering-sensitive bridge mutations computed during the build. Caller applies via [leyline.game.state.GameBridge.applyMutations]. */
         val mutations: BridgeMutations = BridgeMutations.Companion.EMPTY,
-    )
-
-    /** Snap- or event-derived persistent annotation inputs for one GSM build. */
-    private data class PersistentFeedSet(
-        val qualification: List<AnnotationInfo> = emptyList(),
-        val temporaryPermanent: List<AnnotationInfo> = emptyList(),
-        val delayedTriggerAffectees: List<AnnotationInfo> = emptyList(),
-        val abilityWord: List<AnnotationInfo> = emptyList(),
-        val preparedDesignation: List<AnnotationInfo> = emptyList(),
-        val plottedDesignation: List<AnnotationInfo> = emptyList(),
-        val saddledDesignation: List<AnnotationInfo> = emptyList(),
-        val commanderDesignation: List<AnnotationInfo> = emptyList(),
-        val leftUnlockedDesignation: List<AnnotationInfo> = emptyList(),
-        val rightUnlockedDesignation: List<AnnotationInfo> = emptyList(),
-        val dayNightDesignation: List<AnnotationInfo> = emptyList(),
-        val faceDownDisguise: List<AnnotationInfo> = emptyList(),
-        val colorProduction: List<AnnotationInfo> = emptyList(),
     )
 
     /**
@@ -393,109 +370,16 @@ object StateMapper {
 
         val decayedCleanupSourcesThisGsm = updateDecayedCleanupSources(eventsMutable, snap, bridge, transferResultWithDecayedAffectors)
 
-        // Snap-derived pAnn inputs — computed here where snap is in scope.
-        val qualificationPersistentFromSnap =
-            snap.objects.values
-                .filter { it.isOnAdventure }
-                .map { AnnotationBuilder.qualification(instanceId = frameIds.cardIid(it.forgeCardId)) } +
-                CombatQualificationScanner.scan(snap, bridge, frameIds)
-        val eotTokens = snap.objects.values.filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
-        // Group EOT-sacrifice tokens by their source card so each delayed-trigger
-        // registration gets its own TriggerHolder iid. The canonical shape mints
-        // a transient gameObject in Limbo (grpId=5) per `registerDelayedTrigger`
-        // call — keying the holder forge id on
-        // `<source card forge id> + DELAYED_TRIGGER_HOLDER_FORGE_OFFSET` produces
-        // a stable iid that both DelayedTriggerAffectees and per-token
-        // TemporaryPermanent reference, mirroring the shared-holder shape
-        // (Mobilize 3: one holder, three tokens; two Mobilize sources: two holders).
-        // Tokens whose source can't be resolved (non-Mobilize EOT copy tokens, etc.)
-        // fall back to a per-controller holder.
-        val tokenSources: Map<CardSnapshot, ForgeCardId?> =
-            eotTokens.associateWith { tokenSourceForgeId(it.forgeCardId, bridge) }
-        val decayedCleanupHolders =
-            decayedCleanupHoldersFromSnap(
-                decayedCleanupSourcesThisGsm,
-                snap,
-                bridge,
-                frameIds,
-                transferResultWithDecayedAffectors,
+        val persistentFeedResult =
+            PersistentFeedBuilder.build(
+                events = eventsMutable,
+                snap = snap,
+                prev = prev,
+                bridge = bridge,
+                frameIds = frameIds,
+                decayedCleanupSourcesThisGsm = decayedCleanupSourcesThisGsm,
+                transferResult = transferResultWithDecayedAffectors,
             )
-        val temporaryPermanentPersistentFromSnap =
-            eotTokens.map { token ->
-                val tokenIid = bridge.getOrAllocInstanceId(token.forgeCardId)
-                val sourceForgeId = tokenSources[token]
-                val mobilizeCleanup =
-                    sourceForgeId?.let { source ->
-                        mobilizeCleanupGrpIdForSource(source, snap)?.let { cleanupGrpId -> source to cleanupGrpId }
-                    }
-                // Holder iid is the per-trigger affector for Mobilize (canonical
-                // shape). For generic EOT-sacrifice copies (Electroduplicate etc.)
-                // legacy callers pass affectorId = tokenIid; preserve that until
-                // the wider holder-pattern survey of non-Mobilize delayed triggers
-                // is done.
-                val affectorIid =
-                    if (mobilizeCleanup != null) {
-                        holderInstanceIdFor(mobilizeCleanup.first, bridge)
-                    } else {
-                        tokenIid
-                    }
-                AnnotationBuilder.temporaryPermanent(
-                    tokenInstanceId = tokenIid,
-                    abilityGrpId = mobilizeCleanup?.second?.let { GrpId(it) } ?: AnnotationConstants.EOT_SACRIFICE_GRP_ID,
-                    affectorId = affectorIid,
-                )
-            } +
-                decayedCleanupHolders.map { holder ->
-                    AnnotationBuilder.temporaryPermanent(
-                        tokenInstanceId = InstanceId(holder.parentIid),
-                        abilityGrpId = GrpId(holder.cleanupGrpId),
-                        affectorId = InstanceId(holder.iid),
-                    )
-                }
-        // DelayedTriggerAffectees is only emitted when we can resolve a real
-        // delayed-trigger keyword on the source (currently Mobilize). Generic
-        // EOT-sacrifice copies skip this annotation — legacy behavior, until
-        // the wider survey of non-Mobilize delayed-trigger sources lands.
-        // Side product: the set of TriggerHolder gameObjects that must surface
-        // in Limbo so the client can render the side-panel timed-effect
-        // indicator. The holder's `objectSourceGrpId` carries the keyword
-        // ability id (e.g. 188696 for Mobilize 3) — that's what drives the
-        // icon and tooltip text; `parentId` points at the source card.
-        // Build the live set of holders that should be alive this GSM (one per
-        // (source card, controller) group with a Mobilize keyword on the
-        // source). Real wire shape: emit the gameObject once on first
-        // appearance, retire via diffDeletedInstanceIds when it disappears.
-        // Lifecycle owned by [bridge.delayedTriggerHolders] — see its KDoc.
-        val currentHolders = mutableListOf<HolderRecord>()
-        currentHolders.addAll(decayedCleanupHolders)
-        val delayedTriggerAffecteesFromSnap =
-            eotTokens
-                .groupBy { tokenSources[it] to it.controller.value }
-                .filterValues { it.isNotEmpty() }
-                .mapNotNull { (key, tokens) ->
-                    val (rawSourceForgeId, seat) = key
-                    val sourceForgeId = rawSourceForgeId ?: return@mapNotNull null
-                    val cleanupGrpId =
-                        mobilizeCleanupGrpIdForSource(sourceForgeId, snap) ?: return@mapNotNull null
-                    val tokenIds = tokens.map { bridge.getOrAllocInstanceId(it.forgeCardId) }
-                    val holderIid = holderInstanceIdFor(sourceForgeId, bridge)
-                    val keywordGrpId = mobilizeKeywordGrpIdForSource(sourceForgeId, snap) ?: 0
-                    val sourceIid = bridge.getOrAllocInstanceId(sourceForgeId).value
-                    currentHolders.add(
-                        HolderRecord(
-                            iid = holderIid.value,
-                            ownerSeat = seat,
-                            objectSourceGrpId = keywordGrpId,
-                            parentIid = sourceIid,
-                            cleanupGrpId = cleanupGrpId,
-                        ),
-                    )
-                    AnnotationBuilder.delayedTriggerAffectees(
-                        triggerHolderId = holderIid,
-                        tokenInstanceIds = tokenIds,
-                        abilityGrpId = GrpId(cleanupGrpId),
-                    )
-                }
         // Diff against the bridge-side tracker. The client keeps cached holders
         // across GSMs by instanceId, so we only emit a gameObject for newly-added
         // holders; removed holders flow through BridgeMutations into
@@ -508,7 +392,7 @@ object StateMapper {
         // `patchedObjects` (see assembleGsm wiring below), not the local lists,
         // so we splice both the gameObject and the Limbo membership into a
         // copy of TransferResult here.
-        val holderBatch = bridge.delayedTriggerHolders.computeBatch(currentHolders)
+        val holderBatch = bridge.delayedTriggerHolders.computeBatch(persistentFeedResult.currentHolders)
         val postDiffActiveIids =
             (bridge.delayedTriggerHolders.activeIids() + holderBatch.added.map { it.iid }) - holderBatch.removed.toSet()
         val transferResultWithHolders =
@@ -543,151 +427,7 @@ object StateMapper {
                 patchedZones.add(limboBuilder.build())
                 transferResultWithDecayedAffectors.copy(patchedZones = patchedZones, patchedObjects = patchedObjects)
             }
-        val abilityWordPersistentFromSnap =
-            snap.abilityWordEntries.map { entry ->
-                AnnotationBuilder.abilityWordActive(
-                    instanceId = InstanceId(entry.instanceId),
-                    abilityWordName = entry.abilityWordName,
-                    value = entry.value,
-                    threshold = entry.threshold,
-                    abilityGrpId = entry.abilityGrpId?.let { GrpId(it) },
-                    affectorId = InstanceId(entry.affectorId ?: entry.instanceId),
-                    affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
-                )
-            }
-        val trainingAbilityWordPersistentFromEvents =
-            trainingAbilityWordPersistentFromEvents(eventsMutable, snap, prev, bridge, frameIds)
-        val preparedDesignationPersistentFromSnap =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    // PreparedRole.Source is set only on battlefield permanents with a
-                    // live linked copy — exactly the set of cards that should carry the
-                    // persistent Designation pAnn. The role-based shape avoids the stale
-                    // isPrepared flags Forge keeps on retired stack/limbo card states.
-                    val source = bound.designations.prepared as? PreparedRole.Source ?: return@mapNotNull null
-                    AnnotationBuilder.preparedDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
-                        preparedCopyInstanceId = bridge.getOrAllocInstanceId(source.copyForgeCardId),
-                    )
-                }
-
-        // Plotted: persistent Designation (DesignationType=18) for every card with
-        // PlottedRole.Plotted. The snapshot pass filtered the role to `isPlotted &&
-        // isInZone(Exile)`, so no zone guard needed here.
-        val plottedDesignationPersistentFromSnap =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.designations.isPlotted) return@mapNotNull null
-                    AnnotationBuilder.plottedDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
-                    )
-                }
-
-        val saddledDesignationPersistentFromSnap =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.designations.isSaddled) return@mapNotNull null
-                    AnnotationBuilder.saddledDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
-                    )
-                }
-
-        val commanderDesignationPersistentFromSnap =
-            snap.boundCards.values
-                .filter { it.designations.isCommander && it.snapshot.grpId > 0 }
-                .flatMap { bound ->
-                    val iid = frameIds.cardIid(bound.forgeCardId)
-                    val grpId = GrpId(bound.snapshot.grpId)
-                    val colorIdentity = bound.designations.commanderColorIdentity
-                    val tax = bound.designations.commanderTax
-                    listOf(
-                        AnnotationBuilder.commanderPlayerDesignation(
-                            seatId = bound.snapshot.owner,
-                            grpId = grpId,
-                            colorIdentity = colorIdentity,
-                            costIncrease = tax,
-                        ),
-                        AnnotationBuilder.commanderObjectDesignation(
-                            instanceId = iid,
-                            grpId = grpId,
-                            colorIdentity = colorIdentity,
-                            costIncrease = tax,
-                        ),
-                    )
-                }
-
-        // LeftUnlocked / RightUnlocked: persistent Designation (DesignationType=19/20)
-        // for every battlefield Room card with the matching door open. Snapshot
-        // pass filtered to `onBf && card.isRoom`, so no zone guard needed here.
-        val leftUnlockedDesignationPersistentFromSnap =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.designations.isLeftDoorUnlocked) return@mapNotNull null
-                    AnnotationBuilder.leftUnlockedDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
-                    )
-                }
-        val rightUnlockedDesignationPersistentFromSnap =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.designations.isRightDoorUnlocked) return@mapNotNull null
-                    AnnotationBuilder.rightUnlockedDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
-                    )
-                }
-
-        // FaceDown (REASON=Disguise=6, abilityGrpId=DISGUISE=307): persistent
-        // annotation per face-down disguise creature on the battlefield. The
-        // snapshot pass filtered to `isFaceDown && (Battlefield || Stack) &&
-        // hasDisguiseKeyword`. Lives across the card's entire face-down
-        // residence; the upsert pipeline replaces the row when the card flips
-        // face-up (filter no longer matches -> row pruned via pruneStale).
-        val faceDownDisguisePersistentFromSnap =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.snapshot.isFaceDownDisguise) return@mapNotNull null
-                    AnnotationBuilder.faceDownPersistent(
-                        instanceId = frameIds.cardIid(bound.forgeCardId),
-                        reason = AnnotationConstants.FACEDOWN_REASON_DISGUISE,
-                        abilityGrpId = leyline.bridge.types.GrpId(KeywordAbilityIds.DISGUISE),
-                    )
-                }
-
-        // Day/Night: persistent Designation (DesignationType=10/11) on the game
-        // itself, carrying the active player's running spell-count tally. Emits
-        // every GSM once the state is established. Pre-first-transition is
-        // wire-silent (snap.dayTime == null).
-        val dayNightDesignationPersistentFromSnap: List<AnnotationInfo> =
-            snap.dayTime?.let { isNight ->
-                listOf(
-                    AnnotationBuilder.dayNightDesignation(
-                        designationType =
-                            if (isNight) {
-                                AnnotationConstants.DESIGNATION_TYPE_NIGHT
-                            } else {
-                                AnnotationConstants.DESIGNATION_TYPE_DAY
-                            },
-                        activePlayerSpellCount = snap.activePlayerSpellsCastThisTurn,
-                    ),
-                )
-            } ?: emptyList()
-        val colorProductionPersistentFromSnap = buildColorProductionAnnotations(snap, frameIds)
-        val persistentFeeds =
-            PersistentFeedSet(
-                qualification = qualificationPersistentFromSnap,
-                temporaryPermanent = temporaryPermanentPersistentFromSnap,
-                delayedTriggerAffectees = delayedTriggerAffecteesFromSnap,
-                abilityWord = abilityWordPersistentFromSnap + trainingAbilityWordPersistentFromEvents,
-                preparedDesignation = preparedDesignationPersistentFromSnap,
-                plottedDesignation = plottedDesignationPersistentFromSnap,
-                saddledDesignation = saddledDesignationPersistentFromSnap,
-                commanderDesignation = commanderDesignationPersistentFromSnap,
-                leftUnlockedDesignation = leftUnlockedDesignationPersistentFromSnap,
-                rightUnlockedDesignation = rightUnlockedDesignationPersistentFromSnap,
-                dayNightDesignation = dayNightDesignationPersistentFromSnap,
-                faceDownDisguise = faceDownDisguisePersistentFromSnap,
-                colorProduction = colorProductionPersistentFromSnap,
-            )
+        val persistentFeeds = persistentFeedResult.feeds
         // Transient gain/lose Designation annotations — diff prev vs cur on the
         // `Source on battlefield with isPrepared` set. Gains insert before the
         // Stack→Battlefield Resolve ZoneTransfer for the same source iid to match
@@ -784,8 +524,7 @@ object StateMapper {
                 diffDeletedInstanceIds = stackTransferDeletedIds(transferResult).map { InstanceId(it) },
             )
 
-        val hasCastSpell = transferResult.transfers.any { it.category == TransferCategory.CastSpell }
-        return BuildResult(built, hasCastSpell, mutations)
+        return BuildResult(built, mutations)
     }
 
     private fun recordParadigmSourceStackIids(
@@ -1108,7 +847,7 @@ object StateMapper {
                 Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
             )
         }
-        return BuildResult(built, fullResult.hasCastSpell, fullResult.mutations)
+        return BuildResult(built, fullResult.mutations)
     }
 
     /**
@@ -1220,17 +959,6 @@ object StateMapper {
             .mapTo(mutableSetOf()) { fid ->
                 bridge.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(fid)).value
             }
-
-    private fun buildColorProductionAnnotations(
-        snap: GsmSnapshot,
-        frameIds: FrameIdResolver,
-    ): List<AnnotationInfo> =
-        snap.boundCards.values.mapNotNull { bound ->
-            if (!bound.snapshot.isOnBattlefield) return@mapNotNull null
-            val colors = bound.snapshot.manaProductionColors
-            if (colors.isEmpty()) return@mapNotNull null
-            AnnotationBuilder.colorProduction(frameIds.cardIid(bound.forgeCardId), colors)
-        }
 
     /** Result of stages 4-5 + persistent annotation computation. */
     private data class RemainingAnnotationsResult(
@@ -1858,7 +1586,7 @@ object StateMapper {
                 .filterIsInstance<GameEvent.SpellResolved>()
                 .filter { it.isTrigger && it.abilityGrpId != 0 }
                 .mapNotNull { ev ->
-                    val cleanupGrpId = decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, this) ?: return@mapNotNull null
+                    val cleanupGrpId = PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, this) ?: return@mapNotNull null
                     if (ev.abilityGrpId != cleanupGrpId) return@mapNotNull null
                     ev.cardId to stackAbilityIidFor(ev.abilityForgeId, ev.cardId, frameIds)
                 }.toMap()
@@ -1890,7 +1618,7 @@ object StateMapper {
         val addedThisGsm = linkedSetOf<ForgeCardId>()
         for (ev in events) {
             if (ev is GameEvent.SpellResolved) {
-                val cleanupGrpId = decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, transferResult)
+                val cleanupGrpId = PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, transferResult)
                 val abilityGrpId =
                     ev.abilityGrpId.takeIf { it != 0 }
                         ?: abilityGrpIdForSource(ev.cardId, ev.abilityForgeId, bridge, snap)
@@ -1900,7 +1628,7 @@ object StateMapper {
                     addedThisGsm.add(ev.cardId)
                 }
             } else if (ev is GameEvent.SpellCast) {
-                val cleanupGrpId = decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, transferResult)
+                val cleanupGrpId = PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, transferResult)
                 val abilityGrpId =
                     ev.abilityGrpId.takeIf { it != 0 }
                         ?: abilityGrpIdForSource(ev.cardId, ev.abilityForgeId, bridge, snap)
@@ -1934,84 +1662,6 @@ object StateMapper {
         bridge.clearDecayedCleanupSource(sourceForgeId)
         if (sourceForgeId !in addedThisGsm) visibleThisGsm.remove(sourceForgeId)
     }
-
-    private fun decayedCleanupHoldersFromSnap(
-        sourceForgeIds: Set<ForgeCardId>,
-        snap: GsmSnapshot,
-        bridge: GameBridge,
-        frameIds: FrameIdResolver,
-        transferResult: TransferResult,
-    ): List<HolderRecord> =
-        sourceForgeIds.mapNotNull { sourceForgeId ->
-            val bound = snap.boundCards[sourceForgeId]
-            val transfer = transferResult.transfers.firstOrNull { it.forgeCardId == sourceForgeId }
-            val sourceIid = decayedCleanupSourceIid(sourceForgeId, bound?.snapshot, frameIds, transferResult) ?: return@mapNotNull null
-            val cleanupGrpId = decayedCleanupGrpIdForSource(sourceForgeId, snap, bridge, transferResult) ?: return@mapNotNull null
-            HolderRecord(
-                iid = holderInstanceIdFor(sourceForgeId, bridge).value,
-                ownerSeat = bound?.snapshot?.controller?.value ?: transfer?.ownerSeatId ?: return@mapNotNull null,
-                objectSourceGrpId = KeywordAbilityIds.DECAYED,
-                parentIid = sourceIid,
-                cleanupGrpId = cleanupGrpId,
-            )
-        }
-
-    private fun decayedCleanupSourceIid(
-        sourceForgeId: ForgeCardId,
-        source: CardSnapshot?,
-        frameIds: FrameIdResolver,
-        transferResult: TransferResult,
-    ): Int? {
-        if (source?.isOnBattlefield == true) return frameIds.cardIid(sourceForgeId).value
-        val transfer =
-            transferResult.transfers.firstOrNull {
-                it.forgeCardId == sourceForgeId && it.category == TransferCategory.Sacrifice
-            }
-        return transfer?.origId
-    }
-
-    /** Training's `AbilityWordActive` is relational: trainer → first declared
-     *  co-attacker with greater pre-resolution power. The previous snapshot is
-     *  the attack-declaration truth when auto-pass compresses trigger resolution
-     *  and counter placement into one GSM. */
-    private fun trainingAbilityWordPersistentFromEvents(
-        events: List<GameEvent>,
-        snap: GsmSnapshot,
-        prev: GsmSnapshot?,
-        bridge: GameBridge,
-        frameIds: FrameIdResolver,
-    ): List<AnnotationInfo> {
-        val attackEvents = events.filterIsInstance<GameEvent.AttackersDeclared>()
-        if (attackEvents.isEmpty()) return emptyList()
-        val powerSnap = prev ?: snap
-
-        return attackEvents.flatMap { ev ->
-            ev.attackerCardIds.mapNotNull { trainerId ->
-                val trainerBound = powerSnap.boundCards[trainerId] ?: snap.boundCards[trainerId] ?: return@mapNotNull null
-                if (!hasTrainingKeyword(trainerBound.snapshot.grpId, bridge)) return@mapNotNull null
-                val trainerPower = trainerBound.snapshot.netPower ?: return@mapNotNull null
-                val partnerId =
-                    ev.attackerCardIds.firstOrNull { otherId ->
-                        if (otherId == trainerId) return@firstOrNull false
-                        val otherBound = powerSnap.boundCards[otherId] ?: snap.boundCards[otherId] ?: return@firstOrNull false
-                        (otherBound.snapshot.netPower ?: Int.MIN_VALUE) > trainerPower
-                    } ?: return@mapNotNull null
-
-                val trainerIid = frameIds.cardIid(trainerId)
-                AnnotationBuilder.abilityWordActive(
-                    instanceId = trainerIid,
-                    abilityWordName = "Training",
-                    affectorId = trainerIid,
-                    affectedIds = listOf(frameIds.cardIid(partnerId)),
-                )
-            }
-        }
-    }
-
-    private fun hasTrainingKeyword(
-        grpId: Int,
-        bridge: GameBridge,
-    ): Boolean = bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.TRAINING) != null
 
     private fun counterAffectorFor(
         eventIndex: Int,
@@ -2094,65 +1744,6 @@ object StateMapper {
 
     private val counterAffectingKeywordTriggerIds =
         setOf(KeywordAbilityIds.BACKUP, KeywordAbilityIds.MENTOR, KeywordAbilityIds.TRAINING)
-
-    /** Forge id of the source card that spawned [tokenForgeId], or null when
-     *  the token has no `tokenSpawningAbility` (puzzle-injected tokens, copy
-     *  tokens, etc.). Used by EOT-cleanup pAnn emission to derive both the
-     *  cleanup ability grpId and the trigger-holder iid. */
-    private fun tokenSourceForgeId(
-        tokenForgeId: ForgeCardId,
-        bridge: GameBridge,
-    ): ForgeCardId? {
-        val tokenCard = bridge.findCard(tokenForgeId) ?: return null
-        val sourceCard = tokenCard.tokenSpawningAbility?.hostCard ?: return null
-        return ForgeCardId(sourceCard.id)
-    }
-
-    /** See [BoundCard.mobilizeCleanup]. Null when the source isn't a Mobilize
-     *  card or has no hidden triggered ability; callers fall back to the
-     *  universal EOT-sacrifice grpId. */
-    private fun mobilizeCleanupGrpIdForSource(
-        sourceForgeId: ForgeCardId,
-        snap: GsmSnapshot,
-    ): Int? = snap.boundCards[sourceForgeId]?.mobilizeCleanup
-
-    /** The Mobilize keyword ability grpId on a Mobilize source (188696, 188698…),
-     *  used as `objectSourceGrpId` on the TriggerHolder gameObject so the client
-     *  renders the right ability icon and tooltip text in the timed-effect
-     *  side panel. Null when the source doesn't carry Mobilize. */
-    private fun mobilizeKeywordGrpIdForSource(
-        sourceForgeId: ForgeCardId,
-        snap: GsmSnapshot,
-    ): Int? =
-        snap.boundCards[sourceForgeId]
-            ?.altCost(leyline.game.data.KeywordAbilityIds.MOBILIZE)
-            ?.abilityGrpId
-
-    private fun decayedCleanupGrpIdForSource(
-        sourceForgeId: ForgeCardId,
-        snap: GsmSnapshot,
-        bridge: GameBridge,
-        transferResult: TransferResult? = null,
-    ): Int? {
-        snap.boundCards[sourceForgeId]?.decayedCleanup?.let { return it }
-        val grpId = transferResult?.transfers?.firstOrNull { it.forgeCardId == sourceForgeId }?.grpId ?: return null
-        if (bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.DECAYED) == null) return null
-        return bridge.cardRepository.findHiddenTriggeredAbilityGrpId(grpId)
-    }
-
-    /** Stable per-trigger-registration holder iid keyed on the source card's
-     *  forge id, so all tokens spawned by the same source-card resolution
-     *  share one holder (matching the canonical Mobilize 3 →
-     *  one-holder-three-tokens shape). Caller resolves [sourceForgeId] via
-     *  [tokenSourceForgeId] before invoking — currently every TriggerHolder
-     *  emit path requires a known source. */
-    private fun holderInstanceIdFor(
-        sourceForgeId: ForgeCardId,
-        bridge: GameBridge,
-    ): InstanceId {
-        val holderForge = ForgeCardId(sourceForgeId.value + GameBridge.DELAYED_TRIGGER_HOLDER_FORGE_OFFSET)
-        return bridge.getOrAllocInstanceId(holderForge)
-    }
 
     /** Best-effort owner seat lookup for an event-derived source card. */
     private fun ownerSeatOf(

@@ -37,7 +37,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
 /**
  * Pure unit tests for [leyline.game.annotations.ZoneTransferDetector.detectZoneTransfers] — the overload
- * that takes function parameters instead of [leyline.game.state.GameBridge].
+ * that takes [ZoneTransferContext] instead of [leyline.game.state.GameBridge].
  *
  * No game engine, no bridge, no card DB. Each test constructs
  * [GameObjectInfo] + [ZoneInfo] data directly via proto builders.
@@ -92,10 +92,13 @@ class PurePipelineTest :
                     gameObjects = listOf(obj),
                     zones = zones,
                     events = events,
-                    previousZones = previousZones,
-                    forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
-                    idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
-                    idLookup = { fid -> InstanceId(fid.value + 1000) },
+                    context =
+                        ZoneTransferContext(
+                            previousZones = previousZones,
+                            forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                            idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                            idLookup = { fid -> InstanceId(fid.value + 1000) },
+                        ),
                 )
 
             result.transfers.size shouldBe 1
@@ -127,10 +130,13 @@ class PurePipelineTest :
                     gameObjects = listOf(obj),
                     zones = zones,
                     events = events,
-                    previousZones = previousZones,
-                    forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
-                    idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
-                    idLookup = { fid -> InstanceId(fid.value + 1000) },
+                    context =
+                        ZoneTransferContext(
+                            previousZones = previousZones,
+                            forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                            idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                            idLookup = { fid -> InstanceId(fid.value + 1000) },
+                        ),
                 )
 
             result.transfers.size shouldBe 1
@@ -156,10 +162,13 @@ class PurePipelineTest :
                     gameObjects = listOf(obj),
                     zones = zones,
                     events = events,
-                    previousZones = previousZones,
-                    forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
-                    idAllocator = { _ -> error("should not realloc for Resolve") },
-                    idLookup = { fid -> InstanceId(fid.value + 1000) },
+                    context =
+                        ZoneTransferContext(
+                            previousZones = previousZones,
+                            forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                            idAllocator = { _ -> error("should not realloc for Resolve") },
+                            idLookup = { fid -> InstanceId(fid.value + 1000) },
+                        ),
                 )
 
             result.transfers.size shouldBe 1
@@ -191,10 +200,13 @@ class PurePipelineTest :
                     gameObjects = listOf(obj),
                     zones = zones,
                     events = events,
-                    previousZones = previousZones,
-                    forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
-                    idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
-                    idLookup = { fid -> InstanceId(fid.value + 1000) },
+                    context =
+                        ZoneTransferContext(
+                            previousZones = previousZones,
+                            forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                            idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                            idLookup = { fid -> InstanceId(fid.value + 1000) },
+                        ),
                 )
 
             result.transfers.size shouldBe 1
@@ -219,10 +231,13 @@ class PurePipelineTest :
                     gameObjects = listOf(obj),
                     zones = zones,
                     events = emptyList(),
-                    previousZones = previousZones,
-                    forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
-                    idAllocator = { _ -> error("should not realloc") },
-                    idLookup = { fid -> InstanceId(fid.value + 1000) },
+                    context =
+                        ZoneTransferContext(
+                            previousZones = previousZones,
+                            forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                            idAllocator = { _ -> error("should not realloc") },
+                            idLookup = { fid -> InstanceId(fid.value + 1000) },
+                        ),
                 )
 
             result.transfers.shouldBeEmpty()
@@ -577,10 +592,13 @@ class PurePipelineTest :
                     gameObjects = listOf(obj),
                     zones = zones,
                     events = emptyList(),
-                    previousZones = previousZones,
-                    forgeIdLookup = forgeIdLookup,
-                    idAllocator = noOpAllocator,
-                    idLookup = idLookup,
+                    context =
+                        ZoneTransferContext(
+                            previousZones = previousZones,
+                            forgeIdLookup = forgeIdLookup,
+                            idAllocator = noOpAllocator,
+                            idLookup = idLookup,
+                        ),
                 )
 
             result.transfers.shouldBeEmpty()
@@ -605,11 +623,14 @@ class PurePipelineTest :
                     gameObjects = emptyList(),
                     zones = zones,
                     events = events,
-                    previousZones = previousZones,
-                    forgeIdLookup = forgeIdLookup,
-                    idAllocator = noOpAllocator,
-                    idLookup = idLookup,
-                    grpIdResolver = { fid -> GrpId(if (fid == sourceForgeId) cardGrpId else 0) },
+                    context =
+                        ZoneTransferContext(
+                            previousZones = previousZones,
+                            forgeIdLookup = forgeIdLookup,
+                            idAllocator = noOpAllocator,
+                            idLookup = idLookup,
+                            grpIdResolver = { fid -> GrpId(if (fid == sourceForgeId) cardGrpId else 0) },
+                        ),
                 )
 
             result.stackAbilityDisappearances shouldHaveSize 1
@@ -632,11 +653,14 @@ class PurePipelineTest :
                     gameObjects = emptyList(),
                     zones = zones,
                     events = events,
-                    previousZones = previousZones,
-                    forgeIdLookup = forgeIdLookup,
-                    idAllocator = noOpAllocator,
-                    idLookup = idLookup,
-                    grpIdResolver = { fid -> GrpId(if (fid == sourceForgeId) cardGrpId else 0) },
+                    context =
+                        ZoneTransferContext(
+                            previousZones = previousZones,
+                            forgeIdLookup = forgeIdLookup,
+                            idAllocator = noOpAllocator,
+                            idLookup = idLookup,
+                            grpIdResolver = { fid -> GrpId(if (fid == sourceForgeId) cardGrpId else 0) },
+                        ),
                 )
 
             result.stackAbilityDisappearances shouldHaveSize 1
@@ -697,10 +721,13 @@ class PurePipelineTest :
                     gameObjects = listOf(spellObj),
                     zones = zones,
                     events = emptyList(),
-                    previousZones = emptyMap(),
-                    forgeIdLookup = { null },
-                    idAllocator = noOpAllocator,
-                    idLookup = { fid -> InstanceId(fid.value + 1000) },
+                    context =
+                        ZoneTransferContext(
+                            previousZones = emptyMap(),
+                            forgeIdLookup = { null },
+                            idAllocator = noOpAllocator,
+                            idLookup = { fid -> InstanceId(fid.value + 1000) },
+                        ),
                 )
 
             result.stackAbilityAppearances.shouldBeEmpty()
@@ -721,10 +748,13 @@ class PurePipelineTest :
                     gameObjects = listOf(obj),
                     zones = zones,
                     events = emptyList(),
-                    previousZones = previousZones,
-                    forgeIdLookup = forgeIdLookup,
-                    idAllocator = noOpAllocator,
-                    idLookup = idLookup,
+                    context =
+                        ZoneTransferContext(
+                            previousZones = previousZones,
+                            forgeIdLookup = forgeIdLookup,
+                            idAllocator = noOpAllocator,
+                            idLookup = idLookup,
+                        ),
                 )
 
             result.stackAbilityAppearances.shouldBeEmpty()

@@ -3,8 +3,6 @@ package leyline.bridge.handoff
 import forge.game.card.Card
 import leyline.bridge.forge.PlayerController
 import org.slf4j.LoggerFactory
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
 
 /**
  * Owns the [PlayerController.pendingNumericInput] future lifecycle for the three
@@ -30,29 +28,23 @@ class NumericInputGate(
         max: Int,
         defaultOnTimeout: Int,
         logContext: String,
-    ): Int {
-        val future = CompletableFuture<Int>()
-        owner.pendingNumericInput =
-            PlayerController.NumericInputPrompt(
-                sourceCard = sourceCard,
-                min = min,
-                max = max,
-                future = future,
-            )
-        actionBridge?.prioritySignal?.signal()
-
-        return try {
-            val timeoutMs = actionBridge?.getTimeoutMs()
-            future.get(timeoutMs ?: DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        } catch (e: Exception) {
-            log.warn("{}: timeout/error for {} — defaulting to {}", logContext, sourceCard?.name, defaultOnTimeout, e)
-            defaultOnTimeout
-        } finally {
-            owner.pendingNumericInput = null
-        }
-    }
-
-    companion object {
-        const val DEFAULT_TIMEOUT_MS = 45_000L
-    }
+    ): Int =
+        PendingGate.await(
+            publish = { owner.pendingNumericInput = it },
+            prompt = { future ->
+                PlayerController.NumericInputPrompt(
+                    sourceCard = sourceCard,
+                    min = min,
+                    max = max,
+                    future = future,
+                )
+            },
+            signal = { actionBridge?.prioritySignal?.signal() },
+            timeoutMs = { actionBridge?.getTimeoutMs() },
+            defaultOnTimeout = defaultOnTimeout,
+            log = log,
+            logContext = logContext,
+            subject = sourceCard?.name,
+            timeoutDetail = "defaulting to $defaultOnTimeout",
+        )
 }
