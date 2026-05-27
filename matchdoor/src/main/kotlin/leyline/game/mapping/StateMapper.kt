@@ -815,9 +815,16 @@ object StateMapper {
     }
 
     private fun stackTransferDeletedIds(transferResult: TransferResult): List<Int> =
-        transferResult.transfers
-            .filter { it.srcZoneId == ZoneIds.STACK && it.destZoneId != ZoneIds.BATTLEFIELD }
-            .map { it.origId }
+        (
+            transferResult.transfers
+                .filter { it.srcZoneId == ZoneIds.STACK && it.destZoneId != ZoneIds.BATTLEFIELD }
+                .filter { transfer ->
+                    transfer.origId != transfer.newId ||
+                        transferResult.patchedObjects.none {
+                            it.instanceId == transfer.newId && it.zoneId == transfer.destZoneId
+                        }
+                }.map { it.origId }
+        )
 
     /**
      * Build a Diff [GameStateMessage] by snap-vs-snap field comparison.
