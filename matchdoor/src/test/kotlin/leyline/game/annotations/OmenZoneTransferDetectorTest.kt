@@ -77,16 +77,19 @@ class OmenZoneTransferDetectorTest :
                     gameObjects = emptyList(),
                     zones = zones,
                     events = events,
-                    previousZones = previousZones,
-                    forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
-                    idAllocator = { _ ->
-                        val oldId = currentId
-                        val newId = nextId++
-                        currentId = newId
-                        InstanceIdRegistry.IdReallocation(InstanceId(oldId), InstanceId(newId))
-                    },
-                    idLookup = { fid -> InstanceId(fid.value + 1000) },
-                    grpIdResolver = { GrpId(95536) },
+                    context =
+                        ZoneTransferContext(
+                            previousZones = previousZones,
+                            forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                            idAllocator = { _ ->
+                                val oldId = currentId
+                                val newId = nextId++
+                                currentId = newId
+                                InstanceIdRegistry.IdReallocation(InstanceId(oldId), InstanceId(newId))
+                            },
+                            idLookup = { fid -> InstanceId(fid.value + 1000) },
+                            grpIdResolver = { GrpId(95536) },
+                        ),
                 )
 
             result.transfers.size shouldBe 2
@@ -154,16 +157,19 @@ class OmenZoneTransferDetectorTest :
                     gameObjects = listOf(paradigmObject(instanceId = 100, zoneId = ZoneIds.EXILE)),
                     zones = zones,
                     events = events,
-                    previousZones = previousZones,
-                    forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
-                    idAllocator = { _ ->
-                        val oldId = currentId
-                        val newId = nextId++
-                        currentId = newId
-                        InstanceIdRegistry.IdReallocation(InstanceId(oldId), InstanceId(newId))
-                    },
-                    idLookup = { fid -> InstanceId(fid.value + 1000) },
-                    grpIdResolver = { GrpId(102608) },
+                    context =
+                        ZoneTransferContext(
+                            previousZones = previousZones,
+                            forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                            idAllocator = { _ ->
+                                val oldId = currentId
+                                val newId = nextId++
+                                currentId = newId
+                                InstanceIdRegistry.IdReallocation(InstanceId(oldId), InstanceId(newId))
+                            },
+                            idLookup = { fid -> InstanceId(fid.value + 1000) },
+                            grpIdResolver = { GrpId(102608) },
+                        ),
                 )
 
             result.transfers.size shouldBe 2

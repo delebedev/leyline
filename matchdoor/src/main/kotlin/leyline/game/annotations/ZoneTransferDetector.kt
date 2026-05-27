@@ -115,6 +115,23 @@ data class TransferResult(
     val idReallocations: List<InstanceIdRegistry.IdReallocation> = emptyList(),
 )
 
+internal data class ZoneTransferContext(
+    val previousZones: Map<Int, Int>,
+    val forgeIdLookup: (InstanceId) -> ForgeCardId?,
+    val idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
+    val idLookup: (ForgeCardId) -> InstanceId,
+    val manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
+    /** Resolve grpId for a source card's ForgeCardId (for stack ability resolution annotations). */
+    val grpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
+    /** True when [ForgeCardId] is currently foretold. */
+    val isForetoldLookup: (ForgeCardId) -> Boolean = { false },
+    val pendingSpellCastLookup: (ForgeCardId) -> GameEvent.SpellCast? = { null },
+    val pendingSpellResolutionLookup: (ForgeCardId) -> GameEvent.SpellResolved? = { null },
+    /** True when a Forge card with this id exists. */
+    val forgeCardKnown: (ForgeCardId) -> Boolean = { true },
+    val paradigmSourceIidLookup: (ForgeCardId) -> Int? = { null },
+)
+
 /**
  * Stage 1 of the annotation pipeline: detect zone transfers and realloc instanceIds.
  *
@@ -132,8 +149,7 @@ object ZoneTransferDetector {
      * recordings are returned as data; the caller commits via
      * [GameBridge.applyMutations].
      *
-     * Delegates to the pure overload, adapting [GameBridge] calls to function
-     * parameters.
+     * Delegates to the pure overload, adapting [GameBridge] calls to [ZoneTransferContext].
      */
     internal fun detectZoneTransfers(
         gameObjects: List<GameObjectInfo>,
@@ -173,36 +189,39 @@ object ZoneTransferDetector {
                 gameObjects = gameObjects,
                 zones = zones,
                 events = events,
-                previousZones = bridge.diff.allZones(),
-                forgeIdLookup = forgeIdLookup,
-                idAllocator = idAllocator,
-                idLookup = idLookup,
-                manaAbilityGrpIdResolver = { fid ->
-                    val card = bridge.getGame()?.let { findCard(it, fid) }
-                    val abilityGrpId =
-                        if (card != null) {
-                            val subtypes = card.type.subtypes.map { it.lowercase() }
-                            BasicLandAbilities.BY_SUBTYPE
-                                .firstOrNull { it.first in subtypes }
-                                ?.second ?: 0
-                        } else {
-                            0
-                        }
-                    GrpId(abilityGrpId)
-                },
-                grpIdResolver = { fid ->
-                    val card = bridge.getGame()?.let { findCard(it, fid) }
-                    GrpId(if (card != null) bridge.cardRepository.findGrpIdByName(card.name) ?: 0 else 0)
-                },
-                isForetoldLookup = { fid ->
-                    bridge.getGame()?.let { findCard(it, fid) }?.let { Foretell.isForetold(it) } ?: false
-                },
-                pendingSpellCastLookup = { fid -> bridge.pendingSpellCast(fid) },
-                pendingSpellResolutionLookup = { fid -> bridge.pendingSpellResolution(fid) },
-                forgeCardKnown = { fid ->
-                    bridge.getGame()?.let { findCard(it, fid) } != null
-                },
-                paradigmSourceIidLookup = { fid -> bridge.paradigmSourceStackIidFor(fid) },
+                context =
+                    ZoneTransferContext(
+                        previousZones = bridge.diff.allZones(),
+                        forgeIdLookup = forgeIdLookup,
+                        idAllocator = idAllocator,
+                        idLookup = idLookup,
+                        manaAbilityGrpIdResolver = { fid ->
+                            val card = bridge.getGame()?.let { findCard(it, fid) }
+                            val abilityGrpId =
+                                if (card != null) {
+                                    val subtypes = card.type.subtypes.map { it.lowercase() }
+                                    BasicLandAbilities.BY_SUBTYPE
+                                        .firstOrNull { it.first in subtypes }
+                                        ?.second ?: 0
+                                } else {
+                                    0
+                                }
+                            GrpId(abilityGrpId)
+                        },
+                        grpIdResolver = { fid ->
+                            val card = bridge.getGame()?.let { findCard(it, fid) }
+                            GrpId(if (card != null) bridge.cardRepository.findGrpIdByName(card.name) ?: 0 else 0)
+                        },
+                        isForetoldLookup = { fid ->
+                            bridge.getGame()?.let { findCard(it, fid) }?.let { Foretell.isForetold(it) } ?: false
+                        },
+                        pendingSpellCastLookup = { fid -> bridge.pendingSpellCast(fid) },
+                        pendingSpellResolutionLookup = { fid -> bridge.pendingSpellResolution(fid) },
+                        forgeCardKnown = { fid ->
+                            bridge.getGame()?.let { findCard(it, fid) } != null
+                        },
+                        paradigmSourceIidLookup = { fid -> bridge.paradigmSourceStackIidFor(fid) },
+                    ),
             )
         result.transfers
             .filter { it.category == TransferCategory.CastSpell }
@@ -217,7 +236,7 @@ object ZoneTransferDetector {
 
     /**
      * Detect zone transfers — pure overload.
-     * Takes function parameters instead of [GameBridge] for independent testability.
+     * Takes [ZoneTransferContext] instead of [GameBridge] for independent testability.
      *
      * Returns a [TransferResult] with patched copies of objects/zones.
      * Does not mutate [gameObjects] or [zones]. Uses [idAllocator]
@@ -230,35 +249,24 @@ object ZoneTransferDetector {
         // exile, foretell, designation-related, mana-pay, etc.). Each new
         // category adds an arm.
         "CyclomaticComplexMethod",
-        // Inherited from the upstream caller's parameter list — refactor would
-        // also touch StateMapper threading.
-        "LongParameterList",
     )
     internal fun detectZoneTransfers(
         gameObjects: List<GameObjectInfo>,
         zones: List<ZoneInfo>,
         events: List<GameEvent>,
-        previousZones: Map<Int, Int>,
-        forgeIdLookup: (InstanceId) -> ForgeCardId?,
-        idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
-        idLookup: (ForgeCardId) -> InstanceId,
-        manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
-        /** Resolve grpId for a source card's ForgeCardId (for stack ability resolution annotations). */
-        grpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
-        /** True when [forgeCardId] is currently foretold (in Exile with Card.foretold==true).
-         *  Used to override Hand→Exile category from `Exile` to `Foretell` for the
-         *  foretell-action transfer (Forge fires no dedicated GameEvent we can dispatch on
-         *  — `GameEventCardForetold` carries only the activating player). */
-        isForetoldLookup: (ForgeCardId) -> Boolean = { false },
-        pendingSpellCastLookup: (ForgeCardId) -> GameEvent.SpellCast? = { null },
-        pendingSpellResolutionLookup: (ForgeCardId) -> GameEvent.SpellResolved? = { null },
-        /** True when a Forge card with this id exists. Used by the stack-ability surrogate
-         *  inverse-mapping fallback to reject SA ids that happen to numerically collide with
-         *  unrelated card ids when no in-window event disambiguates. Defaults to `true` for
-         *  the legacy callers that don't know the difference. */
-        forgeCardKnown: (ForgeCardId) -> Boolean = { true },
-        paradigmSourceIidLookup: (ForgeCardId) -> Int? = { null },
+        context: ZoneTransferContext,
     ): TransferResult {
+        val previousZones = context.previousZones
+        val forgeIdLookup = context.forgeIdLookup
+        val idAllocator = context.idAllocator
+        val idLookup = context.idLookup
+        val manaAbilityGrpIdResolver = context.manaAbilityGrpIdResolver
+        val grpIdResolver = context.grpIdResolver
+        val isForetoldLookup = context.isForetoldLookup
+        val pendingSpellCastLookup = context.pendingSpellCastLookup
+        val pendingSpellResolutionLookup = context.pendingSpellResolutionLookup
+        val forgeCardKnown = context.forgeCardKnown
+        val paradigmSourceIidLookup = context.paradigmSourceIidLookup
         val patchedObjects = gameObjects.toMutableList()
         val patchedZones = zones.toMutableList()
         val transfers = mutableListOf<AppliedTransfer>()

@@ -7,8 +7,6 @@ import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PriorityDecision
 import org.slf4j.LoggerFactory
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
 
 /**
  * Narrow access surface exposed by [PlayerController] to coordinators and helpers.
@@ -92,31 +90,26 @@ class OptionalActionGate(
         customPromptId: Int? = null,
         commanderReturn: PlayerController.CommanderReturnPromptContext? = null,
     ): Boolean {
-        val future = CompletableFuture<Boolean>()
-        owner.pendingOptionalAction =
-            PlayerController.OptionalActionPrompt(
-                wrapper = wrapper,
-                hostCard = hostCard,
-                future = future,
-                forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
-                customPromptId = customPromptId,
-                commanderReturn = commanderReturn,
-            )
-        actionBridge?.prioritySignal?.signal()
-
-        return try {
-            val timeoutMs = actionBridge?.getTimeoutMs()
-            future.get(timeoutMs ?: DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        } catch (e: Exception) {
-            val action = if (defaultOnTimeout) "auto-accepting" else "declining"
-            log.warn("{}: timeout/error for {} — {}", logContext, hostCard?.name, action, e)
-            defaultOnTimeout
-        } finally {
-            owner.pendingOptionalAction = null
-        }
-    }
-
-    companion object {
-        const val DEFAULT_TIMEOUT_MS = 45_000L
+        val action = if (defaultOnTimeout) "auto-accepting" else "declining"
+        return PendingGate.await(
+            publish = { owner.pendingOptionalAction = it },
+            prompt = { future ->
+                PlayerController.OptionalActionPrompt(
+                    wrapper = wrapper,
+                    hostCard = hostCard,
+                    future = future,
+                    forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
+                    customPromptId = customPromptId,
+                    commanderReturn = commanderReturn,
+                )
+            },
+            signal = { actionBridge?.prioritySignal?.signal() },
+            timeoutMs = { actionBridge?.getTimeoutMs() },
+            defaultOnTimeout = defaultOnTimeout,
+            log = log,
+            logContext = logContext,
+            subject = hostCard?.name,
+            timeoutDetail = action,
+        )
     }
 }
