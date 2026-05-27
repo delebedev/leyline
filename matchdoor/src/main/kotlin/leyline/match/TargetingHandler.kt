@@ -289,54 +289,8 @@ class TargetingHandler(
         val bridge = ctx.bridge
         val game = ctx.game
         val pendingPrompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
-        if (pendingPrompt != null) {
-            when (val classified = PromptClassifier.classify(pendingPrompt)) {
-                is ClassifiedPrompt.ModalChoice -> {
-                    tracer.traceEvent(MatchEventType.TARGET_PROMPT, game, "post-cast modal: ${pendingPrompt.request.message}")
-                    sendCastingTimeOptionsReq(classified.pendingPrompt)
-                    return true
-                }
-
-                is ClassifiedPrompt.Targeting -> {
-                    tracer.traceEvent(
-                        MatchEventType.TARGET_PROMPT,
-                        game,
-                        "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
-                    )
-                    sendSelectTargetsReq(classified.pendingPrompt)
-                    return true
-                }
-
-                is ClassifiedPrompt.SelectN -> {
-                    tracer.traceEvent(
-                        MatchEventType.TARGET_PROMPT,
-                        game,
-                        "post-cast selectN reason=${classified.reason} candidates=${pendingPrompt.request.candidateRefs.size}",
-                    )
-                    when (classified.reason) {
-                        ClassifiedPrompt.SelectN.Reason.Sacrifice ->
-                            sendSacrificePayCostsReq(classified.pendingPrompt)
-                        ClassifiedPrompt.SelectN.Reason.ExileFromGrave ->
-                            sendExileFromGravePayCostsReq(classified.pendingPrompt)
-                        ClassifiedPrompt.SelectN.Reason.EnlistCost ->
-                            sendEnlistCostPayCostsReq(classified.pendingPrompt)
-                        ClassifiedPrompt.SelectN.Reason.StationTapCost ->
-                            sendStationTapCostPayCostsReq(classified.pendingPrompt)
-                        ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost ->
-                            sendReturnUnblockedAttackerPayCostsReq(classified.pendingPrompt)
-                        else -> sendSelectNReq(classified.pendingPrompt, classified.reason)
-                    }
-                    return true
-                }
-
-                is ClassifiedPrompt.Search -> {
-                    tracer.traceEvent(MatchEventType.TARGET_PROMPT, game, "post-cast search")
-                    sendSearchReq(classified.pendingPrompt)
-                    return true
-                }
-
-                else -> {}
-            }
+        if (pendingPrompt != null && sendClassifiedPrompt(PromptClassifier.classify(pendingPrompt), PromptDispatchContext.POST_CAST)) {
+            return true
         }
         if (!game.stack.isEmpty) {
             // When auto-resolve is active and the player has no meaningful responses
@@ -377,76 +331,124 @@ class TargetingHandler(
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return PromptResult.NONE
         val classified = PromptClassifier.classify(pendingPrompt)
 
+        return if (sendClassifiedPrompt(classified, PromptDispatchContext.PENDING_CHECK)) {
+            PromptResult.SENT_TO_CLIENT
+        } else {
+            when (classified) {
+                is ClassifiedPrompt.AutoResolve -> {
+                    val req = pendingPrompt.request
+                    log.info(
+                        "TargetingHandler: auto-resolving non-targeting prompt [{}] \"{}\" opts={} default={}",
+                        req.promptType,
+                        req.message,
+                        req.options.size,
+                        req.defaultIndex,
+                    )
+                    tracer.traceEvent(
+                        MatchEventType.AUTO_PASS,
+                        game,
+                        "auto-resolve prompt [${req.promptType}] default=${req.defaultIndex}",
+                    )
+                    seatBridge.prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
+                    bridge.awaitPriority()
+                    PromptResult.AUTO_RESOLVED
+                }
+
+                is ClassifiedPrompt.Grouping,
+                is ClassifiedPrompt.ModalChoice,
+                is ClassifiedPrompt.Search,
+                is ClassifiedPrompt.SelectN,
+                is ClassifiedPrompt.Targeting,
+                -> PromptResult.NONE
+            }
+        }
+    }
+
+    private enum class PromptDispatchContext {
+        POST_CAST,
+        PENDING_CHECK,
+    }
+
+    private fun sendClassifiedPrompt(
+        classified: ClassifiedPrompt,
+        context: PromptDispatchContext,
+    ): Boolean {
+        val pendingPrompt = classified.pendingPrompt
         return when (classified) {
             is ClassifiedPrompt.Grouping -> {
+                if (context != PromptDispatchContext.PENDING_CHECK) return false
                 sendGroupReqForSurveilScry(classified.pendingPrompt, classified.context)
-                PromptResult.SENT_TO_CLIENT
+                true
             }
 
             is ClassifiedPrompt.ModalChoice -> {
-                tracer.traceEvent(MatchEventType.TARGET_PROMPT, game, "modal: ${pendingPrompt.request.message}")
+                val prefix = if (context == PromptDispatchContext.POST_CAST) "post-cast modal" else "modal"
+                tracer.traceEvent(MatchEventType.TARGET_PROMPT, ctx.game, "$prefix: ${pendingPrompt.request.message}")
                 sendCastingTimeOptionsReq(classified.pendingPrompt)
-                PromptResult.SENT_TO_CLIENT
+                true
             }
 
             is ClassifiedPrompt.SelectN -> {
+                val label =
+                    if (context == PromptDispatchContext.POST_CAST) {
+                        "post-cast selectN reason=${classified.reason} candidates=${pendingPrompt.request.candidateRefs.size}"
+                    } else {
+                        "select_n(${classified.reason}) candidates=${pendingPrompt.request.candidateRefs.size}"
+                    }
                 tracer.traceEvent(
                     MatchEventType.TARGET_PROMPT,
-                    game,
-                    "select_n(${classified.reason}) candidates=${pendingPrompt.request.candidateRefs.size}",
+                    ctx.game,
+                    label,
                 )
-                when (classified.reason) {
-                    ClassifiedPrompt.SelectN.Reason.Sacrifice ->
-                        sendSacrificePayCostsReq(classified.pendingPrompt)
-                    ClassifiedPrompt.SelectN.Reason.ExileFromGrave ->
-                        sendExileFromGravePayCostsReq(classified.pendingPrompt)
-                    ClassifiedPrompt.SelectN.Reason.EnlistCost ->
-                        sendEnlistCostPayCostsReq(classified.pendingPrompt)
-                    ClassifiedPrompt.SelectN.Reason.StationTapCost ->
-                        sendStationTapCostPayCostsReq(classified.pendingPrompt)
-                    ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost ->
-                        sendReturnUnblockedAttackerPayCostsReq(classified.pendingPrompt)
-                    ClassifiedPrompt.SelectN.Reason.LegendRule,
-                    ClassifiedPrompt.SelectN.Reason.Discard,
-                    ClassifiedPrompt.SelectN.Reason.SacrificeEffect,
-                    ClassifiedPrompt.SelectN.Reason.RevealChoose,
-                    ClassifiedPrompt.SelectN.Reason.Resolution,
-                    ClassifiedPrompt.SelectN.Reason.MutateTopBottom,
-                    -> sendSelectNReq(classified.pendingPrompt, classified.reason)
-                }
-                PromptResult.SENT_TO_CLIENT
+                sendSelectNPrompt(classified.pendingPrompt, classified.reason)
+                true
             }
 
             is ClassifiedPrompt.Targeting -> {
-                tracer.traceEvent(MatchEventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
+                val prefix = if (context == PromptDispatchContext.POST_CAST) "cast-target targets" else "targets"
+                tracer.traceEvent(MatchEventType.TARGET_PROMPT, ctx.game, "$prefix=${pendingPrompt.request.candidateRefs.size}")
                 sendSelectTargetsReq(classified.pendingPrompt)
-                PromptResult.SENT_TO_CLIENT
+                true
             }
 
             is ClassifiedPrompt.Search -> {
-                tracer.traceEvent(MatchEventType.TARGET_PROMPT, game, "search: ${pendingPrompt.request.message}")
+                val label =
+                    if (context == PromptDispatchContext.POST_CAST) {
+                        "post-cast search"
+                    } else {
+                        "search: ${pendingPrompt.request.message}"
+                    }
+                tracer.traceEvent(MatchEventType.TARGET_PROMPT, ctx.game, label)
                 sendSearchReq(classified.pendingPrompt)
-                PromptResult.SENT_TO_CLIENT
+                true
             }
 
-            is ClassifiedPrompt.AutoResolve -> {
-                val req = pendingPrompt.request
-                log.info(
-                    "TargetingHandler: auto-resolving non-targeting prompt [{}] \"{}\" opts={} default={}",
-                    req.promptType,
-                    req.message,
-                    req.options.size,
-                    req.defaultIndex,
-                )
-                tracer.traceEvent(
-                    MatchEventType.AUTO_PASS,
-                    game,
-                    "auto-resolve prompt [${req.promptType}] default=${req.defaultIndex}",
-                )
-                seatBridge.prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
-                bridge.awaitPriority()
-                PromptResult.AUTO_RESOLVED
-            }
+            is ClassifiedPrompt.AutoResolve -> false
+        }
+    }
+
+    private fun sendSelectNPrompt(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        reason: ClassifiedPrompt.SelectN.Reason,
+    ) {
+        when (reason) {
+            ClassifiedPrompt.SelectN.Reason.Sacrifice ->
+                sendSacrificePayCostsReq(pendingPrompt)
+            ClassifiedPrompt.SelectN.Reason.ExileFromGrave ->
+                sendExileFromGravePayCostsReq(pendingPrompt)
+            ClassifiedPrompt.SelectN.Reason.EnlistCost ->
+                sendEnlistCostPayCostsReq(pendingPrompt)
+            ClassifiedPrompt.SelectN.Reason.StationTapCost ->
+                sendStationTapCostPayCostsReq(pendingPrompt)
+            ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost ->
+                sendReturnUnblockedAttackerPayCostsReq(pendingPrompt)
+            ClassifiedPrompt.SelectN.Reason.LegendRule,
+            ClassifiedPrompt.SelectN.Reason.Discard,
+            ClassifiedPrompt.SelectN.Reason.SacrificeEffect,
+            ClassifiedPrompt.SelectN.Reason.RevealChoose,
+            ClassifiedPrompt.SelectN.Reason.Resolution,
+            ClassifiedPrompt.SelectN.Reason.MutateTopBottom,
+            -> sendSelectNReq(pendingPrompt, reason)
         }
     }
 
