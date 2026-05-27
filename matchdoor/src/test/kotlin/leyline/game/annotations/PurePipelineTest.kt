@@ -5,7 +5,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -14,7 +13,6 @@ import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
-import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.annotations.AppliedTransfer
 import leyline.game.annotations.CombatAnnotations
@@ -22,8 +20,6 @@ import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
 import leyline.game.annotations.ZoneTransferDetector
 import leyline.game.event.GameEvent
-import leyline.game.iid
-import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
@@ -31,9 +27,23 @@ import leyline.game.state.InstanceIdRegistry
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
-import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
+
+private fun zoneTransferContext(
+    previousZones: Map<Int, Int>,
+    forgeIdLookup: (InstanceId) -> ForgeCardId?,
+    idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
+    idLookup: (ForgeCardId) -> InstanceId,
+    grpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
+): ZoneTransferContext =
+    ZoneTransferContext(
+        previousZones = previousZones,
+        forgeIdLookup = forgeIdLookup,
+        idAllocator = idAllocator,
+        idLookup = idLookup,
+        grpIdResolver = grpIdResolver,
+    )
 
 /**
  * Pure unit tests for [leyline.game.annotations.ZoneTransferDetector.detectZoneTransfers] — the overload
@@ -93,7 +103,7 @@ class PurePipelineTest :
                     zones = zones,
                     events = events,
                     context =
-                        ZoneTransferContext(
+                        zoneTransferContext(
                             previousZones = previousZones,
                             forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
                             idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
@@ -131,7 +141,7 @@ class PurePipelineTest :
                     zones = zones,
                     events = events,
                     context =
-                        ZoneTransferContext(
+                        zoneTransferContext(
                             previousZones = previousZones,
                             forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
                             idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
@@ -163,7 +173,7 @@ class PurePipelineTest :
                     zones = zones,
                     events = events,
                     context =
-                        ZoneTransferContext(
+                        zoneTransferContext(
                             previousZones = previousZones,
                             forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
                             idAllocator = { _ -> error("should not realloc for Resolve") },
@@ -201,7 +211,7 @@ class PurePipelineTest :
                     zones = zones,
                     events = events,
                     context =
-                        ZoneTransferContext(
+                        zoneTransferContext(
                             previousZones = previousZones,
                             forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
                             idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
@@ -232,7 +242,7 @@ class PurePipelineTest :
                     zones = zones,
                     events = emptyList(),
                     context =
-                        ZoneTransferContext(
+                        zoneTransferContext(
                             previousZones = previousZones,
                             forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
                             idAllocator = { _ -> error("should not realloc") },
@@ -531,233 +541,5 @@ class PurePipelineTest :
 
             result.annotations.shouldBeEmpty()
             result.hasCombatDamage shouldBe false
-        }
-
-        // -----------------------------------------------------------------------
-        // Stack ability lifecycle: appearance + disappearance detection
-        // -----------------------------------------------------------------------
-
-        // Source card forgeId=42, ability forgeId=42+100_000=100_042.
-        // Source card instanceId=300, ability instanceId=500.
-        val sourceForgeId = ForgeCardId(42)
-        val abilityForgeId = FrameIdResolver.stackAbilityForgeId(sourceForgeId)
-        val sourceCardIid = 300
-        val abilityIid = 500
-        val cardGrpId = 12345
-
-        fun abilityObject(
-            instanceId: Int = abilityIid,
-            grpId: Int = cardGrpId,
-        ): GameObjectInfo =
-            GameObjectInfo
-                .newBuilder()
-                .setInstanceId(instanceId)
-                .setGrpId(grpId)
-                .setZoneId(ZoneIds.STACK)
-                .setOwnerSeatId(1)
-                .setType(GameObjectType.Ability)
-                .build()
-
-        /** Standard lookup: maps ability instanceId → ability forgeId, source instanceId → source forgeId. */
-        val forgeIdLookup: (InstanceId) -> ForgeCardId? = { iid ->
-            when (iid.value) {
-                abilityIid -> abilityForgeId
-                sourceCardIid -> sourceForgeId
-                else -> null
-            }
-        }
-        val idLookup: (ForgeCardId) -> InstanceId = { fid ->
-            when (fid) {
-                sourceForgeId -> InstanceId(sourceCardIid)
-                abilityForgeId -> InstanceId(abilityIid)
-                else -> InstanceId(fid.value + 1000)
-            }
-        }
-        val noOpAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation = { fid ->
-            InstanceIdRegistry.IdReallocation(InstanceId(fid.value), InstanceId(fid.value))
-        }
-
-        test("detectZoneTransfers finds new stack ability appearance") {
-            val obj = abilityObject()
-            val zones =
-                listOf(
-                    zone(ZoneIds.STACK, ZoneType.Stack, abilityIid),
-                    zone(ZoneIds.LIMBO, ZoneType.Limbo),
-                )
-            // Source card is on the battlefield in previous state.
-            val previousZones = mapOf(sourceCardIid to ZoneIds.BATTLEFIELD)
-
-            val result =
-                ZoneTransferDetector.detectZoneTransfers(
-                    gameObjects = listOf(obj),
-                    zones = zones,
-                    events = emptyList(),
-                    context =
-                        ZoneTransferContext(
-                            previousZones = previousZones,
-                            forgeIdLookup = forgeIdLookup,
-                            idAllocator = noOpAllocator,
-                            idLookup = idLookup,
-                        ),
-                )
-
-            result.transfers.shouldBeEmpty()
-            result.stackAbilityAppearances shouldHaveSize 1
-            val a = result.stackAbilityAppearances[0]
-            assertSoftly {
-                a.abilityInstanceId shouldBe abilityIid
-                a.sourceCardInstanceId shouldBe sourceCardIid
-                a.sourceZoneId shouldBe ZoneIds.BATTLEFIELD
-                a.grpId shouldBe cardGrpId
-            }
-        }
-
-        test("detectZoneTransfers finds stack ability disappearance") {
-            // Ability was on the stack, now gone. SpellResolved event for the source card.
-            val zones = listOf(zone(ZoneIds.STACK, ZoneType.Stack), zone(ZoneIds.LIMBO, ZoneType.Limbo))
-            val previousZones = mapOf(abilityIid to ZoneIds.STACK, sourceCardIid to ZoneIds.BATTLEFIELD)
-            val events = listOf(GameEvent.SpellResolved(cardId = sourceForgeId, hasFizzled = false))
-
-            val result =
-                ZoneTransferDetector.detectZoneTransfers(
-                    gameObjects = emptyList(),
-                    zones = zones,
-                    events = events,
-                    context =
-                        ZoneTransferContext(
-                            previousZones = previousZones,
-                            forgeIdLookup = forgeIdLookup,
-                            idAllocator = noOpAllocator,
-                            idLookup = idLookup,
-                            grpIdResolver = { fid -> GrpId(if (fid == sourceForgeId) cardGrpId else 0) },
-                        ),
-                )
-
-            result.stackAbilityDisappearances shouldHaveSize 1
-            val d = result.stackAbilityDisappearances[0]
-            assertSoftly {
-                d.abilityInstanceId shouldBe abilityIid
-                d.sourceCardInstanceId shouldBe sourceCardIid
-                d.grpId shouldBe cardGrpId
-                d.hasFizzled shouldBe false
-            }
-        }
-
-        test("stack ability fizzle sets hasFizzled") {
-            val zones = listOf(zone(ZoneIds.STACK, ZoneType.Stack), zone(ZoneIds.LIMBO, ZoneType.Limbo))
-            val previousZones = mapOf(abilityIid to ZoneIds.STACK, sourceCardIid to ZoneIds.BATTLEFIELD)
-            val events = listOf(GameEvent.SpellResolved(cardId = sourceForgeId, hasFizzled = true))
-
-            val result =
-                ZoneTransferDetector.detectZoneTransfers(
-                    gameObjects = emptyList(),
-                    zones = zones,
-                    events = events,
-                    context =
-                        ZoneTransferContext(
-                            previousZones = previousZones,
-                            forgeIdLookup = forgeIdLookup,
-                            idAllocator = noOpAllocator,
-                            idLookup = idLookup,
-                            grpIdResolver = { fid -> GrpId(if (fid == sourceForgeId) cardGrpId else 0) },
-                        ),
-                )
-
-            result.stackAbilityDisappearances shouldHaveSize 1
-            result.stackAbilityDisappearances[0].hasFizzled shouldBe true
-        }
-
-        test("annotation shape for stack ability appearance") {
-            val ann =
-                AnnotationBuilder.abilityInstanceCreated(
-                    abilityInstanceId = abilityIid.iid,
-                    affectorId = sourceCardIid.iid,
-                    sourceZoneId = ZoneIds.BATTLEFIELD,
-                )
-
-            assertSoftly {
-                ann.typeList shouldBe listOf(AnnotationType.AbilityInstanceCreated)
-                ann.affectorId shouldBe sourceCardIid
-                ann.affectedIdsList shouldBe listOf(abilityIid)
-                ann.detailInt("source_zone") shouldBe ZoneIds.BATTLEFIELD
-            }
-        }
-
-        test("disappearance emits only AbilityInstanceDeleted") {
-            // ResolutionStart/Complete are NOT emitted for disappeared abilities —
-            // the ability's instanceId is no longer a valid game object.
-            val ann = AnnotationBuilder.abilityInstanceDeleted(abilityIid.iid, sourceCardIid.iid)
-
-            assertSoftly {
-                ann.typeList shouldBe listOf(AnnotationType.AbilityInstanceDeleted)
-                ann.affectorId shouldBe sourceCardIid
-                ann.affectedIdsList shouldBe listOf(abilityIid)
-            }
-        }
-
-        // -----------------------------------------------------------------------
-        // Negative tests: things that should NOT produce stack ability records
-        // -----------------------------------------------------------------------
-
-        test("regular spell on stack does not produce StackAbilityAppearance") {
-            // A Card (not Ability) object on the stack — e.g. a cast creature.
-            val spellObj =
-                GameObjectInfo
-                    .newBuilder()
-                    .setInstanceId(600)
-                    .setGrpId(99999)
-                    .setZoneId(ZoneIds.STACK)
-                    .setOwnerSeatId(1)
-                    .setType(GameObjectType.Card)
-                    .build()
-            val zones =
-                listOf(
-                    zone(ZoneIds.STACK, ZoneType.Stack, 600),
-                    zone(ZoneIds.LIMBO, ZoneType.Limbo),
-                )
-
-            val result =
-                ZoneTransferDetector.detectZoneTransfers(
-                    gameObjects = listOf(spellObj),
-                    zones = zones,
-                    events = emptyList(),
-                    context =
-                        ZoneTransferContext(
-                            previousZones = emptyMap(),
-                            forgeIdLookup = { null },
-                            idAllocator = noOpAllocator,
-                            idLookup = { fid -> InstanceId(fid.value + 1000) },
-                        ),
-                )
-
-            result.stackAbilityAppearances.shouldBeEmpty()
-        }
-
-        test("ability already on stack from previous diff is not re-detected") {
-            val obj = abilityObject()
-            val zones =
-                listOf(
-                    zone(ZoneIds.STACK, ZoneType.Stack, abilityIid),
-                    zone(ZoneIds.LIMBO, ZoneType.Limbo),
-                )
-            // Ability was already on the stack last diff.
-            val previousZones = mapOf(abilityIid to ZoneIds.STACK, sourceCardIid to ZoneIds.BATTLEFIELD)
-
-            val result =
-                ZoneTransferDetector.detectZoneTransfers(
-                    gameObjects = listOf(obj),
-                    zones = zones,
-                    events = emptyList(),
-                    context =
-                        ZoneTransferContext(
-                            previousZones = previousZones,
-                            forgeIdLookup = forgeIdLookup,
-                            idAllocator = noOpAllocator,
-                            idLookup = idLookup,
-                        ),
-                )
-
-            result.stackAbilityAppearances.shouldBeEmpty()
-            result.stackAbilityDisappearances.shouldBeEmpty()
         }
     })

@@ -361,6 +361,7 @@ internal object PersistentFeedBuilder {
         val holderForge = ForgeCardId(sourceForgeId.value + GameBridge.DELAYED_TRIGGER_HOLDER_FORGE_OFFSET)
         return bridge.getOrAllocInstanceId(holderForge)
     }
+
     internal fun decayedCleanupGrpIdForSource(
         sourceForgeId: ForgeCardId,
         snap: GsmSnapshot,

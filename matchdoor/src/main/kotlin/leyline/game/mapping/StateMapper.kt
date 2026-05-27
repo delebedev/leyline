@@ -1586,7 +1586,8 @@ object StateMapper {
                 .filterIsInstance<GameEvent.SpellResolved>()
                 .filter { it.isTrigger && it.abilityGrpId != 0 }
                 .mapNotNull { ev ->
-                    val cleanupGrpId = PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, this) ?: return@mapNotNull null
+                    val cleanupGrpId =
+                        PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, this) ?: return@mapNotNull null
                     if (ev.abilityGrpId != cleanupGrpId) return@mapNotNull null
                     ev.cardId to stackAbilityIidFor(ev.abilityForgeId, ev.cardId, frameIds)
                 }.toMap()
