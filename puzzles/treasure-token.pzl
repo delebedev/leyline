@@ -9,7 +9,7 @@ Description:Cast Prosperous Innkeeper to create a Treasure token. Use it to cast
 ActivePlayer=Human
 ActivePhase=Main1
 HumanLife=20
-AILife=3
+AILife=6
 
 humanhand=Prosperous Innkeeper;Lightning Bolt
 humanbattlefield=Forest;Forest

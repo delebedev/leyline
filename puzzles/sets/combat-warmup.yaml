@@ -5,3 +5,15 @@ scenarios:
     puzzle: mechanic-block-trade
     run: block Juggernaut with Centaur Courser
     expect: both creatures leave the battlefield after combat damage
+    steps:
+      - pass_until:
+          prompt: DeclareBlockersReq
+          max_passes: 12
+      - block: { blocker: Centaur Courser, attacker: Juggernaut }
+      - pass_until:
+          zone_not_contains: { side: ours, zone: battlefield, card: Centaur Courser }
+          max_passes: 12
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Juggernaut }
+            - stack_empty: true

@@ -8,6 +8,9 @@ object BoardTag : Tag()
 
 object IntegrationTag : Tag()
 
+/** Puzzle-backed scripted acceptance suites. Run via `just test-acceptance`. */
+object AcceptanceTag : Tag()
+
 /**
  * Sim-client batch / E2E tests — synthetic GRE log generation. Slow (drives
  * full games), tagged out of the regular gate. Run via the dedicated

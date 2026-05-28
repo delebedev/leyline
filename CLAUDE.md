@@ -56,6 +56,7 @@ Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.
 - `just test-one <ClassName>` — single class
 - `just test-gate` — pre-commit (all modules + fmt)
 - `just test-integration` — risky matchdoor changes
+- `just test-acceptance` — puzzle-backed scripted acceptance suites
 - **Scope tests to changed modules, don't run everything.**
 
 ## Debugging

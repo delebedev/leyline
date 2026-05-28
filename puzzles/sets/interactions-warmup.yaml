@@ -1,0 +1,29 @@
+name: interactions-warmup
+description: Activated ability and simple zone movement protocol smoke.
+scenarios:
+  - id: activated-ability
+    puzzle: activated-ability
+    run: activate Goblin Fireslinger
+    expect: opponent takes one damage
+    steps:
+      - expect:
+          action: { type: activate, card: Goblin Fireslinger }
+      - activate: Goblin Fireslinger
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          opponent_life: 19
+  - id: channel-twinshot
+    puzzle: channel-twinshot
+    run: channel Twinshot Sniper at opponent
+    expect: opponent takes 2 damage from hand-zone activation
+    steps:
+      - expect:
+          action: { type: activate, card: Twinshot Sniper }
+      - activate: { card: Twinshot Sniper, zone: hand }
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          all:
+            - opponent_life: 3
+            - zone_contains: { side: ours, zone: graveyard, card: Twinshot Sniper }
