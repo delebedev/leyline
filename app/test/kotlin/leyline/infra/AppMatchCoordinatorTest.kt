@@ -15,10 +15,12 @@ import leyline.frontdoor.domain.CollationPool
 import leyline.frontdoor.domain.Course
 import leyline.frontdoor.domain.CourseId
 import leyline.frontdoor.domain.Deck
+import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.DraftSession
 import leyline.frontdoor.domain.DraftSessionId
 import leyline.frontdoor.domain.DraftStatus
+import leyline.frontdoor.domain.Format
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.repo.CourseRepository
 import leyline.frontdoor.repo.DeckRepository
@@ -88,12 +90,14 @@ private class FakeCourseRepo : CourseRepository {
     }
 }
 
-private class FakeDeckRepo : DeckRepository {
-    override fun findById(id: DeckId): Deck? = null
+private class FakeDeckRepo(
+    private val decks: List<Deck> = emptyList(),
+) : DeckRepository {
+    override fun findById(id: DeckId): Deck? = decks.firstOrNull { it.id == id }
 
-    override fun findByName(name: String): Deck? = null
+    override fun findByName(name: String): Deck? = decks.firstOrNull { it.name == name }
 
-    override fun findAllForPlayer(playerId: PlayerId): List<Deck> = emptyList()
+    override fun findAllForPlayer(playerId: PlayerId): List<Deck> = decks.filter { it.playerId == playerId }
 
     override fun save(deck: Deck) {}
 
@@ -111,8 +115,9 @@ class AppMatchCoordinatorTest :
         fun coordinator(
             draftRepo: FakeDraftRepo = FakeDraftRepo(),
             courseRepo: FakeCourseRepo = FakeCourseRepo(),
+            deckRepo: FakeDeckRepo = FakeDeckRepo(),
         ): AppMatchCoordinator {
-            val deckService = DeckService(FakeDeckRepo())
+            val deckService = DeckService(deckRepo)
             val courseService =
                 CourseService(courseRepo) {
                     GeneratedPool(emptyList(), listOf(CollationPool(0, emptyList())), 0)
@@ -120,8 +125,68 @@ class AppMatchCoordinatorTest :
             return AppMatchCoordinator(playerId, deckService, courseService, draftRepo)
         }
 
+        fun deck(
+            id: String,
+            name: String,
+            grpId: Int,
+            format: Format = Format.Standard,
+        ): Deck =
+            Deck(
+                id = DeckId(id),
+                playerId = playerId,
+                name = name,
+                format = format,
+                tileId = 0,
+                mainDeck = listOf(DeckCard(grpId, 4)),
+                sideboard = emptyList(),
+                commandZone = emptyList(),
+                companions = emptyList(),
+            )
+
         test("resolveOpponentDeckJson returns null when no draft session") {
             coordinator().resolveOpponentDeckJson(event) shouldBe null
+        }
+
+        test("resolveDeckJsonByName random picks a non-selected player deck") {
+            val coord =
+                coordinator(
+                    deckRepo =
+                        FakeDeckRepo(
+                            listOf(
+                                deck("selected", "Selected", 101),
+                                deck("other", "Other", 202),
+                            ),
+                        ),
+                )
+            coord.selectDeck("selected")
+
+            val json = coord.resolveDeckJsonByName("random")
+
+            json.shouldNotBeNull()
+            val main = Json.parseToJsonElement(json).jsonObject["MainDeck"]!!.jsonArray
+            main.size shouldBe 1
+            main[0].jsonObject["cardId"]?.jsonPrimitive?.int shouldBe 202
+        }
+
+        test("resolveDeckJsonByName random filters by selected event format") {
+            val coord =
+                coordinator(
+                    deckRepo =
+                        FakeDeckRepo(
+                            listOf(
+                                deck("standard", "Standard", 101),
+                                deck("brawl", "Brawl", 202, Format.Brawl),
+                            ),
+                        ),
+                )
+            coord.selectEvent("Play_Brawl")
+
+            val json = coord.resolveDeckJsonByName("random")
+
+            json.shouldNotBeNull()
+            val main = Json.parseToJsonElement(json).jsonObject["MainDeck"]!!.jsonArray
+            main.size shouldBe 1
+            main[0].jsonObject["cardId"]?.jsonPrimitive?.int shouldBe 202
         }
 
         test("resolveOpponentDeckJson returns null when draft incomplete") {

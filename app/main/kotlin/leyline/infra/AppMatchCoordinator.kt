@@ -5,6 +5,7 @@ import kotlinx.serialization.json.put
 import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.DraftStatus
+import leyline.frontdoor.domain.Format
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.repo.DraftSessionRepository
 import leyline.frontdoor.service.CourseService
@@ -65,7 +66,20 @@ class AppMatchCoordinator(
     }
 
     override fun resolveDeckJsonByName(name: String): String? {
+        if (name.equals("random", ignoreCase = true)) return resolveRandomDeckJson()
+
         val deck = deckService.getByName(name) ?: return null
+        return cardsToJson(deck.mainDeck, deck.sideboard, deck.commandZone)
+    }
+
+    private fun resolveRandomDeckJson(): String? {
+        val targetFormat = if (selectedEventName?.contains("Brawl", ignoreCase = true) == true) Format.Brawl else Format.Standard
+        val decks = deckService.listForPlayer(playerId).filter { it.format == targetFormat }
+        if (decks.isEmpty()) return null
+
+        val candidates = decks.filterNot { it.id.value == selectedDeckId }.ifEmpty { decks }
+        val deck = candidates.random()
+        log.info("Random AI deck: {} ({}) format={}", deck.name, deck.id.value, deck.format)
         return cardsToJson(deck.mainDeck, deck.sideboard, deck.commandZone)
     }
 
