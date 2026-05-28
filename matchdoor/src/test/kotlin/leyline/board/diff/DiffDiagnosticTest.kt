@@ -9,8 +9,8 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
+import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
 import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
 import leyline.testkit.BoardTestBase
@@ -91,11 +91,8 @@ class DiffDiagnosticTest :
             val afterLand = base.postAction(game, b, counter)
             acc.processAll(afterLand.messages)
 
-            val player = b.getPlayer(SeatId(1))!!
-            val creature = player.getZone(ForgeZoneType.Hand).cards.first { it.isCreature }
-            val creatureForgeId = creature.id
-
-            base.castCreature(b) ?: error("castCreature failed at seed 42")
+            val castAction = base.castCreature(b) ?: error("castCreature failed at seed 42")
+            val creatureForgeId = (castAction as PlayerAction.CastSpell).cardId.value
             val afterCast = base.postAction(game, b, counter)
             acc.processAll(afterCast.messages)
 
@@ -126,11 +123,8 @@ class DiffDiagnosticTest :
             base.playLand(b) ?: error("playLand failed at seed 42")
             base.postAction(game, b, counter)
 
-            val player = b.getPlayer(SeatId(1))!!
-            val creature = player.getZone(ForgeZoneType.Hand).cards.first { it.isCreature }
-            val creatureForgeId = creature.id
-
-            base.castCreature(b) ?: error("castCreature failed at seed 42")
+            val castAction = base.castCreature(b) ?: error("castCreature failed at seed 42")
+            val creatureForgeId = (castAction as PlayerAction.CastSpell).cardId.value
             base.postAction(game, b, counter)
             val castId = b.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
 
