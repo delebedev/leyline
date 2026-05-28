@@ -1,0 +1,71 @@
+name: modal-warmup
+description: Modal, optional-cost, and optional-action prompt smoke.
+scenarios:
+  - id: cleave-path-of-peril
+    puzzle: cleave-path-of-peril
+    run: cast Path of Peril with Cleave
+    expect: both opposing creatures are destroyed
+    steps:
+      - expect:
+          action: { type: cast, card: Path of Peril }
+      - cast: { card: Path of Peril, alt_cost: cleave }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Serra Angel }
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Raging Goblin }
+  - id: overload-mizzium-mortars
+    puzzle: overload-mizzium-mortars
+    run: cast Mizzium Mortars with Overload
+    expect: both opposing creatures are destroyed without a target prompt
+    steps:
+      - expect:
+          action: { type: cast, card: Mizzium Mortars }
+      - cast: { card: Mizzium Mortars, alt_cost: overload }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Serra Angel }
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Raging Goblin }
+  - id: destroy-evil-large-creature
+    puzzle: destroy-evil
+    run: cast Destroy Evil choosing a large creature target
+    expect: Serra Angel leaves opponent battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Destroy Evil }
+      - cast: Destroy Evil
+      - modal_choice: { index: 0 }
+      - target: { side: opponent, zone: battlefield, card: Serra Angel }
+      - resolve_stack: {}
+      - expect:
+          zone_not_contains: { side: opponent, zone: battlefield, card: Serra Angel }
+  - id: shock-land-temple-garden
+    puzzle: shock-land-temple-garden
+    run: play Temple Garden and accept the pay-life replacement effect
+    expect: Temple Garden is untapped and our life drops by 2
+    steps:
+      - expect:
+          action: { type: play_land, card: Temple Garden }
+      - play_land: Temple Garden
+      - optional_action: { accept: true }
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Temple Garden }
+            - our_life: 18
+  - id: optional-trigger-reclamation-sage
+    puzzle: optional-trigger-reclamation-sage
+    arena:
+      xfail: Optional trigger OptionalActionMessage is not driven by arena-ts yet.
+    run: cast Reclamation Sage and accept its optional trigger
+    expect: Sol Ring is destroyed
+    steps:
+      - expect:
+          action: { type: cast, card: Reclamation Sage }
+      - cast: Reclamation Sage
+      - resolve_stack: {}
+      - optional_action: { accept: true }
+      - target: { side: opponent, zone: battlefield, card: Sol Ring }
+      - resolve_stack: {}
+      - expect:
+          zone_not_contains: { side: opponent, zone: battlefield, card: Sol Ring }

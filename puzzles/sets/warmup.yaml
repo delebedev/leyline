@@ -5,11 +5,50 @@ scenarios:
     puzzle: warmup-land-permanent
     run: play land, cast Savannah Lions, resolve
     expect: Plains and Savannah Lions visible on our battlefield
+    steps:
+      - wait:
+          action: { type: play_land, card: Plains }
+      - play_land: Plains
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Plains }
+      - wait:
+          action: { type: cast, card: Savannah Lions }
+      - cast: Savannah Lions
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Savannah Lions }
+            - stack_empty: true
   - id: land-spell-face
     puzzle: warmup-land-spell-face
     run: play land, cast Lightning Bolt at opponent, resolve
     expect: opponent life changes and no visible stack ghost remains
+    steps:
+      - wait:
+          action: { type: play_land, card: Mountain }
+      - play_land: Mountain
+      - wait:
+          action: { type: cast, card: Lightning Bolt }
+      - cast: Lightning Bolt
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          all:
+            - opponent_life: 17
+            - stack_empty: true
   - id: attack-main2
     puzzle: warmup-attack-main2
     run: attack opponent, advance to second main
     expect: opponent life changes and phase reaches Main2
+    steps:
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Savannah Lions }
+      - pass_until:
+          prompt: DeclareAttackersReq
+      - attack_all: {}
+      - pass_until:
+          phase: Main2
+      - expect:
+          all:
+            - opponent_life: 18
+            - phase: Main2

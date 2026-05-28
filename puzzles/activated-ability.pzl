@@ -1,15 +1,15 @@
 [metadata]
-Name:Ping for Lethal
+Name:Ping Opponent
 Goal:Win
-Turns:1
+Turns:5
 Difficulty:Easy
-Description:Tap Goblin Fireslinger to ping opponent for lethal. Attacking is suicide.
+Description:Tap Goblin Fireslinger to ping opponent. Attacking is suicide.
 
 [state]
 ActivePlayer=Human
 ActivePhase=Main1
 HumanLife=20
-AILife=1
+AILife=20
 
 humanbattlefield=Goblin Fireslinger
 humanlibrary=Mountain

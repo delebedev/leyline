@@ -80,9 +80,8 @@ protobuf {
 val ciSerialism = System.getenv("CI") == "true"
 
 tasks.named<Test>("test") {
-    // Simclient runs are slow, env-driven, and intentionally opt-in via the
-    // dedicated `:matchdoor:simclient` task.
-    systemProperty("kotest.tags", "!SimClientTag")
+    // Simclient and acceptance runs are opt-in via dedicated tasks.
+    systemProperty("kotest.tags", "!SimClientTag & !AcceptanceTag")
 }
 
 val testUnit by tasks.registering(Test::class) {
@@ -99,12 +98,19 @@ val testBoard by tasks.registering(Test::class) {
 
 val testIntegration by tasks.registering(Test::class) {
     configureTestDefaults()
-    systemProperty("kotest.tags", "IntegrationTag")
+    systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
     maxParallelForks = if (ciSerialism) 1 else 4
     // Integration: MatchSession tests have their own thread pools.
     // Layering Kotest parallelism on top flakes (damage/ETB/flashback).
     // CI also runs in small shared runners where concurrent forks can reorder
     // GRE streams from long-lived engine threads, so keep CI serial.
+}
+
+val testAcceptance by tasks.registering(Test::class) {
+    configureTestDefaults()
+    systemProperty("kotest.tags", "AcceptanceTag")
+    maxParallelForks = 1
+    inputs.dir(rootProject.layout.projectDirectory.dir("puzzles"))
 }
 
 // Cache-disabled integration variant. The default `testIntegration` task is
@@ -115,7 +121,7 @@ val testIntegration by tasks.registering(Test::class) {
 // submodule advances.
 val testIntegrationStrict by tasks.registering(Test::class) {
     configureTestDefaults()
-    systemProperty("kotest.tags", "IntegrationTag")
+    systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
     maxParallelForks = if (ciSerialism) 1 else 4
     outputs.cacheIf { false }
     outputs.upToDateWhen { false }

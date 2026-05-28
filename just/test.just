@@ -32,6 +32,11 @@ test-gate: docs-lint
 test-integration:
     cd "{{project_dir}}" && ./gradlew :matchdoor:testIntegration :matchdoor:jacocoTestReport
 
+# puzzle-backed scripted acceptance suites
+[group('test')]
+test-acceptance:
+    cd "{{project_dir}}" && ./gradlew :matchdoor:testAcceptance
+
 # strict integration test for slice verification — bypasses gradle's test
 # build cache (which serves stale PASS results when forge jar inputs match
 # a prior cached run, hiding regressions across forge submodule pointer

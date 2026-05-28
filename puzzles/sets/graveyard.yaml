@@ -1,0 +1,46 @@
+name: graveyard
+description: Small arena-driven graveyard smoke suite focused on flashback and disturb.
+scenarios:
+  - id: flashback-think-twice
+    puzzle: flashback-think-twice
+    run: cast Think Twice from hand, then flash it back from graveyard
+    expect: extra card drawn and flashback spell leaves graveyard for exile
+    steps:
+      - wait:
+          action: { type: cast, card: Think Twice }
+      - cast: Think Twice
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: hand, card: Plains }
+      - expect:
+          action: { type: cast, card: Think Twice }
+      - cast: { card: Think Twice, zone: graveyard }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_count_at_least: { side: ours, zone: hand, count: 2 }
+            - zone_contains: { side: ours, zone: exile, card: Think Twice }
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: graveyard, card: Think Twice }
+            - stack_empty: true
+  - id: disturb-lunarch
+    puzzle: disturb-lunarch
+    run: bolt Lunarch Veteran, then cast its disturb face from graveyard
+    expect: Lunarch Veteran dies and Luminous Phantom returns transformed
+    steps:
+      - wait:
+          action: { type: cast, card: Lightning Bolt }
+      - cast: Lightning Bolt
+      - target: { side: ours, zone: battlefield, card: Lunarch Veteran }
+      - resolve_stack: {}
+      - expect:
+          zone_not_contains: { side: ours, zone: battlefield, card: Lunarch Veteran }
+      - wait:
+          action: { type: cast, card: Luminous Phantom }
+      - cast: { card: Luminous Phantom, zone: graveyard }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Luminous Phantom }
+            - stack_empty: true

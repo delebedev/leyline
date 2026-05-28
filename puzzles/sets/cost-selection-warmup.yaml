@@ -1,0 +1,89 @@
+name: cost-selection-warmup
+description: Alternate costs, sacrifice/discard payments, and payment-selection smoke.
+scenarios:
+  - id: treasure-token
+    puzzle: treasure-token
+    arena:
+      xfail: Treasure mana is not surfaced as a usable cast payment path yet.
+    run: cast Prosperous Innkeeper, then cast Lightning Bolt using the Treasure mana path
+    expect: opponent takes damage and Innkeeper remains on battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Prosperous Innkeeper }
+      - cast: Prosperous Innkeeper
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Prosperous Innkeeper }
+      - expect:
+          action: { type: cast, card: Lightning Bolt }
+      - cast: Lightning Bolt
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          opponent_life: 3
+  - id: eaten-alive-sacrifice
+    puzzle: eaten-alive
+    arena:
+      xfail: Sacrifice additional-cost prompt sequencing is not driven by arena-ts yet.
+    run: cast Eaten Alive with the sacrifice additional-cost branch
+    expect: Walking Corpse is sacrificed and Centaur Courser is exiled
+    steps:
+      - expect:
+          action: { type: cast, card: Eaten Alive }
+      - cast: Eaten Alive
+      - choose: { cto_id: 1 }
+      - target: { side: opponent, zone: battlefield, card: Centaur Courser }
+      - select_cost: { zone: battlefield, cards: [Walking Corpse] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Walking Corpse }
+            - zone_contains: { side: opponent, zone: exile, card: Centaur Courser }
+  - id: mandatory-cost-mardu-outrider
+    puzzle: mandatory-cost-mardu-outrider
+    run: cast Mardu Outrider and discard Mountain as the mandatory cost
+    expect: Mardu Outrider resolves and Mountain is discarded
+    steps:
+      - expect:
+          action: { type: cast, card: Mardu Outrider }
+      - cast: Mardu Outrider
+      - select_cost: { zone: hand, cards: [Mountain] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Mardu Outrider }
+            - zone_contains: { side: ours, zone: graveyard, card: Mountain }
+  - id: jump-start-radical-idea
+    puzzle: jump-start-radical-idea
+    run: cast Radical Idea from graveyard by discarding Coral Merfolk
+    expect: Coral Merfolk is discarded and Radical Idea leaves graveyard
+    steps:
+      - expect:
+          action: { type: cast, card: Radical Idea }
+      - cast: { card: Radical Idea, zone: graveyard, alt_cost: jump_start }
+      - select_cost: { zone: hand, cards: [Coral Merfolk] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Coral Merfolk }
+            - zone_not_contains: { side: ours, zone: graveyard, card: Radical Idea }
+  - id: escape-glimpse-of-freedom
+    puzzle: escape-glimpse-of-freedom
+    arena:
+      xfail: Escape graveyard cast plus multi-card graveyard payment is not driven by arena-ts yet.
+    run: cast Glimpse of Freedom from hand, then escape the graveyard copy
+    expect: escape exiles five graveyard cards and draws another card
+    steps:
+      - expect:
+          action: { type: cast, card: Glimpse of Freedom }
+      - cast: Glimpse of Freedom
+      - resolve_stack: {}
+      - expect:
+          action: { type: cast, card: Glimpse of Freedom }
+      - cast: { card: Glimpse of Freedom, zone: graveyard, alt_cost: escape }
+      - select_cost: { zone: graveyard, cards: [Lightning Bolt, Counterspell, Llanowar Elves, Giant Growth, Grizzly Bears] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_count_at_least: { side: ours, zone: exile, count: 5 }
+            - zone_count_at_least: { side: ours, zone: hand, count: 2 }

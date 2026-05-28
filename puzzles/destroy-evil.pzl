@@ -3,7 +3,7 @@ Name:Destroy Evil Modal Spell
 Goal:Win
 Turns:10
 Difficulty:Easy
-Description:Cast Destroy Evil to test spell-time modal.
+Description:Cast Destroy Evil to destroy a large creature.
 
 [state]
 ActivePlayer=Human
@@ -14,5 +14,5 @@ AILife=20
 humanhand=Destroy Evil
 humanbattlefield=Plains;Plains
 humanlibrary=Plains;Plains;Plains;Plains;Plains
-aibattlefield=Trufflesnout;Pacifism
+aibattlefield=Serra Angel;Pacifism
 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
