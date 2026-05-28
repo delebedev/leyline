@@ -1,0 +1,11 @@
+name: "Explosive Derailment"
+grpId: 90468
+titleId: 756456
+abilities:
+  - id: 173723
+    textId: 793894
+    category: 4
+    modalChildren:
+      - 171859
+      - 171860
+expansionCode: "OTJ"

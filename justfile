@@ -272,12 +272,21 @@ simclient decks="" seeds="":
     if [ -n "{{decks}}" ]; then export SIMCLIENT_DECKS="{{decks}}"; fi
     if [ -n "{{seeds}}" ]; then export SIMCLIENT_SEEDS="{{seeds}}"; fi
     if [ -z "${LEYLINE_CARD_DB:-}" ]; then
-        echo "LEYLINE_CARD_DB is not set." >&2
-        echo "Set it to your local Raw_CardDatabase_*.mtga / *.sqlite path before running simclient." >&2
-        echo "Example:" >&2
-        echo "  LEYLINE_CARD_DB=\"$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_x.mtga\" just simclient \"Simple test\" 42" >&2
-        echo "Add custom decks as data/decks/<name>.txt, then pass \"<name>\" as the deck argument." >&2
-        exit 1
+        shopt -s nullglob
+        candidates=("$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw"/Raw_CardDatabase*.mtga "$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw"/Raw_CardDatabase*.sqlite)
+        if [ ${#candidates[@]} -gt 0 ]; then
+            newest="${candidates[0]}"
+            for candidate in "${candidates[@]}"; do
+                [ "$candidate" -nt "$newest" ] && newest="$candidate"
+            done
+            export LEYLINE_CARD_DB="$newest"
+            echo "Using LEYLINE_CARD_DB=$LEYLINE_CARD_DB"
+        else
+            echo "LEYLINE_CARD_DB is not set and no Raw_CardDatabase file was found under MTGA Downloads/Raw." >&2
+            echo "Set LEYLINE_CARD_DB to your local Raw_CardDatabase_*.mtga / *.sqlite path before running simclient." >&2
+            echo "Add custom decks as data/decks/<name>.txt, then pass \"<name>\" as the deck argument." >&2
+            exit 1
+        fi
     fi
     src="matchdoor/build/simclient"
     # Clear prior outputs so the ingest step only picks up the current run.
@@ -312,9 +321,20 @@ simclient-puzzle puzzles seeds="42":
     export SIMCLIENT_PUZZLE="{{puzzles}}"
     export SIMCLIENT_SEEDS="{{seeds}}"
     if [ -z "${LEYLINE_CARD_DB:-}" ]; then
-        echo "LEYLINE_CARD_DB is not set." >&2
-        echo "Set it to your local Raw_CardDatabase_*.mtga / *.sqlite path before running simclient puzzles." >&2
-        exit 1
+        shopt -s nullglob
+        candidates=("$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw"/Raw_CardDatabase*.mtga "$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw"/Raw_CardDatabase*.sqlite)
+        if [ ${#candidates[@]} -gt 0 ]; then
+            newest="${candidates[0]}"
+            for candidate in "${candidates[@]}"; do
+                [ "$candidate" -nt "$newest" ] && newest="$candidate"
+            done
+            export LEYLINE_CARD_DB="$newest"
+            echo "Using LEYLINE_CARD_DB=$LEYLINE_CARD_DB"
+        else
+            echo "LEYLINE_CARD_DB is not set and no Raw_CardDatabase file was found under MTGA Downloads/Raw." >&2
+            echo "Set LEYLINE_CARD_DB to your local Raw_CardDatabase_*.mtga / *.sqlite path before running simclient puzzles." >&2
+            exit 1
+        fi
     fi
     src="matchdoor/build/simclient"
     if [ -d "$src" ]; then trash "$src"; fi
