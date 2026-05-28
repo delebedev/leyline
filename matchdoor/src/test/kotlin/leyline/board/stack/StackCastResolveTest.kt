@@ -2,7 +2,6 @@ package leyline.board.stack
 
 import forge.game.Game
 import forge.game.event.GameEventSpellResolved
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -25,7 +24,6 @@ import leyline.testkit.detailUint
 import leyline.testkit.findZoneTransfer
 import leyline.testkit.gsm
 import leyline.testkit.gsmOrNull
-import leyline.testkit.humanPlayer
 import leyline.testkit.persistentAnnotation
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -51,10 +49,8 @@ class StackCastResolveTest :
             playLand(b) ?: error("playLand failed")
             b.seedDiffBaseline(game)
 
-            val creature = humanPlayer(b).getZone(ZoneType.Hand).cards.first { it.isCreature }
-            val cardId = creature.id
-
-            castCreature(b) ?: error("castCreature failed")
+            val castAction = castCreature(b) ?: error("castCreature failed")
+            val cardId = castAction.cardId.value
             b.seedDiffBaseline(game, counter.nextGsId())
 
             val stackCard = game.stackZone.cards.first { it.id == cardId }
@@ -96,24 +92,21 @@ class StackCastResolveTest :
             playLand(b)
             b.seedDiffBaseline(game)
 
-            val creature = humanPlayer(b).getZone(ZoneType.Hand).cards.first { it.isCreature }
-            val origId = b.getOrAllocInstanceId(ForgeCardId(creature.id))
-            val cardId = creature.id
-
-            castCreature(b)
+            val castAction = castCreature(b) ?: error("castCreature failed")
             val gsm = postAction(game, b, counter).gsmOrNull ?: error("No GSM after cast")
-            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
-
-            origId shouldNotBe newId
+            val newId = b.getOrAllocInstanceId(castAction.cardId)
 
             // OIC must precede ZT in annotation list
             val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
             val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
+            val origId = oic.detailInt("orig_id")
+            origId shouldNotBe newId.value
+
             val oicIdx = gsm.annotationsList.indexOf(oic)
             val ztIdx = gsm.annotationsList.indexOf(zt)
             oicIdx shouldBe (ztIdx - 1)
 
-            assertLimboContains(gsm, origId.value)
+            assertLimboContains(gsm, origId)
         }
 
         test("CastSpell: UAT actionType=Cast") {
@@ -254,19 +247,16 @@ class StackCastResolveTest :
             playLand(b) ?: error("playLand failed")
             b.seedDiffBaseline(game)
 
-            val creature = humanPlayer(b).getZone(ZoneType.Hand).cards.first { it.isCreature }
-            val cardId = creature.id
-
-            castCreature(b) ?: error("castCreature failed")
+            val castAction = castCreature(b) ?: error("castCreature failed")
             postAction(game, b, counter)
 
-            val stackId = b.getOrAllocInstanceId(ForgeCardId(cardId))
+            val stackId = b.getOrAllocInstanceId(castAction.cardId)
             b.seedDiffBaseline(game)
 
             passPriority(b)
             postAction(game, b, counter)
 
-            val bfId = b.getOrAllocInstanceId(ForgeCardId(cardId))
+            val bfId = b.getOrAllocInstanceId(castAction.cardId)
             bfId shouldBe stackId
         }
 

@@ -18,6 +18,7 @@ import leyline.game.mapping.StateMapper
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
@@ -246,7 +247,7 @@ open class BoardTestBase {
         return stateOnlyDiff(game, b, counter)
     }
 
-    fun playLand(b: GameBridge): PlayerAction? {
+    fun playLand(b: GameBridge): PlayerAction.PlayLand? {
         val player = b.getPlayer(SeatId(1)) ?: return null
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
         val pending = awaitFreshPending(b, null) ?: return null
@@ -256,7 +257,7 @@ open class BoardTestBase {
         return action
     }
 
-    fun castCreature(b: GameBridge): PlayerAction? {
+    fun castCreature(b: GameBridge): PlayerAction.CastSpell? {
         val player = b.getPlayer(SeatId(1)) ?: return null
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
         val pending = awaitFreshPending(b, null) ?: return null
@@ -348,14 +349,10 @@ open class BoardTestBase {
     fun playLandAndCaptureWithIds(): Triple<GameStateMessage, Int, Int>? {
         val (b, game, counter) = startGameAtMain1()
 
-        val player = b.getPlayer(SeatId(1)) ?: return null
-        val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
-        val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(land.id)).value
-        val cardId = land.id
-
-        playLand(b) ?: return null
+        val action = playLand(b) ?: return null
         val gsm = postAction(game, b, counter).gsmOrNull ?: return null
-        val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
+        val origInstanceId = gsm.annotation(AnnotationType.ObjectIdChanged).detailInt("orig_id")
+        val newInstanceId = b.getOrAllocInstanceId(action.cardId).value
 
         return Triple(gsm, origInstanceId, newInstanceId)
     }
@@ -389,15 +386,11 @@ open class BoardTestBase {
         playLand(b) ?: return null
         b.seedDiffBaseline(game)
 
-        val player = b.getPlayer(SeatId(1)) ?: return null
-        val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
-        val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(creature.id)).value
-        val cardId = creature.id
-
-        castCreature(b) ?: return null
+        val action = castCreature(b) ?: return null
         // Use mergedGsm to combine QueuedGSM triplet annotations into one GSM
         val gsm = postAction(game, b, counter).mergedGsm
-        val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
+        val origInstanceId = gsm.annotation(AnnotationType.ObjectIdChanged).detailInt("orig_id")
+        val newInstanceId = b.getOrAllocInstanceId(action.cardId).value
 
         return Triple(gsm, origInstanceId, newInstanceId)
     }
