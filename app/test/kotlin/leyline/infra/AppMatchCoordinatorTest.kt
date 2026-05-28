@@ -163,7 +163,9 @@ class AppMatchCoordinatorTest :
             val json = coord.resolveDeckJsonByName("random")
 
             json.shouldNotBeNull()
-            json shouldContain "202"
+            val main = Json.parseToJsonElement(json).jsonObject["MainDeck"]!!.jsonArray
+            main.size shouldBe 1
+            main[0].jsonObject["cardId"]?.jsonPrimitive?.int shouldBe 202
         }
 
         test("resolveDeckJsonByName random filters by selected event format") {
@@ -182,7 +184,9 @@ class AppMatchCoordinatorTest :
             val json = coord.resolveDeckJsonByName("random")
 
             json.shouldNotBeNull()
-            json shouldContain "202"
+            val main = Json.parseToJsonElement(json).jsonObject["MainDeck"]!!.jsonArray
+            main.size shouldBe 1
+            main[0].jsonObject["cardId"]?.jsonPrimitive?.int shouldBe 202
         }
 
         test("resolveOpponentDeckJson returns null when draft incomplete") {
