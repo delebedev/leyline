@@ -176,7 +176,7 @@ data class GameConfig(
      */
     val timer: Boolean = true,
     /**
-     * AI opponent deck name (looked up in player.db by name).
+     * AI opponent deck name (looked up in player.db by name). "random" chooses a random deck.
      * Null = mirror match (AI uses the same deck as seat 1).
      */
     @SerialName("ai_deck")

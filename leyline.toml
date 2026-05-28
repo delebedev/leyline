@@ -39,7 +39,8 @@ skip_mulligan = true
 # Send decision timer (rope) on priority grant. Disable to suppress countdown.
 timer = false
 
-# AI opponent deck (name from player.db). Omit for mirror match (same as seat 1).
+# AI opponent deck (name from player.db). Use "random" for a random non-selected deck.
+# Omit for mirror match (same as seat 1).
 #ai_deck = "Green stompy"
 
 [ai]
