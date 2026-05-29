@@ -324,24 +324,38 @@ object MechanicAnnotations {
                         )
                     } else {
                         // New steal: emit transient + persistent + track effect.
-                        // Walk events backward from this ControllerChanged to find the nearest
-                        // preceding SpellResolved — handles multiple spells in one GSM.
+                        // Control-change events can land before the ability's SpellResolved in the same frame.
+                        // Prefer prior resolutions for multi-spell frames, then fall forward to ability metadata.
                         val evIndex = events.indexOf(ev)
-                        val spellResolved =
+                        val priorResolved =
                             events
                                 .subList(0, evIndex)
                                 .filterIsInstance<GameEvent.SpellResolved>()
-                                .lastOrNull()
+                        val followingAbilityResolved =
+                            events
+                                .subList(evIndex + 1, events.size)
+                                .filterIsInstance<GameEvent.SpellResolved>()
+                                .firstOrNull { it.abilityGrpId != 0 }
+                        val spellResolved = priorResolved.lastOrNull() ?: followingAbilityResolved
+                        val sourceAbilityResolved = priorResolved.lastOrNull { it.abilityGrpId != 0 } ?: followingAbilityResolved
                         val affectorIid =
                             if (spellResolved != null) {
                                 idResolver(spellResolved.cardId)
                             } else {
                                 InstanceId(0)
                             }
+                        val sourceAbilityGrpId = sourceAbilityResolved?.abilityGrpId?.takeIf { it != 0 }?.let(::GrpId)
                         val effectId = effectIdAllocator()
                         annotations.add(AnnotationBuilder.layeredEffectCreated(effectId, affectorIid))
                         annotations.add(AnnotationBuilder.controllerChanged(affectorIid, cardIid))
-                        persistent.add(AnnotationBuilder.controllerChangedEffect(affectorIid, cardIid, effectId))
+                        persistent.add(
+                            AnnotationBuilder.controllerChangedEffect(
+                                affectorIid,
+                                cardIid,
+                                effectId,
+                                sourceAbilityGrpId = sourceAbilityGrpId,
+                            ),
+                        )
                         controllerChangedEffects.add(
                             MechanicAnnotationResult.ControllerChangedEffect(
                                 ev.cardId,
