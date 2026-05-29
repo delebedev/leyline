@@ -2,7 +2,6 @@ package leyline.game.annotations
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -49,7 +48,10 @@ class CombatZoneAnnotationPipelineTest :
                 annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
                 annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
                 annotations[1].detailString("category") shouldBe "Destroy"
-                persistent.shouldBeEmpty()
+                persistent.size shouldBe 1
+                persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
+                persistent[0].affectorId shouldBe ZoneIds.P1_GRAVEYARD
+                persistent[0].affectedIdsList shouldContain 200
             }
         }
 
@@ -325,7 +327,7 @@ class CombatZoneAnnotationPipelineTest :
             }
         }
 
-        test("returnToHandNoPersistent") {
+        test("returnToHandGetsPersistentAnnotation") {
             val transfer =
                 AppliedTransfer(
                     origId = 100,
@@ -338,8 +340,13 @@ class CombatZoneAnnotationPipelineTest :
                 )
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
-            annotations.last().detailString("category") shouldBe "Return"
-            persistent.shouldBeEmpty()
+            assertSoftly {
+                annotations.last().detailString("category") shouldBe "Return"
+                persistent.size shouldBe 1
+                persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
+                persistent[0].affectorId shouldBe ZoneIds.P1_HAND
+                persistent[0].affectedIdsList shouldContain 200
+            }
         }
 
         // --- annotationsForTransfer: Search ---
@@ -382,7 +389,10 @@ class CombatZoneAnnotationPipelineTest :
             assertSoftly {
                 annotations.size shouldBe 2
                 annotations[1].detailString("category") shouldBe "Put"
-                persistent.shouldBeEmpty()
+                persistent.size shouldBe 1
+                persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
+                persistent[0].affectorId shouldBe ZoneIds.P1_GRAVEYARD
+                persistent[0].affectedIdsList shouldContain 200
             }
         }
     })
