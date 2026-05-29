@@ -78,6 +78,7 @@ protobuf {
 // --- Testing (base config from leyline.test-conventions) ---
 
 val ciSerialism = System.getenv("CI") == "true"
+val integrationForks = (project.findProperty("integrationForks") as String?)?.toIntOrNull() ?: 1
 
 tasks.named<Test>("test") {
     // Simclient and acceptance runs are opt-in via dedicated tasks.
@@ -99,11 +100,9 @@ val testBoard by tasks.registering(Test::class) {
 val testIntegration by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
-    maxParallelForks = if (ciSerialism) 1 else 4
+    maxParallelForks = integrationForks
     // Integration: MatchSession tests have their own thread pools.
-    // Layering Kotest parallelism on top flakes (damage/ETB/flashback).
-    // CI also runs in small shared runners where concurrent forks can reorder
-    // GRE streams from long-lived engine threads, so keep CI serial.
+    // Layering process-level forks on top flakes long-running engine flows.
 }
 
 val testAcceptance by tasks.registering(Test::class) {
@@ -122,7 +121,7 @@ val testAcceptance by tasks.registering(Test::class) {
 val testIntegrationStrict by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
-    maxParallelForks = if (ciSerialism) 1 else 4
+    maxParallelForks = integrationForks
     outputs.cacheIf { false }
     outputs.upToDateWhen { false }
 }
@@ -149,6 +148,9 @@ val testGate by tasks.registering(Test::class) {
     // CI uses serial specs because several older board tests still touch Forge
     // globals outside the seeded shuffle window.
 }
+
+testIntegration.configure { mustRunAfter(testGate) }
+testIntegrationStrict.configure { mustRunAfter(testGate) }
 
 // Sim-client log generation. Drives full games via real MatchSession + bridge,
 // emits scry-ts-shaped Player.log lines under build/simclient/, with sidecars
