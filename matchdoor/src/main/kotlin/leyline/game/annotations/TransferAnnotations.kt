@@ -101,8 +101,8 @@ object TransferAnnotations {
             }
         }
 
-        // Persistent: EnteredZoneThisTurn for cards landing on battlefield or stack
-        if (destZone == ZoneIds.BATTLEFIELD || destZone == ZoneIds.STACK) {
+        // Persistent: EnteredZoneThisTurn for cards landing in any zone.
+        if (destZone != 0) {
             persistent.add(AnnotationBuilder.enteredZoneThisTurn(destZone, newId))
         }
 

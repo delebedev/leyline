@@ -397,8 +397,7 @@ data object DayNightDesignationKind : PersistentAnnotationKind {
 /**
  * Pure-snapshot persistent annotation: card-entered-zone-this-turn marker.
  * Does NOT participate in upsert dispatch — rows arrive via the transfer-
- * originated pipeline (one EZTT per zone transfer landing on Battlefield /
- * Stack).
+ * originated pipeline, one EZTT per zone-transfer destination.
  *
  * MTG rule: "entered this turn" markers expire at the start of the
  * controller's next turn. Our hook is the Upkeep step plus a controller

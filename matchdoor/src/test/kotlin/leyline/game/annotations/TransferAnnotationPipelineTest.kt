@@ -165,6 +165,27 @@ class TransferAnnotationPipelineTest :
             annotations.none { it.typeList.contains(AnnotationType.UserActionTaken) } shouldBe true
         }
 
+        test("draw to hand produces EnteredZoneThisTurn persistent annotation") {
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.Draw,
+                    srcZoneId = ZoneIds.P1_LIBRARY,
+                    destZoneId = ZoneIds.P1_HAND,
+                    grpId = 67890,
+                    ownerSeatId = 1,
+                )
+            val (_, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
+
+            assertSoftly {
+                persistent.size shouldBe 1
+                persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
+                persistent[0].affectorId shouldBe ZoneIds.P1_HAND
+                persistent[0].affectedIdsList shouldContain 200
+            }
+        }
+
         // --- castSpellEventAnnotations: ability gating ---
 
         test("castSpellEventAnnotations skips activated abilities") {
@@ -354,7 +375,10 @@ class TransferAnnotationPipelineTest :
                 annotations[3].detailInt("zone_src") shouldBe ZoneIds.STACK
                 annotations[3].detailInt("zone_dest") shouldBe ZoneIds.P1_LIBRARY
                 annotations[3].detailString("category") shouldBe "Resolve"
-                persistent.shouldBeEmpty()
+                persistent.size shouldBe 1
+                persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
+                persistent[0].affectorId shouldBe ZoneIds.P1_LIBRARY
+                persistent[0].affectedIdsList shouldContain 201
             }
         }
 
@@ -378,7 +402,10 @@ class TransferAnnotationPipelineTest :
                 annotations.size shouldBe 2
                 annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
                 annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-                persistent.shouldBeEmpty()
+                persistent.size shouldBe 1
+                persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
+                persistent[0].affectorId shouldBe ZoneIds.P1_GRAVEYARD
+                persistent[0].affectedIdsList shouldContain 200
             }
         }
 
@@ -401,7 +428,7 @@ class TransferAnnotationPipelineTest :
             }
         }
 
-        test("resolveToGraveyardNoPersistentAnnotation") {
+        test("resolveToGraveyardGetsPersistentAnnotation") {
             // Spell resolves but goes to graveyard (instant/sorcery)
             val transfer =
                 AppliedTransfer(
@@ -416,6 +443,11 @@ class TransferAnnotationPipelineTest :
             val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             annotations.size shouldBe 3
-            persistent.shouldBeEmpty()
+            assertSoftly {
+                persistent.size shouldBe 1
+                persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
+                persistent[0].affectorId shouldBe ZoneIds.P1_GRAVEYARD
+                persistent[0].affectedIdsList shouldContain 200
+            }
         }
     })
