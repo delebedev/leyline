@@ -1231,11 +1231,12 @@ object AnnotationBuilder {
             .build()
 
     /** Persistent: controller change continuous effect. Types: [ControllerChanged, LayeredEffect].
-     *  Details: effect_id. Persists while steal is active; removed on expiry. */
+     *  Details: effect_id, optional sourceAbilityGRPID. Persists while steal is active; removed on expiry. */
     fun controllerChangedEffect(
         affectorId: InstanceId,
         instanceId: InstanceId,
         effectId: EffectId,
+        sourceAbilityGrpId: GrpId? = null,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
@@ -1244,6 +1245,7 @@ object AnnotationBuilder {
             .setAffectorId(affectorId.value)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+            .also { b -> sourceAbilityGrpId?.let { b.addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, it.value)) } }
             .build()
 
     // -- Tier 2 detail-less annotations --
