@@ -1,6 +1,7 @@
 package leyline.simclient
 
 import com.google.protobuf.util.JsonFormat
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GreToClientEvent
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
@@ -143,11 +144,11 @@ class PlayerLogWriter(
     /**
      * Rewrite leyline-proto enum values into the form scry-ts pattern-matches.
      *
-     * Targeted: only rewrite top-level GRE message-type values (the ones
-     * scry-ts checks literally: ConnectResp, GameStateMessage, etc.). Nested
-     * `"type"` fields (TimerType, GameStateType, ZoneType, …) are left alone
-     * because scry-ts already handles them with a tolerant `replace` that
-     * accepts both prefixed and unprefixed forms.
+     * Targeted: rewrite top-level GRE message-type values (the ones scry-ts
+     * checks literally: ConnectResp, GameStateMessage, etc.) and annotation
+     * `type` arrays. Other nested `"type"` fields (TimerType, GameStateType,
+     * ZoneType, …) are left alone because scry-ts already handles them with a
+     * tolerant `replace` that accepts both prefixed and unprefixed forms.
      *
      * The allowlist below is the set of GRE message types relevant to scry-ts
      * game detection / GSM listing / prompt classification. Add to it when a
@@ -163,8 +164,24 @@ class PlayerLogWriter(
                     .replace(""""type":"${name}_""".let { Regex(Regex.escape(it) + "[a-f0-9]{4}\"") }, """"type":"GREMessageType_$name"""")
                     .replace(""""type":"$name"""", """"type":"GREMessageType_$name"""")
         }
-        return out
+        return normalizeAnnotationTypeArrays(out)
     }
+
+    private fun normalizeAnnotationTypeArrays(json: String): String =
+        TYPE_ARRAY.replace(json) { arrayMatch ->
+            JSON_STRING.replace(arrayMatch.value) { stringMatch ->
+                val rawName = stringMatch.groupValues[1]
+                val normalized =
+                    rawName
+                        .removePrefix("AnnotationType_")
+                        .replace(ENUM_TAG_SUFFIX, "")
+                if (normalized in ANNOTATION_TYPE_NAMES) {
+                    "\"AnnotationType_$normalized\""
+                } else {
+                    stringMatch.value
+                }
+            }
+        }
 
     companion object {
         /** GRE message types scry-ts pattern-matches by literal `GREMessageType_<Name>`. */
@@ -195,5 +212,11 @@ class PlayerLogWriter(
                 "DieRollResultsResp",
                 "PayCostsReq",
             )
+
+        private val ENUM_TAG_SUFFIX = Regex("_[a-f0-9]{4}$")
+        private val TYPE_ARRAY = Regex("\"type\":\\[[^]]*]")
+        private val JSON_STRING = Regex("\"([^\"\\\\]*)\"")
+        private val ANNOTATION_TYPE_NAMES =
+            AnnotationType.values().map { it.name.replace(ENUM_TAG_SUFFIX, "") }.toSet()
     }
 }
