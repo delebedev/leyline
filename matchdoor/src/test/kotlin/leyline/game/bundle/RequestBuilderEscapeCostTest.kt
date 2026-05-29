@@ -240,7 +240,7 @@ class RequestBuilderEscapeCostTest :
             }
         }
 
-        test("buildCollectEvidencePayCostsReq emits weighted cost envelope") {
+        test("CollectEvidencePayCostsBuilder emits weighted cost envelope") {
             val (b, _, _) = base.startWithBoard { _, _, _ -> }
             val sourceForgeId = 500
             val candidateForgeIds = listOf(501, 502, 503)
@@ -270,7 +270,7 @@ class RequestBuilderEscapeCostTest :
                     future = java.util.concurrent.CompletableFuture(),
                 )
 
-            val (req, prompt) = RequestBuilder.buildCollectEvidencePayCostsReq(pending, b)
+            val (req, prompt) = CollectEvidencePayCostsBuilder.build(pending, b)
 
             assertSoftly {
                 req.hasPaymentActions() shouldBe true

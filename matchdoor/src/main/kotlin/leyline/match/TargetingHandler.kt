@@ -9,6 +9,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.CollectEvidencePayCostsBuilder
 import leyline.game.bundle.RequestBuilder
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
@@ -1265,7 +1266,7 @@ class TargetingHandler(
 
     private fun sendCollectEvidencePayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
         val bridge = ctx.bridge
-        val (req, prompt) = RequestBuilder.buildCollectEvidencePayCostsReq(pendingPrompt, bridge)
+        val (req, prompt) = CollectEvidencePayCostsBuilder.build(pendingPrompt, bridge)
         val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
         Tap.outboundTemplate("PayCostsReq(collect-evidence) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
