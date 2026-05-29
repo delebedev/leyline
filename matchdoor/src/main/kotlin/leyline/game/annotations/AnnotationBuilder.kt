@@ -11,6 +11,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
+import wotc.mtgo.gre.external.messaging.Messages.CounterType
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairInfo
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
@@ -603,19 +604,28 @@ object AnnotationBuilder {
 
     /** Counter state: authoritative counter count on a permanent. client type 14 (Counter_803b).
      *  Three-parser pattern: type 14 (this, state) + 16 (CounterAdded, event) + 17 (CounterRemoved, event).
+     *  P/T counters also carry ModifiedPower/ModifiedToughness co-types that read the same details.
      *  [counterType] = numeric counter type (1 = +1/+1). */
     fun counter(
         instanceId: InstanceId,
         counterType: Int,
         count: Int,
-    ): AnnotationInfo =
-        AnnotationInfo
-            .newBuilder()
+    ): AnnotationInfo {
+        val builder = AnnotationInfo.newBuilder()
+        if (isPowerToughnessCounter(counterType)) {
+            builder.addType(AnnotationType.ModifiedToughness)
+            builder.addType(AnnotationType.ModifiedPower)
+        }
+        return builder
             .addType(AnnotationType.Counter_803b)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.COUNT, count))
             .addDetails(int32Detail(DetailKeys.COUNTER_TYPE, counterType))
             .build()
+    }
+
+    private fun isPowerToughnessCounter(counterType: Int): Boolean =
+        counterType == CounterType.P1P1.number || counterType == CounterType.M1M1.number
 
     /** Counter state on a player. */
     fun playerCounter(

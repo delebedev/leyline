@@ -611,6 +611,8 @@ class AnnotationBuilderTest :
             val ann = AnnotationBuilder.counter(instanceId = 100.iid, counterType = 1, count = 1)
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.Counter_803b
+                ann.typeList shouldContain AnnotationType.ModifiedPower
+                ann.typeList shouldContain AnnotationType.ModifiedToughness
                 ann.affectedIdsList shouldContain 100
                 ann.detailInt("count") shouldBe 1
                 ann.detailInt("counter_type") shouldBe 1

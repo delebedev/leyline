@@ -51,6 +51,8 @@ class MechanicAnnotationPipelineTest :
             assertSoftly {
                 result.persistent.size shouldBe 1
                 result.persistent[0].typeList shouldContain AnnotationType.Counter_803b
+                result.persistent[0].typeList shouldContain AnnotationType.ModifiedPower
+                result.persistent[0].typeList shouldContain AnnotationType.ModifiedToughness
                 result.persistent[0].detailInt("count") shouldBe 2
                 result.persistent[0].detailInt("counter_type") shouldBe 1 // P1P1 = 1
             }
