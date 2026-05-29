@@ -144,6 +144,18 @@ class PromptClassifierTest :
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.StationTapCost
         }
 
+        test("collect evidence semantic classifies as weighted cost payment") {
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "Exile cards with total mana value 6 or greater",
+                    semantic = PromptSemantic.SelectNCostCollectEvidence,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.CollectEvidenceCost
+        }
+
         test("return-unblocked-attacker semantic classifies as cost payment") {
             val result =
                 classify(

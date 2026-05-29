@@ -135,9 +135,7 @@ object FixtureCardLoader {
         identity: TestCardFixtures.Identity,
     ) {
         for (ab in identity.abilities) {
-            if (ab.baseId != 0 || ab.activationMana.isNotEmpty()) {
-                repo.registerAbilityInfo(ab.id, AbilityInfo(ab.baseId, ab.activationMana, ab.category, ab.subCategory))
-            }
+            repo.registerAbilityInfo(ab.id, AbilityInfo(ab.baseId, ab.activationMana, ab.category, ab.subCategory))
             if (ab.modalChildren.isNotEmpty()) {
                 repo.registerModalOptions(identity.grpId, ModalAbilityInfo(ab.id, ab.modalChildren))
             }

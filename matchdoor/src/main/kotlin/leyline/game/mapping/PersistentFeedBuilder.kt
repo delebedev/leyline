@@ -1,8 +1,11 @@
 package leyline.game.mapping
 
+import forge.game.card.CardLists
+import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.annotations.TransferCategory
@@ -136,6 +139,7 @@ internal object PersistentFeedBuilder {
                     affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
                 )
             }
+        val collectEvidenceAbilityWordPersistentFromPrompt = collectEvidenceAbilityWordPersistentFromPrompt(events, bridge, frameIds)
         val trainingAbilityWordPersistentFromEvents = trainingAbilityWordPersistentFromEvents(events, snap, prev, bridge, frameIds)
         val preparedDesignationPersistentFromSnap =
             snap.boundCards.values
@@ -232,7 +236,10 @@ internal object PersistentFeedBuilder {
                     qualification = qualificationPersistentFromSnap,
                     temporaryPermanent = temporaryPermanentPersistentFromSnap,
                     delayedTriggerAffectees = delayedTriggerAffecteesFromSnap,
-                    abilityWord = abilityWordPersistentFromSnap + trainingAbilityWordPersistentFromEvents,
+                    abilityWord =
+                        abilityWordPersistentFromSnap +
+                            collectEvidenceAbilityWordPersistentFromPrompt +
+                            trainingAbilityWordPersistentFromEvents,
                     preparedDesignation = preparedDesignationPersistentFromSnap,
                     plottedDesignation = plottedDesignationPersistentFromSnap,
                     saddledDesignation = saddledDesignationPersistentFromSnap,
@@ -257,6 +264,53 @@ internal object PersistentFeedBuilder {
             if (colors.isEmpty()) return@mapNotNull null
             AnnotationBuilder.colorProduction(frameIds.cardIid(bound.forgeCardId), colors)
         }
+
+    private fun collectEvidenceAbilityWordPersistentFromPrompt(
+        events: List<GameEvent>,
+        bridge: GameBridge,
+        frameIds: FrameIdResolver,
+    ): List<AnnotationInfo> {
+        val annotations = mutableListOf<AnnotationInfo>()
+        for (seatValue in bridge.allSeatIds().sorted()) {
+            val promptBridge = bridge.promptBridge(SeatId(seatValue))
+            val context = promptBridge.journal.activeCollectEvidenceCost() ?: continue
+            val clearAfterBuild = events.any { it is GameEvent.SpellCast && it.cardId == context.sourceForgeCardId }
+            val sourceCard = bridge.findCard(context.sourceForgeCardId)
+            val controller = sourceCard?.controller
+            val abilityGrpId = sourceCard?.let { collectEvidenceAbilityGrpId(it.name, bridge) } ?: 0
+            if (controller != null && abilityGrpId != 0) {
+                annotations.add(
+                    AnnotationBuilder.abilityWordActive(
+                        instanceId = frameIds.cardIid(context.sourceForgeCardId),
+                        abilityWordName = "CollectEvidenceCount",
+                        value = CardLists.getTotalCMC(controller.getCardsIn(ZoneType.Graveyard)),
+                        threshold = context.threshold,
+                        abilityGrpId = GrpId(abilityGrpId),
+                    ),
+                )
+            }
+            if (clearAfterBuild) {
+                promptBridge.journal.clearCollectEvidenceCost()
+            }
+        }
+        return annotations
+    }
+
+    private fun collectEvidenceAbilityGrpId(
+        cardName: String,
+        bridge: GameBridge,
+    ): Int {
+        val grpId = bridge.cardRepository.findGrpIdByName(cardName) ?: return 0
+        val data = bridge.cardRepository.findByGrpId(grpId) ?: return 0
+        return data.abilityIds
+            .firstOrNull { (abilityGrpId, _) ->
+                val info = bridge.cardRepository.findAbilityInfo(abilityGrpId)
+                info?.category == COLLECT_EVIDENCE_CATEGORY && info.subCategory == COLLECT_EVIDENCE_SUBCATEGORY
+            }?.first ?: 0
+    }
+
+    private const val COLLECT_EVIDENCE_CATEGORY = 5
+    private const val COLLECT_EVIDENCE_SUBCATEGORY = 29
 
     private fun decayedCleanupHoldersFromSnap(
         sourceForgeIds: Set<ForgeCardId>,

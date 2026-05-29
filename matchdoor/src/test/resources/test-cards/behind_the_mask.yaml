@@ -1,0 +1,12 @@
+name: "Behind the Mask"
+grpId: 88958
+titleId: 748397
+abilities:
+  - id: 170390
+    textId: 748398
+    category: 5
+    subCategory: 29
+  - id: 170391
+    textId: 748399
+    category: 4
+expansionCode: "MKM"

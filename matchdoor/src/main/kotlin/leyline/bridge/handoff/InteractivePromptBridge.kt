@@ -425,6 +425,13 @@ enum class PromptSemantic {
      */
     SelectNCostExileFromGrave,
 
+    /**
+     * Collect Evidence additional cost: choose any number of graveyard cards
+     * whose total mana value meets the threshold. Routes to a weighted
+     * `PayCostsReq` rather than the fixed-count Escape envelope.
+     */
+    SelectNCostCollectEvidence,
+
     /** Enlist's optional attack cost: a PayCostsReq, not target selection. */
     EnlistCost,
 
@@ -450,6 +457,10 @@ data class PromptRequest(
     val defaultIndex: Int = 0,
     val semantic: PromptSemantic = PromptSemantic.Generic,
     val candidateRefs: List<PromptCandidateRefDto> = emptyList(),
+    /** Per-candidate selection weights for weighted cost-payment prompts. */
+    val costSelectionWeights: List<Int> = emptyList(),
+    /** Minimum total selected weight for weighted cost-payment prompts. */
+    val minSelectionWeight: Int? = null,
     /** Source card entity ID for targeting prompts (spell or ability source). */
     val sourceEntityId: Int? = null,
     /** Card name for modal ETB prompts — session layer resolves grpId from this. */

@@ -87,6 +87,9 @@ object PromptIds {
     /** Pay-cost-via-select for "exile N from graveyard" — Escape's additional cost. */
     const val CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE = 5500
 
+    /** Collect Evidence cost picker — "Exile any number of cards with total mana value N or greater." */
+    const val COLLECT_EVIDENCE_COST = 12727
+
     /** Enlist attack cost — "Tap a creature for {CardId} to enlist." */
     const val ENLIST_TAP_COST = 11225
 

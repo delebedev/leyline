@@ -26,6 +26,9 @@ import java.util.concurrent.ConcurrentLinkedDeque
  *   during cost-prep retries). Cleared at the start of every
  *   `checkOptionalCosts` so a previous cast's stash never leaks into the
  *   next, and on [resetForPuzzle].
+ * - `currentCollectEvidenceCost` — active payment context, recorded when Forge
+ *   asks for the graveyard-card payment and cleared after the matching cast
+ *   frame emits its helper annotation.
  *
  * [resetForPuzzle] is called during quiescent puzzle hot-swap; it is not
  * serialized against concurrent consumers.
@@ -42,6 +45,9 @@ class PromptJournal {
     @Volatile
     private var currentKeywordStash: Map<String, Boolean>? = null
 
+    @Volatile
+    private var currentCollectEvidenceCost: PromptSideEffect.CollectEvidenceCost? = null
+
     fun record(effect: PromptSideEffect) {
         when (effect) {
             is PromptSideEffect.SearchedToHand,
@@ -52,6 +58,7 @@ class PromptJournal {
             PromptSideEffect.RevealEnded -> currentReveal = null
             is PromptSideEffect.OptionalCostStash -> currentStash = effect.indices
             is PromptSideEffect.KeywordCostStash -> currentKeywordStash = effect.decisionsByKeyword
+            is PromptSideEffect.CollectEvidenceCost -> currentCollectEvidenceCost = effect
         }
     }
 
@@ -122,10 +129,17 @@ class PromptJournal {
         currentKeywordStash = null
     }
 
+    fun activeCollectEvidenceCost(): PromptSideEffect.CollectEvidenceCost? = currentCollectEvidenceCost
+
+    fun clearCollectEvidenceCost() {
+        currentCollectEvidenceCost = null
+    }
+
     fun resetForPuzzle() {
         drains.clear()
         currentReveal = null
         currentStash = null
         currentKeywordStash = null
+        currentCollectEvidenceCost = null
     }
 }

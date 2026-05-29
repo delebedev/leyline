@@ -121,6 +121,40 @@ class SimClientDriverPolicyTest :
             response.decision shouldBe SimDecision.EffectCost(listOf(201, 202))
         }
 
+        test("greedy PayCosts policy selects until minimum weight is met") {
+            val harness = MatchFlowHarness()
+            val msg =
+                GREToClientMessage
+                    .newBuilder()
+                    .setMsgId(4)
+                    .setGameStateId(14)
+                    .setType(GREMessageType.PayCostsReq_695e)
+                    .setPayCostsReq(
+                        PayCostsReq
+                            .newBuilder()
+                            .setEffectCostReq(
+                                EffectCostReq
+                                    .newBuilder()
+                                    .setEffectCostType(EffectCostType.Select_a59c)
+                                    .setCostSelection(
+                                        SelectNReq
+                                            .newBuilder()
+                                            .setMinSel(0)
+                                            .setMaxSel(3)
+                                            .setMinWeight(6)
+                                            .addAllIds(listOf(301, 302, 303))
+                                            .addAllWeights(listOf(2, 4, 7)),
+                                    ),
+                            ),
+                    ).build()
+            harness.allMessages += msg
+
+            val prompt = SimPromptLedger(harness).activePrompt()!!
+            val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
+
+            response.decision shouldBe SimDecision.EffectCost(listOf(301, 302))
+        }
+
         test("Forge AI attacker advice can choose no attackers") {
             val harness = MatchFlowHarness()
             val msg =
