@@ -610,11 +610,26 @@ class AnnotationBuilderTest :
         test("counterStateFields") {
             val ann = AnnotationBuilder.counter(instanceId = 100.iid, counterType = 1, count = 1)
             assertSoftly {
-                ann.typeList shouldContain AnnotationType.Counter_803b
+                ann.typeList shouldBe
+                    listOf(
+                        AnnotationType.ModifiedToughness,
+                        AnnotationType.ModifiedPower,
+                        AnnotationType.Counter_803b,
+                    )
                 ann.affectedIdsList shouldContain 100
                 ann.detailInt("count") shouldBe 1
                 ann.detailInt("counter_type") shouldBe 1
             }
+        }
+
+        test("minusOneMinusOneCounterStateCarriesPowerToughnessTypes") {
+            val ann = AnnotationBuilder.counter(instanceId = 100.iid, counterType = 2, count = 1)
+            ann.typeList shouldBe
+                listOf(
+                    AnnotationType.ModifiedToughness,
+                    AnnotationType.ModifiedPower,
+                    AnnotationType.Counter_803b,
+                )
         }
 
         test("playerCounterStateFields") {
