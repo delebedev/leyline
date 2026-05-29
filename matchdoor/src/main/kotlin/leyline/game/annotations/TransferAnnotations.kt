@@ -166,7 +166,6 @@ object TransferAnnotations {
                 AnnotationBuilder.castingTimeOptionKicker(
                     stackInstanceId = newId,
                     kickerAbilityGrpId = GrpId(transfer.kickerAbilityGrpId),
-                    castAbilityGrpId = GrpId(transfer.grpId),
                 ),
             )
         }
@@ -353,7 +352,6 @@ object TransferAnnotations {
                 AnnotationBuilder.castingTimeOptionKicker(
                     stackInstanceId = spellIid,
                     kickerAbilityGrpId = GrpId(ev.kickerAbilityGrpId),
-                    castAbilityGrpId = GrpId(ev.castAbilityGrpId.takeIf { it != 0 } ?: ev.kickerAbilityGrpId),
                 ),
             )
         }
