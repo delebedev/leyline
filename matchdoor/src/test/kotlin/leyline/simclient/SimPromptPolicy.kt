@@ -190,6 +190,17 @@ internal open class GreedyPromptPolicy(
         val min = selection.minSel.coerceAtLeast(0)
         val max = if (selection.maxSel > 0) selection.maxSel else min
         val count = min.coerceAtMost(max)
+        if (selection.minWeight > 0 && selection.weightsCount == selection.idsCount) {
+            val picked = mutableListOf<Int>()
+            var total = 0
+            for ((idx, id) in selection.idsList.withIndex()) {
+                if (picked.size >= max) break
+                picked.add(id)
+                total += selection.getWeights(idx)
+                if (total >= selection.minWeight) return SimDecision.EffectCost(picked)
+            }
+            return SimDecision.EffectCost(picked)
+        }
         return SimDecision.EffectCost(selection.idsList.take(count))
     }
 

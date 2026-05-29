@@ -75,6 +75,8 @@ class CostDecision(
         max: Int,
         cancelAllowed: Boolean = true,
         semantic: PromptSemantic = PromptSemantic.Generic,
+        costSelectionWeights: List<Int> = emptyList(),
+        minSelectionWeight: Int? = null,
     ): CardCollection? {
         if (cards.isEmpty()) return if (cancelAllowed) null else CardCollection()
         if (cards.size <= min && !cancelAllowed) {
@@ -95,6 +97,8 @@ class CostDecision(
                 defaultIndex = 0,
                 candidateRefs = refs,
                 semantic = semantic,
+                costSelectionWeights = costSelectionWeights,
+                minSelectionWeight = minSelectionWeight,
                 sourceEntityId = source.id.takeIf { it > 0 },
             )
         val indices = bridge.requestChoice(request)
@@ -373,6 +377,7 @@ class CostDecision(
                 CardPredicates.canExiledBy(ability, isEffect),
             )
         val total = AbilityUtils.calculateAmount(source, cost.amount, ability)
+        bridge.journal.record(PromptSideEffect.CollectEvidenceCost(ForgeCardId(source.id), total))
         val selected =
             selectCards(
                 Localizer.getInstance().getMessage("lblCollectEvidence", total),
@@ -380,8 +385,17 @@ class CostDecision(
                 0,
                 list.size,
                 cancelAllowed = true,
-            ) ?: return null
-        if (CardLists.getTotalCMC(selected) < total) return null
+                semantic = PromptSemantic.SelectNCostCollectEvidence,
+                costSelectionWeights = list.map { it.getCMC().coerceAtLeast(0) },
+                minSelectionWeight = total,
+            ) ?: run {
+                bridge.journal.clearCollectEvidenceCost()
+                return null
+            }
+        if (CardLists.getTotalCMC(selected) < total) {
+            bridge.journal.clearCollectEvidenceCost()
+            return null
+        }
         return PaymentDecision.card(selected)
     }
 

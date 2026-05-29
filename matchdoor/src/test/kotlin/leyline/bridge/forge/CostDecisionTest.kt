@@ -111,10 +111,22 @@ class CostDecisionTest :
                     Int::class.javaPrimitiveType,
                     Boolean::class.javaPrimitiveType,
                     PromptSemantic::class.java,
+                    List::class.java,
+                    Integer::class.java,
                 )
             method.isAccessible = true
             @Suppress("UNCHECKED_CAST")
-            return method.invoke(decision, "pick", cards, min, max, cancelAllowed, PromptSemantic.Generic) as? CardCollection
+            return method.invoke(
+                decision,
+                "pick",
+                cards,
+                min,
+                max,
+                cancelAllowed,
+                PromptSemantic.Generic,
+                emptyList<Int>(),
+                null,
+            ) as? CardCollection
         }
 
         test("selectCards returns null for empty cancelable choice") {

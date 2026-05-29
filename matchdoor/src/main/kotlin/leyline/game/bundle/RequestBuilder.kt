@@ -530,6 +530,60 @@ object RequestBuilder {
         bridge: GameBridge,
     ): Pair<PayCostsReq, Prompt> = buildSelectCostPayCostsReq(prompt, bridge, PromptIds.ENLIST_TAP_COST)
 
+    fun buildCollectEvidencePayCostsReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Pair<PayCostsReq, Prompt> {
+        val sourceInstanceId = sourceInstanceIdForPrompt(prompt, bridge)
+        val maxSel =
+            prompt.request.max
+                .coerceAtLeast(prompt.request.min)
+                .coerceAtLeast(0)
+        val weights = prompt.request.costSelectionWeights.map { it.coerceAtLeast(0) }
+        require(weights.size == prompt.request.candidateRefs.size) {
+            "Collect Evidence cost weights must match candidate count"
+        }
+        val minWeight =
+            requireNotNull(prompt.request.minSelectionWeight) {
+                "Collect Evidence cost requires a minimum selection weight"
+            }
+        val minSel =
+            prompt.request.min
+                .coerceAtLeast(0)
+                .coerceAtMost(maxSel)
+        val selection =
+            SelectNReq
+                .newBuilder()
+                .setMinSel(minSel)
+                .setMaxSel(maxSel)
+                .setContext(SelectionContext.NonManaPayment)
+                .setOptionContext(OptionContext.Payment)
+                .setListType(SelectionListType.Dynamic)
+                .setIdType(IdType.InstanceId_ab2c)
+                .setValidationType(SelectionValidationType.NonRepeatable)
+                .setMinWeight(minWeight)
+                .setMaxWeight(Int.MAX_VALUE)
+
+        for ((idx, ref) in prompt.request.candidateRefs.withIndex()) {
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
+            selection.addIds(instanceId)
+            selection.addWeights(weights.getOrElse(idx) { 1 })
+        }
+
+        val req =
+            PayCostsReq
+                .newBuilder()
+                .setPaymentActions(ActionsAvailableReq.newBuilder().build())
+                .setEffectCostReq(
+                    EffectCostReq
+                        .newBuilder()
+                        .setEffectCostType(EffectCostType.Select_a59c)
+                        .setCostSelection(selection),
+                ).build()
+
+        return req to promptWithCardId(PromptIds.COLLECT_EVIDENCE_COST, sourceInstanceId)
+    }
+
     /**
      * Build a `PayCostsReq` for an additional cost paid by selecting N cards
      * (sacrifice, exile-from-grave, etc). Builder is uniform —
@@ -541,10 +595,7 @@ object RequestBuilder {
         bridge: GameBridge,
         promptId: Int,
     ): Pair<PayCostsReq, Prompt> {
-        val sourceInstanceId =
-            prompt.request.sourceEntityId?.let {
-                bridge.getOrAllocInstanceId(ForgeCardId(it)).value
-            } ?: 0
+        val sourceInstanceId = sourceInstanceIdForPrompt(prompt, bridge)
 
         // Non-mana cost selections are assumed mandatory: pay exactly N.
         // Some upstream call sites pass min=0 (Forge's "non-mandatory" flag,
@@ -597,19 +648,32 @@ object RequestBuilder {
                         .setCostSelection(selection),
                 ).build()
 
-        val promptProto =
-            Prompt
-                .newBuilder()
-                .setPromptId(promptId)
-                .addParameters(
-                    PromptParameter
-                        .newBuilder()
-                        .setParameterName("CardId")
-                        .setType(ParameterType.Number)
-                        .setNumberValue(sourceInstanceId),
-                ).build()
+        val promptProto = promptWithCardId(promptId, sourceInstanceId)
         return req to promptProto
     }
+
+    private fun sourceInstanceIdForPrompt(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Int =
+        prompt.request.sourceEntityId?.let {
+            bridge.getOrAllocInstanceId(ForgeCardId(it)).value
+        } ?: 0
+
+    private fun promptWithCardId(
+        promptId: Int,
+        sourceInstanceId: Int,
+    ): Prompt =
+        Prompt
+            .newBuilder()
+            .setPromptId(promptId)
+            .addParameters(
+                PromptParameter
+                    .newBuilder()
+                    .setParameterName("CardId")
+                    .setType(ParameterType.Number)
+                    .setNumberValue(sourceInstanceId),
+            ).build()
 
     /**
      * Build [DeclareAttackersReq] listing all creatures that can legally attack.

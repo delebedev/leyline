@@ -436,6 +436,8 @@ class TargetingHandler(
                 sendSacrificePayCostsReq(pendingPrompt)
             ClassifiedPrompt.SelectN.Reason.ExileFromGrave ->
                 sendExileFromGravePayCostsReq(pendingPrompt)
+            ClassifiedPrompt.SelectN.Reason.CollectEvidenceCost ->
+                sendCollectEvidencePayCostsReq(pendingPrompt)
             ClassifiedPrompt.SelectN.Reason.EnlistCost ->
                 sendEnlistCostPayCostsReq(pendingPrompt)
             ClassifiedPrompt.SelectN.Reason.StationTapCost ->
@@ -866,6 +868,10 @@ class TargetingHandler(
             .seat(counters.seatId)
             .prompt.journal
             .clearKeywordCostStash()
+        bridge
+            .seat(counters.seatId)
+            .prompt.journal
+            .clearCollectEvidenceCost()
 
         val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
         // Keyword-with-cost keywords (Offspring, Casualty, Conspire) ride a separate
@@ -1254,6 +1260,14 @@ class TargetingHandler(
             )
         val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
         Tap.outboundTemplate("PayCostsReq(exile-from-grave) seat=${counters.seatId}")
+        sink.sendBundledGRE(result.messages)
+    }
+
+    private fun sendCollectEvidencePayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
+        val bridge = ctx.bridge
+        val (req, prompt) = RequestBuilder.buildCollectEvidencePayCostsReq(pendingPrompt, bridge)
+        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
+        Tap.outboundTemplate("PayCostsReq(collect-evidence) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 

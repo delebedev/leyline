@@ -51,4 +51,10 @@ sealed interface PromptSideEffect {
     data class KeywordCostStash(
         val decisionsByKeyword: Map<String, Boolean>,
     ) : PromptSideEffect
+
+    /** Active Collect Evidence cost-payment context for AbilityWordActive emission. */
+    data class CollectEvidenceCost(
+        val sourceForgeCardId: ForgeCardId,
+        val threshold: Int,
+    ) : PromptSideEffect
 }

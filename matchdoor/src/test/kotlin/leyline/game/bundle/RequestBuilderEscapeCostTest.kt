@@ -239,4 +239,56 @@ class RequestBuilderEscapeCostTest :
                 prompt.parametersList.first { it.parameterName == "CardId" }.numberValue shouldBe attackerIid
             }
         }
+
+        test("buildCollectEvidencePayCostsReq emits weighted cost envelope") {
+            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val sourceForgeId = 500
+            val candidateForgeIds = listOf(501, 502, 503)
+            val sourceIid = b.getOrAllocInstanceId(ForgeCardId(sourceForgeId)).value
+            val candidateIids = candidateForgeIds.map { b.getOrAllocInstanceId(ForgeCardId(it)).value }
+
+            val request =
+                PromptRequest(
+                    promptType = "choose_cards",
+                    message = "Exile cards with total mana value 6 or greater",
+                    options = candidateForgeIds.map { "Card$it" },
+                    min = 0,
+                    max = candidateForgeIds.size,
+                    semantic = PromptSemantic.SelectNCostCollectEvidence,
+                    candidateRefs =
+                        candidateForgeIds.mapIndexed { idx, forgeId ->
+                            PromptCandidateRefDto(idx, "card", forgeId)
+                        },
+                    costSelectionWeights = listOf(2, 4, 7),
+                    minSelectionWeight = 6,
+                    sourceEntityId = sourceForgeId,
+                )
+            val pending =
+                InteractivePromptBridge.PendingPrompt(
+                    promptId = "test-collect-evidence",
+                    request = request,
+                    future = java.util.concurrent.CompletableFuture(),
+                )
+
+            val (req, prompt) = RequestBuilder.buildCollectEvidencePayCostsReq(pending, b)
+
+            assertSoftly {
+                req.hasPaymentActions() shouldBe true
+                req.effectCostReq.effectCostType shouldBe EffectCostType.Select_a59c
+                val sel = req.effectCostReq.costSelection
+                sel.minSel shouldBe 0
+                sel.maxSel shouldBe 3
+                sel.context shouldBe SelectionContext.NonManaPayment
+                sel.optionContext shouldBe OptionContext.Payment
+                sel.listType shouldBe SelectionListType.Dynamic
+                sel.idType shouldBe IdType.InstanceId_ab2c
+                sel.validationType shouldBe SelectionValidationType.NonRepeatable
+                sel.minWeight shouldBe 6
+                sel.maxWeight shouldBe Int.MAX_VALUE
+                sel.idsList.toList() shouldBe candidateIids
+                sel.weightsList.toList() shouldBe listOf(2, 4, 7)
+                prompt.promptId shouldBe PromptIds.COLLECT_EVIDENCE_COST
+                prompt.parametersList.first { it.parameterName == "CardId" }.numberValue shouldBe sourceIid
+            }
+        }
     })
