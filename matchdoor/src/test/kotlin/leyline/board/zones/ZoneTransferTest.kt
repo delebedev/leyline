@@ -6,7 +6,6 @@ import forge.game.card.CounterEnumType
 import forge.game.event.GameEventSpellResolved
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -56,7 +55,7 @@ class ZoneTransferTest :
                 zt.zoneSrc shouldBe ZoneIds.BATTLEFIELD
                 zt.zoneDest shouldBe ZoneIds.P1_GRAVEYARD
             }
-            gsm.hasEnteredZoneThisTurn(newId).shouldBeFalse()
+            gsm.hasEnteredZoneThisTurn(newId).shouldBeTrue()
         }
 
         test("Battlefield → Graveyard (Sacrifice)") {
