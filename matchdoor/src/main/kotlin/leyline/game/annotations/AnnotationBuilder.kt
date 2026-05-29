@@ -213,7 +213,6 @@ object AnnotationBuilder {
     fun castingTimeOptionKicker(
         stackInstanceId: InstanceId,
         kickerAbilityGrpId: GrpId,
-        castAbilityGrpId: GrpId,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
@@ -222,7 +221,6 @@ object AnnotationBuilder {
             .addAffectedIds(stackInstanceId.value)
             .addDetails(int32Detail(DetailKeys.TYPE, CastingTimeOptionType.Kicker.number))
             .addDetails(int32Detail(DetailKeys.KICKER_ABILITY_GRP_ID, kickerAbilityGrpId.value))
-            .addDetails(int32Detail(DetailKeys.CAST_ABILITY_GRP_ID, castAbilityGrpId.value))
             .build()
 
     /** CastingTimeOption type=2 (ChooseX_a7b4) — spell cast with chosen X value. */

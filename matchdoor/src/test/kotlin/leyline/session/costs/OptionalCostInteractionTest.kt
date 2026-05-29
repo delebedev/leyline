@@ -1,10 +1,14 @@
 package leyline.session.costs
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
+import leyline.testkit.detailInt
+import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -77,6 +81,32 @@ class OptionalCostInteractionTest :
             passUntilResolved()
 
             ai.life shouldBe 16
+        }
+
+        test("accepted kicker emits CastingTimeOption Kicker details") {
+            startBurst()
+            val burstGrpId = harness.bridge.cardRepository.findGrpIdByName("Burst Lightning")!!
+            val kickerAbilityGrpId =
+                harness.bridge.cardRepository.findKeywordAbilityGrpId(burstGrpId, KeywordAbilityIds.KICKER)!!
+
+            val snap = messageSnapshot()
+            castSpellByName("Burst Lightning").shouldBeTrue()
+            acceptKicker()
+            selectTargets(listOf(OPPONENT_SEAT))
+            passUntilResolved()
+
+            val messages = messagesSince(snap)
+            val ctos =
+                messages
+                    .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
+                    .filter { it.detailInt("type") == CastingTimeOptionType.Kicker.number }
+            ctos shouldHaveSize 1
+            val cto = ctos.single()
+
+            assertSoftly {
+                cto.detailsList.map { it.key }.toSet() shouldBe setOf("type", "kickerAbilityGrpId")
+                cto.detailInt("kickerAbilityGrpId") shouldBe kickerAbilityGrpId
+            }
         }
 
         test("unkicked Burst Lightning deals 2 damage") {
