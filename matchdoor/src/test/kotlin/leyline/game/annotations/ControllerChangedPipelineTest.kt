@@ -102,6 +102,33 @@ class ControllerChangedPipelineTest :
             }
         }
 
+        test("spell-source steal does not borrow sourceAbilityGRPID from later ability") {
+            val events =
+                listOf(
+                    GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false),
+                    GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
+                    GameEvent.SpellResolved(
+                        cardId = ForgeCardId(20),
+                        hasFizzled = false,
+                        isAbility = true,
+                        abilityGrpId = 168977,
+                    ),
+                )
+            val result =
+                MechanicAnnotations.mechanicAnnotations(
+                    events,
+                    idResolver = ::testResolver,
+                    effectIdAllocator = ::testEffectAllocator,
+                )
+
+            val persistentController = result.persistent.single { AnnotationType.ControllerChanged in it.typeList }
+
+            assertSoftly {
+                persistentController.affectorId shouldBe 1010
+                persistentController.detailsList.any { it.key == "sourceAbilityGRPID" } shouldBe false
+            }
+        }
+
         test("revert detected when forgeCardId is in activeStealForgeCardIds") {
             val events =
                 listOf(

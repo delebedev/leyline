@@ -337,14 +337,13 @@ object MechanicAnnotations {
                                 .filterIsInstance<GameEvent.SpellResolved>()
                                 .firstOrNull { it.abilityGrpId != 0 }
                         val spellResolved = priorResolved.lastOrNull() ?: followingAbilityResolved
-                        val sourceAbilityResolved = priorResolved.lastOrNull { it.abilityGrpId != 0 } ?: followingAbilityResolved
                         val affectorIid =
                             if (spellResolved != null) {
                                 idResolver(spellResolved.cardId)
                             } else {
                                 InstanceId(0)
                             }
-                        val sourceAbilityGrpId = sourceAbilityResolved?.abilityGrpId?.takeIf { it != 0 }?.let(::GrpId)
+                        val sourceAbilityGrpId = spellResolved?.abilityGrpId?.takeIf { it != 0 }?.let(::GrpId)
                         val effectId = effectIdAllocator()
                         annotations.add(AnnotationBuilder.layeredEffectCreated(effectId, affectorIid))
                         annotations.add(AnnotationBuilder.controllerChanged(affectorIid, cardIid))
