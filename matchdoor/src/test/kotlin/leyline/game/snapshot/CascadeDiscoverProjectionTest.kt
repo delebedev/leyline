@@ -5,7 +5,11 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
+import leyline.testkit.detailInt
+import leyline.testkit.gameStateMessages
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
  * End-to-end coverage for the trigger-ability projection on the Stack zone.
@@ -46,11 +50,20 @@ class CascadeDiscoverProjectionTest :
             val cascadeEntry = triggerEntries.single()
 
             val bbeGrpId = harness.bridge.cardRepository.findGrpIdByName("Bloodbraid Elf")!!
+            val sourceStackIid = harness.bridge.getOrAllocInstanceId(cascadeEntry.forgeCardId).value
+            val triggeringObject =
+                harness
+                    .allMessages
+                    .gameStateMessages()
+                    .flatMap { it.persistentAnnotationsList }
+                    .single { AnnotationType.TriggeringObject in it.typeList }
 
             assertSoftly {
                 cascadeEntry.grpId shouldBe KeywordAbilityIds.CASCADE
                 cascadeEntry.grpId shouldBe 86
                 cascadeEntry.sourceCardGrpId shouldBe bbeGrpId
+                triggeringObject.affectedIdsList shouldBe listOf(sourceStackIid)
+                triggeringObject.detailInt("source_zone") shouldBe ZoneIds.STACK
                 require(cascadeEntry.grpId != cascadeEntry.sourceCardGrpId) {
                     "ability grpId and sourceCardGrpId collapsed back to the same value"
                 }
