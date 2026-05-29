@@ -3,6 +3,12 @@ package leyline.simclient
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.game.annotations.AnnotationBuilder
+import leyline.game.iid
+import leyline.game.sid
+import leyline.game.wid
+import leyline.testkit.greMessage
+import java.io.StringWriter
 import java.nio.file.Files
 import java.time.LocalDateTime
 
@@ -39,5 +45,52 @@ class PlayerLogWriterTest :
                   }
                 }
                 """.trimIndent()
+        }
+
+        test("writeBundle normalizes annotation enum suffixes") {
+            val out = StringWriter()
+            val writer =
+                PlayerLogWriter(
+                    out = out,
+                    matchId = "match-annotations",
+                    clock = { LocalDateTime.of(2026, 5, 1, 12, 0, 0) },
+                )
+
+            writer.writeBundle(
+                listOf(
+                    greMessage(msgId = 2, gsId = 1) {
+                        addAnnotations(
+                            AnnotationBuilder.zoneTransfer(
+                                100.iid,
+                                srcZoneId = 31,
+                                destZoneId = 27,
+                                category = "CastSpell",
+                            ),
+                        )
+                        addAnnotations(
+                            AnnotationBuilder.damageDealt(
+                                100.iid,
+                                targetId = 2.wid,
+                                amount = 3,
+                            ),
+                        )
+                        addAnnotations(
+                            AnnotationBuilder.scry(
+                                1.sid,
+                                topIds = listOf(101),
+                                bottomIds = emptyList(),
+                            ),
+                        )
+                    },
+                ),
+            )
+
+            val log = out.toString()
+            log.contains("\"type\":[\"AnnotationType_ZoneTransfer\"]") shouldBe true
+            log.contains("\"type\":[\"AnnotationType_DamageDealt\"]") shouldBe true
+            log.contains("\"type\":[\"AnnotationType_Scry\"]") shouldBe true
+            log.contains("ZoneTransfer_af5a") shouldBe false
+            log.contains("DamageDealt_af5a") shouldBe false
+            log.contains("Scry_af5a") shouldBe false
         }
     })
