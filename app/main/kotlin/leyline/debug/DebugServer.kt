@@ -481,7 +481,11 @@ class DebugServer(
     }
 
     private fun serveDecks(ex: HttpExchange) {
-        val body = ex.requestBody.bufferedReader().readText().trim()
+        val body =
+            ex.requestBody
+                .bufferedReader()
+                .readText()
+                .trim()
         if (body.isEmpty()) {
             runtimeDecks?.set(null)
             respond(ex, 200, "text/plain", "Runtime decks cleared")
