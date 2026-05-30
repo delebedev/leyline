@@ -441,19 +441,11 @@ object RequestBuilder {
         // For reveal-choose with empty ids (no valid target), omit minSel/maxSel (defaults to 0).
         val hasValidChoices = prompt.request.candidateRefs.isNotEmpty()
         if (semantic != PromptSemantic.RevealChoose || hasValidChoices) {
-            builder.setMinSel(prompt.request.min)
+            builder.setMinSel(selectNMinSel(prompt, semantic))
             builder.setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
         }
 
-        for (ref in prompt.request.candidateRefs) {
-            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
-            builder.addIds(instanceId)
-        }
-        // unfilteredIds — all revealed cards (superset of ids) for reveal-choose prompts
-        for (ref in prompt.request.unfilteredRefs) {
-            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
-            builder.addUnfilteredIds(instanceId)
-        }
+        builder.addSelectNIds(prompt, bridge)
         when (semantic) {
             PromptSemantic.SelectNLegendRule -> {
                 // Empty inner prompt; the real promptId goes on the outer GRE message.
@@ -464,11 +456,7 @@ object RequestBuilder {
                 builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST))
             }
             PromptSemantic.RevealChoose -> {
-                val sourceEntityId = prompt.request.sourceEntityId
-                if (sourceEntityId != null) {
-                    val sourceInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
-                    builder.setSourceId(sourceInstanceId)
-                }
+                builder.setSourceIdIfPresent(prompt, bridge)
                 builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
             }
             PromptSemantic.SelectNResolution -> {
@@ -476,11 +464,7 @@ object RequestBuilder {
                 // Parameter, NOT a top-level promptId. Outer GRE-message prompt
                 // (set in BundleBuilder.selectNBundle) carries the real promptId
                 // + 2 CardId Number params (source iid, selection count).
-                val sourceEntityId = prompt.request.sourceEntityId
-                if (sourceEntityId != null) {
-                    val sourceInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
-                    builder.setSourceId(sourceInstanceId)
-                }
+                builder.setSourceIdIfPresent(prompt, bridge)
                 builder.setPrompt(
                     Prompt
                         .newBuilder()
@@ -494,25 +478,62 @@ object RequestBuilder {
                 )
             }
             PromptSemantic.MutateTopBottom -> {
-                val sourceEntityId = prompt.request.sourceEntityId
-                if (sourceEntityId != null) {
-                    val sourceInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
-                    builder.setSourceId(sourceInstanceId)
-                }
+                builder.setSourceIdIfPresent(prompt, bridge)
                 builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
             }
+            PromptSemantic.LearnLesson -> {
+                builder.setSourceIdIfPresent(prompt, bridge)
+                builder.setPrompt(
+                    Prompt
+                        .newBuilder()
+                        .addParameters(
+                            PromptParameter
+                                .newBuilder()
+                                .setParameterName("Parameter")
+                                .setType(ParameterType.PromptId)
+                                .setPromptId(PromptIds.SELECT_N_LEARN_INNER_PARAMETER),
+                        ),
+                )
+            }
             else -> {
-                val sourceEntityId = prompt.request.sourceEntityId
-                if (sourceEntityId != null) {
-                    val sourceInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
-                    builder.setSourceId(sourceInstanceId)
-                }
+                builder.setSourceIdIfPresent(prompt, bridge)
                 builder.setPrompt(
                     Prompt.newBuilder().setPromptId(PromptIds.SELECT_N),
                 )
             }
         }
         return builder.build()
+    }
+
+    private fun selectNMinSel(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        semantic: PromptSemantic,
+    ): Int =
+        if (semantic == PromptSemantic.LearnLesson && prompt.request.candidateRefs.isNotEmpty()) {
+            1
+        } else {
+            prompt.request.min
+        }
+
+    private fun SelectNReq.Builder.addSelectNIds(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ) {
+        prompt.request.candidateRefs.forEach { ref ->
+            addIds(bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value)
+        }
+        // unfilteredIds — all revealed cards (superset of ids) for reveal-choose prompts.
+        prompt.request.unfilteredRefs.forEach { ref ->
+            addUnfilteredIds(bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value)
+        }
+    }
+
+    private fun SelectNReq.Builder.setSourceIdIfPresent(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ) {
+        val sourceInstanceId = sourceInstanceId(prompt, bridge)
+        if (sourceInstanceId != 0) setSourceId(sourceInstanceId)
     }
 
     fun buildSacrificePayCostsReq(

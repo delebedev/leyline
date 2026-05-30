@@ -3,6 +3,8 @@ package leyline.simclient
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.game.mapping.PromptIds
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
@@ -12,9 +14,11 @@ import wotc.mtgo.gre.external.messaging.Messages.EffectCostReq
 import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.ModalOption
 import wotc.mtgo.gre.external.messaging.Messages.ModalReq
 import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
+import wotc.mtgo.gre.external.messaging.Messages.Prompt
 import wotc.mtgo.gre.external.messaging.Messages.SearchReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
@@ -153,6 +157,42 @@ class SimClientDriverPolicyTest :
             val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
 
             response.decision shouldBe SimDecision.EffectCost(listOf(301, 302))
+        }
+
+        test("greedy SelectN policy prefers sideboard Lesson candidate when Learn can discard") {
+            val harness = MatchFlowHarness()
+            harness.accumulator.objects[401] =
+                GameObjectInfo
+                    .newBuilder()
+                    .setInstanceId(401)
+                    .setZoneId(ZoneIds.P1_HAND)
+                    .build()
+            harness.accumulator.objects[402] =
+                GameObjectInfo
+                    .newBuilder()
+                    .setInstanceId(402)
+                    .setZoneId(ZoneIds.P1_SIDEBOARD)
+                    .build()
+            val msg =
+                GREToClientMessage
+                    .newBuilder()
+                    .setMsgId(5)
+                    .setGameStateId(15)
+                    .setType(GREMessageType.SelectNreq)
+                    .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.LEARN_LESSON_OR_DISCARD))
+                    .setSelectNReq(
+                        SelectNReq
+                            .newBuilder()
+                            .setMinSel(0)
+                            .setMaxSel(1)
+                            .addAllIds(listOf(401, 402)),
+                    ).build()
+            harness.allMessages += msg
+
+            val prompt = SimPromptLedger(harness).activePrompt()!!
+            val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
+
+            response.decision shouldBe SimDecision.SelectN(listOf(402))
         }
 
         test("Forge AI attacker advice can choose no attackers") {

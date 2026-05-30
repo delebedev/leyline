@@ -11,10 +11,12 @@ import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
+import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.BoardTestBase
+import leyline.testkit.aiPlayer
 import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
@@ -79,6 +81,53 @@ class StateMapperShapeTest :
                 }
             for (obj in handObjects) {
                 obj.visibility shouldBe Messages.Visibility.Private
+            }
+        }
+
+        test("full state redacts opponent sideboard contents") {
+            val (b, game) =
+                base.startWithBoard { _, human, ai ->
+                    base.addCard("Forest", human, ZoneType.Sideboard)
+                    base.addCard("Mountain", ai, ZoneType.Sideboard)
+                }
+
+            val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snap, 1, BoardTestBase.TEST_MATCH_ID, b, viewingSeatId = 1).gsm
+
+            val byId = gs.zonesList.associateBy { it.zoneId }
+            assertSoftly {
+                byId[ZoneIds.P1_SIDEBOARD]!!.objectInstanceIdsCount shouldBe 1
+                byId[ZoneIds.P2_SIDEBOARD]!!.objectInstanceIdsCount shouldBe 0
+                gs.gameObjectsList.count { it.zoneId == ZoneIds.P1_SIDEBOARD } shouldBe 1
+                gs.gameObjectsList.count { it.zoneId == ZoneIds.P2_SIDEBOARD } shouldBe 0
+            }
+        }
+
+        test("diff state redacts changed opponent sideboard contents") {
+            val (b, game) =
+                base.startWithBoard { _, _, ai ->
+                    base.addCard("Mountain", ai, ZoneType.Sideboard)
+                }
+            val prev = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
+            base.addCard("Forest", game.aiPlayer, ZoneType.Sideboard)
+            val cur = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 2)
+
+            val gs =
+                StateMapper
+                    .buildDiff(
+                        prev = prev,
+                        cur = cur,
+                        events = FrameEventLog.EMPTY,
+                        gameStateId = 2,
+                        matchId = BoardTestBase.TEST_MATCH_ID,
+                        bridge = b,
+                        viewingSeatId = 1,
+                    ).gsm
+            val opponentSideboard = gs.zonesList.single { it.zoneId == ZoneIds.P2_SIDEBOARD }
+
+            assertSoftly {
+                opponentSideboard.objectInstanceIdsCount shouldBe 0
+                gs.gameObjectsList.count { it.zoneId == ZoneIds.P2_SIDEBOARD } shouldBe 0
             }
         }
 

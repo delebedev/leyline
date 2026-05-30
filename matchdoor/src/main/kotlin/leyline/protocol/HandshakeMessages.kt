@@ -167,7 +167,7 @@ object HandshakeMessages {
         // Full initial GameState
         val pendingCount = if (seatId == SeatId(2)) 1 else 0 // ChooseStartingPlayerReq follows
         val initSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, 0)
-        val gsm = GsmBuilder.buildInitialGameState(matchId, gameStateId, bridge, initSnap, pendingCount)
+        val gsm = GsmBuilder.buildInitialGameState(matchId, gameStateId, bridge, initSnap, pendingCount, seatId.value)
         messages.add(
             GREToClientMessage
                 .newBuilder()

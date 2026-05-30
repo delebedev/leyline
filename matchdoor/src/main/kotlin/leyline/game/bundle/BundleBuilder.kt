@@ -724,15 +724,16 @@ class BundleBuilder(
         isRevealChoose: Boolean = false,
         isResolution: Boolean = false,
         isMutateTopBottom: Boolean = false,
+        learnPromptId: Int? = null,
     ): BundleResult {
         val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
         val nextGs = diff.gameStateId
         val snap = diff.snap
         val gs =
-            if (isResolution) {
-                attachLookAndPickGameObjects(diff.result.gsm, req, snap)
-            } else {
-                diff.result.gsm
+            when {
+                isResolution -> attachLookAndPickGameObjects(diff.result.gsm, req, snap)
+                learnPromptId != null -> attachLearnLessonGameObjects(diff.result.gsm, req, snap)
+                else -> diff.result.gsm
             }
         val msg1 =
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
@@ -799,6 +800,27 @@ class BundleBuilder(
                         it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
                         it.allowCancel = AllowCancel.No_a526
                     }
+                    learnPromptId != null -> {
+                        it.setPrompt(
+                            Prompt
+                                .newBuilder()
+                                .setPromptId(learnPromptId)
+                                .addParameters(
+                                    PromptParameter
+                                        .newBuilder()
+                                        .setParameterName("CardId")
+                                        .setType(ParameterType.Number)
+                                        .setNumberValue(req.sourceId),
+                                ).addParameters(
+                                    PromptParameter
+                                        .newBuilder()
+                                        .setParameterName("CardId")
+                                        .setType(ParameterType.Number)
+                                        .setNumberValue(req.maxSel),
+                                ).build(),
+                        )
+                        it.allowCancel = AllowCancel.Continue
+                    }
                     else -> {
                         it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
                     }
@@ -857,6 +879,57 @@ class BundleBuilder(
                         instanceId = iid,
                         zoneId = libraryZoneId,
                         ownerSeatId = seatId,
+                        cardProto = bridge.cardProto,
+                        visibility = Visibility.Private,
+                    ).toBuilder()
+                    .addViewers(seatId)
+                    .build()
+            val existingIdx = existingByIid[iid]
+            if (existingIdx != null) {
+                gsBuilder.setGameObjects(existingIdx, obj)
+            } else {
+                gsBuilder.addGameObjects(obj)
+            }
+        }
+        return gsBuilder.build()
+    }
+
+    /**
+     * Learn choices can include sideboard Lessons whose object data was not part
+     * of the latest diff. Attach the selectable cards in their current zones so
+     * the SelectN panel has renderable card objects.
+     */
+    private fun attachLearnLessonGameObjects(
+        gsm: GameStateMessage,
+        req: SelectNReq,
+        snap: GsmSnapshot,
+    ): GameStateMessage {
+        if (req.idsList.isEmpty()) return gsm
+        val gsBuilder = gsm.toBuilder()
+        val existingByIid = gsBuilder.gameObjectsList.withIndex().associate { (idx, obj) -> obj.instanceId to idx }
+        for (iid in req.idsList) {
+            val forgeCardId =
+                bridge.getForgeCardId(InstanceId(iid)) ?: run {
+                    log.warn("attachLearnLessonGameObjects: no ForgeCardId for iid={}", iid)
+                    continue
+                }
+            val cardSnap =
+                snap.objects[forgeCardId] ?: run {
+                    log.warn(
+                        "attachLearnLessonGameObjects: no CardSnapshot for forgeCardId={} iid={}",
+                        forgeCardId.value,
+                        iid,
+                    )
+                    continue
+                }
+            val zone = snap.zones.values.firstOrNull { forgeCardId in it.contents }
+            val obj =
+                ObjectMapper
+                    .buildFromSnapshot(
+                        cardSnap = cardSnap,
+                        instanceId = iid,
+                        zoneId = zone?.id ?: ZoneIds.sideboardOf(seatId),
+                        ownerSeatId = zone?.owner?.value ?: seatId,
                         cardProto = bridge.cardProto,
                         visibility = Visibility.Private,
                     ).toBuilder()

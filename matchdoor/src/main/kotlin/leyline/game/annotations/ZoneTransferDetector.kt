@@ -782,6 +782,11 @@ object ZoneTransferDetector {
                     ZoneIds.BATTLEFIELD -> TransferCategory.Search
                     else -> TransferCategory.ZoneTransfer
                 }
+            srcZone == ZoneIds.P1_SIDEBOARD || srcZone == ZoneIds.P2_SIDEBOARD ->
+                when (destZone) {
+                    ZoneIds.P1_HAND, ZoneIds.P2_HAND -> TransferCategory.Put
+                    else -> TransferCategory.ZoneTransfer
+                }
             srcZone == ZoneIds.P1_GRAVEYARD || srcZone == ZoneIds.P2_GRAVEYARD ->
                 when (destZone) {
                     ZoneIds.P1_HAND, ZoneIds.P2_HAND, ZoneIds.BATTLEFIELD -> TransferCategory.Return

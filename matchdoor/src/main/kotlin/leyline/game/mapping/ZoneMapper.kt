@@ -26,7 +26,7 @@ object ZoneMapper {
     // --- Snapshot-based player zones ---
 
     /**
-     * Add hand, library, and optionally graveyard zones for a player from snapshot.
+     * Add hand, library, and optionally graveyard/sideboard zones for a player from snapshot.
      *
      * Reads card lists from [snap]'s zones map (keyed by arena zone ID) and looks up
      * each Forge [Card] via [bridge.findCard]. Cards not resolved (null) are skipped.
@@ -43,6 +43,7 @@ object ZoneMapper {
         handZoneId: Int,
         libZoneId: Int,
         gyZoneId: Int? = null,
+        sbZoneId: Int? = null,
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
         revealHand: Boolean = false,
@@ -110,6 +111,37 @@ object ZoneMapper {
                 addPlayerCardObjects(snap, fid, instanceId, gyZoneId, seatId, bridge, Visibility.Public, "graveyard", gameObjects)
             }
             zones.add(gyBuilder.build())
+        }
+
+        if (sbZoneId != null) {
+            val canSeeSideboard = viewingSeatId == 0 || viewingSeatId == seatId.value
+            val sbBuilder =
+                ZoneInfo
+                    .newBuilder()
+                    .setZoneId(sbZoneId)
+                    .setType(ZoneType.Sideboard)
+                    .setOwnerSeatId(seatId.value)
+                    .setVisibility(Visibility.Private)
+                    .addViewers(seatId.value)
+            for (fid in snap.zones[sbZoneId]?.contents ?: emptyList()) {
+                val instanceId = bridge.getOrAllocInstanceId(fid).value
+                if (canSeeSideboard) {
+                    sbBuilder.addObjectInstanceIds(instanceId)
+                    addPlayerCardObjects(
+                        snap,
+                        fid,
+                        instanceId,
+                        sbZoneId,
+                        seatId,
+                        bridge,
+                        Visibility.Private,
+                        "sideboard",
+                        gameObjects,
+                        addViewer = seatId.value,
+                    )
+                }
+            }
+            zones.add(sbBuilder.build())
         }
     }
 
@@ -355,6 +387,7 @@ object ZoneMapper {
         libZoneId: Int,
         gyZoneId: Int,
         sbZoneId: Int,
+        viewingSeatId: Int = 0,
     ) {
         // Hand — empty, with viewer
         zones.add(
@@ -384,8 +417,7 @@ object ZoneMapper {
         zones.add(libBuilder.build())
         // Graveyard — empty
         zones.add(makeZone(gyZoneId, ZoneType.Graveyard, seatId.value, Visibility.Public))
-        // Sideboard — empty, with viewer
-        zones.add(
+        val sbBuilder =
             ZoneInfo
                 .newBuilder()
                 .setZoneId(sbZoneId)
@@ -393,8 +425,12 @@ object ZoneMapper {
                 .setOwnerSeatId(seatId.value)
                 .setVisibility(Visibility.Private)
                 .addViewers(seatId.value)
-                .build(),
-        )
+        val canSeeSideboard = viewingSeatId == 0 || viewingSeatId == seatId.value
+        for (fid in snap.zones[sbZoneId]?.contents ?: emptyList()) {
+            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            if (canSeeSideboard) sbBuilder.addObjectInstanceIds(instanceId)
+        }
+        zones.add(sbBuilder.build())
     }
 
     // --- Helpers ---
@@ -434,6 +470,14 @@ object ZoneMapper {
         when (viewingSeatId) {
             1 -> ZoneIds.P2_HAND
             2 -> ZoneIds.P1_HAND
+            else -> 0
+        }
+
+    /** Returns the sideboard zone ID of the opponent, or 0 if viewingSeatId is 0 (no filtering). */
+    internal fun opponentSideboardZone(viewingSeatId: Int): Int =
+        when (viewingSeatId) {
+            1 -> ZoneIds.P2_SIDEBOARD
+            2 -> ZoneIds.P1_SIDEBOARD
             else -> 0
         }
 }

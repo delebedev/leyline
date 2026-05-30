@@ -451,6 +451,7 @@ class TargetingHandler(
             ClassifiedPrompt.SelectN.Reason.RevealChoose,
             ClassifiedPrompt.SelectN.Reason.Resolution,
             ClassifiedPrompt.SelectN.Reason.MutateTopBottom,
+            ClassifiedPrompt.SelectN.Reason.LearnLesson,
             -> sendSelectNReq(pendingPrompt, reason)
         }
     }
@@ -1238,9 +1239,19 @@ class TargetingHandler(
                 isRevealChoose = reason == ClassifiedPrompt.SelectN.Reason.RevealChoose,
                 isResolution = reason == ClassifiedPrompt.SelectN.Reason.Resolution,
                 isMutateTopBottom = reason == ClassifiedPrompt.SelectN.Reason.MutateTopBottom,
+                learnPromptId = learnPromptId(pendingPrompt, reason),
             )
         Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
+    }
+
+    private fun learnPromptId(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        reason: ClassifiedPrompt.SelectN.Reason,
+    ): Int? {
+        if (reason != ClassifiedPrompt.SelectN.Reason.LearnLesson) return null
+        val hasHandChoice = pendingPrompt.request.candidateRefs.any { it.zone == "Hand" }
+        return if (hasHandChoice) PromptIds.LEARN_LESSON_OR_DISCARD else PromptIds.LEARN_LESSON_ONLY
     }
 
     private fun sendSacrificePayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {

@@ -366,10 +366,8 @@ object GsmBuilder {
         bridge: GameBridge,
         snap: GsmSnapshot,
         pendingMessageCount: Int = 0,
+        viewingSeatId: Int = 0,
     ): GameStateMessage {
-        val human = bridge.getPlayer(SeatId(1))
-        val ai = bridge.getPlayer(SeatId(2))
-
         val isBrawl = bridge.isBrawlOrCommander
         val gameVariant = if (isBrawl) GameVariant.Brawl else GameVariant.Normal
         val freeMulliganCount = if (isBrawl) 1 else 0
@@ -427,30 +425,7 @@ object GsmBuilder {
         zones.add(ZoneMapper.makeZone(ZoneIds.EXILE, ZoneType.Exile, 0, Visibility.Public))
         zones.add(ZoneMapper.makeZone(ZoneIds.LIMBO, ZoneType.Limbo, 0, Visibility.Public))
         // Per-player zones (4 each = 8)
-        if (human != null) {
-            ZoneMapper.addInitialPlayerZonesFromSnapshot(
-                SeatId(1),
-                snap,
-                bridge,
-                zones,
-                ZoneIds.P1_HAND,
-                ZoneIds.P1_LIBRARY,
-                ZoneIds.P1_GRAVEYARD,
-                ZoneIds.P1_SIDEBOARD,
-            )
-        }
-        if (ai != null) {
-            ZoneMapper.addInitialPlayerZonesFromSnapshot(
-                SeatId(2),
-                snap,
-                bridge,
-                zones,
-                ZoneIds.P2_HAND,
-                ZoneIds.P2_LIBRARY,
-                ZoneIds.P2_GRAVEYARD,
-                ZoneIds.P2_SIDEBOARD,
-            )
-        }
+        addInitialPlayerZones(snap, bridge, zones, viewingSeatId)
 
         // Brawl: populate zone 26 with commander cards as full game objects.
         // Commanders start in the command zone, not the library — the client
@@ -464,7 +439,7 @@ object GsmBuilder {
                 bridge,
                 zones,
                 gameObjects,
-                human,
+                bridge.getPlayer(SeatId(1)),
             )
         }
 
@@ -495,6 +470,40 @@ object GsmBuilder {
                 .setUpdate(GameStateUpdate.SendAndRecord)
         if (pendingMessageCount > 0) builder.setPendingMessageCount(pendingMessageCount)
         return builder.build()
+    }
+
+    private fun addInitialPlayerZones(
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+        zones: MutableList<ZoneInfo>,
+        viewingSeatId: Int,
+    ) {
+        if (bridge.getPlayer(SeatId(1)) != null) {
+            ZoneMapper.addInitialPlayerZonesFromSnapshot(
+                SeatId(1),
+                snap,
+                bridge,
+                zones,
+                ZoneIds.P1_HAND,
+                ZoneIds.P1_LIBRARY,
+                ZoneIds.P1_GRAVEYARD,
+                ZoneIds.P1_SIDEBOARD,
+                viewingSeatId,
+            )
+        }
+        if (bridge.getPlayer(SeatId(2)) != null) {
+            ZoneMapper.addInitialPlayerZonesFromSnapshot(
+                SeatId(2),
+                snap,
+                bridge,
+                zones,
+                ZoneIds.P2_HAND,
+                ZoneIds.P2_LIBRARY,
+                ZoneIds.P2_GRAVEYARD,
+                ZoneIds.P2_SIDEBOARD,
+                viewingSeatId,
+            )
+        }
     }
 
     /**

@@ -446,6 +446,9 @@ enum class PromptSemantic {
 
     /** Mutate's resolution-time choice for which component is on top. */
     MutateTopBottom,
+
+    /** Learn's Lesson/discard card picker. Routes to a Learn-specific `SelectNReq`. */
+    LearnLesson,
 }
 
 data class PromptRequest(

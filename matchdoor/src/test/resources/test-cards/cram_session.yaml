@@ -1,0 +1,12 @@
+name: "Cram Session"
+grpId: 76578
+titleId: 488790
+abilities:
+  - id: 1586
+    textId: 6513
+    category: 4
+  - id: 141895
+    textId: 488201
+    category: 4
+    subCategory: 17
+expansionCode: "STX"

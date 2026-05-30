@@ -99,6 +99,14 @@ data class SelectCostStep(
     override val label: String = "select_cost ${cards.joinToString()}"
 }
 
+data class SelectCardStep(
+    val side: AcceptanceSide = AcceptanceSide.Ours,
+    val zone: AcceptanceZone,
+    val card: String,
+) : AcceptanceStep {
+    override val label: String = "select_card $card"
+}
+
 data object ResolveStackStep : AcceptanceStep {
     override val label: String = "resolve_stack"
 }
@@ -208,6 +216,7 @@ enum class AcceptanceZone(
     Graveyard("graveyard"),
     Exile("exile"),
     Library("library"),
+    Sideboard("sideboard"),
     ;
 
     companion object {

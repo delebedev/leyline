@@ -45,3 +45,21 @@ scenarios:
           all:
             - battlefield_stats_at_least: { side: ours, card: Monastery Swiftspear, power: 2, toughness: 3 }
             - stack_empty: true
+  - id: learn-lesson
+    puzzle: learn-cram-session
+    run: cast Cram Session and take Environmental Sciences from sideboard
+    expect: Cram Session gains 4 life and the Lesson moves to hand
+    steps:
+      - wait:
+          action: { type: cast, card: Cram Session }
+      - cast: Cram Session
+      - pass_until:
+          prompt: SelectNReq
+      - select_card: { side: ours, zone: sideboard, card: Environmental Sciences }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - our_life: 24
+            - zone_contains: { side: ours, zone: hand, card: Environmental Sciences }
+            - zone_not_contains: { side: ours, zone: sideboard, card: Environmental Sciences }
+            - stack_empty: true

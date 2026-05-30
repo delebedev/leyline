@@ -64,6 +64,7 @@ object AcceptanceSuiteLoader {
             "optional_action" -> parseOptionalAction(value, "$context.optional_action")
             "target" -> TargetStep(parseTarget(value, "$context.target"))
             "select_cost" -> parseSelectCost(value, "$context.select_cost")
+            "select_card" -> parseSelectCard(value, "$context.select_card")
             "block" -> parseBlock(value, "$context.block")
             "play_land" -> PlayLandStep(value.asString("$context.play_land"))
             "cast" -> parseCast(value, "$context.cast")
@@ -108,6 +109,18 @@ object AcceptanceSuiteLoader {
             side = map.optionalString("side")?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
             zone = AcceptanceZone.parse(map.requiredString("zone", context)),
             cards = map.requiredList("cards", context).mapIndexed { index, item -> item.asString("$context.cards[$index]") },
+        )
+    }
+
+    private fun parseSelectCard(
+        raw: Any?,
+        context: String,
+    ): SelectCardStep {
+        val map = raw.asMap(context)
+        return SelectCardStep(
+            side = map.optionalString("side")?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
+            zone = AcceptanceZone.parse(map.requiredString("zone", context)),
+            card = map.requiredString("card", context),
         )
     }
 

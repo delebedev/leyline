@@ -528,6 +528,7 @@ class GameEventCollector(
             Zone.Command -> ZoneIds.COMMAND
             Zone.Stack -> ZoneIds.STACK
             Zone.Library -> ZoneIds.libraryOf(seat)
+            Zone.Sideboard -> ZoneIds.sideboardOf(seat)
             // Other / unmapped — not a wire-level zone we surface.
             else -> 0
         }
@@ -555,7 +556,8 @@ class GameEventCollector(
             ZoneType.Command -> ZoneIds.COMMAND
             ZoneType.Stack -> ZoneIds.STACK
             ZoneType.Library -> ZoneIds.libraryOf(seat)
-            // Sideboard / Subgame / ExtraHand / None — not zones the AbilityInstance source_zone surfaces.
+            ZoneType.Sideboard -> ZoneIds.sideboardOf(seat)
+            // Subgame / ExtraHand / None — not zones the AbilityInstance source_zone surfaces.
             else -> 0
         }
 
