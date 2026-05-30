@@ -41,8 +41,22 @@ internal data class PersistentFeedBuildResult(
     val currentHolders: List<HolderRecord>,
 )
 
+private data class TemporaryPermanentFeedResult(
+    val temporaryPermanent: List<AnnotationInfo>,
+    val delayedTriggerAffectees: List<AnnotationInfo>,
+    val currentHolders: List<HolderRecord>,
+)
+
+private data class DesignationFeedSet(
+    val prepared: List<AnnotationInfo>,
+    val plotted: List<AnnotationInfo>,
+    val saddled: List<AnnotationInfo>,
+    val commander: List<AnnotationInfo>,
+    val leftUnlocked: List<AnnotationInfo>,
+    val rightUnlocked: List<AnnotationInfo>,
+)
+
 internal object PersistentFeedBuilder {
-    @Suppress("LongMethod")
     fun build(
         events: List<GameEvent>,
         snap: GsmSnapshot,
@@ -52,11 +66,59 @@ internal object PersistentFeedBuilder {
         decayedCleanupSourcesThisGsm: Set<ForgeCardId>,
         transferResult: TransferResult,
     ): PersistentFeedBuildResult {
-        val qualificationPersistentFromSnap =
-            snap.objects.values
-                .filter { it.isOnAdventure }
-                .map { AnnotationBuilder.qualification(instanceId = frameIds.cardIid(it.forgeCardId)) } +
-                CombatQualificationScanner.scan(snap, bridge, frameIds)
+        val qualification = buildQualificationAnnotations(snap, bridge, frameIds)
+        val temporaryPermanent =
+            buildTemporaryPermanentAnnotations(
+                snap,
+                bridge,
+                frameIds,
+                decayedCleanupSourcesThisGsm,
+                transferResult,
+            )
+        val abilityWord = buildAbilityWordAnnotations(events, snap, prev, bridge, frameIds)
+        val designations = buildDesignationAnnotations(snap, bridge, frameIds)
+        val dayNightDesignation = buildDayNightDesignationAnnotations(snap)
+        val faceDownDisguise = buildFaceDownDisguiseAnnotations(snap, frameIds)
+        val colorProduction = buildColorProductionAnnotations(snap, frameIds)
+
+        return PersistentFeedBuildResult(
+            feeds =
+                PersistentFeedSet(
+                    qualification = qualification,
+                    temporaryPermanent = temporaryPermanent.temporaryPermanent,
+                    delayedTriggerAffectees = temporaryPermanent.delayedTriggerAffectees,
+                    abilityWord = abilityWord,
+                    preparedDesignation = designations.prepared,
+                    plottedDesignation = designations.plotted,
+                    saddledDesignation = designations.saddled,
+                    commanderDesignation = designations.commander,
+                    leftUnlockedDesignation = designations.leftUnlocked,
+                    rightUnlockedDesignation = designations.rightUnlocked,
+                    dayNightDesignation = dayNightDesignation,
+                    faceDownDisguise = faceDownDisguise,
+                    colorProduction = colorProduction,
+                ),
+            currentHolders = temporaryPermanent.currentHolders,
+        )
+    }
+
+    private fun buildQualificationAnnotations(
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+        frameIds: FrameIdResolver,
+    ): List<AnnotationInfo> =
+        snap.objects.values
+            .filter { it.isOnAdventure }
+            .map { AnnotationBuilder.qualification(instanceId = frameIds.cardIid(it.forgeCardId)) } +
+            CombatQualificationScanner.scan(snap, bridge, frameIds)
+
+    private fun buildTemporaryPermanentAnnotations(
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+        frameIds: FrameIdResolver,
+        decayedCleanupSourcesThisGsm: Set<ForgeCardId>,
+        transferResult: TransferResult,
+    ): TemporaryPermanentFeedResult {
         val eotTokens = snap.objects.values.filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
         val tokenSources: Map<CardSnapshot, ForgeCardId?> =
             eotTokens.associateWith { tokenSourceForgeId(it.forgeCardId, bridge) }
@@ -68,7 +130,7 @@ internal object PersistentFeedBuilder {
                 frameIds,
                 transferResult,
             )
-        val temporaryPermanentPersistentFromSnap =
+        val temporaryPermanent =
             eotTokens.map { token ->
                 val tokenIid = bridge.getOrAllocInstanceId(token.forgeCardId)
                 val sourceForgeId = tokenSources[token]
@@ -100,7 +162,7 @@ internal object PersistentFeedBuilder {
                 }
         val currentHolders = mutableListOf<HolderRecord>()
         currentHolders.addAll(decayedCleanupHolders)
-        val delayedTriggerAffecteesFromSnap =
+        val delayedTriggerAffectees =
             eotTokens
                 .groupBy { tokenSources[it] to it.controller.value }
                 .filterValues { it.isNotEmpty() }
@@ -127,132 +189,135 @@ internal object PersistentFeedBuilder {
                         abilityGrpId = GrpId(cleanupGrpId),
                     )
                 }
-        val abilityWordPersistentFromSnap =
-            snap.abilityWordEntries.map { entry ->
-                AnnotationBuilder.abilityWordActive(
-                    instanceId = InstanceId(entry.instanceId),
-                    abilityWordName = entry.abilityWordName,
-                    value = entry.value,
-                    threshold = entry.threshold,
-                    abilityGrpId = entry.abilityGrpId?.let { GrpId(it) },
-                    affectorId = InstanceId(entry.affectorId ?: entry.instanceId),
-                    affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
-                )
-            }
-        val collectEvidenceAbilityWordPersistentFromPrompt = collectEvidenceAbilityWordPersistentFromPrompt(events, bridge, frameIds)
-        val trainingAbilityWordPersistentFromEvents = trainingAbilityWordPersistentFromEvents(events, snap, prev, bridge, frameIds)
-        val preparedDesignationPersistentFromSnap =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    val source = bound.designations.prepared as? PreparedRole.Source ?: return@mapNotNull null
-                    AnnotationBuilder.preparedDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
-                        preparedCopyInstanceId = bridge.getOrAllocInstanceId(source.copyForgeCardId),
-                    )
-                }
-        val plottedDesignationPersistentFromSnap =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.designations.isPlotted) return@mapNotNull null
-                    AnnotationBuilder.plottedDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
-                    )
-                }
-        val saddledDesignationPersistentFromSnap =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.designations.isSaddled) return@mapNotNull null
-                    AnnotationBuilder.saddledDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
-                    )
-                }
-        val commanderDesignationPersistentFromSnap =
-            snap.boundCards.values
-                .filter { it.designations.isCommander && it.snapshot.grpId > 0 }
-                .flatMap { bound ->
-                    val iid = frameIds.cardIid(bound.forgeCardId)
-                    val grpId = GrpId(bound.snapshot.grpId)
-                    val colorIdentity = bound.designations.commanderColorIdentity
-                    val tax = bound.designations.commanderTax
-                    listOf(
-                        AnnotationBuilder.commanderPlayerDesignation(
-                            seatId = bound.snapshot.owner,
-                            grpId = grpId,
-                            colorIdentity = colorIdentity,
-                            costIncrease = tax,
-                        ),
-                        AnnotationBuilder.commanderObjectDesignation(
-                            instanceId = iid,
-                            grpId = grpId,
-                            colorIdentity = colorIdentity,
-                            costIncrease = tax,
-                        ),
-                    )
-                }
-        val leftUnlockedDesignationPersistentFromSnap =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.designations.isLeftDoorUnlocked) return@mapNotNull null
-                    AnnotationBuilder.leftUnlockedDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
-                    )
-                }
-        val rightUnlockedDesignationPersistentFromSnap =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.designations.isRightDoorUnlocked) return@mapNotNull null
-                    AnnotationBuilder.rightUnlockedDesignation(
-                        instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
-                    )
-                }
-        val faceDownDisguisePersistentFromSnap =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.snapshot.isFaceDownDisguise) return@mapNotNull null
-                    AnnotationBuilder.faceDownPersistent(
-                        instanceId = frameIds.cardIid(bound.forgeCardId),
-                        reason = AnnotationConstants.FACEDOWN_REASON_DISGUISE,
-                        abilityGrpId = GrpId(KeywordAbilityIds.DISGUISE),
-                    )
-                }
-        val dayNightDesignationPersistentFromSnap: List<AnnotationInfo> =
-            snap.dayTime?.let { isNight ->
-                listOf(
-                    AnnotationBuilder.dayNightDesignation(
-                        designationType =
-                            if (isNight) {
-                                AnnotationConstants.DESIGNATION_TYPE_NIGHT
-                            } else {
-                                AnnotationConstants.DESIGNATION_TYPE_DAY
-                            },
-                        activePlayerSpellCount = snap.activePlayerSpellsCastThisTurn,
-                    ),
-                )
-            } ?: emptyList()
-        val colorProductionPersistentFromSnap = buildColorProductionAnnotations(snap, frameIds)
-        return PersistentFeedBuildResult(
-            feeds =
-                PersistentFeedSet(
-                    qualification = qualificationPersistentFromSnap,
-                    temporaryPermanent = temporaryPermanentPersistentFromSnap,
-                    delayedTriggerAffectees = delayedTriggerAffecteesFromSnap,
-                    abilityWord =
-                        abilityWordPersistentFromSnap +
-                            collectEvidenceAbilityWordPersistentFromPrompt +
-                            trainingAbilityWordPersistentFromEvents,
-                    preparedDesignation = preparedDesignationPersistentFromSnap,
-                    plottedDesignation = plottedDesignationPersistentFromSnap,
-                    saddledDesignation = saddledDesignationPersistentFromSnap,
-                    commanderDesignation = commanderDesignationPersistentFromSnap,
-                    leftUnlockedDesignation = leftUnlockedDesignationPersistentFromSnap,
-                    rightUnlockedDesignation = rightUnlockedDesignationPersistentFromSnap,
-                    dayNightDesignation = dayNightDesignationPersistentFromSnap,
-                    faceDownDisguise = faceDownDisguisePersistentFromSnap,
-                    colorProduction = colorProductionPersistentFromSnap,
-                ),
+
+        return TemporaryPermanentFeedResult(
+            temporaryPermanent = temporaryPermanent,
+            delayedTriggerAffectees = delayedTriggerAffectees,
             currentHolders = currentHolders,
         )
     }
+
+    private fun buildAbilityWordAnnotations(
+        events: List<GameEvent>,
+        snap: GsmSnapshot,
+        prev: GsmSnapshot?,
+        bridge: GameBridge,
+        frameIds: FrameIdResolver,
+    ): List<AnnotationInfo> =
+        snap.abilityWordEntries.map { entry ->
+            AnnotationBuilder.abilityWordActive(
+                instanceId = InstanceId(entry.instanceId),
+                abilityWordName = entry.abilityWordName,
+                value = entry.value,
+                threshold = entry.threshold,
+                abilityGrpId = entry.abilityGrpId?.let { GrpId(it) },
+                affectorId = InstanceId(entry.affectorId ?: entry.instanceId),
+                affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
+            )
+        } +
+            collectEvidenceAbilityWordPersistentFromPrompt(events, bridge, frameIds) +
+            trainingAbilityWordPersistentFromEvents(events, snap, prev, bridge, frameIds)
+
+    private fun buildDesignationAnnotations(
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+        frameIds: FrameIdResolver,
+    ): DesignationFeedSet =
+        DesignationFeedSet(
+            prepared =
+                snap.boundCards.values
+                    .mapNotNull { bound ->
+                        val source = bound.designations.prepared as? PreparedRole.Source ?: return@mapNotNull null
+                        AnnotationBuilder.preparedDesignation(
+                            instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
+                            preparedCopyInstanceId = bridge.getOrAllocInstanceId(source.copyForgeCardId),
+                        )
+                    },
+            plotted =
+                snap.boundCards.values
+                    .mapNotNull { bound ->
+                        if (!bound.designations.isPlotted) return@mapNotNull null
+                        AnnotationBuilder.plottedDesignation(
+                            instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
+                        )
+                    },
+            saddled =
+                snap.boundCards.values
+                    .mapNotNull { bound ->
+                        if (!bound.designations.isSaddled) return@mapNotNull null
+                        AnnotationBuilder.saddledDesignation(
+                            instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
+                        )
+                    },
+            commander =
+                snap.boundCards.values
+                    .filter { it.designations.isCommander && it.snapshot.grpId > 0 }
+                    .flatMap { bound ->
+                        val iid = frameIds.cardIid(bound.forgeCardId)
+                        val grpId = GrpId(bound.snapshot.grpId)
+                        val colorIdentity = bound.designations.commanderColorIdentity
+                        val tax = bound.designations.commanderTax
+                        listOf(
+                            AnnotationBuilder.commanderPlayerDesignation(
+                                seatId = bound.snapshot.owner,
+                                grpId = grpId,
+                                colorIdentity = colorIdentity,
+                                costIncrease = tax,
+                            ),
+                            AnnotationBuilder.commanderObjectDesignation(
+                                instanceId = iid,
+                                grpId = grpId,
+                                colorIdentity = colorIdentity,
+                                costIncrease = tax,
+                            ),
+                        )
+                    },
+            leftUnlocked =
+                snap.boundCards.values
+                    .mapNotNull { bound ->
+                        if (!bound.designations.isLeftDoorUnlocked) return@mapNotNull null
+                        AnnotationBuilder.leftUnlockedDesignation(
+                            instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
+                        )
+                    },
+            rightUnlocked =
+                snap.boundCards.values
+                    .mapNotNull { bound ->
+                        if (!bound.designations.isRightDoorUnlocked) return@mapNotNull null
+                        AnnotationBuilder.rightUnlockedDesignation(
+                            instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
+                        )
+                    },
+        )
+
+    private fun buildDayNightDesignationAnnotations(snap: GsmSnapshot): List<AnnotationInfo> =
+        snap.dayTime?.let { isNight ->
+            listOf(
+                AnnotationBuilder.dayNightDesignation(
+                    designationType =
+                        if (isNight) {
+                            AnnotationConstants.DESIGNATION_TYPE_NIGHT
+                        } else {
+                            AnnotationConstants.DESIGNATION_TYPE_DAY
+                        },
+                    activePlayerSpellCount = snap.activePlayerSpellsCastThisTurn,
+                ),
+            )
+        } ?: emptyList()
+
+    private fun buildFaceDownDisguiseAnnotations(
+        snap: GsmSnapshot,
+        frameIds: FrameIdResolver,
+    ): List<AnnotationInfo> =
+        snap.boundCards.values
+            .mapNotNull { bound ->
+                if (!bound.snapshot.isFaceDownDisguise) return@mapNotNull null
+                AnnotationBuilder.faceDownPersistent(
+                    instanceId = frameIds.cardIid(bound.forgeCardId),
+                    reason = AnnotationConstants.FACEDOWN_REASON_DISGUISE,
+                    abilityGrpId = GrpId(KeywordAbilityIds.DISGUISE),
+                )
+            }
 
     private fun buildColorProductionAnnotations(
         snap: GsmSnapshot,
