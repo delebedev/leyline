@@ -92,14 +92,15 @@ class MatchFlowHarness(
 
     val accumulator = ClientAccumulator()
     val allMessages = mutableListOf<GREToClientMessage>()
+    private val messageLog = MatchFlowMessageLog(allMessages)
 
     private val combatDriver =
         MatchFlowCombatDriver(
             seatId = seatId,
             bridge = { bridge },
             session = { session },
-            messageSnapshot = { messageSnapshot() },
-            messagesSince = { snapshot -> messagesSince(snapshot) },
+            messageSnapshot = { messageLog.snapshot() },
+            messagesSince = { snapshot -> messageLog.since(snapshot) },
             submitWithGsId = { msg -> submitWithGsId(msg) },
             drainSink = { drainSink() },
         )
@@ -908,18 +909,17 @@ class MatchFlowHarness(
     // --- Message inspection ---
 
     /** Snapshot current message count for later comparison with [messagesSince]. */
-    fun messageSnapshot(): Int = allMessages.size
+    fun messageSnapshot(): Int = messageLog.snapshot()
 
     /** Get all messages since a snapshot point. */
-    fun messagesSince(snapshot: Int): List<GREToClientMessage> = allMessages.subList(snapshot, allMessages.size).toList()
+    fun messagesSince(snapshot: Int): List<GREToClientMessage> = messageLog.since(snapshot)
 
     /** Get all game-state messages since a snapshot point. */
     fun gameStateMessagesSince(snapshot: Int): List<GameStateMessage> =
-        messagesSince(snapshot)
-            .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+        messageLog.gameStateMessagesSince(snapshot)
 
     /** Get all annotations from game-state messages since a snapshot point. */
-    fun annotationsSince(snapshot: Int): List<AnnotationInfo> = gameStateMessagesSince(snapshot).flatMap { it.annotationsList }
+    fun annotationsSince(snapshot: Int): List<AnnotationInfo> = messageLog.annotationsSince(snapshot)
 
     // --- State queries ---
 
@@ -1004,11 +1004,7 @@ class MatchFlowHarness(
      * races against in-flight emissions.
      */
     fun latestPromptGsId(): Int {
-        for (i in allMessages.indices.reversed()) {
-            val m = allMessages[i]
-            if (m.type in harnessPromptGreTypes) return m.gameStateId
-        }
-        return 0
+        return messageLog.latestPromptGsId()
     }
 
     /**
@@ -1237,19 +1233,3 @@ class MatchFlowHarness(
         sink.clear()
     }
 }
-
-private val harnessPromptGreTypes: Set<GREMessageType> =
-    setOf(
-        GREMessageType.ActionsAvailableReq_695e,
-        GREMessageType.SelectTargetsReq_695e,
-        GREMessageType.SelectNreq,
-        GREMessageType.GroupReq_695e,
-        GREMessageType.SearchReq_695e,
-        GREMessageType.DeclareAttackersReq_695e,
-        GREMessageType.DeclareBlockersReq_695e,
-        GREMessageType.CastingTimeOptionsReq_695e,
-        GREMessageType.PayCostsReq_695e,
-        GREMessageType.PromptReq,
-        GREMessageType.OptionalActionMessage_695e,
-        GREMessageType.AssignDamageReq_695e,
-    )
