@@ -155,26 +155,17 @@ object ActionMapper {
                 val forgeCard = bridge.findCard(fid) ?: continue
                 val player = bridge.getPlayer(SeatId(seatId)) ?: continue
                 val cardData = snap.boundCards[fid]?.data
-                for (ability in getNonManaActivatedAbilities(forgeCard, player)) {
-                    if (!ability.canPlay()) continue
-                    // Disguise's turn-face-up SA rides the dedicated
-                    // Special_TurnFaceUp_add3 action emitted below; skip it
-                    // here so the same SA doesn't surface twice (once as
-                    // Activate, once as Special_TurnFaceUp).
-                    if (ability.isDisguiseUp) continue
-                    val canPay = canPayManaCost(ability, player)
-                    val registry = bridge.abilityRegistryFor(forgeCard, cardData)
-                    val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
-                    emitActivatedAbilityAction(
-                        builder = builder,
-                        instanceId = instanceId,
-                        grpId = grpId,
-                        abilityGrpId = abilityGrpId,
-                        abilityCost = ability.payCosts?.totalMana,
-                        canPay = canPay,
-                        envelope = ActivatedActionEnvelope.PERMANENT_SOURCE,
-                    )
-                }
+                emitPlayableNonManaActivatedAbilities(
+                    builder = builder,
+                    card = forgeCard,
+                    player = player,
+                    instanceId = { instanceId },
+                    grpId = { grpId },
+                    cardData = { _ -> cardData },
+                    envelope = ActivatedActionEnvelope.PERMANENT_SOURCE,
+                    abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
+                    skipDisguiseTurnFaceUp = true,
+                )
             }
         }
 
@@ -230,26 +221,7 @@ object ActionMapper {
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             val grpId = card.grpId
             val legality = legalityFor(seatId, fid, bridge)
-            if (legality.canPlayLand) {
-                builder.addActions(
-                    Action
-                        .newBuilder()
-                        .setActionType(ActionType.Play_add3)
-                        .setInstanceId(instanceId)
-                        .setGrpId(grpId)
-                        .setFacetId(instanceId)
-                        .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Play_add3)),
-                )
-            } else {
-                builder.addInactiveActions(
-                    Action
-                        .newBuilder()
-                        .setActionType(ActionType.Play_add3)
-                        .setGrpId(grpId)
-                        .setInstanceId(instanceId)
-                        .setFacetId(instanceId),
-                )
-            }
+            emitPlayLandAction(builder, instanceId, grpId, legality.canPlayLand)
         }
 
         // --- Hand: non-land spells (Cast + CastAdventure) ---
@@ -380,24 +352,16 @@ object ActionMapper {
             if (!cardSnap.hasNonManaActivatedAbilities) continue
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
-            for (ability in getNonManaActivatedAbilities(forgeCard, player)) {
-                if (!ability.canPlay()) continue
-                val canPay = canPayManaCost(ability, player)
-                val instanceId = bridge.getOrAllocInstanceId(fid).value
-                val grpId = cardSnap.grpId
-                val cardData = snap.boundCards[fid]?.data
-                val registry = bridge.abilityRegistryFor(forgeCard, cardData)
-                val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
-                emitActivatedAbilityAction(
-                    builder = builder,
-                    instanceId = instanceId,
-                    grpId = grpId,
-                    abilityGrpId = abilityGrpId,
-                    abilityCost = ability.payCosts?.totalMana,
-                    canPay = canPay,
-                    envelope = ActivatedActionEnvelope.ABILITY_ONLY,
-                )
-            }
+            emitPlayableNonManaActivatedAbilities(
+                builder = builder,
+                card = forgeCard,
+                player = player,
+                instanceId = { bridge.getOrAllocInstanceId(fid).value },
+                grpId = { cardSnap.grpId },
+                cardData = { _ -> snap.boundCards[fid]?.data },
+                envelope = ActivatedActionEnvelope.ABILITY_ONLY,
+                abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
+            )
         }
 
         // --- Zone casts (graveyard, exile, command) ---
@@ -619,6 +583,58 @@ object ActionMapper {
         }
     }
 
+    private fun emitPlayLandAction(
+        builder: ActionsAvailableReq.Builder,
+        instanceId: Int,
+        grpId: Int,
+        canPlay: Boolean,
+    ) {
+        val actionBuilder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.Play_add3)
+                .setInstanceId(instanceId)
+                .setGrpId(grpId)
+                .setFacetId(instanceId)
+        if (canPlay) {
+            builder.addActions(actionBuilder.setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Play_add3)))
+        } else {
+            builder.addInactiveActions(actionBuilder)
+        }
+    }
+
+    @Suppress("LongParameterList")
+    private fun emitPlayableNonManaActivatedAbilities(
+        builder: ActionsAvailableReq.Builder,
+        card: Card,
+        player: Player,
+        instanceId: () -> Int,
+        grpId: () -> Int,
+        cardData: (Int) -> CardData?,
+        envelope: ActivatedActionEnvelope,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+        skipDisguiseTurnFaceUp: Boolean = false,
+    ) {
+        for (ability in getNonManaActivatedAbilities(card, player)) {
+            if (!ability.canPlay()) continue
+            if (skipDisguiseTurnFaceUp && ability.isDisguiseUp) continue
+            val canPay = canPayManaCost(ability, player)
+            val actionInstanceId = instanceId()
+            val actionGrpId = grpId()
+            val registry = abilityRegistryLookup(card, cardData(actionGrpId))
+            val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
+            emitActivatedAbilityAction(
+                builder = builder,
+                instanceId = actionInstanceId,
+                grpId = actionGrpId,
+                abilityGrpId = abilityGrpId,
+                abilityCost = ability.payCosts?.totalMana,
+                canPay = canPay,
+                envelope = envelope,
+            )
+        }
+    }
+
     /**
      * Configure a Cast action's keyword-specific fields per the rail's row in
      * [CastRails]. Reference fixtures live under matchdoor/src/test/resources/puzzles/
@@ -765,21 +781,16 @@ object ActionMapper {
             // Activate — non-mana activated abilities (only with legality checks)
             if (checkLegality) {
                 val cardData = cardDataLookup(GrpId(grpId))
-                for (ability in getNonManaActivatedAbilities(card, player)) {
-                    if (!ability.canPlay()) continue
-                    val canPay = canPayManaCost(ability, player)
-                    val registry = abilityRegistryLookup(card, cardData)
-                    val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
-                    emitActivatedAbilityAction(
-                        builder = builder,
-                        instanceId = instanceId,
-                        grpId = grpId,
-                        abilityGrpId = abilityGrpId,
-                        abilityCost = ability.payCosts?.totalMana,
-                        canPay = canPay,
-                        envelope = ActivatedActionEnvelope.PERMANENT_SOURCE,
-                    )
-                }
+                emitPlayableNonManaActivatedAbilities(
+                    builder = builder,
+                    card = card,
+                    player = player,
+                    instanceId = { instanceId },
+                    grpId = { grpId },
+                    cardData = { _ -> cardData },
+                    envelope = ActivatedActionEnvelope.PERMANENT_SOURCE,
+                    abilityRegistryLookup = abilityRegistryLookup,
+                )
             }
         }
 
@@ -798,27 +809,7 @@ object ActionMapper {
                 } else {
                     false
                 }
-            if (canPlay) {
-                builder.addActions(
-                    Action
-                        .newBuilder()
-                        .setActionType(ActionType.Play_add3)
-                        .setInstanceId(instanceId)
-                        .setGrpId(grpId)
-                        .setFacetId(instanceId)
-                        .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Play_add3)),
-                )
-            } else {
-                // Greyed-out: land can't be played (already played one this turn)
-                builder.addInactiveActions(
-                    Action
-                        .newBuilder()
-                        .setActionType(ActionType.Play_add3)
-                        .setGrpId(grpId)
-                        .setInstanceId(instanceId)
-                        .setFacetId(instanceId),
-                )
-            }
+            emitPlayLandAction(builder, instanceId, grpId, canPlay)
         }
 
         // Non-land spells (Cast before Activate_add3 — client uses emission order for text assignment)
@@ -873,24 +864,16 @@ object ActionMapper {
         // Including grpId causes the client to render card text instead of ability text.
         if (checkLegality) {
             for (card in handCards) {
-                for (ability in getNonManaActivatedAbilities(card, player)) {
-                    if (!ability.canPlay()) continue // Forge checks ActivationZone restriction
-                    val canPay = canPayManaCost(ability, player)
-                    val instanceId = idResolver(ForgeCardId(card.id)).value
-                    val grpId = grpIdResolver(card).value
-                    val cardData = cardDataLookup(GrpId(grpId))
-                    val registry = abilityRegistryLookup(card, cardData)
-                    val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
-                    emitActivatedAbilityAction(
-                        builder = builder,
-                        instanceId = instanceId,
-                        grpId = grpId,
-                        abilityGrpId = abilityGrpId,
-                        abilityCost = ability.payCosts?.totalMana,
-                        canPay = canPay,
-                        envelope = ActivatedActionEnvelope.ABILITY_ONLY,
-                    )
-                }
+                emitPlayableNonManaActivatedAbilities(
+                    builder = builder,
+                    card = card,
+                    player = player,
+                    instanceId = { idResolver(ForgeCardId(card.id)).value },
+                    grpId = { grpIdResolver(card).value },
+                    cardData = { actionGrpId -> cardDataLookup(GrpId(actionGrpId)) },
+                    envelope = ActivatedActionEnvelope.ABILITY_ONLY,
+                    abilityRegistryLookup = abilityRegistryLookup,
+                )
             }
         }
 
