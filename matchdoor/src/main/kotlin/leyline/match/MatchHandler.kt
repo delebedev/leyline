@@ -22,8 +22,6 @@ import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 /**
  * Netty adapter for the Match Door (port 30003) — two-phase message flow.
@@ -81,6 +79,26 @@ class MatchHandler(
 
     /** Puzzle mode delegate — detection, loading, initial bundle. */
     private val puzzleHandler = PuzzleHandler(puzzlePath, cardRepository, registry, matchConfig)
+
+    private val connectFlow =
+        MatchConnectFlow(
+            registry = registry,
+            matchConfig = matchConfig,
+            coordinator = coordinator,
+            cardRepository = cardRepository,
+            puzzleHandler = puzzleHandler,
+            matchId = { matchId },
+            seatId = { seatId },
+            isFamiliar = { isFamiliar },
+            createMatchSession = ::createAndRegisterMatchSession,
+            createFamiliarSession = ::createAndRegisterFamiliarSession,
+            createSpectatorSession = ::createAndRegisterSpectatorSession,
+            sendRoomState = ::sendRoomState,
+            sendInitialBundle = ::sendInitialBundle,
+            resolveSeatDecks = { resolveSeatDecks().let { it.seat1 to it.seat2 } },
+            resolveGameVariant = ::resolveGameVariant,
+            onLocalPlayerConnected = ::onLocalPlayerConnected,
+        )
 
     companion object {
         val defaultRegistry = MatchRegistry()
@@ -228,108 +246,7 @@ class MatchHandler(
 
         when (greMsg.type) {
             ClientMessageType.ConnectReq_097b -> {
-                val eventName = coordinator?.selectedEventName
-                if (eventName != null) log.info("Match Door: event={}", eventName)
-
-                // Evict stale bridges from previous matches and reset debug collectors
-                val evicted = registry.evictStale(matchId)
-                if (evicted.isNotEmpty()) {
-                    log.info("Match Door: evicted {} stale match(es)", evicted.size)
-                }
-
-                if (puzzleHandler.isPuzzleMatch(matchId)) {
-                    sendRoomState(ctx)
-                    if (isFamiliar) {
-                        log.info("Match Door: puzzle mode, familiar (seat {}) connected — no-op", seatId)
-                        return
-                    }
-                    val bridge = puzzleHandler.getOrCreatePuzzleBridge(matchId)
-                    val ms = createAndRegisterMatchSession(ctx, bridge)
-                    puzzleHandler.sendPuzzleInitialBundle(ctx, ms, matchId, seatId)
-                } else {
-                    // Constructed mode: normal local player + built-in AI flow.
-                    val gameVariant = resolveGameVariant()
-                    val match =
-                        registry.getOrCreateMatch(matchId) {
-                            val bridge =
-                                GameBridge(
-                                    bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
-                                    promptFailsafeMs = matchConfig.server.promptFailsafeMs,
-                                    matchConfig = matchConfig,
-                                    messageCounter = MessageCounter(),
-                                    cardRepository = cardRepository,
-                                )
-                            Match(matchId, bridge).also { match ->
-                                if (!matchConfig.game.spectatorMode) {
-                                    val decks = resolveSeatDecks()
-                                    match.start(
-                                        seed = matchConfig.game.seed,
-                                        deckList1 = decks.seat1,
-                                        deckList2 = decks.seat2,
-                                        variant = gameVariant,
-                                    )
-                                }
-                            }
-                        }
-                    val bridge = match.bridge
-                    if (matchConfig.game.spectatorMode) {
-                        if (isFamiliar) {
-                            sendRoomState(ctx)
-                            log.info("Match Door: spectator familiar connected, room-state-only no-op")
-                            return
-                        }
-                        val spectator = createAndRegisterSpectatorSession(ctx, bridge)
-                        sendRoomState(ctx)
-                        if (match.state == MatchState.WAITING) {
-                            val decks = resolveSeatDecks()
-                            val readyForInitialBundle = CountDownLatch(1)
-                            val initialBundleSent = CountDownLatch(1)
-                            match.startAiVsAi(
-                                seed = matchConfig.game.seed,
-                                deckList1 = decks.seat1,
-                                deckList2 = decks.seat2,
-                                variant = gameVariant,
-                                startGameHook =
-                                    Runnable {
-                                        readyForInitialBundle.countDown()
-                                        if (!initialBundleSent.await(10, TimeUnit.SECONDS)) {
-                                            log.warn("Match Door: spectator initial bundle timed out, resuming AI loop")
-                                        }
-                                    },
-                            )
-                            if (!readyForInitialBundle.await(10, TimeUnit.SECONDS)) {
-                                log.warn("Match Door: spectator game did not reach initial bundle barrier")
-                                initialBundleSent.countDown()
-                                ctx.close()
-                                return
-                            }
-                            try {
-                                sendInitialBundle(ctx)
-                            } finally {
-                                initialBundleSent.countDown()
-                            }
-                        } else {
-                            sendInitialBundle(ctx)
-                        }
-                        spectator.startPump()
-                    } else if (isFamiliar) {
-                        createAndRegisterFamiliarSession(ctx, bridge.messageCounter)
-                        sendRoomState(ctx)
-                        sendInitialBundle(ctx)
-                    } else {
-                        createAndRegisterMatchSession(ctx, bridge)
-                        mulliganHandler.seat1Hand = bridge.getHandGrpIds(SeatId(1))
-                        mulliganHandler.seat2Hand = bridge.getHandGrpIds(SeatId(2))
-                        log.info(
-                            "Match Door: seat {} connected, hands seat1={} seat2={}",
-                            seatId,
-                            mulliganHandler.seat1Hand,
-                            mulliganHandler.seat2Hand,
-                        )
-                        sendRoomState(ctx)
-                        sendInitialBundle(ctx)
-                    }
-                }
+                connectFlow.onConnect(ctx)
             }
 
             ClientMessageType.ChooseStartingPlayerResp_097b ->
@@ -450,6 +367,23 @@ class MatchHandler(
         Tap.outboundTemplate("InitialBundle seat=$seatId")
         ProtoDump.dump(msg, "InitialBundle-seat$seatId")
         ctx.writeAndFlush(msg)
+    }
+
+    private fun onLocalPlayerConnected(
+        ctx: ChannelHandlerContext,
+        bridge: GameBridge,
+    ) {
+        createAndRegisterMatchSession(ctx, bridge)
+        mulliganHandler.seat1Hand = bridge.getHandGrpIds(SeatId(1))
+        mulliganHandler.seat2Hand = bridge.getHandGrpIds(SeatId(2))
+        log.info(
+            "Match Door: seat {} connected, hands seat1={} seat2={}",
+            seatId,
+            mulliganHandler.seat1Hand,
+            mulliganHandler.seat2Hand,
+        )
+        sendRoomState(ctx)
+        sendInitialBundle(ctx)
     }
 
     override fun channelInactive(ctx: ChannelHandlerContext) {
