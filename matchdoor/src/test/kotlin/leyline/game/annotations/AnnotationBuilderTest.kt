@@ -90,6 +90,38 @@ class AnnotationBuilderTest :
             ann.affectorId shouldBe 0
         }
 
+        test("choiceResult carries static choice value domain and chooser") {
+            val ann = AnnotationBuilder.choiceResult(414.iid, 1.sid, choiceValue = 1, choiceDomain = 6)
+
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.ChoiceResult
+                ann.affectorId shouldBe 414
+                ann.affectedIdsList shouldBe listOf(1)
+                ann.detailInt(DetailKeys.CHOICE_VALUE) shouldBe 1
+                ann.detailInt(DetailKeys.CHOICE_DOMAIN) shouldBe 6
+                ann.detailInt(DetailKeys.CHOICE_SENTIMENT) shouldBe 2
+            }
+        }
+
+        test("linkInfoChoice carries choice link metadata") {
+            val ann =
+                AnnotationBuilder.linkInfoChoice(
+                    sourceInstanceId = 435.iid,
+                    affectedIds = listOf(6, 176),
+                    chooseLinkType = "Type",
+                    sourceAbilityGrpId = 176647.grp,
+                )
+
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.LinkInfo
+                ann.affectorId shouldBe 435
+                ann.affectedIdsList shouldBe listOf(6, 176)
+                ann.detailInt(DetailKeys.LINK_TYPE) shouldBe 3
+                ann.detailString(DetailKeys.CHOOSE_LINK_TYPE) shouldBe "Type"
+                ann.detailInt(DetailKeys.SOURCE_ABILITY_GRPID) shouldBe 176647
+            }
+        }
+
         // --- ObjectIdChanged ---
 
         test("objectIdChangedHasOrigAndNewId") {

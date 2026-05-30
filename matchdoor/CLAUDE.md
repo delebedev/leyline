@@ -159,14 +159,14 @@ The full pattern (single-inheritance constraint, coordinator / helper structure,
 
 Shape invariants to know:
 
-- **45 overrides, pinned by `PlayerControllerStructureTest`.** Adding or removing one requires updating the test and the table below in the same commit.
+- **47 overrides, pinned by `PlayerControllerStructureTest`.** Adding or removing one requires updating the test and the table below in the same commit.
 - **Cross-class state stays on the class.** `pendingOptionalAction`, `pendingDamageAssignment`, `damageAssignCache`, `autoPassState`, `recentDecisions` have external readers (`GameBridge`, `CombatHandler`, `OptionalActionHandler`, `DebugServer`, `MatchFlowHarness`).
 - **Prompt side-effects flow through `PromptJournal`.** `InteractivePromptBridge.journal` carries typed `PromptSideEffect` entries (`SearchedToHand`, `LegendVictim`, `RevealStarted`/`RevealEnded`, `OptionalCostStash`); producers record, consumers (`GameEventCollector`, `CostPaymentCoordinator`, `StateMapper`) drain. `promptJustResolved` lives on `PrioritySignal`. Reveal proxy IDs are encapsulated as `GameBridge.revealProxies: RevealProxyTracker`.
 - **The `pendingOptionalAction` future lifecycle belongs to `OptionalActionGate`.** The three override sites (`confirmTrigger`, `playSaFromPlayEffect`, `payCostToPreventEffect`) delegate to `gate.await(...)`.
 
 ### Override reference
 
-All 45 overrides, by concern. "Bridge" column names the primary mechanism each uses.
+All 47 overrides, by concern. "Bridge" column names the primary mechanism each uses.
 
 **Priority loop.** Uses `GameActionBridge`.
 
@@ -196,6 +196,7 @@ All 45 overrides, by concern. "Bridge" column names the primary mechanism each u
 | `chooseCardsForEffect` | Generic card selection for spell/ability effects |
 | `chooseCardsToRevealFromHand` | Select cards from hand to reveal |
 | `selectTargetsInteractively` | Target selection (players + cards), auto-resolve single mandatory |
+| `chooseSomeType` | Pick a subtype via static SelectN |
 | `reveal` | Capture revealed card IDs for the annotation pipeline |
 
 **Binary confirmations.** Uses `InteractivePromptBridge` or `OptionalActionGate`.
@@ -208,7 +209,8 @@ All 45 overrides, by concern. "Bridge" column names the primary mechanism each u
 | `confirmReplacementEffect` | Replacement effect yes/no |
 | `confirmStaticApplication` | Auto-decline `AlternativeDamageAssignment` (client never sends this) |
 | `chooseBinary` | Two-option choice (heads/tails, tap/untap, play/draw, etc.) |
-| `chooseColor` | Pick a mana color |
+| `chooseColor` | Pick one color via static SelectN |
+| `chooseColors` | Pick one or more colors via static SelectN |
 | `willPutCardOnTop` | Top-or-bottom library placement |
 | `chooseStartingPlayer` | Auto-choose self (variant-only, no prompt) |
 

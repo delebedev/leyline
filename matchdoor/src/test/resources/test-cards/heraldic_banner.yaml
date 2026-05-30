@@ -1,0 +1,14 @@
+name: "Heraldic Banner"
+grpId: 70369
+titleId: 414367
+abilities:
+  - id: 88237
+    textId: 898185
+    category: 3
+  - id: 136279
+    textId: 414369
+    category: 3
+  - id: 2374
+    textId: 289799
+    category: 1
+expansionCode: "ELD"

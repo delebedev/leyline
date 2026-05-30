@@ -13,6 +13,7 @@ import leyline.bridge.types.PromptChoiceDto
 import leyline.bridge.types.PromptOptionDto
 import leyline.bridge.types.SeatId
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.StaticList
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -449,6 +450,12 @@ enum class PromptSemantic {
 
     /** Learn's Lesson/discard card picker. Routes to a Learn-specific `SelectNReq`. */
     LearnLesson,
+
+    /** Static enum choice: choose one or more colors via `StaticList_Colors`. */
+    StaticColorChoice,
+
+    /** Static enum choice: choose a subtype via `StaticList_SubTypes`. */
+    StaticSubtypeChoice,
 }
 
 data class PromptRequest(
@@ -483,6 +490,10 @@ data class PromptRequest(
      * only a subset is selectable (e.g., noncreature nonland for Duress).
      */
     val unfilteredRefs: List<PromptCandidateRefDto> = emptyList(),
+    /** Static enum domain for SelectN prompts whose ids are not game object instanceIds. */
+    val staticList: StaticList? = null,
+    /** Per-option static enum ids. Used to map SelectNResp.ids back to option indices. */
+    val staticOptionIds: List<Int> = emptyList(),
     /**
      * For each `options[i]`, its position in the unfiltered Choices list (the
      * ability's full mode list before Forge legality-filtering). When set,

@@ -53,6 +53,7 @@ class PromptJournal {
             is PromptSideEffect.SearchedToHand,
             is PromptSideEffect.LegendVictim,
             is PromptSideEffect.EnlistTapAffector,
+            is PromptSideEffect.StaticChoiceResult,
             -> drains.add(effect)
             is PromptSideEffect.RevealStarted -> currentReveal = effect
             PromptSideEffect.RevealEnded -> currentReveal = null
@@ -89,6 +90,19 @@ class PromptJournal {
             }
         }
         return null
+    }
+
+    fun drainStaticChoiceResults(): List<PromptSideEffect.StaticChoiceResult> {
+        val out = mutableListOf<PromptSideEffect.StaticChoiceResult>()
+        val iter = drains.iterator()
+        while (iter.hasNext()) {
+            val effect = iter.next()
+            if (effect is PromptSideEffect.StaticChoiceResult) {
+                iter.remove()
+                out.add(effect)
+            }
+        }
+        return out
     }
 
     private inline fun drainFirstMatching(predicate: (PromptSideEffect) -> Boolean): Boolean {

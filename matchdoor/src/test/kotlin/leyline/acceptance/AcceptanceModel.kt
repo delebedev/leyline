@@ -58,6 +58,12 @@ data class ModalChoiceStep(
     override val label: String = "modal_choice $index"
 }
 
+data class StaticChoiceStep(
+    val id: Int,
+) : AcceptanceStep {
+    override val label: String = "static_choice $id"
+}
+
 data class OptionalActionStep(
     val accept: Boolean,
 ) : AcceptanceStep {

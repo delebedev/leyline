@@ -9,6 +9,9 @@ object PromptIds {
     const val SELECT_TARGETS = 10
     const val PAY_COSTS = 11
     const val CASTING_TIME_OPTIONS = 23
+
+    /** Static SelectN type choice — "Choose a creature type." */
+    const val CHOOSE_TYPE = 23
     const val MATCH_RESULT_WIN_LOSS = 27
 
     /** Post-game "reveal hand" option. */
@@ -25,6 +28,9 @@ object PromptIds {
     const val GROUP_SCRY = 92
     const val GROUP_SURVEIL = 129
     const val SEARCH = 1065
+
+    /** Static SelectN color choice — "Choose a color." */
+    const val CHOOSE_COLOR = 118
 
     /**
      * Typecycling-shape library search — "Search your library for an X card,

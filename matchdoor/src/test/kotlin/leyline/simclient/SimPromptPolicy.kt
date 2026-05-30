@@ -10,6 +10,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.HighlightType
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
+import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
 internal interface SimPromptPolicy {
     fun respondToPrompt(
@@ -181,7 +182,8 @@ internal open class GreedyPromptPolicy(
         val min = req.minSel.coerceAtLeast(0)
         val max = if (req.maxSel > 0) req.maxSel else min
         val count = min.coerceAtMost(max)
-        return SimDecision.SelectN(req.idsList.take(count))
+        val ids = if (req.staticList == StaticList.Colors && req.idsList.isEmpty()) listOf(1) else req.idsList
+        return SimDecision.SelectN(ids.take(count))
     }
 
     private fun respondSearch(msg: GREToClientMessage): SimDecision {

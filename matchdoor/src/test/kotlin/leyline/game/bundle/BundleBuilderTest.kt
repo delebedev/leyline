@@ -614,6 +614,7 @@ class BundleBuilderTest :
             assertSoftly {
                 result.messages.size shouldBe 2
                 result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+                result.messages[0].gameStateMessage.pendingMessageCount shouldBe 1
                 result.messages[1].type shouldBe GREMessageType.SelectNreq
                 result.messages[1].prompt.promptId shouldBe PromptIds.SELECT_N
             }

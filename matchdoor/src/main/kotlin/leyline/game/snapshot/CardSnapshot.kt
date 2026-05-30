@@ -28,6 +28,10 @@ data class CardSnapshot(
     val hasManaAbilities: Boolean = false,
     /** ManaColor enum numbers this battlefield source can produce. */
     val manaProductionColors: List<Int> = emptyList(),
+    /** Chosen creature/card type string from Forge, when a battlefield permanent stores one. */
+    val chosenType: String? = null,
+    /** Chosen color ids in Arena's static color domain. */
+    val chosenColorIds: List<Int> = emptyList(),
     /**
      * True when the card has at least one non-mana activated ability.
      * Needed to know whether to iterate spellAbilities during action enumeration.

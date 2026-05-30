@@ -13,6 +13,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
+import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -49,6 +50,7 @@ class MatchdoorAcceptanceExecutor(
             is ActivateStep -> activate(harness, step, context)
             is ChooseStep -> choose(harness, step, context)
             is ModalChoiceStep -> modalChoice(harness, step, context)
+            is StaticChoiceStep -> staticChoice(harness, step, context)
             is OptionalActionStep -> harness.respondToOptionalAction(step.accept)
             is TargetStep -> target(harness, step.target, context)
             is SelectCostStep -> selectCost(harness, step)
@@ -162,6 +164,25 @@ class MatchdoorAcceptanceExecutor(
                 ?.getOrNull(step.index)
                 ?: error("$context missing modal option index ${step.index}")
         harness.respondModalChoice(listOf(option.grpId))
+    }
+
+    private fun staticChoice(
+        harness: MatchFlowHarness,
+        step: StaticChoiceStep,
+        context: String,
+    ) {
+        val prompt = latestPromptMessage(harness)
+        require(prompt?.hasSelectNReq() == true) {
+            "$context expected latest prompt SelectNReq"
+        }
+        val req = prompt.selectNReq
+        require(req.listType == SelectionListType.Static || req.listType == SelectionListType.StaticSubset) {
+            "$context expected static SelectNReq, got listType=${req.listType}"
+        }
+        require(req.idsList.isEmpty() || step.id in req.idsList) {
+            "$context static choice id=${step.id} not in SelectNReq ids ${req.idsList}"
+        }
+        harness.respondToSelectN(listOf(step.id))
     }
 
     private fun target(

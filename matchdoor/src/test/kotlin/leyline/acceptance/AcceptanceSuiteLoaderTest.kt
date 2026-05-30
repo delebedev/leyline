@@ -26,6 +26,7 @@ class AcceptanceSuiteLoaderTest :
                     |      - choose: { optional_cost: kicker }
                     |      - choose: { cto_id: 1 }
                     |      - modal_choice: { index: 0 }
+                    |      - static_choice: { id: 34 }
                     |      - optional_action: { accept: true }
                     |      - target: { side: ours, zone: battlefield, card: Lunarch Veteran }
                     |      - block: { blocker: Centaur Courser, attacker: Juggernaut }
@@ -45,19 +46,20 @@ class AcceptanceSuiteLoaderTest :
                 suite.scenarios shouldHaveSize 1
                 val scenario = suite.scenarios.single()
                 scenario.id shouldBe "cast-face"
-                scenario.steps shouldHaveSize 12
+                scenario.steps shouldHaveSize 13
                 scenario.steps[0] shouldBe WaitStep(listOf(ActionAvailableCondition(AcceptanceActionType.Activate, "Miscalculation")))
                 scenario.steps[1] shouldBe ActivateStep("Miscalculation", AcceptanceZone.Hand, 0)
                 scenario.steps[2] shouldBe ChooseStep(AcceptanceCastingTimeOption.Kicker, null)
                 scenario.steps[3] shouldBe ChooseStep(null, 1)
                 scenario.steps[4] shouldBe ModalChoiceStep(0)
-                scenario.steps[5] shouldBe OptionalActionStep(accept = true)
-                scenario.steps[6] shouldBe TargetStep(CardTargetSpec(AcceptanceSide.Ours, AcceptanceZone.Battlefield, "Lunarch Veteran"))
-                scenario.steps[7] shouldBe BlockStep("Centaur Courser", "Juggernaut")
-                scenario.steps[8] shouldBe CastStep("Think Twice", AcceptanceZone.Graveyard, AcceptanceAltCost.JumpStart)
-                scenario.steps[9] shouldBe SelectCostStep(zone = AcceptanceZone.Hand, cards = listOf("Coral Merfolk"))
-                scenario.steps[10] shouldBe SelectCardStep(zone = AcceptanceZone.Sideboard, card = "Environmental Sciences")
-                scenario.steps[11] shouldBe
+                scenario.steps[5] shouldBe StaticChoiceStep(34)
+                scenario.steps[6] shouldBe OptionalActionStep(accept = true)
+                scenario.steps[7] shouldBe TargetStep(CardTargetSpec(AcceptanceSide.Ours, AcceptanceZone.Battlefield, "Lunarch Veteran"))
+                scenario.steps[8] shouldBe BlockStep("Centaur Courser", "Juggernaut")
+                scenario.steps[9] shouldBe CastStep("Think Twice", AcceptanceZone.Graveyard, AcceptanceAltCost.JumpStart)
+                scenario.steps[10] shouldBe SelectCostStep(zone = AcceptanceZone.Hand, cards = listOf("Coral Merfolk"))
+                scenario.steps[11] shouldBe SelectCardStep(zone = AcceptanceZone.Sideboard, card = "Environmental Sciences")
+                scenario.steps[12] shouldBe
                     ExpectStep(
                         listOf(
                             BattlefieldStatsAtLeastCondition(AcceptanceSide.Ours, "Monastery Swiftspear", 2, 3),

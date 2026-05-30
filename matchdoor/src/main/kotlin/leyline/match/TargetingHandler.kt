@@ -4,6 +4,7 @@ import leyline.DevCheck
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -43,6 +44,23 @@ class TargetingHandler(
         ) {
             prompt.journal.record(PromptSideEffect.OptionalCostStash(indices))
         }
+
+        internal fun mapSelectNIdsToPromptIndices(
+            selectedIds: List<Int>,
+            pendingPrompt: InteractivePromptBridge.PendingPrompt,
+            resolveForgeCardId: (Int) -> ForgeCardId?,
+        ): List<Int> =
+            if (pendingPrompt.request.staticOptionIds.isNotEmpty()) {
+                selectedIds
+                    .map { staticId -> pendingPrompt.request.staticOptionIds.indexOf(staticId) }
+                    .filter { it >= 0 }
+            } else {
+                selectedIds
+                    .mapNotNull { instanceId ->
+                        val cardId = resolveForgeCardId(instanceId) ?: return@mapNotNull null
+                        pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
+                    }.filter { it >= 0 }
+            }
     }
 
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
@@ -229,7 +247,10 @@ class TargetingHandler(
                 return
             }
 
-        val selectedIndices = mapSelectedInstanceIdsToPromptIndices(greMsg.selectNResp.idsList, pendingPrompt)
+        val selectedIds = greMsg.selectNResp.idsList
+        val selectedIndices = mapSelectedInstanceIdsToPromptIndices(selectedIds, pendingPrompt)
+
+        recordStaticChoiceResult(pendingPrompt, selectedIds)
 
         log.info("TargetingHandler: SelectNResp indices={}", selectedIndices)
 
@@ -265,12 +286,31 @@ class TargetingHandler(
         selectedInstanceIds: List<Int>,
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
     ): List<Int> =
-        selectedInstanceIds
-            .mapNotNull { instanceId ->
-                val cardId = ctx.bridge.getForgeCardId(InstanceId(instanceId))
-                if (cardId == null) return@mapNotNull null
-                pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
-            }.filter { it >= 0 }
+        mapSelectNIdsToPromptIndices(selectedInstanceIds, pendingPrompt) { instanceId ->
+            ctx.bridge.getForgeCardId(InstanceId(instanceId))
+        }
+
+    private fun recordStaticChoiceResult(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        selectedIds: List<Int>,
+    ) {
+        val domain =
+            when {
+                pendingPrompt.request.semantic == PromptSemantic.StaticSubtypeChoice -> 5
+                pendingPrompt.request.semantic == PromptSemantic.StaticColorChoice -> 6
+                else -> return
+            }
+        val source = pendingPrompt.request.sourceEntityId ?: return
+        val value = selectedIds.firstOrNull() ?: return
+        ctx.bridge.seat(counters.seatId).prompt.journal.record(
+            PromptSideEffect.StaticChoiceResult(
+                sourceForgeCardId = ForgeCardId(source),
+                chooserSeatId = counters.seatId,
+                choiceValue = value,
+                choiceDomain = domain,
+            ),
+        )
+    }
 
     /**
      * After a cast, check for a pending targeting prompt or intermediate stack state.
@@ -453,6 +493,8 @@ class TargetingHandler(
             ClassifiedPrompt.SelectN.Reason.Resolution,
             ClassifiedPrompt.SelectN.Reason.MutateTopBottom,
             ClassifiedPrompt.SelectN.Reason.LearnLesson,
+            ClassifiedPrompt.SelectN.Reason.StaticColorChoice,
+            ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice,
             -> sendSelectNReq(pendingPrompt, reason)
         }
     }
@@ -1261,6 +1303,8 @@ class TargetingHandler(
             ClassifiedPrompt.SelectN.Reason.Resolution -> SelectNEnvelope.resolution(req)
             ClassifiedPrompt.SelectN.Reason.MutateTopBottom -> SelectNEnvelope.mutateTopBottom(req)
             ClassifiedPrompt.SelectN.Reason.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId(pendingPrompt))
+            ClassifiedPrompt.SelectN.Reason.StaticColorChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_COLOR)
+            ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_TYPE)
             ClassifiedPrompt.SelectN.Reason.Sacrifice,
             ClassifiedPrompt.SelectN.Reason.ExileFromGrave,
             ClassifiedPrompt.SelectN.Reason.CollectEvidenceCost,

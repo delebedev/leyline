@@ -180,6 +180,28 @@ class PromptClassifierTest :
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.LearnLesson
         }
 
+        test("static color semantic classifies as select-n") {
+            val result =
+                classify(
+                    promptType = "choose_colors",
+                    message = "Choose a color",
+                    semantic = PromptSemantic.StaticColorChoice,
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.StaticColorChoice
+        }
+
+        test("static subtype semantic classifies as select-n") {
+            val result =
+                classify(
+                    promptType = "choose_type",
+                    message = "Choose a creature type",
+                    semantic = PromptSemantic.StaticSubtypeChoice,
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice
+        }
+
         test("generic choose-cards prompt does not infer sacrifice from message text") {
             val result =
                 classify(

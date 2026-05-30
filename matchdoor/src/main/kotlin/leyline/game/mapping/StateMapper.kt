@@ -40,6 +40,7 @@ import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
 import leyline.game.state.HolderBatch
 import leyline.game.state.LeftUnlockedDesignationKind
+import leyline.game.state.LinkInfoChoiceKind
 import leyline.game.state.ModifiedTypeForCrewKind
 import leyline.game.state.MutateLayeredEffectKind
 import leyline.game.state.PersistentAnnotationKind
@@ -1029,6 +1030,7 @@ object StateMapper {
             }
         }
         annotations.addAll(otherMechanic)
+        annotations.addAll(buildStaticChoiceResultAnnotations(bridge, frameIds))
 
         // AbilityWordActive: consumed from pre-computed snap entries
         val abilityWordPersistent = persistentFeeds.abilityWord
@@ -1119,6 +1121,7 @@ object StateMapper {
                         put(DayNightDesignationKind, persistentFeeds.dayNightDesignation)
                         put(FaceDownDisguiseKind, persistentFeeds.faceDownDisguise)
                         put(ColorProductionKind, persistentFeeds.colorProduction)
+                        put(LinkInfoChoiceKind, persistentFeeds.linkInfo)
                     },
             )
         val batch =
@@ -1149,6 +1152,25 @@ object StateMapper {
         val numbered = ordered.map { it.toBuilder().setId(annId++).build() }
         return RemainingAnnotationsResult(numbered, batch.allAnnotations, batch, annId)
     }
+
+    private fun buildStaticChoiceResultAnnotations(
+        bridge: GameBridge,
+        frameIds: FrameIdResolver,
+    ): List<AnnotationInfo> =
+        bridge.allSeatIds().sorted().flatMap { seatValue ->
+            bridge
+                .promptBridge(SeatId(seatValue))
+                .journal
+                .drainStaticChoiceResults()
+                .map { result ->
+                    AnnotationBuilder.choiceResult(
+                        sourceInstanceId = frameIds.cardIid(result.sourceForgeCardId),
+                        chooserSeatId = result.chooserSeatId,
+                        choiceValue = result.choiceValue,
+                        choiceDomain = result.choiceDomain,
+                    )
+                }
+        }
 
     /** Stages 2-3 of the annotation pipeline: transfers → annotations + combat. */
     internal data class AnnotationPipelineResult(
