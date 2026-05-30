@@ -724,7 +724,7 @@ class BundleBuilder(
         val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
         val nextGs = diff.gameStateId
         val snap = diff.snap
-        val gs =
+        val baseGs =
             when (envelope.gameStateAugmentation) {
                 SelectNEnvelope.GameStateAugmentation.LookAndPick ->
                     attachLookAndPickGameObjects(diff.result.gsm, envelope.req, snap)
@@ -732,6 +732,8 @@ class BundleBuilder(
                     attachLearnLessonGameObjects(diff.result.gsm, envelope.req, snap)
                 SelectNEnvelope.GameStateAugmentation.None -> diff.result.gsm
             }
+        val gs =
+            baseGs
                 .toBuilder()
                 .setPendingMessageCount(1)
                 .build()
