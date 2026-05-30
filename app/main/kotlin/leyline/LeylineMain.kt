@@ -49,7 +49,7 @@ fun main(args: Array<String>) {
         )
 
     val debugPort = a["--debug-port"]?.toIntOrNull() ?: sc.debugPort
-    val mgmtPort = sc.managementPort
+    val mgmtPort = a["--management-port"]?.toIntOrNull() ?: sc.managementPort
     val accountPort = a["--account-port"]?.toIntOrNull() ?: sc.accountPort
 
     val debugServer = buildDebugServer(debugPort, server)
