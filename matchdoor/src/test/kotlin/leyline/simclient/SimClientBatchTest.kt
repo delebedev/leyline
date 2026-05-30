@@ -1,6 +1,7 @@
 package leyline.simclient
 
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import leyline.SimClientTag
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
@@ -77,6 +78,14 @@ class SimClientBatchTest :
          *   SIMCLIENT_DECKS=Auras.txt SIMCLIENT_SEEDS=42 ./gradlew :simclient
          */
         fun simclientValidation(): InvariantSelection = InvariantSelection.protocolFacts()
+
+        fun assertNoValidationViolations(all: List<Triple<String, Long, GameStats>>) {
+            val violations =
+                all.flatMap { (name, seed, stats) ->
+                    stats.validationViolations.map { "$name s=$seed: $it" }
+                }
+            violations.shouldBeEmpty()
+        }
 
         fun parseSeeds(spec: String): List<Long> {
             if (spec.contains("..")) {
@@ -550,6 +559,7 @@ class SimClientBatchTest :
             println("games hit iter cap: ${all.count { it.third.hitIterCap }}")
             println("avg turns: ${"%.1f".format(all.map { it.third.turn }.average())}")
             println("avg msgs: ${"%.0f".format(all.map { it.third.totalMessages }.average())}")
+            assertNoValidationViolations(all)
         }
 
         /**
@@ -601,5 +611,6 @@ class SimClientBatchTest :
             println("games run: ${all.size}")
             println("games ended (gameOver): ${all.count { it.third.gameOver }}")
             println("games hit iter cap: ${all.count { it.third.hitIterCap }}")
+            assertNoValidationViolations(all)
         }
     })
