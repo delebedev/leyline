@@ -30,6 +30,12 @@ import forge.game.zone.ZoneType as ForgeZoneType
 object RequestBuilder {
     private val log = LoggerFactory.getLogger(RequestBuilder::class.java)
 
+    private data class SelectNShape(
+        val context: SelectionContext,
+        val listType: SelectionListType,
+        val optionContext: OptionContext,
+    )
+
     /**
      * Build a [SelectTargetsReq] from an [InteractivePromptBridge.PendingPrompt].
      *
@@ -405,47 +411,20 @@ object RequestBuilder {
      * - `choose_cards` (discard): context=Discard, listType=Static
      * - `reveal_choose`: context=Resolution, listType=Dynamic, +unfilteredIds +sourceId
      */
-    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     fun buildSelectNReq(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
     ): SelectNReq {
         val semantic = prompt.request.semantic
         val staticList = prompt.request.staticList
-        val (context, listType, optionContext) =
-            when (semantic) {
-                PromptSemantic.SelectNDiscard ->
-                    Triple(
-                        SelectionContext.Discard_a163,
-                        SelectionListType.Static,
-                        OptionContext.Payment,
-                    )
-                PromptSemantic.StaticColorChoice ->
-                    Triple(
-                        SelectionContext.Resolution_a163,
-                        SelectionListType.Static,
-                        OptionContext.Resolution_a9d7,
-                    )
-                PromptSemantic.StaticSubtypeChoice ->
-                    Triple(
-                        SelectionContext.Resolution_a163,
-                        SelectionListType.StaticSubset,
-                        OptionContext.Resolution_a9d7,
-                    )
-                else ->
-                    Triple(
-                        SelectionContext.Resolution_a163,
-                        SelectionListType.Dynamic,
-                        OptionContext.Resolution_a9d7,
-                    )
-            }
+        val shape = selectNShape(semantic)
         val builder =
             SelectNReq
                 .newBuilder()
-                .setContext(context)
-                .setListType(listType)
+                .setContext(shape.context)
+                .setListType(shape.listType)
                 .setValidationType(SelectionValidationType.NonRepeatable)
-                .setOptionContext(optionContext)
+                .setOptionContext(shape.optionContext)
                 // Always per spec — INT32 extremes (no weight filtering on resolution picks).
                 .setMinWeight(Int.MIN_VALUE)
                 .setMaxWeight(Int.MAX_VALUE)
@@ -465,69 +444,93 @@ object RequestBuilder {
         }
 
         builder.addSelectNIds(prompt, bridge)
-        when (semantic) {
-            PromptSemantic.StaticColorChoice,
-            PromptSemantic.StaticSubtypeChoice,
-            -> {
-                builder.setSourceIdIfPresent(prompt, bridge)
-                builder.setPrompt(Prompt.newBuilder())
+        builder.configureSelectNPrompt(prompt, bridge, semantic)
+        return builder.build()
+    }
+
+    private fun selectNShape(semantic: PromptSemantic): SelectNShape =
+        when {
+            semantic == PromptSemantic.SelectNDiscard ->
+                SelectNShape(
+                    SelectionContext.Discard_a163,
+                    SelectionListType.Static,
+                    OptionContext.Payment,
+                )
+            semantic == PromptSemantic.StaticColorChoice ->
+                SelectNShape(
+                    SelectionContext.Resolution_a163,
+                    SelectionListType.Static,
+                    OptionContext.Resolution_a9d7,
+                )
+            semantic == PromptSemantic.StaticSubtypeChoice ->
+                SelectNShape(
+                    SelectionContext.Resolution_a163,
+                    SelectionListType.StaticSubset,
+                    OptionContext.Resolution_a9d7,
+                )
+            else ->
+                SelectNShape(
+                    SelectionContext.Resolution_a163,
+                    SelectionListType.Dynamic,
+                    OptionContext.Resolution_a9d7,
+                )
+        }
+
+    private fun SelectNReq.Builder.configureSelectNPrompt(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+        semantic: PromptSemantic,
+    ) {
+        when {
+            semantic == PromptSemantic.StaticColorChoice || semantic == PromptSemantic.StaticSubtypeChoice -> {
+                setSourceIdIfPresent(prompt, bridge)
+                setPrompt(Prompt.newBuilder())
             }
-            PromptSemantic.SelectNLegendRule -> {
+            semantic == PromptSemantic.SelectNLegendRule -> {
                 // Empty inner prompt; the real promptId goes on the outer GRE message.
-                builder.setPrompt(Prompt.newBuilder())
-                builder.setSourceId(PromptIds.SELECT_N_LEGEND_RULE_SOURCE)
+                setPrompt(Prompt.newBuilder())
+                setSourceId(PromptIds.SELECT_N_LEGEND_RULE_SOURCE)
             }
-            PromptSemantic.SelectNDiscard -> {
-                builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST))
+            semantic == PromptSemantic.SelectNDiscard -> {
+                setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST))
             }
-            PromptSemantic.RevealChoose -> {
-                builder.setSourceIdIfPresent(prompt, bridge)
-                builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
+            semantic == PromptSemantic.RevealChoose -> {
+                setSourceIdIfPresent(prompt, bridge)
+                setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
             }
-            PromptSemantic.SelectNResolution -> {
-                // Look-and-pick (Stock Up / Dig). Inner prompt carries a PromptId
-                // Parameter, NOT a top-level promptId. Outer GRE-message prompt
-                // (set in BundleBuilder.selectNBundle) carries the real promptId
-                // + 2 CardId Number params (source iid, selection count).
-                builder.setSourceIdIfPresent(prompt, bridge)
-                builder.setPrompt(
-                    Prompt
-                        .newBuilder()
-                        .addParameters(
-                            PromptParameter
-                                .newBuilder()
-                                .setParameterName("Parameter")
-                                .setType(ParameterType.PromptId)
-                                .setPromptId(PromptIds.SELECT_N_INNER_PARAMETER),
-                        ),
-                )
+            semantic == PromptSemantic.SelectNResolution -> {
+                // Look-and-pick inner prompt carries a PromptId parameter; the
+                // outer GRE message carries the card-specific prompt.
+                setSourceIdIfPresent(prompt, bridge)
+                setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
             }
-            PromptSemantic.MutateTopBottom -> {
-                builder.setSourceIdIfPresent(prompt, bridge)
-                builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
+            semantic == PromptSemantic.MutateTopBottom -> {
+                setSourceIdIfPresent(prompt, bridge)
+                setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
             }
-            PromptSemantic.LearnLesson -> {
-                builder.setSourceIdIfPresent(prompt, bridge)
-                builder.setPrompt(
-                    Prompt
-                        .newBuilder()
-                        .addParameters(
-                            PromptParameter
-                                .newBuilder()
-                                .setParameterName("Parameter")
-                                .setType(ParameterType.PromptId)
-                                .setPromptId(PromptIds.SELECT_N_LEARN_INNER_PARAMETER),
-                        ),
-                )
+            semantic == PromptSemantic.LearnLesson -> {
+                setSourceIdIfPresent(prompt, bridge)
+                setSelectNInnerPrompt(PromptIds.SELECT_N_LEARN_INNER_PARAMETER)
             }
             else -> {
-                builder.setSourceIdIfPresent(prompt, bridge)
-                builder.setPrompt(
-                    Prompt.newBuilder().setPromptId(PromptIds.SELECT_N),
-                )
+                setSourceIdIfPresent(prompt, bridge)
+                setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
             }
         }
-        return builder.build()
+    }
+
+    private fun SelectNReq.Builder.setSelectNInnerPrompt(promptId: Int) {
+        setPrompt(
+            Prompt
+                .newBuilder()
+                .addParameters(
+                    PromptParameter
+                        .newBuilder()
+                        .setParameterName("Parameter")
+                        .setType(ParameterType.PromptId)
+                        .setPromptId(promptId),
+                ),
+        )
     }
 
     private fun selectNMinSel(

@@ -295,9 +295,9 @@ class TargetingHandler(
         selectedIds: List<Int>,
     ) {
         val domain =
-            when (pendingPrompt.request.semantic) {
-                PromptSemantic.StaticSubtypeChoice -> 5
-                PromptSemantic.StaticColorChoice -> 6
+            when {
+                pendingPrompt.request.semantic == PromptSemantic.StaticSubtypeChoice -> 5
+                pendingPrompt.request.semantic == PromptSemantic.StaticColorChoice -> 6
                 else -> return
             }
         val source = pendingPrompt.request.sourceEntityId ?: return
