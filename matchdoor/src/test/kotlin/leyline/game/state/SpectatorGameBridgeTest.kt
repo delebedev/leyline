@@ -49,7 +49,7 @@ class SpectatorGameBridgeTest :
                 reachedHook.await(5, TimeUnit.SECONDS).shouldBeTrue()
                 b.seatOf(b.getPlayer(SeatId(1))) shouldBe SeatId(1)
                 b.seatOf(b.getPlayer(SeatId(2))) shouldBe SeatId(2)
-                b.playbacks[SeatId(1)].shouldNotBeNull()
+                b.playbackFor(SeatId(1)).shouldNotBeNull()
             }
 
             val snap = GsmSnapshot.capture(b.getGame()!!, b, "test-match", 1)

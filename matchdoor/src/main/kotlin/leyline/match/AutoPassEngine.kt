@@ -219,7 +219,7 @@ class AutoPassEngine(
      * produced by [GamePlayback] already have correct sequence numbers.
      */
     fun drainPlayback(): Boolean {
-        val playback = ctx.bridge.playbacks[counters.seatId] ?: return false
+        val playback = ctx.bridge.playbackFor(counters.seatId) ?: return false
         if (!playback.hasPendingMessages()) return false
         val batches = playback.drainQueue()
         for ((idx, batch) in batches.withIndex()) {

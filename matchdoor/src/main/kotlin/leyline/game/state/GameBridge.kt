@@ -257,11 +257,48 @@ class GameBridge(
     var humanController: PlayerController? = null
         private set
 
+    private class PlaybackRegistry {
+        private val bySeat = mutableMapOf<SeatId, GamePlayback>()
+
+        fun get(seatId: SeatId): GamePlayback? = bySeat[seatId]
+
+        fun register(
+            seatId: SeatId,
+            playback: GamePlayback,
+        ) {
+            bySeat[seatId] = playback
+        }
+
+        fun values(): Collection<GamePlayback> = bySeat.values
+
+        fun clear() = bySeat.clear()
+    }
+
     /** Per-seat action playback — captures remote-action state diffs via EventBus. Empty before start(). */
-    override val playbacks: MutableMap<SeatId, GamePlayback> = mutableMapOf()
+    private val playbackRegistry = PlaybackRegistry()
 
     /** Convenience: seat-1 playback for single-player (1vAI) matches. */
-    val playback: GamePlayback? get() = playbacks[SeatId(1)]
+    val playback: GamePlayback? get() = playbackFor(SeatId(1))
+
+    override fun playbackFor(seatId: SeatId): GamePlayback? = playbackRegistry.get(seatId)
+
+    private fun registerPlayback(
+        game: Game,
+        seatId: SeatId,
+        captureLocalActions: Boolean,
+    ) {
+        val playback =
+            GamePlayback(
+                bridge = this,
+                matchId = "forge-match-1",
+                seatId = seatId.value,
+                counter = messageCounter,
+                delayMultiplier = matchConfig.aiDelayMultiplier,
+                captureLocalActions = captureLocalActions,
+            )
+        playbackRegistry.register(seatId, playback)
+        game.subscribeToEvents(playback)
+    }
 
     /** Event collector — captures Forge engine events for annotation building. Null before start(). */
     var eventCollector: GameEventCollector? = null
@@ -678,9 +715,7 @@ class GameBridge(
         log.info("GameBridge: registered GameEventCollector for event-driven annotations")
 
         // Register action playback subscriber (after collector)
-        val pb = GamePlayback(this, "forge-match-1", 1, messageCounter, matchConfig.aiDelayMultiplier)
-        playbacks[SeatId(1)] = pb
-        g.subscribeToEvents(pb)
+        registerPlayback(g, SeatId(1), captureLocalActions = false)
         log.info("GameBridge: registered GamePlayback for seat 1")
 
         if (matchConfig.game.skipMulligan) {
@@ -741,9 +776,7 @@ class GameBridge(
         loopController = loop
         loop.start(startGameHook)
 
-        val pb = GamePlayback(this, "forge-match-1", 1, messageCounter, matchConfig.aiDelayMultiplier, captureLocalActions = true)
-        playbacks[SeatId(1)] = pb
-        g.subscribeToEvents(pb)
+        registerPlayback(g, SeatId(1), captureLocalActions = true)
         log.info("GameBridge: registered spectator GamePlayback")
 
         loop.awaitStarted()
@@ -1098,9 +1131,7 @@ class GameBridge(
         eventCollector = collector
         g.subscribeToEvents(collector)
 
-        val pb = GamePlayback(this, "forge-match-1", 1, messageCounter, matchConfig.aiDelayMultiplier)
-        playbacks[SeatId(1)] = pb
-        g.subscribeToEvents(pb)
+        registerPlayback(g, SeatId(1), captureLocalActions = false)
 
         log.info("GameBridge: puzzle loop started, waiting for priority")
         awaitPriority()
@@ -1150,13 +1181,13 @@ class GameBridge(
         val g = game
         if (g != null) {
             eventCollector?.let { g.unsubscribeFromEvents(it) }
-            for (pb in playbacks.values) {
+            for (pb in playbackRegistry.values()) {
                 g.unsubscribeFromEvents(pb)
             }
         }
         loopController?.shutdown()
         loopController = null
-        playbacks.clear()
+        playbackRegistry.clear()
         eventCollector = null
     }
 

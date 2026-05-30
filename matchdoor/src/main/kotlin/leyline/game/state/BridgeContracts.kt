@@ -80,8 +80,8 @@ interface EventDrain {
  * unit-tested with a stub instead of a full GameBridge + Forge engine.
  */
 interface AutoPassView : PlayerLookup {
-    /** Per-seat action playback queues. */
-    val playbacks: Map<SeatId, GamePlayback>
+    /** Per-seat action playback queue, when this seat has one. */
+    fun playbackFor(seatId: SeatId): GamePlayback?
 
     /** Seat-scoped bridge facade (action + prompt + mulligan bridges). */
     fun seat(seatId: SeatId): GameBridge.SeatBridges
