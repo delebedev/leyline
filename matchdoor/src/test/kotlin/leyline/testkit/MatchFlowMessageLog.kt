@@ -10,14 +10,12 @@ internal class MatchFlowMessageLog(
 ) {
     fun snapshot(): Int = messages.size
 
-    fun since(snapshot: Int): List<GREToClientMessage> =
-        messages.subList(snapshot, messages.size).toList()
+    fun since(snapshot: Int): List<GREToClientMessage> = messages.subList(snapshot, messages.size).toList()
 
     fun gameStateMessagesSince(snapshot: Int): List<GameStateMessage> =
         since(snapshot).mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
 
-    fun annotationsSince(snapshot: Int): List<AnnotationInfo> =
-        gameStateMessagesSince(snapshot).flatMap { it.annotationsList }
+    fun annotationsSince(snapshot: Int): List<AnnotationInfo> = gameStateMessagesSince(snapshot).flatMap { it.annotationsList }
 
     fun latestPromptGsId(): Int {
         for (i in messages.indices.reversed()) {

@@ -509,16 +509,14 @@ class MatchFlowHarness(
     // --- Combat helpers ---
 
     /** Human's creatures on the battlefield: (instanceId, cardName). */
-    fun humanBattlefieldCreatures(): List<Pair<Int, String>> =
-        combatDriver.humanBattlefieldCreatures()
+    fun humanBattlefieldCreatures(): List<Pair<Int, String>> = combatDriver.humanBattlefieldCreatures()
 
     /**
      * Declare attackers by instanceId using the two-phase Arena protocol:
      * 1. Send [DeclareAttackersResp] with selection (iterative update)
      * 2. Send [SubmitAttackersReq] to finalize (the "Done" button)
      */
-    fun declareAttackers(attackerInstanceIds: List<Int>) =
-        combatDriver.declareAttackers(attackerInstanceIds)
+    fun declareAttackers(attackerInstanceIds: List<Int>) = combatDriver.declareAttackers(attackerInstanceIds)
 
     /** Declare no attackers (skip combat). Sends empty selection then submits. */
     fun declareNoAttackers() = combatDriver.declareNoAttackers()
@@ -530,8 +528,7 @@ class MatchFlowHarness(
     fun toggleAttackers(
         attackerInstanceIds: List<Int>,
         attackerAlternatives: Map<Int, Int> = emptyMap(),
-    ): List<GREToClientMessage> =
-        combatDriver.toggleAttackers(attackerInstanceIds, attackerAlternatives)
+    ): List<GREToClientMessage> = combatDriver.toggleAttackers(attackerInstanceIds, attackerAlternatives)
 
     /**
      * Send SubmitAttackersReq (type=31, no payload) — the reference client's "Done" button.
@@ -558,8 +555,7 @@ class MatchFlowHarness(
      *
      * Each entry means "this blocker blocks that attacker."
      */
-    fun declareBlockers(assignments: Map<Int, Int>) =
-        combatDriver.declareBlockers(assignments)
+    fun declareBlockers(assignments: Map<Int, Int>) = combatDriver.declareBlockers(assignments)
 
     /** Declare no blockers (let all attackers through). Sends SubmitBlockersReq directly. */
     fun declareNoBlockers() = combatDriver.declareNoBlockers()
@@ -568,15 +564,13 @@ class MatchFlowHarness(
      * Send only the iterative DeclareBlockersResp (no Submit) — simulates a single
      * blocker assignment click. Returns messages produced by the echo-back.
      */
-    fun toggleBlockers(assignments: Map<Int, Int>): List<GREToClientMessage> =
-        combatDriver.toggleBlockers(assignments)
+    fun toggleBlockers(assignments: Map<Int, Int>): List<GREToClientMessage> = combatDriver.toggleBlockers(assignments)
 
     /**
      * Send DeclareBlockersResp deselecting a single blocker (wire shape: Blocker
      * entry with blockerInstanceId and empty selectedAttackerInstanceIds).
      */
-    fun deselectBlocker(blockerInstanceId: Int): List<GREToClientMessage> =
-        combatDriver.deselectBlocker(blockerInstanceId)
+    fun deselectBlocker(blockerInstanceId: Int): List<GREToClientMessage> = combatDriver.deselectBlocker(blockerInstanceId)
 
     /**
      * Send SubmitBlockersReq (type-only, no payload) — the reference client's "Done" button.
@@ -591,8 +585,7 @@ class MatchFlowHarness(
      * @param assigners list of (attackerInstanceId, assignments) where assignments
      *                  is a list of (blockerOrDefenderInstanceId, damage)
      */
-    fun assignDamage(assigners: List<Pair<Int, List<Pair<Int, Int>>>>) =
-        combatDriver.assignDamage(assigners)
+    fun assignDamage(assigners: List<Pair<Int, List<Pair<Int, Int>>>>) = combatDriver.assignDamage(assigners)
 
     // --- Targeting helpers ---
 
@@ -915,8 +908,7 @@ class MatchFlowHarness(
     fun messagesSince(snapshot: Int): List<GREToClientMessage> = messageLog.since(snapshot)
 
     /** Get all game-state messages since a snapshot point. */
-    fun gameStateMessagesSince(snapshot: Int): List<GameStateMessage> =
-        messageLog.gameStateMessagesSince(snapshot)
+    fun gameStateMessagesSince(snapshot: Int): List<GameStateMessage> = messageLog.gameStateMessagesSince(snapshot)
 
     /** Get all annotations from game-state messages since a snapshot point. */
     fun annotationsSince(snapshot: Int): List<AnnotationInfo> = messageLog.annotationsSince(snapshot)
@@ -1003,9 +995,7 @@ class MatchFlowHarness(
      * shared mutable state advanced from the engine thread, so reading it
      * races against in-flight emissions.
      */
-    fun latestPromptGsId(): Int {
-        return messageLog.latestPromptGsId()
-    }
+    fun latestPromptGsId(): Int = messageLog.latestPromptGsId()
 
     /**
      * Reflect the latest prompt gsId onto a client message before it enters

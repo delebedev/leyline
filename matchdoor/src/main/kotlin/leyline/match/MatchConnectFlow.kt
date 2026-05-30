@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
+@Suppress("LongParameterList")
 internal class MatchConnectFlow(
     private val registry: MatchRegistry,
     private val matchConfig: MatchConfig,
