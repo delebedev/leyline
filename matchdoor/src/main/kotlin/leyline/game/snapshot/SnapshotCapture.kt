@@ -5,8 +5,8 @@ import forge.game.card.Card
 import forge.game.player.Player
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.StaticChoiceIds
 import leyline.game.annotations.AbilityWordScanner
-import leyline.game.codes.StaticChoiceIds
 import leyline.game.data.CardRepository
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds

@@ -55,8 +55,8 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.Seating
+import leyline.bridge.types.StaticChoiceIds
 import leyline.bridge.types.manaTokenToPair
-import leyline.game.codes.StaticChoiceIds
 import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory

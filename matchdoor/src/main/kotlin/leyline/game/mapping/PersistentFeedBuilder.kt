@@ -6,11 +6,11 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.StaticChoiceIds
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
-import leyline.game.codes.StaticChoiceIds
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.BoundCard

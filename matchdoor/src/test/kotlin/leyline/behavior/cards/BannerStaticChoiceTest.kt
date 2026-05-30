@@ -4,8 +4,8 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import leyline.bridge.types.StaticChoiceIds
 import leyline.game.codes.DetailKeys
-import leyline.game.codes.StaticChoiceIds
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.detailString

@@ -1,4 +1,4 @@
-package leyline.game.codes
+package leyline.bridge.types
 
 import forge.card.MagicColor
 import wotc.mtgo.gre.external.messaging.Messages.SubType
