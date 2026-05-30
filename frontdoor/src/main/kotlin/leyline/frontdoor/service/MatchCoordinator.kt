@@ -36,6 +36,9 @@ interface MatchCoordinator {
     /** Resolve a deck by name (AI deck from config). */
     fun resolveDeckJsonByName(name: String): String?
 
+    /** Resolve two player decks for AI-vs-AI spectator games. */
+    fun resolveRandomDeckPairJson(): Pair<String, String>? = null
+
     /** Resolve the first available deck (fallback when client doesn't send deckId). */
     fun resolveFirstDeck(): String? = null
 
@@ -68,6 +71,8 @@ interface MatchCoordinator {
                 override fun resolveDeckJson(deckId: String): String? = null
 
                 override fun resolveDeckJsonByName(name: String): String? = null
+
+                override fun resolveRandomDeckPairJson(): Pair<String, String>? = null
 
                 override fun resolveOpponentDeckJson(eventName: String): String? = null
 

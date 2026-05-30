@@ -1046,7 +1046,7 @@ class MatchFlowHarness(
     fun latestPromptGsId(): Int {
         for (i in allMessages.indices.reversed()) {
             val m = allMessages[i]
-            if (m.type in leyline.game.bundle.PROMPT_GRE_TYPES) return m.gameStateId
+            if (m.type in harnessPromptGreTypes) return m.gameStateId
         }
         return 0
     }
@@ -1277,3 +1277,19 @@ class MatchFlowHarness(
         sink.clear()
     }
 }
+
+private val harnessPromptGreTypes: Set<GREMessageType> =
+    setOf(
+        GREMessageType.ActionsAvailableReq_695e,
+        GREMessageType.SelectTargetsReq_695e,
+        GREMessageType.SelectNreq,
+        GREMessageType.GroupReq_695e,
+        GREMessageType.SearchReq_695e,
+        GREMessageType.DeclareAttackersReq_695e,
+        GREMessageType.DeclareBlockersReq_695e,
+        GREMessageType.CastingTimeOptionsReq_695e,
+        GREMessageType.PayCostsReq_695e,
+        GREMessageType.PromptReq,
+        GREMessageType.OptionalActionMessage_695e,
+        GREMessageType.AssignDamageReq_695e,
+    )

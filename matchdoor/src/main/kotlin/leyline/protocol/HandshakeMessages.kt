@@ -147,6 +147,8 @@ object HandshakeMessages {
         deckMessage: DeckMessage,
         bridge: GameBridge,
         dieRollWinner: Int = 2,
+        includeStartingPlayerPrompt: Boolean = true,
+        onInitialSnapshot: ((GsmSnapshot) -> Unit)? = null,
     ): Pair<MatchServiceToClientMessage, Int> {
         var msgId = msgIdStart
         val messages = mutableListOf<GREToClientMessage>()
@@ -165,9 +167,20 @@ object HandshakeMessages {
         messages.add(buildDieRollResults(msgId++, dieRollWinner))
 
         // Full initial GameState
-        val pendingCount = if (seatId == SeatId(2)) 1 else 0 // ChooseStartingPlayerReq follows
+        val shouldSendStartingPlayerPrompt = includeStartingPlayerPrompt && seatId == SeatId(2)
+        val pendingCount = if (shouldSendStartingPlayerPrompt) 1 else 0 // ChooseStartingPlayerReq follows
         val initSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, 0)
-        val gsm = GsmBuilder.buildInitialGameState(matchId, gameStateId, bridge, initSnap, pendingCount, seatId.value)
+        onInitialSnapshot?.invoke(initSnap)
+        val gsm =
+            GsmBuilder.buildInitialGameState(
+                matchId,
+                gameStateId,
+                bridge,
+                initSnap,
+                pendingCount,
+                seatId.value,
+                includeStartingPlayerDecision = includeStartingPlayerPrompt,
+            )
         messages.add(
             GREToClientMessage
                 .newBuilder()
@@ -179,7 +192,7 @@ object HandshakeMessages {
                 .build(),
         )
 
-        if (seatId == SeatId(2)) {
+        if (shouldSendStartingPlayerPrompt) {
             // ChooseStartingPlayerReq
             messages.add(
                 GREToClientMessage

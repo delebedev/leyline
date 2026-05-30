@@ -5,6 +5,7 @@ import forge.game.Game
 import forge.game.GameType
 import forge.game.card.Card
 import forge.game.player.Player
+import forge.game.player.PlayerView
 import forge.game.zone.ZoneType
 import forge.gamemodes.puzzle.Puzzle
 import forge.player.PlayerControllerHuman
@@ -12,8 +13,6 @@ import forge.util.MyRandom
 import leyline.DevCheck
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.bridge.bootstrap.isCommander
-import leyline.bridge.bootstrap.isCommanderVariant
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.forge.PlayerController
 import leyline.bridge.handoff.GameActionBridge
@@ -26,7 +25,6 @@ import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
-import leyline.bridge.types.opponent
 import leyline.config.MatchConfig
 import leyline.game.GamePlayback
 import leyline.game.annotations.AnnotationBuilder
@@ -94,7 +92,7 @@ class GameBridge(
 
     /** True when the active game uses Commander/Brawl/Oathbreaker rules. */
     val isBrawlOrCommander: Boolean
-        get() = game?.isCommander ?: false
+        get() = game?.let { isCommanderGame(it) } ?: false
     private val players: MutableMap<Int, Player> = mutableMapOf()
     private var loopController: GameLoopController? = null
 
@@ -208,8 +206,11 @@ class GameBridge(
     fun promptBridge(seatId: SeatId): InteractivePromptBridge =
         promptBridges[seatId.value] ?: error("No prompt bridge for seat ${seatId.value}")
 
-    /** All populated seat IDs (for iterating prompt bridges). */
+    /** All populated bridge seat IDs (for iterating prompt bridges). */
     fun allSeatIds(): Set<Int> = promptBridges.keys
+
+    /** All protocol seat IDs for players in the current game. */
+    fun gameSeatIds(): Set<Int> = players.keys.takeIf { it.isNotEmpty() } ?: promptBridges.keys
 
     /** Parameterized accessor — throws if seat not populated. */
     fun mulliganBridge(seatId: SeatId): MulliganBridge =
@@ -627,7 +628,7 @@ class GameBridge(
         )
 
         val g =
-            if (variant != null && isCommanderVariant(variant)) {
+            if (variant != null && isCommanderVariantName(variant)) {
                 log.info("GameBridge: creating commander-variant game (variant={})", variant)
                 GameBootstrap.createCommanderGame(deck1, deck2, variant)
             } else {
@@ -693,6 +694,61 @@ class GameBridge(
         }
     }
 
+    /**
+     * Initialize a native Forge AI-vs-AI game for spectator mode.
+     *
+     * No bridged [PlayerController] is installed; both seats keep Forge's AI
+     * controllers. [startGameHook] runs after opening-hand setup and before the
+     * main loop, giving the observer path a stable point to emit its initial GSM.
+     */
+    fun startAiVsAi(
+        seed: Long? = null,
+        deckList: String? = null,
+        deckList1: String? = null,
+        deckList2: String? = null,
+        variant: String? = null,
+        startGameHook: Runnable? = null,
+    ) {
+        log.info("GameBridge: initializing AI-vs-AI spectator game")
+        GameBootstrap.initializeCardDatabase()
+
+        if (seed != null) {
+            log.info("GameBridge: using deterministic seed={}", seed)
+            MyRandom.setRandom(Random(seed))
+        } else {
+            log.info("GameBridge: using random seed")
+        }
+
+        val seat1Str = (deckList1 ?: deckList ?: FALLBACK_DECK).trimIndent()
+        val seat2Str = (deckList2 ?: deckList ?: seat1Str).trimIndent()
+        val deck1 = DeckLoader.parseDeckList(seat1Str)
+        val deck2 = DeckLoader.parseDeckList(seat2Str)
+        val g =
+            if (variant != null && isCommanderVariantName(variant)) {
+                GameBootstrap.createAiVsAiCommanderGame(deck1, deck2, variant)
+            } else {
+                GameBootstrap.createAiVsAiGame(deck1, deck2)
+            }
+        game = g
+        populateSeatMap(g)
+
+        val collector = GameEventCollector(this)
+        eventCollector = collector
+        g.subscribeToEvents(collector)
+        log.info("GameBridge: registered GameEventCollector for AI-vs-AI spectator game")
+
+        val loop = GameLoopController(g, prioritySignal = prioritySignal)
+        loopController = loop
+        loop.start(startGameHook)
+
+        val pb = GamePlayback(this, "forge-match-1", 1, messageCounter, matchConfig.aiDelayMultiplier, captureLocalActions = true)
+        playbacks[SeatId(1)] = pb
+        g.subscribeToEvents(pb)
+        log.info("GameBridge: registered spectator GamePlayback")
+
+        loop.awaitStarted()
+    }
+
     /** Get the current hand for a seat as client grpIds. */
     fun getHandGrpIds(seatId: SeatId): List<Int> {
         val player = getPlayer(seatId) ?: return emptyList()
@@ -730,6 +786,18 @@ class GameBridge(
 
     override fun getPlayer(seatId: SeatId): Player? = players[seatId.value]
 
+    /** Resolve an engine player to its protocol seat for this match. */
+    fun seatOf(player: Player?): SeatId? {
+        if (player == null) return null
+        return players.entries.firstOrNull { (_, candidate) -> candidate === player || candidate.id == player.id }?.let { SeatId(it.key) }
+    }
+
+    /** Resolve a Forge player view to its protocol seat for this match. */
+    fun seatOf(player: PlayerView?): SeatId? {
+        if (player == null) return null
+        return players.entries.firstOrNull { (_, candidate) -> candidate.id == player.id }?.let { SeatId(it.key) }
+    }
+
     /**
      * Look up or lazily build the [AbilityRegistry] for a Forge card.
      *
@@ -760,12 +828,17 @@ class GameBridge(
     /** Populate seat map by registration order (seat 1 = first, seat 2 = second). */
     private fun populateSeatMap(g: Game) {
         g.players.forEachIndexed { index, player -> players[index + 1] = player }
-        val humanIdx = g.players.indexOfFirst { it.lobbyPlayer !is LobbyPlayerAi }
-        if (humanIdx < 0) error("GameBridge.populateSeatMap: no human player in game (all LobbyPlayerAi)")
+        val humanIdx = g.players.indexOfFirst { it.lobbyPlayer !is LobbyPlayerAi }.takeIf { it >= 0 } ?: 0
         val humanSeat = SeatId(humanIdx + 1)
-        seating = Seating(humanSeat = humanSeat, familiarSeat = humanSeat.opponent)
+        seating = Seating(humanSeat = humanSeat, familiarSeat = SeatId(if (humanSeat.value == 1) 2 else 1))
         log.info("GameBridge: seating resolved human={} familiar={}", seating.humanSeat.value, seating.familiarSeat.value)
     }
+
+    private fun isCommanderGame(game: Game): Boolean =
+        listOf(GameType.Commander, GameType.Brawl, GameType.Oathbreaker)
+            .any { game.rules.gameType == it || game.rules.hasAppliedVariant(it) }
+
+    private fun isCommanderVariantName(variant: String): Boolean = variant.lowercase() in setOf("commander", "brawl", "oathbreaker")
 
     /**
      * Block until the engine reaches a priority stop (via [GameActionBridge]).

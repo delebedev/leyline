@@ -40,6 +40,7 @@ skip_mulligan = true
 timer = false
 
 # AI opponent deck (name from player.db). Use "random" for a random non-selected deck.
+# In spectator_mode, "random" picks a random pair for both AI seats.
 # Omit for mirror match (same as seat 1).
 #ai_deck = "Green stompy"
 

@@ -164,6 +164,7 @@ val simclient by tasks.registering(Test::class) {
     systemProperty("kotest.tags", "SimClientTag")
     filter {
         includeTestsMatching("leyline.simclient.SimClientBatchTest")
+        includeTestsMatching("leyline.simclient.SpectatorSimClientTest")
     }
     // Forge's static MyRandom forces serial execution.
     maxParallelForks = 1

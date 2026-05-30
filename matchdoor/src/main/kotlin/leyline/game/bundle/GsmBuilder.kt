@@ -367,6 +367,7 @@ object GsmBuilder {
         snap: GsmSnapshot,
         pendingMessageCount: Int = 0,
         viewingSeatId: Int = 0,
+        includeStartingPlayerDecision: Boolean = true,
     ): GameStateMessage {
         val isBrawl = bridge.isBrawlOrCommander
         val gameVariant = if (isBrawl) GameVariant.Brawl else GameVariant.Normal
@@ -404,14 +405,15 @@ object GsmBuilder {
                 .setFreeMulliganCount(freeMulliganCount)
                 .setDeckConstraintInfo(deckConstraints)
 
-        // Seat 2 has pending ChooseStartingPlayerResp
+        // Seat 2 has pending ChooseStartingPlayerResp during the normal two-seat handshake.
         val player1 = PlayerMapper.buildFromSnapshot(snap, 1)
-        val player2 =
-            PlayerMapper
-                .buildFromSnapshot(snap, 2)
-                .toBuilder()
-                .setPendingMessageType(ClientMessageType.ChooseStartingPlayerResp_097b)
-                .build()
+        val player2 = PlayerMapper.buildFromSnapshot(snap, 2)
+        val player2WithPendingDecision =
+            if (includeStartingPlayerDecision) {
+                player2.toBuilder().setPendingMessageType(ClientMessageType.ChooseStartingPlayerResp_097b).build()
+            } else {
+                player2
+            }
 
         val zones = mutableListOf<ZoneInfo>()
         // Shared zones (9)
@@ -462,12 +464,12 @@ object GsmBuilder {
                         .addPlayerIds(2)
                         .setStatus(TeamStatus.InGame_a458),
                 ).addPlayers(player1)
-                .addPlayers(player2)
-                .setTurnInfo(TurnInfo.newBuilder().setDecisionPlayer(2))
+                .addPlayers(player2WithPendingDecision)
                 .addAllZones(zones.sortedBy { it.zoneId })
                 .addAllGameObjects(gameObjects)
                 .addAllTimers(PlayerMapper.buildTimers())
                 .setUpdate(GameStateUpdate.SendAndRecord)
+        if (includeStartingPlayerDecision) builder.setTurnInfo(TurnInfo.newBuilder().setDecisionPlayer(2))
         if (pendingMessageCount > 0) builder.setPendingMessageCount(pendingMessageCount)
         return builder.build()
     }

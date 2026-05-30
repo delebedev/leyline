@@ -1766,11 +1766,7 @@ object StateMapper {
         bridge: GameBridge,
     ): Int {
         val owner = card.owner ?: return 1
-        return if (owner.lobbyPlayer is forge.ai.LobbyPlayerAi) {
-            bridge.seating.familiarSeat.value
-        } else {
-            bridge.seating.humanSeat.value
-        }
+        return bridge.seatOf(owner)?.value ?: 1
     }
 
     /**

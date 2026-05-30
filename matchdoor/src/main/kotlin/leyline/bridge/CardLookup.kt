@@ -22,7 +22,7 @@ internal val searchableZones =
         ZoneType.Stack,
     )
 
-internal fun findCard(
+fun findCard(
     game: Game,
     cardId: ForgeCardId,
 ): Card? = game.getCardsIn(searchableZones).firstOrNull { it.id == cardId.value }
@@ -58,7 +58,7 @@ internal fun resolveAttackDefender(
  * (Overload, Flashback, Escape, etc.). Stable ordering: base ability first,
  * then alt costs in engine order.
  */
-internal fun getAllCastableAbilities(
+fun getAllCastableAbilities(
     card: Card,
     player: Player,
 ): List<SpellAbility> {
@@ -160,7 +160,7 @@ internal fun getAllCastableAbilities(
  * `PlayerAction.CastSpell(cardId, null)` falls through to candidates.first()
  * which is always the LEFT SpellPermanent — silently casting the wrong door.
  */
-internal fun pickRoomDoorSa(
+fun pickRoomDoorSa(
     card: Card,
     state: forge.card.CardStateName,
 ): SpellAbility? {
@@ -189,7 +189,7 @@ internal fun describeCastAbility(sa: SpellAbility): String {
     }
 }
 
-internal fun getNonManaActivatedAbilities(
+fun getNonManaActivatedAbilities(
     card: Card,
     player: Player,
 ): List<SpellAbility> {
@@ -205,7 +205,7 @@ internal fun getNonManaActivatedAbilities(
     return abilities
 }
 
-internal fun getPlayableManaAbilities(
+fun getPlayableManaAbilities(
     card: Card,
     player: Player,
 ): List<SpellAbility> {

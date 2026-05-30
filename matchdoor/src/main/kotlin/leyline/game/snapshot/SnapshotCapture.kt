@@ -33,7 +33,6 @@ object SnapshotCapture {
         matchId: String,
         gameStateId: Int,
     ): GsmSnapshot {
-        val human = bridge.getPlayer(SeatId(1))
         val seats =
             listOf(1, 2).mapNotNull { seatNum ->
                 val player = bridge.getPlayer(SeatId(seatNum)) ?: return@mapNotNull null
@@ -48,8 +47,8 @@ object SnapshotCapture {
         val zones = captureZones(game, bridge)
         val objects = captureObjects(game, bridge, zones)
         val boundCards = bindCards(objects, bridge)
-        val phase = capturePhase(game, human)
-        val stack = captureStack(game, bridge, human)
+        val phase = capturePhase(game, bridge)
+        val stack = captureStack(game, bridge)
         val abilityWordEntries = computeAbilityWordEntries(game, bridge)
         val persistentAnnotationState =
             PersistentAnnotationState(
@@ -178,13 +177,13 @@ object SnapshotCapture {
      */
     private fun capturePhase(
         game: Game,
-        human: Player?,
+        bridge: GameBridge,
     ): PhaseSnapshot {
         val handler = game.phaseHandler
         return PhaseSnapshot(
             turn = handler.turn.coerceAtLeast(1),
-            activePlayer = SeatId(if (handler.playerTurn == human) 1 else 2),
-            priorityPlayer = handler.priorityPlayer?.let { SeatId(if (it == human) 1 else 2) },
+            activePlayer = bridge.seatOf(handler.playerTurn) ?: SeatId(1),
+            priorityPlayer = handler.priorityPlayer?.let { bridge.seatOf(it) ?: SeatId(1) },
             phase = handler.phase,
         )
     }
@@ -199,7 +198,6 @@ object SnapshotCapture {
     private fun captureStack(
         game: Game,
         bridge: GameBridge,
-        human: Player?,
     ): StackSnapshot {
         val stack = game.getStack()
         if (stack.isEmpty) return StackSnapshot(emptyList())
@@ -208,8 +206,8 @@ object SnapshotCapture {
             val sourceCard = entry.sourceCard ?: continue
             val fid = ForgeCardId(sourceCard.id)
             val controller = entry.activatingPlayer
-            val ownerSeat = SeatId(if (sourceCard.owner == human) 1 else 2)
-            val controllerSeat = SeatId(if (controller == human) 1 else 2)
+            val ownerSeat = bridge.seatOf(sourceCard.owner) ?: SeatId(1)
+            val controllerSeat = bridge.seatOf(controller) ?: ownerSeat
             val sourceCardGrpId = resolveStackSourceCardGrpId(sourceCard, bridge.cardRepository)
             val grpId = StackAbilityGrpIdResolver.resolveEntryAbilityGrpId(entry, sourceCard, sourceCardGrpId, bridge)
             val targets = entry.targetChoices?.targetCards?.map { ForgeCardId(it.id) } ?: emptyList()
@@ -311,7 +309,6 @@ object SnapshotCapture {
         zones: Map<Int, ZoneSnapshot>,
     ): Map<ForgeCardId, CardSnapshot> {
         val combat = game.phaseHandler?.combat
-        val human = bridge.getPlayer(SeatId(1))
         val liveZoneCards = liveZoneCardsByZoneAndId(game, bridge)
         // Pre-pass: walk the live battlefield once, build the prepared linkage in
         // both directions:
@@ -328,7 +325,7 @@ object SnapshotCapture {
             for (fid in zone.contents) {
                 if (fid in seen) continue
                 val card = bridge.findCard(fid) ?: liveZoneCards[zone.id to fid] ?: continue
-                seen[fid] = captureCard(card, combat, bridge, human, linkage)
+                seen[fid] = captureCard(card, combat, bridge, linkage)
             }
         }
         return seen
@@ -366,7 +363,7 @@ object SnapshotCapture {
      *
      * This is the single point where Forge Card reads occur for the ObjectMapper path.
      * [bridge] is needed to resolve instance IDs for combat targets/blockers.
-     * [human] (seat 1 player) is needed to resolve attacker target player seat IDs.
+     * [bridge] resolves Forge players to protocol seats for combat target player IDs.
      */
     @Suppress(
         // Branches once per card-state attribute the snapshot tracks (foretold
@@ -379,7 +376,6 @@ object SnapshotCapture {
         card: Card,
         combat: forge.game.combat.Combat?,
         bridge: GameBridge,
-        human: Player?,
         preparedLinkage: PreparedLinkage,
     ): CardSnapshot {
         val onBf = card.isInZone(ForgeZoneType.Battlefield)
@@ -404,7 +400,7 @@ object SnapshotCapture {
         // Combat role — only for battlefield creatures
         val combatRole: CombatRole? =
             if (combat != null && onBf && type.isCreature) {
-                resolveCombatRole(card, combat, bridge, human)
+                resolveCombatRole(card, combat, bridge)
             } else {
                 null
             }
@@ -441,9 +437,8 @@ object SnapshotCapture {
                 tokenRegistry = bridge.tokenRegistry,
             )
 
-        // Owner/controller seats: seat 1 = human
-        val ownerSeat = SeatId(if (card.owner == human) 1 else 2)
-        val controllerSeat = SeatId(if (card.controller == human) 1 else 2)
+        val ownerSeat = bridge.seatOf(card.owner) ?: SeatId(1)
+        val controllerSeat = bridge.seatOf(card.controller) ?: ownerSeat
 
         // ActionMapper shape flags — read once here, not in the mapper.
         val isLand = type.isLand
@@ -604,7 +599,6 @@ object SnapshotCapture {
         card: Card,
         combat: forge.game.combat.Combat,
         bridge: GameBridge,
-        human: Player?,
     ): CombatRole? {
         if (combat.isAttacking(card)) {
             val targetInstanceId: Int =
@@ -612,7 +606,7 @@ object SnapshotCapture {
                     val defender = combat.getDefenderByAttacker(card)
                     when {
                         defender == null -> 0
-                        defender is Player -> if (defender.id == human?.id) 1 else 2
+                        defender is Player -> bridge.seatOf(defender)?.value ?: 0
                         defender is Card -> bridge.getOrAllocInstanceId(ForgeCardId(defender.id)).value
                         else -> 0
                     }
