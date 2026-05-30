@@ -181,6 +181,9 @@ data class GameConfig(
      */
     @SerialName("ai_deck")
     val aiDeck: String? = null,
+    /** Run both game seats under Forge AI and attach the client as a read-only viewer. */
+    @SerialName("spectator_mode")
+    val spectatorMode: Boolean = false,
 )
 
 @Serializable

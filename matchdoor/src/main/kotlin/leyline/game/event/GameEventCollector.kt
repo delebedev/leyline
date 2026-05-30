@@ -1,7 +1,6 @@
 package leyline.game.event
 
 import com.google.common.eventbus.Subscribe
-import forge.ai.LobbyPlayerAi
 import forge.card.CardStateName
 import forge.game.ability.ApiType
 import forge.game.card.Card
@@ -910,12 +909,12 @@ class GameEventCollector(
 
     private fun seatOf(player: Player?): SeatId? {
         if (player == null) return null
-        return if (player.lobbyPlayer is LobbyPlayerAi) bridge.seating.familiarSeat else bridge.seating.humanSeat
+        return bridge.seatOf(player)
     }
 
     private fun seatOf(player: PlayerView?): SeatId? {
         if (player == null) return null
-        return if (player.isAI) bridge.seating.familiarSeat else bridge.seating.humanSeat
+        return bridge.seatOf(player)
     }
 
     /**

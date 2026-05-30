@@ -189,6 +189,40 @@ class AppMatchCoordinatorTest :
             main[0].jsonObject["cardId"]?.jsonPrimitive?.int shouldBe 202
         }
 
+        test("resolveRandomDeckPairJson picks two distinct decks when possible") {
+            val coord =
+                coordinator(
+                    deckRepo =
+                        FakeDeckRepo(
+                            listOf(
+                                deck("one", "One", 101),
+                                deck("two", "Two", 202),
+                            ),
+                        ),
+                )
+
+            val pair = coord.resolveRandomDeckPairJson()
+
+            pair.shouldNotBeNull()
+            val first =
+                Json
+                    .parseToJsonElement(pair.first)
+                    .jsonObject["MainDeck"]!!
+                    .jsonArray[0]
+                    .jsonObject["cardId"]
+                    ?.jsonPrimitive
+                    ?.int
+            val second =
+                Json
+                    .parseToJsonElement(pair.second)
+                    .jsonObject["MainDeck"]!!
+                    .jsonArray[0]
+                    .jsonObject["cardId"]
+                    ?.jsonPrimitive
+                    ?.int
+            setOf(first, second) shouldBe setOf(101, 202)
+        }
+
         test("resolveOpponentDeckJson returns null when draft incomplete") {
             val draftRepo = FakeDraftRepo()
             draftRepo.save(

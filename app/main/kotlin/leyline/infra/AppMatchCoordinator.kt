@@ -72,6 +72,26 @@ class AppMatchCoordinator(
         return cardsToJson(deck.mainDeck, deck.sideboard, deck.commandZone)
     }
 
+    override fun resolveRandomDeckPairJson(): Pair<String, String>? {
+        val targetFormat = if (selectedEventName?.contains("Brawl", ignoreCase = true) == true) Format.Brawl else Format.Standard
+        val decks = deckService.listForPlayer(playerId).filter { it.format == targetFormat }
+        if (decks.isEmpty()) return null
+
+        val shuffled = decks.shuffled()
+        val seat1 = shuffled[0]
+        val seat2 = shuffled.drop(1).firstOrNull() ?: seat1
+        log.info(
+            "Random spectator decks: seat1={} ({}) seat2={} ({}) format={}",
+            seat1.name,
+            seat1.id.value,
+            seat2.name,
+            seat2.id.value,
+            targetFormat,
+        )
+        return cardsToJson(seat1.mainDeck, seat1.sideboard, seat1.commandZone) to
+            cardsToJson(seat2.mainDeck, seat2.sideboard, seat2.commandZone)
+    }
+
     private fun resolveRandomDeckJson(): String? {
         val targetFormat = if (selectedEventName?.contains("Brawl", ignoreCase = true) == true) Format.Brawl else Format.Standard
         val decks = deckService.listForPlayer(playerId).filter { it.format == targetFormat }

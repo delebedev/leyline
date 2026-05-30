@@ -48,6 +48,8 @@ class GamePlayback(
     private val counter: MessageCounter,
     /** Delay multiplier (1.0 = default, 0.5 = 2x speed, 0 = instant). Derived from config ai.speed. */
     private val delayMultiplier: Double = 1.0,
+    /** Spectator playback captures both seats because every turn is remote to the viewer. */
+    private val captureLocalActions: Boolean = false,
 ) : IGameEventVisitor.Base<Unit>() {
     private val bundleBuilder = BundleBuilder(bridge, matchId, seatId)
 
@@ -441,7 +443,7 @@ class GamePlayback(
             .firstNotNullOfOrNull { event ->
                 (event as? LeylineGameEvent.DamageDealtToPlayer)?.targetSeatId?.value
             }?.let { defenderSeat ->
-                val otherSeats = bridge.allSeatIds() - defenderSeat
+                val otherSeats = bridge.gameSeatIds() - defenderSeat
                 if (otherSeats.size == 1) return otherSeats.single()
                 return if (defenderSeat == 1) 2 else 1
             }
@@ -454,12 +456,12 @@ class GamePlayback(
                 }
             } ?: return null
         val controller = bridge.findCard(sourceId)?.controller ?: return null
-        return bridge.allSeatIds().firstOrNull { seat -> bridge.getPlayer(SeatId(seat)) == controller }
+        return bridge.gameSeatIds().firstOrNull { seat -> bridge.getPlayer(SeatId(seat)) == controller }
     }
 
     private fun currentTurnSeat(game: forge.game.Game): Int? {
         val turnPlayer = game.phaseHandler.playerTurn ?: return null
-        return bridge.allSeatIds().firstOrNull { seat -> bridge.getPlayer(SeatId(seat)) == turnPlayer }
+        return bridge.gameSeatIds().firstOrNull { seat -> bridge.getPlayer(SeatId(seat)) == turnPlayer }
     }
 
     /**
@@ -472,7 +474,7 @@ class GamePlayback(
         val game = bridge.getGame() ?: return false
         val turnPlayer = game.phaseHandler.playerTurn ?: return false
         val myPlayer = bridge.getPlayer(SeatId(seatId)) ?: return false
-        return turnPlayer != myPlayer
+        return captureLocalActions || turnPlayer != myPlayer
     }
 
     companion object {

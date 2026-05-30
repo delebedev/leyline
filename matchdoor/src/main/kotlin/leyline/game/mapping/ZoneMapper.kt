@@ -233,7 +233,7 @@ object ZoneMapper {
      *
      * Reads the card list from [snap]'s zones map for [arenaZoneId] and looks up
      * each Forge [Card] via [bridge.findCard]. Cards not resolved (null) are skipped.
-     * [human] is needed to determine owner/controller seat.
+     * [bridge] resolves live card ownership to protocol seats.
      */
     // forgeZone: documents which Forge zone maps to arenaZoneId; unused — snapshot reads by arenaZoneId
     @Suppress("detekt:LongParameterList", "detekt:UnusedParameter")
@@ -260,7 +260,7 @@ object ZoneMapper {
             if (liveCard == null && arenaZoneId != ZoneIds.SUPPRESSED) continue
             // Filter synthetic engine objects (DetachedCardEffect etc.) — not real cards.
             if (liveCard != null && liveCard.gamePieceType != forge.card.GamePieceType.CARD && !liveCard.isToken) continue
-            val ownerSeatId = liveCard?.let { if (it.owner == human) 1 else 2 } ?: cardSnap.owner.value
+            val ownerSeatId = liveCard?.let { bridge.seatOf(it.owner)?.value } ?: cardSnap.owner.value
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             zoneBuilder.addObjectInstanceIds(instanceId)
             gameObjects.add(

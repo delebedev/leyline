@@ -35,6 +35,22 @@ class Match(
         }
     }
 
+    @Synchronized
+    fun startAiVsAi(
+        seed: Long? = null,
+        deckList: String? = null,
+        deckList1: String? = null,
+        deckList2: String? = null,
+        variant: String? = null,
+        startGameHook: Runnable? = null,
+    ) {
+        if (stateRef.get() != MatchState.WAITING) return
+        bridge.startAiVsAi(seed, deckList, deckList1, deckList2, variant, startGameHook)
+        if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
+            onStateChanged?.invoke(MatchState.RUNNING)
+        }
+    }
+
     /**
      * Idempotent teardown: transitions to FINISHED, deterministically tears down
      * heavyweight resources (EventBus, game loop), then clears per-seat bridge state.

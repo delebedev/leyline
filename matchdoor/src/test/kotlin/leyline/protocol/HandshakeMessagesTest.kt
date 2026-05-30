@@ -1,6 +1,7 @@
 package leyline.protocol
 
 import forge.util.MyRandom
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeInRange
@@ -77,5 +78,34 @@ class HandshakeMessagesTest :
             val second = extractDieRolls(b)
 
             first shouldBe second
+        }
+
+        test("initial bundle can suppress starting-player prompt for spectator seats") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            bridge = b
+            b.start(seed = 1L)
+            var initialSnapshotSeen = false
+
+            val bundle =
+                HandshakeMessages.initialBundle(
+                    seatId = SeatId(2),
+                    matchId = "test",
+                    msgIdStart = 1,
+                    gameStateId = 1,
+                    deckMessage = DeckMessage.getDefaultInstance(),
+                    bridge = b,
+                    includeStartingPlayerPrompt = false,
+                    onInitialSnapshot = { initialSnapshotSeen = true },
+                )
+
+            val messages = bundle.first.greToClientEvent.greToClientMessagesList
+            assertSoftly {
+                messages.any { it.type == GREMessageType.ChooseStartingPlayerReq_695e } shouldBe false
+                messages
+                    .single { it.type == GREMessageType.GameStateMessage_695e }
+                    .gameStateMessage
+                    .pendingMessageCount shouldBe 0
+                initialSnapshotSeen shouldBe true
+            }
         }
     })

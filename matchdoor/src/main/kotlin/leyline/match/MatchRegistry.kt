@@ -1,7 +1,6 @@
 package leyline.match
 
 import leyline.bridge.types.SeatId
-import leyline.bridge.types.opponent
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
@@ -40,7 +39,8 @@ class MatchRegistry {
         seatId: SeatId,
         session: SessionOps,
     ) {
-        sessions.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId.value] = session
+        val previous = sessions.computeIfAbsent(matchId) { ConcurrentHashMap() }.put(seatId.value, session)
+        if (previous is SpectatorSession && previous !== session) previous.close()
     }
 
     /** Get the OTHER seat's session (seat 1 -> seat 2, seat 2 -> seat 1). */
@@ -48,7 +48,7 @@ class MatchRegistry {
         matchId: String,
         seatId: SeatId,
     ): SessionOps? {
-        val peerSeat = seatId.opponent
+        val peerSeat = SeatId(if (seatId.value == 1) 2 else 1)
         return sessions[matchId]?.get(peerSeat.value)
     }
 
@@ -95,6 +95,7 @@ class MatchRegistry {
         val match = matches.remove(matchId)
 
         removedSessions.filterIsInstance<MatchSession>().forEach { it.close() }
+        removedSessions.filterIsInstance<SpectatorSession>().forEach { it.close() }
         matchHandlers.forEach { it.detachAfterTeardown() }
 
         if (match != null) {

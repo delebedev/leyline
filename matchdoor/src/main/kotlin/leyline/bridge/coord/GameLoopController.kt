@@ -51,10 +51,10 @@ class GameLoopController(
      * Handles zone setup, coin flip, mulligan, opening hand actions, and
      * the main game loop — all on the game thread.
      */
-    fun start() {
+    fun start(startGameHook: Runnable? = null) {
         launchGameThread("game-loop-${game.id}") {
             log.info("Game loop started for game ${game.id}, running match.startGame()")
-            game.match.startGame(game)
+            game.match.startGame(game, startGameHook)
         }
     }
 
