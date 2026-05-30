@@ -4,10 +4,13 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import forge.ai.simulation.SpellAbilityPicker
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.nullable
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.config.RuntimeDecks
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
@@ -45,6 +48,8 @@ class DebugServer(
     private val eventBus: DebugEventBus? = null,
     /** Runtime puzzle holder — set/cleared by POST /api/puzzle. */
     private val runtimePuzzle: AtomicReference<String?>? = null,
+    /** Runtime constructed deck override — set/cleared by POST /api/decks. */
+    private val runtimeDecks: AtomicReference<RuntimeDecks?>? = null,
 ) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null
@@ -79,6 +84,28 @@ class DebugServer(
                 }
             } catch (t: Throwable) {
                 log.error("/api/puzzle error: {}", t.message, t)
+                try {
+                    respond(ex, 500, "text/plain", "Error: ${t.message}")
+                } catch (_: Throwable) {
+                    try {
+                        ex.close()
+                    } catch (_: Throwable) {
+                    }
+                }
+            }
+        }
+        srv.createContext("/api/decks") { ex ->
+            try {
+                when (ex.requestMethod) {
+                    "GET" -> serveGetDecks(ex)
+                    "POST" -> serveDecks(ex)
+                    else -> {
+                        ex.sendResponseHeaders(405, -1)
+                        ex.close()
+                    }
+                }
+            } catch (t: Throwable) {
+                log.error("/api/decks error: {}", t.message, t)
                 try {
                     respond(ex, 500, "text/plain", "Error: ${t.message}")
                 } catch (_: Throwable) {
@@ -447,6 +474,22 @@ class DebugServer(
     private fun serveGetPuzzle(ex: HttpExchange) {
         val current = runtimePuzzle?.get()
         respondJson(ex, """{"puzzle":${if (current != null) "\"$current\"" else "null"}}""")
+    }
+
+    private fun serveGetDecks(ex: HttpExchange) {
+        respondJson(ex, json.encodeToString(RuntimeDecks.serializer().nullable, runtimeDecks?.get()))
+    }
+
+    private fun serveDecks(ex: HttpExchange) {
+        val body = ex.requestBody.bufferedReader().readText().trim()
+        if (body.isEmpty()) {
+            runtimeDecks?.set(null)
+            respond(ex, 200, "text/plain", "Runtime decks cleared")
+            return
+        }
+        val decks = json.decodeFromString<RuntimeDecks>(body)
+        runtimeDecks?.set(decks)
+        respond(ex, 200, "application/json", json.encodeToString(RuntimeDecks.serializer(), decks))
     }
 
     private fun servePuzzle(ex: HttpExchange) {

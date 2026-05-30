@@ -11,6 +11,7 @@ import leyline.bridge.bootstrap.CardEntry
 import leyline.bridge.bootstrap.DeckConverter
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
+import leyline.config.RuntimeDecks
 import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.MessageCounter
@@ -45,6 +46,8 @@ class MatchHandler(
     private val recorderFactory: (() -> MatchRecorder)? = null,
     /** Runtime puzzle file path supplier — non-null activates puzzle mode. */
     private val puzzlePath: () -> String? = { null },
+    /** Runtime deck override supplier for local web clients. */
+    private val runtimeDecks: () -> RuntimeDecks? = { null },
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
 
@@ -421,6 +424,10 @@ class MatchHandler(
      * and convert grpIds → card names for Forge engine.
      */
     private fun resolveSeat1Deck(): String {
+        runtimeDecks()?.seat1Deck?.takeIf { it.isNotBlank() }?.let {
+            log.info("Match Door: seat 1 deck from runtime override")
+            return it
+        }
         val deckId = coordinator?.selectedDeckId
         if (deckId != null) {
             val cardsJson = coordinator?.resolveDeckJson(deckId)
@@ -449,6 +456,10 @@ class MatchHandler(
      *   3. Mirror seat 1's deck.
      */
     private fun resolveSeat2Deck(): String {
+        runtimeDecks()?.seat2Deck?.takeIf { it.isNotBlank() }?.let {
+            log.info("Match Door: seat 2 deck from runtime override")
+            return it
+        }
         val event = coordinator?.selectedEventName
         if (event != null) {
             val podJson = coordinator.resolveOpponentDeckJson(event)

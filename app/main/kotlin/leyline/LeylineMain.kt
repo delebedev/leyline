@@ -140,6 +140,7 @@ private fun buildDebugServer(
     sessionProvider = { server.debugSink.sessionProvider?.invoke() as? leyline.match.MatchSession },
     eventBus = server.eventBus,
     runtimePuzzle = server.runtimePuzzle,
+    runtimeDecks = server.runtimeDecks,
 )
 
 private fun buildAccountServer(
