@@ -6,7 +6,6 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.SimClientTag
-import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.ExposedCardRepository
 import leyline.game.data.KeywordAbilityIds
@@ -41,11 +40,7 @@ class SimClientKeywordStackMechanicsTest :
                 MatchFlowHarness(
                     seed = 42L,
                     deckList = deck,
-                    validation =
-                        InvariantSelection.protocolFactsExcept(
-                            "simclient driver can replay older queued ids around play-land diffs (leyline-qiws)",
-                            InvariantCheck.GsIdMonotonicity,
-                        ),
+                    validation = InvariantSelection.protocolFacts(),
                     cardRepositoryOverride = cardRepo,
                 )
             val tempLog = Files.createTempFile("simclient-$tag-", ".log").toFile()
