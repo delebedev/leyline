@@ -261,10 +261,11 @@ class MatchHandler(
                                 )
                             Match(matchId, bridge).also { match ->
                                 if (!matchConfig.game.spectatorMode) {
+                                    val decks = resolveSeatDecks()
                                     match.start(
                                         seed = matchConfig.game.seed,
-                                        deckList1 = resolveSeat1Deck(),
-                                        deckList2 = resolveSeat2Deck(),
+                                        deckList1 = decks.seat1,
+                                        deckList2 = decks.seat2,
                                         variant = gameVariant,
                                     )
                                 }
@@ -280,12 +281,13 @@ class MatchHandler(
                         val spectator = createAndRegisterSpectatorSession(ctx, bridge)
                         sendRoomState(ctx)
                         if (match.state == MatchState.WAITING) {
+                            val decks = resolveSeatDecks()
                             val readyForInitialBundle = CountDownLatch(1)
                             val initialBundleSent = CountDownLatch(1)
                             match.startAiVsAi(
                                 seed = matchConfig.game.seed,
-                                deckList1 = resolveSeat1Deck(),
-                                deckList2 = resolveSeat2Deck(),
+                                deckList1 = decks.seat1,
+                                deckList2 = decks.seat2,
                                 variant = gameVariant,
                                 startGameHook =
                                     Runnable {
@@ -487,18 +489,34 @@ class MatchHandler(
         nettyCtx = null
     }
 
+    private data class SeatDecks(
+        val seat1: String,
+        val seat2: String,
+    )
+
+    private fun resolveSeatDecks(): SeatDecks {
+        val randomDecks = spectatorRandomDecksIfEnabled()
+        val runtimeDecks = runtimeDecks()
+        val seat1Deck = resolveSeat1Deck(randomDecks, runtimeDecks)
+        return SeatDecks(
+            seat1 = seat1Deck,
+            seat2 = resolveSeat2Deck(randomDecks, runtimeDecks, seat1Deck),
+        )
+    }
+
     /**
      * Resolve seat 1 deck: FD stored a deckId from 612 → look it up in player.db
      * and convert grpIds → card names for Forge engine.
      */
-    private fun resolveSeat1Deck(): String {
-        if (matchConfig.game.spectatorMode && matchConfig.game.aiDeck.equals("random", ignoreCase = true)) {
-            spectatorRandomDecks()?.first?.let {
-                log.info("Match Door: spectator seat 1 deck from random pair")
-                return convertArenaCardsToDeckText(it)
-            }
+    private fun resolveSeat1Deck(
+        randomDecks: Pair<String, String>?,
+        runtimeDecks: RuntimeDecks?,
+    ): String {
+        randomDecks?.first?.let {
+            log.info("Match Door: spectator seat 1 deck from random pair")
+            return convertArenaCardsToDeckText(it)
         }
-        runtimeDecks()?.seat1Deck?.takeIf { it.isNotBlank() }?.let {
+        runtimeDecks?.seat1Deck?.takeIf { it.isNotBlank() }?.let {
             log.info("Match Door: seat 1 deck from runtime override")
             return it
         }
@@ -529,14 +547,16 @@ class MatchHandler(
      *   2. AI deck name from `matchConfig.game.aiDeck` looked up in player.db.
      *   3. Mirror seat 1's deck.
      */
-    private fun resolveSeat2Deck(): String {
-        if (matchConfig.game.spectatorMode && matchConfig.game.aiDeck.equals("random", ignoreCase = true)) {
-            spectatorRandomDecks()?.second?.let {
-                log.info("Match Door: spectator seat 2 deck from random pair")
-                return convertArenaCardsToDeckText(it)
-            }
+    private fun resolveSeat2Deck(
+        randomDecks: Pair<String, String>?,
+        runtimeDecks: RuntimeDecks?,
+        seat1Deck: String,
+    ): String {
+        randomDecks?.second?.let {
+            log.info("Match Door: spectator seat 2 deck from random pair")
+            return convertArenaCardsToDeckText(it)
         }
-        runtimeDecks()?.seat2Deck?.takeIf { it.isNotBlank() }?.let {
+        runtimeDecks?.seat2Deck?.takeIf { it.isNotBlank() }?.let {
             log.info("Match Door: seat 2 deck from runtime override")
             return it
         }
@@ -558,7 +578,13 @@ class MatchHandler(
             }
             log.warn("Match Door: AI deck '{}' not in DB, mirroring seat 1", aiDeckName)
         }
-        return resolveSeat1Deck()
+        return seat1Deck
+    }
+
+    private fun spectatorRandomDecksIfEnabled(): Pair<String, String>? {
+        if (!matchConfig.game.spectatorMode) return null
+        if (!matchConfig.game.aiDeck.equals("random", ignoreCase = true)) return null
+        return spectatorRandomDecks()
     }
 
     private fun spectatorRandomDecks(): Pair<String, String>? {
