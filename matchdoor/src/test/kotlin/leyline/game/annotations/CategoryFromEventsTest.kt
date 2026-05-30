@@ -503,6 +503,11 @@ class CategoryFromEventsTest :
             TransferCategoryResolver.categoryFromEvents(ForgeCardId(1), events) shouldBe TransferCategory.Put
         }
 
+        test("sideboard to hand uses Put category") {
+            val events = listOf(GameEvent.ZoneChanged(cardId = ForgeCardId(1), from = Zone.Sideboard, to = Zone.Hand))
+            TransferCategoryResolver.categoryFromEvents(ForgeCardId(1), events) shouldBe TransferCategory.Put
+        }
+
         test("searchToHandOverridesLibraryToHandDraw") {
             // CardSearchedToHand overrides generic ZoneChanged(Library→Hand) which would give Draw
             val events =

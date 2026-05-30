@@ -292,12 +292,12 @@ object StateMapper {
                 ZoneIds.P1_HAND,
                 ZoneIds.P1_LIBRARY,
                 ZoneIds.P1_GRAVEYARD,
+                ZoneIds.P1_SIDEBOARD,
                 viewingSeatId,
                 revealForSeat,
                 revealHand = revealedHandSeat == 1,
             )
         }
-        zones.add(ZoneMapper.makePrivateZone(ZoneIds.P1_SIDEBOARD, ZoneType.Sideboard, 1))
 
         // Player 2 zones
         if (ai != null) {
@@ -310,12 +310,12 @@ object StateMapper {
                 ZoneIds.P2_HAND,
                 ZoneIds.P2_LIBRARY,
                 ZoneIds.P2_GRAVEYARD,
+                ZoneIds.P2_SIDEBOARD,
                 viewingSeatId,
                 revealForSeat,
                 revealHand = revealedHandSeat == 2,
             )
         }
-        zones.add(ZoneMapper.makePrivateZone(ZoneIds.P2_SIDEBOARD, ZoneType.Sideboard, 2))
 
         // Populate shared zones with cards.
         ZoneMapper.addSharedZoneCardsFromSnapshot(
@@ -650,6 +650,7 @@ object StateMapper {
                 .filter { id -> prev.zones[id] != cur.zones[id] }
                 .toSet()
         val opponentHandZoneId = ZoneMapper.opponentHandZone(viewingSeatId)
+        val opponentSideboardZoneId = ZoneMapper.opponentSideboardZone(viewingSeatId)
         val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(SeatId(it)).journal.activeReveal() != null }
         // Protocol-only zones not tracked in GsmSnapshot must always be included when non-empty:
         //   - Limbo (id=30): grows monotonically; always send when it has content.
@@ -675,19 +676,22 @@ object StateMapper {
                 else -> null
             }
         val changedZones =
-            current.zonesList.filter { zone ->
-                zone.zoneId in changedZoneIds ||
-                    (
-                        zone.zoneId == ZoneIds.LIMBO &&
-                            (
-                                zone.objectInstanceIdsCount > 0 ||
-                                    fullResult.mutations.holderBatch.removed
-                                        .isNotEmpty()
-                            )
-                    ) ||
-                    (zone.zoneId == ZoneIds.REVEALED_P1 || zone.zoneId == ZoneIds.REVEALED_P2) ||
-                    (opponentRevealedHandZoneId != null && zone.zoneId == opponentRevealedHandZoneId)
-            }
+            current.zonesList
+                .filter { zone ->
+                    zone.zoneId in changedZoneIds ||
+                        (
+                            zone.zoneId == ZoneIds.LIMBO &&
+                                (
+                                    zone.objectInstanceIdsCount > 0 ||
+                                        fullResult.mutations.holderBatch.removed
+                                            .isNotEmpty()
+                                )
+                        ) ||
+                        (zone.zoneId == ZoneIds.REVEALED_P1 || zone.zoneId == ZoneIds.REVEALED_P2) ||
+                        (opponentRevealedHandZoneId != null && zone.zoneId == opponentRevealedHandZoneId)
+                }.map { zone ->
+                    redactOpponentSideboardZone(zone, opponentSideboardZoneId)
+                }
 
         // Snap-vs-snap object delta: any card whose CardSnapshot field-equality differs.
         // Plus opponent-hand filter + active-reveal exception preserved.
@@ -736,6 +740,7 @@ object StateMapper {
                     if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
                         return@filter hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)
                     }
+                    if (opponentSideboardZoneId != 0 && obj.zoneId == opponentSideboardZoneId) return@filter false
                     return@filter true
                 }
                 if (obj.instanceId !in changedInstanceIds) {
@@ -756,6 +761,7 @@ object StateMapper {
                         return@filter false
                     }
                 }
+                if (opponentSideboardZoneId != 0 && obj.zoneId == opponentSideboardZoneId) return@filter false
                 true
             }
 
@@ -848,6 +854,14 @@ object StateMapper {
             )
         }
         return BuildResult(built, fullResult.mutations)
+    }
+
+    private fun redactOpponentSideboardZone(
+        zone: ZoneInfo,
+        opponentSideboardZoneId: Int,
+    ): ZoneInfo {
+        if (opponentSideboardZoneId == 0 || zone.zoneId != opponentSideboardZoneId) return zone
+        return zone.toBuilder().clearObjectInstanceIds().build()
     }
 
     /**

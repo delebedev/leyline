@@ -168,6 +168,18 @@ class PromptClassifierTest :
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost
         }
 
+        test("learn semantic classifies as select-n with LearnLesson reason") {
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "Learn a Lesson",
+                    semantic = PromptSemantic.LearnLesson,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.LearnLesson
+        }
+
         test("generic choose-cards prompt does not infer sacrifice from message text") {
             val result =
                 classify(

@@ -247,6 +247,7 @@ object SnapshotCapture {
             capturePlayerZone(player, seatNum, ForgeZoneType.Hand, result)
             capturePlayerZone(player, seatNum, ForgeZoneType.Library, result)
             capturePlayerZone(player, seatNum, ForgeZoneType.Graveyard, result)
+            capturePlayerZone(player, seatNum, ForgeZoneType.Sideboard, result)
         }
         captureSharedZone(game, ForgeZoneType.Battlefield, result)
         captureSharedZone(game, ForgeZoneType.Stack, result)
@@ -340,7 +341,7 @@ object SnapshotCapture {
         val cards = linkedMapOf<Pair<Int, ForgeCardId>, Card>()
         for (seatNum in listOf(1, 2)) {
             val player = bridge.getPlayer(SeatId(seatNum)) ?: continue
-            for (zoneType in listOf(ForgeZoneType.Hand, ForgeZoneType.Library, ForgeZoneType.Graveyard)) {
+            for (zoneType in listOf(ForgeZoneType.Hand, ForgeZoneType.Library, ForgeZoneType.Graveyard, ForgeZoneType.Sideboard)) {
                 val zoneId = playerZoneId(seatNum, zoneType) ?: continue
                 player.getZone(zoneType)?.cards?.forEach { cards[zoneId to ForgeCardId(it.id)] = it }
             }
@@ -645,12 +646,12 @@ object SnapshotCapture {
             ForgeZoneType.Hand -> ZoneIds.handOf(seat)
             ForgeZoneType.Library -> ZoneIds.libraryOf(seat)
             ForgeZoneType.Graveyard -> ZoneIds.graveyardOf(seat)
+            ForgeZoneType.Sideboard -> ZoneIds.sideboardOf(seat)
             ForgeZoneType.Battlefield,
             ForgeZoneType.Exile,
             ForgeZoneType.Flashback,
             ForgeZoneType.Command,
             ForgeZoneType.Stack,
-            ForgeZoneType.Sideboard,
             ForgeZoneType.Ante,
             ForgeZoneType.Merged,
             ForgeZoneType.SchemeDeck,

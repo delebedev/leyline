@@ -19,6 +19,7 @@ enum class Zone {
     Exile,
     Stack,
     Command,
+    Sideboard,
     Other,
     ;
 
@@ -33,7 +34,19 @@ enum class Zone {
                 ZoneType.Exile -> Exile
                 ZoneType.Stack -> Stack
                 ZoneType.Command -> Command
-                else -> Other
+                ZoneType.Sideboard -> Sideboard
+                ZoneType.Flashback,
+                ZoneType.Ante,
+                ZoneType.Merged,
+                ZoneType.SchemeDeck,
+                ZoneType.PlanarDeck,
+                ZoneType.AttractionDeck,
+                ZoneType.Junkyard,
+                ZoneType.ContraptionDeck,
+                ZoneType.Subgame,
+                ZoneType.ExtraHand,
+                ZoneType.None,
+                -> Other
             }
     }
 }

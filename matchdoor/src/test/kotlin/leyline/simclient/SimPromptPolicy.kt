@@ -1,5 +1,7 @@
 package leyline.simclient
 
+import leyline.game.mapping.PromptIds
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -7,6 +9,7 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.HighlightType
+import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
 internal interface SimPromptPolicy {
     fun respondToPrompt(
@@ -172,6 +175,9 @@ internal open class GreedyPromptPolicy(
 
     private fun respondSelectN(msg: GREToClientMessage): SimDecision {
         val req = msg.selectNReq
+        if (msg.prompt.promptId == PromptIds.LEARN_LESSON_OR_DISCARD || msg.prompt.promptId == PromptIds.LEARN_LESSON_ONLY) {
+            return SimDecision.SelectN(learnLessonIds(req).take(1))
+        }
         val min = req.minSel.coerceAtLeast(0)
         val max = if (req.maxSel > 0) req.maxSel else min
         val count = min.coerceAtMost(max)
@@ -183,6 +189,11 @@ internal open class GreedyPromptPolicy(
         val max = if (req.maxFind > 0) req.maxFind else req.minFind
         val count = max.coerceAtLeast(req.minFind).coerceAtLeast(1)
         return SimDecision.Search(req.itemsSoughtList.take(count))
+    }
+
+    private fun learnLessonIds(req: SelectNReq): List<Int> {
+        val sideboardIds = req.idsList.filter { id -> harness.accumulator.objects[id]?.zoneId == ZoneIds.P1_SIDEBOARD }
+        return sideboardIds.ifEmpty { req.idsList }
     }
 
     private fun respondPayCosts(msg: GREToClientMessage): SimDecision {

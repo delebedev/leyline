@@ -1164,6 +1164,7 @@ class GameBridge(
                 ZoneType.Graveyard,
                 ZoneType.Exile,
                 ZoneType.Command,
+                ZoneType.Sideboard,
             )
         var registered = 0
         val playerToSeat: Map<forge.game.player.Player, Int> =
@@ -1206,7 +1207,8 @@ class GameBridge(
             ZoneType.Battlefield -> ZoneIds.BATTLEFIELD
             ZoneType.Exile -> ZoneIds.EXILE
             ZoneType.Command -> ZoneIds.COMMAND
-            // Sideboard / Stack / RareAside / etc. — not zones we seed for puzzles.
+            ZoneType.Sideboard -> ZoneIds.sideboardOf(seatId)
+            // Stack / RareAside / etc. — not zones we seed for puzzles.
             else -> null
         }
 

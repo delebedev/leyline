@@ -157,6 +157,7 @@ internal object CategoryRules {
             zonePairRule(Zone.Library, Zone.Battlefield, TransferCategory.Search),
             zonePairRule(Zone.Library, Zone.Graveyard, TransferCategory.Mill),
             zonePairRule(Zone.Library, Zone.Exile, TransferCategory.Exile),
+            zonePairRule(Zone.Sideboard, Zone.Hand, TransferCategory.Put),
             zonePairRule(Zone.Graveyard, Zone.Hand, TransferCategory.Return),
             zonePairRule(Zone.Graveyard, Zone.Battlefield, TransferCategory.Return),
             zonePairRule(Zone.Graveyard, Zone.Exile, TransferCategory.Exile),

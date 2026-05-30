@@ -6,10 +6,12 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.mapping.PromptIds
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import java.nio.file.Files
 import java.nio.file.Path
@@ -50,6 +52,7 @@ class MatchdoorAcceptanceExecutor(
             is OptionalActionStep -> harness.respondToOptionalAction(step.accept)
             is TargetStep -> target(harness, step.target, context)
             is SelectCostStep -> selectCost(harness, step)
+            is SelectCardStep -> selectCard(harness, step, context)
             is BlockStep -> block(harness, step, context)
             is PlayLandStep -> requireAction(context) { harness.playLand(step.card) }
             is CastStep -> cast(harness, step, context)
@@ -82,6 +85,27 @@ class MatchdoorAcceptanceExecutor(
     ) {
         val ids = step.cards.map { resolveCardInZone(harness, step.side, step.zone, it) }
         harness.respondToEffectCost(ids)
+    }
+
+    private fun selectCard(
+        harness: MatchFlowHarness,
+        step: SelectCardStep,
+        context: String,
+    ) {
+        val prompt = latestPromptMessage(harness)
+        require(prompt?.hasSelectNReq() == true) {
+            "$context expected latest prompt SelectNReq"
+        }
+        val selectedId = resolveCardInZone(harness, step.side, step.zone, step.card)
+        require(selectedId in prompt.selectNReq.idsList) {
+            "$context selected ${step.card} iid=$selectedId is not in SelectNReq candidates ${prompt.selectNReq.idsList}"
+        }
+        if (step.zone == AcceptanceZone.Sideboard) {
+            require(prompt.prompt.promptId == PromptIds.LEARN_LESSON_OR_DISCARD || prompt.prompt.promptId == PromptIds.LEARN_LESSON_ONLY) {
+                "$context sideboard selection expected Learn prompt, got promptId=${prompt.prompt.promptId}"
+            }
+        }
+        harness.respondToSelectN(listOf(selectedId))
     }
 
     private fun activate(
@@ -374,17 +398,14 @@ class MatchdoorAcceptanceExecutor(
     private fun latestPromptMatches(
         harness: MatchFlowHarness,
         prompt: String,
-    ): Boolean =
-        harness.allMessages
-            .asReversed()
-            .firstOrNull { it.isPromptMessage() }
-            ?.matchesPrompt(prompt) == true
+    ): Boolean = latestPromptMessage(harness)?.matchesPrompt(prompt) == true
 
-    private fun latestPromptName(harness: MatchFlowHarness): String? =
+    private fun latestPromptMessage(harness: MatchFlowHarness): GREToClientMessage? =
         harness.allMessages
             .asReversed()
             .firstOrNull { it.isPromptMessage() }
-            ?.promptName()
+
+    private fun latestPromptName(harness: MatchFlowHarness): String? = latestPromptMessage(harness)?.promptName()
 
     private fun phaseMatches(
         actual: String?,

@@ -40,6 +40,7 @@ sealed interface ClassifiedPrompt {
             StationTapCost,
             ReturnUnblockedAttackerCost,
             MutateTopBottom,
+            LearnLesson,
         }
     }
 
@@ -96,6 +97,8 @@ object PromptClassifier {
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.Resolution)
             PromptSemantic.MutateTopBottom ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.MutateTopBottom)
+            PromptSemantic.LearnLesson ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.LearnLesson)
             PromptSemantic.Generic -> null
         }
 

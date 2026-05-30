@@ -1,0 +1,8 @@
+name: "Environmental Sciences"
+grpId: 76393
+titleId: 488139
+abilities:
+  - id: 141877
+    textId: 488142
+    category: 4
+expansionCode: "STX"

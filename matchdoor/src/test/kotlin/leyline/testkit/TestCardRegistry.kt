@@ -74,6 +74,7 @@ object TestCardRegistry {
                 forge.game.zone.ZoneType.Graveyard,
                 forge.game.zone.ZoneType.Exile,
                 forge.game.zone.ZoneType.Command,
+                forge.game.zone.ZoneType.Sideboard,
             )
         for (player in game.players) {
             for (zone in allZones) {

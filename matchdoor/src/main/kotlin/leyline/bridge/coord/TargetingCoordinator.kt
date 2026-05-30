@@ -67,10 +67,12 @@ class TargetingCoordinator(
 
         val isLegendRule = sa?.api == ApiType.InternalLegendaryRule
         val isSearch = sa?.api == ApiType.ChangeZone || hasDelayedReveal
+        val isLearn = sa?.api == ApiType.Learn
 
         val semantic =
             when {
                 isLegendRule -> PromptSemantic.SelectNLegendRule
+                isLearn -> PromptSemantic.LearnLesson
                 isSearch -> PromptSemantic.Search
                 else -> PromptSemantic.Generic
             }
@@ -86,6 +88,7 @@ class TargetingCoordinator(
                 defaultIndex = 0,
                 semantic = semantic,
                 candidateRefs = buildCandidateRefs(optionList),
+                sourceEntityId = if (isLearn) sa?.hostCard?.id else null,
             )
         val indices = bridge.requestChoice(request)
         val idx = indices.firstOrNull()
@@ -101,6 +104,8 @@ class TargetingCoordinator(
             TargetingCoordinator.recordSearchedToHand(bridge, ForgeCardId(chosen.id))
             log.debug("search to hand: marked card {} (id={})", chosen.name, chosen.id)
         }
+
+        recordLearnRevealIfNeeded(isLearn, chosen)
 
         // Legend rule: mark all unchosen legendaries as victims for SBA_LegendRule annotation.
         if (isLegendRule && chosen != null) {
@@ -122,6 +127,16 @@ class TargetingCoordinator(
         }
 
         return chosen
+    }
+
+    private fun recordLearnRevealIfNeeded(
+        isLearn: Boolean,
+        chosen: GameEntity?,
+    ) {
+        if (!isLearn || chosen !is Card || !chosen.isInZone(ZoneType.Sideboard)) return
+
+        val ownerSeat = if (chosen.owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+        bridge.recordReveal(listOf(ForgeCardId(chosen.id)), ownerSeat)
     }
 
     private fun <T : GameEntity> chooseMutateTopCard(

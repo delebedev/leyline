@@ -33,6 +33,8 @@ class PromptIdsTest :
                 PromptIds.SELECT_N_LEGEND_RULE shouldBe 72
                 PromptIds.GROUP_SCRY shouldBe 92
                 PromptIds.GROUP_SURVEIL shouldBe 129
+                PromptIds.LEARN_LESSON_OR_DISCARD shouldBe 147
+                PromptIds.LEARN_LESSON_ONLY shouldBe 148
                 PromptIds.DISCARD_COST shouldBe 1024
                 PromptIds.SELECT_N shouldBe 1243
                 PromptIds.SEARCH shouldBe 1065

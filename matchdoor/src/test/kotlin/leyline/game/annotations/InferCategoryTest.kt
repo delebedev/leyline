@@ -63,4 +63,9 @@ class InferCategoryTest :
         test("exileToStackIsCastSpell") {
             ZoneTransferDetector.inferCategory(dummyObj(), ZoneIds.EXILE, ZoneIds.STACK) shouldBe TransferCategory.CastSpell
         }
+
+        test("sideboardToHandIsPut") {
+            ZoneTransferDetector.inferCategory(dummyObj(), ZoneIds.P1_SIDEBOARD, ZoneIds.P1_HAND) shouldBe TransferCategory.Put
+            ZoneTransferDetector.inferCategory(dummyObj(), ZoneIds.P2_SIDEBOARD, ZoneIds.P2_HAND) shouldBe TransferCategory.Put
+        }
     })

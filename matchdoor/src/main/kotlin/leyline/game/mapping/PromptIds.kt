@@ -49,6 +49,12 @@ object PromptIds {
     /** Commander zone replacement decision: "Move your commander to the command zone?" */
     const val COMMANDER_RETURN_TO_COMMAND = 144
 
+    /** Learn mixed prompt: choose a Lesson from sideboard or discard a hand card. */
+    const val LEARN_LESSON_OR_DISCARD = 147
+
+    /** Learn Lesson-only prompt: choose a Lesson card owned outside the game. */
+    const val LEARN_LESSON_ONLY = 148
+
     /** Shock land ETB "pay life or enter tapped" (OptionalActionMessage). */
     const val SHOCK_LAND_ETB = 2233
 
@@ -79,6 +85,9 @@ object PromptIds {
      *  The literal `2` is opaque (no dictionary entry) but is the value the
      *  client expects on this slot for resolution-time pick prompts. */
     const val SELECT_N_INNER_PARAMETER = 2
+
+    /** Inner SelectNReq.prompt PromptId Parameter value for Learn prompts. */
+    const val SELECT_N_LEARN_INNER_PARAMETER = 1
 
     const val CHOOSE_OR_COST = 1103
     const val CHOOSE_OR_COST_PAY_SACRIFICE = 1029
