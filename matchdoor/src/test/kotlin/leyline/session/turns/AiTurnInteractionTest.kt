@@ -80,7 +80,7 @@ class AiTurnInteractionTest :
             val ptStart = gsms.indexOfFirst { it.type == GameStateType.Diff && it.hasGameInfo() }
 
             assertSoftly {
-                fullWithZones.size shouldBeGreaterThanOrEqual 0
+                gsms.shouldNotBeEmpty()
                 fullWithZones.size shouldBeLessThanOrEqual 1
 
                 ptStart shouldBeGreaterThanOrEqual 0
