@@ -1,7 +1,9 @@
 package leyline.session.actions
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.shouldBe
 import leyline.session.combat.COMBAT_DECK
 import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
@@ -27,11 +29,16 @@ class LandPlayLaneShapeTest :
                         it.gameStateMessage.update == GameStateUpdate.SendAndRecord
                 }
             firstSarIndex shouldBeGreaterThan -1
+            val landGsm = produced[firstSarIndex].gameStateMessage
 
             // Lane assertion: ACTIONS_AVAILABLE is represented by the AAR
             // immediately following the land-play GSM.
             val successor = produced.getOrNull(firstSarIndex + 1)
             val immediateIsAar = successor?.hasActionsAvailableReq() == true
-            immediateIsAar.shouldBeTrue()
+            assertSoftly {
+                immediateIsAar.shouldBeTrue()
+                successor?.gameStateId shouldBe landGsm.gameStateId
+                landGsm.pendingMessageCount shouldBe 1
+            }
         }
     })
