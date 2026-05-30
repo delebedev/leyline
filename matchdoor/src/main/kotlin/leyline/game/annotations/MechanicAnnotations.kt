@@ -253,7 +253,14 @@ object MechanicAnnotations {
                 }
                 is GameEvent.CardDetached -> {
                     val auraIid = idResolver(ev.cardId)
-                    annotations.add(AnnotationBuilder.removeAttachment(auraIid))
+                    val targetIid = ev.targetCardId?.let(idResolver)
+                    annotations.add(
+                        AnnotationBuilder.removeAttachment(
+                            auraIid = auraIid,
+                            targetIid = targetIid,
+                            invalidatingGrpId = ev.invalidatingAbilityGrpId.takeIf { it != 0 }?.let(::GrpId),
+                        ),
+                    )
                     detachedForgeCardIds.add(ev.cardId)
                     log.debug("mechanic: removeAttachment aura={}", auraIid.value)
                 }

@@ -318,7 +318,12 @@ class MechanicAnnotationPipelineTest :
         test("detachProducesRemoveAttachment") {
             val events =
                 listOf(
-                    GameEvent.CardDetached(cardId = ForgeCardId(60), seatId = SeatId(1)),
+                    GameEvent.CardDetached(
+                        cardId = ForgeCardId(60),
+                        seatId = SeatId(1),
+                        targetCardId = ForgeCardId(61),
+                        invalidatingAbilityGrpId = 244,
+                    ),
                 )
             val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
             val annotations = result.transient
@@ -326,7 +331,9 @@ class MechanicAnnotationPipelineTest :
             assertSoftly {
                 annotations.size shouldBe 1
                 annotations[0].typeList shouldContain AnnotationType.RemoveAttachment
-                annotations[0].affectedIdsList shouldContain testResolver(ForgeCardId(60)).value
+                annotations[0].affectorId shouldBe testResolver(ForgeCardId(60)).value
+                annotations[0].affectedIdsList shouldContain testResolver(ForgeCardId(61)).value
+                annotations[0].detailInt("invalidating_grpid") shouldBe 244
             }
         }
 

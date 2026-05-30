@@ -1092,8 +1092,10 @@ object StateMapper {
 
         val (crewedThisTurnPersistent, crewTypeChangePersistent, crewExpiredAnnotations) =
             computeCrewAnnotations(bridge)
+        val (reconfigureTypeChangeTransient, reconfigureTypeChangePersistent) = computeReconfigureAnnotations(bridge)
         val saddledThisTurnPersistent = computeSaddleAnnotations(bridge)
         annotations.addAll(crewExpiredAnnotations)
+        annotations.addAll(reconfigureTypeChangeTransient)
 
         val enrichedMechanicResult =
             mechanicResult.copy(
@@ -1107,7 +1109,7 @@ object StateMapper {
                         )
                         put(CrewedThisTurnKind, crewedThisTurnPersistent)
                         put(SaddledThisTurnKind, saddledThisTurnPersistent)
-                        put(ModifiedTypeForCrewKind, crewTypeChangePersistent)
+                        put(ModifiedTypeForCrewKind, crewTypeChangePersistent + reconfigureTypeChangePersistent)
                         put(TemporaryPermanentKind, temporaryPermanentPersistent)
                         put(DelayedTriggerAffecteesKind, delayedTriggerAffecteesPersistent)
                         put(TargetSpecKind, targetSpecPersistent)
@@ -1955,6 +1957,36 @@ object StateMapper {
                 snap.saddleSourceInstanceIds.map { InstanceId(it) },
             )
         }
+
+    private fun computeReconfigureAnnotations(bridge: GameBridge): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
+        val snapshots = bridge.snapshotReconfigureState()
+        val current = snapshots.map { it.forgeCardId }.toSet()
+        val transient = mutableListOf<AnnotationInfo>()
+        val persistent = mutableListOf<AnnotationInfo>()
+
+        for (effectId in bridge.releaseReconfigureEffects(current)) {
+            transient.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effectId)))
+        }
+
+        for (snap in snapshots) {
+            val allocation = bridge.getOrAllocReconfigureEffectId(snap.forgeCardId)
+            val sourceIid = InstanceId(snap.instanceId)
+            val effectId = EffectId(allocation.effectId)
+            if (allocation.created) {
+                transient.add(AnnotationBuilder.layeredEffectCreated(effectId, sourceIid))
+            }
+            persistent.add(
+                AnnotationBuilder.modifiedTypeLayeredEffect(
+                    instanceId = sourceIid,
+                    effectId = effectId,
+                    affectorId = sourceIid,
+                    sourceAbilityGrpId = snap.attachAbilityGrpId?.let(::GrpId),
+                ),
+            )
+        }
+
+        return transient to persistent
+    }
 
     /**
      * Find the active reveal across all seats, or null. Clears stale reveals where

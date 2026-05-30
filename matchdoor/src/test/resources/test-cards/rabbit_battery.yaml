@@ -1,0 +1,16 @@
+name: "Rabbit Battery"
+grpId: 79588
+titleId: 557880
+abilities:
+  - id: 9
+    textId: 101
+    category: 3
+  - id: 9144
+    textId: 32472
+    category: 3
+  - id: 147974
+    textId: 557882
+    category: 1
+    baseId: 237
+    mana: "oR"
+expansionCode: "NEO"

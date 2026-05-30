@@ -3,6 +3,7 @@ package leyline.bridge
 import forge.game.Game
 import forge.game.GameActionUtil
 import forge.game.GameEntity
+import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.spellability.OptionalCost
@@ -194,16 +195,32 @@ fun getNonManaActivatedAbilities(
     player: Player,
 ): List<SpellAbility> {
     val abilities = mutableListOf<SpellAbility>()
-    for (ability in card.spellAbilities) {
+    val sourceAbilities = card.spellAbilities.toMutableList()
+    val sourceIds = sourceAbilities.map { it.id }.toMutableSet()
+    for (ability in card.allSpellAbilities.orEmpty()) {
+        if (ability.id !in sourceIds && isReconfigureUnattach(ability)) {
+            sourceAbilities.add(ability)
+            sourceIds.add(ability.id)
+        }
+    }
+    for (ability in sourceAbilities) {
         ability.setActivatingPlayer(player)
         val isSpecialTurnFaceUp =
             ability.isDisguiseUp && card.isFaceDown && card.isInZone(ZoneType.Battlefield)
         if (!ability.isActivatedAbility && !isSpecialTurnFaceUp) continue
         if (ability.isManaAbility()) continue
+        if (isReconfigureAttach(ability) && card.isAttachedToEntity) continue
+        if (isReconfigureUnattach(ability) && !card.isAttachedToEntity) continue
         abilities.add(ability)
     }
     return abilities
 }
+
+private fun isReconfigureAttach(ability: SpellAbility): Boolean =
+    ability.api == ApiType.Attach && ability.getParam("PrecostDesc") == "Reconfigure"
+
+private fun isReconfigureUnattach(ability: SpellAbility): Boolean =
+    ability.api == ApiType.Unattach && ability.getParam("PrecostDesc") == "Reconfigure"
 
 fun getPlayableManaAbilities(
     card: Card,

@@ -330,6 +330,8 @@ sealed interface GameEvent {
     data class CardDetached(
         val cardId: ForgeCardId,
         val seatId: SeatId,
+        val targetCardId: ForgeCardId? = null,
+        val invalidatingAbilityGrpId: Int = 0,
     ) : GameEvent
 
     // -- Group B: annotation-producing events --
