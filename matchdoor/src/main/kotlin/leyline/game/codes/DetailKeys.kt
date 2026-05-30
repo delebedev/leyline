@@ -46,6 +46,7 @@ object DetailKeys {
     const val ACTIVE_PLAYER_SPELL_COUNT = "ActivePlayerSpellCount"
     const val PREPARED_COPY_ZCID = "PreparedCopyZcid"
     const val SOURCE_ABILITY_GRPID = "sourceAbilityGRPID"
+    const val INVALIDATING_GRPID = "invalidating_grpid"
     const val LINK_TYPE = "LinkType"
     const val CHOOSE_LINK_TYPE = "ChooseLinkType"
     const val CHOICE_VALUE = "Choice_Value"

@@ -1,0 +1,16 @@
+name: "Leech Gauntlet"
+grpId: 79531
+titleId: 557687
+abilities:
+  - id: 12
+    textId: 38
+    category: 3
+  - id: 139855
+    textId: 477056
+    category: 3
+  - id: 147817
+    textId: 557466
+    category: 1
+    baseId: 237
+    mana: "o4"
+expansionCode: "NEO"

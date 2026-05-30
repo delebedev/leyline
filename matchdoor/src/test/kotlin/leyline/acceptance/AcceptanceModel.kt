@@ -172,6 +172,15 @@ data class BattlefieldStatsAtLeastCondition(
     override val label: String = "${side.yamlName} battlefield $card stats at least $power/$toughness"
 }
 
+data class BattlefieldStatsCondition(
+    val side: AcceptanceSide,
+    val card: String,
+    val power: Int,
+    val toughness: Int,
+) : AcceptanceCondition {
+    override val label: String = "${side.yamlName} battlefield $card stats $power/$toughness"
+}
+
 data class PhaseCondition(
     val phase: String,
 ) : AcceptanceCondition {

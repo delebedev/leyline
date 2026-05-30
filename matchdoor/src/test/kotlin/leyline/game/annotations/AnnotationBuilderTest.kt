@@ -603,6 +603,16 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("removeAttachmentWithTargetAndInvalidatingGrpId") {
+            val ann = AnnotationBuilder.removeAttachment(auraIid = 1400.iid, targetIid = 1500.iid, invalidatingGrpId = 244.grp)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.RemoveAttachment
+                ann.affectorId shouldBe 1400
+                ann.affectedIdsList shouldBe listOf(1500)
+                ann.detailInt("invalidating_grpid") shouldBe 244
+            }
+        }
+
         // --- AttachmentCreated (Group A+) ---
 
         test("attachmentCreatedFields") {

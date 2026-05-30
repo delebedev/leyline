@@ -233,6 +233,7 @@ object AcceptanceSuiteLoader {
             "zone_contains" -> parseZoneContains(value, "$context.zone_contains")
             "zone_not_contains" -> parseZoneNotContains(value, "$context.zone_not_contains")
             "zone_count_at_least" -> parseZoneCountAtLeast(value, "$context.zone_count_at_least")
+            "battlefield_stats" -> parseBattlefieldStats(value, "$context.battlefield_stats")
             "battlefield_stats_at_least" -> parseBattlefieldStatsAtLeast(value, "$context.battlefield_stats_at_least")
             "opponent_life" -> LifeTotalCondition(AcceptanceSide.Opponent, value.asInt("$context.opponent_life"))
             "our_life" -> LifeTotalCondition(AcceptanceSide.Ours, value.asInt("$context.our_life"))
@@ -299,6 +300,19 @@ object AcceptanceSuiteLoader {
         val map = raw.asMap(context)
         return BattlefieldStatsAtLeastCondition(
             side = AcceptanceSide.parse(map.requiredString("side", context)),
+            card = map.requiredString("card", context),
+            power = map.requiredInt("power", context),
+            toughness = map.requiredInt("toughness", context),
+        )
+    }
+
+    private fun parseBattlefieldStats(
+        raw: Any?,
+        context: String,
+    ): BattlefieldStatsCondition {
+        val map = raw.asMap(context)
+        return BattlefieldStatsCondition(
+            side = map.optionalString("side")?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
             card = map.requiredString("card", context),
             power = map.requiredInt("power", context),
             toughness = map.requiredInt("toughness", context),

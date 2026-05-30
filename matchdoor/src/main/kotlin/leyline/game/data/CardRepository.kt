@@ -209,6 +209,7 @@ object KeywordAbilityIds {
     const val TRAINING = 220
     const val ENLIST = 261
     const val STATION = 373
+    const val RECONFIGURE_UNATTACH = 244
 
     // BaseId roots — each printing has its own ability row chaining to this.
     const val KICKER = 34
@@ -231,6 +232,7 @@ object KeywordAbilityIds {
     const val WARP = 371
     const val SNEAK = 394
     const val PARADIGM = 405
+    const val RECONFIGURE = 237
 
     // Triggered ability row used by the recurring Paradigm copy trigger.
     const val PARADIGM_DELAYED_TRIGGER = 205572

@@ -3,6 +3,7 @@ package leyline.game.state
 import forge.ai.LobbyPlayerAi
 import forge.game.Game
 import forge.game.GameType
+import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.player.PlayerView
@@ -34,6 +35,7 @@ import leyline.game.codes.CounterTypes
 import leyline.game.data.CardData
 import leyline.game.data.CardProtoBuilder
 import leyline.game.data.CardRepository
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
@@ -448,14 +450,27 @@ class GameBridge(
      * removed when the crew effect expires (end of turn, vehicle reverts).
      */
     private val activeCrewEffects = mutableMapOf<ForgeCardId, Int>()
+    private val activeReconfigureEffects = mutableMapOf<ForgeCardId, Int>()
 
     /** Get or allocate a synthetic effect ID for a crewed vehicle's type-change effect. */
     fun getOrAllocCrewEffectId(vehicleId: ForgeCardId): Int = activeCrewEffects.getOrPut(vehicleId) { effects.nextEffectId() }
+
+    fun getOrAllocReconfigureEffectId(cardId: ForgeCardId): EffectAllocation {
+        activeReconfigureEffects[cardId]?.let { return EffectAllocation(it, created = false) }
+        val effectId = effects.nextEffectId()
+        activeReconfigureEffects[cardId] = effectId
+        return EffectAllocation(effectId, created = true)
+    }
 
     /** Release expired crew effects. Returns effectIds that were removed. */
     fun releaseCrewEffects(currentCrewedIds: Set<ForgeCardId>): List<Int> {
         val expired = activeCrewEffects.keys - currentCrewedIds
         return expired.mapNotNull { activeCrewEffects.remove(it) }
+    }
+
+    fun releaseReconfigureEffects(currentAttachedIds: Set<ForgeCardId>): List<Int> {
+        val expired = activeReconfigureEffects.keys - currentAttachedIds
+        return expired.mapNotNull { activeReconfigureEffects.remove(it) }
     }
 
     data class EffectAllocation(
@@ -1159,6 +1174,7 @@ class GameBridge(
         delayedTriggerHolders.resetAll()
         resetDecayedCleanupSources()
         activeCrewEffects.clear()
+        activeReconfigureEffects.clear()
         activeMutateMergeEffects.clear()
         abilityRegistries.clear()
         tokenRegistry.clear()
@@ -1464,6 +1480,12 @@ class GameBridge(
         val saddleSourceInstanceIds: List<Int>,
     )
 
+    data class ReconfigureSnapshot(
+        val forgeCardId: ForgeCardId,
+        val instanceId: Int,
+        val attachAbilityGrpId: Int?,
+    )
+
     /**
      * Snapshot which vehicles are currently crewed this turn.
      * Iterates all battlefield cards and checks `card.getCrewedByThisTurn()`.
@@ -1516,6 +1538,27 @@ class GameBridge(
         }
         return result
     }
+
+    fun snapshotReconfigureState(): List<ReconfigureSnapshot> {
+        val game = game ?: return emptyList()
+        val result = mutableListOf<ReconfigureSnapshot>()
+        for (player in game.players) {
+            for (card in player.getZone(ZoneType.Battlefield).cards) {
+                if (card.attachedTo == null || !hasReconfigureUnattach(card)) continue
+                val fid = ForgeCardId(card.id)
+                val iid = ids.getOrAlloc(fid).value
+                val grpId = cardRepository.findGrpIdByName(card.name)
+                val abilityGrpId = grpId?.let { cardRepository.findKeywordAbilityGrpId(it, KeywordAbilityIds.RECONFIGURE) }
+                result.add(ReconfigureSnapshot(fid, iid, abilityGrpId))
+            }
+        }
+        return result
+    }
+
+    private fun hasReconfigureUnattach(card: Card): Boolean =
+        card.allSpellAbilities.orEmpty().any {
+            it.api == ApiType.Unattach && it.getParam("PrecostDesc") == "Reconfigure"
+        }
 
     /**
      * Resolve crew ability grpId for a card via its ability registry.

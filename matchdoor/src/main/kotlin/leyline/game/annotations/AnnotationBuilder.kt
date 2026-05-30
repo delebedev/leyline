@@ -499,12 +499,25 @@ object AnnotationBuilder {
 
     /** Transient: Aura/Equipment detached from target. client type 12 (RemoveAttachment).
      *  [auraIid] = the aura/equipment instanceId that was removed. */
-    fun removeAttachment(auraIid: InstanceId): AnnotationInfo =
+    fun removeAttachment(
+        auraIid: InstanceId,
+        targetIid: InstanceId? = null,
+        invalidatingGrpId: GrpId? = null,
+    ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.RemoveAttachment)
-            .addAffectedIds(auraIid.value)
-            .build()
+            .apply {
+                if (targetIid != null) {
+                    setAffectorId(auraIid.value)
+                    addAffectedIds(targetIid.value)
+                } else {
+                    addAffectedIds(auraIid.value)
+                }
+                if (invalidatingGrpId != null) {
+                    addDetails(int32Detail(DetailKeys.INVALIDATING_GRPID, invalidatingGrpId.value))
+                }
+            }.build()
 
     // -- Group B+ annotation builders (reveals) --
 

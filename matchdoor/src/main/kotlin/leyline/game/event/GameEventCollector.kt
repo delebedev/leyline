@@ -783,9 +783,26 @@ class GameEventCollector(
             frame.add(GameEvent.CardAttached(ForgeCardId(card.id), ForgeCardId(newTarget.id), seat))
             log.debug("event: CardAttached card={} target={} seat={}", card.name, newTarget.name, seat)
         } else {
-            frame.add(GameEvent.CardDetached(ForgeCardId(card.id), seat))
+            val oldTargetId = (ev.oldEntity() as? CardView)?.id?.let(::ForgeCardId)
+            val invalidatingGrpId =
+                if (isResolvingReconfigureUnattach(card.id)) {
+                    KeywordAbilityIds.RECONFIGURE_UNATTACH
+                } else {
+                    0
+                }
+            frame.add(GameEvent.CardDetached(ForgeCardId(card.id), seat, oldTargetId, invalidatingGrpId))
             log.debug("event: CardDetached card={} seat={}", card.name, seat)
         }
+    }
+
+    private fun isResolvingReconfigureUnattach(cardId: Int): Boolean {
+        val sa =
+            bridge
+                .getGame()
+                ?.stack
+                ?.peek()
+                ?.spellAbility ?: return false
+        return sa.hostCard?.id == cardId && sa.api == ApiType.Unattach && sa.getParam("PrecostDesc") == "Reconfigure"
     }
 
     // -- Group B: annotation-producing events --

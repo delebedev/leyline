@@ -1,6 +1,7 @@
 package leyline.match
 
 import forge.card.MagicColor
+import forge.game.ability.ApiType
 import leyline.bridge.findCard
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
@@ -383,6 +384,7 @@ class ActionPerformer(
      * Resolve abilityIndex from `action.abilityGrpId` using the AbilityRegistry's
      * SlotLayout. Falls back to 0 when any lookup step fails.
      */
+    @Suppress("ReturnCount")
     private fun resolveAbilityIndex(
         action: Action,
         bridge: GameBridge,
@@ -410,6 +412,13 @@ class ActionPerformer(
         val game = bridge.getGame() ?: return 0
         val forgeCard = game.findById(forgeCardId.value) ?: return 0
         val registry = bridge.abilityRegistryFor(forgeCard, cardData) ?: return 0
+
+        if (abilityGrpId == KeywordAbilityIds.RECONFIGURE_UNATTACH) {
+            val player = bridge.getPlayer(counters.seatId) ?: return 0
+            return getNonManaActivatedAbilities(forgeCard, player)
+                .indexOfFirst { it.api == ApiType.Unattach && it.getParam("PrecostDesc") == "Reconfigure" }
+                .takeIf { it >= 0 } ?: 0
+        }
 
         val index = registry.slotLayout.forgeIndexFor(abilityGrpId)
         return if (index != null && index >= 0) index else 0

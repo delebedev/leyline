@@ -293,6 +293,21 @@ class MatchdoorAcceptanceExecutor(
                 }
             }
 
+            is BattlefieldStatsCondition -> {
+                val card =
+                    player(condition.side, harness)
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .firstOrNull { it.name.equals(condition.card, ignoreCase = true) }
+                if (card == null) {
+                    "${condition.label}; actual battlefield=${
+                        zoneCardNames(harness, condition.side, AcceptanceZone.Battlefield)
+                    }"
+                } else {
+                    "${condition.label}; actual stats=${card.netPower}/${card.netToughness}"
+                }
+            }
+
             is PhaseCondition -> "${condition.label}; actual phase=${harness.phase()}"
             is PromptCondition ->
                 "${condition.label}; actual latest prompt=${latestPromptName(harness) ?: "none"}"
@@ -309,6 +324,7 @@ class MatchdoorAcceptanceExecutor(
             is ZoneNotContainsCondition -> zoneNotContains(harness, condition)
             is ZoneCountAtLeastCondition -> zoneCountAtLeast(harness, condition)
             is LifeTotalCondition -> player(condition.side, harness).life == condition.value
+            is BattlefieldStatsCondition -> battlefieldStats(harness, condition)
             is BattlefieldStatsAtLeastCondition -> battlefieldStatsAtLeast(harness, condition)
             is PhaseCondition -> phaseMatches(harness.phase(), condition.phase)
             is PromptCondition -> promptSeen(harness, condition.prompt)
@@ -409,6 +425,19 @@ class MatchdoorAcceptanceExecutor(
                 .firstOrNull { it.name.equals(condition.card, ignoreCase = true) }
                 ?: return false
         return card.netPower >= condition.power && card.netToughness >= condition.toughness
+    }
+
+    private fun battlefieldStats(
+        harness: MatchFlowHarness,
+        condition: BattlefieldStatsCondition,
+    ): Boolean {
+        val card =
+            player(condition.side, harness)
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .firstOrNull { it.name.equals(condition.card, ignoreCase = true) }
+                ?: return false
+        return card.netPower == condition.power && card.netToughness == condition.toughness
     }
 
     private fun promptSeen(

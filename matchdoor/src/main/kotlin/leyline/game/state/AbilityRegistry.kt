@@ -1,11 +1,14 @@
 package leyline.game.state
 
+import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.keyword.KeywordInterface
+import forge.game.spellability.SpellAbility
 import leyline.game.codes.SlotEntry
 import leyline.game.codes.SlotKind
 import leyline.game.codes.SlotLayout
 import leyline.game.data.CardData
+import leyline.game.data.KeywordAbilityIds
 
 /**
  * Maps Forge trait IDs (SpellAbility, Trigger, StaticAbility) to client
@@ -80,6 +83,7 @@ class AbilityRegistry private constructor(
                     emptyList()
                 }
             mapActivatedAbilities(card, abilityIds, activatedSlotIndices, saMap)
+            mapReconfigureUnattachAbilities(card, saMap)
             mapStationThresholdStatics(card, abilityIds, staticMap)
             mapManaAbilities(card, abilityIds, manaSlotIndices, fallbackGrpId, saMap)
             mapUnclaimedIntrinsicTriggers(card, cardData, abilityIds, keywordCount, triggerMap)
@@ -90,11 +94,12 @@ class AbilityRegistry private constructor(
             // Derive SlotLayout from the same data — single source of truth.
             // Use cardData.abilityKinds when available so triggers/statics interleaved
             // among Arena's slots (e.g. Kaito at slot 0) get classified correctly.
-            val activatedCount = slotKinds.count { it == SlotKind.Activated }
+            val virtualSlots = reconfigureUnattachSlot(card)
+            val activatedCount = slotKinds.count { it == SlotKind.Activated } + virtualSlots.count { it.kind == SlotKind.Activated }
             val slots =
                 abilityIds.mapIndexed { i, (grpId, textId) ->
                     SlotEntry(grpId, textId, slotKinds[i])
-                }
+                } + virtualSlots
             val layout = SlotLayout(keywordCount, activatedCount, slots)
 
             return AbilityRegistry(saMap, staticMap, triggerMap, layout)
@@ -176,6 +181,10 @@ class AbilityRegistry private constructor(
             for (sa in card.spellAbilities ?: emptyList()) {
                 if (!sa.isActivatedAbility || sa.isManaAbility()) continue
                 if (!sa.isIntrinsic) continue
+                if (isReconfigureUnattach(sa)) {
+                    saMap[sa.id] = KeywordAbilityIds.RECONFIGURE_UNATTACH
+                    continue
+                }
                 if (idx >= activatedSlotIndices.size) {
                     idx++
                     continue
@@ -183,6 +192,15 @@ class AbilityRegistry private constructor(
                 val slotIdx = activatedSlotIndices[idx]
                 if (slotIdx < abilityIds.size) saMap[sa.id] = abilityIds[slotIdx].first
                 idx++
+            }
+        }
+
+        private fun mapReconfigureUnattachAbilities(
+            card: Card,
+            saMap: MutableMap<Int, Int>,
+        ) {
+            for (sa in card.allSpellAbilities.orEmpty()) {
+                if (isReconfigureUnattach(sa)) saMap[sa.id] = KeywordAbilityIds.RECONFIGURE_UNATTACH
             }
         }
 
@@ -302,10 +320,21 @@ class AbilityRegistry private constructor(
             kw: KeywordInterface,
             rulesText: String,
         ): Boolean {
+            if (rulesText.startsWith("Reconfigure", ignoreCase = true)) return false
             if (kw.original.equals(rulesText, ignoreCase = true)) return true
             val kwName = kw.keyword.toString()
             return rulesText.startsWith(kwName, ignoreCase = true)
         }
+
+        private fun reconfigureUnattachSlot(card: Card): List<SlotEntry> =
+            if (card.allSpellAbilities.orEmpty().any { isReconfigureUnattach(it) }) {
+                listOf(SlotEntry(KeywordAbilityIds.RECONFIGURE_UNATTACH, 0, SlotKind.Activated))
+            } else {
+                emptyList()
+            }
+
+        private fun isReconfigureUnattach(sa: SpellAbility): Boolean =
+            sa.api == ApiType.Unattach && sa.getParam("PrecostDesc") == "Reconfigure"
 
         private const val STATION_THRESHOLD_ABILITY_ID_FLOOR = 60_000
     }

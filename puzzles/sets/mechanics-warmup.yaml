@@ -63,3 +63,23 @@ scenarios:
             - zone_contains: { side: ours, zone: hand, card: Environmental Sciences }
             - zone_not_contains: { side: ours, zone: sideboard, card: Environmental Sciences }
             - stack_empty: true
+  - id: reconfigure-attach-unattach
+    puzzle: reconfigure-rabbit-battery
+    run: attach Rabbit Battery to Grizzly Bears, then unattach it
+    expect: Grizzly Bears is 3/3 while equipped and returns to 2/2 after unattach
+    steps:
+      - wait:
+          action: { type: activate, card: Rabbit Battery }
+      - activate: { card: Rabbit Battery, ability_index: 0 }
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - expect:
+          all:
+            - battlefield_stats: { side: ours, card: Grizzly Bears, power: 3, toughness: 3 }
+            - stack_empty: true
+      - wait:
+          action: { type: activate, card: Rabbit Battery }
+      - activate: { card: Rabbit Battery, ability_index: 0 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats: { side: ours, card: Grizzly Bears, power: 2, toughness: 2 }

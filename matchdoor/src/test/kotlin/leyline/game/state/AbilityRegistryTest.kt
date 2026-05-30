@@ -1,5 +1,6 @@
 package leyline.game.state
 
+import forge.game.ability.ApiType
 import forge.game.staticability.StaticAbilityMode
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
@@ -50,6 +51,27 @@ class AbilityRegistryTest :
 
             registry.forSpellAbility(ninjutsuAbility.id) shouldBe 5341
             registry.slotLayout.forgeIndexFor(5341) shouldBe 0
+        }
+
+        test("Reconfigure attach and unattach map to distinct activated slots") {
+            val cardName = "Rabbit Battery"
+            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val injected = TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
+            val activated =
+                injected.card.spellAbilities
+                    .filter { it.isActivatedAbility && it.isIntrinsic && !it.isManaAbility() }
+            activated.shouldHaveSize(2)
+
+            val attach = activated.single { it.api == ApiType.Attach }
+            val unattach = activated.single { it.api == ApiType.Unattach }
+            val registry = AbilityRegistry.build(injected.card, CardDataDeriver.fromForgeCard(injected.card, cardName))
+
+            assertSoftly {
+                registry.forSpellAbility(attach.id) shouldBe 147974
+                registry.forSpellAbility(unattach.id) shouldBe 244
+                registry.slotLayout.forgeIndexFor(147974) shouldBe 0
+                registry.slotLayout.forgeIndexFor(244) shouldBe 1
+            }
         }
 
         test("unclaimed intrinsic static maps to matching intrinsic ability slot") {
