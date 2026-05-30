@@ -719,21 +719,18 @@ class BundleBuilder(
     fun selectNBundle(
         game: Game,
         counter: MessageCounter,
-        req: SelectNReq,
-        isLegendRule: Boolean = false,
-        isRevealChoose: Boolean = false,
-        isResolution: Boolean = false,
-        isMutateTopBottom: Boolean = false,
-        learnPromptId: Int? = null,
+        envelope: SelectNEnvelope,
     ): BundleResult {
         val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
         val nextGs = diff.gameStateId
         val snap = diff.snap
         val gs =
-            when {
-                isResolution -> attachLookAndPickGameObjects(diff.result.gsm, req, snap)
-                learnPromptId != null -> attachLearnLessonGameObjects(diff.result.gsm, req, snap)
-                else -> diff.result.gsm
+            when (envelope.gameStateAugmentation) {
+                SelectNEnvelope.GameStateAugmentation.LookAndPick ->
+                    attachLookAndPickGameObjects(diff.result.gsm, envelope.req, snap)
+                SelectNEnvelope.GameStateAugmentation.LearnLesson ->
+                    attachLearnLessonGameObjects(diff.result.gsm, envelope.req, snap)
+                SelectNEnvelope.GameStateAugmentation.None -> diff.result.gsm
             }
         val msg1 =
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
@@ -742,88 +739,10 @@ class BundleBuilder(
 
         val msg2 =
             makeGRE(GREMessageType.SelectNreq, nextGs, counter.nextMsgId()) {
-                it.selectNReq = req
-                when {
-                    isLegendRule -> {
-                        // Legend rule: promptId=72 + CardId param, no cancel allowed.
-                        it.setPrompt(
-                            Prompt
-                                .newBuilder()
-                                .setPromptId(PromptIds.SELECT_N_LEGEND_RULE)
-                                .addParameters(
-                                    PromptParameter
-                                        .newBuilder()
-                                        .setParameterName("CardId")
-                                        .setType(ParameterType.Number),
-                                ).build(),
-                        )
-                        it.allowCancel = AllowCancel.No_a526
-                    }
-                    isRevealChoose -> {
-                        // Reveal-choose (Duress, Revealing Eye): no cancel.
-                        it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
-                        it.allowCancel = AllowCancel.No_a526
-                    }
-                    isResolution -> {
-                        // Look-and-pick (Stock Up / Dig).
-                        //   outer prompt: card-specific promptId + 2 CardId Number
-                        //     params (source iid, selection count).
-                        //   inner SelectNReq.prompt: built in RequestBuilder with
-                        //     a PromptId Parameter, no top-level promptId.
-                        //   allowCancel: No (engine drives the pick).
-                        // promptId is Stock-Up-specific today — see PromptIds.SELECT_N_STOCK_UP
-                        // KDoc for the dispatcher TODO once we add a second Dig card.
-                        // Second CardId param is `maxSel` (= player-facing count). For
-                        // Stock Up min == max == 2; for "up to N" Brainstorm-shape effects
-                        // this may need to become a dedicated `count` field.
-                        it.setPrompt(
-                            Prompt
-                                .newBuilder()
-                                .setPromptId(PromptIds.SELECT_N_STOCK_UP)
-                                .addParameters(
-                                    PromptParameter
-                                        .newBuilder()
-                                        .setParameterName("CardId")
-                                        .setType(ParameterType.Number)
-                                        .setNumberValue(req.sourceId),
-                                ).addParameters(
-                                    PromptParameter
-                                        .newBuilder()
-                                        .setParameterName("CardId")
-                                        .setType(ParameterType.Number)
-                                        .setNumberValue(req.maxSel),
-                                ).build(),
-                        )
-                        it.allowCancel = AllowCancel.No_a526
-                    }
-                    isMutateTopBottom -> {
-                        it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
-                        it.allowCancel = AllowCancel.No_a526
-                    }
-                    learnPromptId != null -> {
-                        it.setPrompt(
-                            Prompt
-                                .newBuilder()
-                                .setPromptId(learnPromptId)
-                                .addParameters(
-                                    PromptParameter
-                                        .newBuilder()
-                                        .setParameterName("CardId")
-                                        .setType(ParameterType.Number)
-                                        .setNumberValue(req.sourceId),
-                                ).addParameters(
-                                    PromptParameter
-                                        .newBuilder()
-                                        .setParameterName("CardId")
-                                        .setType(ParameterType.Number)
-                                        .setNumberValue(req.maxSel),
-                                ).build(),
-                        )
-                        it.allowCancel = AllowCancel.Continue
-                    }
-                    else -> {
-                        it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
-                    }
+                it.selectNReq = envelope.req
+                it.setPrompt(envelope.prompt)
+                if (envelope.allowCancel != AllowCancel.None_a526) {
+                    it.allowCancel = envelope.allowCancel
                 }
             }
 

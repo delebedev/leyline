@@ -609,7 +609,7 @@ class BundleBuilderTest :
                     .setMinSel(1)
                     .setMaxSel(1)
                     .build()
-            val result = base.bundleBuilder(b).selectNBundle(game, counter, req)
+            val result = base.bundleBuilder(b).selectNBundle(game, counter, SelectNEnvelope.default(req))
 
             assertSoftly {
                 result.messages.size shouldBe 2
