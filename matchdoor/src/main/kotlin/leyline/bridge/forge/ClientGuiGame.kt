@@ -623,10 +623,10 @@ class ClientGuiGame(
         message: String,
     ) {}
 
-    override fun showCardPromptMessage(
+    override fun showPromptMessage(
         playerView: PlayerView,
         message: String,
-        card: CardView,
+        card: CardView?,
     ) {}
 
     override fun updateButtons(
