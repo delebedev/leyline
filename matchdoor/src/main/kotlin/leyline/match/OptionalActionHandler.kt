@@ -158,9 +158,22 @@ class OptionalActionHandler(
                         .setNumberValue(recipientId),
                 ).build()
 
-        // Bare GSM diff with pendingMessageCount=1 — signals the client that
-        // OptionalActionMessage follows. Without this, the client may process
-        // the preceding GSM before the prompt arrives.
+        if (!isCommanderReturnPrompt) {
+            PendingPromptEnvelope.sendBare(
+                sink,
+                counters,
+                GREMessageType.OptionalActionMessage_695e,
+            ) {
+                it.optionalActionMessage = optionalMsg
+                it.prompt = promptProto
+                // Controls Cancel button visibility, NOT whether declining is allowed.
+                // Player can always decline via CancelNo response regardless of this value.
+                it.allowCancel = AllowCancel.No_a526
+            }
+            return
+        }
+        val commanderContext = checkNotNull(commanderReturn)
+
         val link = counters.counter.nextGameStateLink()
         val pendingGsmBuilder =
             GameStateMessage
@@ -169,24 +182,20 @@ class OptionalActionHandler(
                 .setGameStateId(link.gsId)
                 .setPrevGameStateId(link.prevGsId)
                 .setPendingMessageCount(1)
-        if (isCommanderReturnPrompt) {
-            val snap = GsmSnapshot.capture(ctx.game, bridge, "", link.gsId)
-            pendingGsmBuilder
-                .setTurnInfo(GsmFrame.from(snap).turnInfo())
-                .addAllTimers(PlayerMapper.buildTimers())
-                .setUpdate(GameStateUpdate.Send)
-            addReplacementPromptContext(pendingGsmBuilder, snap, hostCard.id, commanderReturn)
-            val actions = ActionMapper.buildFromSnapshot(counters.seatId.value, snap, bridge)
-            for (action in actions.actionsList) {
-                pendingGsmBuilder.addActions(
-                    ActionInfo
-                        .newBuilder()
-                        .setSeatId(counters.seatId.value)
-                        .setAction(ActionMapper.stripActionForGsm(action)),
-                )
-            }
-        } else {
-            pendingGsmBuilder.setUpdate(GameStateUpdate.SendAndRecord)
+        val snap = GsmSnapshot.capture(ctx.game, bridge, "", link.gsId)
+        pendingGsmBuilder
+            .setTurnInfo(GsmFrame.from(snap).turnInfo())
+            .addAllTimers(PlayerMapper.buildTimers())
+            .setUpdate(GameStateUpdate.Send)
+        addReplacementPromptContext(pendingGsmBuilder, snap, hostCard.id, commanderContext)
+        val actions = ActionMapper.buildFromSnapshot(counters.seatId.value, snap, bridge)
+        for (action in actions.actionsList) {
+            pendingGsmBuilder.addActions(
+                ActionInfo
+                    .newBuilder()
+                    .setSeatId(counters.seatId.value)
+                    .setAction(ActionMapper.stripActionForGsm(action)),
+            )
         }
         val pendingGsm = pendingGsmBuilder.build()
 

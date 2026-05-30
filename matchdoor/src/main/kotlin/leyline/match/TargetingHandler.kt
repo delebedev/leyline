@@ -11,6 +11,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.CollectEvidencePayCostsBuilder
 import leyline.game.bundle.RequestBuilder
+import leyline.game.bundle.SelectNEnvelope
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.SearchShape
@@ -1230,29 +1231,44 @@ class TargetingHandler(
         val game = ctx.game
         val bb = bundles.bundleBuilder
         val req = bb.buildSelectNReq(pendingPrompt)
+        val envelope = selectNEnvelope(pendingPrompt, reason, req)
         val result =
             bb.selectNBundle(
                 game,
                 counters.counter,
-                req,
-                isLegendRule = reason == ClassifiedPrompt.SelectN.Reason.LegendRule,
-                isRevealChoose = reason == ClassifiedPrompt.SelectN.Reason.RevealChoose,
-                isResolution = reason == ClassifiedPrompt.SelectN.Reason.Resolution,
-                isMutateTopBottom = reason == ClassifiedPrompt.SelectN.Reason.MutateTopBottom,
-                learnPromptId = learnPromptId(pendingPrompt, reason),
+                envelope,
             )
         Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 
-    private fun learnPromptId(
-        pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        reason: ClassifiedPrompt.SelectN.Reason,
-    ): Int? {
-        if (reason != ClassifiedPrompt.SelectN.Reason.LearnLesson) return null
+    private fun learnPromptId(pendingPrompt: InteractivePromptBridge.PendingPrompt): Int {
         val hasHandChoice = pendingPrompt.request.candidateRefs.any { it.zone == "Hand" }
         return if (hasHandChoice) PromptIds.LEARN_LESSON_OR_DISCARD else PromptIds.LEARN_LESSON_ONLY
     }
+
+    private fun selectNEnvelope(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        reason: ClassifiedPrompt.SelectN.Reason,
+        req: SelectNReq,
+    ): SelectNEnvelope =
+        when (reason) {
+            ClassifiedPrompt.SelectN.Reason.LegendRule -> SelectNEnvelope.legendRule(req)
+            ClassifiedPrompt.SelectN.Reason.Discard,
+            ClassifiedPrompt.SelectN.Reason.SacrificeEffect,
+            -> SelectNEnvelope.default(req)
+            ClassifiedPrompt.SelectN.Reason.RevealChoose -> SelectNEnvelope.revealChoose(req)
+            ClassifiedPrompt.SelectN.Reason.Resolution -> SelectNEnvelope.resolution(req)
+            ClassifiedPrompt.SelectN.Reason.MutateTopBottom -> SelectNEnvelope.mutateTopBottom(req)
+            ClassifiedPrompt.SelectN.Reason.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId(pendingPrompt))
+            ClassifiedPrompt.SelectN.Reason.Sacrifice,
+            ClassifiedPrompt.SelectN.Reason.ExileFromGrave,
+            ClassifiedPrompt.SelectN.Reason.CollectEvidenceCost,
+            ClassifiedPrompt.SelectN.Reason.EnlistCost,
+            ClassifiedPrompt.SelectN.Reason.StationTapCost,
+            ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost,
+            -> error("cost SelectN uses PayCostsReq")
+        }
 
     private fun sendSacrificePayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
         val bridge = ctx.bridge

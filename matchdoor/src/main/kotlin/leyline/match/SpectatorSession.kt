@@ -57,7 +57,7 @@ class SpectatorSession(
     /** Drain AI playback batches to the observer. Returns true when anything was sent. */
     fun pumpOnce(): Boolean {
         var sent = false
-        val playback = gameBridge.playbacks[seatId]
+        val playback = gameBridge.playbackFor(seatId)
         if (playback != null && playback.hasPendingMessages()) {
             for (batch in playback.drainQueue()) {
                 sendBundledGRE(batch)

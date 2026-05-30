@@ -738,7 +738,7 @@ open class CombatHandler(
      * drain and send.
      */
     private fun drainPendingPlayback() {
-        val playback = ctx.bridge.playbacks[counters.seatId] ?: return
+        val playback = ctx.bridge.playbackFor(counters.seatId) ?: return
         if (playback.hasPendingMessages()) {
             val batches = playback.drainQueue()
             for (batch in batches) {

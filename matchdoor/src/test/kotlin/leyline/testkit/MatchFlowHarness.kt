@@ -92,6 +92,18 @@ class MatchFlowHarness(
 
     val accumulator = ClientAccumulator()
     val allMessages = mutableListOf<GREToClientMessage>()
+    private val messageLog = MatchFlowMessageLog(allMessages)
+
+    private val combatDriver =
+        MatchFlowCombatDriver(
+            seatId = seatId,
+            bridge = { bridge },
+            session = { session },
+            messageSnapshot = { messageLog.snapshot() },
+            messagesSince = { snapshot -> messageLog.since(snapshot) },
+            submitWithGsId = { msg -> submitWithGsId(msg) },
+            drainSink = { drainSink() },
+        )
 
     /** All raw messages (SettingsResp, MatchCompleted, etc.) sent via [MessageSink.sendRaw]. */
     val allRawMessages = mutableListOf<MatchServiceToClientMessage>()
@@ -497,32 +509,17 @@ class MatchFlowHarness(
     // --- Combat helpers ---
 
     /** Human's creatures on the battlefield: (instanceId, cardName). */
-    fun humanBattlefieldCreatures(): List<Pair<Int, String>> {
-        val player = bridge.getPlayer(seatId) ?: return emptyList()
-        return player
-            .getZone(ZoneType.Battlefield)
-            .cards
-            .filter { it.isCreature }
-            .map { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value to it.name }
-    }
+    fun humanBattlefieldCreatures(): List<Pair<Int, String>> = combatDriver.humanBattlefieldCreatures()
 
     /**
      * Declare attackers by instanceId using the two-phase Arena protocol:
      * 1. Send [DeclareAttackersResp] with selection (iterative update)
      * 2. Send [SubmitAttackersReq] to finalize (the "Done" button)
      */
-    fun declareAttackers(attackerInstanceIds: List<Int>) {
-        session.onDeclareAttackers(submitWithGsId(declareAttackersResp(attackers = attackerInstanceIds)))
-        drainSink()
-
-        session.onDeclareAttackers(submitWithGsId(submitAttackersReq(seatId.value)))
-        drainSink()
-    }
+    fun declareAttackers(attackerInstanceIds: List<Int>) = combatDriver.declareAttackers(attackerInstanceIds)
 
     /** Declare no attackers (skip combat). Sends empty selection then submits. */
-    fun declareNoAttackers() {
-        declareAttackers(emptyList())
-    }
+    fun declareNoAttackers() = combatDriver.declareNoAttackers()
 
     /**
      * Send only the iterative DeclareAttackersResp (no Submit) — simulates an Arena
@@ -531,19 +528,7 @@ class MatchFlowHarness(
     fun toggleAttackers(
         attackerInstanceIds: List<Int>,
         attackerAlternatives: Map<Int, Int> = emptyMap(),
-    ): List<GREToClientMessage> {
-        val snap = messageSnapshot()
-        session.onDeclareAttackers(
-            submitWithGsId(
-                declareAttackersResp(
-                    attackers = attackerInstanceIds,
-                    attackerAlternatives = attackerAlternatives,
-                ),
-            ),
-        )
-        drainSink()
-        return messagesSince(snap)
-    }
+    ): List<GREToClientMessage> = combatDriver.toggleAttackers(attackerInstanceIds, attackerAlternatives)
 
     /**
      * Send SubmitAttackersReq (type=31, no payload) — the reference client's "Done" button.
@@ -553,10 +538,7 @@ class MatchFlowHarness(
      * confirmation sends [SubmitAttackersReq] (type=31) which is **type-only,
      * no payload**. The server must use the last known selection.
      */
-    fun submitAttackers() {
-        session.onDeclareAttackers(submitWithGsId(submitAttackersReq(seatId.value)))
-        drainSink()
-    }
+    fun submitAttackers() = combatDriver.submitAttackers()
 
     /**
      * Send DeclareAttackersResp with auto_declare=true — the "Attack All" button.
@@ -564,10 +546,7 @@ class MatchFlowHarness(
      * In Arena, this is the iterative update that selects all qualified attackers
      * targeting the specified damage recipient. Should be followed by [submitAttackers].
      */
-    fun declareAllAttackers() {
-        session.onDeclareAttackers(submitWithGsId(declareAttackersResp(autoDeclare = true, autoDeclareTarget = 2)))
-        drainSink()
-    }
+    fun declareAllAttackers() = combatDriver.declareAllAttackers()
 
     /**
      * Declare blockers with assignments using two-phase Arena protocol:
@@ -576,49 +555,27 @@ class MatchFlowHarness(
      *
      * Each entry means "this blocker blocks that attacker."
      */
-    fun declareBlockers(assignments: Map<Int, Int>) {
-        session.onDeclareBlockers(submitWithGsId(declareBlockersResp(assignments)))
-        drainSink()
-
-        session.onDeclareBlockers(submitWithGsId(submitBlockersReq(seatId.value)))
-        drainSink()
-    }
+    fun declareBlockers(assignments: Map<Int, Int>) = combatDriver.declareBlockers(assignments)
 
     /** Declare no blockers (let all attackers through). Sends SubmitBlockersReq directly. */
-    fun declareNoBlockers() {
-        session.onDeclareBlockers(submitWithGsId(submitBlockersReq(seatId.value)))
-        drainSink()
-    }
+    fun declareNoBlockers() = combatDriver.declareNoBlockers()
 
     /**
      * Send only the iterative DeclareBlockersResp (no Submit) — simulates a single
      * blocker assignment click. Returns messages produced by the echo-back.
      */
-    fun toggleBlockers(assignments: Map<Int, Int>): List<GREToClientMessage> {
-        val snap = messageSnapshot()
-        session.onDeclareBlockers(submitWithGsId(declareBlockersResp(assignments)))
-        drainSink()
-        return messagesSince(snap)
-    }
+    fun toggleBlockers(assignments: Map<Int, Int>): List<GREToClientMessage> = combatDriver.toggleBlockers(assignments)
 
     /**
      * Send DeclareBlockersResp deselecting a single blocker (wire shape: Blocker
      * entry with blockerInstanceId and empty selectedAttackerInstanceIds).
      */
-    fun deselectBlocker(blockerInstanceId: Int): List<GREToClientMessage> {
-        val snap = messageSnapshot()
-        session.onDeclareBlockers(submitWithGsId(declareBlockersRespDeselect(blockerInstanceId)))
-        drainSink()
-        return messagesSince(snap)
-    }
+    fun deselectBlocker(blockerInstanceId: Int): List<GREToClientMessage> = combatDriver.deselectBlocker(blockerInstanceId)
 
     /**
      * Send SubmitBlockersReq (type-only, no payload) — the reference client's "Done" button.
      */
-    fun submitBlockers() {
-        session.onDeclareBlockers(submitWithGsId(submitBlockersReq(seatId.value)))
-        drainSink()
-    }
+    fun submitBlockers() = combatDriver.submitBlockers()
 
     // --- Damage assignment helpers ---
 
@@ -628,10 +585,7 @@ class MatchFlowHarness(
      * @param assigners list of (attackerInstanceId, assignments) where assignments
      *                  is a list of (blockerOrDefenderInstanceId, damage)
      */
-    fun assignDamage(assigners: List<Pair<Int, List<Pair<Int, Int>>>>) {
-        session.onAssignDamage(submitWithGsId(assignDamageResp(assigners)))
-        drainSink()
-    }
+    fun assignDamage(assigners: List<Pair<Int, List<Pair<Int, Int>>>>) = combatDriver.assignDamage(assigners)
 
     // --- Targeting helpers ---
 
@@ -948,18 +902,16 @@ class MatchFlowHarness(
     // --- Message inspection ---
 
     /** Snapshot current message count for later comparison with [messagesSince]. */
-    fun messageSnapshot(): Int = allMessages.size
+    fun messageSnapshot(): Int = messageLog.snapshot()
 
     /** Get all messages since a snapshot point. */
-    fun messagesSince(snapshot: Int): List<GREToClientMessage> = allMessages.subList(snapshot, allMessages.size).toList()
+    fun messagesSince(snapshot: Int): List<GREToClientMessage> = messageLog.since(snapshot)
 
     /** Get all game-state messages since a snapshot point. */
-    fun gameStateMessagesSince(snapshot: Int): List<GameStateMessage> =
-        messagesSince(snapshot)
-            .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+    fun gameStateMessagesSince(snapshot: Int): List<GameStateMessage> = messageLog.gameStateMessagesSince(snapshot)
 
     /** Get all annotations from game-state messages since a snapshot point. */
-    fun annotationsSince(snapshot: Int): List<AnnotationInfo> = gameStateMessagesSince(snapshot).flatMap { it.annotationsList }
+    fun annotationsSince(snapshot: Int): List<AnnotationInfo> = messageLog.annotationsSince(snapshot)
 
     // --- State queries ---
 
@@ -1043,13 +995,7 @@ class MatchFlowHarness(
      * shared mutable state advanced from the engine thread, so reading it
      * races against in-flight emissions.
      */
-    fun latestPromptGsId(): Int {
-        for (i in allMessages.indices.reversed()) {
-            val m = allMessages[i]
-            if (m.type in harnessPromptGreTypes) return m.gameStateId
-        }
-        return 0
-    }
+    fun latestPromptGsId(): Int = messageLog.latestPromptGsId()
 
     /**
      * Reflect the latest prompt gsId onto a client message before it enters
@@ -1277,19 +1223,3 @@ class MatchFlowHarness(
         sink.clear()
     }
 }
-
-private val harnessPromptGreTypes: Set<GREMessageType> =
-    setOf(
-        GREMessageType.ActionsAvailableReq_695e,
-        GREMessageType.SelectTargetsReq_695e,
-        GREMessageType.SelectNreq,
-        GREMessageType.GroupReq_695e,
-        GREMessageType.SearchReq_695e,
-        GREMessageType.DeclareAttackersReq_695e,
-        GREMessageType.DeclareBlockersReq_695e,
-        GREMessageType.CastingTimeOptionsReq_695e,
-        GREMessageType.PayCostsReq_695e,
-        GREMessageType.PromptReq,
-        GREMessageType.OptionalActionMessage_695e,
-        GREMessageType.AssignDamageReq_695e,
-    )

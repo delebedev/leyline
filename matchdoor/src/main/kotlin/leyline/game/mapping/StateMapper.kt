@@ -38,6 +38,7 @@ import leyline.game.state.EffectTracker
 import leyline.game.state.FaceDownDisguiseKind
 import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
+import leyline.game.state.HolderBatch
 import leyline.game.state.LeftUnlockedDesignationKind
 import leyline.game.state.ModifiedTypeForCrewKind
 import leyline.game.state.MutateLayeredEffectKind
@@ -349,18 +350,18 @@ object StateMapper {
         )
 
         // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
-        val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, eventsMutable)
+        var transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, eventsMutable)
         recordParadigmSourceStackIids(transferResult, bridge)
         // Frame-scoped id resolver — uses the planned-realloc map so any consumer
         // asking "what iid will the client see for this card?" gets the
         // post-realloc answer even before applyMutations runs.
         val frameIds = FrameIdResolver(bridge, FrameIdResolver.postReallocIids(transferResult))
-        val transferResultWithDecayedAffectors = transferResult.withDecayedCleanupAffectors(eventsMutable, snap, bridge, frameIds)
+        transferResult = transferResult.withDecayedCleanupAffectors(eventsMutable, snap, bridge, frameIds)
         val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
             computeAnnotations(
                 eventsMutable,
-                transferResultWithDecayedAffectors,
+                transferResult,
                 actingSeat,
                 bridge,
                 prev = prev,
@@ -368,7 +369,7 @@ object StateMapper {
                 frameIds = frameIds,
             )
 
-        val decayedCleanupSourcesThisGsm = updateDecayedCleanupSources(eventsMutable, snap, bridge, transferResultWithDecayedAffectors)
+        val decayedCleanupSourcesThisGsm = updateDecayedCleanupSources(eventsMutable, snap, bridge, transferResult)
 
         val persistentFeedResult =
             PersistentFeedBuilder.build(
@@ -378,55 +379,13 @@ object StateMapper {
                 bridge = bridge,
                 frameIds = frameIds,
                 decayedCleanupSourcesThisGsm = decayedCleanupSourcesThisGsm,
-                transferResult = transferResultWithDecayedAffectors,
+                transferResult = transferResult,
             )
-        // Diff against the bridge-side tracker. The client keeps cached holders
-        // across GSMs by instanceId, so we only emit a gameObject for newly-added
-        // holders; removed holders flow through BridgeMutations into
-        // diffDeletedInstanceIds in [buildDiff]. The Limbo zone listing,
-        // however, must reflect the **post-diff** active set every GSM —
-        // otherwise the deletion GSM ships the iid both in Limbo and in
-        // diffDeletedInstanceIds, and a between-emit-and-delete GSM that
-        // rebuilt Limbo without the holder would orphan the cached object.
-        // assembleGsm reads zones/objects from `transferResult.patchedZones`/
-        // `patchedObjects` (see assembleGsm wiring below), not the local lists,
-        // so we splice both the gameObject and the Limbo membership into a
-        // copy of TransferResult here.
         val holderBatch = bridge.delayedTriggerHolders.computeBatch(persistentFeedResult.currentHolders)
         val postDiffActiveIids =
-            (bridge.delayedTriggerHolders.activeIids() + holderBatch.added.map { it.iid }) - holderBatch.removed.toSet()
-        val transferResultWithHolders =
-            if (holderBatch.added.isEmpty() && holderBatch.removed.isEmpty() && postDiffActiveIids.isEmpty()) {
-                transferResultWithDecayedAffectors
-            } else {
-                val patchedZones = transferResult.patchedZones.toMutableList()
-                val patchedObjects = transferResult.patchedObjects.toMutableList()
-                val existingLimbo = patchedZones.find { it.zoneId == ZoneIds.LIMBO }
-                val limboBuilder =
-                    (existingLimbo?.toBuilder() ?: ZoneInfo.newBuilder().setZoneId(ZoneIds.LIMBO).setType(ZoneType.Limbo))
-                if (existingLimbo != null) patchedZones.removeIf { it.zoneId == ZoneIds.LIMBO }
-                val baseIids = limboBuilder.objectInstanceIdsList.toMutableSet()
-                // Drop deleted holders from the listing (deletion GSM).
-                baseIids.removeAll(holderBatch.removed.toSet())
-                // Add post-diff active holders.
-                baseIids.addAll(postDiffActiveIids)
-                limboBuilder.clearObjectInstanceIds()
-                for (iid in baseIids) limboBuilder.addObjectInstanceIds(iid)
-                for (holder in holderBatch.added) {
-                    patchedObjects.add(
-                        ObjectMapper.buildTriggerHolderObject(
-                            instanceId = holder.iid,
-                            ownerSeatId = holder.ownerSeat,
-                            objectSourceGrpId = holder.objectSourceGrpId,
-                            parentInstanceId = holder.parentIid,
-                            uniqueAbilityGrpId = holder.cleanupGrpId,
-                            uniqueAbilityId = bridge.effects.nextEffectId(),
-                        ),
-                    )
-                }
-                patchedZones.add(limboBuilder.build())
-                transferResultWithDecayedAffectors.copy(patchedZones = patchedZones, patchedObjects = patchedObjects)
-            }
+            (bridge.delayedTriggerHolders.activeIids() + holderBatch.added.map { it.iid }) -
+                holderBatch.removed.toSet()
+        transferResult = transferResult.withDelayedTriggerHolders(holderBatch, postDiffActiveIids, bridge)
         val persistentFeeds = persistentFeedResult.feeds
         // Transient gain/lose Designation annotations — diff prev vs cur on the
         // `Source on battlefield with isPrepared` set. Gains insert before the
@@ -499,7 +458,7 @@ object StateMapper {
                 gameStateId,
                 gameInfo.build(),
                 frame,
-                transferResultWithHolders,
+                transferResult,
                 remaining,
                 combatResult,
                 team1.build(),
@@ -1619,6 +1578,42 @@ object StateMapper {
                 transfer.copy(category = category, affectorId = affector)
             }
         return copy(transfers = patchedTransfers)
+    }
+
+    private fun TransferResult.withDelayedTriggerHolders(
+        holderBatch: HolderBatch,
+        postDiffActiveIids: Set<Int>,
+        bridge: GameBridge,
+    ): TransferResult {
+        if (holderBatch.added.isEmpty() && holderBatch.removed.isEmpty() && postDiffActiveIids.isEmpty()) return this
+
+        val patchedZones = this.patchedZones.toMutableList()
+        val patchedObjects = this.patchedObjects.toMutableList()
+        val existingLimbo = patchedZones.find { it.zoneId == ZoneIds.LIMBO }
+        val limboBuilder =
+            existingLimbo?.toBuilder() ?: ZoneInfo.newBuilder().setZoneId(ZoneIds.LIMBO).setType(ZoneType.Limbo)
+        if (existingLimbo != null) patchedZones.removeIf { it.zoneId == ZoneIds.LIMBO }
+
+        val limboIids = limboBuilder.objectInstanceIdsList.toMutableSet()
+        limboIids.removeAll(holderBatch.removed.toSet())
+        limboIids.addAll(postDiffActiveIids)
+        limboBuilder.clearObjectInstanceIds()
+        for (iid in limboIids) limboBuilder.addObjectInstanceIds(iid)
+
+        for (holder in holderBatch.added) {
+            patchedObjects.add(
+                ObjectMapper.buildTriggerHolderObject(
+                    instanceId = holder.iid,
+                    ownerSeatId = holder.ownerSeat,
+                    objectSourceGrpId = holder.objectSourceGrpId,
+                    parentInstanceId = holder.parentIid,
+                    uniqueAbilityGrpId = holder.cleanupGrpId,
+                    uniqueAbilityId = bridge.effects.nextEffectId(),
+                ),
+            )
+        }
+        patchedZones.add(limboBuilder.build())
+        return copy(patchedZones = patchedZones, patchedObjects = patchedObjects)
     }
 
     private val graveyardZoneIds = setOf(ZoneIds.P1_GRAVEYARD, ZoneIds.P2_GRAVEYARD)
