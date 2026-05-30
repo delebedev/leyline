@@ -732,6 +732,9 @@ class BundleBuilder(
                     attachLearnLessonGameObjects(diff.result.gsm, envelope.req, snap)
                 SelectNEnvelope.GameStateAugmentation.None -> diff.result.gsm
             }
+                .toBuilder()
+                .setPendingMessageCount(1)
+                .build()
         val msg1 =
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                 it.gameStateMessage = gs

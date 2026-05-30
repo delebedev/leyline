@@ -41,6 +41,8 @@ sealed interface ClassifiedPrompt {
             ReturnUnblockedAttackerCost,
             MutateTopBottom,
             LearnLesson,
+            StaticColorChoice,
+            StaticSubtypeChoice,
         }
     }
 
@@ -99,6 +101,10 @@ object PromptClassifier {
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.MutateTopBottom)
             PromptSemantic.LearnLesson ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.LearnLesson)
+            PromptSemantic.StaticColorChoice ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.StaticColorChoice)
+            PromptSemantic.StaticSubtypeChoice ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice)
             PromptSemantic.Generic -> null
         }
 

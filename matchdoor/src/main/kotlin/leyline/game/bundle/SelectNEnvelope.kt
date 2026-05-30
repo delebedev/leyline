@@ -77,7 +77,32 @@ data class SelectNEnvelope(
                 gameStateAugmentation = GameStateAugmentation.LearnLesson,
             )
 
+        fun staticChoice(
+            req: SelectNReq,
+            promptId: Int,
+        ): SelectNEnvelope =
+            SelectNEnvelope(
+                req = req,
+                prompt = promptWithSource(promptId, req),
+                allowCancel = AllowCancel.No_a526,
+            )
+
         private fun stockUpPrompt(req: SelectNReq): Prompt = promptWithSourceAndCount(PromptIds.SELECT_N_STOCK_UP, req)
+
+        private fun promptWithSource(
+            promptId: Int,
+            req: SelectNReq,
+        ): Prompt =
+            Prompt
+                .newBuilder()
+                .setPromptId(promptId)
+                .addParameters(
+                    PromptParameter
+                        .newBuilder()
+                        .setParameterName("CardId")
+                        .setType(ParameterType.Number)
+                        .setNumberValue(req.sourceId),
+                ).build()
 
         private fun promptWithSourceAndCount(
             promptId: Int,

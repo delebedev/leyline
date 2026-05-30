@@ -56,10 +56,12 @@ import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.Seating
 import leyline.bridge.types.manaTokenToPair
+import leyline.game.codes.StaticChoiceIds
 import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.StaticList
 import java.util.concurrent.CompletableFuture
 import java.util.function.Predicate
 
@@ -798,12 +800,72 @@ class PlayerController(
                 min = 1,
                 max = 1,
                 defaultIndex = 0,
+                semantic = PromptSemantic.StaticColorChoice,
+                sourceEntityId = sa?.hostCard?.id?.takeIf { it > 0 },
+                staticList = StaticList.Colors,
+                staticOptionIds = colors.orderedColors.mapNotNull { StaticChoiceIds.colorIdForMask(it.colorMask) },
             )
         log.debug("chooseColor: options={}", colorOptions)
         val indices = bridge.requestChoice(request)
         val idx = indices.firstOrNull() ?: return 0
         if (idx >= colorOptions.size) return 0
         return colors.orderedColors.toList()[idx].colorMask
+    }
+
+    override fun chooseColors(
+        message: String,
+        sa: SpellAbility?,
+        min: Int,
+        max: Int,
+        options: ColorSet,
+    ): ColorSet {
+        if (options.countColors() == 0) return ColorSet.fromMask(0)
+        if (options.countColors() == min && min == max) return options
+        val colorChoices = options.orderedColors.toList()
+        val request =
+            PromptRequest(
+                promptType = "choose_colors",
+                message = message,
+                options = colorChoices.map { it.translatedName },
+                min = min,
+                max = max,
+                defaultIndex = 0,
+                semantic = PromptSemantic.StaticColorChoice,
+                sourceEntityId = sa?.hostCard?.id?.takeIf { it > 0 },
+                staticList = StaticList.Colors,
+                staticOptionIds = colorChoices.mapNotNull { StaticChoiceIds.colorIdForMask(it.colorMask) },
+            )
+        val indices = bridge.requestChoice(request)
+        val mask = indices.fold(0) { acc, idx -> acc or (colorChoices.getOrNull(idx)?.colorMask?.toInt() ?: 0) }
+        return ColorSet.fromMask(mask)
+    }
+
+    override fun chooseSomeType(
+        kindOfType: String,
+        sa: SpellAbility?,
+        validTypes: Collection<String>,
+        isOptional: Boolean,
+    ): String? {
+        val choices =
+            validTypes
+                .sorted()
+                .mapNotNull { type -> StaticChoiceIds.subtypeIdFor(type)?.let { id -> type to id } }
+        if (choices.isEmpty()) return if (isOptional) null else validTypes.firstOrNull()
+        val request =
+            PromptRequest(
+                promptType = "choose_type",
+                message = "Choose a ${kindOfType.lowercase()} type",
+                options = choices.map { it.first },
+                min = if (isOptional) 0 else 1,
+                max = 1,
+                defaultIndex = 0,
+                semantic = PromptSemantic.StaticSubtypeChoice,
+                sourceEntityId = sa?.hostCard?.id?.takeIf { it > 0 },
+                staticList = StaticList.SubTypes,
+                staticOptionIds = choices.map { it.second },
+            )
+        val idx = bridge.requestChoice(request).firstOrNull()
+        return idx?.let { choices.getOrNull(it)?.first } ?: if (isOptional) null else choices.first().first
     }
 
     override fun willPutCardOnTop(c: Card): Boolean {

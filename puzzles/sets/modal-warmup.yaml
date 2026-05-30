@@ -1,5 +1,5 @@
 name: modal-warmup
-description: Modal, optional-cost, and optional-action prompt smoke.
+description: Modal, optional-cost, optional-action, and static-choice prompt smoke.
 scenarios:
   - id: cleave-path-of-peril
     puzzle: cleave-path-of-peril
@@ -53,6 +53,38 @@ scenarios:
       - resolve_stack: {}
       - expect:
           zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+  - id: patchwork-banner-static-choice
+    puzzle: patchwork-banner-static-choice
+    run: cast Patchwork Banner and choose Goblin
+    expect: Raging Goblin gets the chosen-type +1/+1 buff
+    steps:
+      - expect:
+          action: { type: cast, card: Patchwork Banner }
+      - cast: Patchwork Banner
+      - pass_until:
+          prompt: SelectNReq
+      - static_choice: { id: 34 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Patchwork Banner }
+            - battlefield_stats_at_least: { side: ours, card: Raging Goblin, power: 2, toughness: 2 }
+  - id: heraldic-banner-static-choice
+    puzzle: heraldic-banner-static-choice
+    run: cast Heraldic Banner and choose Red
+    expect: Raging Goblin gets the chosen-color +1/+0 buff
+    steps:
+      - expect:
+          action: { type: cast, card: Heraldic Banner }
+      - cast: Heraldic Banner
+      - pass_until:
+          prompt: SelectNReq
+      - static_choice: { id: 4 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Heraldic Banner }
+            - battlefield_stats_at_least: { side: ours, card: Raging Goblin, power: 2, toughness: 1 }
   - id: shock-land-temple-garden
     puzzle: shock-land-temple-garden
     run: play Temple Garden and accept the pay-life replacement effect

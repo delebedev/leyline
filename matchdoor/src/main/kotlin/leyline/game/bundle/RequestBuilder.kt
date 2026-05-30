@@ -411,6 +411,7 @@ object RequestBuilder {
         bridge: GameBridge,
     ): SelectNReq {
         val semantic = prompt.request.semantic
+        val staticList = prompt.request.staticList
         val (context, listType, optionContext) =
             when (semantic) {
                 PromptSemantic.SelectNDiscard ->
@@ -418,6 +419,18 @@ object RequestBuilder {
                         SelectionContext.Discard_a163,
                         SelectionListType.Static,
                         OptionContext.Payment,
+                    )
+                PromptSemantic.StaticColorChoice ->
+                    Triple(
+                        SelectionContext.Resolution_a163,
+                        SelectionListType.Static,
+                        OptionContext.Resolution_a9d7,
+                    )
+                PromptSemantic.StaticSubtypeChoice ->
+                    Triple(
+                        SelectionContext.Resolution_a163,
+                        SelectionListType.StaticSubset,
+                        OptionContext.Resolution_a9d7,
                     )
                 else ->
                     Triple(
@@ -431,12 +444,18 @@ object RequestBuilder {
                 .newBuilder()
                 .setContext(context)
                 .setListType(listType)
-                .setIdType(IdType.InstanceId_ab2c)
                 .setValidationType(SelectionValidationType.NonRepeatable)
                 .setOptionContext(optionContext)
                 // Always per spec — INT32 extremes (no weight filtering on resolution picks).
                 .setMinWeight(Int.MIN_VALUE)
                 .setMaxWeight(Int.MAX_VALUE)
+                .apply {
+                    if (staticList == null) {
+                        setIdType(IdType.InstanceId_ab2c)
+                    } else {
+                        setStaticList(staticList)
+                    }
+                }
 
         // For reveal-choose with empty ids (no valid target), omit minSel/maxSel (defaults to 0).
         val hasValidChoices = prompt.request.candidateRefs.isNotEmpty()
@@ -447,6 +466,12 @@ object RequestBuilder {
 
         builder.addSelectNIds(prompt, bridge)
         when (semantic) {
+            PromptSemantic.StaticColorChoice,
+            PromptSemantic.StaticSubtypeChoice,
+            -> {
+                builder.setSourceIdIfPresent(prompt, bridge)
+                builder.setPrompt(Prompt.newBuilder())
+            }
             PromptSemantic.SelectNLegendRule -> {
                 // Empty inner prompt; the real promptId goes on the outer GRE message.
                 builder.setPrompt(Prompt.newBuilder())
@@ -519,6 +544,12 @@ object RequestBuilder {
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
     ) {
+        if (prompt.request.staticList != null) {
+            if (prompt.request.semantic == PromptSemantic.StaticSubtypeChoice) {
+                prompt.request.staticOptionIds.forEach { addIds(it) }
+            }
+            return
+        }
         prompt.request.candidateRefs.forEach { ref ->
             addIds(bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value)
         }

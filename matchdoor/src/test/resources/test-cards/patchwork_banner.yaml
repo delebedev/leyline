@@ -1,0 +1,14 @@
+name: "Patchwork Banner"
+grpId: 91783
+titleId: 811870
+abilities:
+  - id: 176647
+    textId: 934857
+    category: 3
+  - id: 116805
+    textId: 174029
+    category: 3
+  - id: 1055
+    textId: 227440
+    category: 1
+expansionCode: "BLB"

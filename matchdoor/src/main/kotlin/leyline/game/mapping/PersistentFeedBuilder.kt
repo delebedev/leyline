@@ -10,8 +10,10 @@ import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
+import leyline.game.codes.StaticChoiceIds
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
+import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PreparedRole
@@ -34,6 +36,7 @@ internal data class PersistentFeedSet(
     val dayNightDesignation: List<AnnotationInfo> = emptyList(),
     val faceDownDisguise: List<AnnotationInfo> = emptyList(),
     val colorProduction: List<AnnotationInfo> = emptyList(),
+    val linkInfo: List<AnnotationInfo> = emptyList(),
 )
 
 internal data class PersistentFeedBuildResult(
@@ -80,6 +83,7 @@ internal object PersistentFeedBuilder {
         val dayNightDesignation = buildDayNightDesignationAnnotations(snap)
         val faceDownDisguise = buildFaceDownDisguiseAnnotations(snap, frameIds)
         val colorProduction = buildColorProductionAnnotations(snap, frameIds)
+        val linkInfo = buildLinkInfoAnnotations(snap, frameIds, bridge)
 
         return PersistentFeedBuildResult(
             feeds =
@@ -97,6 +101,7 @@ internal object PersistentFeedBuilder {
                     dayNightDesignation = dayNightDesignation,
                     faceDownDisguise = faceDownDisguise,
                     colorProduction = colorProduction,
+                    linkInfo = linkInfo,
                 ),
             currentHolders = temporaryPermanent.currentHolders,
         )
@@ -189,7 +194,6 @@ internal object PersistentFeedBuilder {
                         abilityGrpId = GrpId(cleanupGrpId),
                     )
                 }
-
         return TemporaryPermanentFeedResult(
             temporaryPermanent = temporaryPermanent,
             delayedTriggerAffectees = delayedTriggerAffectees,
@@ -329,6 +333,51 @@ internal object PersistentFeedBuilder {
             if (colors.isEmpty()) return@mapNotNull null
             AnnotationBuilder.colorProduction(frameIds.cardIid(bound.forgeCardId), colors)
         }
+
+    private fun buildLinkInfoAnnotations(
+        snap: GsmSnapshot,
+        frameIds: FrameIdResolver,
+        bridge: GameBridge,
+    ): List<AnnotationInfo> =
+        snap.boundCards.values.flatMap { bound ->
+            if (!bound.snapshot.isOnBattlefield) return@flatMap emptyList()
+            if (bound.snapshot.chosenType == null && bound.snapshot.chosenColorIds.isEmpty()) return@flatMap emptyList()
+            val sourceAbilityGrpId = choiceSourceAbilityGrpId(bound, bridge) ?: return@flatMap emptyList()
+            val sourceIid = frameIds.cardIid(bound.forgeCardId)
+            buildList {
+                val chosenTypeId = bound.snapshot.chosenType?.let { StaticChoiceIds.subtypeIdFor(it) }
+                if (chosenTypeId != null) {
+                    add(
+                        AnnotationBuilder.linkInfoChoice(
+                            sourceInstanceId = sourceIid,
+                            affectedIds = listOf(6, chosenTypeId),
+                            chooseLinkType = "Type",
+                            sourceAbilityGrpId = GrpId(sourceAbilityGrpId),
+                        ),
+                    )
+                }
+                bound.snapshot.chosenColorIds.firstOrNull()?.let { colorId ->
+                    add(
+                        AnnotationBuilder.linkInfoChoice(
+                            sourceInstanceId = sourceIid,
+                            affectedIds = listOf(colorId),
+                            chooseLinkType = "Color",
+                            sourceAbilityGrpId = GrpId(sourceAbilityGrpId),
+                        ),
+                    )
+                }
+            }
+        }
+
+    private fun choiceSourceAbilityGrpId(
+        bound: BoundCard,
+        bridge: GameBridge,
+    ): Int? =
+        bound.data
+            ?.abilityIds
+            ?.firstOrNull { (abilityGrpId, _) ->
+                bridge.cardRepository.findAbilityInfo(abilityGrpId)?.category == 3
+            }?.first
 
     private fun collectEvidenceAbilityWordPersistentFromPrompt(
         events: List<GameEvent>,

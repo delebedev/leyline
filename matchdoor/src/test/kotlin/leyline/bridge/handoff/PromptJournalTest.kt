@@ -49,6 +49,25 @@ class PromptJournalTest :
             j.consumeOptionalCostStash() shouldBe null
         }
 
+        test("drainStaticChoiceResults returns only static choices and drains once") {
+            val j = PromptJournal()
+            val result =
+                PromptSideEffect.StaticChoiceResult(
+                    sourceForgeCardId = ForgeCardId(42),
+                    chooserSeatId = SeatId(1),
+                    choiceValue = 176,
+                    choiceDomain = 5,
+                )
+            j.record(PromptSideEffect.LegendVictim(ForgeCardId(99)))
+            j.record(result)
+
+            assertSoftly {
+                j.drainStaticChoiceResults() shouldBe listOf(result)
+                j.drainStaticChoiceResults() shouldBe emptyList()
+                j.consumeLegendVictim(ForgeCardId(99)) shouldBe true
+            }
+        }
+
         test("resetForPuzzle clears everything") {
             val j = PromptJournal()
             j.record(PromptSideEffect.LegendVictim(ForgeCardId(1)))

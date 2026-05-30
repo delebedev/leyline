@@ -61,6 +61,7 @@ object AcceptanceSuiteLoader {
             "activate" -> parseActivate(value, "$context.activate")
             "choose" -> parseChoose(value, "$context.choose")
             "modal_choice" -> parseModalChoice(value, "$context.modal_choice")
+            "static_choice" -> parseStaticChoice(value, "$context.static_choice")
             "optional_action" -> parseOptionalAction(value, "$context.optional_action")
             "target" -> TargetStep(parseTarget(value, "$context.target"))
             "select_cost" -> parseSelectCost(value, "$context.select_cost")
@@ -157,6 +158,14 @@ object AcceptanceSuiteLoader {
     ): ModalChoiceStep {
         val map = raw.asMap(context)
         return ModalChoiceStep(index = map.requiredInt("index", context))
+    }
+
+    private fun parseStaticChoice(
+        raw: Any?,
+        context: String,
+    ): StaticChoiceStep {
+        val map = raw.asMap(context)
+        return StaticChoiceStep(id = map.requiredInt("id", context))
     }
 
     private fun parseOptionalAction(

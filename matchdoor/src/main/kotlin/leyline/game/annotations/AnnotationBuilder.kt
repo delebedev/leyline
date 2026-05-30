@@ -369,6 +369,39 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.LIFE, lifeDelta))
             .build()
 
+    fun choiceResult(
+        sourceInstanceId: InstanceId,
+        chooserSeatId: SeatId,
+        choiceValue: Int,
+        choiceDomain: Int,
+        sentiment: Int = 2,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.ChoiceResult)
+            .setAffectorId(sourceInstanceId.value)
+            .addAffectedIds(chooserSeatId.value)
+            .addDetails(int32Detail(DetailKeys.CHOICE_VALUE, choiceValue))
+            .addDetails(int32Detail(DetailKeys.CHOICE_DOMAIN, choiceDomain))
+            .addDetails(int32Detail(DetailKeys.CHOICE_SENTIMENT, sentiment))
+            .build()
+
+    fun linkInfoChoice(
+        sourceInstanceId: InstanceId,
+        affectedIds: List<Int>,
+        chooseLinkType: String,
+        sourceAbilityGrpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.LinkInfo)
+            .setAffectorId(sourceInstanceId.value)
+            .apply { affectedIds.forEach { addAffectedIds(it) } }
+            .addDetails(int32Detail(DetailKeys.LINK_TYPE, 3))
+            .addDetails(typedStringDetail(DetailKeys.CHOOSE_LINK_TYPE, chooseLinkType))
+            .addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
+            .build()
+
     /** Card's power changed. State parser — P/T values from gameObject fields, not annotation.
      *  Optional details (context needed): effect_id, counter_type, count, sourceAbilityGRPID. */
     fun modifiedPower(instanceId: InstanceId): AnnotationInfo =
