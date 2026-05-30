@@ -341,16 +341,6 @@ class ActionPerformer(
         bridge.awaitPriority()
         autoPassEngine.drainPlayback()
 
-        // leyline-jxa: LAND_PLAY must emit a standalone Diff GSM (no paired
-        // ActionsAvailableReq) so its wire shape is update=SendAndRecord
-        // without a trailing action prompt, matching the dominant spec shape.
-        // The subsequent priority grant in autoPassEngine naturally produces
-        // the next GSM+AAR bundle when the player still has priority.
-        if (action.actionType == ActionType.Play_add3) {
-            val bb = bundles.bundleBuilder
-            sink.sendBundle(bb.stateOnlyDiff(game, counters.counter))
-        }
-
         if (action.actionType == ActionType.ActivateMana) {
             sink.sendRealGameState(bridge)
             return
