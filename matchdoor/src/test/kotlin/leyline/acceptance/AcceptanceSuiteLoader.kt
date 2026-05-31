@@ -67,6 +67,8 @@ object AcceptanceSuiteLoader {
             "select_cost" -> parseSelectCost(value, "$context.select_cost")
             "select_card" -> parseSelectCard(value, "$context.select_card")
             "block" -> parseBlock(value, "$context.block")
+            "attack" -> parseAttack(value, "$context.attack")
+            "turn_face_up" -> TurnFaceUpStep(value.asString("$context.turn_face_up"))
             "play_land" -> PlayLandStep(value.asString("$context.play_land"))
             "cast" -> parseCast(value, "$context.cast")
             "resolve_stack" -> ResolveStackStep
@@ -187,6 +189,17 @@ object AcceptanceSuiteLoader {
         )
     }
 
+    private fun parseAttack(
+        raw: Any?,
+        context: String,
+    ): AttackStep {
+        val map = raw.asMap(context)
+        return AttackStep(
+            cards = map.requiredList("cards", context).mapIndexed { index, item -> item.asString("$context.cards[$index]") },
+            altCost = map.optionalString("alt_cost")?.let(AcceptanceAltCost::parse),
+        )
+    }
+
     private fun parseTarget(
         raw: Any?,
         context: String,
@@ -239,6 +252,7 @@ object AcceptanceSuiteLoader {
             "our_life" -> LifeTotalCondition(AcceptanceSide.Ours, value.asInt("$context.our_life"))
             "phase" -> PhaseCondition(value.asString("$context.phase"))
             "prompt" -> PromptCondition(value.asString("$context.prompt"))
+            "annotation_seen" -> AnnotationSeenCondition(value.asString("$context.annotation_seen"))
             "stack_empty" -> {
                 require(value.asBoolean("$context.stack_empty")) { "$context.stack_empty only supports true" }
                 StackEmptyCondition
@@ -254,6 +268,7 @@ object AcceptanceSuiteLoader {
         return ActionAvailableCondition(
             type = AcceptanceActionType.parse(map.requiredString("type", context)),
             card = map.requiredString("card", context),
+            altCost = map.optionalString("alt_cost")?.let(AcceptanceAltCost::parse),
         )
     }
 

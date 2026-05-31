@@ -83,6 +83,19 @@ data class BlockStep(
     override val label: String = "block $attacker with $blocker"
 }
 
+data class AttackStep(
+    val cards: List<String>,
+    val altCost: AcceptanceAltCost? = null,
+) : AcceptanceStep {
+    override val label: String = "attack ${cards.joinToString()}"
+}
+
+data class TurnFaceUpStep(
+    val card: String,
+) : AcceptanceStep {
+    override val label: String = "turn_face_up $card"
+}
+
 data class PlayLandStep(
     val card: String,
 ) : AcceptanceStep {
@@ -128,8 +141,9 @@ sealed interface AcceptanceCondition {
 data class ActionAvailableCondition(
     val type: AcceptanceActionType,
     val card: String,
+    val altCost: AcceptanceAltCost? = null,
 ) : AcceptanceCondition {
-    override val label: String = "action ${type.yamlName} $card"
+    override val label: String = "action ${type.yamlName} $card${altCost?.let { " via ${it.yamlName}" } ?: ""}"
 }
 
 data class ZoneContainsCondition(
@@ -191,6 +205,12 @@ data class PromptCondition(
     val prompt: String,
 ) : AcceptanceCondition {
     override val label: String = "prompt $prompt seen"
+}
+
+data class AnnotationSeenCondition(
+    val type: String,
+) : AcceptanceCondition {
+    override val label: String = "annotation $type seen"
 }
 
 data object StackEmptyCondition : AcceptanceCondition {
@@ -260,9 +280,15 @@ enum class AcceptanceAltCost(
     val yamlName: String,
 ) {
     Cleave("cleave"),
+    Disguise("disguise"),
     Overload("overload"),
     Escape("escape"),
+    Foretell("foretell"),
+    Impending("impending"),
     JumpStart("jump_start"),
+    Plot("plot"),
+    Warp("warp"),
+    Enlist("enlist"),
     ;
 
     companion object {

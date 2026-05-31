@@ -29,6 +29,7 @@ internal fun GREToClientMessage.isPromptMessage(): Boolean =
         hasDeclareAttackersReq() ||
         hasDeclareBlockersReq() ||
         hasGroupReq() ||
+        hasOptionalActionMessage() ||
         hasPayCostsReq() ||
         hasSelectNReq() ||
         hasSelectTargetsReq()
@@ -39,6 +40,7 @@ internal fun GREToClientMessage.promptName(): String =
         hasDeclareAttackersReq() -> "DeclareAttackersReq"
         hasDeclareBlockersReq() -> "DeclareBlockersReq"
         hasGroupReq() -> "GroupReq"
+        hasOptionalActionMessage() -> "OptionalActionMessage"
         hasPayCostsReq() -> "PayCostsReq"
         hasSelectNReq() -> "SelectNReq"
         hasSelectTargetsReq() -> "SelectTargetsReq"
@@ -51,6 +53,7 @@ internal fun GREToClientMessage.matchesPrompt(prompt: String): Boolean =
         "DeclareAttackersReq" -> hasDeclareAttackersReq()
         "DeclareBlockersReq" -> hasDeclareBlockersReq()
         "GroupReq" -> hasGroupReq()
+        "OptionalActionMessage" -> hasOptionalActionMessage()
         "PayCostsReq" -> hasPayCostsReq()
         "SelectNReq" -> hasSelectNReq()
         "SelectTargetsReq" -> hasSelectTargetsReq()

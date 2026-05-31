@@ -1,0 +1,16 @@
+name: "Moonrage Brute"
+grpId: 78332
+titleId: 529704
+abilities:
+  - id: 6
+    textId: 158
+    category: 3
+  - id: 141971
+    textId: 488425
+    category: 2
+  - id: 217
+    textId: 529705
+    category: 3
+linkedFaces: [78331]
+isPrimaryCard: false
+expansionCode: "MID"

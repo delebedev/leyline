@@ -1,0 +1,14 @@
+name: "Rowan's Grim Search"
+grpId: 86800
+titleId: 731502
+abilities:
+  - id: 303
+    textId: 731148
+    category: 3
+  - id: 168822
+    textId: 731503
+    category: 4
+  - id: 205991
+    textId: 5556
+    category: 4
+expansionCode: "WOE"
