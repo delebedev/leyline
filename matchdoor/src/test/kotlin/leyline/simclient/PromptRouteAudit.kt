@@ -84,6 +84,10 @@ object PromptRouteAuditor {
             -> "GroupReq"
             PromptSemantic.ModalChoice -> "CastingTimeOptionsReq"
             PromptSemantic.Search -> "SearchReq"
+            PromptSemantic.OrderForBottom,
+            PromptSemantic.OrderForTop,
+            PromptSemantic.OrderGeneric,
+            -> "OrderReq"
             PromptSemantic.SelectNCostSacrifice,
             PromptSemantic.SelectNCostExileFromGrave,
             PromptSemantic.SelectNCostCollectEvidence,
@@ -95,6 +99,7 @@ object PromptRouteAuditor {
             PromptSemantic.SelectNDiscard,
             PromptSemantic.RevealChoose,
             PromptSemantic.SelectNResolution,
+            PromptSemantic.SelectNLibraryPutback,
             PromptSemantic.SelectNSacrificeEffect,
             PromptSemantic.MutateTopBottom,
             PromptSemantic.LearnLesson,
