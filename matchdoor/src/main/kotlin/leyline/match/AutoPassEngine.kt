@@ -177,15 +177,11 @@ class AutoPassEngine(
             // human priority window; otherwise instant-speed actions can make
             // us emit an ActionsAvailableReq while the AI still has priority.
             if (shouldCheckHumanActions(isAiTurn)) {
-                if (!isAiTurn && !game.stack.isEmpty && bridge.seat(counters.seatId).action.getPending() == null) {
-                    log.debug("stack action check deferred: no pending human action")
-                } else {
-                    val decision = checkHumanActions(game, isAiTurn)
-                    if (decision is PriorityDecision.Grant) {
-                        if (drainPlayback()) return@repeat
-                        sink.sendRealGameState(bridge)
-                        return
-                    }
+                val decision = checkHumanActions(game, isAiTurn)
+                if (decision is PriorityDecision.Grant) {
+                    if (drainPlayback()) return@repeat
+                    sink.sendRealGameState(bridge)
+                    return
                 }
             }
 
