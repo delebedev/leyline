@@ -813,7 +813,12 @@ class TargetingHandler(
         // Save pending state for response mapping. Store the *effective* child
         // grpIds so `onCastingTimeOptions`'s `indexOf(pickedGrpId)` returns an
         // index that aligns with `possible[]` upstream — not an unfiltered index.
-        pendingInteraction = PendingClientInteraction.ModalChoice(pendingPrompt.promptId, effectiveChildGrpIds)
+        pendingInteraction =
+            PendingClientInteraction.ModalChoice(
+                pendingPrompt.promptId,
+                effectiveChildGrpIds,
+                stackAbilityInstanceId = sourceInstanceId.takeIf { isTriggered && it > 0 },
+            )
 
         // For triggered abilities, pass the source card's instanceId and grpId so the
         // synthesized ability object has correct parentId and objectSourceGrpId.
@@ -872,6 +877,9 @@ class TargetingHandler(
                 pendingInteraction = null
                 bridge.awaitPriority()
                 autoPass()
+                pending.stackAbilityInstanceId?.let { abilityIid ->
+                    sink.sendBundledGRE(listOf(bundles.bundleBuilder.modalStackCleanup(counters.counter, abilityIid)))
+                }
             }
 
             else -> {

@@ -1507,6 +1507,32 @@ class BundleBuilder(
                     .setPrevGameStateId(prev)
                     .setUpdate(updateType)
                     .build()
+            }
+    }
+
+    /** Explicitly remove a modal trigger ability synthesized for CastingTimeOptionsReq. */
+    fun modalStackCleanup(
+        counter: MessageCounter,
+        abilityInstanceId: Int,
+    ): GREToClientMessage {
+        val link = counter.nextGameStateLink()
+        return makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
+            it.gameStateMessage =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Diff)
+                    .setGameStateId(link.gsId)
+                    .setPrevGameStateId(link.prevGsId)
+                    .setUpdate(GameStateUpdate.Send)
+                    .addDiffDeletedInstanceIds(abilityInstanceId)
+                    .addZones(
+                        ZoneInfo
+                            .newBuilder()
+                            .setZoneId(ZoneIds.STACK)
+                            .setType(ZoneType.Stack)
+                            .setVisibility(Visibility.Public)
+                            .build(),
+                    ).build()
         }
     }
 
