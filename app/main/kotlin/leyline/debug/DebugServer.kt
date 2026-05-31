@@ -11,6 +11,8 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.RuntimeDecks
+import leyline.config.RuntimeMatchConfig
+import leyline.config.RuntimeMatchConfigRegistry
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
@@ -41,8 +43,11 @@ import java.util.concurrent.atomic.AtomicReference
  * - `POST /api/inject-full` → rebuild and push a full state update to the client
  * - `GET /api/puzzle`       → current puzzle state
  * - `POST /api/puzzle`      → set/clear/hot-swap puzzle
+ * - `GET /api/match-config` → current match-scoped config by matchId
+ * - `POST /api/match-config` → set match-scoped config by matchId
  * - `GET /api/events`       → SSE real-time event stream
  */
+@Suppress("LargeClass") // Debug routes share the same local server and session providers.
 class DebugServer(
     private val port: Int = 8090,
     private val sessionProvider: (() -> MatchSession?)? = null,
@@ -51,6 +56,8 @@ class DebugServer(
     private val runtimePuzzle: AtomicReference<String?>? = null,
     /** Runtime constructed deck override — set/cleared by POST /api/decks. */
     private val runtimeDecks: AtomicReference<RuntimeDecks?>? = null,
+    /** MatchId-keyed runtime config for native Match Door starts. */
+    private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
 ) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null
@@ -61,6 +68,7 @@ class DebugServer(
             encodeDefaults = true
         }
 
+    @Suppress("LongMethod", "CyclomaticComplexMethod")
     fun start() {
         val srv = HttpServer.create(InetSocketAddress(port), 0)
 
@@ -107,6 +115,29 @@ class DebugServer(
                 }
             } catch (t: Throwable) {
                 log.error("/api/decks error: {}", t.message, t)
+                try {
+                    respond(ex, 500, "text/plain", "Error: ${t.message}")
+                } catch (_: Throwable) {
+                    try {
+                        ex.close()
+                    } catch (_: Throwable) {
+                    }
+                }
+            }
+        }
+        srv.createContext("/api/match-config") { ex ->
+            try {
+                when (ex.requestMethod) {
+                    "GET" -> serveGetMatchConfig(ex)
+                    "POST" -> serveMatchConfig(ex)
+                    "DELETE" -> serveDeleteMatchConfig(ex)
+                    else -> {
+                        ex.sendResponseHeaders(405, -1)
+                        ex.close()
+                    }
+                }
+            } catch (t: Throwable) {
+                log.error("/api/match-config error: {}", t.message, t)
                 try {
                     respond(ex, 500, "text/plain", "Error: ${t.message}")
                 } catch (_: Throwable) {
@@ -498,6 +529,66 @@ class DebugServer(
         respond(ex, 200, "application/json", json.encodeToString(RuntimeDecks.serializer(), decks))
     }
 
+    private fun serveGetMatchConfig(ex: HttpExchange) {
+        val matchId = queryParam(ex, "matchId")?.trim()
+        if (matchId.isNullOrEmpty()) {
+            respond(ex, 400, "text/plain", "matchId is required")
+            return
+        }
+        respondJson(ex, json.encodeToString(RuntimeMatchConfig.serializer().nullable, runtimeMatchConfigs?.get(matchId)))
+    }
+
+    private fun serveMatchConfig(ex: HttpExchange) {
+        val body =
+            ex.requestBody
+                .bufferedReader()
+                .readText()
+                .trim()
+        if (body.isEmpty()) {
+            respond(ex, 400, "text/plain", "Body is required")
+            return
+        }
+
+        val request = json.decodeFromString<RuntimeMatchConfig>(body)
+        if (request.matchId.isBlank()) {
+            respond(ex, 400, "text/plain", "matchId is required")
+            return
+        }
+        val puzzlePath =
+            request.puzzle
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { puzzleRef ->
+                    resolvePuzzleReference(puzzleRef) ?: run {
+                        respond(ex, 404, "text/plain", "Puzzle not found: $puzzleRef")
+                        return
+                    }
+                }
+        val config =
+            runtimeMatchConfigs?.put(
+                request.copy(
+                    seat1Deck = request.seat1Deck?.trim()?.takeIf { it.isNotEmpty() },
+                    seat2Deck = request.seat2Deck?.trim()?.takeIf { it.isNotEmpty() },
+                    puzzle = puzzlePath,
+                    spectatorMode = request.spectatorMode,
+                ),
+            ) ?: run {
+                respond(ex, 503, "text/plain", "Runtime match config registry unavailable")
+                return
+            }
+        respond(ex, 200, "application/json", json.encodeToString(RuntimeMatchConfig.serializer(), config))
+    }
+
+    private fun serveDeleteMatchConfig(ex: HttpExchange) {
+        val matchId = queryParam(ex, "matchId")?.trim()
+        if (matchId.isNullOrEmpty()) {
+            respond(ex, 400, "text/plain", "matchId is required")
+            return
+        }
+        runtimeMatchConfigs?.remove(matchId)
+        respond(ex, 200, "text/plain", "Runtime match config cleared")
+    }
+
     private fun servePuzzle(ex: HttpExchange) {
         val body =
             ex.requestBody
@@ -665,7 +756,24 @@ class DebugServer(
         return null
     }
 
+    private fun resolvePuzzleReference(value: String): String? {
+        val file = File(value)
+        if (file.exists()) return file.absolutePath
+        return resolvePuzzleFile(value.removeSuffix(".pzl"))
+    }
+
     // --- Helpers ---
+
+    private fun queryParam(
+        ex: HttpExchange,
+        key: String,
+    ): String? =
+        ex.requestURI.query
+            ?.split("&")
+            ?.firstNotNullOfOrNull { entry ->
+                val parts = entry.split("=", limit = 2)
+                if (parts.firstOrNull() == key) parts.getOrNull(1) ?: "" else null
+            }
 
     private fun safe(
         ex: HttpExchange,

@@ -18,6 +18,7 @@ import leyline.bridge.bootstrap.FormatService
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.MatchConfig
 import leyline.config.RuntimeDecks
+import leyline.config.RuntimeMatchConfigRegistry
 import leyline.debug.DebugCollector
 import leyline.debug.DebugEventBus
 import leyline.debug.DebugSinkAdapter
@@ -90,6 +91,7 @@ class LeylineServer(
     /** Runtime puzzle path — set via debug API, read by PuzzleHandler and createMatchId(). */
     val runtimePuzzle = AtomicReference<String?>(null)
     val runtimeDecks = AtomicReference<RuntimeDecks?>(null)
+    val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
 
     /** Health probe: true when both server channels are bound and active. */
     fun isHealthy(): Boolean {
@@ -276,6 +278,7 @@ class LeylineServer(
                         debugSink = debugSink,
                         puzzlePath = { runtimePuzzle.get() },
                         runtimeDecks = { runtimeDecks.get() },
+                        runtimeMatchConfigs = runtimeMatchConfigs,
                     ),
                 )
             }
