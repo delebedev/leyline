@@ -388,6 +388,15 @@ sealed interface GameEvent {
         val seatId: SeatId,
     ) : GameEvent
 
+    /** A player flipped a coin while resolving a spell or ability. */
+    data class CoinFlipped(
+        val flipperSeatId: SeatId,
+        val sourceCardId: ForgeCardId,
+        val abilityForgeId: Int,
+        val abilityGrpId: Int,
+        val result: Int,
+    ) : GameEvent
+
     /** A player scried (looked at top N, put some on top / some on bottom). */
     data class Scry(
         val seatId: SeatId,

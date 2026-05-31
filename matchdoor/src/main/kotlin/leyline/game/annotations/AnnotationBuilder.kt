@@ -386,6 +386,19 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.CHOICE_SENTIMENT, sentiment))
             .build()
 
+    fun coinFlip(
+        abilityInstanceId: InstanceId,
+        flipperSeatId: SeatId,
+        result: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.CoinFlip)
+            .setAffectorId(abilityInstanceId.value)
+            .addAffectedIds(flipperSeatId.value)
+            .addDetails(int32Detail(DetailKeys.COIN_FLIP_RESULT, result))
+            .build()
+
     fun linkInfoChoice(
         sourceInstanceId: InstanceId,
         affectedIds: List<Int>,

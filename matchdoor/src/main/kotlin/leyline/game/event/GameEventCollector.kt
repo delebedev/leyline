@@ -736,6 +736,29 @@ class GameEventCollector(
         )
     }
 
+    override fun visit(ev: GameEventFlipCoin) {
+        val flipper = seatOf(ev.player()) ?: return
+        val sa = ev.sa() ?: return
+        val card = sa.hostCard ?: return
+        val abilityForgeId = sa.id.takeIf { pendingTriggers.containsKey(it) || pendingActivations.containsKey(it) } ?: 0
+        frame.add(
+            GameEvent.CoinFlipped(
+                flipperSeatId = flipper,
+                sourceCardId = ForgeCardId(card.id),
+                abilityForgeId = abilityForgeId,
+                abilityGrpId = pendingAbilityGrpIds[abilityForgeId] ?: 0,
+                result = if (ev.won()) 1 else 0,
+            ),
+        )
+        log.debug(
+            "event: CoinFlipped card={} flipper={} abilityForgeId={} result={}",
+            card.name,
+            flipper,
+            abilityForgeId,
+            if (ev.won()) 1 else 0,
+        )
+    }
+
     override fun visit(ev: GameEventAttackersDeclared) {
         val seat = seatOf(ev.player()) ?: return
         val ids = ev.attackersMap().values().map { ForgeCardId(it.id) }

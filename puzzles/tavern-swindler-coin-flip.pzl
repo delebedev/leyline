@@ -1,0 +1,16 @@
+[metadata]
+Name:Tavern Swindler Coin Flip
+Goal:Survive
+Turns:3
+Difficulty:Easy
+Description:Activate Tavern Swindler and resolve its coin flip.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Tavern Swindler
+humanlibrary=Swamp;Swamp;Swamp
+ailibrary=Mountain;Mountain;Mountain

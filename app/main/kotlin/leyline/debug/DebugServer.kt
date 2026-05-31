@@ -18,6 +18,7 @@ import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
@@ -490,6 +491,7 @@ class DebugServer(
                 .setGameStateId(gsId)
                 .addSystemSeatIds(session.seatId.value)
                 .setActionsAvailableReq(actions)
+                .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                 .build()
 
         session.sendBundledGRE(listOf(greGsm, greActions))
@@ -708,6 +710,7 @@ class DebugServer(
                 .setGameStateId(gsId)
                 .addSystemSeatIds(newSession.seatId.value)
                 .setActionsAvailableReq(actions)
+                .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                 .build()
 
         val bound =

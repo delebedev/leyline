@@ -74,4 +74,5 @@ object DetailKeys {
     const val KICKER_ABILITY_GRP_ID = "kickerAbilityGrpId"
     const val REMOVES_FROM_ZONE = "removesFromZone"
     const val IS_TOP = "isTop"
+    const val COIN_FLIP_RESULT = "CoinFlipResult"
 }

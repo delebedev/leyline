@@ -1331,6 +1331,7 @@ object StateMapper {
                 snap = snap,
                 frameIds = frameIds ?: FrameIdResolver(bridge),
             )
+            insertResolutionEventAnnotations(events, annotations, frameIds ?: FrameIdResolver(bridge))
         }
         for (d in transferResult.stackAbilityDisappearances) {
             val lineage = abilityLineage?.consume(d.abilityInstanceId)
@@ -1349,6 +1350,97 @@ object StateMapper {
         for (transfer in deferredTransfers) emitTransfer(transfer)
         return annotations to transferPersistent
     }
+
+    private fun insertResolutionEventAnnotations(
+        events: List<GameEvent>,
+        annotations: MutableList<AnnotationInfo>,
+        frameIds: FrameIdResolver,
+    ) {
+        val payloadsByAffector = linkedMapOf<Int, MutableList<AnnotationInfo>>()
+        val unmatched = mutableListOf<AnnotationInfo>()
+
+        fun addPayload(
+            affectorId: Int,
+            annotation: AnnotationInfo,
+        ) {
+            if (affectorId == 0) {
+                unmatched.add(annotation)
+            } else {
+                payloadsByAffector.getOrPut(affectorId) { mutableListOf() }.add(annotation)
+            }
+        }
+
+        events.forEachIndexed { index, event ->
+            when (event) {
+                is GameEvent.CoinFlipped -> {
+                    val affector = stackAbilityIidFor(event.abilityForgeId, event.sourceCardId, frameIds)
+                    addPayload(
+                        affector,
+                        AnnotationBuilder.coinFlip(InstanceId(affector), event.flipperSeatId, event.result),
+                    )
+                }
+                is GameEvent.LifeChanged -> {
+                    val delta = event.newLife - event.oldLife
+                    if (delta == 0 || isCoveredByDamageEvent(event, events)) return@forEachIndexed
+                    val resolved = nextResolvedAbility(events, index)
+                    val affector =
+                        resolved?.let { stackAbilityIidFor(it.abilityForgeId, it.cardId, frameIds) }
+                            ?: previousActivatedAbility(events, index)?.let {
+                                stackAbilityIidFor(it.abilityForgeId, it.cardId, frameIds)
+                            }
+                            ?: 0
+                    addPayload(
+                        affector,
+                        AnnotationBuilder.modifiedLife(event.seatId, delta, InstanceId(affector).takeIf { affector != 0 }),
+                    )
+                }
+                else -> Unit
+            }
+        }
+
+        if (payloadsByAffector.isEmpty() && unmatched.isEmpty()) return
+        val ordered = mutableListOf<AnnotationInfo>()
+        for (annotation in annotations) {
+            ordered.add(annotation)
+            if (AnnotationType.ResolutionStart in annotation.typeList) {
+                payloadsByAffector.remove(annotation.affectorId)?.let(ordered::addAll)
+            }
+        }
+        payloadsByAffector.values.forEach(ordered::addAll)
+        ordered.addAll(unmatched)
+        annotations.clear()
+        annotations.addAll(ordered)
+    }
+
+    private fun nextResolvedAbility(
+        events: List<GameEvent>,
+        afterIndex: Int,
+    ): GameEvent.SpellResolved? =
+        events
+            .asSequence()
+            .drop(afterIndex + 1)
+            .filterIsInstance<GameEvent.SpellResolved>()
+            .firstOrNull { it.isTrigger || it.isAbility }
+
+    private fun previousActivatedAbility(
+        events: List<GameEvent>,
+        beforeIndex: Int,
+    ): GameEvent.SpellCast? =
+        events
+            .asSequence()
+            .take(beforeIndex)
+            .filterIsInstance<GameEvent.SpellCast>()
+            .lastOrNull { it.isAbility || it.isTrigger }
+
+    private fun isCoveredByDamageEvent(
+        life: GameEvent.LifeChanged,
+        events: List<GameEvent>,
+    ): Boolean =
+        events.any { event ->
+            event is GameEvent.DamageDealtToPlayer &&
+                event.targetSeatId == life.seatId &&
+                life.oldLife - life.newLife == event.amount
+        }
 
     /**
      * Emit AbilityInstanceCreated / TriggeringObject / ResolutionStart-Complete /

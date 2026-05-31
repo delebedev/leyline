@@ -105,6 +105,22 @@ class ActionMapperSnapshotTest :
             fromSnap.actionsList.count { it.actionType == ActionType.ActivateMana } shouldBe 1
         }
 
+        test("battlefield activated ability carries matching uniqueAbilityId") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Tavern Swindler", human, ZoneType.Battlefield)
+                }
+
+            val snap = SnapshotCapture.run(game, b, "test", 0)
+            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val activate = fromSnap.actionsList.first { it.actionType == ActionType.Activate_add3 }
+
+            assertSoftly {
+                activate.abilityGrpId shouldBe 19490
+                activate.uniqueAbilityId shouldBe 50
+            }
+        }
+
         // -----------------------------------------------------------------------
         // Test 5: affordable spell → Cast in active list
         // -----------------------------------------------------------------------

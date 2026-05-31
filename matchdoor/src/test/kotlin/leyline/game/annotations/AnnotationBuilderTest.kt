@@ -103,6 +103,18 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("coinFlip carries flipper and int result") {
+            val ann = AnnotationBuilder.coinFlip(414.iid, 1.sid, result = 1)
+
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.CoinFlip
+                ann.affectorId shouldBe 414
+                ann.affectedIdsList shouldBe listOf(1)
+                ann.detailInt(DetailKeys.COIN_FLIP_RESULT) shouldBe 1
+                ann.detail(DetailKeys.COIN_FLIP_RESULT)?.type shouldBe KeyValuePairValueType.Int32
+            }
+        }
+
         test("linkInfoChoice carries choice link metadata") {
             val ann =
                 AnnotationBuilder.linkInfoChoice(

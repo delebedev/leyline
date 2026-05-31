@@ -23,6 +23,7 @@ import leyline.game.bundle.RequestBuilder
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.mapping.PromptIds
+import leyline.game.sid
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PhaseSnapshot
@@ -74,6 +75,47 @@ class BundleBuilderTest :
                 msg.type shouldBe GREMessageType.QueuedGameStateMessage
                 msg.hasGameStateMessage().shouldBeTrue()
                 msg.gameStateMessage.gameStateId shouldBe 42
+            }
+        }
+
+        test("coinFlipPromptMessages emits promptId 46 notification") {
+            val counter = MessageCounter(initialGsId = 10, initialMsgId = 20)
+            val messages =
+                pureBB().coinFlipPromptMessages(
+                    events =
+                        listOf(
+                            GameEvent.CoinFlipped(
+                                flipperSeatId = 1.sid,
+                                sourceCardId = ForgeCardId(100),
+                                abilityForgeId = 200,
+                                abilityGrpId = 19490,
+                                result = 1,
+                            ),
+                            GameEvent.CoinFlipped(
+                                flipperSeatId = 1.sid,
+                                sourceCardId = ForgeCardId(100),
+                                abilityForgeId = 200,
+                                abilityGrpId = 19490,
+                                result = 0,
+                            ),
+                        ),
+                    gsId = 10,
+                    counter = counter,
+                )
+
+            val winPrompt = messages[0].prompt
+            val lossPrompt = messages[1].prompt
+            assertSoftly {
+                messages.map { it.type } shouldBe listOf(GREMessageType.PromptReq, GREMessageType.PromptReq)
+                winPrompt.promptId shouldBe PromptIds.COIN_FLIP
+                winPrompt.getParameters(0).parameterName shouldBe "PlayerId"
+                winPrompt.getParameters(0).reference.type shouldBe Messages.ReferenceType.PlayerSeatId
+                winPrompt.getParameters(0).reference.id shouldBe 1
+                winPrompt.getParameters(1).parameterName shouldBe "CoinFlipResult"
+                winPrompt.getParameters(1).reference.type shouldBe Messages.ReferenceType.LocalizationId
+                winPrompt.getParameters(1).reference.id shouldBe 47
+                lossPrompt.promptId shouldBe PromptIds.COIN_FLIP
+                lossPrompt.getParameters(1).reference.id shouldBe 48
             }
         }
 

@@ -495,6 +495,7 @@ object HandshakeMessages {
                 .setMsgId(msgId)
                 .setGameStateId(gameStateId)
                 .setActionsAvailableReq(actions)
+                .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                 .build()
         return wrapGre(gre) to (msgId + 1)
     }
