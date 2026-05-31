@@ -72,6 +72,7 @@ class BundleBuilder(
         val gameStateId: Int,
         val snap: GsmSnapshot,
         val result: StateMapper.BuildResult,
+        val events: FrameEventLog,
     )
 
     private fun buildFrameDiff(
@@ -99,7 +100,7 @@ class BundleBuilder(
             )
         bridge.applyMutations(result.mutations)
         bridge.diffListener?.invoke(previousSnap, snap, events.events, nextGs, result.gsm)
-        return FrameDiff(nextGs, snap, result)
+        return FrameDiff(nextGs, snap, result, events)
     }
 
     /**
@@ -144,11 +145,13 @@ class BundleBuilder(
                 makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                     it.gameStateMessage = gs
                 },
-                makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, counter.nextMsgId()) {
-                    it.actionsAvailableReq = actions
-                    it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-                },
-            )
+            ) + coinFlipPromptMessages(diff.events.events, nextGs, counter) +
+                listOf(
+                    makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, counter.nextMsgId()) {
+                        it.actionsAvailableReq = actions
+                        it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+                    },
+                )
 
         cursor.lastSent = snap
         return BundleResult(messages)
@@ -176,8 +179,10 @@ class BundleBuilder(
                 makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                     it.gameStateMessage = gs
                 },
-                buildEchoDiffGsm(counter, gs.update, previousGsId = gs.gameStateId),
-            )
+            ) + coinFlipPromptMessages(diff.events.events, nextGs, counter) +
+                listOf(
+                    buildEchoDiffGsm(counter, gs.update, previousGsId = gs.gameStateId),
+                )
 
         cursor.lastSent = snap
         return BundleResult(messages)
@@ -246,7 +251,7 @@ class BundleBuilder(
         val echo = buildEchoDiffGsm(counter, GameStateUpdate.SendHiFi, previousGsId = nextGs)
 
         cursor.lastSent = snap
-        return BundleResult(listOf(content, echo))
+        return BundleResult(listOf(content) + coinFlipPromptMessages(diff.events.events, nextGs, counter) + listOf(echo))
     }
 
     /**
@@ -1652,7 +1657,48 @@ class BundleBuilder(
         return gre.build()
     }
 
+    internal fun coinFlipPromptMessages(
+        events: List<GameEvent>,
+        gsId: Int,
+        counter: MessageCounter,
+    ): List<GREToClientMessage> =
+        events.filterIsInstance<GameEvent.CoinFlipped>().map { event ->
+            makeGRE(GREMessageType.PromptReq, gsId, counter.nextMsgId()) {
+                it.setPrompt(
+                    Prompt
+                        .newBuilder()
+                        .setPromptId(PromptIds.COIN_FLIP)
+                        .addParameters(
+                            PromptParameter
+                                .newBuilder()
+                                .setParameterName("PlayerId")
+                                .setType(ParameterType.Reference_a14a)
+                                .setReference(
+                                    Reference
+                                        .newBuilder()
+                                        .setType(ReferenceType.PlayerSeatId)
+                                        .setId(event.flipperSeatId.value),
+                                ),
+                        ).addParameters(
+                            PromptParameter
+                                .newBuilder()
+                                .setParameterName("CoinFlipResult")
+                                .setType(ParameterType.Reference_a14a)
+                                .setReference(
+                                    Reference
+                                        .newBuilder()
+                                        .setType(ReferenceType.LocalizationId)
+                                        .setId(if (event.result == 1) COIN_FLIP_WIN_LOCALIZATION_ID else COIN_FLIP_LOSS_LOCALIZATION_ID),
+                                ),
+                        ).build(),
+                )
+            }
+        }
+
     companion object {
+        private const val COIN_FLIP_WIN_LOCALIZATION_ID = 47
+        private const val COIN_FLIP_LOSS_LOCALIZATION_ID = 48
+
         /**
          * Pure function — no instance state needed. Checks if the only action
          * available is Pass (no Cast, Play, Activate).

@@ -22,6 +22,9 @@ object PromptIds {
     const val MULLIGAN = 34
     const val STARTING_PLAYER = 37
 
+    /** Informational PromptReq after a coin flip resolves. */
+    const val COIN_FLIP = 46
+
     /** Legend rule "choose which to keep". */
     const val SELECT_N_LEGEND_RULE = 72
 
