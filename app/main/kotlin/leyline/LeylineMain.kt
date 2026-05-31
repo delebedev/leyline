@@ -141,6 +141,7 @@ private fun buildDebugServer(
     eventBus = server.eventBus,
     runtimePuzzle = server.runtimePuzzle,
     runtimeDecks = server.runtimeDecks,
+    runtimeMatchConfigs = server.runtimeMatchConfigs,
 )
 
 private fun buildAccountServer(

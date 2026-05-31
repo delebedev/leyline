@@ -1,9 +1,12 @@
 package leyline.match
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
@@ -11,6 +14,8 @@ import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
+import leyline.config.RuntimeMatchConfig
+import leyline.config.RuntimeMatchConfigRegistry
 import leyline.infra.ListMessageSink
 import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
@@ -211,8 +216,63 @@ class PuzzleHandlerTest :
                     )
                 handler.sendPuzzleInitialBundle(ctx, session, "puzzle-cli-puzzle", 1)
 
-                outbound(channel).flatMap(::greMessages).map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
-                bridge.isPuzzle.shouldBeTrue()
+                val gre = outbound(channel).flatMap(::greMessages)
+
+                assertSoftly {
+                    gre.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
+                    gre
+                        .first { it.hasGameStateMessage() }
+                        .gameStateMessage.gameInfo.matchID shouldBe "puzzle-cli-puzzle"
+                    bridge.isPuzzle.shouldBeTrue()
+                }
+                channel.close()
+                bridge.shutdown()
+            } finally {
+                temp.delete()
+            }
+        }
+
+        test("match-scoped puzzle config activates only the configured matchId") {
+            val configRegistry = RuntimeMatchConfigRegistry()
+            val registry = MatchRegistry()
+            val sink = ListMessageSink()
+            val temp = tempPuzzleFile("match-config")
+            try {
+                configRegistry.put(RuntimeMatchConfig(matchId = "web-gre-puzzle", puzzle = temp.absolutePath))
+                val handler =
+                    PuzzleHandler(
+                        puzzlePath = { matchId -> configRegistry.get(matchId)?.puzzle },
+                        TestCardRegistry.repo,
+                        registry,
+                    )
+                val (channel, ctx) = channelCtx()
+
+                handler.isPuzzleMatch("web-gre-puzzle").shouldBeTrue()
+                handler.isPuzzleMatch("web-gre-constructed").shouldBeFalse()
+                val bridge = handler.getOrCreatePuzzleBridge("web-gre-puzzle")
+                val session =
+                    MatchSession(
+                        connection =
+                            ConnectionState(
+                                seatId = SeatId(1),
+                                matchId = "web-gre-puzzle",
+                                sink = sink,
+                                registry = registry,
+                            ),
+                        gameBridge = bridge,
+                        paceDelayMs = 0,
+                    )
+                handler.sendPuzzleInitialBundle(ctx, session, "web-gre-puzzle", 1)
+
+                val gre = outbound(channel).flatMap(::greMessages)
+
+                assertSoftly {
+                    gre.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
+                    gre
+                        .first { it.hasGameStateMessage() }
+                        .gameStateMessage.gameInfo.matchID shouldBe "web-gre-puzzle"
+                    bridge.isPuzzle.shouldBeTrue()
+                }
                 channel.close()
                 bridge.shutdown()
             } finally {
