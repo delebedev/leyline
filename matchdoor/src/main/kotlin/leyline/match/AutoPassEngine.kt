@@ -140,6 +140,7 @@ class AutoPassEngine(
                         // priority-stop packet on the human turn.
                         val bb = bundles.bundleBuilder
                         val actions = bb.buildActions()
+                        if (drainPlayback()) return@repeat
                         if (!BundleBuilder.shouldAutoPass(actions)) {
                             sink.sendRealGameState(bridge)
                             return

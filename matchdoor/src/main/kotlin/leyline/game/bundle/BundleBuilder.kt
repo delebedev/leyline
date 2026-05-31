@@ -163,26 +163,27 @@ class BundleBuilder(
     fun stateOnlyDiff(
         game: Game,
         counter: MessageCounter,
-    ): BundleResult {
-        val diff = buildFrameDiff(game, counter) { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
-        val nextGs = diff.gameStateId
-        val snap = diff.snap
-        val result = diff.result
-        val gs = appendPendingPlayerSubmittedTargets(result.gsm)
+    ): BundleResult =
+        synchronized(counter) {
+            val diff = buildFrameDiff(game, counter) { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
+            val nextGs = diff.gameStateId
+            val snap = diff.snap
+            val result = diff.result
+            val gs = appendPendingPlayerSubmittedTargets(result.gsm)
 
-        // State-only updates still use the content GSM + echo envelope. Human-priority
-        // postAction bundles stop at ActionsAvailableReq instead.
-        val messages =
-            listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                    it.gameStateMessage = gs
-                },
-                buildEchoDiffGsm(counter, gs.update, previousGsId = gs.gameStateId),
-            )
+            // State-only updates still use the content GSM + echo envelope. Human-priority
+            // postAction bundles stop at ActionsAvailableReq instead.
+            val messages =
+                listOf(
+                    makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                        it.gameStateMessage = gs
+                    },
+                    buildEchoDiffGsm(counter, gs.update, previousGsId = gs.gameStateId),
+                )
 
-        cursor.lastSent = snap
-        return BundleResult(messages)
-    }
+            cursor.lastSent = snap
+            BundleResult(messages)
+        }
 
     /**
      * Remote action diff: content GS Diff with SendHiFi, then a bare SendHiFi echo.
@@ -198,57 +199,58 @@ class BundleBuilder(
         counter: MessageCounter,
         turnStarted: Boolean = false,
         eventsOverride: FrameEventLog? = null,
-    ): BundleResult {
-        val diff = buildFrameDiff(game, counter, eventsOverride = eventsOverride) { _, _ -> GameStateUpdate.SendHiFi }
-        val nextGs = diff.gameStateId
-        val snap = diff.snap
-        val frame = GsmFrame.from(snap)
-        // Build state first (triggers instanceId realloc), then actions with new IDs
-        val gsBase = diff.result.gsm
-        // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
-        // Client expects human's potential actions embedded during AI turn.
-        val actions = ActionMapper.buildNaiveActions(seatId, bridge)
+    ): BundleResult =
+        synchronized(counter) {
+            val diff = buildFrameDiff(game, counter, eventsOverride = eventsOverride) { _, _ -> GameStateUpdate.SendHiFi }
+            val nextGs = diff.gameStateId
+            val snap = diff.snap
+            val frame = GsmFrame.from(snap)
+            // Build state first (triggers instanceId realloc), then actions with new IDs
+            val gsBase = diff.result.gsm
+            // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
+            // Client expects human's potential actions embedded during AI turn.
+            val actions = ActionMapper.buildNaiveActions(seatId, bridge)
 
-        // Inject turn-start annotation when applicable. PhaseOrStepModified is now
-        // emitted event-driven in Stage 2b (inside buildDiff above).
-        val gsWithAnnotations =
-            if (turnStarted) {
-                gsBase
-                    .toBuilder()
-                    .apply {
-                        addAnnotations(
-                            AnnotationBuilder
-                                .newTurnStarted(SeatId(frame.activeSeat))
-                                .toBuilder()
-                                .setId(bridge.nextAnnotationId())
-                                .build(),
-                        )
-                    }.build()
-            } else {
-                gsBase
+            // Inject turn-start annotation when applicable. PhaseOrStepModified is now
+            // emitted event-driven in Stage 2b (inside buildDiff above).
+            val gsWithAnnotations =
+                if (turnStarted) {
+                    gsBase
+                        .toBuilder()
+                        .apply {
+                            addAnnotations(
+                                AnnotationBuilder
+                                    .newTurnStarted(SeatId(frame.activeSeat))
+                                    .toBuilder()
+                                    .setId(bridge.nextAnnotationId())
+                                    .build(),
+                            )
+                        }.build()
+                } else {
+                    gsBase
+                }
+
+            // Embed actions WITHOUT pendingMessageCount (no follow-up message expected)
+            val gsBuilder = gsWithAnnotations.toBuilder()
+            for (action in actions.actionsList) {
+                gsBuilder.addActions(
+                    ActionInfo
+                        .newBuilder()
+                        .setSeatId(seatId)
+                        .setAction(ActionMapper.stripActionForGsm(action)),
+                )
             }
+            val gs = appendPendingPlayerSubmittedTargets(gsBuilder.build())
 
-        // Embed actions WITHOUT pendingMessageCount (no follow-up message expected)
-        val gsBuilder = gsWithAnnotations.toBuilder()
-        for (action in actions.actionsList) {
-            gsBuilder.addActions(
-                ActionInfo
-                    .newBuilder()
-                    .setSeatId(seatId)
-                    .setAction(ActionMapper.stripActionForGsm(action)),
-            )
+            val content =
+                makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                    it.gameStateMessage = gs
+                }
+            val echo = buildEchoDiffGsm(counter, GameStateUpdate.SendHiFi, previousGsId = nextGs)
+
+            cursor.lastSent = snap
+            BundleResult(listOf(content, echo))
         }
-        val gs = appendPendingPlayerSubmittedTargets(gsBuilder.build())
-
-        val content =
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                it.gameStateMessage = gs
-            }
-        val echo = buildEchoDiffGsm(counter, GameStateUpdate.SendHiFi, previousGsId = nextGs)
-
-        cursor.lastSent = snap
-        return BundleResult(listOf(content, echo))
-    }
 
     /**
      * True when the only action available is Pass (no Cast, Play, Activate).
