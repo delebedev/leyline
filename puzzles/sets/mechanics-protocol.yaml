@@ -65,6 +65,47 @@ scenarios:
           all:
             - zone_contains: { side: opponent, zone: graveyard, card: Murder }
             - zone_not_contains: { side: opponent, zone: hand, card: Murder }
+  - id: stock-up-bottom-order
+    puzzle: stock-up
+    run: cast Stock Up, choose two cards, then order the unchosen cards on bottom
+    expect: Stock Up emits SelectNReq 2490 followed by bottom OrderReq 42 and resolves
+    steps:
+      - expect:
+          action: { type: cast, card: Stock Up }
+      - cast: Stock Up
+      - pass_until:
+          prompt: { type: SelectNReq, prompt_id: 2490 }
+          max_passes: 8
+      - select_cards: { zone: library, cards: [Lightning Bolt, Counterspell] }
+      - expect:
+          prompt: { type: OrderReq, prompt_id: 42 }
+      - order_cards: [Negate, Brainstorm, Ponder]
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Lightning Bolt }
+            - zone_contains: { side: ours, zone: hand, card: Counterspell }
+            - zone_contains: { side: ours, zone: graveyard, card: Stock Up }
+            - stack_empty: true
+  - id: brainstorm-top-order
+    puzzle: brainstorm-order
+    run: cast Brainstorm, choose two hand cards, then order them on top
+    expect: Brainstorm emits SelectNReq 2035 followed by top OrderReq 86 and resolves
+    steps:
+      - expect:
+          action: { type: cast, card: Brainstorm }
+      - cast: Brainstorm
+      - pass_until:
+          prompt: { type: SelectNReq, prompt_id: 2035 }
+          max_passes: 8
+      - select_cards: { zone: hand, cards: [Island, Forest] }
+      - expect:
+          prompt: { type: OrderReq, prompt_id: 86 }
+      - order_cards: [Forest, Island]
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Lightning Bolt }
+            - zone_contains: { side: ours, zone: graveyard, card: Brainstorm }
+            - stack_empty: true
   - id: unearth-gixian-recycler
     puzzle: unearth-gixian-recycler
     run: cast Gixian Recycler, destroy it, then unearth it from graveyard

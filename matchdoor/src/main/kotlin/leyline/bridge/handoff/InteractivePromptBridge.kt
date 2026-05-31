@@ -60,6 +60,27 @@ class InteractivePromptBridge(
      */
     val journal: PromptJournal = PromptJournal()
 
+    data class PendingOrderZoneMove(
+        val seatId: SeatId,
+        val forgeCardIds: List<ForgeCardId>,
+        val putOnTop: Boolean,
+    )
+
+    private val pendingOrderZoneMoves = ConcurrentLinkedQueue<PendingOrderZoneMove>()
+
+    fun recordPendingOrderZoneMove(move: PendingOrderZoneMove) {
+        pendingOrderZoneMoves.add(move)
+    }
+
+    fun pollPendingOrderZoneMove(
+        seatId: SeatId,
+        forgeCardIds: List<ForgeCardId>,
+    ): PendingOrderZoneMove? {
+        val match = pendingOrderZoneMoves.firstOrNull { it.seatId == seatId && it.forgeCardIds == forgeCardIds } ?: return null
+        pendingOrderZoneMoves.remove(match)
+        return match
+    }
+
     // --- Pending TargetSpec data (captured during selectTargetsInteractively) ---
 
     /**
@@ -237,6 +258,7 @@ class InteractivePromptBridge(
     fun resetForPuzzle() {
         synchronized(_history) { _history.clear() }
         revealQueue.clear()
+        pendingOrderZoneMoves.clear()
         pendingTargetSpecs.clear()
         targetSpecIndexCounter.set(0)
         journal.resetForPuzzle()
@@ -394,6 +416,15 @@ enum class PromptSemantic {
     SelectNDiscard,
     Search,
 
+    /** Order cards going to the bottom of a library. */
+    OrderForBottom,
+
+    /** Order cards going to the top of a library. */
+    OrderForTop,
+
+    /** Order cards or objects without a known library-top/bottom context. */
+    OrderGeneric,
+
     /** "Choose from revealed hand" — Duress, Revealing Eye, Thoughtseize, etc. */
     RevealChoose,
 
@@ -404,6 +435,12 @@ enum class PromptSemantic {
      * `SelectTargetsReq`.
      */
     SelectNResolution,
+
+    /**
+     * Brainstorm-style resolution pick: choose hand cards to put into the
+     * library, followed by an `OrderReq` for top-library ordering.
+     */
+    SelectNLibraryPutback,
 
     /**
      * Sacrifice selection during effect resolution (edict-style prompts).

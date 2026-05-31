@@ -34,6 +34,7 @@ sealed interface ClassifiedPrompt {
             SacrificeEffect,
             RevealChoose,
             Resolution,
+            LibraryPutback,
             ExileFromGrave,
             CollectEvidenceCost,
             EnlistCost,
@@ -51,6 +52,10 @@ sealed interface ClassifiedPrompt {
     ) : ClassifiedPrompt
 
     data class Search(
+        override val pendingPrompt: InteractivePromptBridge.PendingPrompt,
+    ) : ClassifiedPrompt
+
+    data class Order(
         override val pendingPrompt: InteractivePromptBridge.PendingPrompt,
     ) : ClassifiedPrompt
 
@@ -79,6 +84,10 @@ object PromptClassifier {
             PromptSemantic.SelectNDiscard ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.Discard)
             PromptSemantic.Search -> ClassifiedPrompt.Search(p)
+            PromptSemantic.OrderForBottom,
+            PromptSemantic.OrderForTop,
+            -> ClassifiedPrompt.Order(p)
+            PromptSemantic.OrderGeneric -> ClassifiedPrompt.AutoResolve(p)
             PromptSemantic.RevealChoose ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.RevealChoose)
             PromptSemantic.SelectNSacrificeEffect ->
@@ -97,6 +106,8 @@ object PromptClassifier {
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost)
             PromptSemantic.SelectNResolution ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.Resolution)
+            PromptSemantic.SelectNLibraryPutback ->
+                ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.LibraryPutback)
             PromptSemantic.MutateTopBottom ->
                 ClassifiedPrompt.SelectN(p, ClassifiedPrompt.SelectN.Reason.MutateTopBottom)
             PromptSemantic.LearnLesson ->

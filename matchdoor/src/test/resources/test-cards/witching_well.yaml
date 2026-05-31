@@ -1,0 +1,11 @@
+name: "Witching Well"
+grpId: 70221
+titleId: 413828
+abilities:
+  - id: 100685
+    textId: 823902
+    category: 2
+  - id: 136240
+    textId: 413831
+    category: 1
+expansionCode: "ELD"

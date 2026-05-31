@@ -305,6 +305,8 @@ class MatchHandler(
 
             ClientMessageType.SelectNresp -> s?.onSelectN(greMsg)
 
+            ClientMessageType.OrderResp_097b -> s?.onOrderResp(greMsg)
+
             ClientMessageType.CastingTimeOptionsResp_097b -> s?.onCastingTimeOptions(greMsg)
 
             ClientMessageType.SearchResp_097b -> s?.onSearch(greMsg)

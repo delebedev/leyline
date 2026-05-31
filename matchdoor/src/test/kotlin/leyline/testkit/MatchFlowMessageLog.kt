@@ -31,6 +31,7 @@ private val harnessPromptGreTypes: Set<GREMessageType> =
         GREMessageType.ActionsAvailableReq_695e,
         GREMessageType.SelectTargetsReq_695e,
         GREMessageType.SelectNreq,
+        GREMessageType.OrderReq_695e,
         GREMessageType.GroupReq_695e,
         GREMessageType.SearchReq_695e,
         GREMessageType.DeclareAttackersReq_695e,
