@@ -234,7 +234,7 @@ class PromptClassifierTest :
             top.pendingPrompt.request.semantic shouldBe PromptSemantic.OrderForTop
         }
 
-        test("generic order semantic auto-resolves until a non-library wire shape exists") {
+        test("generic order semantic auto-resolves until a non-library prompt shape exists") {
             val result =
                 classify(
                     promptType = "order",
