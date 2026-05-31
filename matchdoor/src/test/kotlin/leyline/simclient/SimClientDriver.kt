@@ -1,5 +1,6 @@
 package leyline.simclient
 
+import leyline.bridge.types.SeatId
 import leyline.testkit.MatchFlowHarness
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -57,6 +58,9 @@ data class GameStats(
     val policyMaxMsByPrompt: Map<String, Long> = emptyMap(),
     val submitTotalMsByDecision: Map<String, Long> = emptyMap(),
     val submitMaxMsByDecision: Map<String, Long> = emptyMap(),
+    val promptRequestsByKind: Map<String, Int> = emptyMap(),
+    val promptRequestSamplesByKind: Map<String, String> = emptyMap(),
+    val promptRouteFindings: List<PromptRouteFinding> = emptyList(),
 )
 
 class SimClientDriver(
@@ -181,6 +185,7 @@ class SimClientDriver(
                 .filter { isSimPrompt(it) }
                 .groupingBy { it.type }
                 .eachCount()
+        val promptRouteAudit = PromptRouteAuditor.audit(promptHistory(), histogram)
         val durationMs = (System.nanoTime() - t0) / 1_000_000
         val (warns, errors) = tap.stopAndDrain()
         val policyTelemetry = (promptPolicy as? ForgeAiPromptPolicy)?.telemetry() ?: SimPromptPolicyTelemetry.Empty
@@ -233,8 +238,14 @@ class SimClientDriver(
             policyMaxMsByPrompt = policyMaxMsByPrompt.toMap(),
             submitTotalMsByDecision = submitTotalMsByDecision.toMap(),
             submitMaxMsByDecision = submitMaxMsByDecision.toMap(),
+            promptRequestsByKind = promptRouteAudit.requestsByKind,
+            promptRequestSamplesByKind = promptRouteAudit.samplesByKind,
+            promptRouteFindings = promptRouteAudit.findings,
         )
     }
+
+    private fun promptHistory(): List<leyline.bridge.handoff.InteractivePromptBridge.PromptRecord> =
+        runCatching { harness.bridge.promptBridge(SeatId(1)).history }.getOrDefault(emptyList())
 
     private fun concedeAndFlush(
         reason: String,

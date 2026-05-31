@@ -139,7 +139,27 @@ class SimClientBatchTest :
 
         fun longMapToJson(m: Map<String, Long>): String = m.entries.joinToString(",", "{", "}") { (k, v) -> "${jsonString(k)}:$v" }
 
+        fun stringMapToJson(m: Map<String, String>): String =
+            m.entries.joinToString(",", "{", "}") { (k, v) -> "${jsonString(k)}:${jsonString(v)}" }
+
         fun stringsToJson(values: List<String>): String = values.joinToString(",", "[", "]") { jsonString(it) }
+
+        fun routeFindingsToJson(values: List<PromptRouteFinding>): String =
+            values.joinToString(",", "[", "]") { finding ->
+                buildString {
+                    append('{')
+                    append("\"bucket\":${jsonString(finding.bucket)},")
+                    append("\"routeKey\":${jsonString(finding.routeKey)},")
+                    append("\"enginePromptType\":${jsonString(finding.enginePromptType)},")
+                    append("\"semantic\":${jsonString(finding.semantic)},")
+                    append("\"expectedGreType\":${jsonString(finding.expectedGreType)},")
+                    append("\"expectedCount\":${finding.expectedCount},")
+                    append("\"emittedCount\":${finding.emittedCount},")
+                    append("\"outcomeCounts\":${mapToJson(finding.outcomeCounts)},")
+                    append("\"sampleMessage\":${jsonString(finding.sampleMessage)}")
+                    append('}')
+                }
+            }
 
         fun fileSafeName(value: String): String =
             value
@@ -180,6 +200,9 @@ class SimClientBatchTest :
                 append("\"aiTotalMsByPrompt\":${longMapToJson(stats.aiTotalMsByPrompt)},")
                 append("\"aiMaxMsByPrompt\":${longMapToJson(stats.aiMaxMsByPrompt)},")
                 append("\"promptHistogram\":$histo,")
+                append("\"promptRequestsByKind\":${mapToJson(stats.promptRequestsByKind)},")
+                append("\"promptRequestSamplesByKind\":${stringMapToJson(stats.promptRequestSamplesByKind)},")
+                append("\"promptRouteFindings\":${routeFindingsToJson(stats.promptRouteFindings)},")
                 append("\"warnsByLogger\":${mapToJson(stats.warnsByLogger)},")
                 append("\"errorsByType\":${mapToJson(stats.errorsByType)},")
                 append("\"validationViolationsByCheck\":${mapToJson(stats.validationViolationsByCheck)},")
@@ -527,6 +550,14 @@ class SimClientBatchTest :
                             .sortedByDescending { it.value }
                             .forEach { (reason, n) -> println("    retire $reason = $n") }
                     }
+                    if (stats.promptRouteFindings.isNotEmpty()) {
+                        stats.promptRouteFindings.forEach { finding ->
+                            println(
+                                "    route ${finding.bucket} ${finding.routeKey} -> ${finding.expectedGreType} " +
+                                    "expected=${finding.expectedCount} emitted=${finding.emittedCount} outcomes=${finding.outcomeCounts}",
+                            )
+                        }
+                    }
                 }
             }
 
@@ -539,6 +570,30 @@ class SimClientBatchTest :
                 }
             }
             agg.entries.sortedByDescending { it.value }.forEach { (k, v) -> println("  $k = $v") }
+
+            val routeAgg = mutableMapOf<String, Int>()
+            all.forEach { (_, _, s) ->
+                s.promptRequestsByKind.forEach { (k, v) -> routeAgg.merge(k, v) { a, b -> a + b } }
+            }
+            if (routeAgg.isNotEmpty()) {
+                println("\n=== aggregate engine prompt requests ===")
+                routeAgg.entries.sortedByDescending { it.value }.forEach { (k, v) ->
+                    val sample = all.firstNotNullOfOrNull { it.third.promptRequestSamplesByKind[k] }
+                    val suffix = sample?.let { " sample=$it" }.orEmpty()
+                    println("  $k = $v$suffix")
+                }
+            }
+
+            val routeFindings = all.flatMap { (deck, seed, stats) -> stats.promptRouteFindings.map { Triple(deck, seed, it) } }
+            if (routeFindings.isNotEmpty()) {
+                println("\n=== prompt route audit findings ===")
+                routeFindings.forEach { (deck, seed, finding) ->
+                    println(
+                        "  [$deck s=$seed] ${finding.bucket}: ${finding.routeKey} -> ${finding.expectedGreType} " +
+                            "expected=${finding.expectedCount} emitted=${finding.emittedCount} sample=${finding.sampleMessage}",
+                    )
+                }
+            }
 
             println("\n=== summary ===")
             println("games run: ${all.size}")

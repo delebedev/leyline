@@ -1,0 +1,12 @@
+10 Forest
+8 Island
+6 Plains
+4 Environmental Scientist
+4 Quandrix Cultivator
+4 Cultivate
+4 Circuitous Route
+4 Mystical Teachings
+4 Erode
+4 Path to Exile
+4 Llanowar Elves
+4 Grizzly Bears

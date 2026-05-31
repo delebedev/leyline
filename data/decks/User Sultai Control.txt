@@ -1,0 +1,43 @@
+Deck
+4 Watery Grave (GRN) 259
+4 Gloomlake Verge (DSK) 260
+3 Overgrown Tomb (GRN) 253
+3 Breeding Pool (RNA) 246
+3 Great Hall of the Biblioplex (SOS) 257
+2 Undercity Sewers (PZA) 0
+1 Underground Mortuary (MKM) 271
+1 Island (ZNR) 381
+1 Petrified Hamlet (SOS) 259
+1 Multiversal Passage (OM1) 181
+1 Mistrise Village (TDM) 261
+1 Forest (ZNR) 384
+1 Swamp (ZNR) 382
+2 Wan Shi Tong, Librarian (TLA) 78
+4 Deadly Cover-Up (MKM) 83
+4 Stock Up (SOA) 24
+4 Requiting Hex (ECL) 116
+4 Consult the Star Charts (EOE) 51
+3 Three Steps Ahead (OTJ) 75
+3 Shoot the Sheriff (OTJ) 106
+2 Professor Dellian Fel (SOS) 214
+2 Ancient Cornucopia (BIG) 16
+1 Maelstrom Pulse (FDN) 661
+1 Duress (XLN) 105
+1 Feed the Cycle (BLB) 94
+1 Mathemagics (SOS) 58
+1 Heritage Reclamation (TDM) 145
+1 Intimidation Tactics (DFT) 92
+
+Sideboard
+1 Petrified Hamlet (SOS) 259
+1 Wan Shi Tong, Librarian (TLA) 78
+1 Maelstrom Pulse (FDN) 661
+2 Duress (XLN) 105
+1 Intimidation Tactics (DFT) 92
+1 Negate (ZNR) 71
+1 Disdainful Stroke (WOE) 47
+1 Outrageous Robbery (MKM) 97
+2 Ghost Vacuum (DSK) 248
+1 Qarsi Revenant (TDM) 86
+2 Emeritus of Ideation (SOS) 45
+1 Flashfreeze (FDN) 590

@@ -252,6 +252,7 @@ via `harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id))`.
 - terminal flags — `gameOver`, `hitIterCap`
 - completion attribution — `completionReason`, `cleanupConcede`
 - prompt lifecycle — `promptRetiredByReason`, `stalledPrompt`, `stalledFingerprint`
+- prompt route audit — `promptRequestsByKind`, `promptRequestSamplesByKind`, `promptRouteFindings`
 - action attempts — `decisionOutcomes`, `actionAttemptsByType`,
   `noPendingByDecision`, `skippedAlreadyTried`
 - timing attribution — `connectMs`, `stepTotalMs`, `flushTotalMs`,

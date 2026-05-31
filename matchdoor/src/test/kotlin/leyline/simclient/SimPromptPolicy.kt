@@ -262,6 +262,8 @@ internal class ForgeAiPromptPolicy(
             ForgeAiDeclareAttackersAdapter,
             ForgeAiDeclareBlockersAdapter,
             ForgeAiSelectNAdapter,
+            ForgeAiSearchAdapter,
+            ForgeAiGroupAdapter,
         ).associateBy { it.promptType }
 
     fun telemetry(): SimPromptPolicyTelemetry =
