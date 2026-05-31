@@ -10,6 +10,7 @@ import leyline.game.mapping.PromptIds
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
@@ -56,6 +57,8 @@ class MatchdoorAcceptanceExecutor(
             is SelectCostStep -> selectCost(harness, step)
             is SelectCardStep -> selectCard(harness, step, context)
             is BlockStep -> block(harness, step, context)
+            is AttackStep -> attack(harness, step, context)
+            is TurnFaceUpStep -> turnFaceUp(harness, step, context)
             is PlayLandStep -> requireAction(context) { harness.playLand(step.card) }
             is CastStep -> cast(harness, step, context)
             ResolveStackStep -> resolveStack(harness, context)
@@ -210,6 +213,41 @@ class MatchdoorAcceptanceExecutor(
         harness.declareBlockers(mapOf(blockerId to attackerId))
     }
 
+    private fun attack(
+        harness: MatchFlowHarness,
+        step: AttackStep,
+        context: String,
+    ) {
+        require(latestPromptMatches(harness, "DeclareAttackersReq")) {
+            "$context expected latest prompt DeclareAttackersReq"
+        }
+        val attackerIds = step.cards.map { resolveBattlefieldCard(harness, AcceptanceSide.Ours, it) }
+        val alternatives = step.altCost?.let { altCost -> attackerIds.associateWith { keywordAbilityId(altCost) } }.orEmpty()
+        harness.toggleAttackers(attackerIds, alternatives)
+        harness.submitAttackers()
+    }
+
+    private fun turnFaceUp(
+        harness: MatchFlowHarness,
+        step: TurnFaceUpStep,
+        context: String,
+    ) {
+        val card =
+            player(AcceptanceSide.Ours, harness)
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .firstOrNull { it.name.equals(step.card, ignoreCase = true) || it.isFaceDown }
+                ?: error("$context could not find ${step.card} or a face-down card on battlefield")
+        submitAction(
+            harness,
+            Action
+                .newBuilder()
+                .setActionType(ActionType.SpecialTurnFaceUp_add3)
+                .setInstanceId(harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
+                .build(),
+        )
+    }
+
     private fun resolveStack(
         harness: MatchFlowHarness,
         context: String,
@@ -311,6 +349,7 @@ class MatchdoorAcceptanceExecutor(
             is PhaseCondition -> "${condition.label}; actual phase=${harness.phase()}"
             is PromptCondition ->
                 "${condition.label}; actual latest prompt=${latestPromptName(harness) ?: "none"}"
+            is AnnotationSeenCondition -> "${condition.label}; actual annotations=${annotationTypes(harness).distinct()}"
             StackEmptyCondition -> "${condition.label}; actual stack size=${harness.game().stackZone.size()}"
         }
 
@@ -328,8 +367,27 @@ class MatchdoorAcceptanceExecutor(
             is BattlefieldStatsAtLeastCondition -> battlefieldStatsAtLeast(harness, condition)
             is PhaseCondition -> phaseMatches(harness.phase(), condition.phase)
             is PromptCondition -> promptSeen(harness, condition.prompt)
+            is AnnotationSeenCondition -> annotationSeen(harness, condition.type)
             StackEmptyCondition -> harness.game().stackZone.size() == 0
         }
+
+    private fun annotationSeen(
+        harness: MatchFlowHarness,
+        type: String,
+    ): Boolean {
+        val expected = AnnotationType.valueOf(type)
+        return harness.allMessages
+            .filter { it.hasGameStateMessage() }
+            .flatMap { it.gameStateMessage.annotationsList + it.gameStateMessage.persistentAnnotationsList }
+            .any { expected in it.typeList }
+    }
+
+    private fun annotationTypes(harness: MatchFlowHarness): List<String> =
+        harness.allMessages
+            .filter { it.hasGameStateMessage() }
+            .flatMap { it.gameStateMessage.annotationsList + it.gameStateMessage.persistentAnnotationsList }
+            .flatMap { it.typeList }
+            .map { it.name }
 
     private fun actionAvailable(
         harness: MatchFlowHarness,
@@ -342,7 +400,9 @@ class MatchdoorAcceptanceExecutor(
                 AcceptanceActionType.Activate -> ActionType.Activate_add3
             }
         return harness.accumulator.actions?.actionsList.orEmpty().any { action ->
-            action.actionType == expectedType && actionCardName(harness, action).equals(condition.card, ignoreCase = true)
+            action.actionType == expectedType &&
+                actionCardName(harness, action).equals(condition.card, ignoreCase = true) &&
+                (condition.altCost == null || actionMatchesAltCost(harness, action, condition.altCost))
         }
     }
 
@@ -383,13 +443,35 @@ class MatchdoorAcceptanceExecutor(
         val keywordId =
             when (altCost) {
                 AcceptanceAltCost.Cleave -> KeywordAbilityIds.CLEAVE
+                AcceptanceAltCost.Disguise -> KeywordAbilityIds.DISGUISE
                 AcceptanceAltCost.Overload -> KeywordAbilityIds.OVERLOAD
                 AcceptanceAltCost.Escape -> KeywordAbilityIds.ESCAPE
+                AcceptanceAltCost.Foretell -> KeywordAbilityIds.FORETELL
+                AcceptanceAltCost.Impending -> KeywordAbilityIds.IMPENDING
                 AcceptanceAltCost.JumpStart -> KeywordAbilityIds.JUMP_START
+                AcceptanceAltCost.Plot -> KeywordAbilityIds.PLOT
+                AcceptanceAltCost.Warp -> KeywordAbilityIds.WARP
+                AcceptanceAltCost.Enlist -> KeywordAbilityIds.ENLIST
             }
         val abilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, keywordId)
-        return abilityGrpId != null && (action.alternativeGrpId == abilityGrpId || action.abilityGrpId == abilityGrpId)
+        return action.alternativeGrpId == keywordId ||
+            action.abilityGrpId == keywordId ||
+            (abilityGrpId != null && (action.alternativeGrpId == abilityGrpId || action.abilityGrpId == abilityGrpId))
     }
+
+    private fun keywordAbilityId(altCost: AcceptanceAltCost): Int =
+        when (altCost) {
+            AcceptanceAltCost.Cleave -> KeywordAbilityIds.CLEAVE
+            AcceptanceAltCost.Disguise -> KeywordAbilityIds.DISGUISE
+            AcceptanceAltCost.Overload -> KeywordAbilityIds.OVERLOAD
+            AcceptanceAltCost.Escape -> KeywordAbilityIds.ESCAPE
+            AcceptanceAltCost.Foretell -> KeywordAbilityIds.FORETELL
+            AcceptanceAltCost.Impending -> KeywordAbilityIds.IMPENDING
+            AcceptanceAltCost.JumpStart -> KeywordAbilityIds.JUMP_START
+            AcceptanceAltCost.Plot -> KeywordAbilityIds.PLOT
+            AcceptanceAltCost.Warp -> KeywordAbilityIds.WARP
+            AcceptanceAltCost.Enlist -> KeywordAbilityIds.ENLIST
+        }
 
     private fun zoneContains(
         harness: MatchFlowHarness,

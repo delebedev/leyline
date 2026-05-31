@@ -1,0 +1,15 @@
+name: "Vren, the Relentless"
+grpId: 91775
+titleId: 811839
+abilities:
+  - id: 141939
+    textId: 488336
+    category: 2
+    baseId: 211
+  - id: 145252
+    textId: 530070
+    category: 3
+  - id: 179600
+    textId: 971715
+    category: 2
+expansionCode: "BLB"

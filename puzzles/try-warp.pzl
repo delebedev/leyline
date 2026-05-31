@@ -1,6 +1,6 @@
 [metadata]
 Name:Try Warp
-Goal:Win
+Goal:Survive
 Turns:5
 Difficulty:Easy
 Description:Cast Quantum Riddler via Warp {1U} to verify alt-cost wire.
@@ -13,6 +13,6 @@ AILife=20
 
 humanhand=Quantum Riddler
 humanbattlefield=Island;Island;Island
-humanlibrary=Island
+humanlibrary=Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island
 aibattlefield=
-ailibrary=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains

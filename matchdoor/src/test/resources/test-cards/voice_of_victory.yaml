@@ -1,0 +1,14 @@
+name: "Voice of Victory"
+grpId: 95549
+titleId: 926767
+abilities:
+  - id: 188727
+    textId: 926769
+    category: 2
+    baseId: 363
+  - id: 102133
+    textId: 117216
+    category: 3
+expansionCode: "TDM"
+tokens:
+  "188727": 95832

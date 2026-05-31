@@ -1,6 +1,6 @@
 [metadata]
 Name:Enlist Demo
-Goal:Win
+Goal:Survive
 Turns:5
 
 [state]
@@ -11,5 +11,5 @@ AILife=20
 removesummoningsickness=true
 
 humanbattlefield=Benalish Faithbonder;Centaur Courser
-humanlibrary=Plains;Plains;Plains
-ailibrary=Mountain;Mountain;Mountain
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

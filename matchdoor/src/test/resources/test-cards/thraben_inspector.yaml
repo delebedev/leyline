@@ -1,0 +1,8 @@
+name: "Thraben Inspector"
+grpId: 62629
+titleId: 49500
+abilities:
+  - id: 86969
+    textId: 932574
+    category: 2
+expansionCode: "SOI"
