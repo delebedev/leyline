@@ -1,0 +1,12 @@
+name: "Cut Your Losses"
+grpId: 80189
+titleId: 567146
+abilities:
+  - id: 149387
+    textId: 567147
+    category: 3
+    baseId: 241
+  - id: 2685
+    textId: 567148
+    category: 4
+expansionCode: "SNC"

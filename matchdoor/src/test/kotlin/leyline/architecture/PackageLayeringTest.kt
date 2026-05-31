@@ -5,6 +5,7 @@ import com.tngtech.archunit.core.importer.ImportOption
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import io.kotest.core.spec.style.FunSpec
 import leyline.UnitTag
+import java.nio.file.Files
 import java.nio.file.Path
 
 /**
@@ -59,6 +60,12 @@ class PackageLayeringTest :
                     buildDir.resolve("kotlin/main"),
                     buildDir.resolve("java/main"),
                 )
+
+        val sourceRoot =
+            sequenceOf(
+                cwd.resolve("src/main/kotlin"),
+                cwd.resolve("matchdoor/src/main/kotlin"),
+            ).first { it.resolve("leyline").toFile().isDirectory }
 
         // ── Tier 0: bridge is a pure leaf ───────────────────────────
 
@@ -190,5 +197,37 @@ class PackageLayeringTest :
                     "leyline.game.snapshot..",
                     "leyline.game.state..",
                 ).check(classes)
+        }
+
+        test("bridge source imports from game stay explicitly allowlisted") {
+            val allowed =
+                setOf(
+                    "import leyline.game.data.KeywordAbilityIds",
+                    "import leyline.game.mapping.PromptIds",
+                )
+            val bridgeRoot = sourceRoot.resolve("leyline/bridge")
+            val violations = mutableListOf<String>()
+            val stream = Files.walk(bridgeRoot)
+            try {
+                stream
+                    .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
+                    .forEach { file ->
+                        Files.readAllLines(file).forEachIndexed { index, line ->
+                            val trimmed = line.trim()
+                            if (trimmed.startsWith("import leyline.game.") && trimmed !in allowed) {
+                                violations += "${sourceRoot.relativize(file)}:${index + 1}: $trimmed"
+                            }
+                        }
+                    }
+            } finally {
+                stream.close()
+            }
+
+            // If this fails, don't reflexively add an exception. First decide
+            // whether the source file is genuinely a bridge boundary exception
+            // or whether the package structure should change.
+            check(violations.isEmpty()) {
+                "Unexpected bridge -> game imports:\n" + violations.joinToString("\n")
+            }
         }
     })

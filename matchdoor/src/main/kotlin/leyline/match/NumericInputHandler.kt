@@ -1,6 +1,6 @@
 package leyline.match
 
-import leyline.bridge.forge.PlayerController
+import leyline.bridge.handoff.NumericInputPrompt
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.PromptIds
 import org.slf4j.LoggerFactory
@@ -11,9 +11,9 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * `NumericInputReq` (GRE type 43).
  *
  * Lifecycle (mirrors [OptionalActionHandler]):
- * 1. Engine thread calls one of [PlayerController]'s `chooseNumber` overrides →
+ * 1. Engine thread calls one of `PlayerController`'s `chooseNumber` overrides →
  *    [leyline.bridge.handoff.NumericInputGate.await] sets
- *    [PlayerController.pendingNumericInput] → blocks on `CompletableFuture<Int>`.
+ *    `pendingNumericInput` → blocks on `CompletableFuture<Int>`.
  * 2. Auto-pass loop calls [checkPendingNumericInput] → detects non-null →
  *    sends `NumericInputReq` (with a bare GSM diff carrying `pendingMessageCount=1`)
  *    → returns true (loop exits).
@@ -89,7 +89,7 @@ class NumericInputHandler(
 
     // --- Private ---
 
-    private fun sendNumericInputReq(prompt: PlayerController.NumericInputPrompt) {
+    private fun sendNumericInputReq(prompt: NumericInputPrompt) {
         val bridge = ctx.bridge
         val sourceCard = prompt.sourceCard
         if (sourceCard == null) {

@@ -28,6 +28,12 @@ internal sealed interface SimDecision {
         override val kind: String = "select-n"
     }
 
+    data class Order(
+        val orderedInstanceIds: List<Int>,
+    ) : SimDecision {
+        override val kind: String = "order"
+    }
+
     data class Search(
         val itemsFound: List<Int>,
     ) : SimDecision {
@@ -140,6 +146,7 @@ internal class SimDecisionSubmitter(
             is SimDecision.PerformAction -> submitPerformAction(decision.action)
             is SimDecision.SelectTargets -> submitted { harness.selectTargets(decision.targetInstanceIds) }
             is SimDecision.SelectN -> submitted { harness.respondToSelectN(decision.selectedInstanceIds) }
+            is SimDecision.Order -> submitted { harness.respondToOrder(decision.orderedInstanceIds) }
             is SimDecision.Search -> submitted { harness.respondToSearch(decision.itemsFound) }
             is SimDecision.EffectCost -> submitted { harness.respondToEffectCost(decision.selectedInstanceIds) }
             is SimDecision.GroupTop ->

@@ -1,6 +1,6 @@
 [metadata]
 Name:Disguise Forum Familiar
-Goal:Win
+Goal:Survive
 Turns:6
 Difficulty:Easy
 Description:Cast Forum Familiar face-down for {3} as a 2/2 with ward {2}. On a later turn, turn it face up for its disguise cost {1}{W} — it becomes a 1/1 Cat, returns target permanent to its owner's hand, and gains a +1/+1 counter.
@@ -9,9 +9,9 @@ Description:Cast Forum Familiar face-down for {3} as a 2/2 with ward {2}. On a l
 ActivePlayer=Human
 ActivePhase=Main1
 HumanLife=20
-AILife=4
+AILife=20
 
 humanhand=Forum Familiar
 humanbattlefield=Plains;Plains;Plains;Plains;Plains;Forest
-humanlibrary=Plains;Plains;Plains;Plains
-ailibrary=Forest;Forest;Forest;Forest
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest

@@ -33,8 +33,11 @@ class AcceptanceSuiteLoaderTest :
                     |      - cast: { card: Think Twice, zone: graveyard, alt_cost: jump_start }
                     |      - select_cost: { zone: hand, cards: [Coral Merfolk] }
                     |      - select_card: { zone: sideboard, card: Environmental Sciences }
+                    |      - select_cards: { zone: library, cards: [Lightning Bolt, Counterspell] }
+                    |      - order_cards: [Counterspell, Lightning Bolt]
                     |      - expect:
                     |          all:
+                    |            - prompt: { type: OrderReq, prompt_id: 42 }
                     |            - battlefield_stats_at_least: { side: ours, card: Monastery Swiftspear, power: 2, toughness: 3 }
                     |            - zone_not_contains: { side: ours, zone: hand, card: Miscalculation }
                     |            - zone_count_at_least: { side: ours, zone: hand, count: 2 }
@@ -46,7 +49,7 @@ class AcceptanceSuiteLoaderTest :
                 suite.scenarios shouldHaveSize 1
                 val scenario = suite.scenarios.single()
                 scenario.id shouldBe "cast-face"
-                scenario.steps shouldHaveSize 13
+                scenario.steps shouldHaveSize 15
                 scenario.steps[0] shouldBe WaitStep(listOf(ActionAvailableCondition(AcceptanceActionType.Activate, "Miscalculation")))
                 scenario.steps[1] shouldBe ActivateStep("Miscalculation", AcceptanceZone.Hand, 0)
                 scenario.steps[2] shouldBe ChooseStep(AcceptanceCastingTimeOption.Kicker, null)
@@ -59,9 +62,12 @@ class AcceptanceSuiteLoaderTest :
                 scenario.steps[9] shouldBe CastStep("Think Twice", AcceptanceZone.Graveyard, AcceptanceAltCost.JumpStart)
                 scenario.steps[10] shouldBe SelectCostStep(zone = AcceptanceZone.Hand, cards = listOf("Coral Merfolk"))
                 scenario.steps[11] shouldBe SelectCardStep(zone = AcceptanceZone.Sideboard, card = "Environmental Sciences")
-                scenario.steps[12] shouldBe
+                scenario.steps[12] shouldBe SelectCardsStep(zone = AcceptanceZone.Library, cards = listOf("Lightning Bolt", "Counterspell"))
+                scenario.steps[13] shouldBe OrderCardsStep(listOf("Counterspell", "Lightning Bolt"))
+                scenario.steps[14] shouldBe
                     ExpectStep(
                         listOf(
+                            PromptCondition("OrderReq", 42),
                             BattlefieldStatsAtLeastCondition(AcceptanceSide.Ours, "Monastery Swiftspear", 2, 3),
                             ZoneNotContainsCondition(AcceptanceSide.Ours, AcceptanceZone.Hand, "Miscalculation"),
                             ZoneCountAtLeastCondition(AcceptanceSide.Ours, AcceptanceZone.Hand, 2),

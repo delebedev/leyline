@@ -10,6 +10,7 @@ import leyline.game.mapping.PromptIds
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
@@ -18,6 +19,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
+@Suppress("LargeClass") // Executor grows one small adapter per backend-neutral DSL verb.
 class MatchdoorAcceptanceExecutor(
     private val seed: Long = 42L,
 ) {
@@ -55,7 +57,11 @@ class MatchdoorAcceptanceExecutor(
             is TargetStep -> target(harness, step.target, context)
             is SelectCostStep -> selectCost(harness, step)
             is SelectCardStep -> selectCard(harness, step, context)
+            is SelectCardsStep -> selectCards(harness, step, context)
+            is OrderCardsStep -> orderCards(harness, step, context)
             is BlockStep -> block(harness, step, context)
+            is AttackStep -> attack(harness, step, context)
+            is TurnFaceUpStep -> turnFaceUp(harness, step, context)
             is PlayLandStep -> requireAction(context) { harness.playLand(step.card) }
             is CastStep -> cast(harness, step, context)
             ResolveStackStep -> resolveStack(harness, context)
@@ -93,21 +99,42 @@ class MatchdoorAcceptanceExecutor(
         harness: MatchFlowHarness,
         step: SelectCardStep,
         context: String,
+    ) = selectCards(harness, SelectCardsStep(step.side, step.zone, listOf(step.card)), context)
+
+    private fun selectCards(
+        harness: MatchFlowHarness,
+        step: SelectCardsStep,
+        context: String,
     ) {
         val prompt = latestPromptMessage(harness)
         require(prompt?.hasSelectNReq() == true) {
             "$context expected latest prompt SelectNReq"
         }
-        val selectedId = resolveCardInZone(harness, step.side, step.zone, step.card)
-        require(selectedId in prompt.selectNReq.idsList) {
-            "$context selected ${step.card} iid=$selectedId is not in SelectNReq candidates ${prompt.selectNReq.idsList}"
+        val selectedIds = step.cards.map { resolveCardInZone(harness, step.side, step.zone, it) }
+        selectedIds.zip(step.cards).forEach { (selectedId, card) ->
+            require(selectedId in prompt.selectNReq.idsList) {
+                "$context selected $card iid=$selectedId is not in SelectNReq candidates ${prompt.selectNReq.idsList}"
+            }
         }
         if (step.zone == AcceptanceZone.Sideboard) {
             require(prompt.prompt.promptId == PromptIds.LEARN_LESSON_OR_DISCARD || prompt.prompt.promptId == PromptIds.LEARN_LESSON_ONLY) {
                 "$context sideboard selection expected Learn prompt, got promptId=${prompt.prompt.promptId}"
             }
         }
-        harness.respondToSelectN(listOf(selectedId))
+        harness.respondToSelectN(selectedIds)
+    }
+
+    private fun orderCards(
+        harness: MatchFlowHarness,
+        step: OrderCardsStep,
+        context: String,
+    ) {
+        val prompt = latestPromptMessage(harness)
+        require(prompt?.hasOrderReq() == true) {
+            "$context expected latest prompt OrderReq"
+        }
+        val orderedIds = resolvePromptCardOrder(harness, prompt.orderReq.idsList, step.cards, context)
+        harness.respondToOrder(orderedIds)
     }
 
     private fun activate(
@@ -210,6 +237,41 @@ class MatchdoorAcceptanceExecutor(
         harness.declareBlockers(mapOf(blockerId to attackerId))
     }
 
+    private fun attack(
+        harness: MatchFlowHarness,
+        step: AttackStep,
+        context: String,
+    ) {
+        require(latestPromptMatches(harness, "DeclareAttackersReq")) {
+            "$context expected latest prompt DeclareAttackersReq"
+        }
+        val attackerIds = step.cards.map { resolveBattlefieldCard(harness, AcceptanceSide.Ours, it) }
+        val alternatives = step.altCost?.let { altCost -> attackerIds.associateWith { keywordAbilityId(altCost) } }.orEmpty()
+        harness.toggleAttackers(attackerIds, alternatives)
+        harness.submitAttackers()
+    }
+
+    private fun turnFaceUp(
+        harness: MatchFlowHarness,
+        step: TurnFaceUpStep,
+        context: String,
+    ) {
+        val card =
+            player(AcceptanceSide.Ours, harness)
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .firstOrNull { it.name.equals(step.card, ignoreCase = true) || it.isFaceDown }
+                ?: error("$context could not find ${step.card} or a face-down card on battlefield")
+        submitAction(
+            harness,
+            Action
+                .newBuilder()
+                .setActionType(ActionType.SpecialTurnFaceUp_add3)
+                .setInstanceId(harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
+                .build(),
+        )
+    }
+
     private fun resolveStack(
         harness: MatchFlowHarness,
         context: String,
@@ -310,7 +372,8 @@ class MatchdoorAcceptanceExecutor(
 
             is PhaseCondition -> "${condition.label}; actual phase=${harness.phase()}"
             is PromptCondition ->
-                "${condition.label}; actual latest prompt=${latestPromptName(harness) ?: "none"}"
+                "${condition.label}; actual latest prompt=${latestPromptNameWithId(harness) ?: "none"}"
+            is AnnotationSeenCondition -> "${condition.label}; actual annotations=${annotationTypes(harness).distinct()}"
             StackEmptyCondition -> "${condition.label}; actual stack size=${harness.game().stackZone.size()}"
         }
 
@@ -327,9 +390,28 @@ class MatchdoorAcceptanceExecutor(
             is BattlefieldStatsCondition -> battlefieldStats(harness, condition)
             is BattlefieldStatsAtLeastCondition -> battlefieldStatsAtLeast(harness, condition)
             is PhaseCondition -> phaseMatches(harness.phase(), condition.phase)
-            is PromptCondition -> promptSeen(harness, condition.prompt)
+            is PromptCondition -> promptSeen(harness, condition.prompt, condition.promptId)
+            is AnnotationSeenCondition -> annotationSeen(harness, condition.type)
             StackEmptyCondition -> harness.game().stackZone.size() == 0
         }
+
+    private fun annotationSeen(
+        harness: MatchFlowHarness,
+        type: String,
+    ): Boolean {
+        val expected = AnnotationType.valueOf(type)
+        return harness.allMessages
+            .filter { it.hasGameStateMessage() }
+            .flatMap { it.gameStateMessage.annotationsList + it.gameStateMessage.persistentAnnotationsList }
+            .any { expected in it.typeList }
+    }
+
+    private fun annotationTypes(harness: MatchFlowHarness): List<String> =
+        harness.allMessages
+            .filter { it.hasGameStateMessage() }
+            .flatMap { it.gameStateMessage.annotationsList + it.gameStateMessage.persistentAnnotationsList }
+            .flatMap { it.typeList }
+            .map { it.name }
 
     private fun actionAvailable(
         harness: MatchFlowHarness,
@@ -342,7 +424,9 @@ class MatchdoorAcceptanceExecutor(
                 AcceptanceActionType.Activate -> ActionType.Activate_add3
             }
         return harness.accumulator.actions?.actionsList.orEmpty().any { action ->
-            action.actionType == expectedType && actionCardName(harness, action).equals(condition.card, ignoreCase = true)
+            action.actionType == expectedType &&
+                actionCardName(harness, action).equals(condition.card, ignoreCase = true) &&
+                (condition.altCost == null || actionMatchesAltCost(harness, action, condition.altCost))
         }
     }
 
@@ -383,13 +467,35 @@ class MatchdoorAcceptanceExecutor(
         val keywordId =
             when (altCost) {
                 AcceptanceAltCost.Cleave -> KeywordAbilityIds.CLEAVE
+                AcceptanceAltCost.Disguise -> KeywordAbilityIds.DISGUISE
                 AcceptanceAltCost.Overload -> KeywordAbilityIds.OVERLOAD
                 AcceptanceAltCost.Escape -> KeywordAbilityIds.ESCAPE
+                AcceptanceAltCost.Foretell -> KeywordAbilityIds.FORETELL
+                AcceptanceAltCost.Impending -> KeywordAbilityIds.IMPENDING
                 AcceptanceAltCost.JumpStart -> KeywordAbilityIds.JUMP_START
+                AcceptanceAltCost.Plot -> KeywordAbilityIds.PLOT
+                AcceptanceAltCost.Warp -> KeywordAbilityIds.WARP
+                AcceptanceAltCost.Enlist -> KeywordAbilityIds.ENLIST
             }
         val abilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, keywordId)
-        return abilityGrpId != null && (action.alternativeGrpId == abilityGrpId || action.abilityGrpId == abilityGrpId)
+        return action.alternativeGrpId == keywordId ||
+            action.abilityGrpId == keywordId ||
+            (abilityGrpId != null && (action.alternativeGrpId == abilityGrpId || action.abilityGrpId == abilityGrpId))
     }
+
+    private fun keywordAbilityId(altCost: AcceptanceAltCost): Int =
+        when (altCost) {
+            AcceptanceAltCost.Cleave -> KeywordAbilityIds.CLEAVE
+            AcceptanceAltCost.Disguise -> KeywordAbilityIds.DISGUISE
+            AcceptanceAltCost.Overload -> KeywordAbilityIds.OVERLOAD
+            AcceptanceAltCost.Escape -> KeywordAbilityIds.ESCAPE
+            AcceptanceAltCost.Foretell -> KeywordAbilityIds.FORETELL
+            AcceptanceAltCost.Impending -> KeywordAbilityIds.IMPENDING
+            AcceptanceAltCost.JumpStart -> KeywordAbilityIds.JUMP_START
+            AcceptanceAltCost.Plot -> KeywordAbilityIds.PLOT
+            AcceptanceAltCost.Warp -> KeywordAbilityIds.WARP
+            AcceptanceAltCost.Enlist -> KeywordAbilityIds.ENLIST
+        }
 
     private fun zoneContains(
         harness: MatchFlowHarness,
@@ -443,19 +549,22 @@ class MatchdoorAcceptanceExecutor(
     private fun promptSeen(
         harness: MatchFlowHarness,
         prompt: String,
-    ): Boolean = latestPromptMatches(harness, prompt)
+        promptId: Int?,
+    ): Boolean = latestPromptMatches(harness, prompt, promptId)
 
     private fun latestPromptMatches(
         harness: MatchFlowHarness,
         prompt: String,
-    ): Boolean = latestPromptMessage(harness)?.matchesPrompt(prompt) == true
+        promptId: Int? = null,
+    ): Boolean = latestPromptMessage(harness)?.matchesPrompt(prompt, promptId) == true
 
     private fun latestPromptMessage(harness: MatchFlowHarness): GREToClientMessage? =
         harness.allMessages
             .asReversed()
             .firstOrNull { it.isPromptMessage() }
 
-    private fun latestPromptName(harness: MatchFlowHarness): String? = latestPromptMessage(harness)?.promptName()
+    private fun latestPromptNameWithId(harness: MatchFlowHarness): String? =
+        latestPromptMessage(harness)?.let { msg -> "${msg.promptName()}#${msg.prompt.promptId}" }
 
     private fun phaseMatches(
         actual: String?,
@@ -528,6 +637,28 @@ class MatchdoorAcceptanceExecutor(
         card: String,
     ): Int = resolveCardInZone(harness, side, AcceptanceZone.Battlefield, card)
 
+    private fun resolvePromptCardOrder(
+        harness: MatchFlowHarness,
+        candidateIds: List<Int>,
+        cards: List<String>,
+        context: String,
+    ): List<Int> {
+        require(candidateIds.size == cards.size) {
+            "$context ordered ${cards.size} cards but OrderReq has ${candidateIds.size} candidates ${promptCardNames(
+                harness,
+                candidateIds,
+            )}"
+        }
+        val remaining = candidateIds.toMutableList()
+        return cards.map { card ->
+            val id =
+                remaining.firstOrNull { iid -> cardNameByInstanceId(harness, iid).equals(card, ignoreCase = true) }
+                    ?: error("$context could not find $card in OrderReq candidates ${promptCardNames(harness, candidateIds)}")
+            remaining.remove(id)
+            id
+        }
+    }
+
     private fun resolveCardInZone(
         harness: MatchFlowHarness,
         side: AcceptanceSide,
@@ -541,6 +672,19 @@ class MatchdoorAcceptanceExecutor(
                 .firstOrNull { it.name.equals(cardName, ignoreCase = true) }
                 ?: error("could not find $cardName in ${side.yamlName} ${zone.yamlName}")
         return harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+    }
+
+    private fun promptCardNames(
+        harness: MatchFlowHarness,
+        ids: List<Int>,
+    ): List<String> = ids.map { iid -> cardNameByInstanceId(harness, iid) ?: "iid=$iid" }
+
+    private fun cardNameByInstanceId(
+        harness: MatchFlowHarness,
+        iid: Int,
+    ): String? {
+        val cardId = harness.bridge.getForgeCardId(InstanceId(iid)) ?: return null
+        return harness.game().findById(cardId.value)?.name
     }
 
     private fun zoneCardNames(

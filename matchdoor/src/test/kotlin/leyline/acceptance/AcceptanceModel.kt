@@ -83,6 +83,19 @@ data class BlockStep(
     override val label: String = "block $attacker with $blocker"
 }
 
+data class AttackStep(
+    val cards: List<String>,
+    val altCost: AcceptanceAltCost? = null,
+) : AcceptanceStep {
+    override val label: String = "attack ${cards.joinToString()}"
+}
+
+data class TurnFaceUpStep(
+    val card: String,
+) : AcceptanceStep {
+    override val label: String = "turn_face_up $card"
+}
+
 data class PlayLandStep(
     val card: String,
 ) : AcceptanceStep {
@@ -113,6 +126,20 @@ data class SelectCardStep(
     override val label: String = "select_card $card"
 }
 
+data class SelectCardsStep(
+    val side: AcceptanceSide = AcceptanceSide.Ours,
+    val zone: AcceptanceZone,
+    val cards: List<String>,
+) : AcceptanceStep {
+    override val label: String = "select_cards ${cards.joinToString()}"
+}
+
+data class OrderCardsStep(
+    val cards: List<String>,
+) : AcceptanceStep {
+    override val label: String = "order_cards ${cards.joinToString()}"
+}
+
 data object ResolveStackStep : AcceptanceStep {
     override val label: String = "resolve_stack"
 }
@@ -128,8 +155,9 @@ sealed interface AcceptanceCondition {
 data class ActionAvailableCondition(
     val type: AcceptanceActionType,
     val card: String,
+    val altCost: AcceptanceAltCost? = null,
 ) : AcceptanceCondition {
-    override val label: String = "action ${type.yamlName} $card"
+    override val label: String = "action ${type.yamlName} $card${altCost?.let { " via ${it.yamlName}" } ?: ""}"
 }
 
 data class ZoneContainsCondition(
@@ -189,8 +217,15 @@ data class PhaseCondition(
 
 data class PromptCondition(
     val prompt: String,
+    val promptId: Int? = null,
 ) : AcceptanceCondition {
-    override val label: String = "prompt $prompt seen"
+    override val label: String = "prompt $prompt${promptId?.let { "#$it" } ?: ""} seen"
+}
+
+data class AnnotationSeenCondition(
+    val type: String,
+) : AcceptanceCondition {
+    override val label: String = "annotation $type seen"
 }
 
 data object StackEmptyCondition : AcceptanceCondition {
@@ -260,9 +295,15 @@ enum class AcceptanceAltCost(
     val yamlName: String,
 ) {
     Cleave("cleave"),
+    Disguise("disguise"),
     Overload("overload"),
     Escape("escape"),
+    Foretell("foretell"),
+    Impending("impending"),
     JumpStart("jump_start"),
+    Plot("plot"),
+    Warp("warp"),
+    Enlist("enlist"),
     ;
 
     companion object {

@@ -87,6 +87,9 @@ object PromptIds {
      */
     const val SELECT_N_STOCK_UP = 2490
 
+    /** Brainstorm-style putback prompt: choose cards to put into your library before ordering. */
+    const val SELECT_N_LIBRARY_PUTBACK = 2035
+
     /** Inner SelectNReq.prompt PromptId Parameter value for look-and-pick prompts.
      *  The literal `2` is opaque (no dictionary entry) but is the value the
      *  client expects on this slot for resolution-time pick prompts. */
@@ -119,4 +122,10 @@ object PromptIds {
 
     /** Numeric input — "Choose X" / pay X stepper. Single observed loc key for X-cost prompts. */
     const val NUMERIC_INPUT = 51
+
+    /** Order cards being placed on the bottom of a library. */
+    const val ORDER_LIBRARY_BOTTOM = 42
+
+    /** Order cards being placed on top of a library. */
+    const val ORDER_LIBRARY_TOP = 86
 }

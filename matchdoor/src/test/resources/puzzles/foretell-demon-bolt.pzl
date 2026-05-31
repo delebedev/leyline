@@ -1,6 +1,6 @@
 [metadata]
 Name:Foretell Demon Bolt
-Goal:Win
+Goal:Survive
 Turns:5
 Difficulty:Easy
 Description:Activate Foretell on Demon Bolt — pay {2} to exile it face-down. On a later turn, cast it from exile for {R}; it deals 4 damage to the AI's Grizzly Bears.
@@ -9,10 +9,10 @@ Description:Activate Foretell on Demon Bolt — pay {2} to exile it face-down. O
 ActivePlayer=Human
 ActivePhase=Main1
 HumanLife=20
-AILife=4
+AILife=20
 
 humanhand=Demon Bolt
 humanbattlefield=Mountain;Mountain;Mountain
-humanlibrary=Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
 aibattlefield=Grizzly Bears
-ailibrary=Forest;Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest

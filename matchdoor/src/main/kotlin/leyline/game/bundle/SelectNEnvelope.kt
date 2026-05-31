@@ -59,6 +59,13 @@ data class SelectNEnvelope(
                 gameStateAugmentation = GameStateAugmentation.LookAndPick,
             )
 
+        fun libraryPutback(req: SelectNReq): SelectNEnvelope =
+            SelectNEnvelope(
+                req = req,
+                prompt = promptWithSourceAndCount(PromptIds.SELECT_N_LIBRARY_PUTBACK, req),
+                allowCancel = AllowCancel.No_a526,
+            )
+
         fun mutateTopBottom(req: SelectNReq): SelectNEnvelope =
             SelectNEnvelope(
                 req = req,

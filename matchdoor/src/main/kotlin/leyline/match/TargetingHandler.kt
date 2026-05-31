@@ -276,6 +276,28 @@ class TargetingHandler(
         autoPass()
     }
 
+    fun onOrderResp(
+        greMsg: ClientToGREMessage,
+        autoPass: () -> Unit,
+    ) {
+        val bridge = ctx.bridge
+        val seatBridge = bridge.seat(counters.seatId)
+        val pendingPrompt =
+            seatBridge.prompt.getPendingPrompt() ?: run {
+                log.warn("TargetingHandler: OrderResp but no pending prompt (likely timeout race)")
+                DevCheck.failOnAutoPass { "OrderResp but no pending prompt" }
+                return
+            }
+
+        val orderedIds = greMsg.orderResp.idsList
+        val selectedIndices = mapSelectedInstanceIdsToPromptIndices(orderedIds, pendingPrompt)
+        log.info("TargetingHandler: OrderResp ids={} indices={}", orderedIds, selectedIndices)
+
+        seatBridge.prompt.submitResponse(pendingPrompt.promptId, selectedIndices)
+        bridge.awaitPriority()
+        autoPass()
+    }
+
     fun onEffectCost(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
@@ -415,6 +437,7 @@ class TargetingHandler(
 
                 is ClassifiedPrompt.Grouping,
                 is ClassifiedPrompt.ModalChoice,
+                is ClassifiedPrompt.Order,
                 is ClassifiedPrompt.Search,
                 is ClassifiedPrompt.SelectN,
                 is ClassifiedPrompt.Targeting,
@@ -482,6 +505,12 @@ class TargetingHandler(
                 true
             }
 
+            is ClassifiedPrompt.Order -> {
+                tracer.traceEvent(MatchEventType.TARGET_PROMPT, ctx.game, "order: ${pendingPrompt.request.message}")
+                sendOrderReq(classified.pendingPrompt)
+                true
+            }
+
             is ClassifiedPrompt.AutoResolve -> false
         }
     }
@@ -508,6 +537,7 @@ class TargetingHandler(
             ClassifiedPrompt.SelectN.Reason.SacrificeEffect,
             ClassifiedPrompt.SelectN.Reason.RevealChoose,
             ClassifiedPrompt.SelectN.Reason.Resolution,
+            ClassifiedPrompt.SelectN.Reason.LibraryPutback,
             ClassifiedPrompt.SelectN.Reason.MutateTopBottom,
             ClassifiedPrompt.SelectN.Reason.LearnLesson,
             ClassifiedPrompt.SelectN.Reason.StaticColorChoice,
@@ -573,6 +603,7 @@ class TargetingHandler(
 
                 is ClassifiedPrompt.AutoResolve,
                 is ClassifiedPrompt.ModalChoice,
+                is ClassifiedPrompt.Order,
                 is ClassifiedPrompt.Search,
                 is ClassifiedPrompt.SelectN,
                 is ClassifiedPrompt.Targeting,
@@ -831,7 +862,12 @@ class TargetingHandler(
         // Save pending state for response mapping. Store the *effective* child
         // grpIds so `onCastingTimeOptions`'s `indexOf(pickedGrpId)` returns an
         // index that aligns with `possible[]` upstream — not an unfiltered index.
-        pendingInteraction = PendingClientInteraction.ModalChoice(pendingPrompt.promptId, effectiveChildGrpIds)
+        pendingInteraction =
+            PendingClientInteraction.ModalChoice(
+                pendingPrompt.promptId,
+                effectiveChildGrpIds,
+                stackAbilityInstanceId = sourceInstanceId.takeIf { isTriggered && it > 0 },
+            )
 
         // For triggered abilities, pass the source card's instanceId and grpId so the
         // synthesized ability object has correct parentId and objectSourceGrpId.
@@ -890,6 +926,9 @@ class TargetingHandler(
                 pendingInteraction = null
                 bridge.awaitPriority()
                 autoPass()
+                pending.stackAbilityInstanceId?.let { abilityIid ->
+                    sink.sendBundledGRE(listOf(bundles.bundleBuilder.modalStackCleanup(counters.counter, abilityIid)))
+                }
             }
 
             else -> {
@@ -1290,15 +1329,19 @@ class TargetingHandler(
     ) {
         val game = ctx.game
         val bb = bundles.bundleBuilder
-        val req = bb.buildSelectNReq(pendingPrompt)
-        val envelope = selectNEnvelope(pendingPrompt, reason, req)
         val result =
             bb.selectNBundle(
                 game,
                 counters.counter,
-                envelope,
-            )
+                pendingPrompt,
+            ) { req -> selectNEnvelope(pendingPrompt, reason, req) }
         Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
+        sink.sendBundledGRE(result.messages)
+    }
+
+    private fun sendOrderReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
+        val result = bundles.bundleBuilder.orderBundle(ctx.game, counters.counter, pendingPrompt)
+        Tap.outboundTemplate("OrderReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 
@@ -1319,6 +1362,7 @@ class TargetingHandler(
             -> SelectNEnvelope.default(req)
             ClassifiedPrompt.SelectN.Reason.RevealChoose -> SelectNEnvelope.revealChoose(req)
             ClassifiedPrompt.SelectN.Reason.Resolution -> SelectNEnvelope.resolution(req)
+            ClassifiedPrompt.SelectN.Reason.LibraryPutback -> SelectNEnvelope.libraryPutback(req)
             ClassifiedPrompt.SelectN.Reason.MutateTopBottom -> SelectNEnvelope.mutateTopBottom(req)
             ClassifiedPrompt.SelectN.Reason.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId(pendingPrompt))
             ClassifiedPrompt.SelectN.Reason.StaticColorChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_COLOR)

@@ -1,0 +1,9 @@
+name: "Manalith"
+grpId: 68160
+titleId: 2494
+abilities:
+  - id: 1055
+    textId: 227440
+    category: 1
+    subCategory: 1
+expansionCode: "M19"

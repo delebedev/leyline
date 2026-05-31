@@ -15,6 +15,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GroupReq
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.OrderReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
 /**
@@ -282,6 +283,8 @@ abstract class SessionTest(
 
     fun castSpellUntilSelectNReq(cardName: String): SelectNReq = harness.castSpellUntilSelectNReq(cardName)
 
+    fun castSpellUntilOrderReq(cardName: String): OrderReq = harness.castSpellUntilOrderReq(cardName)
+
     fun castSpellUntilCastingTimeOptionsReq(cardName: String): CastingTimeOptionsReq = harness.castSpellUntilCastingTimeOptionsReq(cardName)
 
     // --- Prompt responses ---
@@ -297,6 +300,8 @@ abstract class SessionTest(
     ) = harness.respondToScry(bottomInstanceIds, allInstanceIds)
 
     fun respondToSelectN(selectedInstanceIds: List<Int>) = harness.respondToSelectN(selectedInstanceIds)
+
+    fun respondToOrder(orderedInstanceIds: List<Int>) = harness.respondToOrder(orderedInstanceIds)
 
     fun respondToEffectCost(selectedInstanceIds: List<Int>) = harness.respondToEffectCost(selectedInstanceIds)
 

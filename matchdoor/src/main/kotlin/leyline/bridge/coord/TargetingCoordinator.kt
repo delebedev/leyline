@@ -2,6 +2,7 @@ package leyline.bridge.coord
 
 import forge.ai.LobbyPlayerAi
 import forge.game.GameEntity
+import forge.game.ability.AbilityUtils
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
@@ -191,10 +192,10 @@ class TargetingCoordinator(
         // a non-mana cost payment (PayCostsReq) instead of a resolution-time
         // SelectN. Mirrors the existing sacrifice cost-payment path.
         val effectiveSemantic =
-            if (sa?.alternativeCost == AlternativeCost.Escape) {
-                PromptSemantic.SelectNCostExileFromGrave
-            } else {
-                PromptSemantic.SelectNResolution
+            when {
+                sa?.alternativeCost == AlternativeCost.Escape -> PromptSemantic.SelectNCostExileFromGrave
+                isLibraryPutback(sa) -> PromptSemantic.SelectNLibraryPutback
+                else -> PromptSemantic.SelectNResolution
             }
         val request =
             PromptRequest(
@@ -211,12 +212,23 @@ class TargetingCoordinator(
                 // matters for RevealChoose (Duress, filtered ⊂ revealed) but not
                 // here. RevealChoose has its own path through
                 // `chooseCardsViaBridgeForReveal` where the two sets diverge.
-                unfilteredRefs = candidateRefs,
+                unfilteredRefs = if (effectiveSemantic == PromptSemantic.SelectNResolution) candidateRefs else emptyList(),
                 sourceEntityId = sa?.hostCard?.id,
             )
         val indices = bridge.requestChoice(request)
         return indices.filter { it in optionList.indices }.map { optionList.get(it) }
     }
+
+    private fun isLibraryPutback(sa: SpellAbility?): Boolean =
+        sa?.api == ApiType.ChangeZone &&
+            sa.hasParamValue("Origin", "Hand") &&
+            sa.hasParamValue("Destination", "Library") &&
+            sa.hasParamValue("Reorder", "True")
+
+    private fun SpellAbility.hasParamValue(
+        name: String,
+        value: String,
+    ): Boolean = hasParam(name) && getParam(name).equals(value, ignoreCase = true)
 
     fun chooseCardsForEffect(
         sourceList: CardCollectionView,
@@ -411,9 +423,12 @@ class TargetingCoordinator(
     fun orderMoveToZoneList(
         cards: CardCollectionView,
         zone: ZoneType,
+        sa: SpellAbility?,
     ): CardCollectionView {
         if (cards.size <= 1) return cards
         val labels = cards.map { it.name }
+        val semantic = orderSemantic(zone, sa)
+        recordPendingOrderZoneMove(cards, zone, semantic)
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -422,8 +437,66 @@ class TargetingCoordinator(
                 min = cards.size,
                 max = cards.size,
                 defaultIndex = 0,
+                semantic = semantic,
+                candidateRefs = buildCandidateRefs(cards),
+                sourceEntityId = sa?.hostCard?.id,
             )
         val indices = bridge.requestChoice(request)
+        val ordered = orderedCards(cards, indices)
+        if (semantic == PromptSemantic.OrderForTop && zone.isDeck) {
+            return CardCollection(ordered.reversed())
+        }
+        return ordered
+    }
+
+    private fun recordPendingOrderZoneMove(
+        cards: CardCollectionView,
+        zone: ZoneType,
+        semantic: PromptSemantic,
+    ) {
+        if (semantic != PromptSemantic.OrderForTop || !zone.isDeck) return
+        val movedCards = cards.filterIsInstance<Card>()
+        if (movedCards.size != cards.size || movedCards.any { !it.isInZone(ZoneType.Hand) }) return
+        val owner = movedCards.firstOrNull()?.owner ?: return
+        if (movedCards.any { it.owner != owner }) return
+        val ownerSeat = if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+        bridge.recordPendingOrderZoneMove(
+            InteractivePromptBridge.PendingOrderZoneMove(
+                seatId = ownerSeat,
+                forgeCardIds = movedCards.map { ForgeCardId(it.id) },
+                putOnTop = true,
+            ),
+        )
+    }
+
+    private fun orderSemantic(
+        zone: ZoneType,
+        sa: SpellAbility?,
+    ): PromptSemantic =
+        when {
+            !zone.isDeck -> PromptSemantic.OrderGeneric
+            isLibraryBottomOrder(sa) -> PromptSemantic.OrderForBottom
+            else -> PromptSemantic.OrderForTop
+        }
+
+    private fun isLibraryBottomOrder(sa: SpellAbility?): Boolean {
+        val explicitPosition = libraryPosition(sa, "LibraryPosition2") ?: libraryPosition(sa, "LibraryPosition")
+        if (explicitPosition != null) return explicitPosition < 0
+        return sa?.api == ApiType.Dig
+    }
+
+    private fun libraryPosition(
+        sa: SpellAbility?,
+        param: String,
+    ): Int? {
+        if (sa == null || !sa.hasParam(param)) return null
+        return runCatching { AbilityUtils.calculateAmount(sa.hostCard, sa.getParam(param), sa) }.getOrNull()
+    }
+
+    private fun orderedCards(
+        cards: CardCollectionView,
+        indices: List<Int>,
+    ): CardCollection {
         val result = CardCollection()
         for (idx in indices) {
             if (idx in 0 until cards.size) result.add(cards.get(idx))
@@ -662,15 +735,11 @@ class TargetingCoordinator(
                     min = toTop.size,
                     max = toTop.size,
                     defaultIndex = 0,
+                    semantic = PromptSemantic.OrderForTop,
+                    candidateRefs = buildCandidateRefs(toTop),
                 )
             val ordering = bridge.requestChoice(orderReq)
-            val ordered = CardCollection()
-            for (idx in ordering) {
-                if (idx in 0 until toTop.size) ordered.add(toTop[idx])
-            }
-            for (card in toTop) {
-                if (card !in ordered) ordered.add(card)
-            }
+            val ordered = orderedCards(toTop, ordering)
             return ImmutablePair.of(ordered, if (toAway.isEmpty()) null else toAway)
         }
         return ImmutablePair.of(

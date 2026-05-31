@@ -1,0 +1,12 @@
+name: "Brutal Cathar"
+grpId: 78331
+titleId: 529699
+abilities:
+  - id: 145149
+    textId: 954195
+    category: 2
+  - id: 216
+    textId: 529703
+    category: 3
+linkedFaces: [78332]
+expansionCode: "MID"

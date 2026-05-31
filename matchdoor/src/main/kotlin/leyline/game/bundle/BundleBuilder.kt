@@ -3,6 +3,7 @@ package leyline.game.bundle
 import forge.game.Game
 import forge.game.phase.PhaseType
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.PromptCandidateRefDto
@@ -281,6 +282,9 @@ class BundleBuilder(
 
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
     fun buildSelectNReq(prompt: InteractivePromptBridge.PendingPrompt): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge)
+
+    /** Build an [OrderReq] from a pending ordering prompt. */
+    fun buildOrderReq(prompt: InteractivePromptBridge.PendingPrompt): Pair<OrderReq, Prompt> = RequestBuilder.buildOrderReq(prompt, bridge)
 
     /** Build a [SearchReq] GRE message with populated inner fields for library search.
      *
@@ -719,9 +723,27 @@ class BundleBuilder(
     fun selectNBundle(
         game: Game,
         counter: MessageCounter,
+        prompt: InteractivePromptBridge.PendingPrompt,
+        envelopeForReq: (SelectNReq) -> SelectNEnvelope,
+    ): BundleResult {
+        val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
+        return selectNBundleFromDiff(diff, counter, envelopeForReq(buildSelectNReq(prompt)))
+    }
+
+    fun selectNBundle(
+        game: Game,
+        counter: MessageCounter,
         envelope: SelectNEnvelope,
     ): BundleResult {
         val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
+        return selectNBundleFromDiff(diff, counter, envelope)
+    }
+
+    private fun selectNBundleFromDiff(
+        diff: FrameDiff,
+        counter: MessageCounter,
+        envelope: SelectNEnvelope,
+    ): BundleResult {
         val nextGs = diff.gameStateId
         val snap = diff.snap
         val baseGs =
@@ -753,6 +775,245 @@ class BundleBuilder(
 
         cursor.lastSent = snap
         return BundleResult(listOf(msg1, msg2))
+    }
+
+    /** Order bundle: GameState + OrderReq. */
+    fun orderBundle(
+        game: Game,
+        counter: MessageCounter,
+        prompt: InteractivePromptBridge.PendingPrompt,
+    ): BundleResult {
+        val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
+        val nextGs = diff.gameStateId
+        val snap = diff.snap
+        val stagedMove = stagePendingOrderZoneMove(diff.result.gsm, snap, prompt)
+        val (req, promptProto) = buildOrderReq(prompt)
+        val baseOrderGsm = stagedMove?.gsm ?: attachOrderGameObjects(diff.result.gsm, req, snap, prompt.request.semantic)
+        val gs =
+            baseOrderGsm
+                .toBuilder()
+                .setPendingMessageCount(1)
+                .build()
+        val msg1 =
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                it.gameStateMessage = gs
+            }
+        val msg2 =
+            makeGRE(GREMessageType.OrderReq_695e, nextGs, counter.nextMsgId()) {
+                it.orderReq = req
+                it.setPrompt(promptProto)
+                it.allowCancel = AllowCancel.No_a526
+                if (prompt.request.semantic == PromptSemantic.OrderForTop) {
+                    it.allowUndo = true
+                }
+            }
+
+        cursor.lastSent = stagedMove?.snap ?: snap
+        return BundleResult(listOf(msg1, msg2))
+    }
+
+    private data class StagedOrderMove(
+        val gsm: GameStateMessage,
+        val snap: GsmSnapshot,
+    )
+
+    private data class StagedMovedCard(
+        val forgeCardId: ForgeCardId,
+        val oldId: InstanceId,
+        val newId: InstanceId,
+    )
+
+    private fun stagePendingOrderZoneMove(
+        gsm: GameStateMessage,
+        snap: GsmSnapshot,
+        prompt: InteractivePromptBridge.PendingPrompt,
+    ): StagedOrderMove? {
+        val candidateFids =
+            prompt.request.candidateRefs
+                .filter { it.kind == "card" }
+                .map { ForgeCardId(it.entityId) }
+        val move = bridge.promptBridge(SeatId(seatId)).pollPendingOrderZoneMove(SeatId(seatId), candidateFids) ?: return null
+        if (candidateFids.isEmpty()) return null
+        val sourceZoneId = ZoneIds.handOf(move.seatId)
+        val destZoneId = ZoneIds.libraryOf(move.seatId)
+
+        val moved =
+            candidateFids.map { fid ->
+                val realloc = bridge.ids.realloc(fid)
+                bridge.retireToLimbo(realloc.old)
+                bridge.recordZone(realloc.new, destZoneId)
+                StagedMovedCard(fid, realloc.old, realloc.new)
+            }
+        val stagedSnap = stagedOrderSnapshot(snap, move, sourceZoneId, destZoneId)
+        val sourceIid = prompt.request.sourceEntityId?.let { bridge.getOrAllocInstanceId(ForgeCardId(it)) } ?: InstanceId(0)
+        return StagedOrderMove(
+            gsm = stagedOrderGsm(gsm, snap, stagedSnap, move, moved, sourceIid, sourceZoneId, destZoneId),
+            snap = stagedSnap,
+        )
+    }
+
+    private fun stagedOrderSnapshot(
+        snap: GsmSnapshot,
+        move: InteractivePromptBridge.PendingOrderZoneMove,
+        sourceZoneId: Int,
+        destZoneId: Int,
+    ): GsmSnapshot {
+        val movedSet = move.forgeCardIds.toSet()
+        val zones = snap.zones.toMutableMap()
+        val source = zones[sourceZoneId]
+        val dest = zones[destZoneId]
+        if (source != null) {
+            zones[sourceZoneId] = source.copy(contents = source.contents.filterNot { it in movedSet })
+        }
+        if (dest != null) {
+            val remaining = dest.contents.filterNot { it in movedSet }
+            zones[destZoneId] =
+                dest.copy(contents = if (move.putOnTop) move.forgeCardIds + remaining else remaining + move.forgeCardIds)
+        }
+        return GsmSnapshot(
+            matchId = snap.matchId,
+            gameStateId = snap.gameStateId,
+            seats = snap.seats,
+            zones = zones,
+            boundCards = snap.boundCards,
+            stack = snap.stack,
+            phase = snap.phase,
+            combat = snap.combat,
+            abilityWordEntries = snap.abilityWordEntries,
+            persistentAnnotationState = snap.persistentAnnotationState,
+            capturedAt = snap.capturedAt,
+            dayTime = snap.dayTime,
+            activePlayerSpellsCastThisTurn = snap.activePlayerSpellsCastThisTurn,
+        )
+    }
+
+    private fun stagedOrderGsm(
+        gsm: GameStateMessage,
+        snap: GsmSnapshot,
+        stagedSnap: GsmSnapshot,
+        move: InteractivePromptBridge.PendingOrderZoneMove,
+        moved: List<StagedMovedCard>,
+        sourceIid: InstanceId,
+        sourceZoneId: Int,
+        destZoneId: Int,
+    ): GameStateMessage {
+        val movedOldIds = moved.map { it.oldId.value }.toSet()
+        val movedNewIds = moved.map { it.newId.value }.toSet()
+        val builder = gsm.toBuilder()
+        val replacementZones =
+            listOfNotNull(
+                stagedSnap.zones[sourceZoneId]?.let { zoneInfoFor(it) },
+                stagedSnap.zones[destZoneId]?.let { zoneInfoFor(it) },
+                limboZoneInfo(),
+            )
+        builder.clearZones()
+        builder.addAllZones(
+            (gsm.zonesList.filterNot { it.zoneId in setOf(sourceZoneId, destZoneId, ZoneIds.LIMBO) } + replacementZones)
+                .sortedBy { it.zoneId },
+        )
+        builder.clearGameObjects()
+        builder.addAllGameObjects(gsm.gameObjectsList.filterNot { it.instanceId in movedOldIds || it.instanceId in movedNewIds })
+        moved.forEach { staged ->
+            val cardSnap = snap.objects[staged.forgeCardId] ?: return@forEach
+            builder.addGameObjects(orderMoveObject(cardSnap, staged.oldId, ZoneIds.LIMBO, move.seatId.value))
+            builder.addGameObjects(orderMoveObject(cardSnap, staged.newId, destZoneId, move.seatId.value))
+            builder.addAnnotations(
+                AnnotationBuilder
+                    .objectIdChanged(staged.oldId, staged.newId, sourceIid)
+                    .toBuilder()
+                    .setId(bridge.annotations.nextAnnotationId())
+                    .build(),
+            )
+            builder.addAnnotations(
+                AnnotationBuilder
+                    .zoneTransfer(staged.newId, sourceZoneId, destZoneId, "Put", affectorId = sourceIid)
+                    .toBuilder()
+                    .setId(bridge.annotations.nextAnnotationId())
+                    .build(),
+            )
+        }
+        return builder.build()
+    }
+
+    private fun zoneInfoFor(zone: leyline.game.snapshot.ZoneSnapshot): ZoneInfo {
+        val builder =
+            ZoneInfo
+                .newBuilder()
+                .setZoneId(zone.id)
+                .setType(zone.type)
+                .setVisibility(if (zone.type == ZoneType.Library) Visibility.Hidden else zone.visibility)
+        zone.owner?.let { owner ->
+            builder.setOwnerSeatId(owner.value)
+            if (zone.type == ZoneType.Hand || zone.type == ZoneType.Sideboard) {
+                builder.addViewers(owner.value)
+            }
+        }
+        zone.contents.forEach { fid -> builder.addObjectInstanceIds(bridge.getOrAllocInstanceId(fid).value) }
+        return builder.build()
+    }
+
+    private fun limboZoneInfo(): ZoneInfo =
+        ZoneInfo
+            .newBuilder()
+            .setZoneId(ZoneIds.LIMBO)
+            .setType(ZoneType.Limbo)
+            .setVisibility(Visibility.Public)
+            .addAllObjectInstanceIds(bridge.getLimboInstanceIds().map { it.value })
+            .build()
+
+    private fun orderMoveObject(
+        cardSnap: CardSnapshot,
+        instanceId: InstanceId,
+        zoneId: Int,
+        ownerSeatId: Int,
+    ): GameObjectInfo =
+        ObjectMapper
+            .buildFromSnapshot(
+                cardSnap = cardSnap,
+                instanceId = instanceId.value,
+                zoneId = zoneId,
+                ownerSeatId = ownerSeatId,
+                cardProto = bridge.cardProto,
+                visibility = Visibility.Private,
+            ).toBuilder()
+            .addViewers(ownerSeatId)
+            .build()
+
+    private fun attachOrderGameObjects(
+        gsm: GameStateMessage,
+        req: OrderReq,
+        snap: GsmSnapshot,
+        semantic: PromptSemantic,
+    ): GameStateMessage {
+        if (req.idsList.isEmpty()) return gsm
+        if (semantic != PromptSemantic.OrderForTop && semantic != PromptSemantic.OrderForBottom) return gsm
+
+        val gsBuilder = gsm.toBuilder()
+        val existingByIid = gsBuilder.gameObjectsList.withIndex().associate { (idx, obj) -> obj.instanceId to idx }
+        for (iid in req.idsList) {
+            val forgeCardId = bridge.getForgeCardId(InstanceId(iid)) ?: continue
+            val cardSnap = snap.objects[forgeCardId] ?: continue
+            val zone = snap.zones.values.firstOrNull { forgeCardId in it.contents } ?: continue
+            val obj =
+                ObjectMapper
+                    .buildFromSnapshot(
+                        cardSnap = cardSnap,
+                        instanceId = iid,
+                        zoneId = zone.id,
+                        ownerSeatId = zone.owner?.value ?: seatId,
+                        cardProto = bridge.cardProto,
+                        visibility = Visibility.Private,
+                    ).toBuilder()
+                    .addViewers(seatId)
+                    .build()
+            val existingIdx = existingByIid[iid]
+            if (existingIdx != null) {
+                gsBuilder.setGameObjects(existingIdx, obj)
+            } else {
+                gsBuilder.addGameObjects(obj)
+            }
+        }
+        return gsBuilder.build()
     }
 
     /**
@@ -1507,6 +1768,32 @@ class BundleBuilder(
                     .setPrevGameStateId(prev)
                     .setUpdate(updateType)
                     .build()
+        }
+    }
+
+    /** Explicitly remove a modal trigger ability synthesized for CastingTimeOptionsReq. */
+    fun modalStackCleanup(
+        counter: MessageCounter,
+        abilityInstanceId: Int,
+    ): GREToClientMessage {
+        val link = counter.nextGameStateLink()
+        return makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
+            it.gameStateMessage =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Diff)
+                    .setGameStateId(link.gsId)
+                    .setPrevGameStateId(link.prevGsId)
+                    .setUpdate(GameStateUpdate.Send)
+                    .addDiffDeletedInstanceIds(abilityInstanceId)
+                    .addZones(
+                        ZoneInfo
+                            .newBuilder()
+                            .setZoneId(ZoneIds.STACK)
+                            .setType(ZoneType.Stack)
+                            .setVisibility(Visibility.Public)
+                            .build(),
+                    ).build()
         }
     }
 

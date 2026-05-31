@@ -108,6 +108,18 @@ class PromptClassifierTest :
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.Resolution
         }
 
+        test("library putback semantic classifies as select-n with LibraryPutback reason") {
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "Put cards into your library",
+                    semantic = PromptSemantic.SelectNLibraryPutback,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.LibraryPutback
+        }
+
         test("sacrifice cost semantic classifies as select-n with Sacrifice reason") {
             val result =
                 classify(
@@ -202,6 +214,38 @@ class PromptClassifierTest :
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice
         }
 
+        test("library order semantic classifies as order even with card refs") {
+            val bottom =
+                classify(
+                    promptType = "order",
+                    message = "Order cards",
+                    semantic = PromptSemantic.OrderForBottom,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.Order>()
+            val top =
+                classify(
+                    promptType = "order",
+                    message = "Order cards",
+                    semantic = PromptSemantic.OrderForTop,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.Order>()
+
+            bottom.pendingPrompt.request.semantic shouldBe PromptSemantic.OrderForBottom
+            top.pendingPrompt.request.semantic shouldBe PromptSemantic.OrderForTop
+        }
+
+        test("generic order semantic auto-resolves until a non-library prompt shape exists") {
+            val result =
+                classify(
+                    promptType = "order",
+                    message = "Order cards",
+                    semantic = PromptSemantic.OrderGeneric,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.AutoResolve>()
+
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.OrderGeneric
+        }
+
         test("generic choose-cards prompt does not infer sacrifice from message text") {
             val result =
                 classify(
@@ -214,11 +258,14 @@ class PromptClassifierTest :
         }
 
         test("candidate refs without a stronger semantic classifies as targeting") {
-            classify(
-                promptType = "choose_cards",
-                message = "Choose target creature",
-                candidateRefs = listOf(cardRef),
-            ).shouldBeInstanceOf<ClassifiedPrompt.Targeting>()
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "Choose target creature",
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.Targeting>()
+
+            result.pendingPrompt.request.candidateRefs shouldBe listOf(cardRef)
         }
 
         test("plain prompt without candidate refs classifies as auto-resolve") {

@@ -1,0 +1,12 @@
+name: "Enduring Bondwarden"
+grpId: 84262
+titleId: 701840
+abilities:
+  - id: 166477
+    textId: 701816
+    category: 2
+    baseId: 287
+  - id: 141908
+    textId: 488238
+    category: 2
+expansionCode: "MOM"

@@ -5,6 +5,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
 import leyline.testkit.annotations
 import leyline.testkit.detailIntList
@@ -142,6 +143,50 @@ class LibraryOrderInteractionTest :
             human.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
         }
 
+        test("surveil 2 — keep both on top emits OrderReq and applies order") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Sterling Hound
+                humanbattlefield=Plains;Plains;Plains
+                humanlibrary=Mountain;Forest;Island;Swamp;Plains
+                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+                """,
+                name = "Surveil 2 top order",
+            )
+
+            val groupReq = castSpellUntilGroupReq("Sterling Hound")
+            val groupIds = groupReq.instanceIdsList
+            groupIds shouldHaveSize 2
+
+            val orderMsg =
+                after {
+                    respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = groupIds)
+                }.messages.last { it.hasOrderReq() }
+            val orderReq = orderMsg.orderReq
+            val orderedIds = orderReq.idsList.reversed()
+            val orderedNames = orderedIds.map(::cardName)
+
+            assertSoftly {
+                orderMsg.type shouldBe GREMessageType.OrderReq_695e
+                orderMsg.prompt.promptId shouldBe PromptIds.ORDER_LIBRARY_TOP
+                orderReq.orderingContext shouldBe OrderingContext.None_a89f
+                orderReq.idsList.map(::cardName) shouldBe groupIds.map(::cardName)
+            }
+
+            respondToOrder(orderedIds)
+
+            human
+                .getZone(ForgeZoneType.Library)
+                .cards
+                .take(2)
+                .map { it.name } shouldBe orderedNames
+        }
+
         // --- Scry 1 (Wall of Runes: ETB scry 1) ---
 
         val scryState =
@@ -221,5 +266,49 @@ class LibraryOrderInteractionTest :
                 .cards
                 .first()
                 .name shouldBe "Grizzly Bears"
+        }
+
+        test("scry 2 — keep both on top emits OrderReq and applies order") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Witching Well
+                humanbattlefield=Island
+                humanlibrary=Mountain;Forest;Island;Swamp;Plains
+                ailibrary=Plains;Plains;Plains;Plains;Plains
+                """,
+                name = "Scry 2 top order",
+            )
+
+            val groupReq = castSpellUntilGroupReq("Witching Well")
+            val groupIds = groupReq.instanceIdsList
+            groupIds shouldHaveSize 2
+
+            val orderMsg =
+                after {
+                    respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = groupIds)
+                }.messages.last { it.hasOrderReq() }
+            val orderReq = orderMsg.orderReq
+            val orderedIds = orderReq.idsList.reversed()
+            val orderedNames = orderedIds.map(::cardName)
+
+            assertSoftly {
+                orderMsg.type shouldBe GREMessageType.OrderReq_695e
+                orderMsg.prompt.promptId shouldBe PromptIds.ORDER_LIBRARY_TOP
+                orderReq.orderingContext shouldBe OrderingContext.None_a89f
+                orderReq.idsList.map(::cardName) shouldBe groupIds.map(::cardName)
+            }
+
+            respondToOrder(orderedIds)
+
+            human
+                .getZone(ForgeZoneType.Library)
+                .cards
+                .take(2)
+                .map { it.name } shouldBe orderedNames
         }
     })

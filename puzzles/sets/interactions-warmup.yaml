@@ -27,3 +27,46 @@ scenarios:
           all:
             - opponent_life: 3
             - zone_contains: { side: ours, zone: graveyard, card: Twinshot Sniper }
+  - id: dfc-transform-concealing-curtains
+    puzzle: dfc-transform-activate
+    run: activate Concealing Curtains and resolve its transform trigger
+    expect: Concealing Curtains becomes Revealing Eye on the battlefield
+    steps:
+      - expect:
+          action: { type: activate, card: Concealing Curtains }
+      - activate: Concealing Curtains
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Revealing Eye }
+            - zone_not_contains: { side: ours, zone: battlefield, card: Concealing Curtains }
+            - stack_empty: true
+  - id: electroduplicate-copy-token
+    puzzle: electroduplicate-copy
+    run: copy Grizzly Bears with Electroduplicate
+    expect: copy token is created and Electroduplicate leaves hand
+    steps:
+      - expect:
+          action: { type: cast, card: Electroduplicate }
+      - cast: Electroduplicate
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: hand, card: Electroduplicate }
+            - stack_empty: true
+  - id: bite-down-fight-removal
+    puzzle: bite-down
+    run: cast Bite Down using Grizzly Bears to remove opposing Grizzly Bears
+    expect: opposing Grizzly Bears leaves battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Bite Down }
+      - cast: Bite Down
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+            - stack_empty: true

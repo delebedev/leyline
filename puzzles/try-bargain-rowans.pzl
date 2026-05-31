@@ -1,6 +1,6 @@
 [metadata]
 Name:Try Bargain - Rowan's Grim Search
-Goal:Win
+Goal:Survive
 Turns:5
 Difficulty:Easy
 Description:Cast Rowan's Grim Search and sacrifice Manalith to bargain. Watch the cost selector and resolve.
@@ -13,6 +13,6 @@ AILife=20
 
 humanhand=Rowan's Grim Search;Lightning Bolt
 humanbattlefield=Swamp;Swamp;Mountain;Manalith
-humanlibrary=Forest;Forest;Forest;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
 aibattlefield=Grizzly Bears
-ailibrary=Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest

@@ -1,0 +1,393 @@
+name: mechanics-protocol
+description: Focused protocol-mechanic acceptance scenarios promoted from manual puzzles.
+scenarios:
+  - id: crew-vehicle
+    puzzle: vehicle-crew
+    run: crew Brute Suit with Centaur Courser, then attack
+    expect: Brute Suit becomes a creature and combat can advance cleanly
+    steps:
+      - expect:
+          action: { type: activate, card: Brute Suit }
+      - activate: Brute Suit
+      - select_cost: { zone: battlefield, cards: [Centaur Courser] }
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack_all: {}
+      - expect:
+          stack_empty: true
+  - id: saddle-drover-grizzly
+    puzzle: saddle-drover-grizzly
+    run: saddle Drover Grizzly with Grizzly Bears, then attack
+    expect: saddle tap payment resolves and attack moves to combat
+    steps:
+      - expect:
+          action: { type: activate, card: Drover Grizzly }
+      - activate: Drover Grizzly
+      - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
+      - resolve_stack: {}
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack_all: {}
+      - expect:
+          stack_empty: true
+  - id: ward-tax
+    puzzle: try-ward-vren
+    run: cast Lightning Bolt targeting Vren and pay Ward 2
+    expect: ward tax path resolves without countering the spell submission
+    steps:
+      - expect:
+          action: { type: cast, card: Lightning Bolt }
+      - cast: Lightning Bolt
+      - target: { side: opponent, zone: battlefield, card: "Vren, the Relentless" }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Lightning Bolt }
+            - stack_empty: true
+  - id: duress-reveal-discard
+    puzzle: duress-reveal
+    run: cast Duress and choose Murder from the revealed opponent hand
+    expect: Murder moves from opponent hand to opponent graveyard
+    arena:
+      skip: Headless-only for now; Arena SelectN reveal-hand UI is not driven yet.
+    steps:
+      - expect:
+          action: { type: cast, card: Duress }
+      - cast: Duress
+      - pass_until:
+          prompt: SelectNReq
+          max_passes: 8
+      - select_card: { side: opponent, zone: hand, card: Murder }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: opponent, zone: graveyard, card: Murder }
+            - zone_not_contains: { side: opponent, zone: hand, card: Murder }
+  - id: stock-up-bottom-order
+    puzzle: stock-up
+    run: cast Stock Up, choose two cards, then order the unchosen cards on bottom
+    expect: Stock Up emits SelectNReq 2490 followed by bottom OrderReq 42 and resolves
+    steps:
+      - expect:
+          action: { type: cast, card: Stock Up }
+      - cast: Stock Up
+      - pass_until:
+          prompt: { type: SelectNReq, prompt_id: 2490 }
+          max_passes: 8
+      - select_cards: { zone: library, cards: [Lightning Bolt, Counterspell] }
+      - expect:
+          prompt: { type: OrderReq, prompt_id: 42 }
+      - order_cards: [Negate, Brainstorm, Ponder]
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Lightning Bolt }
+            - zone_contains: { side: ours, zone: hand, card: Counterspell }
+            - zone_contains: { side: ours, zone: graveyard, card: Stock Up }
+            - stack_empty: true
+  - id: brainstorm-top-order
+    puzzle: brainstorm-order
+    run: cast Brainstorm, choose two hand cards, then order them on top
+    expect: Brainstorm emits SelectNReq 2035 followed by top OrderReq 86 and resolves
+    steps:
+      - expect:
+          action: { type: cast, card: Brainstorm }
+      - cast: Brainstorm
+      - pass_until:
+          prompt: { type: SelectNReq, prompt_id: 2035 }
+          max_passes: 8
+      - select_cards: { zone: hand, cards: [Island, Forest] }
+      - expect:
+          prompt: { type: OrderReq, prompt_id: 86 }
+      - order_cards: [Forest, Island]
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Lightning Bolt }
+            - zone_contains: { side: ours, zone: graveyard, card: Brainstorm }
+            - stack_empty: true
+  - id: unearth-gixian-recycler
+    puzzle: unearth-gixian-recycler
+    run: cast Gixian Recycler, destroy it, then unearth it from graveyard
+    expect: Recycler returns from graveyard to battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Gixian Recycler }
+      - cast: Gixian Recycler
+      - resolve_stack: {}
+      - cast: Lightning Bolt
+      - target: { side: ours, zone: battlefield, card: Gixian Recycler }
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: graveyard, card: Gixian Recycler }
+      - activate: { card: Gixian Recycler, zone: graveyard }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Gixian Recycler }
+            - stack_empty: true
+  - id: cascade-bloodbraid
+    puzzle: cascade-bloodbraid
+    run: cast Bloodbraid Elf, accept the cascaded Llanowar Elves cast
+    expect: both Bloodbraid Elf and Llanowar Elves resolve to battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Bloodbraid Elf }
+      - cast: Bloodbraid Elf
+      - optional_action: { accept: true }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Bloodbraid Elf }
+            - zone_contains: { side: ours, zone: battlefield, card: Llanowar Elves }
+  - id: discover-geological-appraiser
+    puzzle: discover-geological-appraiser
+    run: cast Geological Appraiser, accept the discovered Llanowar Elves cast
+    expect: both Geological Appraiser and Llanowar Elves resolve to battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Geological Appraiser }
+      - cast: Geological Appraiser
+      - optional_action: { accept: true }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Geological Appraiser }
+            - zone_contains: { side: ours, zone: battlefield, card: Llanowar Elves }
+  - id: bargain-rowans-grim-search
+    puzzle: try-bargain-rowans
+    run: cast Rowan's Grim Search with Bargain by sacrificing Manalith
+    expect: Manalith is sacrificed and the spell resolves
+    steps:
+      - expect:
+          action: { type: cast, card: Rowan's Grim Search }
+      - cast: Rowan's Grim Search
+      - choose: { optional_cost: additional_cost }
+      - select_cost: { zone: battlefield, cards: [Manalith] }
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Manalith }
+            - zone_not_contains: { side: ours, zone: hand, card: Rowan's Grim Search }
+  - id: casualty-cut-your-losses
+    puzzle: try-casualty-cut-your-losses
+    run: cast Cut Your Losses with Casualty by sacrificing Grizzly Bears
+    expect: sacrifice payment resolves and the spell leaves hand
+    steps:
+      - expect:
+          action: { type: cast, card: Cut Your Losses }
+      - cast: Cut Your Losses
+      - choose: { optional_cost: additional_cost }
+      - target: opponent
+      - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
+            - zone_not_contains: { side: ours, zone: hand, card: Cut Your Losses }
+            - stack_empty: true
+  - id: training-hopeful-initiate
+    puzzle: training-hopeful-initiate
+    run: attack with Hopeful Initiate and Grizzly Bears
+    expect: Hopeful Initiate trains and gets larger
+    steps:
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack_all: {}
+      - resolve_stack: {}
+      - expect:
+          battlefield_stats_at_least: { side: ours, card: Hopeful Initiate, power: 2, toughness: 3 }
+  - id: backup-enduring-bondwarden
+    puzzle: backup-enduring-bondwarden
+    run: cast Enduring Bondwarden and put backup counter on Grizzly Bears
+    expect: Grizzly Bears receives the backup counter
+    steps:
+      - expect:
+          action: { type: cast, card: Enduring Bondwarden }
+      - cast: Enduring Bondwarden
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 8
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Enduring Bondwarden }
+            - battlefield_stats_at_least: { side: ours, card: Grizzly Bears, power: 3, toughness: 3 }
+  - id: investigate-novice-inspector
+    puzzle: novice-inspector-investigate
+    run: cast Novice Inspector, create Clue, then sacrifice Clue to draw
+    expect: Clue leaves battlefield and a card is drawn
+    arena:
+      xfail: Clue token activation UI is selected but not committed by arena-ts yet.
+    steps:
+      - expect:
+          action: { type: cast, card: Novice Inspector }
+      - cast: Novice Inspector
+      - pass_until:
+          action: { type: activate, card: Clue }
+          max_passes: 15
+      - activate: Clue
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Clue }
+            - zone_count_at_least: { side: ours, zone: hand, count: 1 }
+            - stack_empty: true
+  - id: saga-tribute-transform
+    puzzle: saga-tribute-cast
+    run: cast Tribute to Horobi and advance through the final chapter transform
+    expect: Echo of Death's Wail appears on battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Tribute to Horobi }
+      - cast: Tribute to Horobi
+      - pass_until:
+          zone_contains: { side: ours, zone: battlefield, card: Echo of Death's Wail }
+          max_passes: 12
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Tribute to Horobi }
+            - stack_empty: true
+  - id: daynight-roundtrip-cathar
+    puzzle: daynight-roundtrip-cathar
+    run: cast Brutal Cathar and advance until Day turns to Night
+    expect: Brutal Cathar transforms into Moonrage Brute on battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Brutal Cathar }
+      - cast: Brutal Cathar
+      - resolve_stack: {}
+      - pass_until:
+          zone_contains: { side: ours, zone: battlefield, card: Moonrage Brute }
+          max_passes: 12
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Brutal Cathar }
+            - stack_empty: true
+  - id: foretell-demon-bolt
+    puzzle: foretell-demon-bolt
+    run: expose Demon Bolt's Foretell cast rail
+    expect: Foretell appears as a distinct cast action
+    steps:
+      - expect:
+          action: { type: cast, card: Demon Bolt, alt_cost: foretell }
+  - id: plot-railway-brawler
+    puzzle: plot-railway-brawler
+    run: plot Railway Brawler, then cast it from exile on a later turn
+    expect: Railway Brawler moves through exile and resolves to battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Railway Brawler }
+      - cast: { card: Railway Brawler, alt_cost: plot }
+      - expect:
+          zone_contains: { side: ours, zone: exile, card: Railway Brawler }
+      - pass_until:
+          action: { type: cast, card: Railway Brawler }
+          max_passes: 20
+      - cast: { card: Railway Brawler, zone: exile, alt_cost: plot }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Railway Brawler }
+            - stack_empty: true
+  - id: disguise-forum-familiar
+    puzzle: disguise-forum-familiar
+    run: cast Forum Familiar face-down, then turn it face up
+    expect: Forum Familiar flips face up and resolves its target prompt
+    steps:
+      - expect:
+          action: { type: cast, card: Forum Familiar }
+      - cast: { card: Forum Familiar, alt_cost: disguise }
+      - resolve_stack: {}
+      - turn_face_up: Forum Familiar
+      - target: { side: ours, zone: battlefield, card: Forest }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Forum Familiar }
+            - battlefield_stats_at_least: { side: ours, card: Forum Familiar, power: 2, toughness: 2 }
+            - stack_empty: true
+  - id: warp-quantum-riddler
+    puzzle: try-warp
+    run: cast Quantum Riddler for its Warp cost
+    expect: Quantum Riddler resolves through the Warp cast rail
+    steps:
+      - expect:
+          action: { type: cast, card: Quantum Riddler }
+      - cast: { card: Quantum Riddler, alt_cost: warp }
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: hand, card: Quantum Riddler }
+  - id: impending-overlord
+    puzzle: impending-overlord-of-the-mistmoors
+    run: cast Overlord of the Mistmoors for its Impending cost
+    expect: Overlord resolves to battlefield through the Impending cast rail
+    steps:
+      - expect:
+          action: { type: cast, card: Overlord of the Mistmoors }
+      - cast: { card: Overlord of the Mistmoors, alt_cost: impending }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Overlord of the Mistmoors }
+            - stack_empty: true
+  - id: endure-inspirited-vanguard
+    puzzle: endure-inspirited-vanguard
+    run: cast Inspirited Vanguard and accept the Endure counters branch
+    expect: Inspirited Vanguard gets two +1/+1 counters
+    steps:
+      - expect:
+          action: { type: cast, card: Inspirited Vanguard }
+      - cast: Inspirited Vanguard
+      - optional_action: { accept: true }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Inspirited Vanguard }
+            - battlefield_stats_at_least: { side: ours, card: Inspirited Vanguard, power: 5, toughness: 4 }
+            - stack_empty: true
+  - id: station-lumen-frigate
+    puzzle: station-lumen-frigate
+    run: station Lumen-Class Frigate by tapping Grizzly Bears
+    expect: station tap payment adds counters and resolves cleanly
+    steps:
+      - expect:
+          action: { type: activate, card: Lumen-Class Frigate }
+      - activate: Lumen-Class Frigate
+      - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Lumen-Class Frigate }
+            - annotation_seen: CounterAdded
+            - stack_empty: true
+  - id: mobilize-attack
+    puzzle: mobilize-attack
+    run: attack with three Mobilize sources
+    expect: Mobilize creates the attacking Warrior tokens before end step cleanup
+    steps:
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack_all: {}
+      - resolve_stack: {}
+      - expect:
+          annotation_seen: TokenCreated
+  - id: enlist-demo
+    puzzle: enlist-demo
+    run: attack with Benalish Faithbonder using Enlist and tap Centaur Courser
+    expect: Enlist payment resolves and buffs the attacker
+    steps:
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack: { cards: [Benalish Faithbonder], alt_cost: enlist }
+      - pass_until:
+          prompt: PayCostsReq
+          max_passes: 8
+      - select_cost: { zone: battlefield, cards: [Centaur Courser] }
+      - resolve_stack: {}
+      - expect:
+          stack_empty: true

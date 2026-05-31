@@ -13,6 +13,7 @@ sealed interface PendingClientInteraction {
     data class ModalChoice(
         val promptId: String,
         val childGrpIds: List<Int>,
+        val stackAbilityInstanceId: Int? = null,
     ) : PendingClientInteraction
 
     data class TargetSelection(

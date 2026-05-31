@@ -1,9 +1,9 @@
 [metadata]
 Name:Try Casualty - Cut Your Losses
-Goal:Win
+Goal:Survive
 Turns:5
 Difficulty:Easy
-Description:Cast Cut Your Losses ({4}{U}{U}) with Casualty 2. Sacrifice the 2/2 Grizzly Bears to copy the mill — opponent loses half library twice (6 + 6 of 12 = 12 cards). Exercise both branches: decline → single Mill of 6; accept → spell copy + two Mill resolutions, optionally re-target on the copy.
+Description:Cast Cut Your Losses ({4}{U}{U}) with Casualty 2. Sacrifice the 2/2 Grizzly Bears to copy the mill without ending the game.
 
 [state]
 ActivePlayer=Human
@@ -13,7 +13,7 @@ AILife=20
 
 humanhand=Cut Your Losses
 humanbattlefield=Island;Island;Island;Island;Island;Island;Grizzly Bears
-humanlibrary=Forest;Forest;Forest;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
 
 aibattlefield=Grizzly Bears
-ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
