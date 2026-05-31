@@ -10,6 +10,7 @@ import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
+import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.DeckMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -106,6 +107,21 @@ class HandshakeMessagesTest :
                     .gameStateMessage
                     .pendingMessageCount shouldBe 0
                 initialSnapshotSeen shouldBe true
+            }
+        }
+
+        test("puzzle actions request carries pass-priority prompt") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            bridge = b
+            b.start(seed = 1L)
+
+            val (message, nextMsgId) = HandshakeMessages.puzzleActionsReq(7, 5, SeatId(1), b)
+            val gre = message.greToClientEvent.greToClientMessagesList.single()
+
+            assertSoftly {
+                nextMsgId shouldBe 8
+                gre.type shouldBe GREMessageType.ActionsAvailableReq_695e
+                gre.prompt.promptId shouldBe PromptIds.PASS_PRIORITY
             }
         }
     })
