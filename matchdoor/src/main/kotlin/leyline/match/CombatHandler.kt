@@ -3,7 +3,7 @@ package leyline.match
 import forge.game.phase.PhaseType
 import leyline.DevCheck
 import leyline.bridge.findCard
-import leyline.bridge.forge.PlayerController
+import leyline.bridge.handoff.DamageAssignmentPrompt
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.handoff.Target
@@ -467,7 +467,7 @@ open class CombatHandler(
      *
      * Called from [AutoPassEngine.autoPassAndAdvance] between combat phase
      * handling and interactive prompt checks. Uses the dedicated
-     * [DamageAssignmentPrompt] future on [PlayerController] — NOT the
+     * [DamageAssignmentPrompt] future on the human controller — NOT the
      * [GameActionBridge] — so the auto-pass loop cannot interfere.
      *
      * @return true if AssignDamageReq was sent (caller should exit the loop)
@@ -485,7 +485,7 @@ open class CombatHandler(
      * Handle AssignDamageResp from client.
      *
      * Parses the response, completes the [DamageAssignmentPrompt] future on
-     * [PlayerController] so the engine thread unblocks with the damage map.
+     * human controller so the engine thread unblocks with the damage map.
      * For batched responses with multiple assigners, caches subsequent
      * attacker maps on WPC for the engine's per-attacker loop.
      */
@@ -586,7 +586,7 @@ open class CombatHandler(
      * Build and send a batched AssignDamageReq from the pending
      * [DamageAssignmentPrompt] context.
      */
-    private fun sendAssignDamageReq(prompt: PlayerController.DamageAssignmentPrompt) {
+    private fun sendAssignDamageReq(prompt: DamageAssignmentPrompt) {
         val bridge = ctx.bridge
         val humanPlayer = bridge.getPlayer(counters.seatId) ?: return
 

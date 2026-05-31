@@ -199,18 +199,7 @@ class ModalETBFlowTest :
             abilityObj.grpId shouldBe parentAbilityGrpId
         }
 
-        // DISABLED — the original `stackEmpty || abilityDeleted` predicate
-        // against `gsms.last()` was passing only because the trailing empty
-        // echo GSM has no zonesList (stackZone == null short-circuits the
-        // OR). Investigation during leyline-sxpo's D fold-in showed the
-        // engine never actually emits an explicit stack-zone cleanup diff
-        // after a modal resolution: the running-state accumulator still
-        // lists the ability iid in `zones[ZoneIds.STACK].objectInstanceIds`
-        // post-respond. So tightening to "any GSM with explicit Stack
-        // cleanup" or "accumulator stack empty" both fail on the actual
-        // engine output, not on a test bug. Re-enable once leyline-l1tc
-        // ships the missing cleanup signal.
-        xtest("synthesized ability cleaned up after modal resolves (leyline-l1tc)") {
+        test("synthesized ability cleaned up after modal resolves (leyline-l1tc)") {
             setupTrufflesnout()
 
             harness.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
@@ -220,10 +209,8 @@ class ModalETBFlowTest :
             val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
             gsms.shouldNotBeEmpty()
 
-            // Target shape once l1tc lands: any GSM in the post-respond
-            // batch should carry either an explicit Stack zone diff
-            // (post-resolution contents) or the ability iid in
-            // diffDeletedInstanceIdsList. Empty echoes don't count.
+            // Empty echoes don't count; cleanup must be an explicit stack-zone
+            // replacement or object deletion in the post-response batch.
             val cleaned =
                 gsms.any { gs ->
                     val stackZone = gs.zonesList.find { it.type == ZoneType.Stack }

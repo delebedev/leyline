@@ -3,6 +3,7 @@ package leyline.game.state
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Bidirectional mapping between Forge card IDs and client instanceIds.
@@ -12,7 +13,9 @@ import java.util.concurrent.ConcurrentHashMap
  * allocating fresh instanceIds on first sight and supporting reallocation when
  * cards change zones (the protocol assigns new IDs on zone transfer).
  *
- * Thread-safe reads (concurrent maps). Writes (getOrAlloc, realloc) are engine-thread-only.
+ * Thread-safe reads and id-counter allocation. Forward/reverse map updates are
+ * concurrent-map writes; callers must still avoid semantically racing zone
+ * transfers for the same card.
  * One registry per game.
  */
 class InstanceIdRegistry(
@@ -20,7 +23,7 @@ class InstanceIdRegistry(
 ) {
     private val forgeIdToInstanceId = ConcurrentHashMap<ForgeCardId, InstanceId>()
     private val instanceIdToForgeId = ConcurrentHashMap<InstanceId, ForgeCardId>()
-    private var nextInstanceId = startId
+    private val nextInstanceId = AtomicInteger(startId)
 
     /**
      * Result of reallocating an instanceId for a zone transfer.
@@ -46,12 +49,12 @@ class InstanceIdRegistry(
      * happens later in [applyRealloc] via `bridge.applyMutations`. Keeps
      * ordering-sensitive map writes out of compute while preserving id uniqueness.
      */
-    fun reserveNextInstanceId(): InstanceId = InstanceId(nextInstanceId++)
+    fun reserveNextInstanceId(): InstanceId = InstanceId(nextInstanceId.getAndIncrement())
 
     /** Allocate or return existing client instanceId for a Forge card ID. */
     fun getOrAlloc(forgeCardId: ForgeCardId): InstanceId =
         forgeIdToInstanceId.computeIfAbsent(forgeCardId) {
-            val id = InstanceId(nextInstanceId++)
+            val id = InstanceId(nextInstanceId.getAndIncrement())
             instanceIdToForgeId[id] = forgeCardId
             id
         }
@@ -64,7 +67,7 @@ class InstanceIdRegistry(
         val oldId =
             forgeIdToInstanceId[forgeCardId]
                 ?: return getOrAlloc(forgeCardId).let { IdReallocation(it, it) }
-        val newId = InstanceId(nextInstanceId++)
+        val newId = InstanceId(nextInstanceId.getAndIncrement())
         forgeIdToInstanceId[forgeCardId] = newId
         instanceIdToForgeId[newId] = forgeCardId
         // old reverse entry kept intentionally — client may reference old IDs
@@ -87,9 +90,7 @@ class InstanceIdRegistry(
         }
         forgeIdToInstanceId[fid] = realloc.new
         instanceIdToForgeId[realloc.new] = fid
-        if (realloc.new.value >= nextInstanceId) {
-            nextInstanceId = realloc.new.value + 1
-        }
+        nextInstanceId.updateAndGet { current -> maxOf(current, realloc.new.value + 1) }
     }
 
     /**
@@ -110,7 +111,7 @@ class InstanceIdRegistry(
      * Allocate a synthetic instanceId not mapped to any Forge card.
      * Used for RevealedCard proxy objects that mirror real cards.
      */
-    fun allocSynthetic(): InstanceId = InstanceId(nextInstanceId++)
+    fun allocSynthetic(): InstanceId = InstanceId(nextInstanceId.getAndIncrement())
 
     /** Reverse lookup: client instanceId → Forge card ID. */
     fun getForgeCardId(instanceId: InstanceId): ForgeCardId? = instanceIdToForgeId[instanceId]
