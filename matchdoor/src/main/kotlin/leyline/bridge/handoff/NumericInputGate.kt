@@ -1,7 +1,6 @@
 package leyline.bridge.handoff
 
 import forge.game.card.Card
-import leyline.bridge.forge.PlayerController
 import org.slf4j.LoggerFactory
 
 /**
@@ -32,7 +31,7 @@ class NumericInputGate(
         PendingGate.await(
             publish = { owner.pendingNumericInput = it },
             prompt = { future ->
-                PlayerController.NumericInputPrompt(
+                NumericInputPrompt(
                     sourceCard = sourceCard,
                     min = min,
                     max = max,

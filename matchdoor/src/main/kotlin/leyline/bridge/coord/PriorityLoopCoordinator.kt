@@ -12,7 +12,7 @@ import forge.game.spellability.SpellAbility
 import leyline.DevCheck
 import leyline.bridge.PlayableActionQuery
 import leyline.bridge.findCard
-import leyline.bridge.forge.PlayerController
+import leyline.bridge.handoff.DamageAssignmentPrompt
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.OwnerContext
 import leyline.bridge.handoff.PendingActionKind
@@ -39,7 +39,7 @@ import kotlin.collections.iterator
  * not [leyline.bridge.handoff.InteractivePromptBridge], and they drive the
  * main game-loop decision points rather than ad-hoc choices.
  *
- * See [PlayerController]'s KDoc for the coordinator pattern.
+ * See `PlayerController`'s KDoc for the coordinator pattern.
  */
 class PriorityLoopCoordinator(
     private val owner: OwnerContext,
@@ -236,7 +236,7 @@ class PriorityLoopCoordinator(
         // CombatHandler.onAssignDamage completes the future.
         val future = CompletableFuture<MutableMap<Card?, Int>>()
         owner.pendingDamageAssignment =
-            PlayerController.DamageAssignmentPrompt(
+            DamageAssignmentPrompt(
                 attacker = attacker,
                 blockers = blockers,
                 damageDealt = damageDealt,

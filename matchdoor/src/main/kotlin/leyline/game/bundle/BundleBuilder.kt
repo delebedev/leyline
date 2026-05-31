@@ -1507,7 +1507,7 @@ class BundleBuilder(
                     .setPrevGameStateId(prev)
                     .setUpdate(updateType)
                     .build()
-            }
+        }
     }
 
     /** Explicitly remove a modal trigger ability synthesized for CastingTimeOptionsReq. */

@@ -112,10 +112,11 @@ class MulliganHandlerTest :
         }
 
         test("sendMulliganReq emits thin GSM, PromptReq, and MulliganReq") {
-            val (bridge, _, _) = base.startWithBoard { _, human, ai ->
-                repeat(7) { base.addCard("Forest", human, forge.game.zone.ZoneType.Hand) }
-                repeat(7) { base.addCard("Forest", ai, forge.game.zone.ZoneType.Hand) }
-            }
+            val (bridge, _, _) =
+                base.startWithBoard { _, human, ai ->
+                    repeat(7) { base.addCard("Forest", human, forge.game.zone.ZoneType.Hand) }
+                    repeat(7) { base.addCard("Forest", ai, forge.game.zone.ZoneType.Hand) }
+                }
             val registry = MatchRegistry()
             val (session, _) = sessionFor(SeatId(1), registry, bridge)
             val (channel, ctx) = channelCtx()
@@ -134,14 +135,19 @@ class MulliganHandlerTest :
                     )
                 messages.map { it.gameStateId }.toSet() shouldBe setOf(21)
                 messages.last().mulliganReq.mulliganCount shouldBe 1
-                messages.last().prompt.parametersList.map { it.numberValue.toInt() } shouldContain 6
+                messages
+                    .last()
+                    .prompt
+                    .parametersList
+                    .map { it.numberValue.toInt() } shouldContain 6
             }
         }
 
         test("sendDealHandPublic emits a DealHand GSM") {
-            val (bridge, _, _) = base.startWithBoard { _, human, _ ->
-                repeat(7) { base.addCard("Forest", human, forge.game.zone.ZoneType.Hand) }
-            }
+            val (bridge, _, _) =
+                base.startWithBoard { _, human, _ ->
+                    repeat(7) { base.addCard("Forest", human, forge.game.zone.ZoneType.Hand) }
+                }
             val registry = MatchRegistry()
             val (session, _) = sessionFor(SeatId(1), registry, bridge)
             val (channel, ctx) = channelCtx()
@@ -153,7 +159,11 @@ class MulliganHandlerTest :
             assertSoftly {
                 messages shouldHaveSize 1
                 messages.single().type shouldBe GREMessageType.GameStateMessage_695e
-                messages.single().gameStateMessage.playersList.map { it.pendingMessageType } shouldContain ClientMessageType.MulliganResp_097b
+                messages
+                    .single()
+                    .gameStateMessage
+                    .playersList
+                    .map { it.pendingMessageType } shouldContain ClientMessageType.MulliganResp_097b
             }
         }
     })
