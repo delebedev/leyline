@@ -30,6 +30,7 @@ internal fun GREToClientMessage.isPromptMessage(): Boolean =
         hasDeclareBlockersReq() ||
         hasGroupReq() ||
         hasOptionalActionMessage() ||
+        hasOrderReq() ||
         hasPayCostsReq() ||
         hasSelectNReq() ||
         hasSelectTargetsReq()
@@ -41,24 +42,30 @@ internal fun GREToClientMessage.promptName(): String =
         hasDeclareBlockersReq() -> "DeclareBlockersReq"
         hasGroupReq() -> "GroupReq"
         hasOptionalActionMessage() -> "OptionalActionMessage"
+        hasOrderReq() -> "OrderReq"
         hasPayCostsReq() -> "PayCostsReq"
         hasSelectNReq() -> "SelectNReq"
         hasSelectTargetsReq() -> "SelectTargetsReq"
         else -> "UnknownPrompt"
     }
 
-internal fun GREToClientMessage.matchesPrompt(prompt: String): Boolean =
+internal fun GREToClientMessage.matchesPrompt(
+    prompt: String,
+    promptId: Int? = null,
+): Boolean =
     when (prompt) {
         "CastingTimeOptionsReq" -> hasCastingTimeOptionsReq()
         "DeclareAttackersReq" -> hasDeclareAttackersReq()
         "DeclareBlockersReq" -> hasDeclareBlockersReq()
         "GroupReq" -> hasGroupReq()
         "OptionalActionMessage" -> hasOptionalActionMessage()
+        "OrderReq" -> hasOrderReq()
         "PayCostsReq" -> hasPayCostsReq()
         "SelectNReq" -> hasSelectNReq()
         "SelectTargetsReq" -> hasSelectTargetsReq()
         else -> error("unknown prompt condition: $prompt")
-    }
+    } &&
+        (promptId == null || this.prompt.promptId == promptId)
 
 internal fun String.toForgePhaseName(): String =
     when (replace("-", "").replace(" ", "").uppercase()) {

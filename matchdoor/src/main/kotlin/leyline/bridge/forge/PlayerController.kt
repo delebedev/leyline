@@ -890,7 +890,7 @@ class PlayerController(
         cards: CardCollectionView,
         zone: ZoneType,
         sa: SpellAbility?,
-    ): CardCollectionView = targetingCoordinator.orderMoveToZoneList(cards, zone)
+    ): CardCollectionView = targetingCoordinator.orderMoveToZoneList(cards, zone, sa)
 
     // -- Mana payment ------------------------------------------------------
     // Upstream now routes cost payment through PlayerController.payManaCost /

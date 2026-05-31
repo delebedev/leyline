@@ -126,6 +126,20 @@ data class SelectCardStep(
     override val label: String = "select_card $card"
 }
 
+data class SelectCardsStep(
+    val side: AcceptanceSide = AcceptanceSide.Ours,
+    val zone: AcceptanceZone,
+    val cards: List<String>,
+) : AcceptanceStep {
+    override val label: String = "select_cards ${cards.joinToString()}"
+}
+
+data class OrderCardsStep(
+    val cards: List<String>,
+) : AcceptanceStep {
+    override val label: String = "order_cards ${cards.joinToString()}"
+}
+
 data object ResolveStackStep : AcceptanceStep {
     override val label: String = "resolve_stack"
 }
@@ -203,8 +217,9 @@ data class PhaseCondition(
 
 data class PromptCondition(
     val prompt: String,
+    val promptId: Int? = null,
 ) : AcceptanceCondition {
-    override val label: String = "prompt $prompt seen"
+    override val label: String = "prompt $prompt${promptId?.let { "#$it" } ?: ""} seen"
 }
 
 data class AnnotationSeenCondition(

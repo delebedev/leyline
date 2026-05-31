@@ -66,6 +66,8 @@ object AcceptanceSuiteLoader {
             "target" -> TargetStep(parseTarget(value, "$context.target"))
             "select_cost" -> parseSelectCost(value, "$context.select_cost")
             "select_card" -> parseSelectCard(value, "$context.select_card")
+            "select_cards" -> parseSelectCards(value, "$context.select_cards")
+            "order_cards" -> parseOrderCards(value, "$context.order_cards")
             "block" -> parseBlock(value, "$context.block")
             "attack" -> parseAttack(value, "$context.attack")
             "turn_face_up" -> TurnFaceUpStep(value.asString("$context.turn_face_up"))
@@ -126,6 +128,32 @@ object AcceptanceSuiteLoader {
             card = map.requiredString("card", context),
         )
     }
+
+    private fun parseSelectCards(
+        raw: Any?,
+        context: String,
+    ): SelectCardsStep {
+        val map = raw.asMap(context)
+        return SelectCardsStep(
+            side = map.optionalString("side")?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
+            zone = AcceptanceZone.parse(map.requiredString("zone", context)),
+            cards = map.requiredList("cards", context).mapIndexed { index, item -> item.asString("$context.cards[$index]") },
+        )
+    }
+
+    private fun parseOrderCards(
+        raw: Any?,
+        context: String,
+    ): OrderCardsStep =
+        when (raw) {
+            is List<*> -> OrderCardsStep(raw.mapIndexed { index, item -> item.asString("$context[$index]") })
+            else -> {
+                val map = raw.asMap(context)
+                OrderCardsStep(
+                    cards = map.requiredList("cards", context).mapIndexed { index, item -> item.asString("$context.cards[$index]") },
+                )
+            }
+        }
 
     private fun parseActivate(
         raw: Any?,
@@ -251,7 +279,7 @@ object AcceptanceSuiteLoader {
             "opponent_life" -> LifeTotalCondition(AcceptanceSide.Opponent, value.asInt("$context.opponent_life"))
             "our_life" -> LifeTotalCondition(AcceptanceSide.Ours, value.asInt("$context.our_life"))
             "phase" -> PhaseCondition(value.asString("$context.phase"))
-            "prompt" -> PromptCondition(value.asString("$context.prompt"))
+            "prompt" -> parsePrompt(value, "$context.prompt")
             "annotation_seen" -> AnnotationSeenCondition(value.asString("$context.annotation_seen"))
             "stack_empty" -> {
                 require(value.asBoolean("$context.stack_empty")) { "$context.stack_empty only supports true" }
@@ -333,6 +361,21 @@ object AcceptanceSuiteLoader {
             toughness = map.requiredInt("toughness", context),
         )
     }
+
+    private fun parsePrompt(
+        raw: Any?,
+        context: String,
+    ): PromptCondition =
+        when (raw) {
+            is String -> PromptCondition(raw)
+            else -> {
+                val map = raw.asMap(context)
+                PromptCondition(
+                    prompt = map.requiredString("type", context),
+                    promptId = map.optionalInt("prompt_id"),
+                )
+            }
+        }
 }
 
 private fun Any?.asMap(context: String): Map<String, Any?> {

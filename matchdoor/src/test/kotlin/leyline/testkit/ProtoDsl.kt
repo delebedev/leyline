@@ -286,6 +286,16 @@ fun selectNResp(ids: List<Int>): ClientToGREMessage =
         )
     }
 
+fun orderResp(ids: List<Int>): ClientToGREMessage =
+    clientMessage(ClientMessageType.OrderResp_097b) {
+        setOrderResp(
+            OrderResp
+                .newBuilder()
+                .addAllIds(ids)
+                .setOrdering(OrderingType.OrderAsIndicated),
+        )
+    }
+
 /** [SearchResp] — respond to a library/search prompt with selected instanceIds. */
 fun searchResp(itemsFound: List<Int>): ClientToGREMessage =
     clientMessage(ClientMessageType.SearchResp_097b) {

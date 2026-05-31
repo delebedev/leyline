@@ -16,7 +16,9 @@ import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
 import leyline.testkit.gsm
 import leyline.testkit.lastGsmMatching
+import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.OrderingContext
 import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
@@ -129,20 +131,34 @@ class StockUpTest :
 
             val req = castSpellUntilSelectNReq("Stock Up")
             val pickedIids = req.idsList.take(2)
+            val tailIids = req.idsList.filter { it !in pickedIids }
             val pickedNames =
                 pickedIids.map { iid ->
                     cardByIid(iid)?.name ?: error("iid $iid did not resolve to a card")
                 }
 
             respondToSelectN(pickedIids)
+            val orderMsg = allMessages.last { it.hasOrderReq() }
+            val orderReq = orderMsg.orderReq
+            assertSoftly {
+                orderMsg.type shouldBe GREMessageType.OrderReq_695e
+                orderMsg.prompt.promptId shouldBe PromptIds.ORDER_LIBRARY_BOTTOM
+                orderMsg.allowCancel shouldBe AllowCancel.No_a526
+                orderReq.orderingContext shouldBe OrderingContext.OrderingForBottom
+                orderReq.idsList shouldContainExactlyInAnyOrder tailIids
+            }
+
+            respondToOrder(orderReq.idsList)
             passUntilResolved()
 
             val selectNCount = allMessages.count { it.hasSelectNReq() }
+            val orderReqCount = allMessages.count { it.hasOrderReq() }
             val selectTargetsCount = allMessages.count { it.hasSelectTargetsReq() }
 
             assertSoftly {
-                // Exactly one SelectNReq for the pick — no loop, no SelectTargetsReq fallback.
+                // Exactly one SelectNReq for the pick, then one OrderReq for the unchosen tail.
                 selectNCount shouldBe 1
+                orderReqCount shouldBe 1
                 selectTargetsCount shouldBe 0
 
                 // Both chosen cards land in hand.

@@ -27,6 +27,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * [leyline.match.CombatHandler] and [leyline.match.TargetingHandler]
  * handle the inbound responses.
  */
+@Suppress("LargeClass") // One object mirrors the interactive request proto surface.
 object RequestBuilder {
     private val log = LoggerFactory.getLogger(RequestBuilder::class.java)
 
@@ -189,6 +190,61 @@ object RequestBuilder {
             return bridge.getOrAllocInstanceId(FrameIdResolver.triggerStackAbilityForgeId(prompt.request.forgeAbilityId)).value
         }
         val sourceEntityId = prompt.request.sourceEntityId ?: return 0
+        return bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
+    }
+
+    /** Build an [OrderReq] plus its outer prompt envelope. */
+    fun buildOrderReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Pair<OrderReq, Prompt> {
+        val ids =
+            prompt.request.candidateRefs
+                .filter { it.kind == "card" }
+                .map { bridge.getOrAllocInstanceId(ForgeCardId(it.entityId)).value }
+        val orderReq =
+            OrderReq
+                .newBuilder()
+                .addAllIds(ids)
+                .apply {
+                    if (prompt.request.semantic == PromptSemantic.OrderForBottom) {
+                        setOrderingContext(OrderingContext.OrderingForBottom)
+                    }
+                }.build()
+        val sourceInstanceId = orderSourceInstanceId(prompt, bridge)
+        val promptProto =
+            Prompt
+                .newBuilder()
+                .setPromptId(orderPromptId(prompt.request.semantic))
+                .addParameters(
+                    PromptParameter
+                        .newBuilder()
+                        .setParameterName("CardId")
+                        .setType(ParameterType.Number)
+                        .setNumberValue(sourceInstanceId),
+                ).build()
+        return orderReq to promptProto
+    }
+
+    private fun orderPromptId(semantic: PromptSemantic): Int =
+        if (semantic == PromptSemantic.OrderForBottom) {
+            PromptIds.ORDER_LIBRARY_BOTTOM
+        } else if (semantic == PromptSemantic.OrderForTop) {
+            PromptIds.ORDER_LIBRARY_TOP
+        } else {
+            error("Not an order semantic: $semantic")
+        }
+
+    private fun orderSourceInstanceId(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Int {
+        val sourceEntityId =
+            prompt.request.sourceEntityId ?: bridge
+                .getGame()
+                ?.stack
+                ?.firstOrNull()
+                ?.id ?: return 0
         return bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
     }
 
@@ -501,6 +557,10 @@ object RequestBuilder {
             semantic == PromptSemantic.SelectNResolution -> {
                 // Look-and-pick inner prompt carries a PromptId parameter; the
                 // outer GRE message carries the card-specific prompt.
+                setSourceIdIfPresent(prompt, bridge)
+                setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
+            }
+            semantic == PromptSemantic.SelectNLibraryPutback -> {
                 setSourceIdIfPresent(prompt, bridge)
                 setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
             }
