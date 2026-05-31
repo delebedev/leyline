@@ -34,6 +34,7 @@ val PROMPT_GRE_TYPES: Set<GREMessageType> =
         GREMessageType.SelectNreq,
         GREMessageType.GroupReq_695e,
         GREMessageType.SearchReq_695e,
+        GREMessageType.OrderReq_695e,
         GREMessageType.DeclareAttackersReq_695e,
         GREMessageType.DeclareBlockersReq_695e,
         GREMessageType.CastingTimeOptionsReq_695e,

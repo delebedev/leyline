@@ -392,6 +392,7 @@ class SimClientBatchTest :
         fun readPuzzle(name: String): String {
             val candidates =
                 listOf(
+                    Paths.get("src/test/resources/puzzles/$name"),
                     Paths.get("puzzles/$name"),
                     Paths.get("../puzzles/$name"),
                     Paths.get("../../puzzles/$name"),
@@ -598,6 +599,7 @@ class SimClientBatchTest :
             println("games run: ${all.size}")
             println("games ended (gameOver): ${all.count { it.third.gameOver }}")
             println("games hit iter cap: ${all.count { it.third.hitIterCap }}")
+            require(all.isNotEmpty()) { "no requested simclient puzzles were found or run" }
             assertNoValidationViolations(all)
         }
     })

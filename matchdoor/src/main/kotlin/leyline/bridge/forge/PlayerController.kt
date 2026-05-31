@@ -42,11 +42,15 @@ import leyline.bridge.coord.CostPaymentCoordinator
 import leyline.bridge.coord.PriorityLoopCoordinator
 import leyline.bridge.coord.SpellExecutor
 import leyline.bridge.coord.TargetingCoordinator
+import leyline.bridge.handoff.CommanderReturnPromptContext
+import leyline.bridge.handoff.DamageAssignmentPrompt
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
 import leyline.bridge.handoff.NumericInputGate
+import leyline.bridge.handoff.NumericInputPrompt
 import leyline.bridge.handoff.OptionalActionGate
+import leyline.bridge.handoff.OptionalActionPrompt
 import leyline.bridge.handoff.OwnerContext
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
@@ -237,52 +241,6 @@ class PlayerController(
 
     /** Cache for batched responses — subsequent attackers in Forge's per-attacker loop. */
     override val damageAssignCache: MutableMap<ForgeCardId, MutableMap<Card?, Int>> = mutableMapOf()
-
-    data class DamageAssignmentPrompt(
-        val attacker: Card,
-        val blockers: CardCollectionView,
-        val damageDealt: Int,
-        val defender: GameEntity?,
-        val hasDeathtouch: Boolean,
-        val hasTrample: Boolean,
-        val future: CompletableFuture<MutableMap<Card?, Int>>,
-    )
-
-    data class OptionalActionPrompt(
-        /** Retained for leyline-x25: targeting order fix needs ability details. Null for non-trigger prompts (e.g. shock land ETB). */
-        val wrapper: WrappedAbility?,
-        val hostCard: Card?,
-        val future: CompletableFuture<Boolean>,
-        /** When true, force a full state snapshot before emitting the prompt.
-         *  Needed for mid-resolution prompts (e.g. Madness's playSaFromPlayEffect)
-         *  where the engine hasn't sent the post-replacement state (card in exile)
-         *  before blocking on the choice. Without this, the client sees the prompt
-         *  before it sees the discard-to-exile transition. */
-        val forceSnapshotBeforePrompt: Boolean = false,
-        /** Override for the OptionalActionMessage promptId. Null falls back to the
-         *  generic OPTIONAL_ACTION loc. Used by mechanic-specific binary picks
-         *  (e.g. Endure → ENDURE_PUT_COUNTERS) that ride the same Yes/No surface
-         *  but need a different rendered prompt text. */
-        val customPromptId: Int? = null,
-        val commanderReturn: CommanderReturnPromptContext? = null,
-    )
-
-    data class CommanderReturnPromptContext(
-        val oldInstanceId: Int,
-        val promptInstanceId: Int,
-        val originZone: ZoneType,
-        val destinationZone: ZoneType,
-        val ownerSeatId: Int,
-        val transferCategory: String,
-    )
-
-    data class NumericInputPrompt(
-        /** The card whose ability is asking for the number. Drives `sourceId` resolution in the handler. */
-        val sourceCard: Card?,
-        val min: Int,
-        val max: Int,
-        val future: CompletableFuture<Int>,
-    )
 
     /** Set client auto-pass state (called by MatchSession after bridge connection). */
     fun setAutoPassState(state: ClientAutoPassState) {
@@ -890,7 +848,7 @@ class PlayerController(
         cards: CardCollectionView,
         zone: ZoneType,
         sa: SpellAbility?,
-    ): CardCollectionView = targetingCoordinator.orderMoveToZoneList(cards, zone)
+    ): CardCollectionView = targetingCoordinator.orderMoveToZoneList(cards, zone, sa)
 
     // -- Mana payment ------------------------------------------------------
     // Upstream now routes cost payment through PlayerController.payManaCost /

@@ -2,7 +2,6 @@ package leyline.bridge.handoff
 
 import forge.game.card.Card
 import forge.game.trigger.WrappedAbility
-import leyline.bridge.forge.PlayerController
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PriorityDecision
@@ -26,13 +25,13 @@ import org.slf4j.LoggerFactory
  */
 interface OwnerContext {
     /** Pending optional-action prompt (set by [OptionalActionGate], read by session handlers). */
-    var pendingOptionalAction: PlayerController.OptionalActionPrompt?
+    var pendingOptionalAction: OptionalActionPrompt?
 
     /** Pending numeric-input prompt (set by [NumericInputGate], read by `NumericInputHandler`). */
-    var pendingNumericInput: PlayerController.NumericInputPrompt?
+    var pendingNumericInput: NumericInputPrompt?
 
     /** Pending manual combat-damage assignment (set by [leyline.bridge.coord.PriorityLoopCoordinator], read by `CombatHandler`). */
-    var pendingDamageAssignment: PlayerController.DamageAssignmentPrompt?
+    var pendingDamageAssignment: DamageAssignmentPrompt?
 
     /** Batched damage assignments cached by `CombatHandler.onAssignDamage` for subsequent attackers. */
     val damageAssignCache: MutableMap<ForgeCardId, MutableMap<Card?, Int>>
@@ -88,13 +87,13 @@ class OptionalActionGate(
         defaultOnTimeout: Boolean,
         logContext: String,
         customPromptId: Int? = null,
-        commanderReturn: PlayerController.CommanderReturnPromptContext? = null,
+        commanderReturn: CommanderReturnPromptContext? = null,
     ): Boolean {
         val action = if (defaultOnTimeout) "auto-accepting" else "declining"
         return PendingGate.await(
             publish = { owner.pendingOptionalAction = it },
             prompt = { future ->
-                PlayerController.OptionalActionPrompt(
+                OptionalActionPrompt(
                     wrapper = wrapper,
                     hostCard = hostCard,
                     future = future,

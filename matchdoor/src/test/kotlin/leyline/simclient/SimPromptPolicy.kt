@@ -53,6 +53,8 @@ internal open class GreedyPromptPolicy(
                 SimPromptResponse(respondSelectTargets(prompt.msg))
             GREMessageType.SelectNreq ->
                 SimPromptResponse(respondSelectN(prompt.msg))
+            GREMessageType.OrderReq_695e ->
+                SimPromptResponse(respondOrder(prompt.msg))
             GREMessageType.SearchReq_695e ->
                 SimPromptResponse(respondSearch(prompt.msg))
             GREMessageType.PayCostsReq_695e ->
@@ -185,6 +187,8 @@ internal open class GreedyPromptPolicy(
         val ids = if (req.staticList == StaticList.Colors && req.idsList.isEmpty()) listOf(1) else req.idsList
         return SimDecision.SelectN(ids.take(count))
     }
+
+    private fun respondOrder(msg: GREToClientMessage): SimDecision = SimDecision.Order(msg.orderReq.idsList.toList())
 
     private fun respondSearch(msg: GREToClientMessage): SimDecision {
         val req = msg.searchReq

@@ -777,6 +777,14 @@ class MatchFlowHarness(
             if (msg.hasSelectNReq()) msg.selectNReq else null
         }
 
+    fun castSpellUntilOrderReq(
+        cardName: String,
+        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
+    ): OrderReq =
+        castSpellUntil(cardName, promptName = "OrderReq", advanceAfterCast = advanceAfterCast) { msg ->
+            if (msg.hasOrderReq()) msg.orderReq else null
+        }
+
     fun castSpellUntilCastingTimeOptionsReq(
         cardName: String,
         advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
@@ -871,6 +879,11 @@ class MatchFlowHarness(
      */
     fun respondToSelectN(selectedInstanceIds: List<Int>) {
         session.onSelectN(submitWithGsId(selectNResp(ids = selectedInstanceIds)))
+        drainSink()
+    }
+
+    fun respondToOrder(orderedInstanceIds: List<Int>) {
+        session.onOrderResp(submitWithGsId(orderResp(ids = orderedInstanceIds)))
         drainSink()
     }
 

@@ -1,6 +1,7 @@
 package leyline.match
 
-import leyline.bridge.forge.PlayerController
+import leyline.bridge.handoff.CommanderReturnPromptContext
+import leyline.bridge.handoff.OptionalActionPrompt
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.annotations.AnnotationBuilder
@@ -19,8 +20,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Handles "you may" trigger decisions via OptionalActionMessage (GRE type 45).
  *
  * Lifecycle (mirrors [CombatHandler]'s damage assignment pattern):
- * 1. Engine thread calls [PlayerController.confirmTrigger] → sets
- *    [PlayerController.pendingOptionalAction] → blocks on CompletableFuture
+ * 1. Engine thread calls `PlayerController.confirmTrigger` → sets
+ *    `pendingOptionalAction` → blocks on CompletableFuture
  * 2. Auto-pass loop calls [checkPendingOptionalAction] → detects non-null →
  *    sends OptionalActionMessage to client → returns true (loop exits)
  * 3. Client responds with OptionalResp (AllowYes / CancelNo)
@@ -96,7 +97,7 @@ class OptionalActionHandler(
 
     // --- Private ---
 
-    private fun sendOptionalActionMessage(prompt: PlayerController.OptionalActionPrompt) {
+    private fun sendOptionalActionMessage(prompt: OptionalActionPrompt) {
         val bridge = ctx.bridge
         val hostCard = prompt.hostCard
         if (hostCard == null) {
@@ -220,7 +221,7 @@ class OptionalActionHandler(
         builder: GameStateMessage.Builder,
         snap: GsmSnapshot,
         forgeCardId: Int,
-        context: PlayerController.CommanderReturnPromptContext,
+        context: CommanderReturnPromptContext,
     ) {
         val cardId = ForgeCardId(forgeCardId)
         val bound = snap.boundCards[cardId] ?: return
@@ -282,7 +283,7 @@ class OptionalActionHandler(
             )
     }
 
-    private fun sendCommanderPromptCleanup(context: PlayerController.CommanderReturnPromptContext) {
+    private fun sendCommanderPromptCleanup(context: CommanderReturnPromptContext) {
         val bridge = ctx.bridge
         val link = counters.counter.nextGameStateLink()
         val snap = GsmSnapshot.capture(ctx.game, bridge, "", link.gsId)
@@ -331,11 +332,9 @@ class OptionalActionHandler(
             else -> ZoneType.Limbo
         }
 
-    private fun originZoneId(context: PlayerController.CommanderReturnPromptContext): Int =
-        protocolZoneId(context.originZone, context.ownerSeatId)
+    private fun originZoneId(context: CommanderReturnPromptContext): Int = protocolZoneId(context.originZone, context.ownerSeatId)
 
-    private fun destinationZoneId(context: PlayerController.CommanderReturnPromptContext): Int =
-        protocolZoneId(context.destinationZone, context.ownerSeatId)
+    private fun destinationZoneId(context: CommanderReturnPromptContext): Int = protocolZoneId(context.destinationZone, context.ownerSeatId)
 
     @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun protocolZoneId(

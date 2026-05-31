@@ -318,6 +318,11 @@ class MatchSession(
             targetingHandler.onSelectN(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
+    override fun onOrderResp(greMsg: ClientToGREMessage) =
+        synchronized(sessionLock) {
+            targetingHandler.onOrderResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+        }
+
     override fun onEffectCost(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
             targetingHandler.onEffectCost(greMsg) { autoPassEngine.autoPassAndAdvance() }
