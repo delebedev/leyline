@@ -32,6 +32,19 @@ scenarios:
       - attack_all: {}
       - expect:
           stack_empty: true
+  - id: coin-flip-tavern-swindler
+    puzzle: tavern-swindler-coin-flip
+    run: activate Tavern Swindler and resolve its coin flip
+    expect: the activation resolves and emits a CoinFlip annotation
+    steps:
+      - expect:
+          action: { type: activate, card: Tavern Swindler }
+      - activate: Tavern Swindler
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: CoinFlip
+            - stack_empty: true
   - id: ward-tax
     puzzle: try-ward-vren
     run: cast Lightning Bolt targeting Vren and pay Ward 2

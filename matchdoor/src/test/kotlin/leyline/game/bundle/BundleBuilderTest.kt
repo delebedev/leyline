@@ -91,21 +91,31 @@ class BundleBuilderTest :
                                 abilityGrpId = 19490,
                                 result = 1,
                             ),
+                            GameEvent.CoinFlipped(
+                                flipperSeatId = 1.sid,
+                                sourceCardId = ForgeCardId(100),
+                                abilityForgeId = 200,
+                                abilityGrpId = 19490,
+                                result = 0,
+                            ),
                         ),
                     gsId = 10,
                     counter = counter,
                 )
 
-            val prompt = messages.single().prompt
+            val winPrompt = messages[0].prompt
+            val lossPrompt = messages[1].prompt
             assertSoftly {
-                messages.single().type shouldBe GREMessageType.PromptReq
-                prompt.promptId shouldBe PromptIds.COIN_FLIP
-                prompt.getParameters(0).parameterName shouldBe "PlayerId"
-                prompt.getParameters(0).reference.type shouldBe Messages.ReferenceType.PlayerSeatId
-                prompt.getParameters(0).reference.id shouldBe 1
-                prompt.getParameters(1).parameterName shouldBe "CoinFlipResult"
-                prompt.getParameters(1).reference.type shouldBe Messages.ReferenceType.LocalizationId
-                prompt.getParameters(1).reference.id shouldBe 47
+                messages.map { it.type } shouldBe listOf(GREMessageType.PromptReq, GREMessageType.PromptReq)
+                winPrompt.promptId shouldBe PromptIds.COIN_FLIP
+                winPrompt.getParameters(0).parameterName shouldBe "PlayerId"
+                winPrompt.getParameters(0).reference.type shouldBe Messages.ReferenceType.PlayerSeatId
+                winPrompt.getParameters(0).reference.id shouldBe 1
+                winPrompt.getParameters(1).parameterName shouldBe "CoinFlipResult"
+                winPrompt.getParameters(1).reference.type shouldBe Messages.ReferenceType.LocalizationId
+                winPrompt.getParameters(1).reference.id shouldBe 47
+                lossPrompt.promptId shouldBe PromptIds.COIN_FLIP
+                lossPrompt.getParameters(1).reference.id shouldBe 48
             }
         }
 
