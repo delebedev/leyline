@@ -404,7 +404,7 @@ class SimClientBatchTest :
                 runKind = runKind,
             )
             File(outDir, "$tag.stats.json").writeText(statsToJson(runLabel, opponentRunLabel, seed, stats))
-            if (stats.completionReason == "wall-timeout") {
+            if (stats.completionReason == "wall-timeout" && !continueOnException) {
                 error("simclient game timed out after ${timeoutMs}ms: $tag")
             }
             if (stats.completionReason == "exception" && !continueOnException) {
