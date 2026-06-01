@@ -255,6 +255,7 @@ class SimClientBatchTest :
                 append("\"promptProgressSamples\":${promptProgressToJson(stats.promptProgressSamples)},")
                 append("\"warnsByLogger\":${mapToJson(stats.warnsByLogger)},")
                 append("\"errorsByType\":${mapToJson(stats.errorsByType)},")
+                append("\"logErrorSamples\":${stringsToJson(stats.logErrorSamples)},")
                 append("\"validationViolationsByCheck\":${mapToJson(stats.validationViolationsByCheck)},")
                 append("\"validationViolations\":${stringsToJson(stats.validationViolations)},")
                 append("\"exceptionMessage\":${stats.exceptionMessage?.let(::jsonString) ?: "null"},")

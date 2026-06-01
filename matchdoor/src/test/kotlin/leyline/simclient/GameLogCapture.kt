@@ -31,6 +31,12 @@ import org.slf4j.LoggerFactory
  *   val stats = driver.runOneGame()      // already drains the bridge
  *   val (warns, errors) = tap.stopAndDrain()
  */
+data class CapturedLogs(
+    val warnsByLogger: Map<String, Int>,
+    val errorsByType: Map<String, Int>,
+    val errorSamples: List<String>,
+)
+
 class GameLogCapture {
     private val ctx = LoggerFactory.getILoggerFactory() as LoggerContext
     private val rootLogger = ctx.getLogger(Logger.ROOT_LOGGER_NAME)
@@ -47,12 +53,10 @@ class GameLogCapture {
     }
 
     /**
-     * Detach the appender and return:
-     *   first  — WARN counts grouped by logger name
-     *   second — exception class counts from any throwable carried on log events,
-     *            plus ERROR-level events without throwables grouped by logger
+     * Detach the appender and return WARN/ERROR counts plus a small sample of
+     * formatted ERROR messages for repro triage.
      */
-    fun stopAndDrain(): Pair<Map<String, Int>, Map<String, Int>> {
+    fun stopAndDrain(): CapturedLogs {
         rootLogger.detachAppender(appender)
         val events = appender.list.toList()
         appender.list.clear()
@@ -75,6 +79,12 @@ class GameLogCapture {
                 }.groupingBy { it }
                 .eachCount()
 
-        return warns to errors
+        val errorSamples =
+            events
+                .filter { it.level == Level.ERROR }
+                .take(10)
+                .map { "${it.loggerName}: ${it.formattedMessage}" }
+
+        return CapturedLogs(warns, errors, errorSamples)
     }
 }

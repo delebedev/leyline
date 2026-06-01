@@ -42,6 +42,7 @@ data class GameStats(
     val targetChoiceSamples: Map<String, String> = emptyMap(),
     val warnsByLogger: Map<String, Int> = emptyMap(),
     val errorsByType: Map<String, Int> = emptyMap(),
+    val logErrorSamples: List<String> = emptyList(),
     val validationViolationsByCheck: Map<String, Int> = emptyMap(),
     val validationViolations: List<String> = emptyList(),
     val exceptionMessage: String? = null,
@@ -205,7 +206,7 @@ class SimClientDriver(
                 .eachCount()
         val promptRouteAudit = PromptRouteAuditor.audit(promptHistory(), histogram)
         val durationMs = (System.nanoTime() - t0) / 1_000_000
-        val (warns, errors) = tap.stopAndDrain()
+        val logs = tap.stopAndDrain()
         val policyTelemetry = (promptPolicy as? ForgeAiPromptPolicy)?.telemetry() ?: SimPromptPolicyTelemetry.Empty
         val simFindings = detectReplayLoopFindings(policyTelemetry.targetChoices, policyTelemetry.targetChoiceSamples)
         val promptStats = promptLedger.stats()
@@ -232,8 +233,9 @@ class SimClientDriver(
             aiMaxMsByPrompt = policyTelemetry.maxMs,
             targetChoiceCounts = policyTelemetry.targetChoices,
             targetChoiceSamples = policyTelemetry.targetChoiceSamples,
-            warnsByLogger = warns,
-            errorsByType = errors,
+            warnsByLogger = logs.warnsByLogger,
+            errorsByType = logs.errorsByType,
+            logErrorSamples = logs.errorSamples,
             validationViolationsByCheck =
                 harness.validatingSink
                     ?.violationsByCheck
