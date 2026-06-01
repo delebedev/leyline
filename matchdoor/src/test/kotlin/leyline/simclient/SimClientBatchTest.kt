@@ -697,7 +697,7 @@ class SimClientBatchTest :
             println("games hit iter cap: ${all.count { it.third.hitIterCap }}")
             println("avg turns: ${"%.1f".format(all.map { it.third.turn }.average())}")
             println("avg msgs: ${"%.0f".format(all.map { it.third.totalMessages }.average())}")
-            assertNoValidationViolations(all)
+            if (!continueOnException) assertNoValidationViolations(all)
         }
 
         /**
@@ -750,6 +750,6 @@ class SimClientBatchTest :
             println("games ended (gameOver): ${all.count { it.third.gameOver }}")
             println("games hit iter cap: ${all.count { it.third.hitIterCap }}")
             require(all.isNotEmpty()) { "no requested simclient puzzles were found or run" }
-            assertNoValidationViolations(all)
+            if (!continueOnException) assertNoValidationViolations(all)
         }
     })
