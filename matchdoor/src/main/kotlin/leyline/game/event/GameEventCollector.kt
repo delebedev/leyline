@@ -18,9 +18,9 @@ import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.game.codes.ManaColorMapping
 import leyline.game.codes.SlotKind
 import leyline.game.data.CardData
-import leyline.game.codes.ManaColorMapping
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.ZoneIds
@@ -395,18 +395,19 @@ class GameEventCollector(
                         ability.payCosts?.toSimpleString() == sa.payCosts?.toSimpleString()
                 if (sameShape) index else null
             }
-        val index = matches.singleOrNull() ?: run {
-            log.debug(
-                "activated event ability grpId unresolved by shape card={} saId={} api={} cost={} matches={} activatedSlots={}",
-                card.name,
-                sa.id,
-                sa.api,
-                sa.payCosts?.toSimpleString(),
-                matches,
-                activatedSlotGrpIds,
-            )
-            return 0
-        }
+        val index =
+            matches.singleOrNull() ?: run {
+                log.debug(
+                    "activated event ability grpId unresolved by shape card={} saId={} api={} cost={} matches={} activatedSlots={}",
+                    card.name,
+                    sa.id,
+                    sa.api,
+                    sa.payCosts?.toSimpleString(),
+                    matches,
+                    activatedSlotGrpIds,
+                )
+                return 0
+            }
         return activatedSlotGrpIds.getOrNull(index) ?: 0
     }
 
