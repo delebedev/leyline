@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
@@ -79,5 +80,23 @@ class AdventureCastActionTest :
 
             actions.actionsList.filter { it.actionType == ActionType.CastAdventure } shouldHaveSize 0
             actions.inactiveActionsList.filter { it.actionType == ActionType.CastAdventure } shouldHaveSize 0
+        }
+
+        test("unaffordable adventure action cost does not require pre-seeded activator") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Ratcatcher Trainee", human, ZoneType.Hand)
+                }
+
+            val actions =
+                ActionMapper.buildFromSnapshot(
+                    seatId = 1,
+                    snap = GsmSnapshot.capture(game, b, "test", 0),
+                    bridge = b,
+                )
+
+            actions.inactiveActionsList
+                .filter { it.actionType == ActionType.CastAdventure }
+                .shouldNotBeEmpty()
         }
     })
