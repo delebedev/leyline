@@ -1,0 +1,46 @@
+Deck
+1 Disruptive Stormbrood (TDM) 178
+1 Demolition Field (FIC) 385
+2 Requiting Hex (ECL) 116
+4 Analyze the Pollen (MKM) 150
+2 The End (WOE) 87
+2 Urgent Necropsy (MKM) 240
+4 Cease // Desist (MKM) 246
+4 Deadly Cover-Up (MKM) 83
+3 Ketramose, the New Dawn (DFT) 209
+3 Mazemind Tome (M21) 232
+1 Insidious Fungus (DSK) 186
+1 Ugin, Eye of the Storms (TDM) 1
+1 Bitter Triumph (SOA) 26
+1 Scavenging Ooze (M21) 204
+1 Beza, the Bounding Spring (BLB) 2
+1 Kin-Tree Severance (TDM) 200
+1 Elenda, Saint of Dusk (FDN) 119
+1 Emptiness (ECL) 222
+1 Spinewoods Armadillo (OTJ) 182
+1 Ghost Vacuum (DSK) 248
+1 Ride's End (DFT) 25
+1 Harvester of Misery (BIG) 9
+2 Temple Garden (GRN) 258
+3 Godless Shrine (RNA) 248
+2 Overgrown Tomb (GRN) 253
+1 Pit of Offerings (LCI) 278
+2 Restless Cottage (WOE) 258
+2 Wastewood Verge (DFT) 268
+2 Hushwood Verge (DSK) 261
+1 Bleachbone Verge (DFT) 250
+1 Multiversal Passage (OM1) 181
+2 Forest (ZNR) 384
+2 Plains (ZNR) 380
+2 Swamp (ZNR) 382
+
+Sideboard
+2 Requiting Hex (ECL) 116
+1 The End (WOE) 87
+1 Beza, the Bounding Spring (BLB) 2
+1 Ghost Vacuum (DSK) 248
+2 Torpor Orb (BIG) 27
+1 Outrageous Robbery (MKM) 97
+1 Luis, Pompous Pillager (OM1) 60
+2 Malicious Eclipse (LCI) 111
+4 Duress (XLN) 105

@@ -1,0 +1,28 @@
+Deck
+4 Callous Sell-Sword (WOE) 221
+4 Giant Growth (WAR) 162
+4 Slickshot Show-Off (OTJ) 146
+4 Emberheart Challenger (BLB) 133
+3 Pawpatch Recruit (BLB) 187
+3 Full Bore (EOE) 135
+3 Wild Ride (TDM) 132
+4 Hemosymbic Mite (EOE) 190
+4 Thornspire Verge (DSK) 270
+1 Mountain (ZNR) 383
+3 Forest (ZNR) 384
+3 Starting Town (FIN) 289
+4 Stomping Ground (RNA) 259
+4 Frenzied Baloth (EOE) 183
+4 Multiversal Passage (OM1) 181
+2 Royal Treatment (WOE) 183
+2 Hexing Squelcher (ECL) 145
+4 Blossoming Defense (KLR) 155
+
+Sideboard
+2 Royal Treatment (WOE) 183
+2 Hexing Squelcher (ECL) 145
+3 Questing Druid (WOE) 234
+2 Aloe Alchemist (OTJ) 152
+3 Pick Your Poison (SOA) 55
+2 Dreadmaw's Ire (LCI) 147
+1 Overprotect (BLB) 185

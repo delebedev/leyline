@@ -1,0 +1,41 @@
+Deck
+1 Ba Sing Se (TLA) 266
+2 Swamp (ZNR) 382
+4 Stomping Ground (RNA) 259
+4 Overgrown Tomb (GRN) 253
+3 Esper Origins (FIN) 185
+4 Fabled Passage (TLE) 57
+1 Nibelheim Aflame (FIN) 146
+1 Garland, Knight of Cornelia (FIN) 221
+1 Leatherhead, Swamp Stalker (TMT) 117
+2 Mountain (ZNR) 383
+2 Molten Collapse (LCI) 234
+1 Maelstrom Pulse (FDN) 661
+4 Llanowar Elves (M19) 314
+4 Icetill Explorer (EOE) 192
+2 Forest (ZNR) 384
+3 Requiting Hex (ECL) 116
+2 Shoot the Sheriff (OTJ) 106
+2 Duress (XLN) 105
+2 Blood Crypt (RNA) 245
+1 Thornspire Verge (DSK) 270
+1 Urgent Necropsy (MKM) 240
+1 Blazemire Verge (DSK) 256
+1 Volatile Fault (LCI) 286
+2 Wastewood Verge (DFT) 268
+4 The Legend of Roku (TLA) 145
+2 The Rise of Sozin (TLA) 117
+3 Vibrance (ECL) 249
+
+Sideboard
+2 Leatherhead, Swamp Stalker (TMT) 117
+1 Duress (XLN) 105
+1 The End (WOE) 87
+2 Day of Black Sun (TLA) 94
+1 Ghost Vacuum (DSK) 248
+1 Fire Magic (FIN) 136
+1 Pawpatch Formation (BLB) 186
+1 Strategic Betrayal (TDM) 94
+2 Chandra, Spark Hunter (DFT) 116
+1 The Ooze (TMT) 177
+2 Torpor Orb (BIG) 27

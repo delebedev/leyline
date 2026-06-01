@@ -1,0 +1,42 @@
+Deck
+4 Ashling, Rekindled (ECL) 124
+4 Formidable Speaker (ECL) 176
+4 Kona, Rescue Beastie (DSK) 187
+3 Marang River Regent (TDM) 51
+3 North Wind Avatar (TMT) 162
+2 Bounce Off (DFT) 39
+1 Into the Flood Maw (BLB) 52
+1 Spell Pierce (XLN) 81
+1 Detect Intrusion (OM1) 28
+3 Stock Up (SOA) 24
+2 Winternight Stories (TDM) 67
+1 Ill-Timed Explosion (MKM) 207
+1 Pyroclasm (DSK) 149
+4 Omniscience (WOT) 24
+1 Lost in the Maze (MKM) 64
+4 Cavern of Souls (LCI) 269
+4 Kavaron, Memorial World (EOE) 255
+4 Uthros, Titanic Godcore (EOE) 260
+2 Multiversal Passage (OM1) 181
+2 Spirebluff Canal (OTJ) 270
+2 Starting Town (FIN) 289
+2 Steam Vents (GRN) 257
+2 Stomping Ground (RNA) 259
+1 Breeding Pool (RNA) 246
+1 Dreamroot Cascade (VOW) 262
+1 Forest (ZNR) 384
+
+Sideboard
+1 Marang River Regent (TDM) 51
+1 North Wind Avatar (TMT) 162
+1 Detect Intrusion (OM1) 28
+1 Ill-Timed Explosion (MKM) 207
+1 Pyroclasm (DSK) 149
+1 Lost in the Maze (MKM) 64
+2 Origin of Metalbending (TLA) 187
+2 Voice of Victory (TDM) 33
+1 Abrade (VOW) 139
+1 Extinguisher Battleship (EOE) 242
+1 Improvisation Capstone (SOS) 120
+1 Omni-Changeling (ECL) 62
+1 Soul-Guide Lantern (WOE) 251
