@@ -79,6 +79,7 @@ Add a custom deck by saving Arena/export-style deck text as
 ```bash
 just arena-ts deck get 'https://www.mtgtop8.com/event?e=86014&d=853241&f=ST' \
   --file data/decks/<name>.txt
+just arena-ts deck random --count 5 --dir data/decks
 just simclient "My deck" 1..5
 ```
 

@@ -1,0 +1,33 @@
+Deck
+4 Slickshot Show-Off (OTJ) 146
+2 Colorstorm Stallion (SOS) 180
+2 Eddymurk Crab (BLB) 48
+4 Burst Lightning (SOA) 41
+4 Opt (XLN) 65
+3 Vibrant Outburst (SOS) 240
+2 Secret Identity (OM1) 42
+1 Octopus Form (TLA) 66
+1 Spell Pierce (XLN) 81
+4 Boomerang Basics (TLA) 46
+4 Flow State (SOS) 49
+4 Sleight of Hand (WOE) 67
+4 Stormchaser's Talent (BLB) 75
+7 Island (ZNR) 381
+4 Riverpyre Verge (DFT) 260
+4 Spirebluff Canal (OTJ) 270
+4 Steam Vents (GRN) 257
+1 Breeding Pool (RNA) 246
+1 Multiversal Passage (OM1) 181
+
+Sideboard
+1 Eddymurk Crab (BLB) 48
+1 Spell Pierce (XLN) 81
+2 Elusive Otter (WOE) 225
+2 Into the Flood Maw (BLB) 52
+2 Slagstorm (FDN) 207
+2 Sunspine Lynx (BLB) 155
+1 Disdainful Stroke (WOE) 47
+1 Get Out (DSK) 60
+1 Stock Up (SOA) 24
+1 The Legend of Kuruk (TLA) 61
+1 Wild Ride (TDM) 132
