@@ -1,0 +1,15 @@
+name: "Emry, Lurker of the Loch"
+grpId: 70190
+titleId: 413720
+abilities:
+  - id: 177
+    textId: 355
+    category: 3
+  - id: 86971
+    textId: 940562
+    category: 2
+    subCategory: 10
+  - id: 136098
+    textId: 413722
+    category: 1
+expansionCode: "ELD"
