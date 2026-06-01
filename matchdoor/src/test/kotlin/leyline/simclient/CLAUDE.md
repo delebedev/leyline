@@ -35,6 +35,27 @@ agent-ready before handoff:
 - Keep aggregate artifact paths in notes for evidence, but do not make them the
   only way to reproduce.
 
+## Prioritizing Policy Seams
+
+Improve prompt policy where it increases scout signal, not where it makes the AI
+smarter in the abstract. Rank seams by:
+
+- False-bug reduction: stale prompts, no-pending submits, no-progress loops, and
+  timeout races come first because they pollute every later run.
+- Prompt coverage: a dumb valid answer beats a clever strategy; unblock prompt
+  shapes that currently end runs or force cleanup.
+- Phase/card reach: prefer policies that expose more turns and mechanics
+  (`OptionalAction`, `SelectTargets`, `CastingTimeOptions`, `PayCosts`) over
+  combat refinement unless combat dominates failures.
+- Repeated fingerprints: if the same decision/target fingerprint recurs, fix the
+  policy/ledger before filing many card-specific bugs.
+- Latency: if Forge-AI consult time correlates with stale pending windows, add
+  gating/caching or fall back earlier before adding more advisor calls.
+
+After a broad scout, bucket non-natural rows by `stalledPrompt`,
+`simFindings.kind`, `decisionKind`, and the last `promptProgressSamples` entry.
+Pick the most common prompt seam that is answerable by policy.
+
 ## What's in this directory
 
 - `SimClientDriver.kt` — loop/orchestration, prompt retirement, outcome telemetry.
