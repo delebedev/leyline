@@ -97,23 +97,6 @@ class SpectatorSession(
         sink.sendRaw(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
     }
 
-    override fun makeGRE(
-        type: GREMessageType,
-        gsId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage {
-        val gre =
-            GREToClientMessage
-                .newBuilder()
-                .setType(type)
-                .setMsgId(msgId)
-                .setGameStateId(gsId)
-                .addSystemSeatIds(seatId.value)
-        configure(gre)
-        return gre.build()
-    }
-
     override fun traceEvent(
         type: MatchEventType,
         game: Game,
