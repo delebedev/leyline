@@ -1,0 +1,27 @@
+Deck
+4 Hearthborn Battler (BLB) 139
+4 Hired Claw (BLB) 140
+4 Nova Hellkite (EOE) 148
+4 Ojer Axonil, Deepest Might (LCI) 158
+4 Razorkin Needlehead (DSK) 153
+4 Scalding Viper (WOE) 235
+2 Fanatical Firebrand (RIX) 101
+1 Kellan, Planar Trailblazer (FDN) 91
+4 Burst Lightning (SOA) 41
+3 Shock (STA) 44
+2 Sear (ECL) 154
+1 Lightning Strike (XLN) 149
+12 Mountain (ZNR) 383
+4 Riverpyre Verge (DFT) 260
+4 Steam Vents (GRN) 257
+2 Spirebluff Canal (OTJ) 270
+1 Soulstone Sanctuary (FDN) 133
+
+Sideboard
+1 Shock (STA) 44
+2 Sear (ECL) 154
+4 Magebane Lizard (OTJ) 134
+3 Twisted Fealty (WOE) 154
+2 Soul-Guide Lantern (WOE) 251
+2 Sunspine Lynx (BLB) 155
+1 Scorching Shot (OTJ) 145

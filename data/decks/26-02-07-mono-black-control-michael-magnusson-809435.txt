@@ -1,0 +1,20 @@
+Deck
+4 Deceit (ECL) 212
+4 Unstoppable Slasher (DSK) 119
+4 Bloodletter of Aclazotz (LCI) 92
+3 Shoot the Sheriff (OTJ) 106
+4 Duress (XLN) 105
+4 Intimidation Tactics (DFT) 92
+4 Tragic Trajectory (EOE) 122
+4 Strategic Betrayal (TDM) 94
+4 Unholy Annex // Ritual Chamber (DSK) 118
+19 Swamp (ZNR) 382
+2 Realm of Koh (TLA) 276
+4 Soulstone Sanctuary (FDN) 133
+
+Sideboard
+1 Shoot the Sheriff (OTJ) 106
+4 Seeker's Folly (FDN) 69
+4 Cruelclaw's Heist (BLB) 88
+4 Feed the Swarm (ZNR) 102
+2 The End (WOE) 87
