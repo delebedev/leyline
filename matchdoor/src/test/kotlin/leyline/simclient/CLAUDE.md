@@ -12,6 +12,9 @@ excludes it.
 For the fixed-seed debugging loop, failure taxonomy, and deck-vs-puzzle guidance,
 read `docs/simclient-iteration.md`.
 
+If iterating on simclient tooling, read bead `leyline-jy2g` and the titles of
+its children first.
+
 ## What's in this directory
 
 - `SimClientDriver.kt` — loop/orchestration, prompt retirement, outcome telemetry.
@@ -74,7 +77,7 @@ Add a custom deck by saving Arena/export-style deck text as
 `data/decks/<name>.txt`, then pass the basename without `.txt`:
 
 ```bash
-just arena-ts download-deck 853241 --file data/decks/<name>.txt
+just arena-ts deck get 853241 --file data/decks/<name>.txt
 just simclient "My deck" 1..5
 ```
 
