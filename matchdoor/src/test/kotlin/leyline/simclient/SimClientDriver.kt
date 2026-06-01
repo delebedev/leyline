@@ -22,6 +22,10 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 data class GameStats(
     val turn: Int,
     val gameOver: Boolean,
+    val winnerSeat: Int? = null,
+    val loserSeat: Int? = null,
+    val finalLifeBySeat: Map<String, Int> = emptyMap(),
+    val finalStatusBySeat: Map<String, String> = emptyMap(),
     val iterations: Int,
     val totalMessages: Int,
     val promptHistogram: Map<GREMessageType, Int>,
@@ -34,6 +38,8 @@ data class GameStats(
     val aiTotalMs: Long = 0,
     val aiTotalMsByPrompt: Map<String, Long> = emptyMap(),
     val aiMaxMsByPrompt: Map<String, Long> = emptyMap(),
+    val targetChoiceCounts: Map<String, Int> = emptyMap(),
+    val targetChoiceSamples: Map<String, String> = emptyMap(),
     val warnsByLogger: Map<String, Int> = emptyMap(),
     val errorsByType: Map<String, Int> = emptyMap(),
     val validationViolationsByCheck: Map<String, Int> = emptyMap(),
@@ -61,6 +67,14 @@ data class GameStats(
     val promptRequestsByKind: Map<String, Int> = emptyMap(),
     val promptRequestSamplesByKind: Map<String, String> = emptyMap(),
     val promptRouteFindings: List<PromptRouteFinding> = emptyList(),
+    val simFindings: List<SimClientFinding> = emptyList(),
+)
+
+data class SimClientFinding(
+    val kind: String,
+    val key: String,
+    val count: Int,
+    val sample: String,
 )
 
 class SimClientDriver(
@@ -189,11 +203,17 @@ class SimClientDriver(
         val durationMs = (System.nanoTime() - t0) / 1_000_000
         val (warns, errors) = tap.stopAndDrain()
         val policyTelemetry = (promptPolicy as? ForgeAiPromptPolicy)?.telemetry() ?: SimPromptPolicyTelemetry.Empty
+        val simFindings = detectReplayLoopFindings(policyTelemetry.targetChoices, policyTelemetry.targetChoiceSamples)
         val promptStats = promptLedger.stats()
         val attemptStats = attemptLedger.stats()
+        val outcome = finalOutcome()
         return GameStats(
             turn = currentTurnOrNull() ?: lastTurn,
             gameOver = harness.isGameOver() || sawTerminalIntermission,
+            winnerSeat = outcome.winnerSeat,
+            loserSeat = outcome.loserSeat,
+            finalLifeBySeat = outcome.lifeBySeat,
+            finalStatusBySeat = outcome.statusBySeat,
             iterations = iter,
             totalMessages = harness.allMessages.size,
             promptHistogram = histogram,
@@ -206,6 +226,8 @@ class SimClientDriver(
             aiTotalMs = policyTelemetry.totalAiMs,
             aiTotalMsByPrompt = policyTelemetry.totalMs,
             aiMaxMsByPrompt = policyTelemetry.maxMs,
+            targetChoiceCounts = policyTelemetry.targetChoices,
+            targetChoiceSamples = policyTelemetry.targetChoiceSamples,
             warnsByLogger = warns,
             errorsByType = errors,
             validationViolationsByCheck =
@@ -241,11 +263,54 @@ class SimClientDriver(
             promptRequestsByKind = promptRouteAudit.requestsByKind,
             promptRequestSamplesByKind = promptRouteAudit.samplesByKind,
             promptRouteFindings = promptRouteAudit.findings,
+            simFindings = simFindings,
         )
     }
 
     private fun promptHistory(): List<leyline.bridge.handoff.InteractivePromptBridge.PromptRecord> =
         runCatching { harness.bridge.promptBridge(SeatId(1)).history }.getOrDefault(emptyList())
+
+    private data class FinalOutcome(
+        val winnerSeat: Int?,
+        val loserSeat: Int?,
+        val lifeBySeat: Map<String, Int>,
+        val statusBySeat: Map<String, String>,
+    )
+
+    private fun finalOutcome(): FinalOutcome {
+        val lifeBySeat = mutableMapOf<Int, Int>()
+        val statusBySeat = mutableMapOf<Int, String>()
+        for (msg in harness.allMessages) {
+            if (!msg.hasGameStateMessage()) continue
+            for (player in msg.gameStateMessage.playersList) {
+                val seat = player.systemSeatNumber
+                if (seat == 0) continue
+                lifeBySeat[seat] = player.lifeTotal
+                statusBySeat[seat] = player.status.name
+            }
+        }
+        val loser = statusBySeat.entries.firstOrNull { (_, status) -> status.contains("Loss", ignoreCase = true) }?.key
+        val winner =
+            loser?.let { lostSeat ->
+                statusBySeat.keys.firstOrNull { it != lostSeat && !statusBySeat.getValue(it).contains("Loss", ignoreCase = true) }
+            } ?: inferWinnerFromLife(lifeBySeat)
+        return FinalOutcome(
+            winnerSeat = winner,
+            loserSeat = loser ?: winner?.let { wonSeat -> lifeBySeat.keys.firstOrNull { it != wonSeat } },
+            lifeBySeat = lifeBySeat.mapKeys { it.key.toString() },
+            statusBySeat = statusBySeat.mapKeys { it.key.toString() },
+        )
+    }
+
+    private fun inferWinnerFromLife(lifeBySeat: Map<Int, Int>): Int? {
+        val seat1 = lifeBySeat[1]
+        val seat2 = lifeBySeat[2]
+        return when {
+            seat1 != null && seat2 != null && seat1 > 0 && seat2 <= 0 -> 1
+            seat1 != null && seat2 != null && seat2 > 0 && seat1 <= 0 -> 2
+            else -> null
+        }
+    }
 
     private fun concedeAndFlush(
         reason: String,
@@ -398,3 +463,21 @@ internal fun chooseSimClientCastingTimeOptionId(
         ?.ctoId
         ?: 0
 }
+
+internal fun detectReplayLoopFindings(
+    targetChoiceCounts: Map<String, Int>,
+    targetChoiceSamples: Map<String, String>,
+    threshold: Int = REPLAY_LOOP_TARGET_THRESHOLD,
+): List<SimClientFinding> =
+    targetChoiceCounts.entries
+        .filter { (_, count) -> count >= threshold }
+        .map { (key, count) ->
+            SimClientFinding(
+                kind = "replay-loop-suspect",
+                key = key,
+                count = count,
+                sample = targetChoiceSamples[key].orEmpty(),
+            )
+        }.sortedWith(compareByDescending<SimClientFinding> { it.count }.thenBy { it.key })
+
+private const val REPLAY_LOOP_TARGET_THRESHOLD = 25

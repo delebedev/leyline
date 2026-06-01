@@ -212,6 +212,19 @@ class GamePlayback(
             }
         }
 
+    /** Drain queued batches that were allocated before the caller's next outbound message. */
+    fun drainQueueBeforeMsgId(msgId: Int): List<List<GREToClientMessage>> =
+        synchronized(queueLock) {
+            buildList {
+                while (true) {
+                    val batch = queue.peek() ?: break
+                    val firstMsgId = batch.firstOrNull()?.msgId ?: Int.MAX_VALUE
+                    if (firstMsgId >= msgId) break
+                    add(queue.poll() ?: break)
+                }
+            }
+        }
+
     /** True if there are messages waiting to be sent. */
     fun hasPendingMessages(): Boolean = synchronized(queueLock) { queue.isNotEmpty() }
 

@@ -161,6 +161,18 @@ class SimClientBatchTest :
                 }
             }
 
+        fun simFindingsToJson(values: List<SimClientFinding>): String =
+            values.joinToString(",", "[", "]") { finding ->
+                buildString {
+                    append('{')
+                    append("\"kind\":${jsonString(finding.kind)},")
+                    append("\"key\":${jsonString(finding.key)},")
+                    append("\"count\":${finding.count},")
+                    append("\"sample\":${jsonString(finding.sample)}")
+                    append('}')
+                }
+            }
+
         fun fileSafeName(value: String): String =
             value
                 .replace(Regex("[^A-Za-z0-9._-]+"), "-")
@@ -187,6 +199,10 @@ class SimClientBatchTest :
                 append("\"durationMs\":${stats.durationMs},")
                 append("\"turn\":${stats.turn},")
                 append("\"gameOver\":${stats.gameOver},")
+                append("\"winnerSeat\":${stats.winnerSeat ?: "null"},")
+                append("\"loserSeat\":${stats.loserSeat ?: "null"},")
+                append("\"finalLifeBySeat\":${mapToJson(stats.finalLifeBySeat)},")
+                append("\"finalStatusBySeat\":${stringMapToJson(stats.finalStatusBySeat)},")
                 append("\"completionReason\":${jsonString(stats.completionReason)},")
                 append("\"cleanupConcede\":${stats.cleanupConcede},")
                 append("\"iterations\":${stats.iterations},")
@@ -199,10 +215,13 @@ class SimClientBatchTest :
                 append("\"aiTotalMs\":${stats.aiTotalMs},")
                 append("\"aiTotalMsByPrompt\":${longMapToJson(stats.aiTotalMsByPrompt)},")
                 append("\"aiMaxMsByPrompt\":${longMapToJson(stats.aiMaxMsByPrompt)},")
+                append("\"targetChoiceCounts\":${mapToJson(stats.targetChoiceCounts)},")
+                append("\"targetChoiceSamples\":${stringMapToJson(stats.targetChoiceSamples)},")
                 append("\"promptHistogram\":$histo,")
                 append("\"promptRequestsByKind\":${mapToJson(stats.promptRequestsByKind)},")
                 append("\"promptRequestSamplesByKind\":${stringMapToJson(stats.promptRequestSamplesByKind)},")
                 append("\"promptRouteFindings\":${routeFindingsToJson(stats.promptRouteFindings)},")
+                append("\"simFindings\":${simFindingsToJson(stats.simFindings)},")
                 append("\"warnsByLogger\":${mapToJson(stats.warnsByLogger)},")
                 append("\"errorsByType\":${mapToJson(stats.errorsByType)},")
                 append("\"validationViolationsByCheck\":${mapToJson(stats.validationViolationsByCheck)},")

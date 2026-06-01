@@ -1,13 +1,19 @@
 package leyline.simclient
 
 import forge.ai.PlayerControllerAi
+import forge.game.GameObject
+import forge.game.GameActionUtil
+import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.combat.Combat
 import forge.game.player.Player
+import forge.game.spellability.AbilitySub
 import forge.game.spellability.LandAbility
+import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
+import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -15,6 +21,9 @@ import leyline.testkit.MatchFlowHarness
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
 /**
@@ -217,6 +226,152 @@ class ForgeAiPolicy(
         return chosenIds.takeIf { it.size >= count }?.take(count)
     }
 
+    fun canChooseSelectTargets(msg: GREToClientMessage): Boolean {
+        if (!msg.hasSelectTargetsReq()) return false
+        val req = msg.selectTargetsReq
+        if (req.targetsCount != 1) return false
+        val group = req.targetsList.single()
+        return group.minTargets == 1 && group.maxTargets == 1 && group.targetsList.any { it.legalAction == SelectAction.Select_a1ad }
+    }
+
+    fun chooseSelectTargets(msg: GREToClientMessage): List<Int>? {
+        if (!canChooseSelectTargets(msg)) return null
+        val selectableIds =
+            msg.selectTargetsReq.targetsList
+                .single()
+                .targetsList
+                .filter { it.legalAction == SelectAction.Select_a1ad }
+                .map { it.targetInstanceId }
+                .toSet()
+        val sa = harness.bridge.promptBridge(seatId).getPendingPrompt()?.targetingSa ?: return null
+        val previousTargets = sa.targets.clone()
+        val chosenTargets =
+            try {
+                sa.targets.clear()
+                val chose = askAi("chooseTargetsFor") { aiController.chooseTargetsFor(sa) } ?: false
+                if (!chose) return null
+                sa.targets.toList()
+            } finally {
+                sa.targets.clear()
+                sa.targets.addAll(previousTargets)
+            }
+        if (chosenTargets.size != 1) return null
+        val selectedId = targetInstanceId(chosenTargets.single()) ?: return null
+        return listOf(selectedId).takeIf { selectedId in selectableIds }
+    }
+
+    fun canChooseCastingTimeOptions(msg: GREToClientMessage): Boolean {
+        if (!msg.hasCastingTimeOptionsReq()) return false
+        val options = msg.castingTimeOptionsReq.castingTimeOptionReqList
+        return isSimpleModalCto(options) || isSingleOptionalCostCto(options)
+    }
+
+    internal fun chooseCastingTimeOptions(msg: GREToClientMessage): SimDecision? {
+        if (!canChooseCastingTimeOptions(msg)) return null
+        return chooseModalCastingTimeOptions(msg)?.let { SimDecision.ModalChoice(it) }
+            ?: chooseOptionalCastingTimeOptions(msg)?.let { SimDecision.OptionalCost(it) }
+    }
+
+    private fun chooseModalCastingTimeOptions(msg: GREToClientMessage): List<Int>? {
+        if (!isSimpleModalCto(msg.castingTimeOptionsReq.castingTimeOptionReqList)) return null
+        val modal = msg.castingTimeOptionsReq.castingTimeOptionReqList.single().modalReq
+        val modalGrpIds = modal.modalOptionsList.map { it.grpId }
+        val pending = harness.bridge.promptBridge(seatId).getPendingPrompt() ?: return null
+        val sa = pending.targetingSa ?: return null
+        val possible = modalPossibleAbilities(sa, pending.request.modalChoicePossibleFullIndices, modalGrpIds.size) ?: return null
+        modalChoiceGrpIds(sa.chosenList, possible, modalGrpIds)?.let { return it }
+        modalChoiceGrpIds(subAbilityChain(sa.subAbility), possible, modalGrpIds)?.let { return it }
+        val previousSub = sa.subAbility
+        val previousChosen = sa.chosenList
+        val chosen =
+            try {
+                sa.subAbility = null
+                askAi("chooseModeForAbility") { aiController.chooseModeForAbility(sa, possible, 1, 1, false) }
+            } finally {
+                sa.subAbility = previousSub
+                sa.chosenList = previousChosen
+            } ?: return null
+        return modalChoiceGrpIds(chosen, possible, modalGrpIds)
+    }
+
+    private fun chooseOptionalCastingTimeOptions(msg: GREToClientMessage): Int? {
+        val options = msg.castingTimeOptionsReq.castingTimeOptionReqList
+        if (!isSingleOptionalCostCto(options)) return null
+        val costOption = options.first { !it.isRequired }
+        val card = cardForInstance(costOption.affectedId) ?: return null
+        val sa = getAllCastableAbilities(card, seatPlayer).firstOrNull() ?: return null
+        sa.activatingPlayer = seatPlayer
+        val optionalCosts = GameActionUtil.getOptionalCostValues(sa)
+        if (optionalCosts.size != 1) return null
+        val chosen = askAi("chooseOptionalCosts") { aiController.chooseOptionalCosts(sa, optionalCosts) } ?: return null
+        return if (optionalCostChosen(chosen, optionalCosts.single())) costOption.ctoId else 0
+    }
+
+    private fun optionalCostChosen(
+        chosen: List<OptionalCostValue>,
+        option: OptionalCostValue,
+    ): Boolean = chosen.any { it.type == option.type && it.cost.toString() == option.cost.toString() }
+
+    private fun isSimpleModalCto(options: List<wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq>): Boolean {
+        if (options.size != 1) return false
+        val option = options.single()
+        if (option.castingTimeOptionType != CastingTimeOptionType.Modal_a7b4 || !option.hasModalReq()) return false
+        val modal = option.modalReq
+        return modal.minSel == 1 && modal.maxSel == 1 && modal.modalOptionsCount > 0
+    }
+
+    private fun isSingleOptionalCostCto(options: List<wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq>): Boolean {
+        if (options.size != 2) return false
+        val costOptions = options.filter { !it.isRequired }
+        val doneOptions = options.filter { it.isRequired && it.castingTimeOptionType == CastingTimeOptionType.Done }
+        if (costOptions.size != 1 || doneOptions.size != 1) return false
+        val costOption = costOptions.single()
+        return costOption.ctoId > 0 &&
+            costOption.affectedId != 0 &&
+            costOption.castingTimeOptionType == CastingTimeOptionType.Kicker
+    }
+
+    private fun modalChoiceGrpIds(
+        chosen: List<AbilitySub>?,
+        possible: List<AbilitySub>,
+        modalGrpIds: List<Int>,
+    ): List<Int>? {
+        if (chosen?.size != 1) return null
+        val selected = chosen.single()
+        val index =
+            possible.indexOf(selected).takeIf { it >= 0 }
+                ?: selected.description?.let { description ->
+                    possible.indexOfFirst { it.description == description }.takeIf { it >= 0 }
+                }
+                ?: return null
+        return listOf(modalGrpIds.getOrNull(index) ?: return null)
+    }
+
+    private fun subAbilityChain(first: AbilitySub?): List<AbilitySub> {
+        val result = mutableListOf<AbilitySub>()
+        var current = first
+        while (current != null) {
+            result += current
+            current = current.subAbility
+        }
+        return result
+    }
+
+    private fun modalPossibleAbilities(
+        sa: SpellAbility,
+        possibleFullIndices: List<Int>?,
+        modalOptionCount: Int,
+    ): MutableList<AbilitySub>? {
+        val fullList = sa.getAdditionalAbilityList("Choices")
+        if (possibleFullIndices != null) {
+            if (fullList == null) return null
+            val possible = possibleFullIndices.map { idx -> fullList.getOrNull(idx) ?: return null }
+            return possible.toMutableList().takeIf { it.size == modalOptionCount }
+        }
+        val possible = CharmEffect.makePossibleOptions(sa) ?: return null
+        return possible.toMutableList().takeIf { it.size == modalOptionCount }
+    }
+
     private fun selectNCount(req: SelectNReq): Int {
         val min = req.minSel.coerceAtLeast(0)
         val max = if (req.maxSel > 0) req.maxSel else min
@@ -230,6 +385,13 @@ class ForgeAiPolicy(
     }
 
     private fun instanceIdForCard(card: Card): Int = harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+
+    private fun targetInstanceId(target: GameObject): Int? =
+        when (target) {
+            is Card -> instanceIdForCard(target)
+            is Player -> if (target == seatPlayer) seatId.value else 3 - seatId.value
+            else -> null
+        }
 
     private fun <T> askAi(
         label: String,

@@ -98,6 +98,24 @@ internal object ForgeAiSelectNAdapter : ForgeAiPromptAdapter {
     }
 }
 
+internal object ForgeAiSelectTargetsAdapter : ForgeAiPromptAdapter {
+    override val promptType: GREMessageType = GREMessageType.SelectTargetsReq_695e
+    override val telemetryName: String = "SelectTargetsReq"
+
+    override fun shouldConsult(
+        prompt: ActivePrompt,
+        context: ForgeAiPromptContext,
+    ): Boolean = context.forgeAi.canChooseSelectTargets(prompt.msg)
+
+    override fun decide(
+        prompt: ActivePrompt,
+        context: ForgeAiPromptContext,
+    ): SimPromptResponse? {
+        val selected = context.forgeAi.chooseSelectTargets(prompt.msg) ?: return null
+        return SimPromptResponse(SimDecision.SelectTargets(selected))
+    }
+}
+
 internal object ForgeAiSearchAdapter : ForgeAiPromptAdapter {
     override val promptType: GREMessageType = GREMessageType.SearchReq_695e
     override val telemetryName: String = "SearchReq"
@@ -137,6 +155,24 @@ internal object ForgeAiGroupAdapter : ForgeAiPromptAdapter {
                 context = prompt.msg.groupReq.context,
             ),
         )
+    }
+}
+
+internal object ForgeAiCastingTimeOptionsAdapter : ForgeAiPromptAdapter {
+    override val promptType: GREMessageType = GREMessageType.CastingTimeOptionsReq_695e
+    override val telemetryName: String = "CastingTimeOptionsReq"
+
+    override fun shouldConsult(
+        prompt: ActivePrompt,
+        context: ForgeAiPromptContext,
+    ): Boolean = context.forgeAi.canChooseCastingTimeOptions(prompt.msg)
+
+    override fun decide(
+        prompt: ActivePrompt,
+        context: ForgeAiPromptContext,
+    ): SimPromptResponse? {
+        val decision = context.forgeAi.chooseCastingTimeOptions(prompt.msg) ?: return null
+        return SimPromptResponse(decision)
     }
 }
 

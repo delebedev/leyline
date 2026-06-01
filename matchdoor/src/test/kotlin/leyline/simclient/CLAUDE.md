@@ -9,6 +9,9 @@ saved games without polluting reference data.
 Lives in test source — opt-in via the dedicated Gradle task; the regular gate
 excludes it.
 
+For the fixed-seed debugging loop, failure taxonomy, and deck-vs-puzzle guidance,
+read `docs/simclient-iteration.md`.
+
 ## What's in this directory
 
 - `SimClientDriver.kt` — loop/orchestration, prompt retirement, outcome telemetry.

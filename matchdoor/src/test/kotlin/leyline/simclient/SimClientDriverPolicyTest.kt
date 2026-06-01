@@ -3,6 +3,7 @@ package leyline.simclient
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.MatchFlowHarness
@@ -23,7 +24,11 @@ import wotc.mtgo.gre.external.messaging.Messages.ModalReq
 import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
 import wotc.mtgo.gre.external.messaging.Messages.SearchReq
+import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
+import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsReq
+import wotc.mtgo.gre.external.messaging.Messages.Target as ProtoTarget
+import wotc.mtgo.gre.external.messaging.Messages.TargetSelection
 
 class SimClientDriverPolicyTest :
     FunSpec({
@@ -90,6 +95,34 @@ class SimClientDriverPolicyTest :
                         .newBuilder()
                         .setContext(context)
                         .addAllInstanceIds(ids),
+                ).build()
+
+        fun selectTargetsPrompt(
+            min: Int = 1,
+            max: Int = 1,
+            legalAction: SelectAction = SelectAction.Select_a1ad,
+        ): GREToClientMessage =
+            GREToClientMessage
+                .newBuilder()
+                .setMsgId(8)
+                .setGameStateId(18)
+                .setType(GREMessageType.SelectTargetsReq_695e)
+                .setSelectTargetsReq(
+                    SelectTargetsReq
+                        .newBuilder()
+                        .addTargets(
+                            TargetSelection
+                                .newBuilder()
+                                .setMinTargets(min)
+                                .setMaxTargets(max)
+                                .addTargets(
+                                    ProtoTarget
+                                        .newBuilder()
+                                        .setTargetInstanceId(2)
+                                        .setLegalAction(legalAction)
+                                        .build(),
+                                ),
+                        ).build(),
                 ).build()
 
         fun objectInfo(
@@ -180,6 +213,21 @@ class SimClientDriverPolicyTest :
             harness.accumulator.objects[802] = objectInfo(802, CardType.Creature)
 
             chooseBoardAwareGroupAwayIds(groupPrompt(listOf(801, 802), GroupingContext.Surveil), harness) shouldBe emptyList()
+        }
+
+        test("forge-ai SelectTargets adapter only consults simple single-target prompts") {
+            val policy = ForgeAiPolicy(MatchFlowHarness(), SeatId(1))
+
+            policy.canChooseSelectTargets(selectTargetsPrompt()) shouldBe true
+            policy.canChooseSelectTargets(selectTargetsPrompt(max = 2)) shouldBe false
+            policy.canChooseSelectTargets(selectTargetsPrompt(legalAction = SelectAction.Unselect)) shouldBe false
+        }
+
+        test("forge-ai CTO adapter only consults simple modal choices") {
+            val policy = ForgeAiPolicy(MatchFlowHarness(), SeatId(1))
+
+            policy.canChooseCastingTimeOptions(modalCtoPrompt()) shouldBe true
+            policy.canChooseCastingTimeOptions(ctoPrompt()) shouldBe false
         }
 
         test("greedy PayCosts policy selects minimum required cost ids") {
@@ -303,5 +351,21 @@ class SimClientDriverPolicyTest :
                 }.respondToPrompt(prompt, ActionAttemptLedger { 1 })
 
             response.decision shouldBe SimDecision.DeclareAttackers(emptyList())
+        }
+
+        test("simclient findings flag repeated target choices as replay loop suspects") {
+            val key = "source=forge-ai|abilityGrpId=59671|from=object:Card:grp:59671:Ancestral Recall|to=playerOrMissing:1"
+
+            val findings =
+                detectReplayLoopFindings(
+                    targetChoiceCounts = mapOf(key to 25, "source=greedy|abilityGrpId=1|from=x|to=y" to 3),
+                    targetChoiceSamples = mapOf(key to "sourceId=42;targetIds=1"),
+                )
+
+            findings.size shouldBe 1
+            findings.single().kind shouldBe "replay-loop-suspect"
+            findings.single().key shouldBe key
+            findings.single().count shouldBe 25
+            findings.single().sample shouldBe "sourceId=42;targetIds=1"
         }
     })

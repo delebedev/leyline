@@ -8,6 +8,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.HighlightType
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
@@ -24,13 +25,15 @@ internal data class SimPromptPolicyTelemetry(
     val chose: Map<String, Int>,
     val totalMs: Map<String, Long>,
     val maxMs: Map<String, Long>,
+    val targetChoices: Map<String, Int>,
+    val targetChoiceSamples: Map<String, String>,
 ) {
     val consultedTotal: Int get() = consulted.values.sum()
     val choseTotal: Int get() = chose.values.sum()
     val totalAiMs: Long get() = totalMs.values.sum()
 
     companion object {
-        val Empty = SimPromptPolicyTelemetry(emptyMap(), emptyMap(), emptyMap(), emptyMap())
+        val Empty = SimPromptPolicyTelemetry(emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
     }
 }
 
@@ -260,14 +263,18 @@ internal class ForgeAiPromptPolicy(
     private val aiChoseByPrompt = mutableMapOf<String, Int>()
     private val aiTotalMsByPrompt = mutableMapOf<String, Long>()
     private val aiMaxMsByPrompt = mutableMapOf<String, Long>()
+    private val targetChoiceCounts = mutableMapOf<String, Int>()
+    private val targetChoiceSamples = mutableMapOf<String, String>()
     private val adapters: Map<GREMessageType, ForgeAiPromptAdapter> =
         listOf(
             ForgeAiAarAdapter,
             ForgeAiDeclareAttackersAdapter,
             ForgeAiDeclareBlockersAdapter,
             ForgeAiSelectNAdapter,
+            ForgeAiSelectTargetsAdapter,
             ForgeAiSearchAdapter,
             ForgeAiGroupAdapter,
+            ForgeAiCastingTimeOptionsAdapter,
         ).associateBy { it.promptType }
 
     fun telemetry(): SimPromptPolicyTelemetry =
@@ -276,6 +283,8 @@ internal class ForgeAiPromptPolicy(
             chose = aiChoseByPrompt.toMap(),
             totalMs = aiTotalMsByPrompt.toMap(),
             maxMs = aiMaxMsByPrompt.toMap(),
+            targetChoices = targetChoiceCounts.toMap(),
+            targetChoiceSamples = targetChoiceSamples.toMap(),
         )
 
     override fun respondToPrompt(
@@ -289,10 +298,51 @@ internal class ForgeAiPromptPolicy(
             val response = timed(adapter.telemetryName) { adapter.decide(prompt, context) }
             if (response != null) {
                 bumpChose(adapter.telemetryName)
+                recordTargetChoice(prompt, response, source = "forge-ai")
                 return response
             }
         }
-        return super.respondToPrompt(prompt, attempts)
+        val response = super.respondToPrompt(prompt, attempts)
+        recordTargetChoice(prompt, response, source = "greedy")
+        return response
+    }
+
+    private fun recordTargetChoice(
+        prompt: ActivePrompt,
+        response: SimPromptResponse,
+        source: String,
+    ) {
+        if (prompt.type != GREMessageType.SelectTargetsReq_695e) return
+        val req = prompt.msg.selectTargetsReq
+        val decision = response.decision
+        val targetKey =
+            when (decision) {
+                is SimDecision.SelectTargets ->
+                    decision.targetInstanceIds.joinToString("+") { targetChoiceObjectKey(it) }
+                else -> decision.kind
+            }
+        val sourceKey = targetChoiceObjectKey(req.sourceId)
+        val key = "source=$source|abilityGrpId=${req.abilityGrpId}|from=$sourceKey|to=$targetKey"
+        targetChoiceCounts.merge(key, 1) { a, b -> a + b }
+        targetChoiceSamples.putIfAbsent(
+            key,
+            "sourceId=${req.sourceId};promptIds=${req.targetsList.joinToString(",") { it.prompt.promptId.toString() }};" +
+                "targetingAbilityGrpIds=${req.targetsList.joinToString(",") { it.targetingAbilityGrpId.toString() }};" +
+                "targetIds=${if (decision is SimDecision.SelectTargets) decision.targetInstanceIds.joinToString(",") else ""}",
+        )
+    }
+
+    private fun targetChoiceObjectKey(instanceId: Int): String {
+        val objectInfo = harness.accumulator.objects[instanceId]
+        if (objectInfo == null) return "playerOrMissing:$instanceId"
+        val name =
+            if (objectInfo.type == GameObjectType.Card && objectInfo.grpId != 0) {
+                runCatching { harness.bridge.cardRepository.findNameByGrpId(objectInfo.grpId) }.getOrNull()
+            } else {
+                null
+            } ?: "grp:${objectInfo.grpId}"
+        val types = objectInfo.cardTypesList.joinToString("+") { it.name }
+        return "object:${objectInfo.type.name}:grp:${objectInfo.grpId}:$name:ctrl:${objectInfo.controllerSeatId}:types:$types"
     }
 
     private inline fun <T> timed(

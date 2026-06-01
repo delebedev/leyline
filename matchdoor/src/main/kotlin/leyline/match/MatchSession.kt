@@ -666,6 +666,17 @@ class MatchSession(
      * same treatment as bundle-built messages — the funnel guarantees it.
      */
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
+        val firstMsgId = messages.firstOrNull()?.msgId
+        val playback = firstMsgId?.let { ctx.bridge.playbackFor(seatId) }
+        if (playback != null) {
+            for (batch in playback.drainQueueBeforeMsgId(firstMsgId)) {
+                sendBundledGREDirect(batch)
+            }
+        }
+        sendBundledGREDirect(messages)
+    }
+
+    private fun sendBundledGREDirect(messages: List<GREToClientMessage>) {
         for (m in messages) {
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
             markIfPrompt(counter, m.type, m.gameStateId)

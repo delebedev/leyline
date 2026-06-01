@@ -75,7 +75,7 @@ class TargetingCoordinator(
                 isLegendRule -> PromptSemantic.SelectNLegendRule
                 isLearn -> PromptSemantic.LearnLesson
                 isSearch -> PromptSemantic.Search
-                else -> PromptSemantic.Generic
+                else -> PromptSemantic.SelectNResolution
             }
 
         val labels = optionList.map { it.entityLabel() }
