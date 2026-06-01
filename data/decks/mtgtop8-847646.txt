@@ -1,0 +1,30 @@
+Deck
+2 Abandoned Air Temple (TLA) 263
+4 Bleachbone Verge (DFT) 250
+1 Cecil, Dark Knight (FIN) 91
+4 Godless Shrine (RNA) 248
+4 Daydream (SOS) 9
+4 Deep-Cavern Bat (LCI) 102
+4 Sage of the Skies (TDM) 22
+2 Haliya, Guided by Light (EOE) 19
+4 Momo, Friendly Flier (TLA) 29
+4 Nurturing Pixie (OTJ) 20
+6 Plains (ZNR) 380
+2 Practiced Offense (SOS) 25
+4 Springleaf Drum (LRW) 261
+1 Seam Rip (EOE) 34
+1 Shoot the Sheriff (OTJ) 106
+4 Starfield Shepherd (EOE) 37
+4 Tinybones Joins Up (OTJ) 108
+1 Swamp (ZNR) 382
+4 Concealed Courtyard (OTJ) 268
+
+Sideboard
+2 Seam Rip (EOE) 34
+1 Barrensteppe Siege (TDM) 171
+2 Clarion Conqueror (TDM) 5
+4 Rest in Peace (WOT) 12
+1 Requiting Hex (ECL) 116
+1 Split Up (DSK) 32
+1 Tomik, Wielder of Law (MKM) 431
+3 Duress (XLN) 105
