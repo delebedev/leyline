@@ -71,6 +71,7 @@ Add a custom deck by saving Arena/export-style deck text as
 `data/decks/<name>.txt`, then pass the basename without `.txt`:
 
 ```bash
+just arena-ts download-deck 853241 --file data/decks/<name>.txt
 just simclient "My deck" 1..5
 ```
 
