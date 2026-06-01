@@ -58,11 +58,12 @@ sealed interface PromptSideEffect {
         val threshold: Int,
     ) : PromptSideEffect
 
-    /** Completed static-list choice. Consumer emits ChoiceResult transient annotation. */
-    data class StaticChoiceResult(
+    /** Completed SelectN choice. Consumer emits ChoiceResult transient annotation. */
+    data class ChoiceResult(
         val sourceForgeCardId: ForgeCardId,
         val chooserSeatId: SeatId,
         val choiceValue: Int,
-        val choiceDomain: Int,
+        val choiceDomain: Int? = null,
+        val sentiment: Int = 2,
     ) : PromptSideEffect
 }

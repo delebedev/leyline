@@ -1030,7 +1030,7 @@ object StateMapper {
             }
         }
         annotations.addAll(otherMechanic)
-        annotations.addAll(buildStaticChoiceResultAnnotations(bridge, frameIds))
+        annotations.addAll(buildChoiceResultAnnotations(bridge, frameIds))
 
         // AbilityWordActive: consumed from pre-computed snap entries
         val abilityWordPersistent = persistentFeeds.abilityWord
@@ -1155,7 +1155,7 @@ object StateMapper {
         return RemainingAnnotationsResult(numbered, batch.allAnnotations, batch, annId)
     }
 
-    private fun buildStaticChoiceResultAnnotations(
+    private fun buildChoiceResultAnnotations(
         bridge: GameBridge,
         frameIds: FrameIdResolver,
     ): List<AnnotationInfo> =
@@ -1163,13 +1163,14 @@ object StateMapper {
             bridge
                 .promptBridge(SeatId(seatValue))
                 .journal
-                .drainStaticChoiceResults()
+                .drainChoiceResults()
                 .map { result ->
                     AnnotationBuilder.choiceResult(
                         sourceInstanceId = frameIds.cardIid(result.sourceForgeCardId),
                         chooserSeatId = result.chooserSeatId,
                         choiceValue = result.choiceValue,
                         choiceDomain = result.choiceDomain,
+                        sentiment = result.sentiment,
                     )
                 }
         }

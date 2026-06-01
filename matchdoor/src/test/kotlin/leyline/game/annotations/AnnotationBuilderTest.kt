@@ -103,6 +103,19 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("choiceResult can omit domain for sacrifice and discard choices") {
+            val ann = AnnotationBuilder.choiceResult(414.iid, 1.sid, choiceValue = 222, choiceDomain = null, sentiment = 1)
+
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.ChoiceResult
+                ann.affectorId shouldBe 414
+                ann.affectedIdsList shouldBe listOf(1)
+                ann.detailInt(DetailKeys.CHOICE_VALUE) shouldBe 222
+                ann.hasDetail(DetailKeys.CHOICE_DOMAIN) shouldBe false
+                ann.detailInt(DetailKeys.CHOICE_SENTIMENT) shouldBe 1
+            }
+        }
+
         test("coinFlip carries flipper and int result") {
             val ann = AnnotationBuilder.coinFlip(414.iid, 1.sid, result = 1)
 

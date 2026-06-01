@@ -49,10 +49,10 @@ class PromptJournalTest :
             j.consumeOptionalCostStash() shouldBe null
         }
 
-        test("drainStaticChoiceResults returns only static choices and drains once") {
+        test("drainChoiceResults returns only choice results and drains once") {
             val j = PromptJournal()
             val result =
-                PromptSideEffect.StaticChoiceResult(
+                PromptSideEffect.ChoiceResult(
                     sourceForgeCardId = ForgeCardId(42),
                     chooserSeatId = SeatId(1),
                     choiceValue = 176,
@@ -62,8 +62,8 @@ class PromptJournalTest :
             j.record(result)
 
             assertSoftly {
-                j.drainStaticChoiceResults() shouldBe listOf(result)
-                j.drainStaticChoiceResults() shouldBe emptyList()
+                j.drainChoiceResults() shouldBe listOf(result)
+                j.drainChoiceResults() shouldBe emptyList()
                 j.consumeLegendVictim(ForgeCardId(99)) shouldBe true
             }
         }
