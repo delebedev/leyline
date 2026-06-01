@@ -418,13 +418,31 @@ class TargetingHandler(
             when (classified) {
                 is ClassifiedPrompt.AutoResolve -> {
                     val req = pendingPrompt.request
-                    log.info(
-                        "TargetingHandler: auto-resolving non-targeting prompt [{}] \"{}\" opts={} default={}",
-                        req.promptType,
-                        req.message,
-                        req.options.size,
-                        req.defaultIndex,
-                    )
+                    // Multi-option generic prompts are real gameplay choices (for
+                    // example, odd/even effects) unless a narrower semantic has
+                    // classified them. Keep known safe defaults quiet, but make this
+                    // path visible so simclient runs do not silently swallow decisions.
+                    if (req.semantic == PromptSemantic.Generic && req.options.size > 1) {
+                        log.warn(
+                            "TargetingHandler: auto-resolving ambiguous non-targeting prompt [{}] semantic={} message=\"{}\" opts={} labels={} default={} sourceEntityId={} modalSource={}",
+                            req.promptType,
+                            req.semantic,
+                            req.message,
+                            req.options.size,
+                            req.options,
+                            req.defaultIndex,
+                            req.sourceEntityId,
+                            req.modalSourceCardName,
+                        )
+                    } else {
+                        log.info(
+                            "TargetingHandler: auto-resolving non-targeting prompt [{}] \"{}\" opts={} default={}",
+                            req.promptType,
+                            req.message,
+                            req.options.size,
+                            req.defaultIndex,
+                        )
+                    }
                     tracer.traceEvent(
                         MatchEventType.AUTO_PASS,
                         game,
@@ -737,7 +755,13 @@ class TargetingHandler(
             pendingPrompt.request.candidateRefs.indexOfFirst {
                 it.kind == "player" && it.entityId == player.id
             }
-        return if (idx >= 0) idx else null
+        if (idx >= 0) return idx
+
+        val seatIdx =
+            pendingPrompt.request.candidateRefs.indexOfFirst {
+                it.kind == "player" && it.entityId == instanceId
+            }
+        return if (seatIdx >= 0) seatIdx else null
     }
 
     /**
