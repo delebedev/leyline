@@ -77,9 +77,13 @@ Add a custom deck by saving Arena/export-style deck text as
 `data/decks/<name>.txt`, then pass the basename without `.txt`:
 
 ```bash
-just arena-ts deck get 853241 --file data/decks/<name>.txt
+just arena-ts deck get 'https://www.mtgtop8.com/event?e=86014&d=853241&f=ST' \
+  --file data/decks/<name>.txt
 just simclient "My deck" 1..5
 ```
+
+`deck get` also accepts the `d=` id from a MTGTop8 URL, but prefer pasting the
+full URL unless the id is already in hand.
 
 If `LEYLINE_CARD_DB` is missing, the batch fails before running. Use the same
 Raw card database path the server uses; built-in fixture-only smoke tests do
