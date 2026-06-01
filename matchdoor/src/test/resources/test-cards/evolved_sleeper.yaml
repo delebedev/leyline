@@ -1,0 +1,17 @@
+name: "Evolved Sleeper"
+grpId: 82145
+titleId: 614847
+abilities:
+  - id: 152784
+    textId: 614848
+    category: 1
+    subCategory: 0
+  - id: 152785
+    textId: 614850
+    category: 1
+    subCategory: 0
+  - id: 152786
+    textId: 614852
+    category: 1
+    subCategory: 0
+expansionCode: "DMU"
