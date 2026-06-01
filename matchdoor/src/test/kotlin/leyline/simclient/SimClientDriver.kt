@@ -70,6 +70,7 @@ data class GameStats(
     val promptRequestSamplesByKind: Map<String, String> = emptyMap(),
     val promptRouteFindings: List<PromptRouteFinding> = emptyList(),
     val simFindings: List<SimClientFinding> = emptyList(),
+    val promptProgressSamples: List<PromptProgressSample> = emptyList(),
 )
 
 data class SimClientFinding(
@@ -99,6 +100,7 @@ class SimClientDriver(
     private var stalledFingerprint: String? = null
     private var sawTerminalIntermission = false
     private val promptLedger = SimPromptLedger(harness)
+    private val promptProgress = PromptProgressRecorder(harness)
     private val attemptLedger = ActionAttemptLedger { currentTurnOrNull() }
     private val submitter = SimDecisionSubmitter(harness)
     private val promptPolicy: SimPromptPolicy =
@@ -266,6 +268,7 @@ class SimClientDriver(
             promptRequestSamplesByKind = promptRouteAudit.samplesByKind,
             promptRouteFindings = promptRouteAudit.findings,
             simFindings = simFindings,
+            promptProgressSamples = promptProgress.snapshot(),
         )
     }
 
@@ -373,6 +376,9 @@ class SimClientDriver(
     }
 
     private fun respondToPrompt(prompt: ActivePrompt): Boolean {
+        val beforeMessages = harness.allMessages.size
+        val beforeLast = harness.allMessages.lastOrNull()
+        val sourceBefore = promptProgress.sourceSnapshot(prompt)
         val policyT0 = System.nanoTime()
         val response = promptPolicy.respondToPrompt(prompt, attemptLedger)
         recordMapTiming(
@@ -384,6 +390,14 @@ class SimClientDriver(
         response.aarActionFingerprint?.let { attemptLedger.markSubmitted(it, response.decision.kind) }
         val submitT0 = System.nanoTime()
         val submitResult = submitter.submit(response.decision)
+        promptProgress.record(
+            prompt = prompt,
+            decision = response.decision,
+            submitResult = submitResult,
+            beforeMessages = beforeMessages,
+            beforeLast = beforeLast,
+            sourceBefore = sourceBefore,
+        )
         recordMapTiming(
             totals = submitTotalMsByDecision,
             maxes = submitMaxMsByDecision,

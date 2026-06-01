@@ -147,6 +147,33 @@ class SimClientBatchTest :
 
         fun stringsToJson(values: List<String>): String = values.joinToString(",", "[", "]") { jsonString(it) }
 
+        fun intsToJson(values: List<Int>): String = values.joinToString(",", "[", "]")
+
+        fun promptProgressToJson(values: List<PromptProgressSample>): String =
+            values.joinToString(",", "[", "]") { sample ->
+                buildString {
+                    append('{')
+                    append("\"promptType\":${jsonString(sample.promptType)},")
+                    append("\"decisionKind\":${jsonString(sample.decisionKind)},")
+                    append("\"submitResult\":${jsonString(sample.submitResult)},")
+                    append("\"promptMsgId\":${sample.promptMsgId},")
+                    append("\"promptGameStateId\":${sample.promptGameStateId},")
+                    append("\"beforeMsgId\":${sample.beforeMsgId},")
+                    append("\"beforeGameStateId\":${sample.beforeGameStateId},")
+                    append("\"afterMsgId\":${sample.afterMsgId},")
+                    append("\"afterGameStateId\":${sample.afterGameStateId},")
+                    append("\"beforeMessages\":${sample.beforeMessages},")
+                    append("\"afterMessages\":${sample.afterMessages},")
+                    append("\"sourceInstanceId\":${sample.sourceInstanceId},")
+                    append("\"sourceGrpId\":${sample.sourceGrpId},")
+                    append("\"abilityGrpId\":${sample.abilityGrpId},")
+                    append("\"targetIds\":${intsToJson(sample.targetIds)},")
+                    append("\"sourceBefore\":${jsonString(sample.sourceBefore)},")
+                    append("\"sourceAfter\":${jsonString(sample.sourceAfter)}")
+                    append('}')
+                }
+            }
+
         fun routeFindingsToJson(values: List<PromptRouteFinding>): String =
             values.joinToString(",", "[", "]") { finding ->
                 buildString {
@@ -225,6 +252,7 @@ class SimClientBatchTest :
                 append("\"promptRequestSamplesByKind\":${stringMapToJson(stats.promptRequestSamplesByKind)},")
                 append("\"promptRouteFindings\":${routeFindingsToJson(stats.promptRouteFindings)},")
                 append("\"simFindings\":${simFindingsToJson(stats.simFindings)},")
+                append("\"promptProgressSamples\":${promptProgressToJson(stats.promptProgressSamples)},")
                 append("\"warnsByLogger\":${mapToJson(stats.warnsByLogger)},")
                 append("\"errorsByType\":${mapToJson(stats.errorsByType)},")
                 append("\"validationViolationsByCheck\":${mapToJson(stats.validationViolationsByCheck)},")

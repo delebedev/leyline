@@ -101,6 +101,8 @@ class SimClientDriverPolicyTest :
             min: Int = 1,
             max: Int = 1,
             legalAction: SelectAction = SelectAction.Select_a1ad,
+            sourceId: Int = 0,
+            abilityGrpId: Int = 0,
         ): GREToClientMessage =
             GREToClientMessage
                 .newBuilder()
@@ -110,6 +112,8 @@ class SimClientDriverPolicyTest :
                 .setSelectTargetsReq(
                     SelectTargetsReq
                         .newBuilder()
+                        .setSourceId(sourceId)
+                        .setAbilityGrpId(abilityGrpId)
                         .addTargets(
                             TargetSelection
                                 .newBuilder()
@@ -367,5 +371,43 @@ class SimClientDriverPolicyTest :
             findings.single().key shouldBe key
             findings.single().count shouldBe 25
             findings.single().sample shouldBe "sourceId=42;targetIds=1"
+        }
+
+        test("prompt progress telemetry records submitted target response shape") {
+            val harness = MatchFlowHarness()
+            harness.accumulator.objects[42] =
+                GameObjectInfo
+                    .newBuilder()
+                    .setInstanceId(42)
+                    .setGrpId(59671)
+                    .setZoneId(ZoneIds.STACK)
+                    .setControllerSeatId(1)
+                    .build()
+            val msg = selectTargetsPrompt(sourceId = 42, abilityGrpId = 204314)
+            harness.allMessages += msg
+            val prompt = SimPromptLedger(harness).activePrompt()!!
+            val recorder = PromptProgressRecorder(harness)
+
+            recorder.record(
+                prompt = prompt,
+                decision = SimDecision.SelectTargets(listOf(2)),
+                submitResult = SimSubmitResult.Submitted,
+                beforeMessages = 1,
+                beforeLast = msg,
+                sourceBefore = recorder.sourceSnapshot(prompt),
+            )
+
+            val sample = recorder.snapshot().single()
+            sample.promptType shouldBe GREMessageType.SelectTargetsReq_695e.name
+            sample.decisionKind shouldBe "select-targets"
+            sample.submitResult shouldBe SimSubmitResult.Submitted.name
+            sample.promptMsgId shouldBe 8
+            sample.beforeGameStateId shouldBe 18
+            sample.afterGameStateId shouldBe 18
+            sample.sourceInstanceId shouldBe 42
+            sample.sourceGrpId shouldBe 59671
+            sample.abilityGrpId shouldBe 204314
+            sample.targetIds shouldBe listOf(2)
+            sample.sourceBefore shouldBe "id=42;grp=59671;zone=STACK;ctrl=1;type=None_a4aa"
         }
     })
