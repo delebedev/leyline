@@ -342,7 +342,11 @@ class TargetingHandler(
         selectedIds: List<Int>,
     ) {
         val effect = choiceResultSideEffect(pendingPrompt, selectedIds, counters.seatId) ?: return
-        ctx.bridge.seat(counters.seatId).prompt.journal.record(effect)
+        ctx.bridge
+            .seat(counters.seatId)
+            .prompt
+            .journal
+            .record(effect)
     }
 
     /**
