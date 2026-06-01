@@ -268,4 +268,23 @@ class AbilityRegistryTest :
                 registry.slotLayout.forgeIndexFor(149629) shouldBe 0
             }
         }
+
+        test("Evolved Sleeper activated abilities map to per-ability rows") {
+            val cardName = "Evolved Sleeper"
+            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val injected = TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
+            val activatedAbilities =
+                injected.card.spellAbilities
+                    .filter { it.isActivatedAbility && it.isIntrinsic && !it.isManaAbility() }
+            val cardData = CardDataDeriver.fromForgeCard(injected.card, cardName)
+
+            val registry = AbilityRegistry.build(injected.card, cardData)
+
+            assertSoftly {
+                activatedAbilities shouldHaveSize 3
+                registry.forSpellAbility(activatedAbilities[0].id) shouldBe 152784
+                registry.forSpellAbility(activatedAbilities[1].id) shouldBe 152785
+                registry.forSpellAbility(activatedAbilities[2].id) shouldBe 152786
+            }
+        }
     })

@@ -3,12 +3,18 @@ package leyline.game.snapshot
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.spellability.SpellAbilityStackInstance
+import leyline.bridge.getNonManaActivatedAbilities
+import leyline.game.codes.SlotKind
+import leyline.game.data.CardData
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ZoneMapper
 import leyline.game.state.GameBridge
 import org.jetbrains.annotations.VisibleForTesting
+import org.slf4j.LoggerFactory
 
 internal object StackAbilityGrpIdResolver {
+    private val log = LoggerFactory.getLogger(StackAbilityGrpIdResolver::class.java)
+
     /**
      * Resolve the **ability** grpId for a stack entry — the row in the Arena
      * `Abilities` table that describes this trigger / activated SA. Resolution
@@ -55,8 +61,60 @@ internal object StackAbilityGrpIdResolver {
                 }
             triggeredAbility?.first?.let { return it }
         }
+        if (!entry.isTrigger && sourceCardGrpId != 0) {
+            entry.spellAbility?.id?.let { abilityId ->
+                bridge.stackAbilityGrpId(abilityId)?.takeIf { it != 0 }?.let { return it }
+            }
+            val cardData = bridge.cardRepository.findByGrpId(sourceCardGrpId)
+            val registry = if (cardData != null) bridge.abilityRegistryFor(sourceCard, cardData) else null
+            entry.spellAbility?.id?.let { abilityId ->
+                registry?.forSpellAbility(abilityId)?.takeIf { it != 0 }?.let { return it }
+            }
+            if (cardData != null) {
+                activatedGrpIdByShape(entry, sourceCard, cardData, bridge)?.let { return it }
+            }
+        }
         return sourceCardGrpId
     }
+
+    private fun activatedGrpIdByShape(
+        entry: SpellAbilityStackInstance,
+        sourceCard: Card,
+        cardData: CardData,
+        bridge: GameBridge,
+    ): Int? {
+        val stackSa = entry.spellAbility ?: return null
+        val player = sourceCard.controller ?: return null
+        val activated = getNonManaActivatedAbilities(sourceCard, player)
+        val activatedSlotGrpIds = activatedSlotGrpIds(cardData)
+        if (activated.isEmpty() || activated.size != activatedSlotGrpIds.size) return null
+        val matches =
+            activated.mapIndexedNotNull { index, ability ->
+                val sameShape =
+                    ability.api == stackSa.api &&
+                        ability.payCosts?.toSimpleString() == stackSa.payCosts?.toSimpleString()
+                if (sameShape) index else null
+            }
+        val index = matches.singleOrNull() ?: run {
+            log.debug(
+                "activated stack ability grpId unresolved by shape card={} stackSaId={} api={} cost={} matches={} activatedSlots={}",
+                sourceCard.name,
+                stackSa.id,
+                stackSa.api,
+                stackSa.payCosts?.toSimpleString(),
+                matches,
+                activatedSlotGrpIds,
+            )
+            return null
+        }
+        return activatedSlotGrpIds.getOrNull(index)
+    }
+
+    private fun activatedSlotGrpIds(cardData: CardData): List<Int> =
+        cardData.abilityIds.mapIndexedNotNull { index, (grpId, _) ->
+            val kind = cardData.abilityKinds.getOrNull(index)
+            if (kind == SlotKind.Activated || (cardData.abilityKinds.isEmpty() && index >= 0)) grpId else null
+        }
 
     private fun knownKeywordTriggerGrpId(
         entry: SpellAbilityStackInstance,

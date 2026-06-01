@@ -338,7 +338,7 @@ object ZoneMapper {
                 if (grpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER) {
                     bridge.paradigmSourceStackIidFor(entry.forgeCardId) ?: 0
                 } else {
-                    0
+                    bridge.getOrAllocInstanceId(entry.forgeCardId).value
                 }
 
             zoneBuilder.addObjectInstanceIds(abilityInstanceId)
