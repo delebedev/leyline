@@ -373,7 +373,7 @@ object AnnotationBuilder {
         sourceInstanceId: InstanceId,
         chooserSeatId: SeatId,
         choiceValue: Int,
-        choiceDomain: Int,
+        choiceDomain: Int? = null,
         sentiment: Int = 2,
     ): AnnotationInfo =
         AnnotationInfo
@@ -382,7 +382,7 @@ object AnnotationBuilder {
             .setAffectorId(sourceInstanceId.value)
             .addAffectedIds(chooserSeatId.value)
             .addDetails(int32Detail(DetailKeys.CHOICE_VALUE, choiceValue))
-            .addDetails(int32Detail(DetailKeys.CHOICE_DOMAIN, choiceDomain))
+            .apply { choiceDomain?.let { addDetails(int32Detail(DetailKeys.CHOICE_DOMAIN, it)) } }
             .addDetails(int32Detail(DetailKeys.CHOICE_SENTIMENT, sentiment))
             .build()
 

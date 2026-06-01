@@ -6,8 +6,10 @@ import leyline.UnitTag
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
+import leyline.bridge.types.SeatId
 import java.util.concurrent.CompletableFuture
 
 class TargetingHandlerSelectNTest :
@@ -65,5 +67,34 @@ class TargetingHandlerSelectNTest :
                 }
 
             indices shouldBe listOf(1)
+        }
+
+        test("sacrifice SelectN records ChoiceResult without domain") {
+            val pending =
+                pendingPrompt(
+                    PromptRequest(
+                        promptType = "choose_cards",
+                        message = "Choose a permanent to sacrifice",
+                        options = listOf("A", "B"),
+                        semantic = PromptSemantic.SelectNSacrificeEffect,
+                        sourceEntityId = 77,
+                        candidateRefs =
+                            listOf(
+                                PromptCandidateRefDto(index = 0, kind = "card", entityId = 10),
+                                PromptCandidateRefDto(index = 1, kind = "card", entityId = 20),
+                            ),
+                    ),
+                )
+
+            val result = TargetingHandler.choiceResultSideEffect(pending, listOf(200), SeatId(1))
+
+            result shouldBe
+                PromptSideEffect.ChoiceResult(
+                    sourceForgeCardId = ForgeCardId(77),
+                    chooserSeatId = SeatId(1),
+                    choiceValue = 200,
+                    choiceDomain = null,
+                    sentiment = 1,
+                )
         }
     })

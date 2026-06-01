@@ -1163,13 +1163,14 @@ object StateMapper {
             bridge
                 .promptBridge(SeatId(seatValue))
                 .journal
-                .drainStaticChoiceResults()
+                .drainChoiceResults()
                 .map { result ->
                     AnnotationBuilder.choiceResult(
                         sourceInstanceId = frameIds.cardIid(result.sourceForgeCardId),
                         chooserSeatId = result.chooserSeatId,
                         choiceValue = result.choiceValue,
                         choiceDomain = result.choiceDomain,
+                        sentiment = result.sentiment,
                     )
                 }
         }
