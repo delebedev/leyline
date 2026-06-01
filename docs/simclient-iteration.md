@@ -41,6 +41,12 @@ SIMCLIENT_TEST_TIMEOUT_MINUTES=180 \
 just simclient "Control Sample" 1..5
 ```
 
+Scout mode for broad deck sweeps keeps going after per-game exceptions and writes `completionReason=exception` stats rows:
+
+```bash
+SIMCLIENT_CONTINUE_ON_EXCEPTION=true just simclient "Deck A,Deck B,Deck C" 1..20
+```
+
 Puzzle confirmation after the bug shape is known:
 
 ```bash
@@ -72,6 +78,7 @@ Start with these fields in `*.stats.json`:
 - `simFindings`: derived warnings such as repeated target-choice replay suspects.
 - `stalledPrompt`, `stalledFingerprint`: last repeated client-visible prompt.
 - `warnsByLogger`, `errorsByType`, `validationViolationsByCheck`: direct failure signals.
+- `exceptionMessage`, `exceptionStackTop`: root cause when scout mode converted a crash into a stats row.
 
 Use logs only after stats tell you what to search for.
 

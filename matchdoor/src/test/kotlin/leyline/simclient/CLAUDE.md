@@ -62,6 +62,9 @@ just simclient "Auras,Black aggro" 1,2,3   # 6 games using data/decks/*.txt
 # Pick the policy (greedy default; forge-ai consults Forge AI as advisor)
 SIMCLIENT_POLICY=forge-ai just simclient bears 1..5
 
+# Scout mode: record exception stats instead of aborting the batch
+SIMCLIENT_CONTINUE_ON_EXCEPTION=true just simclient bears 1..20
+
 # Fixed seat-2 deck instead of mirror matches
 SIMCLIENT_OPPONENT_DECK="Pauper Blue Tempo" SIMCLIENT_POLICY=forge-ai \
   just simclient "Green stompy,Pauper Red Burn" 1..10

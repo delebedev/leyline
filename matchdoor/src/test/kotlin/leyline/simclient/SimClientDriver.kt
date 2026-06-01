@@ -44,6 +44,8 @@ data class GameStats(
     val errorsByType: Map<String, Int> = emptyMap(),
     val validationViolationsByCheck: Map<String, Int> = emptyMap(),
     val validationViolations: List<String> = emptyList(),
+    val exceptionMessage: String? = null,
+    val exceptionStackTop: String? = null,
     val stalledPrompt: String? = null,
     val stalledFingerprint: String? = null,
     val completionReason: String = "unknown",

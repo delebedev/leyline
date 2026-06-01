@@ -12,6 +12,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.time.LocalDateTime
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -118,6 +119,8 @@ class SimClientBatchTest :
         // decisions; falls through to greedy for unhandled prompts.
         val usingForgeAi: Boolean =
             (envOrProp("SIMCLIENT_POLICY") ?: "greedy").trim().equals("forge-ai", ignoreCase = true)
+        val continueOnException: Boolean =
+            envOrProp("SIMCLIENT_CONTINUE_ON_EXCEPTION")?.trim().equals("true", ignoreCase = true)
 
         fun jsonString(s: String): String =
             buildString {
@@ -226,6 +229,8 @@ class SimClientBatchTest :
                 append("\"errorsByType\":${mapToJson(stats.errorsByType)},")
                 append("\"validationViolationsByCheck\":${mapToJson(stats.validationViolationsByCheck)},")
                 append("\"validationViolations\":${stringsToJson(stats.validationViolations)},")
+                append("\"exceptionMessage\":${stats.exceptionMessage?.let(::jsonString) ?: "null"},")
+                append("\"exceptionStackTop\":${stats.exceptionStackTop?.let(::jsonString) ?: "null"},")
                 append("\"promptRetiredByReason\":${mapToJson(stats.promptRetiredByReason)},")
                 append("\"decisionOutcomes\":${mapToJson(stats.decisionOutcomes)},")
                 append("\"actionAttemptsByType\":${mapToJson(stats.actionAttemptsByType)},")
@@ -271,6 +276,40 @@ class SimClientBatchTest :
             )
         }
 
+        fun Throwable.rootCause(): Throwable {
+            var current = this
+            while (current.cause != null && current.cause !== current) current = current.cause!!
+            return current
+        }
+
+        fun exceptionStats(
+            harness: MatchFlowHarness?,
+            elapsedMs: Long,
+            throwable: Throwable,
+        ): GameStats {
+            val cause = throwable.rootCause()
+            val messages = runCatching { harness?.allMessages?.toList().orEmpty() }.getOrDefault(emptyList())
+            val histogram =
+                messages
+                    .filter { isSimPrompt(it) }
+                    .groupingBy { it.type }
+                    .eachCount()
+            val stackTop = cause.stackTrace.firstOrNull()?.let { "${it.className}.${it.methodName}:${it.lineNumber}" }
+            return GameStats(
+                turn = runCatching { harness?.turn() ?: 0 }.getOrDefault(0),
+                gameOver = runCatching { harness?.isGameOver() ?: false }.getOrDefault(false),
+                iterations = 0,
+                totalMessages = messages.size,
+                promptHistogram = histogram,
+                hitIterCap = false,
+                durationMs = elapsedMs,
+                errorsByType = mapOf(cause::class.qualifiedName.orEmpty() to 1),
+                exceptionMessage = "${cause::class.qualifiedName}: ${cause.message}",
+                exceptionStackTop = stackTop,
+                completionReason = "exception",
+            )
+        }
+
         fun runWithTimeout(
             tag: String,
             logFile: File,
@@ -310,6 +349,7 @@ class SimClientBatchTest :
                         runCatching { harness.shutdown() }
                     }
                 }
+            val t0 = System.nanoTime()
             val stats =
                 try {
                     future.get(timeoutMs, TimeUnit.MILLISECONDS)
@@ -318,6 +358,11 @@ class SimClientBatchTest :
                     future.cancel(true)
                     runCatching { harnessRef.get()?.shutdown() }
                     statsAtTimeout
+                } catch (e: ExecutionException) {
+                    if (!continueOnException) throw e
+                    val statsAtException = exceptionStats(harnessRef.get(), (System.nanoTime() - t0) / 1_000_000, e)
+                    runCatching { harnessRef.get()?.shutdown() }
+                    statsAtException
                 } finally {
                     executor.shutdownNow()
                 }
@@ -333,6 +378,9 @@ class SimClientBatchTest :
             File(outDir, "$tag.stats.json").writeText(statsToJson(runLabel, opponentRunLabel, seed, stats))
             if (stats.completionReason == "wall-timeout") {
                 error("simclient game timed out after ${timeoutMs}ms: $tag")
+            }
+            if (stats.completionReason == "exception" && !continueOnException) {
+                error("simclient game failed with exception: $tag")
             }
             return stats
         }
