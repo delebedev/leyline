@@ -212,14 +212,22 @@ class GamePlayback(
             }
         }
 
-    /** Drain queued batches that were allocated before the caller's next outbound message. */
-    fun drainQueueBeforeMsgId(msgId: Int): List<List<GREToClientMessage>> =
+    /** Drain queued batches that must precede the caller's next outbound message. */
+    fun drainQueueBeforeMsgId(
+        msgId: Int,
+        maxGsId: Int = 0,
+    ): List<List<GREToClientMessage>> =
         synchronized(queueLock) {
             buildList {
                 while (true) {
                     val batch = queue.peek() ?: break
                     val firstMsgId = batch.firstOrNull()?.msgId ?: Int.MAX_VALUE
-                    if (firstMsgId >= msgId) break
+                    val firstGsId = batch.firstGameStateId()
+                    if (maxGsId != 0 && firstGsId != null) {
+                        if (firstGsId >= maxGsId) break
+                    } else if (firstMsgId >= msgId) {
+                        break
+                    }
                     add(queue.poll() ?: break)
                 }
             }
@@ -323,6 +331,9 @@ class GamePlayback(
                 turnStarted = turnStarted,
                 eventsOverride = events,
             ).messages
+
+    private fun List<GREToClientMessage>.firstGameStateId(): Int? =
+        firstOrNull { it.hasGameStateMessage() }?.gameStateMessage?.gameStateId
 
     private fun List<LeylineGameEvent>.hasCombatDamage(): Boolean =
         any { it is LeylineGameEvent.DamageDealtToCard || it is LeylineGameEvent.DamageDealtToPlayer }

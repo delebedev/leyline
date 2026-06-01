@@ -667,9 +667,10 @@ class MatchSession(
      */
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
         val firstMsgId = messages.firstOrNull()?.msgId
+        val maxGsId = messages.maxOfOrNull { it.gameStateId } ?: 0
         val playback = firstMsgId?.let { ctx.bridge.playbackFor(seatId) }
         if (playback != null) {
-            for (batch in playback.drainQueueBeforeMsgId(firstMsgId)) {
+            for (batch in playback.drainQueueBeforeMsgId(firstMsgId, maxGsId)) {
                 sendBundledGREDirect(batch)
             }
         }
