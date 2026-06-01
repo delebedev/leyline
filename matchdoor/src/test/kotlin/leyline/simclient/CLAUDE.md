@@ -15,6 +15,11 @@ read `docs/simclient-iteration.md`.
 If iterating on simclient tooling, read bead `leyline-jy2g` and the titles of
 its children first.
 
+Known broad deck-scout findings live in beads with label `simclient-scout`.
+Before filing another scout bug, run
+`bd query 'label=simclient-scout AND status=open'` and dedupe by card, ability,
+or fingerprint.
+
 ## What's in this directory
 
 - `SimClientDriver.kt` — loop/orchestration, prompt retirement, outcome telemetry.
