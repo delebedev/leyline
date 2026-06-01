@@ -20,6 +20,21 @@ Before filing another scout bug, run
 `bd query 'label=simclient-scout AND status=open'` and dedupe by card, ability,
 or fingerprint.
 
+When filing or updating a `simclient-scout` bead for another agent, make it
+agent-ready before handoff:
+
+- Include one copy-paste repro command from the leyline worktree with all env
+  vars: `LEYLINE_CARD_DB`, `SIMCLIENT_POLICY`, `SIMCLIENT_CONTINUE_ON_EXCEPTION`,
+  deck/opponent/seed, timeout, and Gradle task.
+- State the expected current bad stats row: `completionReason`, exception stack
+  top/message, `simFindings`, validation violation, or stalled prompt/fingerprint.
+- Name the committed deck files or commit that introduced them; do not rely only
+  on a temp JSONL artifact.
+- Add the likely code seam when known, e.g. mapper/driver/prompt ledger class and
+  function names.
+- Keep aggregate artifact paths in notes for evidence, but do not make them the
+  only way to reproduce.
+
 ## What's in this directory
 
 - `SimClientDriver.kt` — loop/orchestration, prompt retirement, outcome telemetry.
