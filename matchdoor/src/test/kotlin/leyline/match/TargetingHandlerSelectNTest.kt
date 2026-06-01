@@ -69,13 +69,15 @@ class TargetingHandlerSelectNTest :
             indices shouldBe listOf(1)
         }
 
-        test("sacrifice SelectN records ChoiceResult without domain") {
+        test("sacrifice SelectN records one ChoiceResult per selected id without domain") {
             val pending =
                 pendingPrompt(
                     PromptRequest(
                         promptType = "choose_cards",
                         message = "Choose a permanent to sacrifice",
                         options = listOf("A", "B"),
+                        min = 2,
+                        max = 2,
                         semantic = PromptSemantic.SelectNSacrificeEffect,
                         sourceEntityId = 77,
                         candidateRefs =
@@ -86,15 +88,24 @@ class TargetingHandlerSelectNTest :
                     ),
                 )
 
-            val result = TargetingHandler.choiceResultSideEffect(pending, listOf(200), SeatId(1))
+            val results = TargetingHandler.choiceResultSideEffects(pending, listOf(200, 100), SeatId(1))
 
-            result shouldBe
-                PromptSideEffect.ChoiceResult(
-                    sourceForgeCardId = ForgeCardId(77),
-                    chooserSeatId = SeatId(1),
-                    choiceValue = 200,
-                    choiceDomain = null,
-                    sentiment = 1,
+            results shouldBe
+                listOf(
+                    PromptSideEffect.ChoiceResult(
+                        sourceForgeCardId = ForgeCardId(77),
+                        chooserSeatId = SeatId(1),
+                        choiceValue = 200,
+                        choiceDomain = null,
+                        sentiment = 1,
+                    ),
+                    PromptSideEffect.ChoiceResult(
+                        sourceForgeCardId = ForgeCardId(77),
+                        chooserSeatId = SeatId(1),
+                        choiceValue = 100,
+                        choiceDomain = null,
+                        sentiment = 1,
+                    ),
                 )
         }
     })

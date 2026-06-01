@@ -62,12 +62,12 @@ class TargetingHandler(
                     }.filter { it >= 0 }
             }
 
-        internal fun choiceResultSideEffect(
+        internal fun choiceResultSideEffects(
             pendingPrompt: InteractivePromptBridge.PendingPrompt,
             selectedIds: List<Int>,
             chooserSeatId: SeatId,
-        ): PromptSideEffect.ChoiceResult? {
-            val source = pendingPrompt.request.sourceEntityId ?: return null
+        ): List<PromptSideEffect.ChoiceResult> {
+            val source = pendingPrompt.request.sourceEntityId ?: return emptyList()
             val semantic = pendingPrompt.request.semantic
             val (choiceDomain, sentiment) =
                 when {
@@ -75,16 +75,17 @@ class TargetingHandler(
                     semantic == PromptSemantic.StaticColorChoice -> 6 to 2
                     semantic == PromptSemantic.SelectNDiscard ||
                         semantic == PromptSemantic.SelectNSacrificeEffect -> null to 1
-                    else -> return null
+                    else -> return emptyList()
                 }
-            val value = selectedIds.firstOrNull() ?: return null
-            return PromptSideEffect.ChoiceResult(
-                sourceForgeCardId = ForgeCardId(source),
-                chooserSeatId = chooserSeatId,
-                choiceValue = value,
-                choiceDomain = choiceDomain,
-                sentiment = sentiment,
-            )
+            return selectedIds.map { value ->
+                PromptSideEffect.ChoiceResult(
+                    sourceForgeCardId = ForgeCardId(source),
+                    chooserSeatId = chooserSeatId,
+                    choiceValue = value,
+                    choiceDomain = choiceDomain,
+                    sentiment = sentiment,
+                )
+            }
         }
     }
 
@@ -275,7 +276,7 @@ class TargetingHandler(
         val selectedIds = greMsg.selectNResp.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(selectedIds, pendingPrompt)
 
-        recordChoiceResult(pendingPrompt, selectedIds)
+        recordChoiceResults(pendingPrompt, selectedIds)
 
         log.info("TargetingHandler: SelectNResp indices={}", selectedIndices)
 
@@ -337,16 +338,18 @@ class TargetingHandler(
             ctx.bridge.getForgeCardId(InstanceId(instanceId))
         }
 
-    private fun recordChoiceResult(
+    private fun recordChoiceResults(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
         selectedIds: List<Int>,
     ) {
-        val effect = choiceResultSideEffect(pendingPrompt, selectedIds, counters.seatId) ?: return
-        ctx.bridge
-            .seat(counters.seatId)
-            .prompt
-            .journal
-            .record(effect)
+        val effects = choiceResultSideEffects(pendingPrompt, selectedIds, counters.seatId)
+        if (effects.isEmpty()) return
+        val journal =
+            ctx.bridge
+                .seat(counters.seatId)
+                .prompt
+                .journal
+        effects.forEach(journal::record)
     }
 
     /**
