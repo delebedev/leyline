@@ -289,20 +289,9 @@ simclient decks="" seeds="":
         fi
     fi
     src="matchdoor/build/simclient"
-    # Clear prior outputs so the ingest step only picks up the current run.
+    # Clear prior outputs so ingest only picks up the current run.
     if [ -d "$src" ]; then trash "$src"; fi
-    ./gradlew :matchdoor:simclient
-    out="${HOME}/.scry/games"
-    mkdir -p "$out"
-    n=0
-    for f in "$src"/*.log; do
-        [ -e "$f" ] || continue
-        base=$(basename "$f" .log)
-        cp "$f" "$out/${base}.log"
-        cp "${src}/${base}.meta.json" "$out/${base}.meta.json" 2>/dev/null || true
-        n=$((n+1))
-    done
-    echo "Sim-client: $n game(s) ingested into $out (source: simclient)"
+    ./gradlew :matchdoor:simclient --args="--ingest-scry"
 
 # Run simclient against one or more `.pzl` puzzles instead of shuffled decks.
 # Same SIMCLIENT_SEEDS semantics; logs land tagged `puzzle:<basename>` so scry
@@ -338,19 +327,7 @@ simclient-puzzle puzzles seeds="42":
     fi
     src="matchdoor/build/simclient"
     if [ -d "$src" ]; then trash "$src"; fi
-    # The matrix tests gate on SIMCLIENT_PUZZLE so deck tests no-op cleanly.
-    ./gradlew :matchdoor:simclient
-    out="${HOME}/.scry/games"
-    mkdir -p "$out"
-    n=0
-    for f in "$src"/*.log; do
-        [ -e "$f" ] || continue
-        base=$(basename "$f" .log)
-        cp "$f" "$out/${base}.log"
-        cp "${src}/${base}.meta.json" "$out/${base}.meta.json" 2>/dev/null || true
-        n=$((n+1))
-    done
-    echo "Sim-client puzzle: $n game(s) ingested into $out (source: simclient)"
+    ./gradlew :matchdoor:simclient --args="--puzzles {{puzzles}} --seeds {{seeds}} --ingest-scry"
 
 # --- Serve ---
 

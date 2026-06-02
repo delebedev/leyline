@@ -41,10 +41,17 @@ SIMCLIENT_TEST_TIMEOUT_MINUTES=180 \
 just simclient "Control Sample" 1..5
 ```
 
-Scout mode for broad deck sweeps keeps going after per-game exceptions and writes `completionReason=exception` stats rows:
+Scout mode for broad deck sweeps keeps going after per-game exceptions and writes `completionReason=exception` stats rows. This is the standalone tool default; use `--strict` when a matrix is acting as a regression gate:
 
 ```bash
 SIMCLIENT_CONTINUE_ON_EXCEPTION=true just simclient "Deck A,Deck B,Deck C" 1..20
+```
+
+Resume or shard a sweep without changing row identity:
+
+```bash
+./gradlew :matchdoor:simclient --args="--decks 'Deck A,Deck B' --seeds 1..200 --resume"
+./gradlew :matchdoor:simclient --args="--decks 'Deck A,Deck B' --seeds 1..200 --shard-index 0 --shard-count 4"
 ```
 
 Puzzle confirmation after the bug shape is known:
@@ -62,12 +69,14 @@ Simclient writes per-game artifacts under `matchdoor/build/simclient/`:
 - `*.stats.json` is the first stop.
 - `*.log` is useful after the stats identify the first repeated prompt, action, or object id pattern.
 - `*.meta.json` records the run shape.
+- `summary.json` groups row outcomes by `failureClass`.
 
 ## Stats First
 
 Start with these fields in `*.stats.json`:
 
 - `completionReason`: `natural`, `turn-stall`, timeout, validation failure.
+- `failureClass`: derived grouping for dashboards (`natural`, `exception`, `wall-timeout`, `validation`, `prompt-route`, `max-turns`, etc.).
 - `winnerSeat`, `finalLifeBySeat`, `finalStatusBySeat`: did the game really finish, or did cleanup decide it?
 - `iterations`, `totalMessages`: high values imply loops or stalled progress.
 - `promptHistogram`: which GRE prompt type dominates.

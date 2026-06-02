@@ -6,8 +6,10 @@ under `matchdoor/build/simclient/`, and tags each game `source: simclient` via
 a `<log>.meta.json` sidecar so scry-ts can ingest the result alongside other
 saved games without polluting reference data.
 
-Lives in test source — opt-in via the dedicated Gradle task; the regular gate
-excludes it.
+The broad runner is a standalone Gradle JavaExec tool (`:matchdoor:simclient`),
+not a Kotest suite. It still compiles against testkit internals for now; row
+timeouts, exceptions, and validation failures are written as stats data unless
+`--strict` is passed. The regular gate excludes the slow E2E tests.
 
 For the fixed-seed debugging loop, failure taxonomy, and deck-vs-puzzle guidance,
 read `docs/simclient-iteration.md`.
@@ -79,17 +81,18 @@ Pick the most common prompt seam that is answerable by policy.
   via `writeSimClientSidecar`.
 - `SimClientE2ETest.kt` — two fast smoke tests (mono-Forest mirror, vanilla-
   creatures mirror). Verifies the pipeline.
-- `SimClientBatchTest.kt` — env-driven `(deck × seed)` matrix with stats +
-  prompt-histogram aggregation. Reads decks from `data/decks/<name>.txt` or
-  the built-in deck table. Writes per-game `.stats.json` sidecar.
+- `SimClientTool.kt` — CLI, matrix expansion, row watchdog, resume/shard,
+  stats JSON, summary, and optional scry ingest.
+- `SimClientBatchTest.kt` — legacy Kotest batch wrapper kept for compatibility
+  during the tool split. Prefer the standalone tool for deck/puzzle matrices.
 
-All files are tagged `leyline.SimClientTag` (see `Tags.kt`) so they only
-run under the `:matchdoor:simclient` Gradle task, never under `:testGate`.
+Slow E2E test files are tagged `leyline.SimClientTag` (see `Tags.kt`) so they
+stay out of `:testGate`. The broad matrix tool is not tag-driven.
 
 ## How to invoke
 
-**Recommended — `just simclient` recipe** clears prior outputs, runs the
-batch, copies logs into `~/.scry/games/`:
+**Recommended — `just simclient` recipe** runs the standalone tool and copies
+logs into `~/.scry/games/`:
 
 ```bash
 # Required for arbitrary decks: point at the local Arena card DB.
@@ -106,7 +109,7 @@ just simclient "Auras,Black aggro" 1,2,3   # 6 games using data/decks/*.txt
 # Pick the policy (greedy default; forge-ai consults Forge AI as advisor)
 SIMCLIENT_POLICY=forge-ai just simclient bears 1..5
 
-# Scout mode: record exception stats instead of aborting the batch
+# Scout mode is the default: record exception stats instead of aborting the batch
 SIMCLIENT_CONTINUE_ON_EXCEPTION=true just simclient bears 1..20
 
 # Fixed seat-2 deck instead of mirror matches
@@ -131,12 +134,20 @@ If `LEYLINE_CARD_DB` is missing, the batch fails before running. Use the same
 Raw card database path the server uses; built-in fixture-only smoke tests do
 not need it, but deck-file runs do.
 
-**Direct gradle** (no ingest):
+**Direct gradle** (no ingest unless `--ingest-scry` is passed):
 
 ```bash
 SIMCLIENT_DECKS=mono-r-burn SIMCLIENT_SEEDS=1..20 \
   ./gradlew :matchdoor:simclient
 ls matchdoor/build/simclient/   # *.log + *.meta.json
+```
+
+Useful tool flags:
+
+```bash
+./gradlew :matchdoor:simclient --args="--decks mono-r-burn --seeds 1..20 --resume"
+./gradlew :matchdoor:simclient --args="--decks mono-r-burn --seeds 1..100 --shard-index 0 --shard-count 4"
+./gradlew :matchdoor:simclient --args="--puzzles bolt-face.pzl --seeds 42 --strict"
 ```
 
 Useful direct-gradle knobs, all accepted as env vars or lower-case system
@@ -150,7 +161,6 @@ properties (`SIMCLIENT_OPPONENT_DECK` ↔ `-Dsimclient.opponent.deck`):
 | `SIMCLIENT_POLICY` | `greedy` | `greedy` or `forge-ai` |
 | `SIMCLIENT_MAX_TURNS` | `25` | Unresolved-game cap before cleanup concede |
 | `SIMCLIENT_GAME_TIMEOUT_SECONDS` | `120` | Wall-clock watchdog per game |
-| `SIMCLIENT_TEST_TIMEOUT_MINUTES` | `120` | Whole Gradle test timeout; keep above matrix size × per-game watchdog |
 | `LEYLINE_CARD_DB` | required for deck files | Raw card DB path for non-fixture decks |
 
 **Single E2E smoke** (fastest, ~10s, no env):
@@ -161,12 +171,13 @@ properties (`SIMCLIENT_OPPONENT_DECK` ↔ `-Dsimclient.opponent.deck`):
 
 ## Output
 
-Each game produces three files:
+Each game produces three per-row files plus a run summary:
 
 ```
 matchdoor/build/simclient/<deck>[-vs-<opponent>]-s<seed>.log         # Player.log-shaped JSON blocks
 matchdoor/build/simclient/<deck>[-vs-<opponent>]-s<seed>.meta.json   # provenance sidecar (scry-ts shape)
 matchdoor/build/simclient/<deck>[-vs-<opponent>]-s<seed>.stats.json  # per-game telemetry (see Telemetry below)
+matchdoor/build/simclient/summary.json                              # run-level class counts
 ```
 
 Sidecar shape (matches scry-ts `GameMeta`):
@@ -187,7 +198,8 @@ Sidecar shape (matches scry-ts `GameMeta`):
 ```
 
 `just simclient` copies the `.log` and `.meta.json` into `~/.scry/games/` so
-scry-ts picks them up. The `.stats.json` stays in the build dir.
+scry-ts picks them up. The `.stats.json` stays in the build dir and is the
+source artifact for Trackio importers.
 
 Output filenames are file-safe labels derived from deck names. Fixed-opponent
 runs include `-vs-<opponent>` to avoid overwriting mirror runs for the same

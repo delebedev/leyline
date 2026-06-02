@@ -1,5 +1,6 @@
 import leyline.build.SyncProtoTask
 import leyline.build.configureTestDefaults
+import org.gradle.api.tasks.JavaExec
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -154,20 +155,18 @@ testIntegrationStrict.configure { mustRunAfter(testGate) }
 
 // Sim-client log generation. Drives full games via real MatchSession + bridge,
 // emits scry-ts-shaped Player.log lines under build/simclient/, with sidecars
-// tagging source: simclient. Slow — not part of the regular gate.
+// tagging source: simclient. Tool-shaped: row failures become stats, not test
+// runner failures unless --strict is passed.
 //
 // Configure the matrix via env vars:
 //   SIMCLIENT_DECKS=mono-r-burn       (default: forest-only,bears,mono-g-curve,mono-r-burn)
 //   SIMCLIENT_SEEDS=1..50             (default: 7,13,42,99,314)
-val simclient by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "SimClientTag")
-    filter {
-        includeTestsMatching("leyline.simclient.SimClientBatchTest")
-        includeTestsMatching("leyline.simclient.SpectatorSimClientTest")
-    }
-    // Forge's static MyRandom forces serial execution.
-    maxParallelForks = 1
+val simclient by tasks.registering(JavaExec::class) {
+    group = "simclient"
+    description = "Run standalone simclient deck/puzzle matrices"
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("leyline.simclient.SimClientToolKt")
     // Only pass through env vars that are actually set — pushing an empty
     // string clobbers the test's `?: default` fallbacks.
     val simclientKnobs =
@@ -187,9 +186,9 @@ val simclient by tasks.registering(Test::class) {
         val knobValue = providers.systemProperty(propertyName).orElse(providers.environmentVariable(name)).orNull
         knobValue?.takeIf { it.isNotEmpty() }?.let { configuredValue ->
             environment(name, configuredValue)
-            systemProperty(propertyName, configuredValue)
         }
     }
+    args((project.findProperty("simclientArgs") as String?)?.split(" ")?.filter { it.isNotBlank() }.orEmpty())
     // Always re-execute — the matrix is env-driven, not source-driven, so
     // gradle's input fingerprint can't tell when we want a different run.
     outputs.upToDateWhen { false }
