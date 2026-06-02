@@ -42,6 +42,10 @@ object PromptRouteAuditor {
         val emittedByGreType = promptHistogram.toRouteNames()
         val expectedRoutes = history.mapNotNull { record -> record.expectedRoute()?.let { it to record } }
         val expectedByGreType = expectedRoutes.groupingBy { it.first.expectedGreType }.eachCount()
+        val routeKeysByGreType =
+            expectedRoutes
+                .groupBy { it.first.expectedGreType }
+                .mapValues { (_, routes) -> routes.map { it.first.routeKey }.toSet() }
         val findings =
             expectedRoutes
                 .groupBy { it.first.routeKey }
@@ -50,10 +54,17 @@ object PromptRouteAuditor {
                     val route = routeRecords.first().first
                     val records = routeRecords.map { it.second }
                     val emitted = emittedByGreType[route.expectedGreType] ?: 0
-                    if (emitted >= expectedByGreType.getValue(route.expectedGreType)) return@mapNotNull null
                     val outcomes = records.groupingBy { it.outcome.name }.eachCount().toSortedMap()
+                    val expectedForType = expectedByGreType.getValue(route.expectedGreType)
+                    val bucket =
+                        when {
+                            emitted < expectedForType ->
+                                classifyBucket(expectedCount = records.size, emittedCount = emitted, outcomeCounts = outcomes)
+                            routeKeysByGreType.getValue(route.expectedGreType).size > 1 -> "ambiguous_route_coverage"
+                            else -> return@mapNotNull null
+                        }
                     PromptRouteFinding(
-                        bucket = classifyBucket(expectedCount = records.size, emittedCount = emitted, outcomeCounts = outcomes),
+                        bucket = bucket,
                         routeKey = route.routeKey,
                         enginePromptType = route.enginePromptType,
                         semantic = route.semantic.name,

@@ -3,6 +3,7 @@ package leyline.simclient
 import forge.ai.PlayerControllerAi
 import forge.game.GameObject
 import forge.game.GameActionUtil
+import forge.game.IEntityMap
 import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
 import forge.game.card.CardCollection
@@ -172,9 +173,9 @@ class ForgeAiPolicy(
 
     /**
      * Ask the AI which of the seat's creatures should block the current
-     * attackers. Mutates the engine's live [Combat] under runWithController so
-     * Forge AI's internals see the expected controller type. Returns a
-     * `blockerInstanceId → attackerInstanceId` map ready for
+     * attackers. Uses a probe [Combat] so the consult does not mutate Forge's
+     * live combat before the bridge receives a DeclareBlockers response.
+     * Returns a `blockerInstanceId → attackerInstanceId` map ready for
      * [MatchFlowHarness.declareBlockers], or null when there are no blocks.
      *
      * For multi-block (one blocker assigned to several attackers) we emit one
@@ -183,10 +184,11 @@ class ForgeAiPolicy(
     fun chooseBlockers(): Map<Int, Int>? {
         val combat: Combat = harness.game().combat ?: return null
         if (combat.getAttackers().isEmpty()) return null
-        askAi("declareBlockers") { aiController.declareBlockers(seatPlayer, combat) } ?: return null
+        val probeCombat = Combat(combat, identityEntityMap())
+        askAi("declareBlockers") { aiController.declareBlockers(seatPlayer, probeCombat) } ?: return null
         val pairs = mutableListOf<Pair<Int, Int>>()
-        for (attacker in combat.getAttackers()) {
-            val blockers = combat.getBlockers(attacker)
+        for (attacker in probeCombat.getAttackers()) {
+            val blockers = probeCombat.getBlockers(attacker)
             if (blockers.isNullOrEmpty()) continue
             for (blocker in blockers) {
                 val blockerId = harness.bridge.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
@@ -201,6 +203,13 @@ class ForgeAiPolicy(
         // ever banding-blocks.
         return pairs.toMap()
     }
+
+    private fun identityEntityMap(): IEntityMap =
+        object : IEntityMap {
+            override fun getGame() = harness.game()
+
+            override fun map(o: GameObject): GameObject = o
+        }
 
     fun canChooseSelectN(req: SelectNReq): Boolean {
         val count = selectNCount(req)

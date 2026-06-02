@@ -110,6 +110,29 @@ class PromptRouteAuditTest :
 
             audit.findings shouldHaveSize 2
         }
+
+        test("flags ambiguous same-GRE route coverage") {
+            val audit =
+                PromptRouteAuditor.audit(
+                    history =
+                        listOf(
+                            promptRecord(
+                                promptType = "choose_cards",
+                                semantic = PromptSemantic.SelectNResolution,
+                                outcome = InteractivePromptBridge.PromptCallStatus.RESPONDED,
+                            ),
+                            promptRecord(
+                                promptType = "choose_cards",
+                                semantic = PromptSemantic.SelectNDiscard,
+                                outcome = InteractivePromptBridge.PromptCallStatus.RESPONDED,
+                            ),
+                        ),
+                    promptHistogram = mapOf(GREMessageType.SelectNreq to 2),
+                )
+
+            audit.findings shouldHaveSize 2
+            audit.findings.map { it.bucket }.toSet() shouldBe setOf("ambiguous_route_coverage")
+        }
     })
 
 private fun promptRecord(

@@ -124,7 +124,7 @@ class SimClientDriver(
 
     @Suppress("LongMethod", "CyclomaticComplexMethod")
     fun runOneGame(): GameStats {
-        val tap = GameLogCapture().apply { start() }
+        val tap = GameLogCollector().apply { start() }
         val t0 = System.nanoTime()
         val connectT0 = System.nanoTime()
         connect()
