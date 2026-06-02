@@ -9,6 +9,53 @@ saved games without polluting reference data.
 Lives in test source — opt-in via the dedicated Gradle task; the regular gate
 excludes it.
 
+For the fixed-seed debugging loop, failure taxonomy, and deck-vs-puzzle guidance,
+read `docs/simclient-iteration.md`.
+
+If iterating on simclient tooling, read bead `leyline-jy2g` and the titles of
+its children first.
+
+Known broad deck-scout findings live in beads with label `simclient-scout`.
+Before filing another scout bug, run
+`bd query 'label=simclient-scout AND status=open'` and dedupe by card, ability,
+or fingerprint.
+
+When filing or updating a `simclient-scout` bead for another agent, make it
+agent-ready before handoff:
+
+- Include one copy-paste repro command from the leyline worktree with all env
+  vars: `LEYLINE_CARD_DB`, `SIMCLIENT_POLICY`, `SIMCLIENT_CONTINUE_ON_EXCEPTION`,
+  deck/opponent/seed, timeout, and Gradle task.
+- State the expected current bad stats row: `completionReason`, exception stack
+  top/message, `simFindings`, validation violation, or stalled prompt/fingerprint.
+- Name the committed deck files or commit that introduced them; do not rely only
+  on a temp JSONL artifact.
+- Add the likely code seam when known, e.g. mapper/driver/prompt ledger class and
+  function names.
+- Keep aggregate artifact paths in notes for evidence, but do not make them the
+  only way to reproduce.
+
+## Prioritizing Policy Seams
+
+Improve prompt policy where it increases scout signal, not where it makes the AI
+smarter in the abstract. Rank seams by:
+
+- False-bug reduction: stale prompts, no-pending submits, no-progress loops, and
+  timeout races come first because they pollute every later run.
+- Prompt coverage: a dumb valid answer beats a clever strategy; unblock prompt
+  shapes that currently end runs or force cleanup.
+- Phase/card reach: prefer policies that expose more turns and mechanics
+  (`OptionalAction`, `SelectTargets`, `CastingTimeOptions`, `PayCosts`) over
+  combat refinement unless combat dominates failures.
+- Repeated fingerprints: if the same decision/target fingerprint recurs, fix the
+  policy/ledger before filing many card-specific bugs.
+- Latency: if Forge-AI consult time correlates with stale pending windows, add
+  gating/caching or fall back earlier before adding more advisor calls.
+
+After a broad scout, bucket non-natural rows by `stalledPrompt`,
+`simFindings.kind`, `decisionKind`, and the last `promptProgressSamples` entry.
+Pick the most common prompt seam that is answerable by policy.
+
 ## What's in this directory
 
 - `SimClientDriver.kt` — loop/orchestration, prompt retirement, outcome telemetry.
@@ -59,6 +106,9 @@ just simclient "Auras,Black aggro" 1,2,3   # 6 games using data/decks/*.txt
 # Pick the policy (greedy default; forge-ai consults Forge AI as advisor)
 SIMCLIENT_POLICY=forge-ai just simclient bears 1..5
 
+# Scout mode: record exception stats instead of aborting the batch
+SIMCLIENT_CONTINUE_ON_EXCEPTION=true just simclient bears 1..20
+
 # Fixed seat-2 deck instead of mirror matches
 SIMCLIENT_OPPONENT_DECK="Pauper Blue Tempo" SIMCLIENT_POLICY=forge-ai \
   just simclient "Green stompy,Pauper Red Burn" 1..10
@@ -68,8 +118,14 @@ Add a custom deck by saving Arena/export-style deck text as
 `data/decks/<name>.txt`, then pass the basename without `.txt`:
 
 ```bash
+just arena-ts deck get 'https://www.mtgtop8.com/event?e=86014&d=853241&f=ST' \
+  --file data/decks/<name>.txt
+just arena-ts deck random --count 5 --dir data/decks
 just simclient "My deck" 1..5
 ```
+
+`deck get` also accepts the `d=` id from a MTGTop8 URL, but prefer pasting the
+full URL unless the id is already in hand.
 
 If `LEYLINE_CARD_DB` is missing, the batch fails before running. Use the same
 Raw card database path the server uses; built-in fixture-only smoke tests do
@@ -252,6 +308,7 @@ via `harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id))`.
 - terminal flags — `gameOver`, `hitIterCap`
 - completion attribution — `completionReason`, `cleanupConcede`
 - prompt lifecycle — `promptRetiredByReason`, `stalledPrompt`, `stalledFingerprint`
+- prompt route audit — `promptRequestsByKind`, `promptRequestSamplesByKind`, `promptRouteFindings`
 - action attempts — `decisionOutcomes`, `actionAttemptsByType`,
   `noPendingByDecision`, `skippedAlreadyTried`
 - timing attribution — `connectMs`, `stepTotalMs`, `flushTotalMs`,

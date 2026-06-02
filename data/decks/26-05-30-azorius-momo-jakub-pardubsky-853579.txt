@@ -1,0 +1,34 @@
+Deck
+4 Momo, Friendly Flier (TLA) 29
+4 Quantum Riddler (EOE) 72
+4 Sage of the Skies (TDM) 22
+4 Starfield Shepherd (EOE) 37
+2 Aang, Swift Savior (TLA) 204
+2 Cosmogrand Zenith (EOE) 9
+2 Nurturing Pixie (OTJ) 20
+1 Emeritus of Ideation (SOS) 45
+1 Gran-Gran (TLA) 54
+1 Haliya, Guided by Light (EOE) 19
+4 Springleaf Drum (LRW) 261
+2 Erode (SOS) 15
+4 Daydream (SOS) 9
+2 Practiced Offense (SOS) 25
+2 Seam Rip (EOE) 34
+7 Plains (ZNR) 380
+4 Floodfarm Verge (DSK) 259
+4 Hallowed Fountain (RNA) 251
+4 Multiversal Passage (OM1) 181
+2 Abandoned Air Temple (TLA) 263
+
+Sideboard
+1 Seam Rip (EOE) 34
+2 Clarion Conqueror (TDM) 5
+2 No More Lies (MKM) 221
+2 Pyrrhic Strike (ECL) 30
+2 Rest in Peace (WOT) 12
+1 Avatar's Wrath (TLA) 12
+1 Disdainful Stroke (WOE) 47
+1 Glen Elendra Guardian (ECL) 51
+1 Spectral Restitching (OM1) 44
+1 Spell Pierce (XLN) 81
+1 Stoic Sphinx (OTJ) 71

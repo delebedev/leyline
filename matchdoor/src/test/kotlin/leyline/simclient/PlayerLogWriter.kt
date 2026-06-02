@@ -198,6 +198,7 @@ class PlayerLogWriter(
                 "SubmitBlockersResp",
                 "GroupReq",
                 "MulliganReq",
+                "OrderReq",
                 "IntermissionReq",
                 "OptionalActionMessage",
                 "AssignDamageReq",

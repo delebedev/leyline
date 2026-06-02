@@ -94,9 +94,12 @@ class TargetingHandler(
     @Volatile
     private var pendingInteraction: PendingClientInteraction? = null
 
+    private var autoSubmittedTargetPromptId: String? = null
+
     /** Clear targeting state for puzzle hot-swap. */
     fun reset() {
         pendingInteraction = null
+        autoSubmittedTargetPromptId = null
     }
 
     /**
@@ -180,7 +183,7 @@ class TargetingHandler(
         val pending = pendingInteraction as PendingClientInteraction.TargetSelection
         if (shouldSubmitSingleTargetTrigger(pendingPrompt, selectedIndices)) {
             log.info("TargetingHandler: mandatory triggered target selected — submitting indices={}", selectedIndices)
-            submitTargetSelection(pending, autoPass)
+            submitTargetSelection(pending, autoPass, autoSubmitted = true)
             return
         }
 
@@ -207,12 +210,22 @@ class TargetingHandler(
     fun onSubmitTargets(autoPass: () -> Unit) {
         val pending = pendingInteraction as? PendingClientInteraction.TargetSelection
         if (pending == null) {
+            val autoSubmittedPromptId = autoSubmittedTargetPromptId
+            if (autoSubmittedPromptId != null) {
+                autoSubmittedTargetPromptId = null
+                log.debug(
+                    "TargetingHandler: ignoring duplicate SubmitTargetsReq after auto-submitted target prompt {}",
+                    autoSubmittedPromptId,
+                )
+                return
+            }
             log.warn("TargetingHandler: SubmitTargetsReq but no pending target selection (likely timeout race)")
             DevCheck.failOnAutoPass { "SubmitTargetsReq but no pending target selection" }
             return
         }
 
-        submitTargetSelection(pending, autoPass)
+        autoSubmittedTargetPromptId = null
+        submitTargetSelection(pending, autoPass, autoSubmitted = false)
     }
 
     private fun shouldSubmitSingleTargetTrigger(
@@ -227,11 +240,15 @@ class TargetingHandler(
     private fun submitTargetSelection(
         pending: PendingClientInteraction.TargetSelection,
         autoPass: () -> Unit,
+        autoSubmitted: Boolean,
     ) {
         val bridge = ctx.bridge
         pendingInteraction = null
+        if (autoSubmitted) {
+            autoSubmittedTargetPromptId = pending.promptId
+        }
 
-        log.info("TargetingHandler: SubmitTargetsReq — submitting indices={}", pending.selectedIndices)
+        log.info("TargetingHandler: submitting target indices={}", pending.selectedIndices)
 
         // Source iid for PSuT comes from the pending interaction (stashed at
         // SelectTargetsResp time), not from the bridge prompt — the bridge
@@ -419,13 +436,32 @@ class TargetingHandler(
             when (classified) {
                 is ClassifiedPrompt.AutoResolve -> {
                     val req = pendingPrompt.request
-                    log.info(
-                        "TargetingHandler: auto-resolving non-targeting prompt [{}] \"{}\" opts={} default={}",
-                        req.promptType,
-                        req.message,
-                        req.options.size,
-                        req.defaultIndex,
-                    )
+                    // Multi-option generic prompts are real gameplay choices (for
+                    // example, odd/even effects) unless a narrower semantic has
+                    // classified them. Keep known safe defaults quiet, but make this
+                    // path visible so simclient runs do not silently swallow decisions.
+                    if (req.semantic == PromptSemantic.Generic && req.options.size > 1) {
+                        log.warn(
+                            "TargetingHandler: auto-resolving ambiguous non-targeting prompt [{}] " +
+                                "semantic={} message=\"{}\" opts={} labels={} default={} sourceEntityId={} modalSource={}",
+                            req.promptType,
+                            req.semantic,
+                            req.message,
+                            req.options.size,
+                            req.options,
+                            req.defaultIndex,
+                            req.sourceEntityId,
+                            req.modalSourceCardName,
+                        )
+                    } else {
+                        log.info(
+                            "TargetingHandler: auto-resolving non-targeting prompt [{}] \"{}\" opts={} default={}",
+                            req.promptType,
+                            req.message,
+                            req.options.size,
+                            req.defaultIndex,
+                        )
+                    }
                     tracer.traceEvent(
                         MatchEventType.AUTO_PASS,
                         game,
@@ -712,6 +748,7 @@ class TargetingHandler(
                 }
             seatBridge.prompt.submitResponse(pending.promptId, listOf(responseIndex))
             bridge.awaitPriority()
+            drainPendingPlayback()
         }
         // Diff baseline is invalid post library-search — revealed objects must
         // vanish next bundle; see BundleCursor.invalidate KDoc (#42).
@@ -737,7 +774,13 @@ class TargetingHandler(
             pendingPrompt.request.candidateRefs.indexOfFirst {
                 it.kind == "player" && it.entityId == player.id
             }
-        return if (idx >= 0) idx else null
+        if (idx >= 0) return idx
+
+        val seatIdx =
+            pendingPrompt.request.candidateRefs.indexOfFirst {
+                it.kind == "player" && it.entityId == instanceId
+            }
+        return if (seatIdx >= 0) seatIdx else null
     }
 
     /**
@@ -1536,6 +1579,15 @@ class TargetingHandler(
 
         Tap.outboundTemplate("GroupReq($contextLabel) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
+    }
+
+    private fun drainPendingPlayback() {
+        val playback = ctx.bridge.playbackFor(counters.seatId) ?: return
+        if (!playback.hasPendingMessages()) return
+
+        for (batch in playback.drainQueue()) {
+            sink.sendBundledGRE(batch)
+        }
     }
 
     /** Submit default response and wait — used when modal lookup fails. */

@@ -1,0 +1,34 @@
+Deck
+4 Slickshot Show-Off (OTJ) 146
+3 Eddymurk Crab (BLB) 48
+2 Belion, the Parched (OM1) 27
+1 Colorstorm Stallion (SOS) 180
+4 Burst Lightning (SOA) 41
+4 Opt (XLN) 65
+2 Vibrant Outburst (SOS) 240
+1 Get Out (DSK) 60
+1 Magic Damper (FIN) 61
+1 Spell Pierce (XLN) 81
+4 Boomerang Basics (TLA) 46
+4 Flow State (SOS) 49
+4 Sleight of Hand (WOE) 67
+4 Stormchaser's Talent (BLB) 75
+7 Island (ZNR) 381
+4 Riverpyre Verge (DFT) 260
+4 Spirebluff Canal (OTJ) 270
+4 Steam Vents (GRN) 257
+2 Multiversal Passage (OM1) 181
+
+Sideboard
+1 Colorstorm Stallion (SOS) 180
+1 Vibrant Outburst (SOS) 240
+2 Get Out (DSK) 60
+1 Magic Damper (FIN) 61
+2 Spell Pierce (XLN) 81
+2 Slagstorm (FDN) 207
+1 Bounce Off (DFT) 39
+1 Broadside Barrage (DFT) 192
+1 Ghost Vacuum (DSK) 248
+1 Into the Flood Maw (BLB) 52
+1 Ral, Crackling Wit (BLB) 230
+1 Roaring Furnace // Steaming Sauna (DSK) 230

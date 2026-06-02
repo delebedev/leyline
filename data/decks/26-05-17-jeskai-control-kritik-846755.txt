@@ -1,0 +1,41 @@
+Deck
+2 Broadside Barrage (DFT) 192
+4 Consult the Star Charts (EOE) 51
+3 Island (ZNR) 381
+4 Firebending Lesson (TLA) 138
+2 Flashback (SOS) 115
+4 Great Hall of the Biblioplex (SOS) 257
+2 Hallowed Fountain (RNA) 251
+1 Impractical Joke (SOS) 119
+1 Into the Flood Maw (BLB) 52
+4 Jeskai Revelation (TDM) 196
+1 Mistrise Village (TDM) 261
+2 Cori Mountain Monastery (TDM) 252
+2 Petrified Hamlet (SOS) 259
+1 Pyroclasm (DSK) 149
+4 Riverpyre Verge (DFT) 260
+2 Sear (ECL) 154
+4 Steam Vents (GRN) 257
+4 Stock Up (SOA) 24
+1 Stormcarved Coast (VOW) 265
+2 Sundown Pass (VOW) 266
+4 Tablet of Discovery (SOS) 132
+2 Three Steps Ahead (OTJ) 75
+1 Traumatic Critique (SOS) 239
+1 Mountain (ZNR) 383
+1 Abrade (VOW) 139
+1 Spell Pierce (XLN) 81
+
+Sideboard
+1 Broadside Barrage (DFT) 192
+2 Slagstorm (FDN) 207
+1 Disdainful Stroke (WOE) 47
+1 Emeritus of Ideation (SOS) 45
+1 Erode (SOS) 15
+1 Ghost Vacuum (DSK) 248
+2 Flashfreeze (FDN) 590
+1 Sphinx of the Final Word (FDN) 597
+1 The Unagi of Kyoshi Island (TLA) 77
+1 Spell Snare (ECL) 71
+1 Return the Favor (SOA) 47
+2 Torpor Orb (BIG) 27

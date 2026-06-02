@@ -1,0 +1,40 @@
+Deck
+4 Deceit (ECL) 212
+3 Quantum Riddler (EOE) 72
+2 Kavaero, Mind-Bitten (OM1) 140
+2 Wan Shi Tong, Librarian (TLA) 78
+1 Doomsday Excruciator (DSK) 94
+4 Consult the Star Charts (EOE) 51
+4 Three Steps Ahead (OTJ) 75
+3 Requiting Hex (ECL) 116
+2 Bitter Triumph (SOA) 26
+2 Shoot the Sheriff (OTJ) 106
+1 The End (WOE) 87
+3 Deadly Cover-Up (MKM) 83
+2 Stock Up (SOA) 24
+1 Strategic Betrayal (TDM) 94
+7 Swamp (ZNR) 382
+4 Island (ZNR) 381
+4 Restless Reef (LCI) 282
+3 Gloomlake Verge (DSK) 260
+2 Demolition Field (FIC) 385
+2 Watery Grave (GRN) 259
+1 Cavern of Souls (LCI) 269
+1 Multiversal Passage (OM1) 181
+1 Realm of Koh (TLA) 276
+1 Undercity Sewers (PZA) 0
+
+Sideboard
+1 Requiting Hex (ECL) 116
+1 The End (WOE) 87
+1 Strategic Betrayal (TDM) 94
+3 Duress (XLN) 105
+1 Ancient Vendetta (DFT) 75
+1 Annul (KHM) 42
+1 Disdainful Stroke (WOE) 47
+1 Intimidation Tactics (DFT) 92
+1 Negate (ZNR) 71
+1 Outrageous Robbery (MKM) 97
+1 Qarsi Revenant (TDM) 86
+1 Riverchurn Monument (DFT) 57
+1 The Unagi of Kyoshi Island (TLA) 77

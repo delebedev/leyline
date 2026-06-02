@@ -1,0 +1,26 @@
+Deck
+4 Callous Sell-Sword (WOE) 221
+4 Emberheart Challenger (BLB) 133
+4 Moonshadow (ECL) 110
+4 Slickshot Show-Off (OTJ) 146
+4 Stadium Headliner (TDM) 122
+4 Desperate Measures (TDM) 78
+4 Turn Inside Out (DSK) 160
+3 Blossoming Defense (KLR) 155
+2 Full Bore (EOE) 135
+2 Heartless Act (TLA) 103
+1 Overprotect (BLB) 185
+4 Leyline of Resonance (DSK) 143
+4 Blazemire Verge (DSK) 256
+4 Blood Crypt (RNA) 245
+4 Starting Town (FIN) 289
+4 Stomping Ground (RNA) 259
+4 Thornspire Verge (DSK) 270
+
+Sideboard
+3 Duress (XLN) 105
+3 Intimidation Tactics (DFT) 92
+3 Origin of Metalbending (TLA) 187
+2 Case of the Crimson Pulse (MKM) 114
+2 Hexing Squelcher (ECL) 145
+2 Torpor Orb (BIG) 27

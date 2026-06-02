@@ -1,0 +1,26 @@
+Deck
+1 April O'Neil, Hacktivist (TMT) 29
+4 Springleaf Drum (LRW) 261
+4 Stormchaser's Talent (BLB) 75
+4 Boomerang Basics (TLA) 46
+4 Get Out (DSK) 60
+2 Into the Flood Maw (BLB) 52
+4 Quantum Riddler (EOE) 72
+4 Sleight of Hand (WOE) 67
+4 Splash Portal (BLB) 74
+3 Stock Up (SOA) 24
+4 Thundertrap Trainer (BLB) 78
+2 Demolition Field (FIC) 385
+18 Island (ZNR) 381
+2 Soulstone Sanctuary (FDN) 133
+
+Sideboard
+2 Annul (KHM) 42
+1 Disdainful Stroke (WOE) 47
+1 Essence Scatter (SOS) 47
+2 Flashfreeze (FDN) 590
+1 Soul-Guide Lantern (WOE) 251
+2 Spell Pierce (XLN) 81
+2 Makdee and Itla, Skysnarers (OM1) 145
+2 Unable to Scream (DSK) 78
+2 Tishana's Tidebinder (LCI) 81

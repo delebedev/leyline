@@ -1,0 +1,25 @@
+Deck
+4 Bounce Off (DFT) 39
+4 Consult the Star Charts (EOE) 51
+4 Detect Intrusion (OM1) 28
+4 Eddymurk Crab (BLB) 48
+3 Eluge, the Shoreless Sea (BLB) 49
+19 Island (ZNR) 381
+4 Opt (XLN) 65
+4 Sleight of Hand (WOE) 67
+4 Spectral Interference (DFT) 63
+4 Sunderflock (ECL) 74
+2 Unsummon (M20) 78
+3 Winternight Stories (TDM) 67
+1 Agna Qel'a (TLA) 264
+
+Sideboard
+2 Aetherize (FDN) 151
+2 Annul (KHM) 42
+2 Belion, the Parched (OM1) 27
+1 Firdoch Core (ECL) 255
+2 Glen Elendra's Answer (ECL) 52
+2 Soul-Guide Lantern (WOE) 251
+1 Spell Snare (ECL) 71
+2 The Legend of Kuruk (TLA) 61
+1 Three Steps Ahead (OTJ) 75

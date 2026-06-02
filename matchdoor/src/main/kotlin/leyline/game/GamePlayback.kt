@@ -62,6 +62,13 @@ class GamePlayback(
     /** Thread-safe queue of GRE message batches for the handler to drain. */
     private val queue = ConcurrentLinkedQueue<List<GREToClientMessage>>()
 
+    /**
+     * Guards the build-and-enqueue window. Message ids are allocated while the
+     * batch is built, so drains must not observe an empty queue until that batch
+     * is either fully enqueued or the capture fails.
+     */
+    private val queueLock = Any()
+
     // -- EventBus entry point --
 
     @Subscribe
@@ -197,14 +204,37 @@ class GamePlayback(
 
     /** Drain all queued message batches. Returns empty list if nothing queued. */
     fun drainQueue(): List<List<GREToClientMessage>> =
-        buildList {
-            while (true) {
-                add(queue.poll() ?: break)
+        synchronized(queueLock) {
+            buildList {
+                while (true) {
+                    add(queue.poll() ?: break)
+                }
+            }
+        }
+
+    /** Drain queued batches that must precede the caller's next outbound message. */
+    fun drainQueueBeforeMsgId(
+        msgId: Int,
+        maxGsId: Int = 0,
+    ): List<List<GREToClientMessage>> =
+        synchronized(queueLock) {
+            buildList {
+                while (true) {
+                    val batch = queue.peek() ?: break
+                    val firstMsgId = batch.firstOrNull()?.msgId ?: Int.MAX_VALUE
+                    val firstGsId = batch.firstGameStateId()
+                    if (maxGsId != 0 && firstGsId != null) {
+                        if (firstGsId >= maxGsId) break
+                    } else if (firstMsgId >= msgId) {
+                        break
+                    }
+                    add(queue.poll() ?: break)
+                }
             }
         }
 
     /** True if there are messages waiting to be sent. */
-    fun hasPendingMessages(): Boolean = queue.isNotEmpty()
+    fun hasPendingMessages(): Boolean = synchronized(queueLock) { queue.isNotEmpty() }
 
     // -- Internal --
 
@@ -228,18 +258,20 @@ class GamePlayback(
             }
 
         try {
-            val events = eventsOverride ?: bridge.closeBundleFrame(seatId)
             val messageCount =
-                if (eventsOverride == null && events.events.hasCombatDamage()) {
-                    captureSplitCombatDamage(game, events.events)
-                    2
-                } else {
-                    val messages = buildDiffMessages(game, turnStarted, events)
-                    queue.add(messages)
-                    if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
-                        bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
+                synchronized(queueLock) {
+                    val events = eventsOverride ?: bridge.closeBundleFrame(seatId)
+                    if (eventsOverride == null && events.events.hasCombatDamage()) {
+                        captureSplitCombatDamage(game, events.events)
+                        2
+                    } else {
+                        val messages = buildDiffMessages(game, turnStarted, events)
+                        queue.add(messages)
+                        if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
+                            bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
+                        }
+                        messages.size
                     }
-                    messages.size
                 }
 
             // No need to advance the cursor here — buildDiff (called by remoteActionDiff)
@@ -299,6 +331,8 @@ class GamePlayback(
                 turnStarted = turnStarted,
                 eventsOverride = events,
             ).messages
+
+    private fun List<GREToClientMessage>.firstGameStateId(): Int? = firstOrNull { it.hasGameStateMessage() }?.gameStateMessage?.gameStateId
 
     private fun List<LeylineGameEvent>.hasCombatDamage(): Boolean =
         any { it is LeylineGameEvent.DamageDealtToCard || it is LeylineGameEvent.DamageDealtToPlayer }

@@ -165,14 +165,18 @@ class InteractivePromptBridge(
 
     data class PromptRecord(
         val promptType: String,
+        val semantic: PromptSemantic,
         val message: String,
         val options: List<String>,
+        val min: Int,
+        val max: Int,
+        val candidateCount: Int,
         val outcome: PromptCallStatus,
         val result: List<Int>,
         val callerFrames: List<String>,
     ) {
         override fun toString(): String =
-            "[$outcome] $promptType: \"$message\" opts=$options result=$result\n  ${callerFrames.joinToString("\n  ")}"
+            "[$outcome] $promptType/$semantic: \"$message\" opts=$options result=$result\n  ${callerFrames.joinToString("\n  ")}"
     }
 
     private val _history = ArrayDeque<PromptRecord>(HISTORY_CAP)
@@ -196,7 +200,20 @@ class InteractivePromptBridge(
                 .map { "${it.className.substringAfterLast('.')}#${it.methodName}:${it.lineNumber}" }
         synchronized(_history) {
             if (_history.size >= HISTORY_CAP) _history.removeFirst()
-            _history.addLast(PromptRecord(request.promptType, request.message, request.options, outcome, result, frames))
+            _history.addLast(
+                PromptRecord(
+                    promptType = request.promptType,
+                    semantic = request.semantic,
+                    message = request.message,
+                    options = request.options,
+                    min = request.min,
+                    max = request.max,
+                    candidateCount = request.candidateRefs.size,
+                    outcome = outcome,
+                    result = result,
+                    callerFrames = frames,
+                ),
+            )
         }
         val secs = "%.1f".format(elapsedMs / 1000.0)
         val msg = "Prompt [${request.promptType}] \"${request.message}\" → $outcome $result (${secs}s)"

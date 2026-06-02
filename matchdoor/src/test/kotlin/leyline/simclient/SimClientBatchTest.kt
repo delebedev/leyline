@@ -12,6 +12,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.time.LocalDateTime
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -28,6 +29,7 @@ import kotlin.time.Duration.Companion.minutes
  * histograms across all games. Player.log files land under build/simclient/
  * (re-runnable; cleared per batch).
  */
+@Suppress("LargeClass")
 class SimClientBatchTest :
     FunSpec({
         tags(SimClientTag)
@@ -118,6 +120,8 @@ class SimClientBatchTest :
         // decisions; falls through to greedy for unhandled prompts.
         val usingForgeAi: Boolean =
             (envOrProp("SIMCLIENT_POLICY") ?: "greedy").trim().equals("forge-ai", ignoreCase = true)
+        val continueOnException: Boolean =
+            envOrProp("SIMCLIENT_CONTINUE_ON_EXCEPTION")?.trim().equals("true", ignoreCase = true)
 
         fun jsonString(s: String): String =
             buildString {
@@ -139,7 +143,66 @@ class SimClientBatchTest :
 
         fun longMapToJson(m: Map<String, Long>): String = m.entries.joinToString(",", "{", "}") { (k, v) -> "${jsonString(k)}:$v" }
 
+        fun stringMapToJson(m: Map<String, String>): String =
+            m.entries.joinToString(",", "{", "}") { (k, v) -> "${jsonString(k)}:${jsonString(v)}" }
+
         fun stringsToJson(values: List<String>): String = values.joinToString(",", "[", "]") { jsonString(it) }
+
+        fun intsToJson(values: List<Int>): String = values.joinToString(",", "[", "]")
+
+        fun promptProgressToJson(values: List<PromptProgressSample>): String =
+            values.joinToString(",", "[", "]") { sample ->
+                buildString {
+                    append('{')
+                    append("\"promptType\":${jsonString(sample.promptType)},")
+                    append("\"decisionKind\":${jsonString(sample.decisionKind)},")
+                    append("\"submitResult\":${jsonString(sample.submitResult)},")
+                    append("\"promptMsgId\":${sample.promptMsgId},")
+                    append("\"promptGameStateId\":${sample.promptGameStateId},")
+                    append("\"beforeMsgId\":${sample.beforeMsgId},")
+                    append("\"beforeGameStateId\":${sample.beforeGameStateId},")
+                    append("\"afterMsgId\":${sample.afterMsgId},")
+                    append("\"afterGameStateId\":${sample.afterGameStateId},")
+                    append("\"beforeMessages\":${sample.beforeMessages},")
+                    append("\"afterMessages\":${sample.afterMessages},")
+                    append("\"sourceInstanceId\":${sample.sourceInstanceId},")
+                    append("\"sourceGrpId\":${sample.sourceGrpId},")
+                    append("\"abilityGrpId\":${sample.abilityGrpId},")
+                    append("\"targetIds\":${intsToJson(sample.targetIds)},")
+                    append("\"sourceBefore\":${jsonString(sample.sourceBefore)},")
+                    append("\"sourceAfter\":${jsonString(sample.sourceAfter)}")
+                    append('}')
+                }
+            }
+
+        fun routeFindingsToJson(values: List<PromptRouteFinding>): String =
+            values.joinToString(",", "[", "]") { finding ->
+                buildString {
+                    append('{')
+                    append("\"bucket\":${jsonString(finding.bucket)},")
+                    append("\"routeKey\":${jsonString(finding.routeKey)},")
+                    append("\"enginePromptType\":${jsonString(finding.enginePromptType)},")
+                    append("\"semantic\":${jsonString(finding.semantic)},")
+                    append("\"expectedGreType\":${jsonString(finding.expectedGreType)},")
+                    append("\"expectedCount\":${finding.expectedCount},")
+                    append("\"emittedCount\":${finding.emittedCount},")
+                    append("\"outcomeCounts\":${mapToJson(finding.outcomeCounts)},")
+                    append("\"sampleMessage\":${jsonString(finding.sampleMessage)}")
+                    append('}')
+                }
+            }
+
+        fun simFindingsToJson(values: List<SimClientFinding>): String =
+            values.joinToString(",", "[", "]") { finding ->
+                buildString {
+                    append('{')
+                    append("\"kind\":${jsonString(finding.kind)},")
+                    append("\"key\":${jsonString(finding.key)},")
+                    append("\"count\":${finding.count},")
+                    append("\"sample\":${jsonString(finding.sample)}")
+                    append('}')
+                }
+            }
 
         fun fileSafeName(value: String): String =
             value
@@ -167,6 +230,10 @@ class SimClientBatchTest :
                 append("\"durationMs\":${stats.durationMs},")
                 append("\"turn\":${stats.turn},")
                 append("\"gameOver\":${stats.gameOver},")
+                append("\"winnerSeat\":${stats.winnerSeat ?: "null"},")
+                append("\"loserSeat\":${stats.loserSeat ?: "null"},")
+                append("\"finalLifeBySeat\":${mapToJson(stats.finalLifeBySeat)},")
+                append("\"finalStatusBySeat\":${stringMapToJson(stats.finalStatusBySeat)},")
                 append("\"completionReason\":${jsonString(stats.completionReason)},")
                 append("\"cleanupConcede\":${stats.cleanupConcede},")
                 append("\"iterations\":${stats.iterations},")
@@ -179,11 +246,21 @@ class SimClientBatchTest :
                 append("\"aiTotalMs\":${stats.aiTotalMs},")
                 append("\"aiTotalMsByPrompt\":${longMapToJson(stats.aiTotalMsByPrompt)},")
                 append("\"aiMaxMsByPrompt\":${longMapToJson(stats.aiMaxMsByPrompt)},")
+                append("\"targetChoiceCounts\":${mapToJson(stats.targetChoiceCounts)},")
+                append("\"targetChoiceSamples\":${stringMapToJson(stats.targetChoiceSamples)},")
                 append("\"promptHistogram\":$histo,")
+                append("\"promptRequestsByKind\":${mapToJson(stats.promptRequestsByKind)},")
+                append("\"promptRequestSamplesByKind\":${stringMapToJson(stats.promptRequestSamplesByKind)},")
+                append("\"promptRouteFindings\":${routeFindingsToJson(stats.promptRouteFindings)},")
+                append("\"simFindings\":${simFindingsToJson(stats.simFindings)},")
+                append("\"promptProgressSamples\":${promptProgressToJson(stats.promptProgressSamples)},")
                 append("\"warnsByLogger\":${mapToJson(stats.warnsByLogger)},")
                 append("\"errorsByType\":${mapToJson(stats.errorsByType)},")
+                append("\"logErrorSamples\":${stringsToJson(stats.logErrorSamples)},")
                 append("\"validationViolationsByCheck\":${mapToJson(stats.validationViolationsByCheck)},")
                 append("\"validationViolations\":${stringsToJson(stats.validationViolations)},")
+                append("\"exceptionMessage\":${stats.exceptionMessage?.let(::jsonString) ?: "null"},")
+                append("\"exceptionStackTop\":${stats.exceptionStackTop?.let(::jsonString) ?: "null"},")
                 append("\"promptRetiredByReason\":${mapToJson(stats.promptRetiredByReason)},")
                 append("\"decisionOutcomes\":${mapToJson(stats.decisionOutcomes)},")
                 append("\"actionAttemptsByType\":${mapToJson(stats.actionAttemptsByType)},")
@@ -229,6 +306,40 @@ class SimClientBatchTest :
             )
         }
 
+        fun Throwable.rootCause(): Throwable {
+            var current = this
+            while (current.cause != null && current.cause !== current) current = current.cause!!
+            return current
+        }
+
+        fun exceptionStats(
+            harness: MatchFlowHarness?,
+            elapsedMs: Long,
+            throwable: Throwable,
+        ): GameStats {
+            val cause = throwable.rootCause()
+            val messages = runCatching { harness?.allMessages?.toList().orEmpty() }.getOrDefault(emptyList())
+            val histogram =
+                messages
+                    .filter { isSimPrompt(it) }
+                    .groupingBy { it.type }
+                    .eachCount()
+            val stackTop = cause.stackTrace.firstOrNull()?.let { "${it.className}.${it.methodName}:${it.lineNumber}" }
+            return GameStats(
+                turn = runCatching { harness?.turn() ?: 0 }.getOrDefault(0),
+                gameOver = runCatching { harness?.isGameOver() ?: false }.getOrDefault(false),
+                iterations = 0,
+                totalMessages = messages.size,
+                promptHistogram = histogram,
+                hitIterCap = false,
+                durationMs = elapsedMs,
+                errorsByType = mapOf(cause::class.qualifiedName.orEmpty() to 1),
+                exceptionMessage = "${cause::class.qualifiedName}: ${cause.message}",
+                exceptionStackTop = stackTop,
+                completionReason = "exception",
+            )
+        }
+
         fun runWithTimeout(
             tag: String,
             logFile: File,
@@ -268,6 +379,7 @@ class SimClientBatchTest :
                         runCatching { harness.shutdown() }
                     }
                 }
+            val t0 = System.nanoTime()
             val stats =
                 try {
                     future.get(timeoutMs, TimeUnit.MILLISECONDS)
@@ -276,6 +388,11 @@ class SimClientBatchTest :
                     future.cancel(true)
                     runCatching { harnessRef.get()?.shutdown() }
                     statsAtTimeout
+                } catch (e: ExecutionException) {
+                    if (!continueOnException) throw e
+                    val statsAtException = exceptionStats(harnessRef.get(), (System.nanoTime() - t0) / 1_000_000, e)
+                    runCatching { harnessRef.get()?.shutdown() }
+                    statsAtException
                 } finally {
                     executor.shutdownNow()
                 }
@@ -289,8 +406,11 @@ class SimClientBatchTest :
                 runKind = runKind,
             )
             File(outDir, "$tag.stats.json").writeText(statsToJson(runLabel, opponentRunLabel, seed, stats))
-            if (stats.completionReason == "wall-timeout") {
+            if (stats.completionReason == "wall-timeout" && !continueOnException) {
                 error("simclient game timed out after ${timeoutMs}ms: $tag")
+            }
+            if (stats.completionReason == "exception" && !continueOnException) {
+                error("simclient game failed with exception: $tag")
             }
             return stats
         }
@@ -528,6 +648,14 @@ class SimClientBatchTest :
                             .sortedByDescending { it.value }
                             .forEach { (reason, n) -> println("    retire $reason = $n") }
                     }
+                    if (stats.promptRouteFindings.isNotEmpty()) {
+                        stats.promptRouteFindings.forEach { finding ->
+                            println(
+                                "    route ${finding.bucket} ${finding.routeKey} -> ${finding.expectedGreType} " +
+                                    "expected=${finding.expectedCount} emitted=${finding.emittedCount} outcomes=${finding.outcomeCounts}",
+                            )
+                        }
+                    }
                 }
             }
 
@@ -541,13 +669,37 @@ class SimClientBatchTest :
             }
             agg.entries.sortedByDescending { it.value }.forEach { (k, v) -> println("  $k = $v") }
 
+            val routeAgg = mutableMapOf<String, Int>()
+            all.forEach { (_, _, s) ->
+                s.promptRequestsByKind.forEach { (k, v) -> routeAgg.merge(k, v) { a, b -> a + b } }
+            }
+            if (routeAgg.isNotEmpty()) {
+                println("\n=== aggregate engine prompt requests ===")
+                routeAgg.entries.sortedByDescending { it.value }.forEach { (k, v) ->
+                    val sample = all.firstNotNullOfOrNull { it.third.promptRequestSamplesByKind[k] }
+                    val suffix = sample?.let { " sample=$it" }.orEmpty()
+                    println("  $k = $v$suffix")
+                }
+            }
+
+            val routeFindings = all.flatMap { (deck, seed, stats) -> stats.promptRouteFindings.map { Triple(deck, seed, it) } }
+            if (routeFindings.isNotEmpty()) {
+                println("\n=== prompt route audit findings ===")
+                routeFindings.forEach { (deck, seed, finding) ->
+                    println(
+                        "  [$deck s=$seed] ${finding.bucket}: ${finding.routeKey} -> ${finding.expectedGreType} " +
+                            "expected=${finding.expectedCount} emitted=${finding.emittedCount} sample=${finding.sampleMessage}",
+                    )
+                }
+            }
+
             println("\n=== summary ===")
             println("games run: ${all.size}")
             println("games ended (gameOver): ${all.count { it.third.gameOver }}")
             println("games hit iter cap: ${all.count { it.third.hitIterCap }}")
             println("avg turns: ${"%.1f".format(all.map { it.third.turn }.average())}")
             println("avg msgs: ${"%.0f".format(all.map { it.third.totalMessages }.average())}")
-            assertNoValidationViolations(all)
+            if (!continueOnException) assertNoValidationViolations(all)
         }
 
         /**
@@ -600,6 +752,6 @@ class SimClientBatchTest :
             println("games ended (gameOver): ${all.count { it.third.gameOver }}")
             println("games hit iter cap: ${all.count { it.third.hitIterCap }}")
             require(all.isNotEmpty()) { "no requested simclient puzzles were found or run" }
-            assertNoValidationViolations(all)
+            if (!continueOnException) assertNoValidationViolations(all)
         }
     })

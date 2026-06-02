@@ -1,0 +1,13 @@
+24 Island
+4 Pop Quiz
+4 Arcane Subtraction
+4 Opt
+4 Consider
+4 Wall of Runes
+4 Omen of the Sea
+4 Grizzly Bears
+4 Centaur Courser
+4 Air Elemental
+
+Sideboard
+4 Environmental Sciences

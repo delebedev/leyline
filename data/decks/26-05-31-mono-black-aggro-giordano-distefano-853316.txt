@@ -1,0 +1,26 @@
+Deck
+4 Deep-Cavern Bat (LCI) 102
+4 Unstoppable Slasher (DSK) 119
+3 Bloodletter of Aclazotz (LCI) 92
+3 Qarsi Revenant (TDM) 86
+3 Sunset Saboteur (EOE) 116
+3 Tragedy Feaster (SOS) 102
+1 Luis, Pompous Pillager (OM1) 60
+4 Requiting Hex (ECL) 116
+2 Bitter Triumph (SOA) 26
+2 Shoot the Sheriff (OTJ) 106
+2 Strategic Betrayal (TDM) 94
+4 Unholy Annex // Ritual Chamber (DSK) 118
+20 Swamp (ZNR) 382
+4 Soulstone Sanctuary (FDN) 133
+1 Realm of Koh (TLA) 276
+
+Sideboard
+1 Shoot the Sheriff (OTJ) 106
+1 Strategic Betrayal (TDM) 94
+4 Duress (XLN) 105
+2 Day of Black Sun (TLA) 94
+2 Deadly Cover-Up (MKM) 83
+2 Intimidation Tactics (DFT) 92
+2 Torpor Orb (BIG) 27
+1 The End (WOE) 87

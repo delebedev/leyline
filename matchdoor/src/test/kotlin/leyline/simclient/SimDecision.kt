@@ -5,6 +5,7 @@ import leyline.testkit.performAction
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 
 internal sealed interface SimDecision {
     val kind: String
@@ -49,6 +50,14 @@ internal sealed interface SimDecision {
         val instanceIds: List<Int>,
     ) : SimDecision {
         override val kind: String = "group-top"
+    }
+
+    data class GroupAway(
+        val awayInstanceIds: List<Int>,
+        val allInstanceIds: List<Int>,
+        val context: GroupingContext,
+    ) : SimDecision {
+        override val kind: String = "group-away"
     }
 
     data class OptionalCost(
@@ -146,6 +155,14 @@ internal class SimDecisionSubmitter(
                         bottomInstanceIds = emptyList(),
                         allInstanceIds = decision.instanceIds,
                     )
+                }
+            is SimDecision.GroupAway ->
+                submitted {
+                    if (decision.context == GroupingContext.Surveil) {
+                        harness.respondToGroupReq(decision.awayInstanceIds, decision.allInstanceIds)
+                    } else {
+                        harness.respondToScry(decision.awayInstanceIds, decision.allInstanceIds)
+                    }
                 }
             is SimDecision.OptionalCost -> {
                 runCatching { harness.respondToOptionalCost(decision.ctoId) }

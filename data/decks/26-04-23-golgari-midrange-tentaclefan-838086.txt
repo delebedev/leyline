@@ -1,0 +1,40 @@
+Deck
+3 Witherbloom Charm (SOS) 244
+3 Tragedy Feaster (SOS) 102
+4 Professor Dellian Fel (SOS) 214
+1 Vicious Rivalry (SOS) 241
+2 Duress (XLN) 105
+2 Mosswood Dreadknight (WOE) 231
+3 Emeritus of Abundance (SOS) 145
+2 Keen-Eyed Curator (BLB) 181
+1 Ba Sing Se (TLA) 266
+4 Badgermole Cub (TLA) 167
+4 Unholy Annex // Ritual Chamber (DSK) 118
+2 Shoot the Sheriff (OTJ) 106
+3 Soulstone Sanctuary (FDN) 133
+4 Overgrown Tomb (GRN) 253
+4 Blooming Marsh (OTJ) 266
+2 Deathcap Glade (VOW) 261
+4 Wastewood Verge (DFT) 268
+1 The Terminus of Return (OM1) 69
+1 Restless Cottage (WOE) 258
+4 Swamp (ZNR) 382
+2 Forest (ZNR) 384
+2 Requiting Hex (ECL) 116
+1 Scrapshooter (BLB) 191
+1 Bitter Triumph (SOA) 26
+
+Sideboard
+1 Vicious Rivalry (SOS) 241
+2 Duress (XLN) 105
+1 Keen-Eyed Curator (BLB) 181
+1 Requiting Hex (ECL) 116
+1 Scrapshooter (BLB) 191
+1 Bitter Triumph (SOA) 26
+1 Withering Curse (SOS) 105
+1 Dissection Tools (DSK) 245
+1 Soul-Guide Lantern (WOE) 251
+1 Webstrike Elite (DFT) 186
+2 Cruelclaw's Heist (BLB) 88
+1 The Ooze (TMT) 177
+1 Decorum Dissertation (SOS) 78

@@ -1,0 +1,27 @@
+Deck
+4 Breeding Pool (RNA) 246
+4 Boiling Rock Rioter (TLA) 87
+4 Cavern of Souls (LCI) 269
+3 Floodfarm Verge (DSK) 259
+4 Earth King's Lieutenant (TLA) 217
+4 Earth Kingdom Protectors (TLA) 17
+4 Earthen Ally (TLA) 177
+4 Great Divide Guide (TLA) 181
+3 Invasion Reinforcements (TLA) 24
+4 Jasmine Dragon Tea Shop (TLA) 270
+2 Momo, Playful Pet (TLA) 30
+2 Multiversal Passage (OM1) 181
+4 South Pole Voyager (TLA) 35
+4 Starting Town (FIN) 289
+2 Ty Lee, Chi Blocker (TLA) 76
+2 Allies at Last (TLA) 164
+3 White Lotus Reinforcements (TLA) 251
+3 Aang, Swift Savior (TLA) 204
+
+Sideboard
+2 Allies at Last (TLA) 164
+3 Detect Intrusion (OM1) 28
+3 Hakoda, Selfless Commander (TLA) 23
+3 Heritage Reclamation (TDM) 145
+2 Sheltered by Ghosts (DSK) 30
+2 Aetherize (FDN) 151

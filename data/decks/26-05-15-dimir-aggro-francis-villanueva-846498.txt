@@ -1,0 +1,37 @@
+Deck
+5 Island (ZNR) 381
+4 Swamp (ZNR) 382
+1 Spell Snare (ECL) 71
+4 Watery Grave (GRN) 259
+4 Spyglass Siren (LCI) 78
+2 Bitter Triumph (SOA) 26
+2 Restless Reef (LCI) 282
+2 Tishana's Tidebinder (LCI) 81
+2 Phantom Interference (OTJ) 61
+2 Shoot the Sheriff (OTJ) 106
+3 Enduring Curiosity (DSK) 51
+4 Floodpits Drowner (DSK) 59
+4 Kaito, Bane of Nightmares (DSK) 220
+4 Gloomlake Verge (DSK) 260
+2 Soulstone Sanctuary (FDN) 133
+1 Starting Town (FIN) 289
+1 Multiversal Passage (OM1) 181
+1 Wan Shi Tong, Librarian (TLA) 78
+4 Requiting Hex (ECL) 116
+4 Dream Beavers (TMT) 62
+2 Sunset Saboteur (EOE) 116
+1 Cecil, Dark Knight (FIN) 91
+1 Realm of Koh (TLA) 276
+
+Sideboard
+1 Spell Snare (ECL) 71
+2 Tishana's Tidebinder (LCI) 81
+1 Shoot the Sheriff (OTJ) 106
+1 Enduring Curiosity (DSK) 51
+1 Strategic Betrayal (TDM) 94
+1 The Unagi of Kyoshi Island (TLA) 77
+2 Annul (KHM) 42
+2 Soul-Guide Lantern (WOE) 251
+1 Disdainful Stroke (WOE) 47
+1 Negate (ZNR) 71
+2 Day of Black Sun (TLA) 94

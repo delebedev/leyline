@@ -780,8 +780,8 @@ class GameEventCollector(
     }
 
     override fun visit(ev: GameEventFlipCoin) {
-        val flipper = seatOf(ev.player()) ?: return
-        val sa = ev.sa() ?: return
+        val flipper = seatOf(ev.player) ?: return
+        val sa = ev.sa ?: return
         val card = sa.hostCard ?: return
         val abilityForgeId = sa.id.takeIf { pendingTriggers.containsKey(it) || pendingActivations.containsKey(it) } ?: 0
         frame.add(
@@ -790,7 +790,7 @@ class GameEventCollector(
                 sourceCardId = ForgeCardId(card.id),
                 abilityForgeId = abilityForgeId,
                 abilityGrpId = pendingAbilityGrpIds[abilityForgeId] ?: 0,
-                result = if (ev.won()) 1 else 0,
+                result = if (ev.won) 1 else 0,
             ),
         )
         log.debug(
@@ -798,7 +798,7 @@ class GameEventCollector(
             card.name,
             flipper,
             abilityForgeId,
-            if (ev.won()) 1 else 0,
+            if (ev.won) 1 else 0,
         )
     }
 

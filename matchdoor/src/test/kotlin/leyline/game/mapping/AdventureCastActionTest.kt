@@ -80,4 +80,22 @@ class AdventureCastActionTest :
             actions.actionsList.filter { it.actionType == ActionType.CastAdventure } shouldHaveSize 0
             actions.inactiveActionsList.filter { it.actionType == ActionType.CastAdventure } shouldHaveSize 0
         }
+
+        test("unaffordable adventure action cost does not require pre-seeded activator") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Ratcatcher Trainee", human, ZoneType.Hand)
+                }
+
+            val actions =
+                ActionMapper.buildFromSnapshot(
+                    seatId = 1,
+                    snap = GsmSnapshot.capture(game, b, "test", 0),
+                    bridge = b,
+                )
+
+            actions.inactiveActionsList
+                .filter { it.actionType == ActionType.CastAdventure }
+                .shouldHaveSize(1)
+        }
     })

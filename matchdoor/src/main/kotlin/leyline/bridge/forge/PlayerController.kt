@@ -663,11 +663,13 @@ class PlayerController(
                 options = listOf("Yes", "No"),
                 min = 1,
                 max = 1,
-                defaultIndex = 0,
+                defaultIndex = if (isEnterAsCopyReplacement(message)) 1 else 0,
             )
         val result = bridge.requestChoice(request)
         return result.firstOrNull() == 0
     }
+
+    private fun isEnterAsCopyReplacement(message: String): Boolean = message.contains("enter as a copy", ignoreCase = true)
 
     @Suppress("UNCHECKED_CAST")
     private fun commanderReturnContext(
@@ -1212,7 +1214,7 @@ class PlayerController(
                 excludedModalFullIndices = shape.excludedFullIndices,
                 excludedModalCosts = shape.excludedCosts,
             )
-        val result = bridge.requestChoice(request)
+        val result = bridge.requestChoice(request, targetingSa = sa)
         return result.mapNotNull { idx -> possible.getOrNull(idx) }
     }
 

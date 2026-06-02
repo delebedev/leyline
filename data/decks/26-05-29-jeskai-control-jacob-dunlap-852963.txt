@@ -1,0 +1,42 @@
+Deck
+2 Tablet of Discovery (SOS) 132
+1 Resonating Lute (SOS) 221
+4 Consult the Star Charts (EOE) 51
+4 Jeskai Revelation (TDM) 196
+4 Lightning Helix (STA) 62
+3 Get Lost (LCI) 14
+3 No More Lies (MKM) 221
+2 Erode (SOS) 15
+2 Negate (ZNR) 71
+1 Abrade (VOW) 139
+1 Spell Snare (ECL) 71
+1 Traumatic Critique (SOS) 239
+3 Day of Judgment (STA) 2
+3 Stock Up (SOA) 24
+3 Floodfarm Verge (DSK) 259
+3 Hallowed Fountain (RNA) 251
+3 Steam Vents (GRN) 257
+2 Elegant Parlor (MKM) 260
+2 Great Hall of the Biblioplex (SOS) 257
+2 Meticulous Archive (MKM) 264
+2 Mistrise Village (TDM) 261
+2 Riverpyre Verge (DFT) 260
+2 Thundering Falls (MKM) 269
+1 Cori Mountain Monastery (TDM) 252
+1 Island (ZNR) 381
+1 Plains (ZNR) 380
+1 Sacred Foundry (GRN) 254
+1 Sunbillow Verge (DFT) 264
+
+Sideboard
+1 Abrade (VOW) 139
+2 Flashfreeze (FDN) 590
+2 High Noon (OTJ) 15
+2 Rest in Peace (WOT) 12
+2 The Unagi of Kyoshi Island (TLA) 77
+1 Beza, the Bounding Spring (BLB) 2
+1 Elspeth, Storm Slayer (TDM) 11
+1 Emeritus of Ideation (SOS) 45
+1 Mathemagics (SOS) 58
+1 Petrified Hamlet (SOS) 259
+1 Ultima (FIN) 38

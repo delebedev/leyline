@@ -1,0 +1,33 @@
+Deck
+4 Bloodghast (IMA) 82
+4 Hardened Academic (SOS) 194
+4 Iron-Shield Elf (ECL) 108
+4 Marauding Mako (DFT) 138
+4 Moonshadow (ECL) 110
+2 Tersa Lightshatter (TDM) 127
+1 Desecrex, Gift of Servitude (OM1) 133
+1 Cecil, Dark Knight (FIN) 91
+2 Burst Lightning (SOA) 41
+2 Requiting Hex (ECL) 116
+1 Erode (SOS) 15
+4 Practiced Offense (SOS) 25
+4 Cool but Rude (TMT) 89
+4 Blood Crypt (RNA) 245
+4 Godless Shrine (RNA) 248
+4 Sacred Foundry (GRN) 254
+4 Starting Town (FIN) 289
+2 Blazemire Verge (DSK) 256
+2 Mountain (ZNR) 383
+1 Concealed Courtyard (OTJ) 268
+1 Inspiring Vantage (OTJ) 269
+1 Swamp (ZNR) 382
+
+Sideboard
+1 Desecrex, Gift of Servitude (OM1) 133
+3 Seam Rip (EOE) 34
+3 Strategic Betrayal (TDM) 94
+3 Voice of Victory (TDM) 33
+2 Case of the Crimson Pulse (MKM) 114
+1 Deathmark (FDN) 601
+1 Doorkeeper Thrull (MKM) 13
+1 Inti, Seneschal of the Sun (LCI) 156

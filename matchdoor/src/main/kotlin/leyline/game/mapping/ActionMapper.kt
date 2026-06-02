@@ -688,6 +688,7 @@ object ActionMapper {
             emitAltCostManaCost(
                 actionBuilder,
                 sa,
+                player,
                 abilityGrpIdEcho = if (rail.echoAlternativeOnMana) altGrpId else 0,
             )
         }
@@ -723,7 +724,7 @@ object ActionMapper {
             val keywordId = KeywordAbilityIds.fromForgeAltCostName(altCost.name)
             val abilityGrpId = if (keywordId != null) bound?.altCost(keywordId)?.abilityGrpId ?: 0 else 0
             if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-            emitAltCostManaCost(actionBuilder, sa, abilityGrpIdEcho = 0)
+            emitAltCostManaCost(actionBuilder, sa, player, abilityGrpIdEcho = 0)
         }
     }
 
@@ -733,9 +734,10 @@ object ActionMapper {
     private fun emitAltCostManaCost(
         actionBuilder: Action.Builder,
         sa: SpellAbility,
+        player: Player,
         abilityGrpIdEcho: Int,
     ) {
-        val effectiveCost = computeEffectiveCost(sa, sa.activatingPlayer)
+        val effectiveCost = computeEffectiveCost(sa, player)
         if (effectiveCost == null || effectiveCost.isNoCost) return
         if (abilityGrpIdEcho > 0) {
             addManaCostFromForge(effectiveCost, actionBuilder, abilityGrpIdEcho)
@@ -1611,6 +1613,8 @@ object ActionMapper {
     ): forge.card.mana.ManaCost? {
         val baseCost = sa.payCosts ?: return null
         val hostCard = sa.hostCard
+        val originalActivator = sa.activatingPlayer
+        if (originalActivator == null) sa.setActivatingPlayer(player)
         val originalCastFrom = hostCard?.castFrom
         val seededCastFrom =
             hostCard?.isCommander == true &&
@@ -1626,6 +1630,7 @@ object ActionMapper {
             return beingPaid.toManaCost()
         } finally {
             if (seededCastFrom) hostCard?.setCastFrom(originalCastFrom)
+            if (originalActivator == null) sa.setActivatingPlayer(null)
         }
     }
 

@@ -125,7 +125,7 @@ object GrpIdResolver {
             val copiedPermanent = card.copiedPermanent
             if (copiedPermanent != null) {
                 val sourceGrpId =
-                    cards.findGrpIdByNameAnyFace(copiedPermanent.name)
+                    resolveByCardName(copiedPermanent, cards)
                         ?: run {
                             reportMissingOnce("copy token", copiedPermanent.name, card.id)
                             return GameBridge.FALLBACK_GRPID
@@ -151,8 +151,7 @@ object GrpIdResolver {
         if (Foretell.isForetold(card)) {
             val originalName =
                 card.getOriginalState(forge.card.CardStateName.Original)?.name ?: card.name
-            return cards.findGrpIdByName(originalName)
-                ?: cards.findGrpIdByNameAnyFace(originalName)
+            return resolveByName(originalName, cards)
                 ?: GameBridge.FALLBACK_GRPID
         }
 
@@ -162,8 +161,7 @@ object GrpIdResolver {
         if (Disguise.isFaceDownDisguise(card)) {
             val originalName =
                 card.getOriginalState(forge.card.CardStateName.Original)?.name ?: card.name
-            return cards.findGrpIdByName(originalName)
-                ?: cards.findGrpIdByNameAnyFace(originalName)
+            return resolveByName(originalName, cards)
                 ?: GameBridge.FALLBACK_GRPID
         }
 
@@ -178,15 +176,13 @@ object GrpIdResolver {
             val originalName =
                 card.getOriginalState(forge.card.CardStateName.Original)?.name?.takeIf { it.isNotEmpty() }
                     ?: card.name
-            cards.findGrpIdByName(originalName)?.let { return it }
-            cards.findGrpIdByNameAnyFace(originalName)?.let { return it }
+            resolveByName(originalName, cards)?.let { return it }
         }
 
         // Primary-face lookup, falling back to any-face for DFC back faces
         // (e.g. saga transforms to Echo of Death's Wail — the back face lives in
         // the Arena DB under a non-primary flag; findGrpIdByName misses it).
-        return cards.findGrpIdByName(card.name)
-            ?: cards.findGrpIdByNameAnyFace(card.name)
+        return resolveByCardName(card, cards)
             ?: run {
                 reportMissingOnce("standard", card.name, card.id)
                 DevCheck.fail { "grpId=0 for '${card.name}' (forgeId=${card.id}): not in client card DB" }
@@ -204,8 +200,22 @@ object GrpIdResolver {
         // then primary face name as fallback. Token mappings in Arena DB can be on
         // either face — adventure tokens map from the adventure face grpId.
         val sourceGrpId =
-            cards.findGrpIdByNameAnyFace(sourceCard.name)
+            resolveByCardName(sourceCard, cards)
                 ?: return null
         return cards.tokenGrpIdForCard(sourceGrpId, card.name)
     }
+
+    private fun resolveByCardName(
+        card: Card,
+        cards: CardRepository,
+    ): Int? =
+        resolveByName(card.name, cards)
+            ?: card.displayName.takeIf { it != card.name }?.let { resolveByName(it, cards) }
+
+    private fun resolveByName(
+        name: String,
+        cards: CardRepository,
+    ): Int? =
+        cards.findGrpIdByName(name)
+            ?: cards.findGrpIdByNameAnyFace(name)
 }

@@ -1,0 +1,13 @@
+8 Plains
+6 Swamp
+6 Mountain
+4 Island
+4 Optimistic Scavenger
+4 Hardened Academic
+4 Decorum Dissertation
+4 Erode
+4 Path to Exile
+4 Omen of the Sea
+4 Wall of Runes
+4 Novice Inspector
+4 Savannah Lions

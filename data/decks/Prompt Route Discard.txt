@@ -1,0 +1,12 @@
+10 Swamp
+8 Mountain
+6 Island
+4 Duress
+4 Faithless Looting
+4 Liliana of the Veil
+4 Zephyr Boots
+4 Repository Skaab
+4 Shambling Ghast
+4 Doomed Dissenter
+4 Village Rites
+4 Persistent Specimen

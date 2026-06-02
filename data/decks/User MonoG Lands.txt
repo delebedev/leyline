@@ -1,0 +1,29 @@
+Deck
+4 Escape Tunnel (TMT) 184
+3 Mightform Harmonizer (EOE) 200
+3 Meltstrider's Resolve (EOE) 199
+4 Earthbender Ascension (TLA) 175
+4 Llanowar Elves (M19) 314
+4 Sazh's Chocobo (FIN) 200
+3 Ba Sing Se (TLA) 266
+4 Fabled Passage (TLE) 57
+13 Forest (ZNR) 384
+4 Badgermole Cub (TLA) 167
+4 Esper Origins (FIN) 185
+2 Demolition Field (FIC) 385
+1 Sapling Nursery (ECL) 192
+4 Icetill Explorer (EOE) 192
+1 Archdruid's Charm (MKM) 151
+1 Keen-Eyed Curator (BLB) 181
+1 Lumbering Worldwagon (DFT) 168
+
+Sideboard
+1 Meltstrider's Resolve (EOE) 199
+1 Sapling Nursery (ECL) 192
+1 Keen-Eyed Curator (BLB) 181
+1 Glorious Decay (SOS) 150
+2 Royal Treatment (WOE) 183
+4 Mossborn Hydra (FDN) 107
+2 Dragon Sniper (TDM) 139
+2 Soul-Guide Lantern (WOE) 251
+1 Pawpatch Formation (BLB) 186

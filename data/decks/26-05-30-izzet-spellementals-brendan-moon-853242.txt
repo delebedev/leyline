@@ -1,0 +1,31 @@
+Deck
+4 Eddymurk Crab (BLB) 48
+4 Hearth Elemental (WOE) 136
+3 Sunderflock (ECL) 74
+4 Opt (XLN) 65
+4 Prismari Charm (SOS) 211
+3 Traumatic Critique (SOS) 239
+2 Burst Lightning (SOA) 41
+2 Spell Pierce (XLN) 81
+2 Spell Snare (ECL) 71
+1 Get Out (DSK) 60
+4 Flow State (SOS) 49
+4 Sleight of Hand (WOE) 67
+3 Impractical Joke (SOS) 119
+7 Island (ZNR) 381
+4 Riverpyre Verge (DFT) 260
+4 Spirebluff Canal (OTJ) 270
+4 Steam Vents (GRN) 257
+1 Agna Qel'a (TLA) 264
+
+Sideboard
+1 Sunderflock (ECL) 74
+1 Spell Snare (ECL) 71
+3 Price of Freedom (TLA) 149
+2 Abrade (VOW) 139
+2 Colorstorm Stallion (SOS) 180
+2 Flashfreeze (FDN) 590
+1 Disdainful Stroke (WOE) 47
+1 Essence Scatter (SOS) 47
+1 Ghost Vacuum (DSK) 248
+1 Ral, Crackling Wit (BLB) 230
