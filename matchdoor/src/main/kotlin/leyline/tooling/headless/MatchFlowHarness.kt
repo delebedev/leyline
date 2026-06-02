@@ -1038,13 +1038,12 @@ class MatchFlowHarness(
      * matching the simclient policy: a deck either runs end-to-end or it
      * doesn't run at all.
      *
-     * **simclient-only contract.** The `synchronized(StaticData.instance())`
-     * block is safe under `:simclient`'s `maxParallelForks = 1` — Forge's
-     * static `MyRandom` already forces serial execution there. Do NOT reuse
-     * this override path from a parallelised gradle test task; the lock would
+     * **simclient-only contract.** The simclient tool runs rows serially and
+     * Forge's static `MyRandom` is not safe for concurrent games. Do NOT reuse
+     * this override path from a parallelised Gradle test task; the lock would
      * still hold but threads would silently serialise on it. If a non-simclient
-     * caller needs SQLite-backed card resolution, factor a thread-safe
-     * resolver out first.
+     * caller needs SQLite-backed card resolution, factor a thread-safe resolver
+     * out first.
      */
     private fun ensureForgeKnowsDeck(deckList: String?) {
         val list = deckList ?: return

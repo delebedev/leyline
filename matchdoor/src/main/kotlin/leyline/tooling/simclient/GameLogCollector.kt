@@ -9,12 +9,11 @@ import org.slf4j.LoggerFactory
 
 /**
  * Records WARN+ERROR log events during a single simclient game so the batch
- * test can attribute leyline warnings / exceptions back to the (deck × seed)
+ * runner can attribute leyline warnings / exceptions back to the (deck × seed)
  * that produced them.
  *
- * Logback's root logger is global. Simclient runs serially
- * (`maxParallelForks = 1` is enforced by the simclient task), so attaching the
- * appender for the duration of one game is safe.
+ * Logback's root logger is global. Simclient rows run serially, so attaching
+ * the appender for the duration of one game is safe.
  *
  * **Caller contract:** before calling [stopAndDrain], drain any in-flight
  * engine-thread work (the simclient driver's `runOneGame` already concedes

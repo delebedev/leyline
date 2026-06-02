@@ -7,9 +7,9 @@ a `<log>.meta.json` sidecar so scry-ts can ingest the result alongside other
 saved games without polluting reference data.
 
 The broad runner is a standalone Gradle JavaExec tool (`:matchdoor:simclient`),
-not a Kotest suite. It still compiles against testkit internals for now; row
-timeouts, exceptions, and validation failures are written as stats data unless
-`--strict` is passed. The regular gate excludes the slow E2E tests.
+not a Kotest suite. Row timeouts, exceptions, and validation failures are
+written as stats data unless `--strict` is passed. The regular gate excludes
+the slow E2E tests.
 
 For the fixed-seed debugging loop, failure taxonomy, and deck-vs-puzzle guidance,
 read `docs/simclient-iteration.md`.
@@ -73,7 +73,7 @@ Pick the most common prompt seam that is answerable by policy.
 - `ForgeAiPolicy.kt` — Forge-AI advisor. Builds a parallel `PlayerControllerAi`
   consulted through prompt adapters. **Not** registered as the player's actual
   controller (see "Forge-AI advisor — load-bearing rules" below for why).
-- `GameLogCapture.kt` — programmatic logback `ListAppender`, attached to the
+- `GameLogCollector.kt` — programmatic logback `ListAppender`, attached to the
   root logger for the duration of one game. Drained at game end and folded
   into `GameStats.warnsByLogger` / `errorsByType`.
 - `PlayerLogWriter.kt` — formats outbound GRE bundles into Player.log lines
@@ -321,7 +321,7 @@ via `harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id))`.
 - timing — `durationMs`
 - AI activity — `aiConsulted`, `aiChose`, plus `aiConsultedByPrompt` /
   `aiChoseByPrompt` keyed by GRE prompt name
-- log signal — `warnsByLogger`, `errorsByType` populated by `GameLogCapture`
+- log signal — `warnsByLogger`, `errorsByType` populated by `GameLogCollector`
 - terminal flags — `gameOver`, `hitIterCap`
 - completion attribution — `completionReason`, `cleanupConcede`
 - prompt lifecycle — `promptRetiredByReason`, `stalledPrompt`, `stalledFingerprint`
@@ -343,13 +343,13 @@ field. Anything you want attributable to `(deck × seed × policy)` belongs
 here. Anything you want to grep across many runs goes through the
 `.stats.json` sidecar (serialised by `statsToJson` in `src/main/kotlin/leyline/tooling/simclient/SimClientStatsJson.kt`).
 
-`GameLogCapture` works because simclient is serial (`maxParallelForks = 1`).
-If parallel execution ever lands, this approach needs per-thread MDC keying.
+`GameLogCollector` works because the simclient tool runs rows serially. If
+parallel row execution ever lands, this approach needs per-thread MDC keying.
 
-## Dependencies — what we lean on from the test tree
+## Headless Harness Boundary
 
 The driver is thin because it leans on `MatchFlowHarness` from
-`leyline.testkit` for:
+`leyline.tooling.headless` for:
 
 - match boot (`connectAndKeep`, `ConnectionState`, `MatchSession` instantiation,
   seed Full GSM via `GsmSnapshot` snapshotting + `StateMapper.buildFromSnapshot`,
@@ -362,9 +362,8 @@ The driver is thin because it leans on `MatchFlowHarness` from
   `declareNoBlockers`, `selectTargets`, `respondToScry`, etc.)
 - state accessors (`turn()`, `isGameOver()`, `accumulator.actions`)
 
-If the simclient ever moves out of test source, only the essential ~400 lines
-of `MatchFlowHarness` need to come along — the test ergonomics
-(`castSpellUntil` lambdas, `toggleAttackers`, etc.) can stay in tests.
+Keep simclient-specific policy, telemetry, and row orchestration in this
+package. Keep generic headless session wiring in `leyline.tooling.headless`.
 
 ## Player.log → scry-ts shape gotchas
 
@@ -407,7 +406,7 @@ hitting the 200-iter same-turn stall), wire a responder:
 1. Add a `when` arm to `SimClientDriver.takeOneStep` matching the
    `GREMessageType` enum.
 2. Build the response via `MatchFlowHarness`'s helpers (most prompts already
-   have a wrapper) or via the proto builders in `leyline.testkit.ProtoDsl`.
+   have a wrapper) or the protocol builders already used in headless tests.
 3. Add the message-type string to `PlayerLogWriter.MESSAGE_TYPE_NAMES` if it
    isn't already there — otherwise scry-ts won't recognize it on the
    downstream parse.
@@ -438,7 +437,7 @@ ratio in the 20-50% range, `warnsByLogger` mostly empty, `errorsByType` ≤ 1
 | `errorsByType["leyline.game.snapshot.GrpIdResolver"]` > 0 | a card name in the deck doesn't resolve to a client grpId. Either the card is Forge-only (e.g. "Ferocious Charge") or the client DB is older than the deck. **Dedup is JVM-static** — in a batch run the same missing name appears in only the first game's stats; absence in games 2..N does NOT mean it resolved. Call `GrpIdResolver.resetReportedMissingCardNamesForTest()` between games if per-game attribution matters |
 | `errorsByType` includes `InterruptedException` / `CancellationException`, count = 1 | **expected residual noise** — see below |
 
-**Aggregate (across all games in a run, from `SUMMARY.md`):**
+**Aggregate (across all games in a run, from `summary.json`):**
 
 `Race fingerprint` table — each row is `(deck × seed)`. Healthy = all `0` race
 warns. Anything ≥ 10 means the `hasPendingAction()` guard regressed for that
@@ -464,10 +463,9 @@ isn't catching cleanup-window prompts for that type.
 ### When to drill into a per-game `.log`
 
 If `warnsByLogger` shows ZoneMapper / AnnotationOrderEnforcer / a leyline
-class you don't recognise — the warn line in the gradle stdout (or the test
-report XML at `matchdoor/build/test-results/simclient/TEST-*.xml`) carries
-the message text with card / annotation context. Stats sidecar only counts;
-text is in the gradle report.
+class you don't recognise, the warn line in the Gradle stdout carries the
+message text with card / annotation context. Stats sidecar only counts; text is
+in stdout or the per-game `.log`.
 
 For the GRE trace itself: `<deck>[-vs-<opponent>]-s<seed>.log` is Player.log-
 shaped and parseable by anything that reads Player.log (the same classifier the
@@ -501,8 +499,8 @@ test suite uses).
   `LobbyPlayerAi` server-side. The opposing seat's prompts never traverse
   the in-process channel — flip with `--simclient-seat 2` when that flag is
   added (currently always seat 1).
-- **Static `MyRandom` race.** Forge's RNG is JVM-static. The `:simclient`
-  task forces serial execution (`maxParallelForks = 1`).
+- **Static `MyRandom` race.** Forge's RNG is JVM-static. The simclient tool
+  runs rows serially.
 - **`InteractivePromptBridge` errors after concede.** After teardown, Forge
   AI may still call into the bridge and hit a torn-down session. Logged as
   ERROR but functionally harmless. Suppress by adding a "game over already"

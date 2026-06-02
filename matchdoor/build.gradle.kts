@@ -139,8 +139,8 @@ val profileTest by tasks.registering(Test::class) {
 
 val testGate by tasks.registering(Test::class) {
     configureTestDefaults()
-    // Exclude SimClientTag — those are slow log-generation runs, opt-in via
-    // the dedicated `:simclient` task.
+    // Exclude SimClientTag — those are slow log-generation tests. Broad deck
+    // matrices run through the standalone `:matchdoor:simclient` tool.
     systemProperty("kotest.tags", "(UnitTag | BoardTag) & !SimClientTag")
     systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: if (ciSerialism) "1" else "8"))
     // Kotest spec-level parallelism: 136 small suites, JVM-fork overhead
