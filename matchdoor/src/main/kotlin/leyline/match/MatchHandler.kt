@@ -12,6 +12,7 @@ import leyline.bridge.bootstrap.DeckConverter
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
 import leyline.config.RuntimeDecks
+import leyline.config.RuntimeMatchConfigRegistry
 import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.MessageCounter
@@ -48,6 +49,8 @@ class MatchHandler(
     private val puzzlePath: () -> String? = { null },
     /** Runtime deck override supplier for local web clients. */
     private val runtimeDecks: () -> RuntimeDecks? = { null },
+    /** MatchId-keyed runtime config for web/native clients. */
+    private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
 
@@ -78,7 +81,7 @@ class MatchHandler(
         )
 
     /** Puzzle mode delegate — detection, loading, initial bundle. */
-    private val puzzleHandler = PuzzleHandler(puzzlePath, cardRepository, registry, matchConfig)
+    private val puzzleHandler = PuzzleHandler(::resolvePuzzlePath, cardRepository, registry, matchConfig)
 
     private val connectFlow =
         MatchConnectFlow(
@@ -97,6 +100,7 @@ class MatchHandler(
             sendInitialBundle = ::sendInitialBundle,
             resolveSeatDecks = { resolveSeatDecks().let { it.seat1 to it.seat2 } },
             resolveGameVariant = ::resolveGameVariant,
+            isSpectatorMode = ::isSpectatorMode,
             onLocalPlayerConnected = ::onLocalPlayerConnected,
         )
 
@@ -114,6 +118,25 @@ class MatchHandler(
         debugSink?.bridgeProvider = { registry.activeBridges() }
         debugSink?.sessionProvider = { registry.activeSession() }
     }
+
+    private fun resolvePuzzlePath(matchId: String): String? {
+        val config = runtimeMatchConfigs?.get(matchId)
+        if (config != null) return config.puzzle?.takeIf { it.isNotBlank() }
+        return puzzlePath()
+    }
+
+    private fun resolveRuntimeDecks(): RuntimeDecks? {
+        val config = runtimeMatchConfigs?.get(matchId)
+        if (config != null) {
+            return RuntimeDecks(
+                seat1Deck = config.seat1Deck,
+                seat2Deck = config.seat2Deck,
+            )
+        }
+        return runtimeDecks()
+    }
+
+    private fun isSpectatorMode(): Boolean = runtimeMatchConfigs?.get(matchId)?.spectatorMode ?: matchConfig.game.spectatorMode
 
     override fun channelActive(ctx: ChannelHandlerContext) {
         log.info("Match Door: client connected from {}", ctx.channel().remoteAddress())
@@ -359,9 +382,9 @@ class MatchHandler(
                 deck,
                 bridge,
                 dieRollWinner = bridge.dieRollWinner,
-                includeStartingPlayerPrompt = !matchConfig.game.spectatorMode,
+                includeStartingPlayerPrompt = !isSpectatorMode(),
                 onInitialSnapshot = { snap ->
-                    if (matchConfig.game.spectatorMode) bridge.bundleCursor.lastSent = snap
+                    if (isSpectatorMode()) bridge.bundleCursor.lastSent = snap
                 },
             )
         s.counter.setMsgId(nextMsgId)
@@ -390,7 +413,7 @@ class MatchHandler(
 
     override fun channelInactive(ctx: ChannelHandlerContext) {
         log.info("Match Door: client disconnected")
-        if (matchConfig.game.spectatorMode && isFamiliar) {
+        if (isSpectatorMode() && isFamiliar) {
             log.info("Match Door: spectator familiar disconnected, leaving AI match active")
             super.channelInactive(ctx)
             return
@@ -432,7 +455,7 @@ class MatchHandler(
 
     private fun resolveSeatDecks(): SeatDecks {
         val randomDecks = spectatorRandomDecksIfEnabled()
-        val runtimeDecks = runtimeDecks()
+        val runtimeDecks = resolveRuntimeDecks()
         val seat1Deck = resolveSeat1Deck(randomDecks, runtimeDecks)
         return SeatDecks(
             seat1 = seat1Deck,
@@ -518,7 +541,7 @@ class MatchHandler(
     }
 
     private fun spectatorRandomDecksIfEnabled(): Pair<String, String>? {
-        if (!matchConfig.game.spectatorMode) return null
+        if (!isSpectatorMode()) return null
         if (!matchConfig.game.aiDeck.equals("random", ignoreCase = true)) return null
         return spectatorRandomDecks()
     }

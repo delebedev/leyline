@@ -1,0 +1,8 @@
+name: "Tavern Swindler"
+grpId: 80247
+titleId: 41121
+abilities:
+  - id: 19490
+    textId: 41123
+    category: 1
+expansionCode: "SNC"

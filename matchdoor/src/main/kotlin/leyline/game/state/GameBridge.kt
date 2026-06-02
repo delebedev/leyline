@@ -104,6 +104,18 @@ class GameBridge(
     private val pendingSpellCastsByGrpId = ConcurrentHashMap<Int, GameEvent.SpellCast>()
     private val pendingSpellResolutions = ConcurrentHashMap<ForgeCardId, GameEvent.SpellResolved>()
     private val pendingSpellResolutionsByGrpId = ConcurrentHashMap<Int, GameEvent.SpellResolved>()
+    private val stackAbilityGrpIdsByForgeAbilityId = ConcurrentHashMap<Int, Int>()
+
+    fun recordStackAbilityGrpId(
+        forgeAbilityId: Int,
+        abilityGrpId: Int,
+    ) {
+        if (forgeAbilityId != 0 && abilityGrpId != 0) {
+            stackAbilityGrpIdsByForgeAbilityId[forgeAbilityId] = abilityGrpId
+        }
+    }
+
+    fun stackAbilityGrpId(forgeAbilityId: Int): Int? = stackAbilityGrpIdsByForgeAbilityId[forgeAbilityId]
 
     fun recordPendingSpellCasts(events: List<GameEvent>) {
         events
@@ -1177,6 +1189,7 @@ class GameBridge(
         activeReconfigureEffects.clear()
         activeMutateMergeEffects.clear()
         abilityRegistries.clear()
+        stackAbilityGrpIdsByForgeAbilityId.clear()
         tokenRegistry.clear()
         revealProxies.clear()
 

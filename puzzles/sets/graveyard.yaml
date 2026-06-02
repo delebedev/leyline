@@ -44,3 +44,20 @@ scenarios:
           all:
             - zone_contains: { side: ours, zone: battlefield, card: Luminous Phantom }
             - stack_empty: true
+  - id: emry-graveyard-artifact-cast
+    puzzle: emry-graveyard-artifact-cast
+    run: activate Emry, target an artifact card in graveyard, then cast it from graveyard
+    expect: chosen artifact leaves graveyard and resolves onto the battlefield
+    steps:
+      - wait:
+          action: { type: activate, card: "Emry, Lurker of the Loch" }
+      - activate: "Emry, Lurker of the Loch"
+      - target: { side: ours, zone: graveyard, card: Manalith }
+      - wait:
+          action: { type: cast, card: Manalith }
+      - cast: { card: Manalith, zone: graveyard }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Manalith }
+            - zone_not_contains: { side: ours, zone: graveyard, card: Manalith }

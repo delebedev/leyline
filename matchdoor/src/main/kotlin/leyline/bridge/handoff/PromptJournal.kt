@@ -53,7 +53,7 @@ class PromptJournal {
             is PromptSideEffect.SearchedToHand,
             is PromptSideEffect.LegendVictim,
             is PromptSideEffect.EnlistTapAffector,
-            is PromptSideEffect.StaticChoiceResult,
+            is PromptSideEffect.ChoiceResult,
             -> drains.add(effect)
             is PromptSideEffect.RevealStarted -> currentReveal = effect
             PromptSideEffect.RevealEnded -> currentReveal = null
@@ -92,12 +92,12 @@ class PromptJournal {
         return null
     }
 
-    fun drainStaticChoiceResults(): List<PromptSideEffect.StaticChoiceResult> {
-        val out = mutableListOf<PromptSideEffect.StaticChoiceResult>()
+    fun drainChoiceResults(): List<PromptSideEffect.ChoiceResult> {
+        val out = mutableListOf<PromptSideEffect.ChoiceResult>()
         val iter = drains.iterator()
         while (iter.hasNext()) {
             val effect = iter.next()
-            if (effect is PromptSideEffect.StaticChoiceResult) {
+            if (effect is PromptSideEffect.ChoiceResult) {
                 iter.remove()
                 out.add(effect)
             }

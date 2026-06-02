@@ -148,6 +148,24 @@ interface SessionOps :
     Pacing,
     ActionReceiver {
     val matchId: String
+
+    /** Build a single GRE message with an explicit msgId (no side-effect on counters). */
+    override fun makeGRE(
+        type: GREMessageType,
+        gsId: Int,
+        msgId: Int,
+        configure: (GREToClientMessage.Builder) -> Unit,
+    ): GREToClientMessage {
+        val gre =
+            GREToClientMessage
+                .newBuilder()
+                .setType(type)
+                .setMsgId(msgId)
+                .setGameStateId(gsId)
+                .addSystemSeatIds(seatId.value)
+        configure(gre)
+        return gre.build()
+    }
 }
 
 /**

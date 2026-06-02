@@ -541,6 +541,7 @@ object ActionMapper {
                     instanceId = instanceId,
                     grpId = cardSnap.grpId,
                     abilityGrpId = abilityGrpId,
+                    uniqueAbilityId = uniqueAbilityIdFor(cardData, abilityGrpId),
                     abilityCost = ability.payCosts?.totalMana,
                     canPay = canPay,
                     envelope = ActivatedActionEnvelope.ABILITY_ONLY,
@@ -555,6 +556,7 @@ object ActionMapper {
         instanceId: Int,
         grpId: Int,
         abilityGrpId: Int,
+        uniqueAbilityId: Int?,
         abilityCost: ManaCost?,
         canPay: Boolean,
         envelope: ActivatedActionEnvelope,
@@ -570,6 +572,7 @@ object ActionMapper {
                 .setFacetId(instanceId)
         }
         if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+        if (envelope.includesSourceIdentity) uniqueAbilityId?.let(actionBuilder::setUniqueAbilityId)
         if (canPay && envelope.activeShouldStop) {
             actionBuilder.setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
         }
@@ -623,11 +626,13 @@ object ActionMapper {
             val actionGrpId = grpId()
             val registry = abilityRegistryLookup(card, cardData(actionGrpId))
             val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
+            val uniqueAbilityId = uniqueAbilityIdFor(cardData(actionGrpId), abilityGrpId)
             emitActivatedAbilityAction(
                 builder = builder,
                 instanceId = actionInstanceId,
                 grpId = actionGrpId,
                 abilityGrpId = abilityGrpId,
+                uniqueAbilityId = uniqueAbilityId,
                 abilityCost = ability.payCosts?.totalMana,
                 canPay = canPay,
                 envelope = envelope,

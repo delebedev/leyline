@@ -15,9 +15,9 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Puzzle mode delegate — routed by `puzzle-<name>` match IDs. When
- * [puzzlePath] returns a non-null path, that file is loaded for routed puzzle
- * matches; otherwise the matchId naming convention resolves `puzzles/<name>.pzl`.
+ * Puzzle mode delegate — routed by per-match runtime config or `puzzle-<name>`
+ * match IDs. When [puzzlePath] returns a non-null path for a matchId, that file
+ * is loaded; otherwise the matchId naming convention resolves `puzzles/<name>.pzl`.
  *
  * **Ordering constraint:** [GameBootstrap.initializeLocalization] must be called
  * before any [Puzzle] constructor — Forge's `GameState.<clinit>` reads localized
@@ -25,16 +25,14 @@ import java.io.File
  * so the handler can be created eagerly without triggering Forge class loading.
  */
 class PuzzleHandler(
-    private val puzzlePath: () -> String?,
+    private val puzzlePath: (String) -> String?,
     private val cardRepository: CardRepository,
     private val registry: MatchRegistry,
     private val matchConfig: MatchConfig = MatchConfig(),
 ) {
     private val log = LoggerFactory.getLogger(PuzzleHandler::class.java)
 
-    /** Puzzle mode when a puzzle file is configured — matchId is irrelevant. */
-    @Suppress("UnusedParameter") // matchId kept for call-site clarity
-    fun isPuzzleMatch(matchId: String): Boolean = puzzlePath() != null
+    fun isPuzzleMatch(matchId: String): Boolean = puzzlePath(matchId) != null || matchId.startsWith("puzzle-")
 
     /**
      * Get or create the [GameBridge] for a puzzle match. Loads the puzzle file
@@ -112,7 +110,7 @@ class PuzzleHandler(
         // Puzzle constructor triggers GameState.<clinit> which needs localization
         GameBootstrap.initializeLocalization()
 
-        val configuredPuzzle = puzzlePath()
+        val configuredPuzzle = puzzlePath(matchId)
         if (configuredPuzzle != null) {
             val file = File(configuredPuzzle).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), configuredPuzzle) }
             require(file.exists()) { "Puzzle file not found: ${file.absolutePath}" }

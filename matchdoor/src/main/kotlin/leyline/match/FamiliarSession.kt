@@ -50,23 +50,6 @@ class FamiliarSession(
 
     override fun paceDelay(multiplier: Int) {}
 
-    override fun makeGRE(
-        type: GREMessageType,
-        gsId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage {
-        val gre =
-            GREToClientMessage
-                .newBuilder()
-                .setType(type)
-                .setMsgId(msgId)
-                .setGameStateId(gsId)
-                .addSystemSeatIds(seatId.value)
-        configure(gre)
-        return gre.build()
-    }
-
     // Action methods: all inherited no-ops from ActionReceiver defaults.
     // SubmitAttackersReq/SubmitBlockersReq may arrive on the Familiar channel.
     // No-op is correct — the player's main session handles combat.

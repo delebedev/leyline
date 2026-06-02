@@ -27,6 +27,7 @@ internal class MatchConnectFlow(
     private val sendInitialBundle: (ChannelHandlerContext) -> Unit,
     private val resolveSeatDecks: () -> Pair<String, String>,
     private val resolveGameVariant: () -> String?,
+    private val isSpectatorMode: () -> Boolean,
     private val onLocalPlayerConnected: (ChannelHandlerContext, GameBridge) -> Unit,
 ) {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
@@ -73,7 +74,7 @@ internal class MatchConnectFlow(
                         cardRepository = cardRepository,
                     )
                 Match(matchId(), bridge).also { newMatch ->
-                    if (!matchConfig.game.spectatorMode) {
+                    if (!isSpectatorMode()) {
                         val decks = resolveSeatDecks()
                         newMatch.start(
                             seed = matchConfig.game.seed,
@@ -85,7 +86,7 @@ internal class MatchConnectFlow(
                 }
             }
         val bridge = match.bridge
-        if (matchConfig.game.spectatorMode) {
+        if (isSpectatorMode()) {
             connectSpectator(ctx, match, gameVariant)
         } else if (isFamiliar()) {
             createFamiliarSession(ctx, bridge.messageCounter)

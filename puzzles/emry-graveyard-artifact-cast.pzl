@@ -1,0 +1,17 @@
+[metadata]
+Name:Emry Graveyard Artifact Cast
+Goal:None
+Turns:5
+Difficulty:Easy
+Description:Activate Emry, choose Manalith in graveyard, then cast it from graveyard.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Emry, Lurker of the Loch;Island;Island;Island
+humangraveyard=Manalith;Ornithopter
+humanlibrary=Island;Island;Island
+ailibrary=Mountain;Mountain;Mountain

@@ -61,6 +61,32 @@ class TargetingHandler(
                         pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
                     }.filter { it >= 0 }
             }
+
+        internal fun choiceResultSideEffects(
+            pendingPrompt: InteractivePromptBridge.PendingPrompt,
+            selectedIds: List<Int>,
+            chooserSeatId: SeatId,
+        ): List<PromptSideEffect.ChoiceResult> {
+            val source = pendingPrompt.request.sourceEntityId ?: return emptyList()
+            val semantic = pendingPrompt.request.semantic
+            val (choiceDomain, sentiment) =
+                when {
+                    semantic == PromptSemantic.StaticSubtypeChoice -> 5 to 2
+                    semantic == PromptSemantic.StaticColorChoice -> 6 to 2
+                    semantic == PromptSemantic.SelectNDiscard ||
+                        semantic == PromptSemantic.SelectNSacrificeEffect -> null to 1
+                    else -> return emptyList()
+                }
+            return selectedIds.map { value ->
+                PromptSideEffect.ChoiceResult(
+                    sourceForgeCardId = ForgeCardId(source),
+                    chooserSeatId = chooserSeatId,
+                    choiceValue = value,
+                    choiceDomain = choiceDomain,
+                    sentiment = sentiment,
+                )
+            }
+        }
     }
 
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
@@ -267,7 +293,7 @@ class TargetingHandler(
         val selectedIds = greMsg.selectNResp.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(selectedIds, pendingPrompt)
 
-        recordStaticChoiceResult(pendingPrompt, selectedIds)
+        recordChoiceResults(pendingPrompt, selectedIds)
 
         log.info("TargetingHandler: SelectNResp indices={}", selectedIndices)
 
@@ -329,26 +355,18 @@ class TargetingHandler(
             ctx.bridge.getForgeCardId(InstanceId(instanceId))
         }
 
-    private fun recordStaticChoiceResult(
+    private fun recordChoiceResults(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
         selectedIds: List<Int>,
     ) {
-        val domain =
-            when {
-                pendingPrompt.request.semantic == PromptSemantic.StaticSubtypeChoice -> 5
-                pendingPrompt.request.semantic == PromptSemantic.StaticColorChoice -> 6
-                else -> return
-            }
-        val source = pendingPrompt.request.sourceEntityId ?: return
-        val value = selectedIds.firstOrNull() ?: return
-        ctx.bridge.seat(counters.seatId).prompt.journal.record(
-            PromptSideEffect.StaticChoiceResult(
-                sourceForgeCardId = ForgeCardId(source),
-                chooserSeatId = counters.seatId,
-                choiceValue = value,
-                choiceDomain = domain,
-            ),
-        )
+        val effects = choiceResultSideEffects(pendingPrompt, selectedIds, counters.seatId)
+        if (effects.isEmpty()) return
+        val journal =
+            ctx.bridge
+                .seat(counters.seatId)
+                .prompt
+                .journal
+        effects.forEach(journal::record)
     }
 
     /**
