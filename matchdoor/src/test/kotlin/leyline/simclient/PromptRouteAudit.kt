@@ -2,7 +2,7 @@ package leyline.simclient
 
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
-import leyline.simclient.tool.PromptRouteFinding
+import leyline.tooling.simclient.PromptRouteFinding
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
 data class PromptRouteAudit(

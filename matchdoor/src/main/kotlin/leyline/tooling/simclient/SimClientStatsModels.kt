@@ -1,6 +1,8 @@
-package leyline.simclient.tool
+package leyline.tooling.simclient
 
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+
+const val STATS_SCHEMA_VERSION = 2
 
 data class GameStats(
     val turn: Int,

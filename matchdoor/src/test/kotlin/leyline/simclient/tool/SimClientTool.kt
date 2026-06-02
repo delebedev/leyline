@@ -9,11 +9,25 @@ import leyline.simclient.SimClientDriver
 import leyline.simclient.isSimPrompt
 import leyline.simclient.writeSimClientSidecar
 import leyline.testkit.MatchFlowHarness
+import leyline.tooling.simclient.DeckSimClientRow
+import leyline.tooling.simclient.GameStats
+import leyline.tooling.simclient.PuzzleSimClientRow
+import leyline.tooling.simclient.STATS_SCHEMA_VERSION
+import leyline.tooling.simclient.SimClientConfig
+import leyline.tooling.simclient.SimClientPolicyMode
+import leyline.tooling.simclient.SimClientRow
+import leyline.tooling.simclient.SimClientRowResult
+import leyline.tooling.simclient.SimClientRunResult
+import leyline.tooling.simclient.expandSimClientRows
+import leyline.tooling.simclient.failureClass
+import leyline.tooling.simclient.isStrictFailure
+import leyline.tooling.simclient.mapToJson
+import leyline.tooling.simclient.simJsonString
+import leyline.tooling.simclient.statsToJson
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 import java.time.LocalDateTime
 import java.util.concurrent.ExecutionException
@@ -21,10 +35,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.math.absoluteValue
 import kotlin.system.exitProcess
-
-internal const val STATS_SCHEMA_VERSION = 2
 
 fun main(args: Array<String>) {
     val exitCode = SimClientMain.run(args)
@@ -50,7 +61,7 @@ class SimClientRunner(
 
     fun run(): SimClientRunResult {
         config.outDir.mkdirs()
-        val rows = expandRows().filter(::includedInShard)
+        val rows = expandSimClientRows(config)
         if (rows.any { it.useCardDb }) {
             require(config.cardDbPath != null) { "LEYLINE_CARD_DB or --card-db is required for deck-file or card-db-backed puzzle rows" }
         }
@@ -243,94 +254,6 @@ class SimClientRunner(
             exceptionStackTop = stackTop,
             completionReason = "exception",
         )
-    }
-
-    private fun expandRows(): List<SimClientRow> {
-        val seeds = parseSeeds(config.seedSpec)
-        val puzzleSpec = config.puzzleSpec
-        if (puzzleSpec != null) {
-            return puzzleSpec
-                .split(",")
-                .map { it.trim() }
-                .filter { it.isNotBlank() }
-                .flatMap { puzzleName ->
-                    val puzzleText = readPuzzle(puzzleName)
-                    val basename = puzzleName.removeSuffix(".pzl").substringAfterLast('/')
-                    seeds.map { seed ->
-                        PuzzleSimClientRow(basename, puzzleText, useCardDb = config.cardDbPath != null, seed)
-                    }
-                }
-        }
-        val opponent = config.opponentDeck?.let { resolveDeck(it) }
-        return config.deckSpec
-            .split(",")
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .map { resolveDeck(it) }
-            .flatMap { deck ->
-                seeds.map { seed ->
-                    DeckSimClientRow(
-                        name = deck.name,
-                        deckList = deck.deckList,
-                        opponentName = opponent?.name,
-                        opponentDeckList = opponent?.deckList,
-                        useCardDb = deck.useCardDb || (opponent?.useCardDb ?: false),
-                        seed = seed,
-                    )
-                }
-            }
-    }
-
-    private fun includedInShard(row: SimClientRow): Boolean {
-        val shardCount = config.shardCount ?: return true
-        val shardIndex = config.shardIndex ?: return true
-        return row.identity.hashCode().absoluteValue % shardCount == shardIndex
-    }
-
-    private fun parseSeeds(spec: String): List<Long> {
-        if (spec.contains("..")) {
-            val (lo, hi) = spec.split("..").map { it.trim().toLong() }
-            return (lo..hi).toList()
-        }
-        return spec.split(",").map { it.trim().toLong() }
-    }
-
-    private fun resolveDeck(name: String): ResolvedDeck {
-        builtinDecks[name]?.let { return ResolvedDeck(name, it, useCardDb = false) }
-        return ResolvedDeck(
-            name.removeSuffix(".txt"),
-            readDeck(if (name.endsWith(".txt")) name else "$name.txt"),
-            useCardDb = true,
-        )
-    }
-
-    private data class ResolvedDeck(
-        val name: String,
-        val deckList: String,
-        val useCardDb: Boolean,
-    )
-
-    private fun readDeck(name: String): String {
-        val candidates =
-            listOf(
-                Paths.get("data/decks/$name"),
-                Paths.get("../data/decks/$name"),
-                Paths.get("../../data/decks/$name"),
-            )
-        val path = candidates.firstOrNull { Files.exists(it) } ?: error("deck not found: $name in any of $candidates")
-        return Files.readString(path)
-    }
-
-    private fun readPuzzle(name: String): String {
-        val candidates =
-            listOf(
-                Paths.get("src/test/resources/puzzles/$name"),
-                Paths.get("puzzles/$name"),
-                Paths.get("../puzzles/$name"),
-                Paths.get("../../puzzles/$name"),
-            )
-        val path = candidates.firstOrNull { Files.exists(it) } ?: error("puzzle not found: $name in any of $candidates")
-        return Files.readString(path)
     }
 
     private fun printRowSummary(

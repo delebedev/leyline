@@ -1,9 +1,9 @@
 package leyline.simclient
 
 import leyline.bridge.types.SeatId
-import leyline.simclient.tool.GameStats
-import leyline.simclient.tool.SimClientFinding
 import leyline.testkit.MatchFlowHarness
+import leyline.tooling.simclient.GameStats
+import leyline.tooling.simclient.SimClientFinding
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 

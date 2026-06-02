@@ -1,7 +1,7 @@
 package leyline.simclient
 
-import leyline.simclient.tool.PromptProgressSample
 import leyline.testkit.MatchFlowHarness
+import leyline.tooling.simclient.PromptProgressSample
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 internal class PromptProgressRecorder(

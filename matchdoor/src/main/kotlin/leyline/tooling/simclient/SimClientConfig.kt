@@ -1,4 +1,4 @@
-package leyline.simclient.tool
+package leyline.tooling.simclient
 
 import java.io.File
 
@@ -154,45 +154,3 @@ data class SimClientRowResult(
     val row: SimClientRow,
     val stats: GameStats,
 )
-
-sealed interface SimClientRow {
-    val name: String
-    val seed: Long
-    val runKind: String
-    val runLabel: String
-    val opponentRunLabel: String?
-    val useCardDb: Boolean
-
-    val tag: String
-        get() {
-            val base = opponentRunLabel?.let { "$runLabel-vs-$it" } ?: runLabel
-            return "${fileSafeName(base)}-s$seed"
-        }
-
-    val identity: String
-        get() = listOf(runKind, runLabel, opponentRunLabel.orEmpty(), seed.toString()).joinToString("|")
-}
-
-data class DeckSimClientRow(
-    override val name: String,
-    val deckList: String,
-    val opponentName: String?,
-    val opponentDeckList: String?,
-    override val useCardDb: Boolean,
-    override val seed: Long,
-) : SimClientRow {
-    override val runKind: String = "deck"
-    override val runLabel: String = name
-    override val opponentRunLabel: String? = opponentName
-}
-
-data class PuzzleSimClientRow(
-    override val name: String,
-    val puzzleText: String,
-    override val useCardDb: Boolean,
-    override val seed: Long,
-) : SimClientRow {
-    override val runKind: String = "puzzle"
-    override val runLabel: String = name
-    override val opponentRunLabel: String? = null
-}

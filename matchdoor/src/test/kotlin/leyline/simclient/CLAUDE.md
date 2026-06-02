@@ -81,9 +81,11 @@ Pick the most common prompt seam that is answerable by policy.
   via `writeSimClientSidecar`.
 - `SimClientE2ETest.kt` — two fast smoke tests (mono-Forest mirror, vanilla-
   creatures mirror). Verifies the pipeline.
-- `tool/SimClientTool.kt` / `tool/SimClientConfig.kt` / `tool/SimClientStatsJson.kt` — CLI,
-  matrix expansion, row watchdog, resume/shard, stats JSON, summary, and
-  optional scry ingest.
+- `tool/SimClientTool.kt` — test-scoped CLI runner over `MatchFlowHarness`:
+  row watchdog, summary, and optional scry ingest.
+- `src/main/kotlin/leyline/tooling/simclient/` — pure simclient tooling:
+  config parsing, matrix expansion, row/artifact naming, stats models, and
+  stats JSON.
 
 Slow E2E test files are tagged `leyline.SimClientTag` (see `Tags.kt`) so they
 stay out of `:testGate`. The broad matrix tool is not tag-driven.
@@ -337,7 +339,7 @@ reaching `ActionPerformer`.
 Adding a new failure mode: think about whether it should be a `GameStats`
 field. Anything you want attributable to `(deck × seed × policy)` belongs
 here. Anything you want to grep across many runs goes through the
-`.stats.json` sidecar (serialised by `statsToJson` in `tool/SimClientStatsJson`).
+`.stats.json` sidecar (serialised by `statsToJson` in `src/main/kotlin/leyline/tooling/simclient/SimClientStatsJson.kt`).
 
 `GameLogCapture` works because simclient is serial (`maxParallelForks = 1`).
 If parallel execution ever lands, this approach needs per-thread MDC keying.
@@ -384,7 +386,7 @@ in `PlayerLogWriter.translateToScryFormat`:
    `matchdoor/src/test/resources/test-cards/` — `TestCardRegistry.ensureDeckRegistered`
    will fail loudly if a card isn't there. For `:matchdoor:simclient` deck-file
    runs, SQLite-backed resolution handles arbitrary installed cards.
-2. Add an entry to `builtinDecks` in `tool/SimClientStatsJson.kt`:
+2. Add an entry to `builtinDecks` in `src/main/kotlin/leyline/tooling/simclient/SimClientRows.kt`:
    `"my-deck" to "20 Mountain\n4 Lightning Bolt\n..."`.
 3. Run `just simclient my-deck 1..5` to verify games complete with
    `gameOver=true` and reasonable iteration counts.

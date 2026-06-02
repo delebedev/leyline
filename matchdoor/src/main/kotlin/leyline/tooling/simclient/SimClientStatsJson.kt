@@ -1,25 +1,6 @@
-package leyline.simclient.tool
+package leyline.tooling.simclient
 
-internal val builtinDecks: Map<String, String> =
-    mapOf(
-        "forest-only" to "60 Forest",
-        "bears" to "24 Forest\n36 Grizzly Bears",
-        "mono-g-curve" to "24 Forest\n18 Grizzly Bears\n18 Centaur Courser",
-        "mono-r-burn" to
-            "20 Mountain\n4 Lightning Bolt\n4 Shock\n4 Burst Lightning\n" +
-            "4 Fiery Temper\n4 Lava Axe\n4 Raging Goblin\n4 Goblin Fireslinger\n" +
-            "4 Hurloon Minotaur\n4 Crackling Cyclops\n4 Monastery Swiftspear",
-        "etb-triggers" to
-            "24 Plains\n4 Reigning Victor\n4 Dalkovan Packbeasts\n" +
-            "4 Furious Forebear\n4 Stormchaser's Talent\n" +
-            "12 Savannah Lions\n4 Wall of Omens\n4 Soul Warden",
-        "kicker" to
-            "24 Forest\n4 Gnarlid Colony\n4 Territorial Allosaurus\n" +
-            "4 Cragplate Baloth\n4 Inscription of Abundance\n" +
-            "4 Llanowar Elves\n8 Grizzly Bears\n8 Centaur Courser",
-    )
-
-internal fun statsToJson(
+fun statsToJson(
     row: SimClientRow,
     stats: GameStats,
     policy: SimClientPolicyMode,
@@ -90,7 +71,7 @@ internal fun statsToJson(
     }
 }
 
-internal fun failureClass(stats: GameStats): String =
+fun failureClass(stats: GameStats): String =
     when {
         stats.completionReason == "exception" -> "exception"
         stats.completionReason == "wall-timeout" -> "wall-timeout"
@@ -104,9 +85,7 @@ internal fun failureClass(stats: GameStats): String =
 private val unresolvedCompletionReasons =
     setOf("turn-stall", "no-progress", "iter-cap", "max-turns", "cleanup")
 
-internal fun fileSafeName(value: String): String = value.replace(Regex("[^A-Za-z0-9._-]+"), "-").trim('-').ifBlank { "deck" }
-
-internal fun simJsonString(s: String): String =
+fun simJsonString(s: String): String =
     buildString {
         append('"')
         s.forEach { c ->
@@ -122,7 +101,7 @@ internal fun simJsonString(s: String): String =
         append('"')
     }
 
-internal fun mapToJson(m: Map<String, Int>): String =
+fun mapToJson(m: Map<String, Int>): String =
     m.entries.joinToString(",", "{", "}") { (k, v) ->
         "${simJsonString(k)}:$v"
     }
