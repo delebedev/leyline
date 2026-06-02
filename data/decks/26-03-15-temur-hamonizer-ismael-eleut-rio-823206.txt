@@ -1,0 +1,37 @@
+Deck
+2 Ba Sing Se (TLA) 266
+2 Steam Vents (GRN) 257
+2 Forest (ZNR) 384
+3 Island (ZNR) 381
+3 Mountain (ZNR) 383
+4 Fabled Passage (TLE) 57
+3 Starting Town (FIN) 289
+3 Escape Tunnel (TMT) 184
+2 Thornspire Verge (DSK) 270
+1 Willowrush Verge (DFT) 270
+1 Analyze the Pollen (MKM) 150
+2 Spell Snare (ECL) 71
+3 Burst Lightning (SOA) 41
+4 Full Bore (EOE) 135
+1 Thunder Magic (FIN) 165
+1 Wild Ride (TDM) 132
+4 Consult the Star Charts (EOE) 51
+2 Detect Intrusion (OM1) 28
+3 Sear (ECL) 154
+2 Earthbender Ascension (TLA) 175
+1 Mossborn Hydra (FDN) 107
+4 Stock Up (SOA) 24
+3 Icetill Explorer (EOE) 192
+4 Mightform Harmonizer (EOE) 200
+
+Sideboard
+1 Sear (ECL) 154
+2 Soul-Guide Lantern (WOE) 251
+2 Spell Pierce (XLN) 81
+1 Essence Scatter (SOS) 47
+2 Heritage Reclamation (TDM) 145
+3 Pyroclasm (DSK) 149
+1 Songcrafter Mage (TDM) 225
+1 Surrak, Elusive Hunter (TDM) 161
+1 The Scouring Stormsoul (OM1) 113
+1 Quantum Riddler (EOE) 72

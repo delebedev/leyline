@@ -1,0 +1,23 @@
+Deck
+4 Ancestral Anger (VOW) 142
+6 Mountain (ZNR) 383
+4 Emberheart Challenger (BLB) 133
+4 Callous Sell-Sword (WOE) 221
+2 Commercial District (MKM) 259
+4 Full Bore (EOE) 135
+4 Leyline of Resonance (DSK) 143
+4 Pawpatch Recruit (BLB) 187
+4 Slickshot Show-Off (OTJ) 146
+4 Stadium Headliner (TDM) 122
+4 Starting Town (FIN) 289
+4 Blossoming Defense (KLR) 155
+4 Thornspire Verge (DSK) 270
+4 Turn Inside Out (DSK) 160
+4 Stomping Ground (RNA) 259
+
+Sideboard
+4 Burst Lightning (SOA) 41
+4 Magebane Lizard (OTJ) 134
+3 Questing Druid (WOE) 234
+2 Soul-Guide Lantern (WOE) 251
+2 Bristlebane Battler (ECL) 168

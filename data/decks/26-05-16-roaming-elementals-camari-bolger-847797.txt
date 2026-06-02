@@ -1,0 +1,36 @@
+Deck
+4 Ashling, Rekindled (ECL) 124
+4 Flamebraider (ECL) 139
+4 Vibrance (ECL) 249
+4 Wistfulness (ECL) 252
+3 Deceit (ECL) 212
+3 Roaming Throne (LCI) 258
+2 Beza, the Bounding Spring (BLB) 2
+2 Sunderflock (ECL) 74
+3 Bounce Off (DFT) 39
+3 Burst Lightning (SOA) 41
+3 Winternight Stories (TDM) 67
+4 Cavern of Souls (LCI) 269
+4 Starting Town (FIN) 289
+4 Steam Vents (GRN) 257
+3 Spirebluff Canal (OTJ) 270
+2 Breeding Pool (RNA) 246
+2 Eclipsed Realms (ECL) 263
+2 Secluded Courtyard (SPG) 63
+1 Cori Mountain Monastery (TDM) 252
+1 Island (ZNR) 381
+1 Mountain (ZNR) 383
+1 Pit of Offerings (LCI) 278
+
+Sideboard
+1 Deceit (ECL) 212
+1 Sunderflock (ECL) 74
+1 Pit of Offerings (LCI) 278
+3 Ill-Timed Explosion (MKM) 207
+2 Broadside Barrage (DFT) 192
+2 Disdainful Stroke (WOE) 47
+1 Flashfreeze (FDN) 590
+1 Ghost Vacuum (DSK) 248
+1 Negate (ZNR) 71
+1 Petrified Hamlet (SOS) 259
+1 Ygra, Eater of All (BLB) 241

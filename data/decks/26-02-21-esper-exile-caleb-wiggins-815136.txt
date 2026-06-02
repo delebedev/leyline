@@ -1,0 +1,42 @@
+Deck
+3 Ketramose, the New Dawn (DFT) 209
+2 Raven Eagle (TLA) 116
+4 Quantum Riddler (EOE) 72
+2 Deceit (ECL) 212
+1 Soul-Guide Lantern (WOE) 251
+2 Requiting Hex (ECL) 116
+1 Spell Snare (ECL) 71
+1 Three Steps Ahead (OTJ) 75
+3 No More Lies (MKM) 221
+2 Personify (ECL) 28
+2 Shoot the Sheriff (OTJ) 106
+2 The End (WOE) 87
+2 Intimidation Tactics (DFT) 92
+2 Strategic Betrayal (TDM) 94
+3 Stock Up (SOA) 24
+3 Deadly Cover-Up (MKM) 83
+2 Bleachbone Verge (DFT) 250
+1 Demolition Field (FIC) 385
+2 Floodfarm Verge (DSK) 259
+1 Fountainport (BLB) 253
+4 Gloomlake Verge (DSK) 260
+2 Godless Shrine (RNA) 248
+1 Hallowed Fountain (RNA) 251
+1 Island (ZNR) 381
+1 Plains (ZNR) 380
+2 Restless Reef (LCI) 282
+2 Shadowy Backstreet (MKM) 268
+1 Swamp (ZNR) 382
+1 Undercity Sewers (PZA) 0
+4 Watery Grave (GRN) 259
+
+Sideboard
+1 Three Steps Ahead (OTJ) 75
+1 Annul (KHM) 42
+1 Authority of the Consuls (KLR) 9
+2 Duress (XLN) 105
+2 Bitter Triumph (SOA) 26
+2 Negate (ZNR) 71
+2 Malicious Eclipse (LCI) 111
+2 Tishana's Tidebinder (LCI) 81
+2 Cease // Desist (MKM) 246
