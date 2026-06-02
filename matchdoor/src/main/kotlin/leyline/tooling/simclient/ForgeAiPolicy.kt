@@ -1,4 +1,4 @@
-package leyline.simclient
+package leyline.tooling.simclient
 
 import forge.ai.PlayerControllerAi
 import forge.game.GameActionUtil

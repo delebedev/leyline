@@ -1,4 +1,4 @@
-package leyline.simclient
+package leyline.tooling.simclient
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec

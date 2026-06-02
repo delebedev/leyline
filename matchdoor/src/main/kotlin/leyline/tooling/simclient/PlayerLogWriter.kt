@@ -1,4 +1,4 @@
-package leyline.simclient
+package leyline.tooling.simclient
 
 import com.google.protobuf.util.JsonFormat
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType

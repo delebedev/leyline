@@ -1,4 +1,4 @@
-package leyline.simclient
+package leyline.tooling.simclient
 
 internal data class ActionAttemptStats(
     val submittedByType: Map<String, Int>,

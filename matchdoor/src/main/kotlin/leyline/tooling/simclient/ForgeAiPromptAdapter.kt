@@ -1,4 +1,4 @@
-package leyline.simclient
+package leyline.tooling.simclient
 
 import leyline.game.mapping.ZoneIds
 import leyline.tooling.headless.MatchFlowHarness

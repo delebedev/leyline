@@ -84,7 +84,7 @@ Pick the most common prompt seam that is answerable by policy.
 - `src/main/kotlin/leyline/tooling/simclient/` — standalone CLI, config
   parsing, matrix expansion, row/artifact naming, stats models, stats JSON,
   row watchdog, summary, and optional scry ingest.
-- `src/main/kotlin/leyline/simclient/` — headless gameplay driver, prompt
+- `src/main/kotlin/leyline/tooling/simclient/` — headless gameplay driver, prompt
   policies, ledgers, Player.log writer, and route/progress telemetry.
 - `src/main/kotlin/leyline/tooling/headless/MatchFlowHarness.kt` — main-source
   headless `MatchSession` harness shared by the tool and session tests.
@@ -171,7 +171,7 @@ properties (`SIMCLIENT_OPPONENT_DECK` ↔ `-Dsimclient.opponent.deck`):
 
 ```bash
 ./gradlew :matchdoor:simclientSmoke
-./gradlew :matchdoor:test --tests "leyline.simclient.SimClientE2ETest"
+./gradlew :matchdoor:test --tests "leyline.tooling.simclient.SimClientE2ETest"
 ```
 
 ## Output

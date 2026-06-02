@@ -1,4 +1,4 @@
-package leyline.simclient
+package leyline.tooling.simclient
 
 import leyline.tooling.headless.MatchFlowHarness
 import leyline.tooling.headless.performAction

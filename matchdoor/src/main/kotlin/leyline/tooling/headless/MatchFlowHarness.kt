@@ -1017,7 +1017,7 @@ class MatchFlowHarness(
      * need to drive a stale or pre-handshake submission deliberately).
      *
      * `internal` so cross-package drivers in the same module (notably
-     * [leyline.simclient.SimClientDriver]) can route their direct
+     * [leyline.tooling.simclient.SimClientDriver]) can route their direct
      * `session.on*` calls through it instead of bypassing reflection.
      */
     internal fun submitWithGsId(msg: ClientToGREMessage): ClientToGREMessage =

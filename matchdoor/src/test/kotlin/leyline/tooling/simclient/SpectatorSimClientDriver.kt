@@ -1,4 +1,4 @@
-package leyline.simclient
+package leyline.tooling.simclient
 
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
