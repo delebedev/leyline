@@ -51,16 +51,16 @@ testkit/
 ├── ActionMatchers.kt         kotest matchers for Action / ActionsAvailableReq (alt-cost offers, etc.)
 ├── TestExtensions.kt         non-matcher extensions: AnnotationInfo.detail*(), GSM.annotation(type), ActionsAvailableReq.ofType()
 ├── MessageWalk.kt            List<GREToClientMessage> walkers: allAnnotations(), firstGameObjectByIid(), etc.
-├── ProtoDsl.kt               builder DSL for client→GRE messages (performAction { ... })
+├── ProtoDsl.kt               builder DSL for client→GRE messages (main-source; performAction { ... })
 ├── BoardTestBase.kt          Board-tier setup (initCardDatabase, addCard, startWithBoard)
 ├── BoardTest.kt              base class — wires BoardTestBase
 ├── SessionTest.kt            base class — wires MatchFlowHarness, exposes selectTargets/passUntil/instanceIdOf, after { } slice builder, Player.{battlefield,hand,…}.iid(name) probe DSL
 ├── MessageSlice.kt           bounded slice of GREToClientMessage from after { } — typed expectOne*/expectNo* prompt assertions + block-form prompt-shape sub-DSL
 ├── PlayerZone.kt             (player, zone) probe handle for SessionTest's instance-probe DSL
-├── MatchFlowHarness.kt       Session-tier harness — owns the game thread, message stream, scripted AI
-├── ScriptedPlayerController.kt
-├── ClientAccumulator.kt      replays GSMs against a parallel game-state model — invariant checker
-└── ValidatingMessageSink.kt  per-message GSM/GRE validation — enable with validating=true
+├── MatchFlowHarness.kt       Session-tier harness (main-source) — owns the game thread, message stream, scripted AI
+├── ScriptedPlayerController.kt (main-source)
+├── ClientAccumulator.kt      main-source GSM accumulator — invariant checker
+└── ValidatingMessageSink.kt  main-source per-message GSM/GRE validation — enable with validating=true
 ```
 
 **Picking a layer when you reach for a helper:**

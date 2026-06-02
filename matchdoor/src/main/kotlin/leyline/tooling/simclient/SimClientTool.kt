@@ -1,4 +1,4 @@
-package leyline.simclient.tool
+package leyline.tooling.simclient
 
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
@@ -9,21 +9,6 @@ import leyline.simclient.SimClientDriver
 import leyline.simclient.isSimPrompt
 import leyline.simclient.writeSimClientSidecar
 import leyline.testkit.MatchFlowHarness
-import leyline.tooling.simclient.DeckSimClientRow
-import leyline.tooling.simclient.GameStats
-import leyline.tooling.simclient.PuzzleSimClientRow
-import leyline.tooling.simclient.STATS_SCHEMA_VERSION
-import leyline.tooling.simclient.SimClientConfig
-import leyline.tooling.simclient.SimClientPolicyMode
-import leyline.tooling.simclient.SimClientRow
-import leyline.tooling.simclient.SimClientRowResult
-import leyline.tooling.simclient.SimClientRunResult
-import leyline.tooling.simclient.expandSimClientRows
-import leyline.tooling.simclient.failureClass
-import leyline.tooling.simclient.isStrictFailure
-import leyline.tooling.simclient.mapToJson
-import leyline.tooling.simclient.simJsonString
-import leyline.tooling.simclient.statsToJson
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 import java.nio.file.Files

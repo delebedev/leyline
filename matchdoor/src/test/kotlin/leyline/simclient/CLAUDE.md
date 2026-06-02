@@ -81,11 +81,13 @@ Pick the most common prompt seam that is answerable by policy.
   via `writeSimClientSidecar`.
 - `SimClientE2ETest.kt` — two fast smoke tests (mono-Forest mirror, vanilla-
   creatures mirror). Verifies the pipeline.
-- `tool/SimClientTool.kt` — test-scoped CLI runner over `MatchFlowHarness`:
+- `src/main/kotlin/leyline/tooling/simclient/` — standalone CLI, config
+  parsing, matrix expansion, row/artifact naming, stats models, stats JSON,
   row watchdog, summary, and optional scry ingest.
-- `src/main/kotlin/leyline/tooling/simclient/` — pure simclient tooling:
-  config parsing, matrix expansion, row/artifact naming, stats models, and
-  stats JSON.
+- `src/main/kotlin/leyline/simclient/` — headless gameplay driver, prompt
+  policies, ledgers, Player.log writer, and route/progress telemetry.
+- `src/main/kotlin/leyline/testkit/MatchFlowHarness.kt` — main-source
+  headless `MatchSession` harness shared by the tool and session tests.
 
 Slow E2E test files are tagged `leyline.SimClientTag` (see `Tags.kt`) so they
 stay out of `:testGate`. The broad matrix tool is not tag-driven.

@@ -109,13 +109,20 @@ object TestCardFixtures {
     }
 
     private fun resolveResourceDir(): Path {
-        val url =
+        val classpathUrl =
             Thread
                 .currentThread()
                 .contextClassLoader
                 .getResource(DEFAULT_RESOURCE_DIR)
-                ?: error("Resource directory '$DEFAULT_RESOURCE_DIR' not on classpath")
-        return Paths.get(url.toURI())
+        if (classpathUrl != null) return Paths.get(classpathUrl.toURI())
+
+        val candidates =
+            listOf(
+                Paths.get("matchdoor/src/test/resources/$DEFAULT_RESOURCE_DIR"),
+                Paths.get("src/test/resources/$DEFAULT_RESOURCE_DIR"),
+            )
+        return candidates.firstOrNull { Files.isDirectory(it) }
+            ?: error("Resource directory '$DEFAULT_RESOURCE_DIR' not on classpath or in $candidates")
     }
 
     private fun parseFile(path: Path): Fixture =

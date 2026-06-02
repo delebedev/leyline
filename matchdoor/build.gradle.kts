@@ -38,6 +38,7 @@ dependencies {
     implementation(libs.netty.handler) // MatchHandler, NettyMessageSink
     implementation(libs.netty.codec) // ProtobufDecoder/Encoder
     implementation(libs.logback.classic)
+    implementation(libs.snakeyaml)
     api(libs.forge.core)
     api(libs.forge.game)
     api(libs.forge.ai)
@@ -47,7 +48,6 @@ dependencies {
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
     testImplementation(libs.kotest.datatest)
-    testImplementation(libs.snakeyaml)
 }
 
 // --- Proto sync + generation ---
@@ -164,9 +164,9 @@ testIntegrationStrict.configure { mustRunAfter(testGate) }
 val simclient by tasks.registering(JavaExec::class) {
     group = "simclient"
     description = "Run standalone simclient deck/puzzle matrices"
-    dependsOn(tasks.named("testClasses"))
-    classpath = sourceSets["test"].runtimeClasspath
-    mainClass.set("leyline.simclient.tool.SimClientToolKt")
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("leyline.tooling.simclient.SimClientToolKt")
     // Only pass through env vars that are actually set — pushing an empty
     // string clobbers the test's `?: default` fallbacks.
     val simclientKnobs =
@@ -197,9 +197,9 @@ val simclient by tasks.registering(JavaExec::class) {
 val simclientSmoke by tasks.registering(JavaExec::class) {
     group = "simclient"
     description = "Run a tiny standalone simclient wiring smoke"
-    dependsOn(tasks.named("testClasses"))
-    classpath = sourceSets["test"].runtimeClasspath
-    mainClass.set("leyline.simclient.tool.SimClientToolKt")
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("leyline.tooling.simclient.SimClientToolKt")
     args(
         "--decks",
         "forest-only",
