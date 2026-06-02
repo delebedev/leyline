@@ -58,6 +58,10 @@ Resume or shard a sweep without changing row identity:
 ./gradlew :matchdoor:simclient --args="--decks 'Deck A,Deck B' --seeds 1..200 --shard-index 0 --shard-count 4"
 ```
 
+Use an absolute `--out-dir` for ad hoc inspection from Gradle until relative
+path handling is tightened; the default `matchdoor/build/simclient/` path is
+safe through `just simclient`.
+
 Puzzle confirmation after the bug shape is known:
 
 ```bash
@@ -93,6 +97,10 @@ Start with these fields in `*.stats.json`:
 - `exceptionMessage`, `exceptionStackTop`: root cause when scout mode converted a crash into a stats row.
 
 Use logs only after stats tell you what to search for.
+
+Optional-cost coverage: set `SIMCLIENT_ACCEPT_OPTIONAL_COSTS=true` when a deck
+or puzzle needs greedy policy to accept optional costs instead of declining
+them.
 
 ## Failure Taxonomy
 

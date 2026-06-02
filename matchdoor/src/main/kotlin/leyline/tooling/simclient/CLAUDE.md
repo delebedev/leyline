@@ -152,7 +152,12 @@ Useful tool flags:
 ./gradlew :matchdoor:simclient --args="--decks mono-r-burn --seeds 1..20 --resume"
 ./gradlew :matchdoor:simclient --args="--decks mono-r-burn --seeds 1..100 --shard-index 0 --shard-count 4"
 ./gradlew :matchdoor:simclient --args="--puzzles bolt-face.pzl --seeds 42 --strict"
+./gradlew :matchdoor:simclient --args="--decks forest-only --seeds 1 --out-dir /absolute/path/to/simclient-demo"
 ```
+
+Prefer absolute `--out-dir` values for one-off Gradle invocations until relative
+path handling is tightened. The default output path used by `just simclient` is
+safe.
 
 Useful direct-gradle knobs, all accepted as env vars or lower-case system
 properties (`SIMCLIENT_OPPONENT_DECK` ↔ `-Dsimclient.opponent.deck`):
@@ -163,6 +168,7 @@ properties (`SIMCLIENT_OPPONENT_DECK` ↔ `-Dsimclient.opponent.deck`):
 | `SIMCLIENT_OPPONENT_DECK` | unset | Seat-2 fixed deck; unset means mirror |
 | `SIMCLIENT_SEEDS` | `7,13,42,99,314` | Comma list or inclusive range, e.g. `1..20` |
 | `SIMCLIENT_POLICY` | `greedy` | `greedy` or `forge-ai` |
+| `SIMCLIENT_ACCEPT_OPTIONAL_COSTS` | unset | When `true`, greedy policy accepts optional costs instead of declining them |
 | `SIMCLIENT_MAX_TURNS` | `25` | Unresolved-game cap before cleanup concede |
 | `SIMCLIENT_GAME_TIMEOUT_SECONDS` | `120` | Wall-clock watchdog per game |
 | `LEYLINE_CARD_DB` | required for deck files | Raw card DB path for non-fixture decks |

@@ -109,6 +109,8 @@ data class SimClientConfig(
                   --game-timeout-seconds <n>    Per-game wall-clock watchdog.
                   --out-dir <path>              Artifact directory.
                   --card-db <path>              Card database path.
+                  --continue-on-exception       Keep running and write exception rows.
+                  --fail-on-exception           Abort on exception rows.
                   --resume                      Skip rows with existing stats.
                   --shard-index <n>             Zero-based shard index.
                   --shard-count <n>             Number of shards.

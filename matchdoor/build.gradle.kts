@@ -176,6 +176,7 @@ val simclient by tasks.registering(JavaExec::class) {
             "SIMCLIENT_SEEDS",
             "SIMCLIENT_PUZZLE",
             "SIMCLIENT_POLICY",
+            "SIMCLIENT_ACCEPT_OPTIONAL_COSTS",
             "SIMCLIENT_MAX_TURNS",
             "SIMCLIENT_GAME_TIMEOUT_SECONDS",
             "LEYLINE_CARD_DB",
