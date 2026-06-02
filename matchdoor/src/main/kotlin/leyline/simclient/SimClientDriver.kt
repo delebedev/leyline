@@ -1,7 +1,7 @@
 package leyline.simclient
 
 import leyline.bridge.types.SeatId
-import leyline.testkit.MatchFlowHarness
+import leyline.tooling.headless.MatchFlowHarness
 import leyline.tooling.simclient.GameStats
 import leyline.tooling.simclient.SimClientFinding
 import org.slf4j.LoggerFactory

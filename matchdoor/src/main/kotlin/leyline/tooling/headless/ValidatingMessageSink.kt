@@ -1,4 +1,4 @@
-package leyline.testkit
+package leyline.tooling.headless
 
 import leyline.game.bundle.InvariantChecker
 import leyline.game.bundle.InvariantSelection

@@ -1,4 +1,4 @@
-package leyline.testkit
+package leyline.tooling.headless
 
 import forge.ai.PlayerControllerAi
 import forge.game.Game

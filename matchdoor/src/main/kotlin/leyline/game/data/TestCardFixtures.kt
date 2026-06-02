@@ -24,7 +24,7 @@ import kotlin.io.path.isRegularFile
  *
  * Closure invariant: every grpId referenced in `tokens` or `linkedFaces`
  * has its own YAML in the same directory. Closure walking lives in
- * [leyline.testkit.FixtureCardLoader], not here.
+ * [leyline.tooling.headless.FixtureCardLoader], not here.
  */
 object TestCardFixtures {
     private const val DEFAULT_RESOURCE_DIR = "test-cards"

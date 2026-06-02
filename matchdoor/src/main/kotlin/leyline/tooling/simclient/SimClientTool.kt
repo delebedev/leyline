@@ -8,7 +8,7 @@ import leyline.simclient.PlayerLogWriter
 import leyline.simclient.SimClientDriver
 import leyline.simclient.isSimPrompt
 import leyline.simclient.writeSimClientSidecar
-import leyline.testkit.MatchFlowHarness
+import leyline.tooling.headless.MatchFlowHarness
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 import java.nio.file.Files

@@ -1,7 +1,7 @@
 package leyline.simclient
 
-import leyline.testkit.MatchFlowHarness
-import leyline.testkit.performAction
+import leyline.tooling.headless.MatchFlowHarness
+import leyline.tooling.headless.performAction
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType

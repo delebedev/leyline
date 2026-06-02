@@ -86,7 +86,7 @@ Pick the most common prompt seam that is answerable by policy.
   row watchdog, summary, and optional scry ingest.
 - `src/main/kotlin/leyline/simclient/` — headless gameplay driver, prompt
   policies, ledgers, Player.log writer, and route/progress telemetry.
-- `src/main/kotlin/leyline/testkit/MatchFlowHarness.kt` — main-source
+- `src/main/kotlin/leyline/tooling/headless/MatchFlowHarness.kt` — main-source
   headless `MatchSession` harness shared by the tool and session tests.
 
 Slow E2E test files are tagged `leyline.SimClientTag` (see `Tags.kt`) so they

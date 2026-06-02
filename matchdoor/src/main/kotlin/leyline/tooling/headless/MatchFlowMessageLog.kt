@@ -1,4 +1,4 @@
-package leyline.testkit
+package leyline.tooling.headless
 
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType

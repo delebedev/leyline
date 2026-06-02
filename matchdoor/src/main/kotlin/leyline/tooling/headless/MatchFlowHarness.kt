@@ -1,4 +1,4 @@
-package leyline.testkit
+package leyline.tooling.headless
 
 import forge.game.Game
 import forge.game.card.Card
