@@ -2,6 +2,7 @@ package leyline.simclient
 
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
+import leyline.simclient.tool.PromptRouteFinding
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
 data class PromptRouteAudit(
@@ -13,18 +14,6 @@ data class PromptRouteAudit(
         val Empty = PromptRouteAudit(emptyMap(), emptyMap(), emptyList())
     }
 }
-
-data class PromptRouteFinding(
-    val bucket: String,
-    val routeKey: String,
-    val enginePromptType: String,
-    val semantic: String,
-    val expectedGreType: String,
-    val expectedCount: Int,
-    val emittedCount: Int,
-    val outcomeCounts: Map<String, Int>,
-    val sampleMessage: String,
-)
 
 object PromptRouteAuditor {
     fun audit(

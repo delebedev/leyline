@@ -1,10 +1,5 @@
 package leyline.simclient.tool
 
-import leyline.simclient.GameStats
-import leyline.simclient.PromptProgressSample
-import leyline.simclient.PromptRouteFinding
-import leyline.simclient.SimClientFinding
-
 internal val builtinDecks: Map<String, String> =
     mapOf(
         "forest-only" to "60 Forest",

@@ -1,27 +1,8 @@
 package leyline.simclient
 
+import leyline.simclient.tool.PromptProgressSample
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-
-data class PromptProgressSample(
-    val promptType: String,
-    val decisionKind: String,
-    val submitResult: String,
-    val promptMsgId: Int,
-    val promptGameStateId: Int,
-    val beforeMsgId: Int,
-    val beforeGameStateId: Int,
-    val afterMsgId: Int,
-    val afterGameStateId: Int,
-    val beforeMessages: Int,
-    val afterMessages: Int,
-    val sourceInstanceId: Int = 0,
-    val sourceGrpId: Int = 0,
-    val abilityGrpId: Int = 0,
-    val targetIds: List<Int> = emptyList(),
-    val sourceBefore: String = "",
-    val sourceAfter: String = "",
-)
 
 internal class PromptProgressRecorder(
     private val harness: MatchFlowHarness,

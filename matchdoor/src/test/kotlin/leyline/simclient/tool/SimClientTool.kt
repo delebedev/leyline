@@ -4,7 +4,6 @@ import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
 import leyline.game.data.ExposedCardRepository
 import leyline.simclient.ForgeAiPolicy
-import leyline.simclient.GameStats
 import leyline.simclient.PlayerLogWriter
 import leyline.simclient.SimClientDriver
 import leyline.simclient.isSimPrompt
