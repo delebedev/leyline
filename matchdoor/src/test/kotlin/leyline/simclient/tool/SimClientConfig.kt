@@ -1,5 +1,6 @@
-package leyline.simclient
+package leyline.simclient.tool
 
+import leyline.simclient.GameStats
 import java.io.File
 
 private const val DEFAULT_DECKS = "forest-only,bears,mono-g-curve,mono-r-burn"

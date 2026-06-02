@@ -1,8 +1,14 @@
-package leyline.simclient
+package leyline.simclient.tool
 
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
 import leyline.game.data.ExposedCardRepository
+import leyline.simclient.ForgeAiPolicy
+import leyline.simclient.GameStats
+import leyline.simclient.PlayerLogWriter
+import leyline.simclient.SimClientDriver
+import leyline.simclient.isSimPrompt
+import leyline.simclient.writeSimClientSidecar
 import leyline.testkit.MatchFlowHarness
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File

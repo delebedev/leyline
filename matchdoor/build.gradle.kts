@@ -166,7 +166,7 @@ val simclient by tasks.registering(JavaExec::class) {
     description = "Run standalone simclient deck/puzzle matrices"
     dependsOn(tasks.named("testClasses"))
     classpath = sourceSets["test"].runtimeClasspath
-    mainClass.set("leyline.simclient.SimClientToolKt")
+    mainClass.set("leyline.simclient.tool.SimClientToolKt")
     // Only pass through env vars that are actually set — pushing an empty
     // string clobbers the test's `?: default` fallbacks.
     val simclientKnobs =
@@ -199,7 +199,7 @@ val simclientSmoke by tasks.registering(JavaExec::class) {
     description = "Run a tiny standalone simclient wiring smoke"
     dependsOn(tasks.named("testClasses"))
     classpath = sourceSets["test"].runtimeClasspath
-    mainClass.set("leyline.simclient.SimClientToolKt")
+    mainClass.set("leyline.simclient.tool.SimClientToolKt")
     args(
         "--decks",
         "forest-only",

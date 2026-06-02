@@ -1,4 +1,9 @@
-package leyline.simclient
+package leyline.simclient.tool
+
+import leyline.simclient.GameStats
+import leyline.simclient.PromptProgressSample
+import leyline.simclient.PromptRouteFinding
+import leyline.simclient.SimClientFinding
 
 internal val builtinDecks: Map<String, String> =
     mapOf(

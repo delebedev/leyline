@@ -1,4 +1,4 @@
-package leyline.simclient
+package leyline.simclient.tool
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
