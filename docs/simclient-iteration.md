@@ -26,7 +26,6 @@ SIMCLIENT_POLICY=forge-ai \
 SIMCLIENT_OPPONENT_DECK="Aggro Sample" \
 SIMCLIENT_MAX_TURNS=200 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=900 \
-SIMCLIENT_TEST_TIMEOUT_MINUTES=120 \
 just simclient "Control Sample" 3
 ```
 
@@ -37,7 +36,6 @@ SIMCLIENT_POLICY=forge-ai \
 SIMCLIENT_OPPONENT_DECK="Aggro Sample" \
 SIMCLIENT_MAX_TURNS=200 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=900 \
-SIMCLIENT_TEST_TIMEOUT_MINUTES=180 \
 just simclient "Control Sample" 1..5
 ```
 
@@ -45,6 +43,12 @@ Scout mode for broad deck sweeps keeps going after per-game exceptions and write
 
 ```bash
 SIMCLIENT_CONTINUE_ON_EXCEPTION=true just simclient "Deck A,Deck B,Deck C" 1..20
+```
+
+Fast tool wiring smoke:
+
+```bash
+./gradlew :matchdoor:simclientSmoke
 ```
 
 Resume or shard a sweep without changing row identity:
@@ -60,7 +64,6 @@ Puzzle confirmation after the bug shape is known:
 SIMCLIENT_POLICY=forge-ai \
 SIMCLIENT_MAX_TURNS=3 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=120 \
-SIMCLIENT_TEST_TIMEOUT_MINUTES=10 \
 just simclient-puzzle extinction-event-choice.pzl 1
 ```
 

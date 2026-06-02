@@ -142,11 +142,13 @@ data class SimClientRunResult(
 ) {
     val hasStrictFailures: Boolean =
         rows.any { row ->
-            row.stats.completionReason != "natural" &&
-                row.stats.completionReason != "terminal-intermission" ||
-                row.stats.validationViolationsByCheck.isNotEmpty()
+            isStrictFailure(row.stats)
         }
 }
+
+fun isStrictFailure(stats: GameStats): Boolean = failureClass(stats) in strictFailureClasses
+
+private val strictFailureClasses = setOf("exception", "wall-timeout", "validation", "log-error")
 
 data class SimClientRowResult(
     val row: SimClientRow,
@@ -159,6 +161,7 @@ sealed interface SimClientRow {
     val runKind: String
     val runLabel: String
     val opponentRunLabel: String?
+    val useCardDb: Boolean
 
     val tag: String
         get() {
@@ -175,6 +178,7 @@ data class DeckSimClientRow(
     val deckList: String,
     val opponentName: String?,
     val opponentDeckList: String?,
+    override val useCardDb: Boolean,
     override val seed: Long,
 ) : SimClientRow {
     override val runKind: String = "deck"
@@ -185,6 +189,7 @@ data class DeckSimClientRow(
 data class PuzzleSimClientRow(
     override val name: String,
     val puzzleText: String,
+    override val useCardDb: Boolean,
     override val seed: Long,
 ) : SimClientRow {
     override val runKind: String = "puzzle"

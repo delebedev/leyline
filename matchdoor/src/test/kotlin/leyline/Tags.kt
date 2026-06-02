@@ -13,7 +13,8 @@ object AcceptanceTag : Tag()
 
 /**
  * Sim-client E2E tests — synthetic GRE log generation. Slow (drives full
- * games), tagged out of the regular gate. The broad deck/puzzle matrix runs
- * through the standalone `:matchdoor:simclient` tool instead of this tag.
+ * games), tagged out of the regular gate. Tool wiring is covered by
+ * `:matchdoor:simclientSmoke`; broad deck/puzzle matrices run through the
+ * standalone `:matchdoor:simclient` tool instead of this tag.
  */
 object SimClientTag : Tag()

@@ -178,7 +178,6 @@ val simclient by tasks.registering(JavaExec::class) {
             "SIMCLIENT_POLICY",
             "SIMCLIENT_MAX_TURNS",
             "SIMCLIENT_GAME_TIMEOUT_SECONDS",
-            "SIMCLIENT_TEST_TIMEOUT_MINUTES",
             "LEYLINE_CARD_DB",
         )
     simclientKnobs.forEach { name ->
@@ -191,6 +190,29 @@ val simclient by tasks.registering(JavaExec::class) {
     args((project.findProperty("simclientArgs") as String?)?.split(" ")?.filter { it.isNotBlank() }.orEmpty())
     // Always re-execute — the matrix is env-driven, not source-driven, so
     // gradle's input fingerprint can't tell when we want a different run.
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+}
+
+val simclientSmoke by tasks.registering(JavaExec::class) {
+    group = "simclient"
+    description = "Run a tiny standalone simclient wiring smoke"
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("leyline.simclient.SimClientToolKt")
+    args(
+        "--decks",
+        "forest-only",
+        "--seeds",
+        "1",
+        "--max-turns",
+        "2",
+        "--game-timeout-seconds",
+        "30",
+        "--strict",
+        "--out-dir",
+        "${layout.buildDirectory.get().asFile}/simclient-smoke",
+    )
     outputs.upToDateWhen { false }
     outputs.cacheIf { false }
 }

@@ -44,9 +44,11 @@ class SimClientRunner(
     }
 
     fun run(): SimClientRunResult {
-        require(config.cardDbPath != null) { "LEYLINE_CARD_DB or --card-db is required" }
         config.outDir.mkdirs()
         val rows = expandRows().filter(::includedInShard)
+        if (rows.any { it.useCardDb }) {
+            require(config.cardDbPath != null) { "LEYLINE_CARD_DB or --card-db is required for deck-file or card-db-backed puzzle rows" }
+        }
         val runLine =
             "=== simclient: ${rows.size} row(s) policy=${config.policy.name} " +
                 "out=${config.outDir} strict=${config.strict} resume=${config.resume} ==="
@@ -100,7 +102,7 @@ class SimClientRunner(
                     opponentDeckList = row.opponentDeckList,
                     validation = InvariantSelection.protocolFacts(),
                     validationStrict = false,
-                    cardRepositoryOverride = cardRepo,
+                    cardRepositoryOverride = if (row.useCardDb) cardRepo else null,
                 )
             is PuzzleSimClientRow ->
                 MatchFlowHarness(
@@ -108,7 +110,7 @@ class SimClientRunner(
                     deckList = null,
                     validation = InvariantSelection.protocolFacts(),
                     validationStrict = false,
-                    cardRepositoryOverride = cardRepo,
+                    cardRepositoryOverride = if (row.useCardDb) cardRepo else null,
                 )
         }
 
@@ -250,7 +252,7 @@ class SimClientRunner(
                     val puzzleText = readPuzzle(puzzleName)
                     val basename = puzzleName.removeSuffix(".pzl").substringAfterLast('/')
                     seeds.map { seed ->
-                        PuzzleSimClientRow(basename, puzzleText, seed)
+                        PuzzleSimClientRow(basename, puzzleText, useCardDb = config.cardDbPath != null, seed)
                     }
                 }
         }
@@ -260,9 +262,16 @@ class SimClientRunner(
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .map { resolveDeck(it) }
-            .flatMap { (deckName, deckList) ->
+            .flatMap { deck ->
                 seeds.map { seed ->
-                    DeckSimClientRow(deckName, deckList, opponent?.first, opponent?.second, seed)
+                    DeckSimClientRow(
+                        name = deck.name,
+                        deckList = deck.deckList,
+                        opponentName = opponent?.name,
+                        opponentDeckList = opponent?.deckList,
+                        useCardDb = deck.useCardDb || (opponent?.useCardDb ?: false),
+                        seed = seed,
+                    )
                 }
             }
     }
@@ -281,10 +290,20 @@ class SimClientRunner(
         return spec.split(",").map { it.trim().toLong() }
     }
 
-    private fun resolveDeck(name: String): Pair<String, String> {
-        builtinDecks[name]?.let { return name to it }
-        return name.removeSuffix(".txt") to readDeck(if (name.endsWith(".txt")) name else "$name.txt")
+    private fun resolveDeck(name: String): ResolvedDeck {
+        builtinDecks[name]?.let { return ResolvedDeck(name, it, useCardDb = false) }
+        return ResolvedDeck(
+            name.removeSuffix(".txt"),
+            readDeck(if (name.endsWith(".txt")) name else "$name.txt"),
+            useCardDb = true,
+        )
     }
+
+    private data class ResolvedDeck(
+        val name: String,
+        val deckList: String,
+        val useCardDb: Boolean,
+    )
 
     private fun readDeck(name: String): String {
         val candidates =
@@ -331,7 +350,7 @@ class SimClientRunner(
         println("rows run: ${rows.size}")
         println("rows skipped: ${result.skipped}")
         println("gameOver: ${rows.count { it.stats.gameOver }}")
-        println("strictFailures: ${rows.count { failureClass(it.stats) != "natural" }}")
+        println("strictFailures: ${rows.count { isStrictFailure(it.stats) }}")
         rows
             .groupingBy { failureClass(it.stats) }
             .eachCount()
@@ -352,7 +371,7 @@ class SimClientRunner(
                 append("\"schemaVersion\":$STATS_SCHEMA_VERSION,")
                 append("\"rowsRun\":${result.rows.size},")
                 append("\"rowsSkipped\":${result.skipped},")
-                append("\"strictFailures\":${result.rows.count { failureClass(it.stats) != "natural" }},")
+                append("\"strictFailures\":${result.rows.count { isStrictFailure(it.stats) }},")
                 append("\"failureClasses\":${mapToJson(failures)},")
                 append("\"outDir\":${simJsonString(config.outDir.path)}")
                 append('}')

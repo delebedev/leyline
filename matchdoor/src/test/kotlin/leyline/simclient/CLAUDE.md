@@ -81,10 +81,9 @@ Pick the most common prompt seam that is answerable by policy.
   via `writeSimClientSidecar`.
 - `SimClientE2ETest.kt` — two fast smoke tests (mono-Forest mirror, vanilla-
   creatures mirror). Verifies the pipeline.
-- `SimClientTool.kt` — CLI, matrix expansion, row watchdog, resume/shard,
-  stats JSON, summary, and optional scry ingest.
-- `SimClientBatchTest.kt` — legacy Kotest batch wrapper kept for compatibility
-  during the tool split. Prefer the standalone tool for deck/puzzle matrices.
+- `SimClientTool.kt` / `SimClientConfig.kt` / `SimClientStatsJson.kt` — CLI,
+  matrix expansion, row watchdog, resume/shard, stats JSON, summary, and
+  optional scry ingest.
 
 Slow E2E test files are tagged `leyline.SimClientTag` (see `Tags.kt`) so they
 stay out of `:testGate`. The broad matrix tool is not tag-driven.
@@ -95,7 +94,8 @@ stay out of `:testGate`. The broad matrix tool is not tag-driven.
 logs into `~/.scry/games/`:
 
 ```bash
-# Required for arbitrary decks: point at the local Arena card DB.
+# Required for deck files / arbitrary decks: point at the local card DB.
+# Built-in fixture decks such as forest-only and bears do not need this.
 export LEYLINE_CARD_DB="$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_<hash>.mtga"
 
 # Defaults: 4 decks × 5 seeds, maxTurns=25, 120s per-game watchdog
@@ -130,9 +130,9 @@ just simclient "My deck" 1..5
 `deck get` also accepts the `d=` id from a MTGTop8 URL, but prefer pasting the
 full URL unless the id is already in hand.
 
-If `LEYLINE_CARD_DB` is missing, the batch fails before running. Use the same
-Raw card database path the server uses; built-in fixture-only smoke tests do
-not need it, but deck-file runs do.
+If `LEYLINE_CARD_DB` is missing, deck-file rows fail before running. Use the
+same Raw card database path the server uses; built-in fixture-only smoke tests
+do not need it.
 
 **Direct gradle** (no ingest unless `--ingest-scry` is passed):
 
@@ -166,6 +166,7 @@ properties (`SIMCLIENT_OPPONENT_DECK` ↔ `-Dsimclient.opponent.deck`):
 **Single E2E smoke** (fastest, ~10s, no env):
 
 ```bash
+./gradlew :matchdoor:simclientSmoke
 ./gradlew :matchdoor:test --tests "leyline.simclient.SimClientE2ETest"
 ```
 
@@ -336,7 +337,7 @@ reaching `ActionPerformer`.
 Adding a new failure mode: think about whether it should be a `GameStats`
 field. Anything you want attributable to `(deck × seed × policy)` belongs
 here. Anything you want to grep across many runs goes through the
-`.stats.json` sidecar (serialised by `statsToJson` in `SimClientBatchTest`).
+`.stats.json` sidecar (serialised by `statsToJson` in `SimClientStatsJson`).
 
 `GameLogCapture` works because simclient is serial (`maxParallelForks = 1`).
 If parallel execution ever lands, this approach needs per-thread MDC keying.
@@ -383,7 +384,7 @@ in `PlayerLogWriter.translateToScryFormat`:
    `matchdoor/src/test/resources/test-cards/` — `TestCardRegistry.ensureDeckRegistered`
    will fail loudly if a card isn't there. For `:matchdoor:simclient` deck-file
    runs, SQLite-backed resolution handles arbitrary installed cards.
-2. Add an entry to `builtinDecks` in `SimClientBatchTest.kt`:
+2. Add an entry to `builtinDecks` in `SimClientStatsJson.kt`:
    `"my-deck" to "20 Mountain\n4 Lightning Bolt\n..."`.
 3. Run `just simclient my-deck 1..5` to verify games complete with
    `gameOver=true` and reasonable iteration counts.
