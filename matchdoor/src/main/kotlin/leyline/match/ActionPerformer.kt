@@ -182,6 +182,17 @@ class ActionPerformer(
                 val abilityIndex = resolveAbilityIndex(action, bridge)
                 val submitted =
                     if (cardId != null) {
+                        if (action.abilityGrpId != 0) {
+                            val player = bridge.getPlayer(counters.seatId)
+                            val card = findCard(game, cardId)
+                            val abilityId =
+                                if (player != null && card != null) {
+                                    getNonManaActivatedAbilities(card, player).getOrNull(abilityIndex)?.id ?: 0
+                                } else {
+                                    0
+                                }
+                            bridge.recordStackAbilityGrpId(abilityId, action.abilityGrpId)
+                        }
                         seatBridge.action.submitAction(
                             pending.actionId,
                             PlayerAction.ActivateAbility(cardId, abilityIndex),

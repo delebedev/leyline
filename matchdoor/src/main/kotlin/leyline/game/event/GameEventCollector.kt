@@ -14,10 +14,13 @@ import forge.game.player.PlayerView
 import forge.game.spellability.AlternativeCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
+import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.codes.ManaColorMapping
+import leyline.game.codes.SlotKind
+import leyline.game.data.CardData
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.ZoneIds
@@ -282,6 +285,7 @@ class GameEventCollector(
             pendingActivations[abilityForgeId] = ForgeCardId(card.id)
             if (abilityGrpId != 0) pendingAbilityGrpIds[abilityForgeId] = abilityGrpId
         }
+        bridge.recordStackAbilityGrpId(abilityForgeId, abilityGrpId)
         // Activation zone: only meaningful for activated abilities (cycling →
         // Hand=31; unearth → Graveyard=33; …). Triggered abilities' "source
         // zone" is wherever the source card lives, computed elsewhere.
@@ -371,8 +375,47 @@ class GameEventCollector(
         sa.trigger?.id?.let { triggerId ->
             registry?.forTrigger(triggerId)?.takeIf { it != 0 }?.let { return it }
         }
-        return registry?.forSpellAbility(sa.id) ?: 0
+        registry?.forSpellAbility(sa.id)?.takeIf { it != 0 }?.let { return it }
+        return activatedGrpIdByShape(card, sa, cardData)
     }
+
+    private fun activatedGrpIdByShape(
+        card: Card,
+        sa: SpellAbility,
+        cardData: CardData,
+    ): Int {
+        val player = card.controller ?: return 0
+        val activated = getNonManaActivatedAbilities(card, player)
+        val activatedSlotGrpIds = activatedSlotGrpIds(cardData)
+        if (activated.isEmpty() || activated.size != activatedSlotGrpIds.size) return 0
+        val matches =
+            activated.mapIndexedNotNull { index, ability ->
+                val sameShape =
+                    ability.api == sa.api &&
+                        ability.payCosts?.toSimpleString() == sa.payCosts?.toSimpleString()
+                if (sameShape) index else null
+            }
+        val index =
+            matches.singleOrNull() ?: run {
+                log.debug(
+                    "activated event ability grpId unresolved by shape card={} saId={} api={} cost={} matches={} activatedSlots={}",
+                    card.name,
+                    sa.id,
+                    sa.api,
+                    sa.payCosts?.toSimpleString(),
+                    matches,
+                    activatedSlotGrpIds,
+                )
+                return 0
+            }
+        return activatedSlotGrpIds.getOrNull(index) ?: 0
+    }
+
+    private fun activatedSlotGrpIds(cardData: CardData): List<Int> =
+        cardData.abilityIds.mapIndexedNotNull { index, (grpId, _) ->
+            val kind = cardData.abilityKinds.getOrNull(index)
+            if (kind == SlotKind.Activated || (cardData.abilityKinds.isEmpty() && index >= 0)) grpId else null
+        }
 
     private fun isBackupTrigger(sa: SpellAbility): Boolean =
         sa.isBackup || sa.trigger?.getParam("TriggerDescription")?.startsWith("Backup ") == true

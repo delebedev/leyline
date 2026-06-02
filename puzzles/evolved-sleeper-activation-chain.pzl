@@ -1,0 +1,16 @@
+[metadata]
+Name:Evolved Sleeper Activation Chain
+Goal:None
+Turns:5
+Difficulty:Easy
+Description:Activate Evolved Sleeper through its Cleric, Phyrexian, and counter draw steps.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Evolved Sleeper;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp
+ailibrary=Mountain;Mountain;Mountain

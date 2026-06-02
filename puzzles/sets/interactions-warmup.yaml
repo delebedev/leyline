@@ -41,6 +41,29 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Revealing Eye }
             - zone_not_contains: { side: ours, zone: battlefield, card: Concealing Curtains }
             - stack_empty: true
+  - id: evolved-sleeper-activation-chain
+    puzzle: evolved-sleeper-activation-chain
+    run: activate Evolved Sleeper through all three ability choices
+    expect: Evolved Sleeper becomes 4/4, draws a card, and costs one life
+    steps:
+      - expect:
+          action: { type: activate, card: Evolved Sleeper }
+      - activate: { card: Evolved Sleeper, ability_index: 0 }
+      - resolve_stack: {}
+      - expect:
+          battlefield_stats_at_least: { side: ours, card: Evolved Sleeper, power: 2, toughness: 2 }
+      - activate: { card: Evolved Sleeper, ability_index: 1 }
+      - resolve_stack: {}
+      - expect:
+          battlefield_stats_at_least: { side: ours, card: Evolved Sleeper, power: 3, toughness: 3 }
+      - activate: { card: Evolved Sleeper, ability_index: 2 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats_at_least: { side: ours, card: Evolved Sleeper, power: 4, toughness: 4 }
+            - zone_count_at_least: { side: ours, zone: hand, count: 1 }
+            - our_life: 19
+            - stack_empty: true
   - id: electroduplicate-copy-token
     puzzle: electroduplicate-copy
     run: copy Grizzly Bears with Electroduplicate
