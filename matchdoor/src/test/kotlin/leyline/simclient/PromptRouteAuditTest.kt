@@ -9,6 +9,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
+@Suppress("MissingAssertSoftly")
 class PromptRouteAuditTest :
     FunSpec({
         tags(UnitTag)

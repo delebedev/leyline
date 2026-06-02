@@ -442,7 +442,8 @@ class TargetingHandler(
                     // path visible so simclient runs do not silently swallow decisions.
                     if (req.semantic == PromptSemantic.Generic && req.options.size > 1) {
                         log.warn(
-                            "TargetingHandler: auto-resolving ambiguous non-targeting prompt [{}] semantic={} message=\"{}\" opts={} labels={} default={} sourceEntityId={} modalSource={}",
+                            "TargetingHandler: auto-resolving ambiguous non-targeting prompt [{}] " +
+                                "semantic={} message=\"{}\" opts={} labels={} default={} sourceEntityId={} modalSource={}",
                             req.promptType,
                             req.semantic,
                             req.message,

@@ -4,7 +4,6 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
@@ -97,6 +96,6 @@ class AdventureCastActionTest :
 
             actions.inactiveActionsList
                 .filter { it.actionType == ActionType.CastAdventure }
-                .shouldNotBeEmpty()
+                .shouldHaveSize(1)
         }
     })

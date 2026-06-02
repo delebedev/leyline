@@ -99,6 +99,7 @@ internal class PromptProgressRecorder(
         }
 }
 
+@Suppress("ElseCaseInsteadOfExhaustiveWhen")
 private fun ActivePrompt.sourceFields(): Triple<Int, Int, Int> =
     when (type) {
         wotc.mtgo.gre.external.messaging.Messages.GREMessageType.SelectTargetsReq_695e -> {
@@ -108,6 +109,7 @@ private fun ActivePrompt.sourceFields(): Triple<Int, Int, Int> =
         else -> Triple(0, 0, 0)
     }
 
+@Suppress("ElseCaseInsteadOfExhaustiveWhen")
 private fun SimDecision.targetIds(): List<Int> =
     when (this) {
         is SimDecision.SelectTargets -> targetInstanceIds

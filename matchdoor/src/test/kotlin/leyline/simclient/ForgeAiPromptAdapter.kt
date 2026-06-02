@@ -151,7 +151,9 @@ internal object ForgeAiGroupAdapter : ForgeAiPromptAdapter {
         return SimPromptResponse(
             SimDecision.GroupAway(
                 awayInstanceIds = awayIds,
-                allInstanceIds = prompt.msg.groupReq.instanceIdsList.toList(),
+                allInstanceIds =
+                    prompt.msg.groupReq.instanceIdsList
+                        .toList(),
                 context = prompt.msg.groupReq.context,
             ),
         )
@@ -192,7 +194,10 @@ internal fun chooseBoardAwareSearchIds(
         }
     if (candidates.size != soughtIds.size) return null
 
-    val chooserSeat = harness.accumulator.objects[req.sourceId]?.controllerSeatId.takeIf { it != 0 } ?: 1
+    val chooserSeat =
+        harness.accumulator.objects[req.sourceId]
+            ?.controllerSeatId
+            .takeIf { it != 0 } ?: 1
     val battlefieldLands =
         harness.accumulator.objects.values.count {
             it.zoneId == ZoneIds.BATTLEFIELD &&
@@ -240,7 +245,10 @@ internal fun chooseBoardAwareGroupAwayIds(
         ids.map { id ->
             GroupCandidate(id, harness.accumulator.objects[id])
         }
-    val chooserSeat = harness.accumulator.objects[req.sourceId]?.controllerSeatId.takeIf { it != 0 } ?: 1
+    val chooserSeat =
+        harness.accumulator.objects[req.sourceId]
+            ?.controllerSeatId
+            .takeIf { it != 0 } ?: 1
     val battlefieldLands =
         harness.accumulator.objects.values.count {
             it.zoneId == ZoneIds.BATTLEFIELD &&

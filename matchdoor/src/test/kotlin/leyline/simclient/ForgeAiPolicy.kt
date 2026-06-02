@@ -1,8 +1,8 @@
 package leyline.simclient
 
 import forge.ai.PlayerControllerAi
-import forge.game.GameObject
 import forge.game.GameActionUtil
+import forge.game.GameObject
 import forge.game.IEntityMap
 import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
@@ -252,7 +252,11 @@ class ForgeAiPolicy(
                 .filter { it.legalAction == SelectAction.Select_a1ad }
                 .map { it.targetInstanceId }
                 .toSet()
-        val sa = harness.bridge.promptBridge(seatId).getPendingPrompt()?.targetingSa ?: return null
+        val sa =
+            harness.bridge
+                .promptBridge(seatId)
+                .getPendingPrompt()
+                ?.targetingSa ?: return null
         val previousTargets = sa.targets.clone()
         val chosenTargets =
             try {
@@ -283,7 +287,10 @@ class ForgeAiPolicy(
 
     private fun chooseModalCastingTimeOptions(msg: GREToClientMessage): List<Int>? {
         if (!isSimpleModalCto(msg.castingTimeOptionsReq.castingTimeOptionReqList)) return null
-        val modal = msg.castingTimeOptionsReq.castingTimeOptionReqList.single().modalReq
+        val modal =
+            msg.castingTimeOptionsReq.castingTimeOptionReqList
+                .single()
+                .modalReq
         val modalGrpIds = modal.modalOptionsList.map { it.grpId }
         val pending = harness.bridge.promptBridge(seatId).getPendingPrompt() ?: return null
         val sa = pending.targetingSa ?: return null

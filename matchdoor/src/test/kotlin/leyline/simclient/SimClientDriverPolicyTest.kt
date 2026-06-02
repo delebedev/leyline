@@ -27,9 +27,10 @@ import wotc.mtgo.gre.external.messaging.Messages.SearchReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsReq
-import wotc.mtgo.gre.external.messaging.Messages.Target as ProtoTarget
 import wotc.mtgo.gre.external.messaging.Messages.TargetSelection
+import wotc.mtgo.gre.external.messaging.Messages.Target as ProtoTarget
 
+@Suppress("MissingAssertSoftly")
 class SimClientDriverPolicyTest :
     FunSpec({
         tags(UnitTag)

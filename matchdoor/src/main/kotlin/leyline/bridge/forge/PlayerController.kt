@@ -669,8 +669,7 @@ class PlayerController(
         return result.firstOrNull() == 0
     }
 
-    private fun isEnterAsCopyReplacement(message: String): Boolean =
-        message.contains("enter as a copy", ignoreCase = true)
+    private fun isEnterAsCopyReplacement(message: String): Boolean = message.contains("enter as a copy", ignoreCase = true)
 
     @Suppress("UNCHECKED_CAST")
     private fun commanderReturnContext(

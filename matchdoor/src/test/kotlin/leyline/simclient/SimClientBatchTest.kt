@@ -29,6 +29,7 @@ import kotlin.time.Duration.Companion.minutes
  * histograms across all games. Player.log files land under build/simclient/
  * (re-runnable; cleared per batch).
  */
+@Suppress("LargeClass")
 class SimClientBatchTest :
     FunSpec({
         tags(SimClientTag)

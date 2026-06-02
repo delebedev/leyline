@@ -307,6 +307,7 @@ internal class ForgeAiPromptPolicy(
         return response
     }
 
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun recordTargetChoice(
         prompt: ActivePrompt,
         response: SimPromptResponse,

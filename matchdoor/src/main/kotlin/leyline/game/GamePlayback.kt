@@ -332,8 +332,7 @@ class GamePlayback(
                 eventsOverride = events,
             ).messages
 
-    private fun List<GREToClientMessage>.firstGameStateId(): Int? =
-        firstOrNull { it.hasGameStateMessage() }?.gameStateMessage?.gameStateId
+    private fun List<GREToClientMessage>.firstGameStateId(): Int? = firstOrNull { it.hasGameStateMessage() }?.gameStateMessage?.gameStateId
 
     private fun List<LeylineGameEvent>.hasCombatDamage(): Boolean =
         any { it is LeylineGameEvent.DamageDealtToCard || it is LeylineGameEvent.DamageDealtToPlayer }
