@@ -216,6 +216,20 @@ Output filenames are file-safe labels derived from deck names. Fixed-opponent
 runs include `-vs-<opponent>` to avoid overwriting mirror runs for the same
 deck/seed.
 
+## Trackio Ledger
+
+Use Trackio as a lightweight dashboard over simclient artifacts, not as a
+source of truth:
+
+- Source artifacts remain `*.stats.json`, sibling `.log`, and `.meta.json`.
+- Import from `arena-lab` with `just simclient-ledger --stats-glob '<out>/*.stats.json'`.
+- Default metrics are intentionally small: outcome, warnings/errors, quality
+  score, unique cards, creature/permanent density, spells, lands, damage, and
+  target prompts.
+- Use `--expanded` only when debugging prompt/annotation/phase/zone-transfer
+  histograms; it makes Trackio charts noisy.
+- Current dashboard project for exploratory runs: `leyline-simclient-core`.
+
 ## Iteration Loop For Mechanic Fixes
 
 Use simclient as the fast deck-level bracket after a focused SessionTest passes.
