@@ -5,11 +5,11 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import leyline.UnitTag
+import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
+import leyline.bridge.types.WireId
 import leyline.game.annotations.AnnotationBuilder
-import leyline.game.iid
-import leyline.game.sid
-import leyline.game.wid
-import leyline.testkit.greMessage
+import leyline.tooling.headless.greMessage
 import java.io.StringWriter
 import java.nio.file.Files
 import java.time.LocalDateTime
@@ -38,6 +38,7 @@ class PlayerLogWriterTest :
                   "cards": [],
                   "tags": ["simclient", "deck:Deck \"A\"", "opponent:Blue\\Tempo", "seed:7"],
                   "notes": [],
+                  "quarantine": null,
                   "provenance": {
                     "source": "simclient",
                     "confidence": "explicit",
@@ -63,7 +64,7 @@ class PlayerLogWriterTest :
                     greMessage(msgId = 2, gsId = 1) {
                         addAnnotations(
                             AnnotationBuilder.zoneTransfer(
-                                100.iid,
+                                InstanceId(100),
                                 srcZoneId = 31,
                                 destZoneId = 27,
                                 category = "CastSpell",
@@ -71,14 +72,14 @@ class PlayerLogWriterTest :
                         )
                         addAnnotations(
                             AnnotationBuilder.damageDealt(
-                                100.iid,
-                                targetId = 2.wid,
+                                InstanceId(100),
+                                targetId = WireId(2),
                                 amount = 3,
                             ),
                         )
                         addAnnotations(
                             AnnotationBuilder.scry(
-                                1.sid,
+                                SeatId(1),
                                 topIds = listOf(101),
                                 bottomIds = emptyList(),
                             ),
