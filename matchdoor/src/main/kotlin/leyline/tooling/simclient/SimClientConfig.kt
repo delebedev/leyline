@@ -41,6 +41,7 @@ data class SimClientConfig(
     }
 
     companion object {
+        @Suppress("CyclomaticComplexMethod")
         fun parse(
             args: List<String>,
             env: Map<String, String>,
@@ -57,7 +58,7 @@ data class SimClientConfig(
                     gameTimeoutSeconds = (envOrDefault("SIMCLIENT_GAME_TIMEOUT_SECONDS") ?: "120").toLong().coerceAtLeast(1),
                     cardDbPath = envOrDefault("LEYLINE_CARD_DB"),
                     continueOnException = envOrDefault("SIMCLIENT_CONTINUE_ON_EXCEPTION")?.equals("true", ignoreCase = true) ?: true,
-                    excludeCards = envOrDefault("SIMCLIENT_EXCLUDE_CARDS") ?: "",
+                    excludeCards = envOrDefault("SIMCLIENT_EXCLUDE_CARDS").orEmpty(),
                     excludeCardsFile = envOrDefault("SIMCLIENT_EXCLUDE_CARDS_FILE")?.let(::File) ?: defaultQuarantineFile(),
                     excludePolicy = SimClientExcludePolicy.parse(envOrDefault("SIMCLIENT_EXCLUDE_POLICY") ?: "replace-basic"),
                 )

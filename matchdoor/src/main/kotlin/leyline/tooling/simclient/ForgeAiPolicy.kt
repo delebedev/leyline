@@ -422,8 +422,9 @@ class ForgeAiPolicy(
                 threw = t
             }
         }, aiController)
-        if (threw != null) {
-            log.warn("Forge AI {} threw: {}: {}", label, threw!!::class.simpleName, threw!!.message)
+        val failure = threw
+        if (failure != null) {
+            log.warn("Forge AI {} threw: {}: {}", label, failure::class.simpleName, failure.message)
         }
         return result
     }

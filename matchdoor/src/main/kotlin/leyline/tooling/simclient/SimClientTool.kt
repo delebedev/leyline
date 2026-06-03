@@ -33,6 +33,7 @@ object SimClientMain {
 class SimClientRunner(
     private val config: SimClientConfig,
 ) {
+    @Suppress("CanBeNonNullable")
     private val resolvedCardDbPath: String? by lazy { resolveSimClientCardDbPath(config) }
 
     private val cardRepo: CardRepository by lazy {
@@ -84,14 +85,17 @@ class SimClientRunner(
         val logFile = File(config.outDir, "${row.tag}.log")
         val stats =
             runWithTimeout(
-                tag = row.tag,
-                logFile = logFile,
-                runLabel = row.runLabel,
-                opponentRunLabel = row.opponentRunLabel,
-                seed = row.seed,
-                runKind = row.runKind,
-                deckOverlay = (row as? DeckSimClientRow)?.overlay,
-                opponentDeckOverlay = (row as? DeckSimClientRow)?.opponentOverlay,
+                run =
+                    TimedRunContext(
+                        tag = row.tag,
+                        logFile = logFile,
+                        runLabel = row.runLabel,
+                        opponentRunLabel = row.opponentRunLabel,
+                        seed = row.seed,
+                        runKind = row.runKind,
+                        deckOverlay = (row as? DeckSimClientRow)?.overlay,
+                        opponentDeckOverlay = (row as? DeckSimClientRow)?.opponentOverlay,
+                    ),
                 createHarness = { createHarness(row) },
                 runGame = { harness, playerLog -> createDriver(row, harness, playerLog).runOneGame() },
             )
@@ -147,27 +151,20 @@ class SimClientRunner(
     }
 
     private fun runWithTimeout(
-        tag: String,
-        logFile: File,
-        runLabel: String,
-        opponentRunLabel: String?,
-        seed: Long,
-        runKind: String,
-        deckOverlay: DeckOverlayReport?,
-        opponentDeckOverlay: DeckOverlayReport?,
+        run: TimedRunContext,
         createHarness: () -> MatchFlowHarness,
         runGame: (MatchFlowHarness, PlayerLogWriter) -> GameStats,
     ): GameStats {
-        val matchId = "simclient-$tag"
+        val matchId = "simclient-${run.tag}"
         val harnessRef = AtomicReference<MatchFlowHarness?>()
         val timeoutMs = config.gameTimeoutSeconds * 1_000
-        val executor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "simclient-$tag").apply { isDaemon = true } }
+        val executor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "simclient-${run.tag}").apply { isDaemon = true } }
         val future =
             executor.submit<GameStats> {
                 val harness = createHarness()
                 harnessRef.set(harness)
                 var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
-                val writer = logFile.bufferedWriter()
+                val writer = run.logFile.bufferedWriter()
                 try {
                     val playerLog =
                         PlayerLogWriter(
@@ -202,15 +199,15 @@ class SimClientRunner(
                 executor.shutdownNow()
             }
         writeSimClientSidecar(
-            logFile,
+            run.logFile,
             matchId,
-            runLabel,
-            opponentRunLabel,
-            seed,
+            run.runLabel,
+            run.opponentRunLabel,
+            run.seed,
             LocalDateTime.now(),
-            runKind,
-            deckOverlay = deckOverlay,
-            opponentDeckOverlay = opponentDeckOverlay,
+            run.runKind,
+            deckOverlay = run.deckOverlay,
+            opponentDeckOverlay = run.opponentDeckOverlay,
         )
         return stats
     }
@@ -340,7 +337,18 @@ class SimClientRunner(
 
     private fun Throwable.rootCause(): Throwable {
         var current = this
-        while (current.cause != null && current.cause !== current) current = current.cause!!
+        while (current.cause != null && current.cause !== current) current = current.cause ?: current
         return current
     }
 }
+
+private data class TimedRunContext(
+    val tag: String,
+    val logFile: File,
+    val runLabel: String,
+    val opponentRunLabel: String?,
+    val seed: Long,
+    val runKind: String,
+    val deckOverlay: DeckOverlayReport?,
+    val opponentDeckOverlay: DeckOverlayReport?,
+)

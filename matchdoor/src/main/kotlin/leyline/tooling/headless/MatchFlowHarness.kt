@@ -237,7 +237,7 @@ class MatchFlowHarness(
         // Forge's lazy script loader already pulled in every card the puzzle
         // parser referenced.
         if (cardRepositoryOverride == null) {
-            TestCardRegistry.registerPuzzleCards(bridge.getGame()!!)
+            TestCardRegistry.registerPuzzleCards(bridge.getGame() ?: error("Puzzle game was not initialised"))
         }
 
         // Install scripted AI BEFORE onPuzzleStart — auto-pass will advance
@@ -958,7 +958,7 @@ class MatchFlowHarness(
         }
     }
 
-    fun game(): Game = bridge.getGame()!!
+    fun game(): Game = bridge.getGame() ?: error("Game was not initialised")
 
     /**
      * True when the seat's [GameActionBridge] has a pending action awaiting

@@ -103,7 +103,7 @@ fun advanceTo(
     timeoutMs: Long = 15_000,
     predicate: (phase: String, turn: Int) -> Boolean,
 ): GameActionBridge.PendingAction {
-    val game = b.getGame()!!
+    val game = b.getGame() ?: error("Game was not initialised")
     var lastId: String? = null
     repeat(maxPasses) {
         val pending =

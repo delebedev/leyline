@@ -1,5 +1,6 @@
 package leyline.tooling.simclient
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -42,19 +43,21 @@ class SimClientToolTest :
                     mapOf("LEYLINE_CARD_DB" to "/tmp/cards.sqlite"),
                 )!!
 
-            config.deckSpec shouldBe "bears,mono-r-burn"
-            config.opponentDeck shouldBe "forest-only"
-            config.seedSpec shouldBe "1..3"
-            config.policy shouldBe SimClientPolicyMode.ForgeAi
-            config.maxTurns shouldBe 7
-            config.gameTimeoutSeconds shouldBe 11
-            config.resume shouldBe true
-            config.strict shouldBe true
-            config.excludeCards shouldBe "Tinybones Joins Up,102468"
-            config.excludeCardsFile?.path shouldBe "/tmp/quarantine.txt"
-            config.excludePolicy shouldBe SimClientExcludePolicy.SkipDeck
-            config.shardIndex shouldBe 1
-            config.shardCount shouldBe 4
+            assertSoftly {
+                config.deckSpec shouldBe "bears,mono-r-burn"
+                config.opponentDeck shouldBe "forest-only"
+                config.seedSpec shouldBe "1..3"
+                config.policy shouldBe SimClientPolicyMode.ForgeAi
+                config.maxTurns shouldBe 7
+                config.gameTimeoutSeconds shouldBe 11
+                config.resume shouldBe true
+                config.strict shouldBe true
+                config.excludeCards shouldBe "Tinybones Joins Up,102468"
+                config.excludeCardsFile?.path shouldBe "/tmp/quarantine.txt"
+                config.excludePolicy shouldBe SimClientExcludePolicy.SkipDeck
+                config.shardIndex shouldBe 1
+                config.shardCount shouldBe 4
+            }
         }
 
         test("quarantine replaces name matches with the most common basic land") {
@@ -66,10 +69,12 @@ class SimClientToolTest :
                     cardRepository = null,
                 )
 
-            result.skipped shouldBe false
-            result.report?.removedCount shouldBe 4
-            result.report?.replacement shouldBe "Island"
-            result.deckList shouldBe "10 Island\n2 Practiced Offense\n4 Island"
+            assertSoftly {
+                result.skipped shouldBe false
+                result.report?.removedCount shouldBe 4
+                result.report?.replacement shouldBe "Island"
+                result.deckList shouldBe "10 Island\n2 Practiced Offense\n4 Island"
+            }
         }
 
         test("quarantine matches grpIds when card db is available") {
@@ -97,9 +102,11 @@ class SimClientToolTest :
                     cardRepository = fakeCardRepository("Tinybones Joins Up" to 90454),
                 )
 
-            result.report?.removedCount shouldBe 6
-            result.report?.removed?.map { it.matchedBy } shouldBe listOf("name", "grpId")
-            result.deckList shouldBe "10 Swamp\n6 Swamp"
+            assertSoftly {
+                result.report?.removedCount shouldBe 6
+                result.report?.removed?.map { it.matchedBy } shouldBe listOf("name", "grpId")
+                result.deckList shouldBe "10 Swamp\n6 Swamp"
+            }
         }
 
         test("quarantine ignores Arena set suffixes") {
