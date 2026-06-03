@@ -179,6 +179,9 @@ val simclient by tasks.registering(JavaExec::class) {
             "SIMCLIENT_ACCEPT_OPTIONAL_COSTS",
             "SIMCLIENT_MAX_TURNS",
             "SIMCLIENT_GAME_TIMEOUT_SECONDS",
+            "SIMCLIENT_EXCLUDE_CARDS",
+            "SIMCLIENT_EXCLUDE_CARDS_FILE",
+            "SIMCLIENT_EXCLUDE_POLICY",
             "LEYLINE_CARD_DB",
         )
     simclientKnobs.forEach { name ->

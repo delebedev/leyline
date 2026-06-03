@@ -12,6 +12,10 @@ fun statsToJson(
         append("\"deck\":${simJsonString(row.runLabel)},")
         row.opponentRunLabel?.let { append("\"opponentDeck\":${simJsonString(it)},") }
         append("\"runKind\":${simJsonString(row.runKind)},")
+        if (row is DeckSimClientRow) {
+            append("\"deckOverlay\":${overlayToJson(row.overlay)},")
+            append("\"opponentDeckOverlay\":${overlayToJson(row.opponentOverlay)},")
+        }
         append("\"seed\":${row.seed},")
         append("\"policy\":${simJsonString(if (policy == SimClientPolicyMode.ForgeAi) "forge-ai" else "greedy")},")
         append("\"failureClass\":${simJsonString(failureClass(stats))},")
@@ -77,7 +81,7 @@ fun failureClass(stats: GameStats): String =
         stats.completionReason == "wall-timeout" -> "wall-timeout"
         stats.validationViolationsByCheck.isNotEmpty() -> "validation"
         stats.errorsByType.isNotEmpty() -> "log-error"
-        stats.promptRouteFindings.isNotEmpty() -> "prompt-route"
+        stats.promptRouteFindings.any { it.bucket != PromptRouteAuditor.SAME_GRE_ROUTE_UNVERIFIED } -> "prompt-route"
         stats.completionReason in unresolvedCompletionReasons -> stats.completionReason
         else -> "natural"
     }
@@ -115,6 +119,31 @@ private fun stringMapToJson(m: Map<String, String>): String =
     m.entries.joinToString(",", "{", "}") { (k, v) -> "${simJsonString(k)}:${simJsonString(v)}" }
 
 private fun stringsToJson(values: List<String>): String = values.joinToString(",", "[", "]") { simJsonString(it) }
+
+private fun overlayToJson(report: DeckOverlayReport?): String {
+    if (report == null) return "null"
+    return buildString {
+        append('{')
+        append("\"policy\":${simJsonString(if (report.policy == SimClientExcludePolicy.ReplaceBasic) "replace-basic" else "skip-deck")},")
+        append("\"removedCount\":${report.removedCount},")
+        append("\"removedCards\":${report.removedCards},")
+        append("\"replacement\":${report.replacement?.let(::simJsonString) ?: "null"},")
+        append("\"removed\":")
+        append(
+            report.removed.joinToString(",", "[", "]") { removal ->
+                buildString {
+                    append('{')
+                    append("\"name\":${simJsonString(removal.name)},")
+                    append("\"count\":${removal.count},")
+                    append("\"grpId\":${removal.grpId ?: "null"},")
+                    append("\"matchedBy\":${simJsonString(removal.matchedBy)}")
+                    append('}')
+                }
+            },
+        )
+        append('}')
+    }
+}
 
 private fun intsToJson(values: List<Int>): String = values.joinToString(",", "[", "]")
 

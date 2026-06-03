@@ -16,6 +16,8 @@ data class PromptRouteAudit(
 }
 
 object PromptRouteAuditor {
+    const val SAME_GRE_ROUTE_UNVERIFIED = "same_gre_route_unverified"
+
     fun audit(
         history: List<InteractivePromptBridge.PromptRecord>,
         promptHistogram: Map<GREMessageType, Int>,
@@ -49,7 +51,7 @@ object PromptRouteAuditor {
                         when {
                             emitted < expectedForType ->
                                 classifyBucket(expectedCount = records.size, emittedCount = emitted, outcomeCounts = outcomes)
-                            routeKeysByGreType.getValue(route.expectedGreType).size > 1 -> "ambiguous_route_coverage"
+                            routeKeysByGreType.getValue(route.expectedGreType).size > 1 -> SAME_GRE_ROUTE_UNVERIFIED
                             else -> return@mapNotNull null
                         }
                     PromptRouteFinding(

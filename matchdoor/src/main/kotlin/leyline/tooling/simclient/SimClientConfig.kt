@@ -4,6 +4,7 @@ import java.io.File
 
 private const val DEFAULT_DECKS = "forest-only,bears,mono-g-curve,mono-r-burn"
 private const val DEFAULT_SEEDS = "7,13,42,99,314"
+private const val DEFAULT_QUARANTINE_FILE = "data/simclient/quarantine.txt"
 
 data class SimClientConfig(
     val deckSpec: String = DEFAULT_DECKS,
@@ -22,6 +23,9 @@ data class SimClientConfig(
     val shardCount: Int? = null,
     val ingestScry: Boolean = false,
     val summaryJson: File? = null,
+    val excludeCards: String = "",
+    val excludeCardsFile: File? = defaultQuarantineFile(),
+    val excludePolicy: SimClientExcludePolicy = SimClientExcludePolicy.ReplaceBasic,
 ) {
     init {
         require(maxTurns > 0) { "--max-turns must be > 0" }
@@ -53,23 +57,32 @@ data class SimClientConfig(
                     gameTimeoutSeconds = (envOrDefault("SIMCLIENT_GAME_TIMEOUT_SECONDS") ?: "120").toLong().coerceAtLeast(1),
                     cardDbPath = envOrDefault("LEYLINE_CARD_DB"),
                     continueOnException = envOrDefault("SIMCLIENT_CONTINUE_ON_EXCEPTION")?.equals("true", ignoreCase = true) ?: true,
+                    excludeCards = envOrDefault("SIMCLIENT_EXCLUDE_CARDS") ?: "",
+                    excludeCardsFile = envOrDefault("SIMCLIENT_EXCLUDE_CARDS_FILE")?.let(::File) ?: defaultQuarantineFile(),
+                    excludePolicy = SimClientExcludePolicy.parse(envOrDefault("SIMCLIENT_EXCLUDE_POLICY") ?: "replace-basic"),
                 )
             var i = 0
             while (i < args.size) {
                 val arg = args[i]
 
-                fun value(): String {
+                fun value(allowSpaces: Boolean = false): String {
                     require(i + 1 < args.size) { "$arg requires a value" }
                     i += 1
-                    return args[i]
+                    if (!allowSpaces) return args[i]
+                    val values = mutableListOf(args[i])
+                    while (i + 1 < args.size && !args[i + 1].startsWith("--")) {
+                        i += 1
+                        values += args[i]
+                    }
+                    return values.joinToString(" ")
                 }
 
                 config =
                     when (arg) {
-                        "--decks" -> config.copy(deckSpec = value(), puzzleSpec = null)
-                        "--opponent-deck" -> config.copy(opponentDeck = value())
+                        "--decks" -> config.copy(deckSpec = value(allowSpaces = true), puzzleSpec = null)
+                        "--opponent-deck" -> config.copy(opponentDeck = value(allowSpaces = true))
                         "--seeds" -> config.copy(seedSpec = value())
-                        "--puzzles" -> config.copy(puzzleSpec = value())
+                        "--puzzles" -> config.copy(puzzleSpec = value(allowSpaces = true))
                         "--policy" -> config.copy(policy = SimClientPolicyMode.parse(value()))
                         "--max-turns" -> config.copy(maxTurns = value().toInt())
                         "--game-timeout-seconds" -> config.copy(gameTimeoutSeconds = value().toLong())
@@ -83,6 +96,10 @@ data class SimClientConfig(
                         "--shard-count" -> config.copy(shardCount = value().toInt())
                         "--ingest-scry" -> config.copy(ingestScry = true)
                         "--summary-json" -> config.copy(summaryJson = File(value()))
+                        "--exclude-cards" -> config.copy(excludeCards = value(allowSpaces = true))
+                        "--exclude-cards-file" -> config.copy(excludeCardsFile = File(value()))
+                        "--no-exclude-cards-file" -> config.copy(excludeCardsFile = null)
+                        "--exclude-policy" -> config.copy(excludePolicy = SimClientExcludePolicy.parse(value()))
                         "--help", "-h" -> {
                             printUsage()
                             return null
@@ -117,11 +134,22 @@ data class SimClientConfig(
                   --strict                      Nonzero exit on row failures/validation.
                   --ingest-scry                 Copy log/meta artifacts into ~/.scry/games.
                   --summary-json <path>         Run summary JSON path.
+                  --exclude-cards <a,b>         Quarantine card names or grpIds for deck rows.
+                  --exclude-cards-file <path>   Quarantine file; defaults to data/simclient/quarantine.txt when present.
+                  --no-exclude-cards-file       Ignore the default quarantine file.
+                  --exclude-policy <policy>     replace-basic|skip-deck.
                 """.trimIndent(),
             )
         }
     }
 }
+
+private fun defaultQuarantineFile(): File? =
+    listOf(
+        File(DEFAULT_QUARANTINE_FILE),
+        File("../$DEFAULT_QUARANTINE_FILE"),
+        File("../../$DEFAULT_QUARANTINE_FILE"),
+    ).firstOrNull { it.exists() }
 
 enum class SimClientPolicyMode {
     Greedy,
@@ -134,6 +162,21 @@ enum class SimClientPolicyMode {
                 "greedy" -> Greedy
                 "forge-ai" -> ForgeAi
                 else -> error("unknown SIMCLIENT_POLICY: $value")
+            }
+    }
+}
+
+enum class SimClientExcludePolicy {
+    ReplaceBasic,
+    SkipDeck,
+    ;
+
+    companion object {
+        fun parse(value: String): SimClientExcludePolicy =
+            when (value.trim().lowercase()) {
+                "replace-basic" -> ReplaceBasic
+                "skip-deck" -> SkipDeck
+                else -> error("unknown --exclude-policy: $value")
             }
     }
 }

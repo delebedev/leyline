@@ -62,6 +62,20 @@ Use an absolute `--out-dir` for ad hoc inspection from Gradle until relative
 path handling is tightened; the default `matchdoor/build/simclient/` path is
 safe through `just simclient`.
 
+Quarantine known-bad cards during discovery without editing deck files:
+
+```bash
+SIMCLIENT_EXCLUDE_CARDS="Tinybones Joins Up,102468" \
+  just simclient "Deck A,Deck B" 1..20
+```
+
+`data/simclient/quarantine.txt` is loaded by default when present. Put one exact
+card name or numeric grpId per line. The default policy is `replace-basic`: remove
+matching deck entries in memory and replace their count with the deck's most
+common basic land. Use `SIMCLIENT_EXCLUDE_POLICY=skip-deck` or
+`--exclude-policy skip-deck` when you want a clean sweep that omits any deck row
+touching quarantined cards.
+
 Puzzle confirmation after the bug shape is known:
 
 ```bash
@@ -75,7 +89,7 @@ Simclient writes per-game artifacts under `matchdoor/build/simclient/`:
 
 - `*.stats.json` is the first stop.
 - `*.log` is useful after the stats identify the first repeated prompt, action, or object id pattern.
-- `*.meta.json` records the run shape.
+- `*.meta.json` records the run shape and any quarantine overlay.
 - `summary.json` groups row outcomes by `failureClass`.
 
 ## Stats First
@@ -95,6 +109,7 @@ Start with these fields in `*.stats.json`:
 - `stalledPrompt`, `stalledFingerprint`: last repeated client-visible prompt.
 - `warnsByLogger`, `errorsByType`, `validationViolationsByCheck`: direct failure signals.
 - `exceptionMessage`, `exceptionStackTop`: root cause when scout mode converted a crash into a stats row.
+- `deckOverlay`, `opponentDeckOverlay`: in-memory quarantine applied to a deck row.
 
 Use logs only after stats tell you what to search for.
 

@@ -27,6 +27,8 @@ data class DeckSimClientRow(
     val deckList: String,
     val opponentName: String?,
     val opponentDeckList: String?,
+    val overlay: DeckOverlayReport? = null,
+    val opponentOverlay: DeckOverlayReport? = null,
     override val useCardDb: Boolean,
     override val seed: Long,
 ) : SimClientRow {
@@ -66,6 +68,7 @@ private fun expandRows(config: SimClientConfig): List<SimClientRow> {
                 }
             }
     }
+    val quarantine = quarantineSpec(config)
     val opponent = config.opponentDeck?.let { resolveDeck(it) }
     return config.deckSpec
         .split(",")
@@ -73,12 +76,30 @@ private fun expandRows(config: SimClientConfig): List<SimClientRow> {
         .filter { it.isNotBlank() }
         .map { resolveDeck(it) }
         .flatMap { deck ->
+            val overlay =
+                if (deck.useCardDb) {
+                    DeckOverlayResult(deck.deckList, report = null)
+                } else {
+                    overlayDeck(deck.deckList, quarantine, config.excludePolicy, cardRepository = null)
+                }
+            if (overlay.skipped) return@flatMap emptyList()
+            val opponentOverlay =
+                opponent?.let {
+                    if (it.useCardDb) {
+                        DeckOverlayResult(it.deckList, report = null)
+                    } else {
+                        overlayDeck(it.deckList, quarantine, config.excludePolicy, cardRepository = null)
+                    }
+                }
+            if (opponentOverlay?.skipped == true) return@flatMap emptyList()
             seeds.map { seed ->
                 DeckSimClientRow(
                     name = deck.name,
-                    deckList = deck.deckList,
+                    deckList = overlay.deckList,
                     opponentName = opponent?.name,
-                    opponentDeckList = opponent?.deckList,
+                    opponentDeckList = opponentOverlay?.deckList ?: opponent?.deckList,
+                    overlay = overlay.report,
+                    opponentOverlay = opponentOverlay?.report,
                     useCardDb = deck.useCardDb || (opponent?.useCardDb ?: false),
                     seed = seed,
                 )

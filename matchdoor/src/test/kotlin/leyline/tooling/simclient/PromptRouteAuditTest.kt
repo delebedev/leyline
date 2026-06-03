@@ -112,7 +112,7 @@ class PromptRouteAuditTest :
             audit.findings shouldHaveSize 2
         }
 
-        test("flags ambiguous same-GRE route coverage") {
+        test("flags same-GRE route coverage as unverified even when the aggregate count matches") {
             val audit =
                 PromptRouteAuditor.audit(
                     history =
@@ -132,9 +132,22 @@ class PromptRouteAuditTest :
                 )
 
             audit.findings shouldHaveSize 2
-            audit.findings.map { it.bucket }.toSet() shouldBe setOf("ambiguous_route_coverage")
+            audit.findings.map { it.bucket }.toSet() shouldBe setOf(PromptRouteAuditor.SAME_GRE_ROUTE_UNVERIFIED)
+            failureClass(statsWithFindings(audit.findings)) shouldBe "natural"
         }
     })
+
+private fun statsWithFindings(findings: List<PromptRouteFinding>): GameStats =
+    GameStats(
+        turn = 1,
+        gameOver = true,
+        iterations = 1,
+        totalMessages = 1,
+        promptHistogram = emptyMap(),
+        hitIterCap = false,
+        completionReason = "natural",
+        promptRouteFindings = findings,
+    )
 
 private fun promptRecord(
     promptType: String,

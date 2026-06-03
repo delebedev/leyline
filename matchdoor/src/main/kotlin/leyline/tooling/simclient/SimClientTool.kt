@@ -33,17 +33,19 @@ object SimClientMain {
 class SimClientRunner(
     private val config: SimClientConfig,
 ) {
+    private val resolvedCardDbPath: String? by lazy { resolveSimClientCardDbPath(config) }
+
     private val cardRepo: CardRepository by lazy {
-        val path = requireNotNull(config.cardDbPath) { "LEYLINE_CARD_DB or --card-db is required" }
-        require(File(path).exists()) { "Card database not found at: $path" }
-        ExposedCardRepository(Database.connect("jdbc:sqlite:${File(path).absolutePath}", "org.sqlite.JDBC"))
+        val path = requireNotNull(resolvedCardDbPath) { "Card database not found; set LEYLINE_CARD_DB or --card-db" }
+        val file = validateSimClientCardDbFile(path)
+        ExposedCardRepository(Database.connect("jdbc:sqlite:${file.absolutePath}", "org.sqlite.JDBC"))
     }
 
     fun run(): SimClientRunResult {
         config.outDir.mkdirs()
         val rows = expandSimClientRows(config)
         if (rows.any { it.useCardDb }) {
-            require(config.cardDbPath != null) { "LEYLINE_CARD_DB or --card-db is required for deck-file or card-db-backed puzzle rows" }
+            require(resolvedCardDbPath != null) { "Card database not found; set LEYLINE_CARD_DB or --card-db for deck-file rows" }
         }
         val runLine =
             "=== simclient: ${rows.size} row(s) policy=${config.policy.name} " +
@@ -58,9 +60,15 @@ class SimClientRunner(
                 println("[${row.runLabel} s=${row.seed}] skipped existing ${statsFile.name}")
                 continue
             }
-            val stats = runRow(row)
-            results += SimClientRowResult(row, stats)
-            printRowSummary(row, stats)
+            val rowWithResolvedOverlay = resolveRowOverlay(row)
+            if (rowWithResolvedOverlay == null) {
+                skipped += 1
+                println("[${row.runLabel} s=${row.seed}] skipped by quarantine")
+                continue
+            }
+            val stats = runRow(rowWithResolvedOverlay)
+            results += SimClientRowResult(rowWithResolvedOverlay, stats)
+            printRowSummary(rowWithResolvedOverlay, stats)
             if (!config.continueOnException && (stats.completionReason == "wall-timeout" || stats.completionReason == "exception")) {
                 error("simclient row failed: ${row.tag} reason=${stats.completionReason}")
             }
@@ -82,6 +90,8 @@ class SimClientRunner(
                 opponentRunLabel = row.opponentRunLabel,
                 seed = row.seed,
                 runKind = row.runKind,
+                deckOverlay = (row as? DeckSimClientRow)?.overlay,
+                opponentDeckOverlay = (row as? DeckSimClientRow)?.opponentOverlay,
                 createHarness = { createHarness(row) },
                 runGame = { harness, playerLog -> createDriver(row, harness, playerLog).runOneGame() },
             )
@@ -143,6 +153,8 @@ class SimClientRunner(
         opponentRunLabel: String?,
         seed: Long,
         runKind: String,
+        deckOverlay: DeckOverlayReport?,
+        opponentDeckOverlay: DeckOverlayReport?,
         createHarness: () -> MatchFlowHarness,
         runGame: (MatchFlowHarness, PlayerLogWriter) -> GameStats,
     ): GameStats {
@@ -189,8 +201,33 @@ class SimClientRunner(
             } finally {
                 executor.shutdownNow()
             }
-        writeSimClientSidecar(logFile, matchId, runLabel, opponentRunLabel, seed, LocalDateTime.now(), runKind)
+        writeSimClientSidecar(
+            logFile,
+            matchId,
+            runLabel,
+            opponentRunLabel,
+            seed,
+            LocalDateTime.now(),
+            runKind,
+            deckOverlay = deckOverlay,
+            opponentDeckOverlay = opponentDeckOverlay,
+        )
         return stats
+    }
+
+    private fun resolveRowOverlay(row: SimClientRow): SimClientRow? {
+        if (row !is DeckSimClientRow || !row.useCardDb) return row
+        val quarantine = quarantineSpec(config)
+        if (quarantine.isEmpty) return row
+        val overlay = overlayDeck(row.deckList, quarantine, config.excludePolicy, cardRepo)
+        val opponentOverlay = row.opponentDeckList?.let { overlayDeck(it, quarantine, config.excludePolicy, cardRepo) }
+        if (overlay.skipped || opponentOverlay?.skipped == true) return null
+        return row.copy(
+            deckList = overlay.deckList,
+            opponentDeckList = opponentOverlay?.deckList ?: row.opponentDeckList,
+            overlay = overlay.report ?: row.overlay,
+            opponentOverlay = opponentOverlay?.report ?: row.opponentOverlay,
+        )
     }
 
     private fun timeoutStats(

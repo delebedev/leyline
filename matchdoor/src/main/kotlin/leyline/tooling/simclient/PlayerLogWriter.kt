@@ -28,6 +28,8 @@ fun writeSimClientSidecar(
     seed: Long,
     generatedAt: LocalDateTime,
     runKind: String = "deck",
+    deckOverlay: DeckOverlayReport? = null,
+    opponentDeckOverlay: DeckOverlayReport? = null,
 ) {
     val sidecar = File(logFile.parentFile, logFile.nameWithoutExtension + ".meta.json")
     val ts = generatedAt.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
@@ -44,12 +46,14 @@ fun writeSimClientSidecar(
         } else {
             "simclient-$runLabel-vs-$opponentRunLabel"
         }
+    val quarantine = quarantineJson(deckOverlay, opponentDeckOverlay)
     val json =
         """
         {
           "cards": [],
           "tags": [$runTags],
           "notes": [],
+          "quarantine": $quarantine,
           "provenance": {
             "source": "simclient",
             "confidence": "explicit",
@@ -60,6 +64,32 @@ fun writeSimClientSidecar(
         }
         """.trimIndent()
     sidecar.writeText(json)
+}
+
+private fun quarantineJson(
+    deckOverlay: DeckOverlayReport?,
+    opponentDeckOverlay: DeckOverlayReport?,
+): String {
+    if (deckOverlay == null && opponentDeckOverlay == null) return "null"
+    return buildString {
+        append('{')
+        append("\"deck\":${sidecarOverlayJson(deckOverlay)},")
+        append("\"opponentDeck\":${sidecarOverlayJson(opponentDeckOverlay)}")
+        append('}')
+    }
+}
+
+private fun sidecarOverlayJson(report: DeckOverlayReport?): String {
+    if (report == null) return "null"
+    val policy = if (report.policy == SimClientExcludePolicy.ReplaceBasic) "replace-basic" else "skip-deck"
+    return buildString {
+        append('{')
+        append("\"policy\":${jsonString(policy)},")
+        append("\"removedCount\":${report.removedCount},")
+        append("\"removedCards\":${report.removedCards},")
+        append("\"replacement\":${report.replacement?.let(::jsonString) ?: "null"}")
+        append('}')
+    }
 }
 
 private fun jsonString(value: String): String =

@@ -1,0 +1,14 @@
+# Simclient card quarantine.
+#
+# One card per line. Prefer exact card names; numeric grpIds are accepted when
+# scout telemetry has not been mapped to a readable name yet.
+# Use this for scout runs only; deck files stay unchanged.
+
+Tinybones Joins Up
+Daydream
+Practiced Offense
+Deep-Cavern Bat
+Traumatic Critique
+Nibelheim Aflame
+Wild Ride
+Get Out

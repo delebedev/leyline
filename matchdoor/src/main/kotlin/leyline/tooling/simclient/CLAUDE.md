@@ -116,6 +116,10 @@ SIMCLIENT_POLICY=forge-ai just simclient bears 1..5
 # Scout mode is the default: record exception stats instead of aborting the batch
 SIMCLIENT_CONTINUE_ON_EXCEPTION=true just simclient bears 1..20
 
+# Quarantine known-bad cards without editing data/decks/*.txt.
+# Entries can be exact card names or numeric grpIds.
+SIMCLIENT_EXCLUDE_CARDS="Tinybones Joins Up,102468" just simclient "Auras,Black aggro" 1..20
+
 # Fixed seat-2 deck instead of mirror matches
 SIMCLIENT_OPPONENT_DECK="Pauper Blue Tempo" SIMCLIENT_POLICY=forge-ai \
   just simclient "Green stompy,Pauper Red Burn" 1..10
@@ -134,9 +138,18 @@ just simclient "My deck" 1..5
 `deck get` also accepts the `d=` id from a MTGTop8 URL, but prefer pasting the
 full URL unless the id is already in hand.
 
-If `LEYLINE_CARD_DB` is missing, deck-file rows fail before running. Use the
-same Raw card database path the server uses; built-in fixture-only smoke tests
-do not need it.
+Deck-file rows use `LEYLINE_CARD_DB` when set, then fall back to the same local
+card database discovery as the server. Built-in fixture-only smoke tests do not
+need it.
+
+Known-bad scout cards can live in `data/simclient/quarantine.txt`, one exact
+card name or grpId per line. Simclient loads that file by default when present.
+`replace-basic` is the default policy: matching cards are removed in memory and
+replaced with the deck's most common basic land; source deck files are unchanged.
+Use `--exclude-policy skip-deck` or `SIMCLIENT_EXCLUDE_POLICY=skip-deck` to omit
+rows that contain quarantined cards instead. `.stats.json` includes
+`deckOverlay` / `opponentDeckOverlay`; `.meta.json` includes a compact
+`quarantine` block.
 
 **Direct gradle** (no ingest unless `--ingest-scry` is passed):
 
@@ -171,7 +184,10 @@ properties (`SIMCLIENT_OPPONENT_DECK` ↔ `-Dsimclient.opponent.deck`):
 | `SIMCLIENT_ACCEPT_OPTIONAL_COSTS` | unset | When `true`, greedy policy accepts optional costs instead of declining them |
 | `SIMCLIENT_MAX_TURNS` | `25` | Unresolved-game cap before cleanup concede |
 | `SIMCLIENT_GAME_TIMEOUT_SECONDS` | `120` | Wall-clock watchdog per game |
-| `LEYLINE_CARD_DB` | required for deck files | Raw card DB path for non-fixture decks |
+| `SIMCLIENT_EXCLUDE_CARDS` | unset | Comma-separated card names or grpIds to quarantine for this run |
+| `SIMCLIENT_EXCLUDE_CARDS_FILE` | `data/simclient/quarantine.txt` when present | Quarantine file path |
+| `SIMCLIENT_EXCLUDE_POLICY` | `replace-basic` | `replace-basic` or `skip-deck` |
+| `LEYLINE_CARD_DB` | auto-detected when unset | Raw card DB path override for non-fixture decks |
 
 **Single E2E smoke** (fastest, ~10s, no env):
 
@@ -222,7 +238,7 @@ Use Trackio as a lightweight dashboard over simclient artifacts, not as a
 source of truth:
 
 - Source artifacts remain `*.stats.json`, sibling `.log`, and `.meta.json`.
-- Import from `arena-lab` with `just simclient-ledger --stats-glob '<out>/*.stats.json'`.
+- Import with the local simclient ledger tooling after the run completes.
 - Default metrics are intentionally small: outcome, warnings/errors, quality
   score, unique cards, creature/permanent density, spells, lands, damage, and
   target prompts.
