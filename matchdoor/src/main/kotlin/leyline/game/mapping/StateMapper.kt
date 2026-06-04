@@ -506,9 +506,9 @@ object StateMapper {
                     transfer.srcZoneId == ZoneIds.STACK &&
                     transfer.destZoneId == ZoneIds.EXILE
             if (isOriginalCast) {
-                bridge.paradigmSourceStackIids[forgeCardId] = transfer.newId
+                bridge.recordParadigmSourceStackIid(forgeCardId, transfer.newId)
             } else if (isStackSelfExile) {
-                bridge.paradigmSourceStackIids.putIfAbsent(forgeCardId, transfer.origId)
+                bridge.recordParadigmSourceStackIidIfAbsent(forgeCardId, transfer.origId)
             }
         }
     }

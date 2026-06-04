@@ -155,7 +155,21 @@ class GameBridge(
 
     private fun grpIdFor(cardId: ForgeCardId): Int? = findCard(cardId)?.name?.let { cardRepository.findGrpIdByName(it) }
 
-    val paradigmSourceStackIids = ConcurrentHashMap<ForgeCardId, Int>()
+    private val paradigmSourceStackIids = ConcurrentHashMap<ForgeCardId, Int>()
+
+    fun recordParadigmSourceStackIid(
+        fid: ForgeCardId,
+        stackIid: Int,
+    ) {
+        paradigmSourceStackIids[fid] = stackIid
+    }
+
+    fun recordParadigmSourceStackIidIfAbsent(
+        fid: ForgeCardId,
+        stackIid: Int,
+    ) {
+        paradigmSourceStackIids.putIfAbsent(fid, stackIid)
+    }
 
     fun paradigmSourceStackIidFor(fid: ForgeCardId): Int? =
         paradigmSourceStackIids[fid]
