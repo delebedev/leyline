@@ -26,7 +26,6 @@ SIMCLIENT_POLICY=forge-ai \
 SIMCLIENT_OPPONENT_DECK="Aggro Sample" \
 SIMCLIENT_MAX_TURNS=200 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=900 \
-SIMCLIENT_TEST_TIMEOUT_MINUTES=120 \
 just simclient "Control Sample" 3
 ```
 
@@ -37,15 +36,45 @@ SIMCLIENT_POLICY=forge-ai \
 SIMCLIENT_OPPONENT_DECK="Aggro Sample" \
 SIMCLIENT_MAX_TURNS=200 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=900 \
-SIMCLIENT_TEST_TIMEOUT_MINUTES=180 \
 just simclient "Control Sample" 1..5
 ```
 
-Scout mode for broad deck sweeps keeps going after per-game exceptions and writes `completionReason=exception` stats rows:
+Scout mode for broad deck sweeps keeps going after per-game exceptions and writes `completionReason=exception` stats rows. This is the standalone tool default; use `--strict` when a matrix is acting as a regression gate:
 
 ```bash
 SIMCLIENT_CONTINUE_ON_EXCEPTION=true just simclient "Deck A,Deck B,Deck C" 1..20
 ```
+
+Fast tool wiring smoke:
+
+```bash
+./gradlew :matchdoor:simclientSmoke
+```
+
+Resume or shard a sweep without changing row identity:
+
+```bash
+./gradlew :matchdoor:simclient --args="--decks 'Deck A,Deck B' --seeds 1..200 --resume"
+./gradlew :matchdoor:simclient --args="--decks 'Deck A,Deck B' --seeds 1..200 --shard-index 0 --shard-count 4"
+```
+
+Use an absolute `--out-dir` for ad hoc inspection from Gradle until relative
+path handling is tightened; the default `matchdoor/build/simclient/` path is
+safe through `just simclient`.
+
+Quarantine known-bad cards during discovery without editing deck files:
+
+```bash
+SIMCLIENT_EXCLUDE_CARDS="Tinybones Joins Up,102468" \
+  just simclient "Deck A,Deck B" 1..20
+```
+
+`data/simclient/quarantine.txt` is loaded by default when present. Put one exact
+card name or numeric grpId per line. The default policy is `replace-basic`: remove
+matching deck entries in memory and replace their count with the deck's most
+common basic land. Use `SIMCLIENT_EXCLUDE_POLICY=skip-deck` or
+`--exclude-policy skip-deck` when you want a clean sweep that omits any deck row
+touching quarantined cards.
 
 Puzzle confirmation after the bug shape is known:
 
@@ -53,7 +82,6 @@ Puzzle confirmation after the bug shape is known:
 SIMCLIENT_POLICY=forge-ai \
 SIMCLIENT_MAX_TURNS=3 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=120 \
-SIMCLIENT_TEST_TIMEOUT_MINUTES=10 \
 just simclient-puzzle extinction-event-choice.pzl 1
 ```
 
@@ -61,13 +89,15 @@ Simclient writes per-game artifacts under `matchdoor/build/simclient/`:
 
 - `*.stats.json` is the first stop.
 - `*.log` is useful after the stats identify the first repeated prompt, action, or object id pattern.
-- `*.meta.json` records the run shape.
+- `*.meta.json` records the run shape and any quarantine overlay.
+- `summary.json` groups row outcomes by `failureClass`.
 
 ## Stats First
 
 Start with these fields in `*.stats.json`:
 
 - `completionReason`: `natural`, `turn-stall`, timeout, validation failure.
+- `failureClass`: derived grouping for dashboards (`natural`, `exception`, `wall-timeout`, `validation`, `prompt-route`, `max-turns`, etc.).
 - `winnerSeat`, `finalLifeBySeat`, `finalStatusBySeat`: did the game really finish, or did cleanup decide it?
 - `iterations`, `totalMessages`: high values imply loops or stalled progress.
 - `promptHistogram`: which GRE prompt type dominates.
@@ -79,8 +109,13 @@ Start with these fields in `*.stats.json`:
 - `stalledPrompt`, `stalledFingerprint`: last repeated client-visible prompt.
 - `warnsByLogger`, `errorsByType`, `validationViolationsByCheck`: direct failure signals.
 - `exceptionMessage`, `exceptionStackTop`: root cause when scout mode converted a crash into a stats row.
+- `deckOverlay`, `opponentDeckOverlay`: in-memory quarantine applied to a deck row.
 
 Use logs only after stats tell you what to search for.
+
+Optional-cost coverage: set `SIMCLIENT_ACCEPT_OPTIONAL_COSTS=true` when a deck
+or puzzle needs greedy policy to accept optional costs instead of declining
+them.
 
 ## Failure Taxonomy
 

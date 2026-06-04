@@ -1,5 +1,6 @@
 import leyline.build.SyncProtoTask
 import leyline.build.configureTestDefaults
+import org.gradle.api.tasks.JavaExec
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -37,6 +38,7 @@ dependencies {
     implementation(libs.netty.handler) // MatchHandler, NettyMessageSink
     implementation(libs.netty.codec) // ProtobufDecoder/Encoder
     implementation(libs.logback.classic)
+    implementation(libs.snakeyaml)
     api(libs.forge.core)
     api(libs.forge.game)
     api(libs.forge.ai)
@@ -46,7 +48,6 @@ dependencies {
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
     testImplementation(libs.kotest.datatest)
-    testImplementation(libs.snakeyaml)
 }
 
 // --- Proto sync + generation ---
@@ -138,8 +139,8 @@ val profileTest by tasks.registering(Test::class) {
 
 val testGate by tasks.registering(Test::class) {
     configureTestDefaults()
-    // Exclude SimClientTag — those are slow log-generation runs, opt-in via
-    // the dedicated `:simclient` task.
+    // Exclude SimClientTag — those are slow log-generation tests. Broad deck
+    // matrices run through the standalone `:matchdoor:simclient` tool.
     systemProperty("kotest.tags", "(UnitTag | BoardTag) & !SimClientTag")
     systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: if (ciSerialism) "1" else "8"))
     // Kotest spec-level parallelism: 136 small suites, JVM-fork overhead
@@ -154,20 +155,18 @@ testIntegrationStrict.configure { mustRunAfter(testGate) }
 
 // Sim-client log generation. Drives full games via real MatchSession + bridge,
 // emits scry-ts-shaped Player.log lines under build/simclient/, with sidecars
-// tagging source: simclient. Slow — not part of the regular gate.
+// tagging source: simclient. Tool-shaped: row failures become stats, not test
+// runner failures unless --strict is passed.
 //
 // Configure the matrix via env vars:
 //   SIMCLIENT_DECKS=mono-r-burn       (default: forest-only,bears,mono-g-curve,mono-r-burn)
 //   SIMCLIENT_SEEDS=1..50             (default: 7,13,42,99,314)
-val simclient by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "SimClientTag")
-    filter {
-        includeTestsMatching("leyline.simclient.SimClientBatchTest")
-        includeTestsMatching("leyline.simclient.SpectatorSimClientTest")
-    }
-    // Forge's static MyRandom forces serial execution.
-    maxParallelForks = 1
+val simclient by tasks.registering(JavaExec::class) {
+    group = "simclient"
+    description = "Run standalone simclient deck/puzzle matrices"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("leyline.tooling.simclient.SimClientToolKt")
     // Only pass through env vars that are actually set — pushing an empty
     // string clobbers the test's `?: default` fallbacks.
     val simclientKnobs =
@@ -177,9 +176,12 @@ val simclient by tasks.registering(Test::class) {
             "SIMCLIENT_SEEDS",
             "SIMCLIENT_PUZZLE",
             "SIMCLIENT_POLICY",
+            "SIMCLIENT_ACCEPT_OPTIONAL_COSTS",
             "SIMCLIENT_MAX_TURNS",
             "SIMCLIENT_GAME_TIMEOUT_SECONDS",
-            "SIMCLIENT_TEST_TIMEOUT_MINUTES",
+            "SIMCLIENT_EXCLUDE_CARDS",
+            "SIMCLIENT_EXCLUDE_CARDS_FILE",
+            "SIMCLIENT_EXCLUDE_POLICY",
             "LEYLINE_CARD_DB",
         )
     simclientKnobs.forEach { name ->
@@ -187,11 +189,34 @@ val simclient by tasks.registering(Test::class) {
         val knobValue = providers.systemProperty(propertyName).orElse(providers.environmentVariable(name)).orNull
         knobValue?.takeIf { it.isNotEmpty() }?.let { configuredValue ->
             environment(name, configuredValue)
-            systemProperty(propertyName, configuredValue)
         }
     }
+    args((project.findProperty("simclientArgs") as String?)?.split(" ")?.filter { it.isNotBlank() }.orEmpty())
     // Always re-execute — the matrix is env-driven, not source-driven, so
     // gradle's input fingerprint can't tell when we want a different run.
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+}
+
+val simclientSmoke by tasks.registering(JavaExec::class) {
+    group = "simclient"
+    description = "Run a tiny standalone simclient wiring smoke"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("leyline.tooling.simclient.SimClientToolKt")
+    args(
+        "--decks",
+        "forest-only",
+        "--seeds",
+        "1",
+        "--max-turns",
+        "2",
+        "--game-timeout-seconds",
+        "30",
+        "--strict",
+        "--out-dir",
+        "${layout.buildDirectory.get().asFile}/simclient-smoke",
+    )
     outputs.upToDateWhen { false }
     outputs.cacheIf { false }
 }

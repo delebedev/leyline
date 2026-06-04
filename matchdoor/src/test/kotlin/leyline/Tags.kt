@@ -12,8 +12,9 @@ object IntegrationTag : Tag()
 object AcceptanceTag : Tag()
 
 /**
- * Sim-client batch / E2E tests — synthetic GRE log generation. Slow (drives
- * full games), tagged out of the regular gate. Run via the dedicated
- * `:simclient` Gradle task or its `just` recipe.
+ * Sim-client E2E tests — synthetic GRE log generation. Slow (drives full
+ * games), tagged out of the regular gate. Tool wiring is covered by
+ * `:matchdoor:simclientSmoke`; broad deck/puzzle matrices run through the
+ * standalone `:matchdoor:simclient` tool instead of this tag.
  */
 object SimClientTag : Tag()

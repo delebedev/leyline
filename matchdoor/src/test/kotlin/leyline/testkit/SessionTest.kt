@@ -97,7 +97,7 @@ abstract class SessionTest(
         turns: Int = 1,
         seed: Long = 42L,
         validating: Boolean = false,
-        aiScript: List<ScriptedAction>? = null,
+        aiScript: List<leyline.tooling.headless.ScriptedAction>? = null,
         validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
     ): MatchFlowHarness = startPuzzleRaw(buildPuzzleText(state, name, goal, turns), seed, validating, aiScript, validation)
 
@@ -106,7 +106,7 @@ abstract class SessionTest(
         puzzleText: String,
         seed: Long = 42L,
         validating: Boolean = false,
-        aiScript: List<ScriptedAction>? = null,
+        aiScript: List<leyline.tooling.headless.ScriptedAction>? = null,
         validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
     ): MatchFlowHarness {
         val h = MatchFlowHarness(seed = seed, validating = validating, validation = validation)
@@ -137,7 +137,7 @@ abstract class SessionTest(
         seed: Long = 42L,
         deckList: String? = null,
         validating: Boolean = true,
-        aiScript: List<ScriptedAction>? = null,
+        aiScript: List<leyline.tooling.headless.ScriptedAction>? = null,
         validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
     ): MatchFlowHarness {
         val h = MatchFlowHarness(seed = seed, deckList = deckList, validating = validating, validation = validation)
@@ -208,7 +208,7 @@ abstract class SessionTest(
         maxPasses: Int = 30,
     ) = harness.passUntilTurn(targetTurn, maxPasses)
 
-    fun installScriptedAi(script: List<ScriptedAction>) = harness.installScriptedAi(script)
+    fun installScriptedAi(script: List<leyline.tooling.headless.ScriptedAction>) = harness.installScriptedAi(script)
 
     fun playLand(name: String? = null): Boolean = harness.playLand(name)
 
