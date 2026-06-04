@@ -30,6 +30,11 @@ fun List<GREToClientMessage>.allAnnotations(): List<AnnotationInfo> = gameStateM
 
 fun List<GREToClientMessage>.allPersistentAnnotations(): List<AnnotationInfo> = gameStateMessages().flatMap { it.persistentAnnotationsList }
 
+fun List<GREToClientMessage>.deletedPersistentAnnotationIds(): Set<Int> =
+    gameStateMessages()
+        .flatMap { it.diffDeletedPersistentAnnotationIdsList }
+        .toSet()
+
 fun List<GREToClientMessage>.allGameObjects(): List<GameObjectInfo> = gameStateMessages().flatMap { it.gameObjectsList }
 
 fun List<GREToClientMessage>.annotationsOfType(type: AnnotationType): List<AnnotationInfo> = allAnnotations().filter { type in it.typeList }

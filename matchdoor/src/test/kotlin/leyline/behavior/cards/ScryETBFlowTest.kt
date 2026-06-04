@@ -9,9 +9,11 @@ import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 import leyline.testkit.assertConsistent
 import leyline.testkit.assertGsIdChain
+import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detail
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList
+import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -260,9 +262,8 @@ class ScryETBFlowTest :
 
             val triggering =
                 triggerMessages
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
-                    .firstOrNull { ann -> AnnotationType.TriggeringObject in ann.typeList }
+                    .persistentAnnotationsOfType(AnnotationType.TriggeringObject)
+                    .firstOrNull()
             triggering.shouldNotBeNull()
             assertSoftly {
                 triggering.affectedIdsList.shouldNotBeEmpty()
@@ -275,9 +276,7 @@ class ScryETBFlowTest :
 
             val deletedIds =
                 resolveMessages
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.diffDeletedPersistentAnnotationIdsList }
-                    .toSet()
+                    .deletedPersistentAnnotationIds()
             (triggering.id in deletedIds).shouldBeTrue()
         }
 

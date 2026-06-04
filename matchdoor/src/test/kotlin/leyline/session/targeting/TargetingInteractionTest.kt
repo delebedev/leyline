@@ -20,13 +20,16 @@ import leyline.config.MatchConfig
 import leyline.config.ServerConfig
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.allAnnotations
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.beInHandOf
 import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.clientMessage
+import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailInt
 import leyline.testkit.firstWithTransferCategory
 import leyline.testkit.gsm
+import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
@@ -566,8 +569,7 @@ class TargetingInteractionTest :
 
             val damageAnn =
                 allMessages
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList }
+                    .allAnnotations()
                     .firstOrNull { AnnotationType.DamageDealt_af5a in it.typeList }
             assertSoftly {
                 damageAnn.shouldNotBeNull()
@@ -609,9 +611,7 @@ class TargetingInteractionTest :
 
             val preResolve =
                 allMessages
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
-                    .filter { AnnotationType.TargetSpec in it.typeList }
+                    .persistentAnnotationsOfType(AnnotationType.TargetSpec)
             preResolve.shouldHaveSize(2)
 
             val group1 = preResolve.first { it.detailInt("index") == 1 }
@@ -629,16 +629,12 @@ class TargetingInteractionTest :
             passUntil(maxPasses = 6) {
                 val deletedIds =
                     allMessages
-                        .filter { it.hasGameStateMessage() }
-                        .flatMap { it.gameStateMessage.diffDeletedPersistentAnnotationIdsList }
-                        .toSet()
+                        .deletedPersistentAnnotationIds()
                 preResolveIds.all { it in deletedIds }
             }
             val allDeletedPannIds =
                 allMessages
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.diffDeletedPersistentAnnotationIdsList }
-                    .toSet()
+                    .deletedPersistentAnnotationIds()
             withClue("preResolve=$preResolveIds deleted=$allDeletedPannIds") {
                 preResolveIds.all { it in allDeletedPannIds }.shouldBeTrue()
             }
