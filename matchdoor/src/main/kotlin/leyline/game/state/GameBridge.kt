@@ -133,11 +133,9 @@ class GameBridge(
             }
     }
 
-    fun pendingSpellCast(cardId: ForgeCardId): GameEvent.SpellCast? =
-        pendingSpellCasts.find(cardId, grpIdFor(cardId))
+    fun pendingSpellCast(cardId: ForgeCardId): GameEvent.SpellCast? = pendingSpellCasts.find(cardId, grpIdFor(cardId))
 
-    fun pendingSpellResolution(cardId: ForgeCardId): GameEvent.SpellResolved? =
-        pendingSpellResolutions.find(cardId, grpIdFor(cardId))
+    fun pendingSpellResolution(cardId: ForgeCardId): GameEvent.SpellResolved? = pendingSpellResolutions.find(cardId, grpIdFor(cardId))
 
     fun consumePendingSpellCast(cardId: ForgeCardId) {
         pendingSpellCasts.consume(cardId, grpIdFor(cardId))
