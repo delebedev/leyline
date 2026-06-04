@@ -100,10 +100,8 @@ class GameBridge(
 
     val abilityLineage = AbilityLineageRegistry()
 
-    private val pendingSpellCasts = ConcurrentHashMap<ForgeCardId, GameEvent.SpellCast>()
-    private val pendingSpellCastsByGrpId = ConcurrentHashMap<Int, GameEvent.SpellCast>()
-    private val pendingSpellResolutions = ConcurrentHashMap<ForgeCardId, GameEvent.SpellResolved>()
-    private val pendingSpellResolutionsByGrpId = ConcurrentHashMap<Int, GameEvent.SpellResolved>()
+    private val pendingSpellCasts = PendingSpellEventRegistry<GameEvent.SpellCast>()
+    private val pendingSpellResolutions = PendingSpellEventRegistry<GameEvent.SpellResolved>()
     private val stackAbilityGrpIdsByForgeAbilityId = ConcurrentHashMap<Int, Int>()
 
     fun recordStackAbilityGrpId(
@@ -122,8 +120,7 @@ class GameBridge(
             .filterIsInstance<GameEvent.SpellCast>()
             .filter { !it.isAbility && !it.isTrigger }
             .forEach {
-                pendingSpellCasts[it.cardId] = it
-                grpIdFor(it.cardId)?.let { grpId -> pendingSpellCastsByGrpId[grpId] = it }
+                pendingSpellCasts.record(it.cardId, grpIdFor(it.cardId), it)
             }
     }
 
@@ -132,30 +129,39 @@ class GameBridge(
             .filterIsInstance<GameEvent.SpellResolved>()
             .filter { !it.isAbility && !it.isTrigger }
             .forEach {
-                pendingSpellResolutions[it.cardId] = it
-                grpIdFor(it.cardId)?.let { grpId -> pendingSpellResolutionsByGrpId[grpId] = it }
+                pendingSpellResolutions.record(it.cardId, grpIdFor(it.cardId), it)
             }
     }
 
-    fun pendingSpellCast(cardId: ForgeCardId): GameEvent.SpellCast? =
-        pendingSpellCasts[cardId] ?: grpIdFor(cardId)?.let { pendingSpellCastsByGrpId[it] }
+    fun pendingSpellCast(cardId: ForgeCardId): GameEvent.SpellCast? = pendingSpellCasts.find(cardId, grpIdFor(cardId))
 
-    fun pendingSpellResolution(cardId: ForgeCardId): GameEvent.SpellResolved? =
-        pendingSpellResolutions[cardId] ?: grpIdFor(cardId)?.let { pendingSpellResolutionsByGrpId[it] }
+    fun pendingSpellResolution(cardId: ForgeCardId): GameEvent.SpellResolved? = pendingSpellResolutions.find(cardId, grpIdFor(cardId))
 
     fun consumePendingSpellCast(cardId: ForgeCardId) {
-        pendingSpellCasts.remove(cardId)
-        grpIdFor(cardId)?.let { pendingSpellCastsByGrpId.remove(it) }
+        pendingSpellCasts.consume(cardId, grpIdFor(cardId))
     }
 
     fun consumePendingSpellResolution(cardId: ForgeCardId) {
-        pendingSpellResolutions.remove(cardId)
-        grpIdFor(cardId)?.let { pendingSpellResolutionsByGrpId.remove(it) }
+        pendingSpellResolutions.consume(cardId, grpIdFor(cardId))
     }
 
     private fun grpIdFor(cardId: ForgeCardId): Int? = findCard(cardId)?.name?.let { cardRepository.findGrpIdByName(it) }
 
-    val paradigmSourceStackIids = ConcurrentHashMap<ForgeCardId, Int>()
+    private val paradigmSourceStackIids = ConcurrentHashMap<ForgeCardId, Int>()
+
+    fun recordParadigmSourceStackIid(
+        fid: ForgeCardId,
+        stackIid: Int,
+    ) {
+        paradigmSourceStackIids[fid] = stackIid
+    }
+
+    fun recordParadigmSourceStackIidIfAbsent(
+        fid: ForgeCardId,
+        stackIid: Int,
+    ) {
+        paradigmSourceStackIids.putIfAbsent(fid, stackIid)
+    }
 
     fun paradigmSourceStackIidFor(fid: ForgeCardId): Int? =
         paradigmSourceStackIids[fid]
@@ -1599,5 +1605,32 @@ class GameBridge(
             Thread.sleep(POLL_INTERVAL_MS)
         }
         log.warn("GameBridge: timed out waiting for engine to reach mulligan")
+    }
+}
+
+private class PendingSpellEventRegistry<T> {
+    private val byCardId = ConcurrentHashMap<ForgeCardId, T>()
+    private val byGrpId = ConcurrentHashMap<Int, T>()
+
+    fun record(
+        cardId: ForgeCardId,
+        grpId: Int?,
+        event: T,
+    ) {
+        byCardId[cardId] = event
+        grpId?.let { byGrpId[it] = event }
+    }
+
+    fun find(
+        cardId: ForgeCardId,
+        grpId: Int?,
+    ): T? = byCardId[cardId] ?: grpId?.let { byGrpId[it] }
+
+    fun consume(
+        cardId: ForgeCardId,
+        grpId: Int?,
+    ) {
+        byCardId.remove(cardId)
+        grpId?.let { byGrpId.remove(it) }
     }
 }

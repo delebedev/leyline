@@ -506,8 +506,7 @@ class CombatInteractionTest :
                 }.messages
             val allAnnotations =
                 combatMsgs
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList }
+                    .allAnnotations()
 
             // Either ZoneTransfer (trade) or damage annotations should be present
             val hasZoneTransfer = allAnnotations.any { AnnotationType.ZoneTransfer_af5a in it.typeList }

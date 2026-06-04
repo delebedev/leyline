@@ -8,6 +8,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
+import leyline.testkit.allAnnotations
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.persistentAnnotationsOfType
@@ -53,7 +54,7 @@ class ImpendingLifecycleTest :
             val overlord = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Overlord of the Mistmoors" }
             val counterRemoved =
                 messagesSince(snap)
-                    .flatMap { it.gameStateMessage.annotationsList }
+                    .allAnnotations()
                     .first { AnnotationType.CounterRemoved in it.typeList }
 
             assertSoftly {
@@ -76,7 +77,7 @@ class ImpendingLifecycleTest :
 
             val removed =
                 allMessages
-                    .flatMap { it.gameStateMessage.annotationsList }
+                    .allAnnotations()
                     .filter { AnnotationType.CounterRemoved in it.typeList }
 
             val overlord = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Overlord of the Mistmoors" }
@@ -112,7 +113,7 @@ class ImpendingLifecycleTest :
 
             val removed =
                 allMessages
-                    .flatMap { it.gameStateMessage.annotationsList }
+                    .allAnnotations()
                     .filter { AnnotationType.CounterRemoved in it.typeList && it.detailString("counter_type") == "Time" }
             val overlord = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Overlord of the Mistmoors" }
 
