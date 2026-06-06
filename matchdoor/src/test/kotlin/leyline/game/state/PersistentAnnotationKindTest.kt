@@ -209,7 +209,8 @@ class PersistentAnnotationKindTest :
 
             assertSoftly {
                 result.deletedIds.shouldBeEmpty()
-                result.allAnnotations.map { it.affectorId to it.affectedIdsList.single() }
+                result.allAnnotations
+                    .map { it.affectorId to it.affectedIdsList.single() }
                     .shouldContainExactlyInAnyOrder(101 to 10, 202 to 10)
             }
         }
