@@ -1,0 +1,11 @@
+name: "Airbending Lesson"
+grpId: 97281
+titleId: 1070307
+abilities:
+  - id: 192553
+    textId: 1070309
+    category: 4
+  - id: 25848
+    textId: 730
+    category: 4
+expansionCode: "TLA"

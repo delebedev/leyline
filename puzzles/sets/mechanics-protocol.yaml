@@ -307,6 +307,30 @@ scenarios:
       - resolve_stack: {}
       - expect:
           stack_empty: true
+  - id: airbend-airbending-lesson
+    puzzle: airbend-airbending-lesson
+    run: cast Airbending Lesson, airbend Grizzly Bears, then cast it from exile
+    expect: Grizzly Bears moves through exile and resolves from the Airbend cast rail
+    steps:
+      - expect:
+          action: { type: cast, card: Airbending Lesson }
+      - cast: Airbending Lesson
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 8
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: exile, card: Grizzly Bears }
+            - action: { type: cast, card: Grizzly Bears, alt_cost: airbend }
+      - cast: { card: Grizzly Bears, zone: exile, alt_cost: airbend }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: graveyard, card: Airbending Lesson }
+            - stack_empty: true
   - id: investigate-novice-inspector
     puzzle: novice-inspector-investigate
     run: cast Novice Inspector, create Clue, then sacrifice Clue to draw

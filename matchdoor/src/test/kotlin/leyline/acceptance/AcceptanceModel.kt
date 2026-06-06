@@ -304,6 +304,7 @@ enum class AcceptanceAltCost(
     Plot("plot"),
     Warp("warp"),
     Enlist("enlist"),
+    Airbend("airbend"),
     ;
 
     companion object {
