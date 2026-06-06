@@ -39,8 +39,10 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
+import leyline.game.snapshot.EarthbendProjection
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.GsmSnapshot
 import org.jetbrains.annotations.VisibleForTesting
@@ -394,6 +396,8 @@ class GameBridge(
     /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */
     val effects = EffectTracker()
 
+    private val earthbend = EarthbendTracker()
+
     /** Cached token grpId per instanceId — stable across diff ticks. */
     val tokenRegistry = TokenIdentityRegistry()
 
@@ -428,6 +432,43 @@ class GameBridge(
     fun resetDecayedCleanupSources() {
         decayedCleanupSources.clear()
     }
+
+    fun recordEarthbendResolution(
+        sourceCardId: ForgeCardId,
+        sourceAbilityGrpId: Int,
+        abilityForgeId: Int,
+        targetCardIds: List<ForgeCardId>,
+    ) {
+        val source = findCard(sourceCardId) ?: return
+        val sourceGrpId = grpIdFor(sourceCardId) ?: 0
+        val sourceIid = ids.getOrAlloc(sourceCardId)
+        val resolvingIid =
+            if (abilityForgeId != 0) {
+                ids.getOrAlloc(FrameIdResolver.Companion.triggerStackAbilityForgeId(abilityForgeId))
+            } else {
+                sourceIid
+            }
+        val targets = targetCardIds.mapNotNull { findCard(it) }
+        earthbend.recordResolution(
+            sourceInstanceId = sourceIid,
+            sourceCardGrpId = sourceGrpId,
+            sourceAbilityGrpId = sourceAbilityGrpId,
+            resolvingInstanceId = resolvingIid,
+            targetCards = targets,
+            targetInstanceId = { ids.getOrAlloc(it) },
+            nextEffectId = { effects.nextEffectId() },
+        )
+    }
+
+    fun earthbendProjectionFor(card: Card): EarthbendProjection? = earthbend.projectionFor(card)
+
+    fun isEarthbendHasteKeyword(
+        card: Card,
+        timestamp: Long,
+        staticId: Long,
+    ): Boolean = earthbend.isEarthbendHasteKeyword(card, timestamp, staticId)
+
+    fun drainEarthbendFrame(): EarthbendTracker.Frame = earthbend.drainFrame(battlefieldCards())
 
     data class LibraryArrangementResult(
         val seatId: SeatId,
@@ -1182,6 +1223,7 @@ class GameBridge(
         limbo.clear()
         diff.resetAll()
         effects.resetAll()
+        earthbend.resetAll()
         annotations.resetAll()
         delayedTriggerHolders.resetAll()
         resetDecayedCleanupSources()
@@ -1463,14 +1505,21 @@ class GameBridge(
                     val timestamp = cell.rowKey
                     val staticId = cell.columnKey
                     for (kw in cell.value.keywords) {
+                        val keyword = kw.keyword.toString()
+                        if (keyword == "Haste" && isEarthbendHasteKeyword(card, timestamp, staticId)) continue
                         result
                             .getOrPut(instanceId.value) { mutableListOf() }
-                            .add(EffectTracker.KeywordEntry(timestamp, staticId, kw.keyword.toString()))
+                            .add(EffectTracker.KeywordEntry(timestamp, staticId, keyword))
                     }
                 }
             }
         }
         return result
+    }
+
+    private fun battlefieldCards(): List<Card> {
+        val game = game ?: return emptyList()
+        return game.players.flatMap { player -> player.getZone(ZoneType.Battlefield).cards }
     }
 
     /**

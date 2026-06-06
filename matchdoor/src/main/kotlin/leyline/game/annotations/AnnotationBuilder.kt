@@ -1402,6 +1402,89 @@ object AnnotationBuilder {
                 }
             }.build()
 
+    fun earthbendModifiedTypeLayeredEffect(
+        instanceId: InstanceId,
+        affectorId: InstanceId,
+        effectId: EffectId,
+        sourceAbilityGrpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.ModifiedType)
+            .addType(AnnotationType.LayeredEffect)
+            .setAffectorId(affectorId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+            .build()
+
+    fun earthbendAddHasteLayeredEffect(
+        instanceId: InstanceId,
+        affectorId: InstanceId,
+        effectId: EffectId,
+        sourceAbilityGrpId: GrpId,
+        uniqueAbilityId: Int,
+        originalAbilityObjectZcid: Int,
+        hasteGrpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.AddAbility_af5a)
+            .addType(AnnotationType.LayeredEffect)
+            .setAffectorId(affectorId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID, originalAbilityObjectZcid))
+            .addDetails(int32Detail(DetailKeys.UNIQUE_ABILITY_ID, uniqueAbilityId))
+            .addDetails(int32Detail(DetailKeys.GRPID, hasteGrpId.value))
+            .addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+            .build()
+
+    fun earthbendModifiedPowerLayeredEffect(
+        instanceId: InstanceId,
+        affectorId: InstanceId,
+        effectId: EffectId,
+        sourceAbilityGrpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.ModifiedPower)
+            .addType(AnnotationType.LayeredEffect)
+            .setAffectorId(affectorId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+            .build()
+
+    fun earthbendModifiedToughnessLayeredEffect(
+        instanceId: InstanceId,
+        affectorId: InstanceId,
+        effectId: EffectId,
+        sourceAbilityGrpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.ModifiedToughness)
+            .addType(AnnotationType.LayeredEffect)
+            .setAffectorId(affectorId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+            .build()
+
+    fun manaCreatureDesignation(
+        instanceId: InstanceId,
+        controllerId: SeatId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_MANA_CREATURE))
+            .addDetails(int32Detail(DetailKeys.CONTROLLER_ID, controllerId.value))
+            .build()
+
     /** Creatures dealt damage this turn. Persistent badge. client type 90.
      *  `affectorId` defaults to the shared Battlefield zone.
      *  `affectedIds` is the cumulative set of victims for the current turn. */

@@ -634,12 +634,33 @@ class GameEventCollector(
     }
 
     override fun visit(ev: GameEventSpellResolved) {
-        val card = ev.spell().hostCard ?: return
-        val saId = ev.spell().id
+        val spell = ev.spell()
+        val card = spell.hostCard ?: return
+        val saId = spell.id
         val isTrigger = pendingTriggers.remove(saId) != null
         val isAbility = !isTrigger && pendingActivations.remove(saId) != null
         val abilityGrpId = pendingAbilityGrpIds.remove(saId) ?: 0
         val paradigmCopyStackIid = pendingParadigmCopyStackIids.remove(saId) ?: 0
+        val liveCard = bridge.findCard(ForgeCardId(card.id))
+        val liveSa = findLiveSaOnCard(card.id, saId)
+        if (!ev.hasFizzled() && liveSa?.api == ApiType.Earthbend && liveCard != null) {
+            val targetIds =
+                liveSa.targets
+                    ?.targetCards
+                    ?.map { ForgeCardId(it.id) }
+                    .orEmpty()
+            val earthbendAbilityGrpId =
+                abilityGrpId.takeIf { it != 0 }
+                    ?: abilityGrpIdFor(liveCard, liveSa, isTrigger = false).takeIf { it != 0 }
+                    ?: bridge.cardRepository.findGrpIdByName(card.name)
+                    ?: 0
+            bridge.recordEarthbendResolution(
+                sourceCardId = ForgeCardId(card.id),
+                sourceAbilityGrpId = earthbendAbilityGrpId,
+                abilityForgeId = if (isTrigger || isAbility) saId else 0,
+                targetCardIds = targetIds,
+            )
+        }
         frame.add(
             GameEvent.SpellResolved(
                 cardId = ForgeCardId(card.id),
@@ -780,8 +801,10 @@ class GameEventCollector(
     }
 
     override fun visit(ev: GameEventFlipCoin) {
-        val flipper = seatOf(ev.player) ?: return
-        val sa = ev.sa ?: return
+        val flipperView = ev.player() ?: return
+        val sa = ev.sa() ?: return
+        val won = ev.won()
+        val flipper = seatOf(flipperView) ?: return
         val card = sa.hostCard ?: return
         val abilityForgeId = sa.id.takeIf { pendingTriggers.containsKey(it) || pendingActivations.containsKey(it) } ?: 0
         frame.add(
@@ -790,7 +813,7 @@ class GameEventCollector(
                 sourceCardId = ForgeCardId(card.id),
                 abilityForgeId = abilityForgeId,
                 abilityGrpId = pendingAbilityGrpIds[abilityForgeId] ?: 0,
-                result = if (ev.won) 1 else 0,
+                result = if (won) 1 else 0,
             ),
         )
         log.debug(
@@ -798,7 +821,7 @@ class GameEventCollector(
             card.name,
             flipper,
             abilityForgeId,
-            if (ev.won) 1 else 0,
+            if (won) 1 else 0,
         )
     }
 

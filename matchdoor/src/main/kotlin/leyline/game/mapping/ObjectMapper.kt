@@ -233,6 +233,17 @@ object ObjectMapper {
                 .setControllerSeatId(cardSnap.controller.value)
                 .setOthersideGrpId(cardSnap.othersideGrpId)
                 .applyFieldsFromSnapshot(cardSnap, parentLinkage)
+        cardSnap.earthbend?.let { earthbend ->
+            if (builder.uniqueAbilitiesList.none { it.grpId == earthbend.hasteAbilityGrpId }) {
+                builder.addUniqueAbilities(
+                    UniqueAbilityInfo
+                        .newBuilder()
+                        .setId(earthbend.uniqueAbilityId)
+                        .setGrpId(earthbend.hasteAbilityGrpId),
+                )
+            }
+            builder.addAbilityOriginalCardGrpIds(earthbend.sourceCardGrpId)
+        }
         if (cardSnap.isMergedPermanent) {
             builder.addAllAbilityOriginalCardGrpIds(
                 cardProto.staticAbilityGrpIds(cardSnap.grpId).map { cardSnap.grpId } +
