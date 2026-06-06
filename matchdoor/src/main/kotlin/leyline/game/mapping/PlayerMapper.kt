@@ -38,15 +38,18 @@ object PlayerMapper {
                 .setStartingLifeTotal(seat.startingLife)
                 .setMaxHandSize(seat.maxHandSize)
             for (mana in seat.manaPool) {
-                builder.addManaPool(
+                val manaBuilder =
                     ManaInfo
                         .newBuilder()
                         .setManaId(mana.manaId)
                         .setColor(mana.color)
                         .setSrcInstanceId(mana.srcInstanceId)
                         .setAbilityGrpId(mana.abilityGrpId)
-                        .setCount(mana.count),
-                )
+                        .setCount(mana.count)
+                mana.specs.forEach { spec ->
+                    manaBuilder.addSpecs(ManaInfo.Spec.newBuilder().setType(spec))
+                }
+                builder.addManaPool(manaBuilder)
             }
         }
         return builder.build()

@@ -64,6 +64,13 @@ class PersistentAnnotationKindTest :
                 perKindPersistent = mapOf(ColorProductionKind to annotations.toList()),
             )
 
+        fun manaDetailsResult(vararg annotations: wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo): MechanicAnnotationResult =
+            MechanicAnnotationResult(
+                transient = emptyList(),
+                persistent = emptyList(),
+                perKindPersistent = mapOf(ManaDetailsKind to annotations.toList()),
+            )
+
         fun annotationDetailInt(
             ann: wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo,
             key: String,
@@ -181,6 +188,29 @@ class PersistentAnnotationKindTest :
             assertSoftly {
                 result.deletedIds.shouldBeEmpty()
                 result.allAnnotations shouldHaveSize 1
+            }
+        }
+
+        test("ManaDetails keeps same manaId from different sources") {
+            val first = AnnotationBuilder.manaDetails(sourceInstanceId = InstanceId(101), manaId = 10)
+            val second = AnnotationBuilder.manaDetails(sourceInstanceId = InstanceId(202), manaId = 10)
+
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = emptyMap(),
+                    startPersistentId = 100,
+                    frame = frame(PhaseType.MAIN1),
+                    effectPersistent = emptyList(),
+                    effectDiff = emptyEffectDiff,
+                    transferPersistent = emptyList(),
+                    mechanicResult = manaDetailsResult(first, second),
+                    resolveInstanceId = { InstanceId(it.value) },
+                )
+
+            assertSoftly {
+                result.deletedIds.shouldBeEmpty()
+                result.allAnnotations.map { it.affectorId to it.affectedIdsList.single() }
+                    .shouldContainExactlyInAnyOrder(101 to 10, 202 to 10)
             }
         }
 
