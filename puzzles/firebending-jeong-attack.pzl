@@ -1,0 +1,17 @@
+[metadata]
+Name:Firebending Jeong Attack
+Goal:Attack with Jeong Jeong, resolve Firebending mana, and spend it.
+Turns:5
+Difficulty:Easy
+Description:Jeong Jeong attacks, creates a Firebending trigger, resolves it into combat-persistent red mana with ManaDetails, then spends that mana on Lightning Bolt.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Lightning Bolt
+humanbattlefield=Jeong Jeong, the Deserter
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

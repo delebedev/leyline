@@ -43,6 +43,7 @@ import leyline.game.state.HolderBatch
 import leyline.game.state.LeftUnlockedDesignationKind
 import leyline.game.state.LinkInfoChoiceKind
 import leyline.game.state.ManaCreatureDesignationKind
+import leyline.game.state.ManaDetailsKind
 import leyline.game.state.ModifiedTypeForCrewKind
 import leyline.game.state.MutateLayeredEffectKind
 import leyline.game.state.PersistentAnnotationKind
@@ -1136,6 +1137,7 @@ object StateMapper {
                         put(FaceDownDisguiseKind, persistentFeeds.faceDownDisguise)
                         put(ColorProductionKind, persistentFeeds.colorProduction)
                         put(LinkInfoChoiceKind, persistentFeeds.linkInfo)
+                        put(ManaDetailsKind, buildManaDetailsAnnotations(snap))
                     },
             )
         val batch =
@@ -2055,6 +2057,17 @@ object StateMapper {
         }
         return bridge.cardRepository.findGrpIdByName(spec.spellName) ?: 0
     }
+
+    private fun buildManaDetailsAnnotations(snap: GsmSnapshot): List<AnnotationInfo> =
+        snap.seats.flatMap { seat ->
+            seat.manaPool.mapNotNull { mana ->
+                if (ManaSpecType.DoesNotEmpty !in mana.specs) return@mapNotNull null
+                AnnotationBuilder.manaDetails(
+                    sourceInstanceId = InstanceId(mana.srcInstanceId),
+                    manaId = mana.manaId,
+                )
+            }
+        }
 
     private fun buildMutateMergeAnnotations(
         snap: GsmSnapshot,

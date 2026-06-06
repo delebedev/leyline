@@ -2,6 +2,7 @@ package leyline.game.snapshot
 
 import leyline.bridge.types.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
 
 data class ManaPoolEntry(
     val manaId: Int,
@@ -9,6 +10,7 @@ data class ManaPoolEntry(
     val srcInstanceId: Int,
     val abilityGrpId: Int,
     val count: Int,
+    val specs: List<ManaSpecType> = emptyList(),
 )
 
 /**

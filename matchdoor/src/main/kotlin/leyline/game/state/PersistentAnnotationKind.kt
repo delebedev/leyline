@@ -478,6 +478,16 @@ data object LinkInfoChoiceKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId to stringDetail(ann, DetailKeys.CHOOSE_LINK_TYPE).orEmpty()
 }
 
+data object ManaDetailsKind : PersistentAnnotationKind {
+    override val name = "ManaDetails"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.ManaDetails in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId to firstAffectedId(ann)
+}
+
 /**
  * Pure-snapshot persistent annotation: the "trigger ↔ source" link drawn by
  * the client as a glowing arrow. One row per ability instance on the stack,
@@ -524,6 +534,7 @@ object PersistentAnnotationKinds {
             MutateLayeredEffectKind,
             ColorProductionKind,
             LinkInfoChoiceKind,
+            ManaDetailsKind,
             PreparedDesignationKind,
             PlottedDesignationKind,
             CommanderDesignationKind,

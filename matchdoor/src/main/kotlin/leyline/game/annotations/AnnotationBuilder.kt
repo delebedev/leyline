@@ -48,6 +48,8 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
  */
 @Suppress("LargeClass")
 object AnnotationBuilder {
+    private const val MANA_SPEC_DOES_NOT_EMPTY_VALUE = 14695
+
     /** DamageDealt `type` wire value for combat damage. Non-combat (0) isn't exercised yet. */
     private const val COMBAT_DAMAGE_TYPE = 1
 
@@ -258,6 +260,18 @@ object AnnotationBuilder {
             .addAffectedIds(spellInstanceId.value)
             .addDetails(int32Detail(DetailKeys.ID, manaId))
             .addDetails(int32Detail(DetailKeys.COLOR, color))
+            .build()
+
+    fun manaDetails(
+        sourceInstanceId: InstanceId,
+        manaId: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.ManaDetails)
+            .setAffectorId(sourceInstanceId.value)
+            .addAffectedIds(manaId)
+            .addDetails(int32Detail(DetailKeys.MANA_SPEC_TYPE_DOES_NOT_EMPTY, MANA_SPEC_DOES_NOT_EMPTY_VALUE))
             .build()
 
     /**

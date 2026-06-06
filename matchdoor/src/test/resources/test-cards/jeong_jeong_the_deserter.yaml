@@ -1,0 +1,14 @@
+name: "Jeong Jeong, the Deserter"
+grpId: 97418
+titleId: 1070797
+abilities:
+  - id: 192647
+    textId: 1070593
+    category: 2
+    baseId: 379
+  - id: 192720
+    textId: 1070799
+    category: 1
+    baseId: 353
+    mana: "o3"
+expansionCode: "TLA"

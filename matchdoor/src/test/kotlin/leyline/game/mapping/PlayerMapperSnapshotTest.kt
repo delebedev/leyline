@@ -9,6 +9,7 @@ import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.ManaPoolEntry
 import leyline.game.snapshot.SeatSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
 
 class PlayerMapperSnapshotTest :
     FunSpec({
@@ -58,6 +59,7 @@ class PlayerMapperSnapshotTest :
                                             srcInstanceId = 42,
                                             abilityGrpId = 123,
                                             count = 1,
+                                            specs = listOf(ManaSpecType.DoesNotEmpty),
                                         ),
                                     ),
                             ),
@@ -72,6 +74,7 @@ class PlayerMapperSnapshotTest :
                 mana.srcInstanceId shouldBe 42
                 mana.abilityGrpId shouldBe 123
                 mana.count shouldBe 1
+                mana.specsList.single().type shouldBe ManaSpecType.DoesNotEmpty
             }
         }
     })

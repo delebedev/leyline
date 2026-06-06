@@ -353,6 +353,17 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("manaDetailsFields") {
+            val ann = AnnotationBuilder.manaDetails(sourceInstanceId = 42.iid, manaId = 5)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.ManaDetails
+                ann.affectorId shouldBe 42
+                ann.affectedIdsList shouldContain 5
+                ann.detailInt("ManaSpecType_DoesNotEmpty") shouldBe 14695
+                ann.detail("ManaSpecType_DoesNotEmpty")?.type shouldBe KeyValuePairValueType.Int32
+            }
+        }
+
         // --- TappedUntappedPermanent ---
 
         test("tappedUntappedPermanentFields") {

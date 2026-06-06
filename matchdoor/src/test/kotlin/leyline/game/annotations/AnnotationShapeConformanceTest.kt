@@ -235,6 +235,7 @@ class AnnotationShapeConformanceTest :
                 "AbilityInstanceCreated" to setOf("source_zone"),
                 "AbilityInstanceDeleted" to emptySet(),
                 "ManaPaid" to setOf("color", "id"),
+                "ManaDetails" to setOf("ManaSpecType_DoesNotEmpty"),
                 "ResolutionComplete" to setOf("grpid"),
                 "ResolutionStart" to setOf("grpid"),
                 // --- Medium frequency ---
@@ -288,6 +289,7 @@ class AnnotationShapeConformanceTest :
                     detailKeys(
                         AnnotationBuilder.manaPaid(spellInstanceId = 1.iid, landInstanceId = 2.iid, manaId = 1, color = 4),
                     ),
+                "ManaDetails" to detailKeys(AnnotationBuilder.manaDetails(sourceInstanceId = 2.iid, manaId = 1)),
                 "ResolutionComplete" to detailKeys(AnnotationBuilder.resolutionComplete(1.iid, 1.grp)),
                 "ResolutionStart" to detailKeys(AnnotationBuilder.resolutionStart(1.iid, 1.grp)),
                 "NewTurnStarted" to detailKeys(AnnotationBuilder.newTurnStarted(1.sid)),

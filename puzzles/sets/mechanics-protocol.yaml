@@ -211,6 +211,28 @@ scenarios:
       - resolve_stack: {}
       - expect:
           battlefield_stats_at_least: { side: ours, card: Hopeful Initiate, power: 2, toughness: 3 }
+  - id: firebending-jeong-attack
+    puzzle: firebending-jeong-attack
+    run: attack with Jeong Jeong, resolve Firebending mana, and spend it
+    expect: Firebending emits ManaDetails and casts Lightning Bolt from combat mana
+    steps:
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack_all: {}
+      - resolve_stack: {}
+      - expect:
+          action: { type: cast, card: Lightning Bolt }
+      - cast: Lightning Bolt
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: ManaDetails
+            - zone_contains: { side: ours, zone: graveyard, card: Lightning Bolt }
+            - zone_not_contains: { side: ours, zone: hand, card: Lightning Bolt }
+            - opponent_life: 15
+            - stack_empty: true
   - id: backup-enduring-bondwarden
     puzzle: backup-enduring-bondwarden
     run: cast Enduring Bondwarden and put backup counter on Grizzly Bears
