@@ -63,7 +63,7 @@ just puzzle file.pzl   # run a puzzle scenario
 
 **Minimal engine changes.** Leyline plugs into Forge's existing bridge interfaces. The fork adds event hooks and controller seams — the rules engine stays untouched.
 
-**Puzzles as acceptance tests.** `.pzl` files define exact board states with one win path. An agent plays the game to verify the server.
+**Puzzles as acceptance tests.** `.pzl` files define exact board states with a focused success path. Agents and scripted suites play through them to verify the server without relying on game-ending goals.
 
 **Protocol implementation.** Protobuf responses built from protocol documentation and project-owned tooling. No distributed client assets.
 
