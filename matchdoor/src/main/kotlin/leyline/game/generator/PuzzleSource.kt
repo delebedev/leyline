@@ -1,7 +1,7 @@
 package leyline.game.generator
 
 import forge.gamemodes.puzzle.Puzzle
-import forge.gamemodes.puzzle.PuzzleIO
+import forge.util.FileSection
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -9,7 +9,7 @@ import java.io.File
  * Loads Forge `.pzl` puzzles from text, file, or classpath resource.
  *
  * Lightweight: no DB dependency (unlike forge-web's PuzzleLoader which uses Exposed).
- * Parses via Forge's [PuzzleIO.parsePuzzleSections] and constructs a [Puzzle] object.
+ * Parses via Forge's [FileSection.parseSections] and constructs a [Puzzle] object.
  */
 object PuzzleSource {
     private val log = LoggerFactory.getLogger(PuzzleSource::class.java)
@@ -20,7 +20,7 @@ object PuzzleSource {
         name: String = "inline",
     ): Puzzle {
         val lines = content.lines()
-        val sections = PuzzleIO.parsePuzzleSections(lines)
+        val sections = FileSection.parseSections(lines)
         return Puzzle(sections, name, false)
     }
 
@@ -51,7 +51,7 @@ object PuzzleSource {
      */
     fun parseMetadata(content: String): PuzzleMetadata {
         val lines = content.lines()
-        val sections = PuzzleIO.parsePuzzleSections(lines)
+        val sections = FileSection.parseSections(lines)
         val meta = sections["metadata"] ?: emptyList()
         var name: String? = null
         var goal: String? = null

@@ -739,6 +739,10 @@ class ClientGuiGame(
         max: Int,
     ) {}
 
+    override fun setWeaklySelectable(cards: Iterable<CardView>) {}
+
+    override fun clearWeaklySelectable() {}
+
     override fun applyDelta(packet: forge.gamemodes.net.DeltaPacket) {}
 
     override fun clearSelectables() {}
