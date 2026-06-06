@@ -522,6 +522,7 @@ object SnapshotCapture {
             mergedComponentAbilityOriginalCardGrpIds = mergedState.componentAbilityOriginalCardGrpIds,
             isMergedPermanent = mergedState.isMergedPermanent,
             isTopMergedComponent = mergedState.isTopComponent,
+            earthbend = if (onBf) bridge.earthbendProjectionFor(card) else null,
         )
     }
 

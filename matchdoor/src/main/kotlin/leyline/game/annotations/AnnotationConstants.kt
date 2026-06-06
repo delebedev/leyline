@@ -54,6 +54,9 @@ object AnnotationConstants {
      *  a `CastRightRoom` action resolves; persists while the door stays open. */
     const val DESIGNATION_TYPE_RIGHT_UNLOCKED: Int = 20
 
+    /** `DesignationType` enum value for an Earthbend-animated mana creature. */
+    const val DESIGNATION_TYPE_MANA_CREATURE: Int = 23
+
     /** `REASON` value on the persistent `FaceDown` annotation for cards
      *  put face-down by the `Disguise` keyword. Other observed REASON
      *  values: 5 = Manifest, 8 = Morph; both out of scope for v1. */

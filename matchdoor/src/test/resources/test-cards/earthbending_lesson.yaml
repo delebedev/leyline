@@ -1,0 +1,8 @@
+name: "Earthbending Lesson"
+grpId: 97453
+titleId: 1070914
+abilities:
+  - id: 192764
+    textId: 1070916
+    category: 4
+expansionCode: "TLA"

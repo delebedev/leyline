@@ -34,6 +34,7 @@ import leyline.game.state.CommanderDesignationKind
 import leyline.game.state.CrewedThisTurnKind
 import leyline.game.state.DayNightDesignationKind
 import leyline.game.state.DelayedTriggerAffecteesKind
+import leyline.game.state.EarthbendTracker
 import leyline.game.state.EffectTracker
 import leyline.game.state.FaceDownDisguiseKind
 import leyline.game.state.FrameContext
@@ -41,6 +42,7 @@ import leyline.game.state.GameBridge
 import leyline.game.state.HolderBatch
 import leyline.game.state.LeftUnlockedDesignationKind
 import leyline.game.state.LinkInfoChoiceKind
+import leyline.game.state.ManaCreatureDesignationKind
 import leyline.game.state.ModifiedTypeForCrewKind
 import leyline.game.state.MutateLayeredEffectKind
 import leyline.game.state.PersistentAnnotationKind
@@ -1006,6 +1008,14 @@ object StateMapper {
                 stackInstanceResolver = { ev -> castStackIidsByCard[ev.cardId] },
                 castSpellTransferCardIds = castSpellTransferCardIds,
             )
+        val earthbendFrame = bridge.drainEarthbendFrame()
+        val earthbendDestroyed = earthbendFrame.destroyedLayerIds.map { AnnotationBuilder.layeredEffectDestroyed(EffectId(it)) }
+        val earthbendCreated = earthbendCreatedAnnotations(earthbendFrame.created)
+        val earthbendPersistent = earthbendPersistentAnnotations(earthbendFrame.created)
+        val earthbendDesignations = earthbendDesignationAnnotations(earthbendFrame.active, snap)
+        val earthbendPowerToughnessMods = earthbendPowerToughnessMods(earthbendFrame.created, snap)
+        annotations.addAll(earthbendDestroyed)
+        annotations.addAll(earthbendCreated)
         // Token entries belong before combat damage: a Mobilize trigger that
         // resolves between attacker declaration and combat damage produces tokens
         // that themselves attack and deal damage. The client identity map needs
@@ -1030,6 +1040,7 @@ object StateMapper {
             }
         }
         annotations.addAll(otherMechanic)
+        annotations.addAll(earthbendPowerToughnessMods)
         annotations.addAll(buildChoiceResultAnnotations(bridge, frameIds))
 
         // AbilityWordActive: consumed from pre-computed snap entries
@@ -1120,6 +1131,7 @@ object StateMapper {
                         put(SaddledDesignationKind, persistentFeeds.saddledDesignation)
                         put(LeftUnlockedDesignationKind, persistentFeeds.leftUnlockedDesignation)
                         put(RightUnlockedDesignationKind, persistentFeeds.rightUnlockedDesignation)
+                        put(ManaCreatureDesignationKind, earthbendDesignations)
                         put(DayNightDesignationKind, persistentFeeds.dayNightDesignation)
                         put(FaceDownDisguiseKind, persistentFeeds.faceDownDisguise)
                         put(ColorProductionKind, persistentFeeds.colorProduction)
@@ -1131,8 +1143,8 @@ object StateMapper {
                 currentActive = persistSnapshot,
                 startPersistentId = startPersistentId,
                 frame = frameContext,
-                effectPersistent = effectPersistent,
-                effectDiff = effectDiff,
+                effectPersistent = effectPersistent + earthbendPersistent,
+                effectDiff = effectDiff.withDestroyedEarthbendLayers(earthbendFrame.destroyedLayerIds),
                 transferPersistent = transferPersistent,
                 mechanicResult = enrichedMechanicResult,
                 combatResult = combatResult,
@@ -1153,6 +1165,88 @@ object StateMapper {
         var annId = startAnnotationId
         val numbered = ordered.map { it.toBuilder().setId(annId++).build() }
         return RemainingAnnotationsResult(numbered, batch.allAnnotations, batch, annId)
+    }
+
+    private fun earthbendCreatedAnnotations(created: List<EarthbendTracker.Active>): List<AnnotationInfo> =
+        created.flatMap { active ->
+            val affector = InstanceId(active.resolvingInstanceId)
+            listOf(
+                AnnotationBuilder.layeredEffectCreated(EffectId(active.layers.type), affector),
+                AnnotationBuilder.layeredEffectCreated(EffectId(active.layers.haste), affector),
+                AnnotationBuilder.layeredEffectCreated(EffectId(active.layers.power), affector),
+                AnnotationBuilder.layeredEffectCreated(EffectId(active.layers.toughness), affector),
+            )
+        }
+
+    private fun earthbendPersistentAnnotations(created: List<EarthbendTracker.Active>): List<AnnotationInfo> =
+        created.flatMap { active ->
+            val target = InstanceId(active.targetInstanceId)
+            val source = InstanceId(active.sourceInstanceId)
+            val sourceAbility = GrpId(active.sourceAbilityGrpId)
+            listOf(
+                AnnotationBuilder.earthbendModifiedTypeLayeredEffect(
+                    instanceId = target,
+                    affectorId = source,
+                    effectId = EffectId(active.layers.type),
+                    sourceAbilityGrpId = sourceAbility,
+                ),
+                AnnotationBuilder.earthbendAddHasteLayeredEffect(
+                    instanceId = target,
+                    affectorId = source,
+                    effectId = EffectId(active.layers.haste),
+                    sourceAbilityGrpId = sourceAbility,
+                    uniqueAbilityId = active.uniqueAbilityId,
+                    originalAbilityObjectZcid = active.sourceInstanceId,
+                    hasteGrpId = GrpId(KeywordAbilityIds.HASTE),
+                ),
+                AnnotationBuilder.earthbendModifiedPowerLayeredEffect(
+                    instanceId = target,
+                    affectorId = source,
+                    effectId = EffectId(active.layers.power),
+                    sourceAbilityGrpId = sourceAbility,
+                ),
+                AnnotationBuilder.earthbendModifiedToughnessLayeredEffect(
+                    instanceId = target,
+                    affectorId = source,
+                    effectId = EffectId(active.layers.toughness),
+                    sourceAbilityGrpId = sourceAbility,
+                ),
+            )
+        }
+
+    private fun earthbendDesignationAnnotations(
+        active: List<EarthbendTracker.Active>,
+        snap: GsmSnapshot,
+    ): List<AnnotationInfo> =
+        active.mapNotNull { state ->
+            val controller = snap.objects[state.targetForgeCardId]?.controller ?: return@mapNotNull null
+            AnnotationBuilder.manaCreatureDesignation(InstanceId(state.targetInstanceId), controller)
+        }
+
+    private fun earthbendPowerToughnessMods(
+        created: List<EarthbendTracker.Active>,
+        snap: GsmSnapshot,
+    ): List<AnnotationInfo> =
+        created.mapNotNull { state ->
+            val card = snap.objects[state.targetForgeCardId] ?: return@mapNotNull null
+            val power = card.netPower ?: return@mapNotNull null
+            val toughness = card.netToughness ?: return@mapNotNull null
+            val target = InstanceId(state.targetInstanceId)
+            AnnotationBuilder.powerToughnessModCreated(target, power, toughness, affectorId = target)
+        }
+
+    private fun EffectTracker.DiffResult.withDestroyedEarthbendLayers(layerIds: List<Int>): EffectTracker.DiffResult {
+        if (layerIds.isEmpty()) return this
+        val destroyed =
+            layerIds.map { layerId ->
+                EffectTracker.TrackedEffect(
+                    syntheticId = layerId,
+                    fingerprint = EffectTracker.EffectFingerprint(cardInstanceId = 0, timestamp = layerId.toLong(), staticId = 0L),
+                    powerDelta = 0,
+                    toughnessDelta = 0,
+                )
+            }
+        return copy(destroyed = this.destroyed + destroyed)
     }
 
     private fun buildChoiceResultAnnotations(

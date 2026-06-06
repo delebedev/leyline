@@ -341,6 +341,18 @@ data object RightUnlockedDesignationKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
 }
 
+data object ManaCreatureDesignationKind : PersistentAnnotationKind {
+    override val name = "ManaCreatureDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList &&
+            designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_MANA_CREATURE
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
 /**
  * Persistent `FaceDown` annotation for face-down disguise creatures on the
  * battlefield. Carries `REASON=6` (Disguise) + `abilityGrpId=307`
@@ -518,6 +530,7 @@ object PersistentAnnotationKinds {
             SaddledDesignationKind,
             LeftUnlockedDesignationKind,
             RightUnlockedDesignationKind,
+            ManaCreatureDesignationKind,
             DayNightDesignationKind,
             FaceDownDisguiseKind,
         )

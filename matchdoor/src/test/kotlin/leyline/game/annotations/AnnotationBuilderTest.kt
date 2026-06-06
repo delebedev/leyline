@@ -989,6 +989,72 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("manaCreatureDesignationFields") {
+            val ann = AnnotationBuilder.manaCreatureDesignation(instanceId = 199.iid, controllerId = 1.sid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.Designation
+                ann.affectorId shouldBe 199
+                ann.affectedIdsList shouldBe listOf(199)
+                ann.detailInt("DesignationType") shouldBe 23
+                ann.detailInt("ControllerId") shouldBe 1
+            }
+        }
+
+        test("earthbend layered-effect rows carry source ability and layer ids") {
+            val type =
+                AnnotationBuilder.earthbendModifiedTypeLayeredEffect(
+                    instanceId = 199.iid,
+                    affectorId = 287.iid,
+                    effectId = 7006.eid,
+                    sourceAbilityGrpId = 192806.grp,
+                )
+            val haste =
+                AnnotationBuilder.earthbendAddHasteLayeredEffect(
+                    instanceId = 199.iid,
+                    affectorId = 287.iid,
+                    effectId = 7007.eid,
+                    sourceAbilityGrpId = 192806.grp,
+                    uniqueAbilityId = 203,
+                    originalAbilityObjectZcid = 287,
+                    hasteGrpId = 9.grp,
+                )
+            val power =
+                AnnotationBuilder.earthbendModifiedPowerLayeredEffect(
+                    instanceId = 199.iid,
+                    affectorId = 287.iid,
+                    effectId = 7008.eid,
+                    sourceAbilityGrpId = 192806.grp,
+                )
+            val toughness =
+                AnnotationBuilder.earthbendModifiedToughnessLayeredEffect(
+                    instanceId = 199.iid,
+                    affectorId = 287.iid,
+                    effectId = 7009.eid,
+                    sourceAbilityGrpId = 192806.grp,
+                )
+
+            assertSoftly {
+                type.typeList shouldContain AnnotationType.ModifiedType
+                type.typeList shouldContain AnnotationType.LayeredEffect
+                type.affectorId shouldBe 287
+                type.detailInt("sourceAbilityGRPID") shouldBe 192806
+                type.detailInt("effect_id") shouldBe 7006
+
+                haste.typeList shouldContain AnnotationType.AddAbility_af5a
+                haste.typeList shouldContain AnnotationType.LayeredEffect
+                haste.detailInt("originalAbilityObjectZcid") shouldBe 287
+                haste.detailInt("UniqueAbilityId") shouldBe 203
+                haste.detailInt("grpid") shouldBe 9
+                haste.detailInt("sourceAbilityGRPID") shouldBe 192806
+                haste.detailInt("effect_id") shouldBe 7007
+
+                power.typeList shouldContain AnnotationType.ModifiedPower
+                power.detailInt("effect_id") shouldBe 7008
+                toughness.typeList shouldContain AnnotationType.ModifiedToughness
+                toughness.detailInt("effect_id") shouldBe 7009
+            }
+        }
+
         test("faceDownFields") {
             val ann = AnnotationBuilder.faceDown(instanceId = 388.iid)
             assertSoftly {

@@ -228,6 +228,25 @@ scenarios:
           all:
             - zone_contains: { side: ours, zone: battlefield, card: Enduring Bondwarden }
             - battlefield_stats_at_least: { side: ours, card: Grizzly Bears, power: 3, toughness: 3 }
+  - id: earthbend-earthbending-lesson
+    puzzle: earthbend-earthbending-lesson
+    run: cast Earthbending Lesson and target Forest for Earthbend 4
+    expect: Forest becomes a 4/4 land creature and emits Earthbend protocol annotations
+    steps:
+      - expect:
+          action: { type: cast, card: Earthbending Lesson }
+      - cast: Earthbending Lesson
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 8
+      - target: { side: ours, zone: battlefield, card: Forest }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: LayeredEffect
+            - annotation_seen: CounterAdded
+            - battlefield_stats_at_least: { side: ours, card: Forest, power: 4, toughness: 4 }
+            - stack_empty: true
   - id: investigate-novice-inspector
     puzzle: novice-inspector-investigate
     run: cast Novice Inspector, create Clue, then sacrifice Clue to draw

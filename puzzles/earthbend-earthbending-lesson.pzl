@@ -1,0 +1,17 @@
+[metadata]
+Name:Earthbend - Earthbending Lesson
+Goal:Animate a controlled land with Earthbend.
+Turns:5
+Difficulty:Easy
+Description:Cast Earthbending Lesson, target Forest, and verify the land becomes a 4/4 creature.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Earthbending Lesson
+humanbattlefield=Forest;Plains;Island;Mountain
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
