@@ -180,6 +180,18 @@ class PromptClassifierTest :
             result.reason shouldBe SelectNReason.ReturnUnblockedAttackerCost
         }
 
+        test("convoke semantic classifies as cost payment") {
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "Choose creatures to tap for convoke",
+                    semantic = PromptSemantic.ConvokeCost,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.ConvokeCost
+        }
+
         test("learn semantic classifies as select-n with LearnLesson reason") {
             val result =
                 classify(

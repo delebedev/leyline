@@ -96,6 +96,7 @@ object PromptRouteAuditor {
             PromptSemantic.EnlistCost,
             PromptSemantic.StationTapCost,
             PromptSemantic.ReturnUnblockedAttackerCost,
+            PromptSemantic.ConvokeCost,
             PromptSemantic.WaterbendCost,
             -> "PayCostsReq"
             PromptSemantic.SelectNLegendRule,

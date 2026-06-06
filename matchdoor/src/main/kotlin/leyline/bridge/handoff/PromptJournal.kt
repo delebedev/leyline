@@ -29,6 +29,9 @@ import java.util.concurrent.ConcurrentLinkedDeque
  * - `currentCollectEvidenceCost` — active payment context, recorded when Forge
  *   asks for the graveyard-card payment and cleared after the matching cast
  *   frame emits its helper annotation.
+ * - `currentConvokePayments` — active cast-payment context keyed by source
+ *   spell. It stays readable while the spell is on the stack so both the
+ *   payment bracket and on-stack count annotation can see the same choices.
  *
  * [resetForPuzzle] is called during quiescent puzzle hot-swap; it is not
  * serialized against concurrent consumers.
@@ -48,6 +51,9 @@ class PromptJournal {
     @Volatile
     private var currentCollectEvidenceCost: PromptSideEffect.CollectEvidenceCost? = null
 
+    @Volatile
+    private var currentConvokePayments: Map<ForgeCardId, List<PromptSideEffect.ConvokePayment>> = emptyMap()
+
     fun record(effect: PromptSideEffect) {
         when (effect) {
             is PromptSideEffect.SearchedToHand,
@@ -61,6 +67,9 @@ class PromptJournal {
             is PromptSideEffect.OptionalCostStash -> currentStash = effect.indices
             is PromptSideEffect.KeywordCostStash -> currentKeywordStash = effect.decisionsByKeyword
             is PromptSideEffect.CollectEvidenceCost -> currentCollectEvidenceCost = effect
+            is PromptSideEffect.ConvokePayments ->
+                currentConvokePayments =
+                    currentConvokePayments + (effect.sourceForgeCardId to effect.payments)
         }
     }
 
@@ -163,11 +172,21 @@ class PromptJournal {
         currentCollectEvidenceCost = null
     }
 
+    fun activeConvokePayments(sourceForgeCardId: ForgeCardId): List<PromptSideEffect.ConvokePayment> =
+        currentConvokePayments[sourceForgeCardId].orEmpty()
+
+    fun activeConvokePayments(): Map<ForgeCardId, List<PromptSideEffect.ConvokePayment>> = currentConvokePayments
+
+    fun clearConvokePayments(sourceForgeCardId: ForgeCardId) {
+        currentConvokePayments = currentConvokePayments - sourceForgeCardId
+    }
+
     fun resetForPuzzle() {
         drains.clear()
         currentReveal = null
         currentStash = null
         currentKeywordStash = null
         currentCollectEvidenceCost = null
+        currentConvokePayments = emptyMap()
     }
 }

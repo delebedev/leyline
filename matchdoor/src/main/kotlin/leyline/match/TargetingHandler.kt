@@ -35,7 +35,7 @@ class TargetingHandler(
     private val bundles: BundleBuilderHolder,
     private val ctx: SessionContext,
 ) {
-    private val waterbendPaymentSelections = mutableMapOf<String, LinkedHashSet<Int>>()
+    private val manaSourcePaymentSelections = mutableMapOf<String, LinkedHashSet<Int>>()
 
     companion object {
         private const val EATEN_ALIVE_GRP_ID = 93885
@@ -347,8 +347,8 @@ class TargetingHandler(
 
         val ids = greMsg.effectCostResp.costSelection.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(ids, pendingPrompt)
-        if (pendingPrompt.request.semantic == PromptSemantic.WaterbendCost) {
-            waterbendPaymentSelections.remove(pendingPrompt.promptId)
+        if (isManaSourcePaymentSemantic(pendingPrompt.request.semantic)) {
+            manaSourcePaymentSelections.remove(pendingPrompt.promptId)
         }
 
         log.info("TargetingHandler: EffectCostResp indices={}", selectedIndices)
@@ -374,7 +374,7 @@ class TargetingHandler(
         val bridge = ctx.bridge
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return false
-        if (pendingPrompt.request.semantic != PromptSemantic.WaterbendCost) return false
+        if (!isManaSourcePaymentSemantic(pendingPrompt.request.semantic)) return false
 
         val selectedIds =
             actions
@@ -388,21 +388,26 @@ class TargetingHandler(
                         }
                     }
                 }.distinct()
-        val selectedSet = waterbendPaymentSelections.getOrPut(pendingPrompt.promptId) { linkedSetOf() }
+        val selectedSet = manaSourcePaymentSelections.getOrPut(pendingPrompt.promptId) { linkedSetOf() }
         selectedSet.addAll(selectedIds)
 
         if (actions.any { it.actionType == ActionType.Pass }) {
-            val ids = waterbendPaymentSelections.remove(pendingPrompt.promptId)?.toList().orEmpty()
-            submitWaterbendPayment(pendingPrompt, ids, autoPass)
+            val ids = manaSourcePaymentSelections.remove(pendingPrompt.promptId)?.toList().orEmpty()
+            submitManaSourcePayment(pendingPrompt, ids, autoPass)
             return true
         }
 
         if (selectedIds.isNotEmpty()) {
-            log.info("TargetingHandler: Waterbend MakePayment ids={} accumulated={}", selectedIds, selectedSet)
+            log.info(
+                "TargetingHandler: {} MakePayment ids={} accumulated={}",
+                manaSourceLabel(pendingPrompt.request.semantic),
+                selectedIds,
+                selectedSet,
+            )
             sendPayCostsReq(
-                adjustWaterbendPaymentPrompt(pendingPrompt, selectedSet.toList()),
-                SelectNPromptRoutes.payCosts(PromptSemantic.WaterbendCost)
-                    ?: error("missing PayCosts route for ${PromptSemantic.WaterbendCost}"),
+                adjustManaSourcePaymentPrompt(pendingPrompt, selectedSet.toList()),
+                SelectNPromptRoutes.payCosts(pendingPrompt.request.semantic)
+                    ?: error("missing PayCosts route for ${pendingPrompt.request.semantic}"),
             )
             return true
         }
@@ -410,13 +415,18 @@ class TargetingHandler(
         return true
     }
 
-    private fun submitWaterbendPayment(
+    private fun submitManaSourcePayment(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
         selectedIds: List<Int>,
         autoPass: () -> Unit,
     ) {
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(selectedIds, pendingPrompt)
-        log.info("TargetingHandler: Waterbend payment ids={} indices={}", selectedIds, selectedIndices)
+        log.info(
+            "TargetingHandler: {} payment ids={} indices={}",
+            manaSourceLabel(pendingPrompt.request.semantic),
+            selectedIds,
+            selectedIndices,
+        )
         ctx.bridge
             .seat(counters.seatId)
             .prompt
@@ -425,7 +435,7 @@ class TargetingHandler(
         autoPass()
     }
 
-    private fun adjustWaterbendPaymentPrompt(
+    private fun adjustManaSourcePaymentPrompt(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
         selectedIds: List<Int>,
     ): InteractivePromptBridge.PendingPrompt {
@@ -433,7 +443,12 @@ class TargetingHandler(
         val selectedForgeIds = selectedIds.mapNotNull { bridge.getForgeCardId(InstanceId(it))?.value }.toSet()
         val remainingRefs = pendingPrompt.request.candidateRefs.filterNot { it.entityId in selectedForgeIds }
         val remainingOptions = remainingRefs.map { ref -> pendingPrompt.request.options.getOrNull(ref.index) ?: "" }
-        val remainingManaCost = pendingPrompt.request.waterbendManaCost.reduceGenericBy(selectedIds.size)
+        val remainingManaCost =
+            if (pendingPrompt.request.semantic == PromptSemantic.ConvokeCost) {
+                reduceConvokeManaCost(pendingPrompt.request.waterbendManaCost, selectedIds)
+            } else {
+                pendingPrompt.request.waterbendManaCost.reduceGenericBy(selectedIds.size)
+            }
         return pendingPrompt.copy(
             request =
                 pendingPrompt.request.copy(
@@ -445,6 +460,45 @@ class TargetingHandler(
                 ),
         )
     }
+
+    private fun reduceConvokeManaCost(
+        cost: List<Pair<ManaColor, Int>>,
+        selectedIds: List<Int>,
+    ): List<Pair<ManaColor, Int>> {
+        val remaining = cost.associate { it.first to it.second }.toMutableMap()
+        for (iid in selectedIds) {
+            val forgeId = ctx.bridge.getForgeCardId(InstanceId(iid)) ?: continue
+            val card = ctx.bridge.findCard(forgeId) ?: continue
+            val color = convokeReductionColor(card.color, remaining) ?: continue
+            val next = (remaining[color] ?: 0) - 1
+            if (next <= 0) remaining.remove(color) else remaining[color] = next
+        }
+        return cost.mapNotNull { (color, _) -> remaining[color]?.takeIf { it > 0 }?.let { color to it } }
+    }
+
+    private fun convokeReductionColor(
+        cardColor: forge.card.ColorSet,
+        remaining: Map<ManaColor, Int>,
+    ): ManaColor? =
+        when {
+            cardColor.hasWhite() && remaining.getOrDefault(ManaColor.White_afc9, 0) > 0 -> ManaColor.White_afc9
+            cardColor.hasBlue() && remaining.getOrDefault(ManaColor.Blue_afc9, 0) > 0 -> ManaColor.Blue_afc9
+            cardColor.hasBlack() && remaining.getOrDefault(ManaColor.Black_afc9, 0) > 0 -> ManaColor.Black_afc9
+            cardColor.hasRed() && remaining.getOrDefault(ManaColor.Red_afc9, 0) > 0 -> ManaColor.Red_afc9
+            cardColor.hasGreen() && remaining.getOrDefault(ManaColor.Green_afc9, 0) > 0 -> ManaColor.Green_afc9
+            remaining.getOrDefault(ManaColor.Generic, 0) > 0 -> ManaColor.Generic
+            else -> null
+        }
+
+    private fun isManaSourcePaymentSemantic(semantic: PromptSemantic): Boolean =
+        semantic == PromptSemantic.WaterbendCost || semantic == PromptSemantic.ConvokeCost
+
+    private fun manaSourceLabel(semantic: PromptSemantic): String =
+        when {
+            semantic == PromptSemantic.ConvokeCost -> "Convoke"
+            semantic == PromptSemantic.WaterbendCost -> "Waterbend"
+            else -> "ManaSource"
+        }
 
     private fun List<Pair<ManaColor, Int>>.reduceGenericBy(count: Int): List<Pair<ManaColor, Int>> {
         var remainingReduction = count
@@ -705,6 +759,7 @@ class TargetingHandler(
             SelectNReason.EnlistCost,
             SelectNReason.StationTapCost,
             SelectNReason.ReturnUnblockedAttackerCost,
+            SelectNReason.ConvokeCost,
             SelectNReason.WaterbendCost,
             -> error("missing PayCosts route for ${pendingPrompt.request.semantic}")
         }
@@ -817,11 +872,15 @@ class TargetingHandler(
             return
         }
 
-        if (pendingPrompt.request.semantic == PromptSemantic.WaterbendCost) {
-            val ids = waterbendPaymentSelections.remove(pendingPrompt.promptId)?.toList().orEmpty()
+        if (isManaSourcePaymentSemantic(pendingPrompt.request.semantic)) {
+            val ids = manaSourcePaymentSelections.remove(pendingPrompt.promptId)?.toList().orEmpty()
             if (ids.isNotEmpty()) {
-                log.info("TargetingHandler: CancelActionReq — completing Waterbend payment ids={}", ids)
-                submitWaterbendPayment(pendingPrompt, ids, autoPass)
+                log.info(
+                    "TargetingHandler: CancelActionReq — completing {} payment ids={}",
+                    manaSourceLabel(pendingPrompt.request.semantic),
+                    ids,
+                )
+                submitManaSourcePayment(pendingPrompt, ids, autoPass)
                 return
             }
         }
@@ -1559,6 +1618,7 @@ class TargetingHandler(
             SelectNReason.EnlistCost,
             SelectNReason.StationTapCost,
             SelectNReason.ReturnUnblockedAttackerCost,
+            SelectNReason.ConvokeCost,
             SelectNReason.WaterbendCost,
             -> error("cost SelectN uses PayCostsReq")
         }

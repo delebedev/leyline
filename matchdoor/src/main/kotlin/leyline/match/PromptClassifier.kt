@@ -51,7 +51,7 @@ object PromptClassifier {
         return classifyBySemantic(pendingPrompt, req) ?: classifyGeneric(pendingPrompt, req)
     }
 
-    // Exhaustive on PromptSemantic — adding a new variant fails compile until classified.
+    // Exhaustive on PromptSemantic - adding a new variant fails compile until classified.
     private fun classifyBySemantic(
         p: InteractivePromptBridge.PendingPrompt,
         req: PromptRequest,
@@ -76,6 +76,7 @@ object PromptClassifier {
             PromptSemantic.EnlistCost,
             PromptSemantic.StationTapCost,
             PromptSemantic.ReturnUnblockedAttackerCost,
+            PromptSemantic.ConvokeCost,
             PromptSemantic.WaterbendCost,
             PromptSemantic.SelectNResolution,
             PromptSemantic.SelectNLibraryPutback,
@@ -109,6 +110,7 @@ object PromptClassifier {
             PromptSemantic.EnlistCost,
             PromptSemantic.StationTapCost,
             PromptSemantic.ReturnUnblockedAttackerCost,
+            PromptSemantic.ConvokeCost,
             PromptSemantic.WaterbendCost,
             PromptSemantic.SelectNResolution,
             PromptSemantic.SelectNLibraryPutback,
@@ -134,6 +136,7 @@ object PromptClassifier {
             PromptSemantic.EnlistCost -> SelectNReason.EnlistCost
             PromptSemantic.StationTapCost -> SelectNReason.StationTapCost
             PromptSemantic.ReturnUnblockedAttackerCost -> SelectNReason.ReturnUnblockedAttackerCost
+            PromptSemantic.ConvokeCost -> SelectNReason.ConvokeCost
             PromptSemantic.WaterbendCost -> SelectNReason.WaterbendCost
             PromptSemantic.SelectNResolution -> SelectNReason.Resolution
             PromptSemantic.SelectNLibraryPutback -> SelectNReason.LibraryPutback

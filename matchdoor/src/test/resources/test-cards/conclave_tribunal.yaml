@@ -1,0 +1,18 @@
+name: "Conclave Tribunal"
+grpId: 68467
+titleId: 272586
+abilities:
+  - id: 52
+    textId: 62
+    category: 3
+  - id: 176387
+    textId: 812352
+    category: 2
+expansionCode: "GRN"
+colors:
+  - 1
+types:
+  - 3
+subtypes: []
+supertypes: []
+manaCost: "o3oW"

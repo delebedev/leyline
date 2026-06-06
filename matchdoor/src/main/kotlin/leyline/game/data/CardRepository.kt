@@ -207,6 +207,7 @@ data class AbilityInfo(
  */
 object KeywordAbilityIds {
     // Direct ability ids — well-known shared row used verbatim per card.
+    const val CONVOKE = 52
     const val HASTE = 9
     const val PROWESS = 137
     const val TRAINING = 220
@@ -215,6 +216,9 @@ object KeywordAbilityIds {
     const val FIREBENDING = 379
     const val WATERBEND = 8100003
     const val RECONFIGURE_UNATTACH = 244
+
+    // Payment-action row used by Convoke's mana-substitution MakePayment actions.
+    const val CONVOKE_PAYMENT = 172
 
     // BaseId roots — each printing has its own ability row chaining to this.
     const val KICKER = 34

@@ -230,7 +230,37 @@ internal object PersistentFeedBuilder {
             )
         } +
             collectEvidenceAbilityWordPersistentFromPrompt(events, bridge, frameIds) +
+            convokeCountAbilityWordPersistentFromPrompt(snap, bridge, frameIds) +
             trainingAbilityWordPersistentFromEvents(events, snap, prev, bridge, frameIds)
+
+    private fun convokeCountAbilityWordPersistentFromPrompt(
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+        frameIds: FrameIdResolver,
+    ): List<AnnotationInfo> {
+        val stackForgeIds =
+            snap.zones[ZoneIds.STACK]
+                ?.contents
+                ?.toSet()
+                .orEmpty()
+        if (stackForgeIds.isEmpty()) return emptyList()
+        val annotations = mutableListOf<AnnotationInfo>()
+        for (seatValue in bridge.allSeatIds().sorted()) {
+            val paymentsBySource = bridge.promptBridge(SeatId(seatValue)).journal.activeConvokePayments()
+            for ((sourceForgeCardId, payments) in paymentsBySource) {
+                if (payments.isEmpty() || sourceForgeCardId !in stackForgeIds) continue
+                annotations.add(
+                    AnnotationBuilder.abilityWordActive(
+                        instanceId = frameIds.cardIid(sourceForgeCardId),
+                        abilityWordName = "ConvokeCount",
+                        value = payments.size,
+                        abilityGrpId = GrpId(KeywordAbilityIds.CONVOKE),
+                    ),
+                )
+            }
+        }
+        return annotations
+    }
 
     private fun buildDesignationAnnotations(
         snap: GsmSnapshot,

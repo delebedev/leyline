@@ -82,6 +82,10 @@ class FrameIdResolver(
     /** Iid for a per-payment mana Ability gameObject — see [stackAbilityIid] for the surrogate-vs-realloc note. */
     fun manaAbilityIid(sourceForgeId: ForgeCardId): InstanceId = bridge.getOrAllocInstanceId(manaAbilityForgeId(sourceForgeId))
 
+    /** Iid for a non-mana cost-payment Ability gameObject, such as a Convoke reducer click. */
+    fun costPaymentAbilityIid(sourceForgeId: ForgeCardId): InstanceId =
+        bridge.getOrAllocInstanceId(costPaymentAbilityForgeId(sourceForgeId))
+
     /**
      * Every iid alive on the stack at the end of this frame — both card spells
      * (in `snap.zones[STACK].contents`) and stack-resident Ability gameObjects
@@ -128,6 +132,9 @@ class FrameIdResolver(
         /** Offset added to source card forge IDs for DisturbBack face objects. */
         private const val DISTURB_BACK_ID_OFFSET = 300_000
 
+        /** Offset added to source card forge IDs for non-mana payment Ability gameObjects. */
+        private const val COST_PAYMENT_ABILITY_ID_OFFSET = 400_000
+
         /**
          * Surrogate forge ID for a stack-resident Ability gameObject — used as
          * the key into [GameBridge.getOrAllocInstanceId] so the Ability's iid
@@ -146,6 +153,10 @@ class FrameIdResolver(
 
         /** Surrogate forge ID for a per-payment mana Ability gameObject. */
         fun manaAbilityForgeId(sourceForgeId: ForgeCardId): ForgeCardId = ForgeCardId(sourceForgeId.value + MANA_ABILITY_ID_OFFSET)
+
+        /** Surrogate forge ID for a non-mana cost-payment Ability gameObject. */
+        fun costPaymentAbilityForgeId(sourceForgeId: ForgeCardId): ForgeCardId =
+            ForgeCardId(sourceForgeId.value + COST_PAYMENT_ABILITY_ID_OFFSET)
 
         /** Surrogate forge ID for a DisturbBack face object. */
         fun disturbBackForgeId(sourceForgeId: ForgeCardId): ForgeCardId = ForgeCardId(sourceForgeId.value + DISTURB_BACK_ID_OFFSET)

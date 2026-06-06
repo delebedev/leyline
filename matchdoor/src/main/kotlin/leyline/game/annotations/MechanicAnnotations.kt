@@ -94,6 +94,7 @@ object MechanicAnnotations {
         playerCounterAffectorResolver: (Int, GameEvent.PlayerCountersChanged) -> InstanceId? = { _, _ -> null },
         stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
         castSpellTransferCardIds: Set<ForgeCardId> = emptySet(),
+        convokePaymentsBySource: Map<ForgeCardId, List<TransferAnnotations.ConvokePaymentRecord>> = emptyMap(),
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
@@ -186,6 +187,7 @@ object MechanicAnnotations {
                             idResolver,
                             manaAbilityGrpIdResolver,
                             stackInstanceResolver,
+                            convokePaymentsBySource[ev.cardId].orEmpty(),
                         ),
                     )
                     if (ev.cardId !in castSpellTransferCardIds) {

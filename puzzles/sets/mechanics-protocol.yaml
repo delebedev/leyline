@@ -409,6 +409,24 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
             - zone_contains: { side: ours, zone: graveyard, card: Airbending Lesson }
             - stack_empty: true
+  - id: convoke-conclave-tribunal
+    puzzle: convoke-conclave-tribunal
+    run: cast Conclave Tribunal and pay Convoke with a creature reducer
+    expect: Convoke emits PayCostsReq payment actions, taps the selected creature, and resolves the spell
+    steps:
+      - expect:
+          action: { type: cast, card: Conclave Tribunal }
+      - cast: Conclave Tribunal
+      - expect:
+          prompt: PayCostsReq
+      - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: ManaPaid
+            - annotation_seen: AbilityWordActive
+            - zone_contains: { side: ours, zone: battlefield, card: Conclave Tribunal }
+            - stack_empty: true
   - id: investigate-novice-inspector
     puzzle: novice-inspector-investigate
     run: cast Novice Inspector, create Clue, then sacrifice Clue to draw

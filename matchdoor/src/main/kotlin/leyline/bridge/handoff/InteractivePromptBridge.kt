@@ -500,6 +500,9 @@ enum class PromptSemantic {
     /** Ninjutsu's "return an unblocked attacker" activation cost. */
     ReturnUnblockedAttackerCost,
 
+    /** Convoke's tap-creature cost payment. */
+    ConvokeCost,
+
     /** Waterbend's tap artifact/creature cost payment. */
     WaterbendCost,
 
