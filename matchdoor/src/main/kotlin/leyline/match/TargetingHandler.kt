@@ -569,6 +569,8 @@ class TargetingHandler(
                 sendStationTapCostPayCostsReq(pendingPrompt)
             ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost ->
                 sendReturnUnblockedAttackerPayCostsReq(pendingPrompt)
+            ClassifiedPrompt.SelectN.Reason.WaterbendCost ->
+                sendWaterbendCostPayCostsReq(pendingPrompt)
             ClassifiedPrompt.SelectN.Reason.LegendRule,
             ClassifiedPrompt.SelectN.Reason.Discard,
             ClassifiedPrompt.SelectN.Reason.SacrificeEffect,
@@ -1416,6 +1418,7 @@ class TargetingHandler(
             ClassifiedPrompt.SelectN.Reason.EnlistCost,
             ClassifiedPrompt.SelectN.Reason.StationTapCost,
             ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost,
+            ClassifiedPrompt.SelectN.Reason.WaterbendCost,
             -> error("cost SelectN uses PayCostsReq")
         }
 
@@ -1466,6 +1469,14 @@ class TargetingHandler(
             )
         val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
         Tap.outboundTemplate("PayCostsReq(return-unblocked-attacker) seat=${counters.seatId}")
+        sink.sendBundledGRE(result.messages)
+    }
+
+    private fun sendWaterbendCostPayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
+        val bridge = ctx.bridge
+        val (req, prompt) = RequestBuilder.buildWaterbendCostPayCostsReq(pendingPrompt, bridge)
+        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
+        Tap.outboundTemplate("PayCostsReq(waterbend) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 

@@ -1,0 +1,17 @@
+[metadata]
+Name:Waterbend Ruinous Waterbending
+Goal:Cast Ruinous Waterbending and pay Waterbend with artifact and creature reducers.
+Turns:4
+Difficulty:Easy
+Description:Ruinous Waterbending exposes an AdditionalCost option, then pays Waterbend by tapping creatures and artifacts before resolving.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Ruinous Waterbending
+humanbattlefield=Swamp;Swamp;Swamp;Coral Merfolk;Grizzly Bears;Sol Ring;Manalith
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

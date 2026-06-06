@@ -1,0 +1,14 @@
+name: "Giant Koi"
+grpId: 97327
+titleId: 1070465
+abilities:
+  - id: 192601
+    textId: 1070467
+    category: 1
+    baseId: 8100003
+  - id: 6072
+    textId: 8566
+    category: 1
+    baseId: 30
+    mana: "o2"
+expansionCode: "TLA"
