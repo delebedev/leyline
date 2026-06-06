@@ -57,7 +57,7 @@ object ActionMapper {
         val activeShouldStop: Boolean,
         val activeManaCost: Boolean,
     ) {
-        PERMANENT_SOURCE(includesSourceIdentity = true, activeShouldStop = true, activeManaCost = false),
+        PERMANENT_SOURCE(includesSourceIdentity = true, activeShouldStop = true, activeManaCost = true),
         ABILITY_ONLY(includesSourceIdentity = false, activeShouldStop = false, activeManaCost = true),
     }
 
@@ -572,7 +572,7 @@ object ActionMapper {
                 .setFacetId(instanceId)
         }
         if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-        if (envelope.includesSourceIdentity) uniqueAbilityId?.let(actionBuilder::setUniqueAbilityId)
+        uniqueAbilityId?.let(actionBuilder::setUniqueAbilityId)
         if (canPay && envelope.activeShouldStop) {
             actionBuilder.setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
         }
@@ -1133,7 +1133,8 @@ object ActionMapper {
         cardData: CardData?,
         abilityGrpId: Int,
     ): Int? {
-        if (cardData == null || abilityGrpId == 0) return null
+        if (abilityGrpId == 0) return null
+        if (cardData == null) return INITIAL_UNIQUE_ABILITY_ID
         val index =
             cardData.abilityIds.indexOfFirst { (grpId, _) ->
                 grpId == abilityGrpId
@@ -1691,7 +1692,8 @@ object ActionMapper {
      * GSM actions carry fewer fields than ActionsAvailableReq actions:
      * - Cast/CastAdventure: instanceId + manaCost + cast-variant identity fields
      * - Play: instanceId
-     * - ActivateMana/Activate: instanceId + abilityGrpId
+     * - ActivateMana: instanceId + abilityGrpId
+     * - Activate: instanceId + abilityGrpId + manaCost
      * - Pass/FloatMana: empty
      *
      * No grpId, facetId, shouldStop, or autoTapSolution.
@@ -1711,6 +1713,7 @@ object ActionMapper {
         } else if (action.actionType == ActionType.ActivateMana || action.actionType == ActionType.Activate_add3) {
             b.setInstanceId(action.instanceId)
             if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
+            if (action.actionType == ActionType.Activate_add3) b.addAllManaCost(action.manaCostList)
         } else if (action.actionType == ActionType.SpecialTurnFaceUp_add3) {
             b.setInstanceId(action.instanceId)
             if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
