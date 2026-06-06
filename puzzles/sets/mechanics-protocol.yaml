@@ -269,6 +269,44 @@ scenarios:
             - annotation_seen: CounterAdded
             - battlefield_stats_at_least: { side: ours, card: Forest, power: 4, toughness: 4 }
             - stack_empty: true
+  - id: waterbend-ruinous-waterbending
+    puzzle: waterbend-ruinous-waterbending
+    run: cast Ruinous Waterbending and pay Waterbend with artifact and creature reducers
+    expect: Waterbend emits PayCostsReq payment actions and resolves the spell
+    steps:
+      - expect:
+          action: { type: cast, card: Ruinous Waterbending }
+      - cast: Ruinous Waterbending
+      - choose: { optional_cost: additional_cost, label: Waterbend }
+      - expect:
+          prompt: PayCostsReq
+      - select_cost: { zone: battlefield, cards: [Coral Merfolk, Grizzly Bears, Llanowar Elves, Savannah Lions, Monastery Swiftspear, Healer's Hawk, Sol Ring] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: CastingTimeOption
+            - zone_contains: { side: ours, zone: graveyard, card: Ruinous Waterbending }
+            - zone_contains: { side: ours, zone: graveyard, card: Coral Merfolk }
+            - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: battlefield, card: Monastery Swiftspear }
+            - zone_contains: { side: ours, zone: battlefield, card: Sol Ring }
+            - zone_contains: { side: ours, zone: battlefield, card: Manalith }
+            - our_life: 25
+            - stack_empty: true
+  - id: waterbend-giant-koi
+    puzzle: waterbend-giant-koi
+    run: activate Giant Koi and pay Waterbend with creature and artifact reducers
+    expect: Waterbend emits PayCostsReq payment actions and accepts MakePayment clicks
+    steps:
+      - expect:
+          action: { type: activate, card: Giant Koi }
+      - activate: Giant Koi
+      - expect:
+          prompt: PayCostsReq
+      - select_cost: { zone: battlefield, cards: [Coral Merfolk, Sol Ring] }
+      - resolve_stack: {}
+      - expect:
+          stack_empty: true
   - id: investigate-novice-inspector
     puzzle: novice-inspector-investigate
     run: cast Novice Inspector, create Clue, then sacrifice Clue to draw

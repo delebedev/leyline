@@ -139,6 +139,8 @@ sealed interface GameEvent {
          *  (looked up via cardRepository.findKeywordAbilityGrpId on KICKER base).
          *  Drives the persistent CastingTimeOption type=Kicker annotation. */
         val kickerAbilityGrpId: Int = 0,
+        /** Non-zero when the cast paid a Waterbend additional cost. */
+        val additionalCostGrpId: Int = 0,
         /** Non-zero when the cast chose an X value. Drives the persistent
          *  CastingTimeOption type=ChooseX_a7b4 annotation with this value. */
         val chosenX: Int = 0,

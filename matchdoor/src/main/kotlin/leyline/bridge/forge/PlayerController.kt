@@ -21,6 +21,7 @@ import forge.game.cost.CostPart
 import forge.game.cost.CostPartMana
 import forge.game.cost.CostPartWithList
 import forge.game.cost.CostPayLife
+import forge.game.cost.CostWaterbend
 import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
 import forge.game.mana.ManaConversionMatrix
@@ -868,7 +869,8 @@ class PlayerController(
         artifacts: Boolean,
         creatures: Boolean,
         maxReduction: Int?,
-    ): Map<Card, ManaCostShard> = costPaymentCoordinator.chooseCardsForConvokeOrImprovise(manaCost, untappedCards, artifacts, maxReduction)
+    ): Map<Card, ManaCostShard> =
+        costPaymentCoordinator.chooseCardsForConvokeOrImprovise(sa, manaCost, untappedCards, artifacts, creatures, maxReduction)
 
     // -- Pay cost to prevent effect ----------------------------------------
 
@@ -955,7 +957,32 @@ class PlayerController(
         prompt: String?,
         matrix: ManaConversionMatrix?,
         effect: Boolean,
-    ): Boolean = PlaySpellAbility.payManaCost(this, toPay, costPartMana, sa, player, prompt, matrix, effect)
+    ): Boolean {
+        if (costPartMana is CostWaterbend) {
+            val untapped =
+                CardCollection(
+                    player.getCardsIn(ZoneType.Battlefield).filter { card ->
+                        !card.isTapped && (card.isArtifact || card.isCreature)
+                    },
+                )
+            val tappedForWaterbend =
+                costPaymentCoordinator.chooseCardsForConvokeOrImprovise(
+                    sa = sa,
+                    manaCost = toPay,
+                    untappedCards = untapped,
+                    artifacts = true,
+                    creatures = true,
+                    maxReduction = toPay.genericCost,
+                )
+            val remaining = ManaCostBeingPaid(toPay)
+            for ((card, shard) in tappedForWaterbend) {
+                remaining.decreaseShard(shard, 1)
+                card.tap(true, sa, player)
+            }
+            return PlaySpellAbility.payManaCost(this, remaining.toManaCost(), costPartMana, sa, player, prompt, matrix, effect)
+        }
+        return PlaySpellAbility.payManaCost(this, toPay, costPartMana, sa, player, prompt, matrix, effect)
+    }
 
     override fun applyManaToCost(
         toPay: ManaCostBeingPaid,

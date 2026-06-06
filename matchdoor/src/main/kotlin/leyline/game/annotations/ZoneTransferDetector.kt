@@ -52,6 +52,7 @@ data class AppliedTransfer(
     val castAbilityGrpId: Int = altCostAbilityGrpId,
     /** Non-zero when the cast paid Kicker. Carries the per-card Kicker ability grpId. */
     val kickerAbilityGrpId: Int = 0,
+    val additionalCostGrpId: Int = 0,
     /** Non-zero when the cast chose an X value. Drives CastingTimeOption type=ChooseX. */
     val chosenX: Int = 0,
 )
@@ -410,6 +411,7 @@ object ZoneTransferDetector {
                 val altCostAbilityGrpId = spellCastEvent?.altCostAbilityGrpId ?: 0
                 val castAbilityGrpId = spellCastEvent?.castAbilityGrpId ?: altCostAbilityGrpId
                 val kickerAbilityGrpId = spellCastEvent?.kickerAbilityGrpId ?: 0
+                val additionalCostGrpId = spellCastEvent?.additionalCostGrpId ?: 0
                 val chosenX = spellCastEvent?.chosenX ?: 0
                 val transferAffectorId =
                     if (category == TransferCategory.CastSpell && spellCastEvent?.isParadigmCopyCastEvent() == true) {
@@ -435,6 +437,7 @@ object ZoneTransferDetector {
                         altCostAbilityGrpId = altCostAbilityGrpId,
                         castAbilityGrpId = castAbilityGrpId,
                         kickerAbilityGrpId = kickerAbilityGrpId,
+                        additionalCostGrpId = additionalCostGrpId,
                         chosenX = chosenX,
                     ),
                 )
@@ -967,9 +970,7 @@ object ZoneTransferDetector {
                 .toMap()
 
         for ((iid, destZone) in currentZoneById) {
-            if (iid in gameObjectIds) continue
-            if (destZone == ZoneIds.LIMBO) continue
-            if (transfers.any { it.origId == iid || it.newId == iid }) continue
+            if (!isZoneOnlyTransferCandidate(iid, destZone, gameObjectIds, transfers)) continue
             val prevZone = previousZones[iid] ?: continue
             if (prevZone == destZone) continue
 
@@ -1057,6 +1058,7 @@ object ZoneTransferDetector {
                     isAdventureCast = spellCastEvent?.isAdventure == true,
                     altCostAbilityGrpId = spellCastEvent?.altCostAbilityGrpId ?: 0,
                     kickerAbilityGrpId = spellCastEvent?.kickerAbilityGrpId ?: 0,
+                    additionalCostGrpId = spellCastEvent?.additionalCostGrpId ?: 0,
                     chosenX = spellCastEvent?.chosenX ?: 0,
                 ),
             )
@@ -1064,6 +1066,13 @@ object ZoneTransferDetector {
             log.debug("zone-only transfer: iid {} -> {} category={}", origId, newId, category)
         }
     }
+
+    private fun isZoneOnlyTransferCandidate(
+        iid: Int,
+        destZone: Int,
+        gameObjectIds: Set<Int>,
+        transfers: List<AppliedTransfer>,
+    ): Boolean = iid !in gameObjectIds && destZone != ZoneIds.LIMBO && transfers.none { it.origId == iid || it.newId == iid }
 
     private fun isCollapsedOmenTransfer(
         events: List<GameEvent>,

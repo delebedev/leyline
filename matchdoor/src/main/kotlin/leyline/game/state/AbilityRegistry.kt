@@ -69,7 +69,7 @@ class AbilityRegistry private constructor(
             val activatedSlotIndices =
                 if (cardData.abilityKinds.size == abilityIds.size) {
                     abilityIds.indices.filter {
-                        it >= keywordCount && slotKinds[it] == SlotKind.Activated
+                        slotKinds[it] == SlotKind.Activated
                     }
                 } else {
                     (keywordCount until abilityIds.size).toList()
@@ -77,7 +77,7 @@ class AbilityRegistry private constructor(
             val manaSlotIndices =
                 if (cardData.abilityKinds.size == abilityIds.size) {
                     abilityIds.indices.filter {
-                        it >= keywordCount && slotKinds[it] == SlotKind.Mana
+                        slotKinds[it] == SlotKind.Mana
                     }
                 } else {
                     emptyList()

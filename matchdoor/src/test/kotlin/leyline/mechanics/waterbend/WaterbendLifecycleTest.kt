@@ -1,0 +1,279 @@
+package leyline.mechanics.waterbend
+
+import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.shouldBe
+import leyline.game.codes.DetailKeys
+import leyline.game.mapping.PromptIds
+import leyline.testkit.SessionTest
+import leyline.testkit.detailInt
+import leyline.testkit.performAction
+import leyline.testkit.persistentAnnotationsOfType
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
+import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
+
+class WaterbendLifecycleTest :
+    SessionTest({
+        test("Giant Koi pays activated Waterbend through PayCostsReq") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Giant Koi;Coral Merfolk;Grizzly Bears;Sol Ring;Island;Island;Island
+                humanlibrary=Island;Island;Island
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+                name = "Waterbend Giant Koi",
+                validating = true,
+            )
+            val merfolkIid = human.battlefield.iid("Coral Merfolk")
+            val bearIid = human.battlefield.iid("Grizzly Bears")
+            val solRingIid = human.battlefield.iid("Sol Ring")
+            val actions = allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList
+            val gsmActions =
+                allMessages
+                    .last { it.hasGameStateMessage() }
+                    .gameStateMessage
+                    .actionsList
+                    .map { it.action }
+
+            withClue(actions.map { "${it.actionType}:${it.abilityGrpId}:${it.grpId}" }) {
+                actions.any { it.actionType == ActionType.Activate_add3 && it.abilityGrpId == 192601 } shouldBe true
+            }
+            withClue(gsmActions.map { "${it.actionType}:${it.abilityGrpId}:${it.manaCostList}" }) {
+                gsmActions
+                    .single { it.actionType == ActionType.Activate_add3 && it.abilityGrpId == 192601 }
+                    .manaCostList
+                    .single()
+                    .count shouldBe 3
+            }
+
+            val prompt = after { activateAbility("Giant Koi", abilityIndex = 0).shouldBeTrue() }.expectOnePayCostsReq()
+
+            assertSoftly {
+                allMessages.last { it.hasPrompt() }.prompt.promptId shouldBe PromptIds.PAY_COSTS
+                assertWaterbendPaymentActions(
+                    prompt,
+                    ids = listOf(merfolkIid, bearIid, solRingIid),
+                    creatureIds = setOf(merfolkIid, bearIid),
+                )
+            }
+
+            val resolveSnap = messageSnapshot()
+            respondToEffectCost(listOf(merfolkIid, bearIid, solRingIid))
+            passUntilResolved(maxPasses = 8)
+
+            val tappedIds =
+                messagesSince(resolveSnap)
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .filter { it.isTapped }
+                    .map { it.instanceId }
+                    .toSet()
+
+            assertSoftly {
+                tappedIds shouldContain merfolkIid
+                tappedIds shouldContain bearIid
+                tappedIds shouldContain solRingIid
+            }
+        }
+
+        test("Ruinous Waterbending emits AdditionalCost CastingTimeOption when Waterbend is paid") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Ruinous Waterbending
+                humanbattlefield=Swamp;Swamp;Swamp;Coral Merfolk;Grizzly Bears;Sol Ring;Manalith
+                humanlibrary=Swamp;Swamp;Swamp
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+                name = "Waterbend Ruinous Waterbending",
+                validating = true,
+            )
+
+            val merfolkIid = human.battlefield.iid("Coral Merfolk")
+            val bearIid = human.battlefield.iid("Grizzly Bears")
+            val solRingIid = human.battlefield.iid("Sol Ring")
+            val manalithIid = human.battlefield.iid("Manalith")
+
+            val cto = after { castSpellByName("Ruinous Waterbending").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+            val waterbendOption =
+                cto.castingTimeOptionReqList.single {
+                    it.castingTimeOptionType == CastingTimeOptionType.AdditionalCost
+                }
+            waterbendOption.grpId shouldBe RUINOUS_WATERBEND_ABILITY_GRP_ID
+
+            val payCosts = after { respondToOptionalCost(waterbendOption.ctoId) }.expectOnePayCostsReq()
+
+            assertSoftly {
+                allMessages.last { it.hasPrompt() }.prompt.promptId shouldBe PromptIds.PAY_COSTS
+                payCosts.manaCostList.any { it.count > 0 } shouldBe true
+                assertWaterbendPaymentActions(
+                    payCosts,
+                    ids = listOf(merfolkIid, bearIid, solRingIid, manalithIid),
+                    creatureIds = setOf(merfolkIid, bearIid),
+                )
+            }
+
+            respondToEffectCost(listOf(merfolkIid, bearIid, solRingIid, manalithIid))
+            passUntilResolved(maxPasses = 8)
+
+            val additionalCostAnnotations =
+                allMessages
+                    .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
+                    .filter { it.detailInt(DetailKeys.TYPE) == CastingTimeOptionType.AdditionalCost.number }
+
+            additionalCostAnnotations shouldHaveSize 1
+            additionalCostAnnotations.single().detailInt(DetailKeys.ADDITIONAL_COST_GRP_ID) shouldBe RUINOUS_WATERBEND_ABILITY_GRP_ID
+        }
+
+        test("Ruinous Waterbending accepts live Waterbend MakePayment responses") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Ruinous Waterbending
+                humanbattlefield=Swamp;Swamp;Swamp;Coral Merfolk;Grizzly Bears;Sol Ring;Manalith
+                humanlibrary=Swamp;Swamp;Swamp
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+                name = "Waterbend live payment response",
+                validating = true,
+            )
+
+            val merfolkIid = human.battlefield.iid("Coral Merfolk")
+            val bearIid = human.battlefield.iid("Grizzly Bears")
+            val solRingIid = human.battlefield.iid("Sol Ring")
+            val manalithIid = human.battlefield.iid("Manalith")
+
+            val cto = after { castSpellByName("Ruinous Waterbending").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+            val waterbendOption =
+                cto.castingTimeOptionReqList.single {
+                    it.castingTimeOptionType == CastingTimeOptionType.AdditionalCost
+                }
+            after { respondToOptionalCost(waterbendOption.ctoId) }.expectOnePayCostsReq()
+
+            val updatedPayCosts = after { respondToWaterbendMakePayment(merfolkIid) }.expectOnePayCostsReq()
+            assertSoftly {
+                updatedPayCosts.manaCostList.single { it.colorList == listOf(ManaColor.Generic) }.count shouldBe 4
+                updatedPayCosts.paymentActions.actionsList.any { it.instanceId == merfolkIid } shouldBe false
+            }
+
+            respondToWaterbendMakePayment(bearIid)
+            respondToWaterbendMakePayment(solRingIid)
+            respondToWaterbendMakePayment(manalithIid)
+            respondToWaterbendPaymentDone()
+            passUntilResolved(maxPasses = 8)
+
+            assertSoftly {
+                human.graveyard.iid("Ruinous Waterbending") shouldBeGreaterThan 0
+                human.graveyard.iid("Coral Merfolk") shouldBeGreaterThan 0
+                human.graveyard.iid("Grizzly Bears") shouldBeGreaterThan 0
+                human.life shouldBe 22
+            }
+        }
+
+        test("Giant Koi completes native Waterbend when empty payment UI sends Cancel") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Giant Koi;Coral Merfolk;Sol Ring;Island;Island
+                humanlibrary=Island;Island;Island
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+                name = "Waterbend Giant Koi cancel completion",
+                validating = true,
+            )
+
+            val koiIid = human.battlefield.iid("Giant Koi")
+            val merfolkIid = human.battlefield.iid("Coral Merfolk")
+            val solRingIid = human.battlefield.iid("Sol Ring")
+
+            after { activateAbility("Giant Koi", abilityIndex = 0).shouldBeTrue() }.expectOnePayCostsReq()
+            respondToWaterbendMakePayment(merfolkIid)
+            respondToWaterbendMakePayment(solRingIid)
+            respondToWaterbendMakePayment(koiIid)
+
+            val resolveSnap = messageSnapshot()
+            cancelAction()
+            passUntilResolved(maxPasses = 8)
+
+            val tappedIds =
+                messagesSince(resolveSnap)
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .filter { it.isTapped }
+                    .map { it.instanceId }
+                    .toSet()
+
+            tappedIds shouldContainExactlyInAnyOrder setOf(koiIid, merfolkIid, solRingIid)
+        }
+    })
+
+private fun assertWaterbendPaymentActions(
+    payCosts: PayCostsReq,
+    ids: List<Int>,
+    creatureIds: Set<Int>,
+) {
+    val actions = payCosts.paymentActions.actionsList
+    ids.forEach { iid ->
+        val action = actions.single { it.instanceId == iid }
+        val mana =
+            action.manaPaymentOptionsList
+                .single()
+                .manaList
+                .single()
+        assertSoftly {
+            action.actionType shouldBe ActionType.MakePayment
+            mana.abilityGrpId shouldBe 384
+            mana.srcInstanceId shouldBe iid
+            mana.specsList.map { it.type } shouldContain ManaSpecType.ManaSubstitution
+            if (iid in creatureIds) {
+                mana.specsList.map { it.type } shouldContain ManaSpecType.FromCreature
+            }
+        }
+    }
+}
+
+private const val RUINOUS_WATERBEND_ABILITY_GRP_ID = 192688
+
+private fun SessionTest.respondToWaterbendMakePayment(instanceId: Int) {
+    harness.session.onPerformAction(
+        performAction {
+            actionType = ActionType.MakePayment
+            this.instanceId = instanceId
+        }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
+    )
+    harness.drainSink()
+}
+
+private fun SessionTest.respondToWaterbendPaymentDone() {
+    harness.session.onPerformAction(
+        performAction { actionType = ActionType.Pass }
+            .toBuilder()
+            .setGameStateId(harness.latestPromptGsId())
+            .build(),
+    )
+    harness.drainSink()
+}

@@ -499,6 +499,9 @@ enum class PromptSemantic {
     /** Ninjutsu's "return an unblocked attacker" activation cost. */
     ReturnUnblockedAttackerCost,
 
+    /** Waterbend's tap artifact/creature cost payment. */
+    WaterbendCost,
+
     /** Mutate's resolution-time choice for which component is on top. */
     MutateTopBottom,
 
@@ -527,6 +530,8 @@ data class PromptRequest(
     val minSelectionWeight: Int? = null,
     /** Source card entity ID for targeting prompts (spell or ability source). */
     val sourceEntityId: Int? = null,
+    /** Source card name when the live Forge id no longer resolves to card data. */
+    val sourceCardName: String? = null,
     /** Card name for modal ETB prompts — session layer resolves grpId from this. */
     val modalSourceCardName: String? = null,
     /** True when modal originates from a triggered ability (ETB), not spell-time. */
@@ -579,6 +584,10 @@ data class PromptRequest(
      * invariants as `modalCosts`.
      */
     val excludedModalCosts: List<List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>>>? = null,
+    /** Waterbend mana component carried into its PayCostsReq payment envelope. */
+    val waterbendManaCost: List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>> = emptyList(),
+    /** Non-localized cost string for Waterbend's PayCostsReq prompt parameter. */
+    val waterbendCostString: String? = null,
 )
 
 /** Convert a pending engine prompt into its wire DTO. */

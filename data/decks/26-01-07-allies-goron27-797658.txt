@@ -20,7 +20,7 @@ Deck
 
 Sideboard
 2 Allies at Last (TLA) 164
-3 Detect Intrusion (OM1) 28
+3 Negate (ZNR) 71
 3 Hakoda, Selfless Commander (TLA) 23
 3 Heritage Reclamation (TDM) 145
 2 Sheltered by Ghosts (DSK) 30
