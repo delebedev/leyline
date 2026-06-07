@@ -1,6 +1,19 @@
 name: mechanics-protocol
 description: Focused protocol-mechanic acceptance scenarios promoted from manual puzzles.
 scenarios:
+  - id: snow-mana-ascendant-spirit
+    puzzle: snow-mana-ascendant-spirit
+    run: activate Ascendant Spirit using snow mana
+    expect: Ascendant Spirit becomes at least 2/3 after the snow activation resolves
+    steps:
+      - expect:
+          action: { type: activate, card: Ascendant Spirit }
+      - activate: { card: Ascendant Spirit, ability_index: 0 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats_at_least: { side: ours, card: Ascendant Spirit, power: 2, toughness: 3 }
+            - stack_empty: true
   - id: crew-vehicle
     puzzle: vehicle-crew
     run: crew Brute Suit with Centaur Courser, then attack
@@ -307,6 +320,30 @@ scenarios:
       - resolve_stack: {}
       - expect:
           stack_empty: true
+  - id: airbend-airbending-lesson
+    puzzle: airbend-airbending-lesson
+    run: cast Airbending Lesson, airbend Grizzly Bears, then cast it from exile
+    expect: Grizzly Bears moves through exile and resolves from the Airbend cast rail
+    steps:
+      - expect:
+          action: { type: cast, card: Airbending Lesson }
+      - cast: Airbending Lesson
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 8
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: exile, card: Grizzly Bears }
+            - action: { type: cast, card: Grizzly Bears, alt_cost: airbend }
+      - cast: { card: Grizzly Bears, zone: exile, alt_cost: airbend }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: graveyard, card: Airbending Lesson }
+            - stack_empty: true
   - id: investigate-novice-inspector
     puzzle: novice-inspector-investigate
     run: cast Novice Inspector, create Clue, then sacrifice Clue to draw

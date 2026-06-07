@@ -235,6 +235,7 @@ object KeywordAbilityIds {
     const val SNEAK = 394
     const val PARADIGM = 405
     const val RECONFIGURE = 237
+    const val AIRBEND = 8100006
 
     // Triggered ability row used by the recurring Paradigm copy trigger.
     const val PARADIGM_DELAYED_TRIGGER = 205572

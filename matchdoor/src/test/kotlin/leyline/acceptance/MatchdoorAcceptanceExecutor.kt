@@ -476,6 +476,7 @@ class MatchdoorAcceptanceExecutor(
                 AcceptanceAltCost.Plot -> KeywordAbilityIds.PLOT
                 AcceptanceAltCost.Warp -> KeywordAbilityIds.WARP
                 AcceptanceAltCost.Enlist -> KeywordAbilityIds.ENLIST
+                AcceptanceAltCost.Airbend -> KeywordAbilityIds.AIRBEND
             }
         val abilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, keywordId)
         return action.alternativeGrpId == keywordId ||
@@ -495,6 +496,7 @@ class MatchdoorAcceptanceExecutor(
             AcceptanceAltCost.Plot -> KeywordAbilityIds.PLOT
             AcceptanceAltCost.Warp -> KeywordAbilityIds.WARP
             AcceptanceAltCost.Enlist -> KeywordAbilityIds.ENLIST
+            AcceptanceAltCost.Airbend -> KeywordAbilityIds.AIRBEND
         }
 
     private fun zoneContains(

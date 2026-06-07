@@ -1,0 +1,17 @@
+[metadata]
+Name:Airbend - Airbending Lesson
+Goal:Airbend your own creature, then cast it from exile.
+Turns:5
+Difficulty:Easy
+Description:Cast Airbending Lesson targeting Grizzly Bears, then cast Grizzly Bears from exile for the Airbend cost.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Airbending Lesson
+humanbattlefield=Grizzly Bears;Island;Plains;Forest;Mountain;Island;Plains
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
