@@ -267,6 +267,7 @@ enum class AcceptanceZone(
     Exile("exile"),
     Library("library"),
     Sideboard("sideboard"),
+    Stack("stack"),
     ;
 
     companion object {

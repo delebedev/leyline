@@ -12,6 +12,7 @@ internal fun AcceptanceZone.toForgeZone(): ZoneType =
         AcceptanceZone.Exile -> ZoneType.Exile
         AcceptanceZone.Library -> ZoneType.Library
         AcceptanceZone.Sideboard -> ZoneType.Sideboard
+        AcceptanceZone.Stack -> ZoneType.Stack
     }
 
 internal fun AcceptanceCastingTimeOption.toProtoType(): CastingTimeOptionType =

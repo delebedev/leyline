@@ -544,9 +544,11 @@ class TargetingCoordinator(
         // Auto-resolve: single valid target + mandatory → pick it without prompting.
         if (allCandidates.size == 1 && mandatory && minTargets >= 1) {
             val target = allCandidates[0]
-            sa.targets.add(target)
-            recordPendingTargetSpec(sa, target)
-            return TargetSelectionResult(true, true)
+            if (target !is Card || !target.isInZone(ZoneType.Stack)) {
+                sa.targets.add(target)
+                recordPendingTargetSpec(sa, target)
+                return TargetSelectionResult(true, true)
+            }
         }
 
         val labels =

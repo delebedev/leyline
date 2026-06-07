@@ -397,7 +397,10 @@ class InteractivePromptBridge(
      * Get the current pending prompt for client broadcast. Returns null if no prompt
      * is pending.
      */
-    fun getPendingPrompt(): PendingPrompt? = pending.get()
+    fun getPendingPrompt(): PendingPrompt? {
+        val p = pending.get() ?: return null
+        return if (p.future.isDone) null else p
+    }
 
     /**
      * Block until a prompt becomes pending (poll-based).

@@ -1,0 +1,17 @@
+[metadata]
+Name:Make Disappear Own Stack Casualty
+Goal:Survive
+Turns:3
+Difficulty:Easy
+Description:Cast Shock, respond with Lightning Bolt, then cast Make Disappear with Casualty 1 to counter both of your own spells.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Shock;Lightning Bolt;Make Disappear
+humanbattlefield=Grizzly Bears;Mountain;Mountain;Island;Island
+humanlibrary=Island;Island;Mountain;Mountain
+ailibrary=Forest;Forest;Forest;Forest

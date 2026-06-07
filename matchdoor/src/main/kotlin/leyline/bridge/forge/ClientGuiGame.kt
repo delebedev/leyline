@@ -28,6 +28,7 @@ import forge.util.FSerializableFunction
 import forge.util.ITriggerEvent
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.types.PromptCandidateRefDto
 import org.slf4j.LoggerFactory
 
 /**
@@ -40,6 +41,8 @@ import org.slf4j.LoggerFactory
 @Suppress("LargeClass") // IGuiGame adapter: override surface tracks Forge's GUI contract.
 class ClientGuiGame(
     private val bridge: InteractivePromptBridge,
+    private val currentStackSourceId: () -> Int? = { null },
+    private val stackCardRefs: () -> List<Pair<Int, String>> = { emptyList() },
 ) : IGuiGame {
     companion object {
         private val log = LoggerFactory.getLogger(ClientGuiGame::class.java)
@@ -103,16 +106,19 @@ class ClientGuiGame(
         choices: List<T>,
     ): T {
         require(choices.isNotEmpty()) { "one() called with empty list" }
-        if (choices.size == 1) return choices[0]
         val labels = choices.map { it?.toString() ?: "(none)" }
+        val candidateRefs = targetCandidateRefs(message, choices, labels)
+        if (choices.size == 1 && candidateRefs.isEmpty()) return choices[0]
         val request =
             PromptRequest(
-                promptType = "choose_one",
+                promptType = if (candidateRefs.isNotEmpty()) "choose_cards" else "choose_one",
                 message = message,
                 options = labels,
                 min = 1,
                 max = 1,
                 defaultIndex = 0,
+                candidateRefs = candidateRefs,
+                sourceEntityId = if (candidateRefs.isNotEmpty()) currentStackSourceId() else null,
             )
         val result = bridge.requestChoice(request)
         val idx = result.firstOrNull() ?: 0
@@ -125,16 +131,19 @@ class ClientGuiGame(
         display: FSerializableFunction<T, String>?,
     ): T {
         require(choices.isNotEmpty()) { "one() called with empty list" }
-        if (choices.size == 1) return choices[0]
         val labels = choices.map { display?.apply(it) ?: it?.toString() ?: "(none)" }
+        val candidateRefs = targetCandidateRefs(message, choices, labels)
+        if (choices.size == 1 && candidateRefs.isEmpty()) return choices[0]
         val request =
             PromptRequest(
-                promptType = "choose_one",
+                promptType = if (candidateRefs.isNotEmpty()) "choose_cards" else "choose_one",
                 message = message,
                 options = labels,
                 min = 1,
                 max = 1,
                 defaultIndex = 0,
+                candidateRefs = candidateRefs,
+                sourceEntityId = if (candidateRefs.isNotEmpty()) currentStackSourceId() else null,
             )
         val result = bridge.requestChoice(request)
         val idx = result.firstOrNull() ?: 0
@@ -146,16 +155,19 @@ class ClientGuiGame(
         choices: List<T>,
     ): T? {
         if (choices.isNullOrEmpty()) return null
-        if (choices.size == 1) return choices[0]
         val labels = choices.map { it?.toString() ?: "(none)" }
+        val candidateRefs = targetCandidateRefs(message, choices, labels)
+        if (choices.size == 1 && candidateRefs.isEmpty()) return choices[0]
         val request =
             PromptRequest(
-                promptType = "choose_one",
+                promptType = if (candidateRefs.isNotEmpty()) "choose_cards" else "choose_one",
                 message = message,
                 options = labels,
                 min = 0,
                 max = 1,
                 defaultIndex = 0,
+                candidateRefs = candidateRefs,
+                sourceEntityId = if (candidateRefs.isNotEmpty()) currentStackSourceId() else null,
             )
         val result = bridge.requestChoice(request)
         val idx = result.firstOrNull() ?: return null
@@ -377,6 +389,7 @@ class ClientGuiGame(
         if (optionList.isEmpty()) return null
         if (optionList.size == 1 && !isOptional) return optionList[0]
         val labels = optionList.map { it?.toString() ?: "(none)" }
+        val candidateRefs = targetCandidateRefs(title, optionList)
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -385,11 +398,48 @@ class ClientGuiGame(
                 min = if (isOptional) 0 else 1,
                 max = 1,
                 defaultIndex = 0,
+                candidateRefs = candidateRefs,
+                sourceEntityId = if (candidateRefs.isNotEmpty()) currentStackSourceId() else null,
             )
         val indices = bridge.requestChoice(request)
         val idx = indices.firstOrNull()
         if (idx != null && idx in optionList.indices) return optionList[idx]
         return if (isOptional) null else optionList.firstOrNull()
+    }
+
+    private fun targetCandidateRefs(
+        title: String?,
+        optionList: List<*>,
+        labels: List<String> = optionList.map { it?.toString() ?: "(none)" },
+    ): List<PromptCandidateRefDto> {
+        if (!title.orEmpty().contains("target", ignoreCase = true)) return emptyList()
+        val stackCards = stackCardRefs()
+        val usedStackCardIds = mutableSetOf<Int>()
+        return optionList.mapIndexedNotNull { index, entity ->
+            val cardId =
+                when (entity) {
+                    is CardView -> entity.id
+                    is SpellAbilityView -> entity.hostCard?.id
+                    else -> stackCardIdForLabel(labels.getOrNull(index).orEmpty(), stackCards, usedStackCardIds)
+                }
+            cardId?.let {
+                usedStackCardIds += it
+                PromptCandidateRefDto(index, "card", it, ZoneType.Stack.name)
+            }
+        }
+    }
+
+    private fun stackCardIdForLabel(
+        label: String,
+        stackCards: List<Pair<Int, String>>,
+        usedStackCardIds: Set<Int>,
+    ): Int? {
+        val prefix = label.substringBefore(" - ").substringBefore(" (").trim()
+        if (prefix.isBlank()) return null
+        return stackCards
+            .firstOrNull { (id, name) ->
+                id !in usedStackCardIds && name.equals(prefix, ignoreCase = true)
+            }?.first
     }
 
     override fun chooseEntitiesForEffect(
