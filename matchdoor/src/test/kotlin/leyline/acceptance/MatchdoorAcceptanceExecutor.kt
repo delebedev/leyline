@@ -1,5 +1,6 @@
 package leyline.acceptance
 
+import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
@@ -503,24 +504,20 @@ class MatchdoorAcceptanceExecutor(
         harness: MatchFlowHarness,
         condition: ZoneContainsCondition,
     ): Boolean =
-        player(condition.side, harness)
-            .getZone(condition.zone.toForgeZone())
-            .cards
+        cardsInZone(harness, condition.side, condition.zone)
             .any { it.name.equals(condition.card, ignoreCase = true) }
 
     private fun zoneNotContains(
         harness: MatchFlowHarness,
         condition: ZoneNotContainsCondition,
     ): Boolean =
-        player(condition.side, harness)
-            .getZone(condition.zone.toForgeZone())
-            .cards
+        cardsInZone(harness, condition.side, condition.zone)
             .none { it.name.equals(condition.card, ignoreCase = true) }
 
     private fun zoneCountAtLeast(
         harness: MatchFlowHarness,
         condition: ZoneCountAtLeastCondition,
-    ): Boolean = player(condition.side, harness).getZone(condition.zone.toForgeZone()).size() >= condition.count
+    ): Boolean = cardsInZone(harness, condition.side, condition.zone).size >= condition.count
 
     private fun battlefieldStatsAtLeast(
         harness: MatchFlowHarness,
@@ -581,6 +578,34 @@ class MatchdoorAcceptanceExecutor(
             AcceptanceSide.Ours -> harness.bridge.getPlayer(OUR_SEAT)
             AcceptanceSide.Opponent -> harness.bridge.getPlayer(OPPONENT_SEAT)
         } ?: error("missing ${side.yamlName} player")
+
+    private fun seat(side: AcceptanceSide): SeatId =
+        when (side) {
+            AcceptanceSide.Ours -> OUR_SEAT
+            AcceptanceSide.Opponent -> OPPONENT_SEAT
+        }
+
+    private fun cardsInZone(
+        harness: MatchFlowHarness,
+        side: AcceptanceSide,
+        zone: AcceptanceZone,
+    ): List<Card> =
+        when (zone) {
+            AcceptanceZone.Stack ->
+                harness
+                    .game()
+                    .stack
+                    .map { it.sourceCard }
+                    .filter { harness.bridge.seatOf(it.owner) == seat(side) }
+
+            AcceptanceZone.Battlefield,
+            AcceptanceZone.Hand,
+            AcceptanceZone.Graveyard,
+            AcceptanceZone.Exile,
+            AcceptanceZone.Library,
+            AcceptanceZone.Sideboard,
+            -> player(side, harness).getZone(zone.toForgeZone()).cards.toList()
+        }
 
     private fun requireAction(
         context: String,
@@ -668,9 +693,7 @@ class MatchdoorAcceptanceExecutor(
         cardName: String,
     ): Int {
         val card =
-            player(side, harness)
-                .getZone(zone.toForgeZone())
-                .cards
+            cardsInZone(harness, side, zone)
                 .firstOrNull { it.name.equals(cardName, ignoreCase = true) }
                 ?: error("could not find $cardName in ${side.yamlName} ${zone.yamlName}")
         return harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
@@ -693,7 +716,7 @@ class MatchdoorAcceptanceExecutor(
         harness: MatchFlowHarness,
         side: AcceptanceSide,
         zone: AcceptanceZone,
-    ): List<String> = player(side, harness).getZone(zone.toForgeZone()).cards.map { it.name }
+    ): List<String> = cardsInZone(harness, side, zone).map { it.name }
 
     private fun actionSummary(
         harness: MatchFlowHarness,

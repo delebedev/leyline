@@ -253,6 +253,7 @@ class PlayerController(
     private val spellExecutor = SpellExecutor(game, player, bridge)
     private val targetingCoordinator = TargetingCoordinator(bridge, seating)
     private val costPaymentCoordinator = CostPaymentCoordinator(bridge, player, optionalActionGate)
+    private var activeSpellSourceId: Int? = null
     private val priorityLoopCoordinator: PriorityLoopCoordinator? =
         actionBridge?.let { ab ->
             PriorityLoopCoordinator(
@@ -267,7 +268,20 @@ class PlayerController(
         }
 
     init {
-        setGui(ClientGuiGame(bridge))
+        setGui(
+            ClientGuiGame(
+                bridge,
+                currentStackSourceId = {
+                    activeSpellSourceId
+                        ?: game
+                            .stack
+                            .firstOrNull()
+                            ?.sourceCard
+                            ?.id
+                },
+                stackCardRefs = { game.stack.map { it.sourceCard.id to it.sourceCard.name } },
+            ),
+        )
     }
 
     companion object {
@@ -1175,8 +1189,23 @@ class PlayerController(
         // gate must protect is a pre-set outer-target supplied via the Cast
         // PerformAction — sa.targets.isEmpty() handles that.
         val needsTargeting = sa.targets.isEmpty()
-        val req = PlaySpellAbility(this, sa)
-        return req.playAbility(needsTargeting, false, false)
+        return withActiveSpellSource(sa) {
+            val req = PlaySpellAbility(this, sa)
+            req.playAbility(needsTargeting, false, false)
+        }
+    }
+
+    private fun <T> withActiveSpellSource(
+        sa: SpellAbility,
+        block: () -> T,
+    ): T {
+        val previous = activeSpellSourceId
+        activeSpellSourceId = sa.hostCard?.id ?: previous
+        return try {
+            block()
+        } finally {
+            activeSpellSourceId = previous
+        }
     }
 
     override fun playSpellAbilityNoStack(

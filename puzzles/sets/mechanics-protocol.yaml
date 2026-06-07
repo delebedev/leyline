@@ -212,6 +212,35 @@ scenarios:
             - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
             - zone_not_contains: { side: ours, zone: hand, card: Cut Your Losses }
             - stack_empty: true
+  - id: casualty-make-disappear-stack-spells
+    puzzle: make-disappear-own-stack-casualty
+    run: cast Shock, Lightning Bolt, then Make Disappear with Casualty to counter both stack spells
+    expect: both burn spells are countered and opponent life remains unchanged
+    steps:
+      - expect:
+          action: { type: cast, card: Shock }
+      - cast: Shock
+      - target: opponent
+      - expect:
+          action: { type: cast, card: Lightning Bolt }
+      - cast: Lightning Bolt
+      - target: opponent
+      - expect:
+          action: { type: cast, card: Make Disappear }
+      - cast: Make Disappear
+      - choose: { optional_cost: additional_cost }
+      - target: { side: ours, zone: stack, card: Lightning Bolt }
+      - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
+      - target: { side: ours, zone: stack, card: Shock }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Shock }
+            - zone_contains: { side: ours, zone: graveyard, card: Lightning Bolt }
+            - zone_contains: { side: ours, zone: graveyard, card: Make Disappear }
+            - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
+            - opponent_life: 20
+            - stack_empty: true
   - id: training-hopeful-initiate
     puzzle: training-hopeful-initiate
     run: attack with Hopeful Initiate and Grizzly Bears
