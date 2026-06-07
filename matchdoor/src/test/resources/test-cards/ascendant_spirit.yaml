@@ -1,0 +1,17 @@
+name: "Ascendant Spirit"
+grpId: 75081
+titleId: 477113
+abilities:
+  - id: 139877
+    textId: 946518
+    category: 1
+    mana: "oSioSi"
+  - id: 139878
+    textId: 946519
+    category: 1
+    mana: "oSioSioSi"
+  - id: 139879
+    textId: 946520
+    category: 1
+    mana: "oSioSioSioSi"
+expansionCode: "KHM"

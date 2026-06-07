@@ -129,6 +129,19 @@ object ActionMapper {
         val hand = snap.zones[handZoneId]?.contents.orEmpty()
         val battlefield = snap.zones[ZoneIds.BATTLEFIELD]?.contents.orEmpty()
 
+        fun autoTapForCost(
+            player: Player,
+            cost: ManaCost,
+        ): AutoTapSolution? =
+            buildAutoTapSolution(
+                forgeManaCostToPairs(cost),
+                player,
+                idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(forgeCardId) },
+                grpIdResolver = { c -> GrpId(bridge.resolveGrpId(c, bridge.getOrAllocInstanceId(ForgeCardId(c.id)).value)) },
+                cardDataLookup = { bridge.cardRepository.findByGrpId(it.value) },
+                abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
+            )
+
         // --- Battlefield: ActivateMana + Activate (own permanents only) ---
         for (fid in battlefield) {
             val card = snap.objects[fid] ?: continue
@@ -164,6 +177,7 @@ object ActionMapper {
                     cardData = { _ -> cardData },
                     envelope = ActivatedActionEnvelope.PERMANENT_SOURCE,
                     abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
+                    autoTapSolution = { cost -> autoTapForCost(player, cost) },
                     skipDisguiseTurnFaceUp = true,
                 )
             }
@@ -361,6 +375,7 @@ object ActionMapper {
                 cardData = { _ -> snap.boundCards[fid]?.data },
                 envelope = ActivatedActionEnvelope.ABILITY_ONLY,
                 abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
+                autoTapSolution = { cost -> autoTapForCost(player, cost) },
             )
         }
 
@@ -558,6 +573,7 @@ object ActionMapper {
         abilityGrpId: Int,
         uniqueAbilityId: Int?,
         abilityCost: ManaCost?,
+        autoTapSolution: AutoTapSolution? = null,
         canPay: Boolean,
         envelope: ActivatedActionEnvelope,
     ) {
@@ -579,6 +595,7 @@ object ActionMapper {
         if ((!canPay || envelope.activeManaCost) && abilityCost != null && !abilityCost.isNoCost) {
             addManaCostFromForge(abilityCost, actionBuilder, abilityGrpId)
         }
+        autoTapSolution?.let(actionBuilder::setAutoTapSolution)
         if (canPay) {
             builder.addActions(actionBuilder)
         } else {
@@ -616,12 +633,20 @@ object ActionMapper {
         cardData: (Int) -> CardData?,
         envelope: ActivatedActionEnvelope,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+        autoTapSolution: (ManaCost) -> AutoTapSolution? = { null },
         skipDisguiseTurnFaceUp: Boolean = false,
     ) {
         for (ability in getNonManaActivatedAbilities(card, player)) {
             if (!ability.canPlay()) continue
             if (skipDisguiseTurnFaceUp && ability.isDisguiseUp) continue
             val canPay = canPayManaCost(ability, player)
+            val abilityCost = ability.payCosts?.totalMana
+            val autoTap =
+                if (canPay && abilityCost != null && !abilityCost.isNoCost) {
+                    autoTapSolution(abilityCost)
+                } else {
+                    null
+                }
             val actionInstanceId = instanceId()
             val actionGrpId = grpId()
             val registry = abilityRegistryLookup(card, cardData(actionGrpId))
@@ -633,7 +658,8 @@ object ActionMapper {
                 grpId = actionGrpId,
                 abilityGrpId = abilityGrpId,
                 uniqueAbilityId = uniqueAbilityId,
-                abilityCost = ability.payCosts?.totalMana,
+                abilityCost = abilityCost,
+                autoTapSolution = autoTap,
                 canPay = canPay,
                 envelope = envelope,
             )
@@ -797,6 +823,16 @@ object ActionMapper {
                     cardData = { _ -> cardData },
                     envelope = ActivatedActionEnvelope.PERMANENT_SOURCE,
                     abilityRegistryLookup = abilityRegistryLookup,
+                    autoTapSolution = { cost ->
+                        buildAutoTapSolution(
+                            forgeManaCostToPairs(cost),
+                            player,
+                            idResolver,
+                            grpIdResolver,
+                            cardDataLookup,
+                            abilityRegistryLookup,
+                        )
+                    },
                 )
             }
         }
@@ -880,6 +916,16 @@ object ActionMapper {
                     cardData = { actionGrpId -> cardDataLookup(GrpId(actionGrpId)) },
                     envelope = ActivatedActionEnvelope.ABILITY_ONLY,
                     abilityRegistryLookup = abilityRegistryLookup,
+                    autoTapSolution = { cost ->
+                        buildAutoTapSolution(
+                            forgeManaCostToPairs(cost),
+                            player,
+                            idResolver,
+                            grpIdResolver,
+                            cardDataLookup,
+                            abilityRegistryLookup,
+                        )
+                    },
                 )
             }
         }
@@ -1086,17 +1132,20 @@ object ActionMapper {
             uniqueAbilityIdFor(cardData, abilityGrpId)?.let(actionBuilder::setUniqueAbilityId)
 
             for ((idx, manaColor) in colors.withIndex()) {
+                val manaInfo =
+                    ManaInfo
+                        .newBuilder()
+                        .setManaId(INITIAL_MANA_ID + idx)
+                        .setColor(manaColor)
+                        .setSrcInstanceId(instanceId)
+                        .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
+                        .setAbilityGrpId(abilityGrpId)
+                        .setCount(1)
+                if (card.type.isSnow) {
+                    manaInfo.addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.FromSnow))
+                }
                 actionBuilder.addManaPaymentOptions(
-                    ManaPaymentOption.newBuilder().addMana(
-                        ManaInfo
-                            .newBuilder()
-                            .setManaId(INITIAL_MANA_ID + idx)
-                            .setColor(manaColor)
-                            .setSrcInstanceId(instanceId)
-                            .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
-                            .setAbilityGrpId(abilityGrpId)
-                            .setCount(1),
-                    ),
+                    ManaPaymentOption.newBuilder().addMana(manaInfo),
                 )
             }
 
@@ -1514,6 +1563,7 @@ object ActionMapper {
             val instanceId: Int,
             val color: ManaColor,
             val abilityGrpId: Int,
+            val fromSnow: Boolean,
         )
 
         // Collect untapped mana sources with their produced color
@@ -1531,7 +1581,7 @@ object ActionMapper {
                 val registry = abilityRegistryLookup(card, cardData)
                 val abilityGrpId = registry?.forSpellAbility(sa.id) ?: basicLandAbilityGrpId(card)
                 for (color in colors) {
-                    sources.add(ManaSource(card, instanceId, color, abilityGrpId))
+                    sources.add(ManaSource(card, instanceId, color, abilityGrpId, fromSnow = card.type.isSnow))
                 }
             }
         }
@@ -1542,15 +1592,20 @@ object ActionMapper {
         val coloredReqs = manaCost.filter { it.first != ManaColor.Generic }
         val genericReqs = manaCost.filter { it.first == ManaColor.Generic }
 
+        fun canPayRequirement(
+            src: ManaSource,
+            reqColor: ManaColor,
+        ): Boolean = if (reqColor == ManaColor.Snow_afc9) src.fromSnow else src.color == reqColor
+
         // Match colored requirements
         for ((reqColor, reqCount) in coloredReqs) {
             var remaining = reqCount
             for (src in sources) {
                 if (remaining <= 0) break
                 if (src.instanceId in usedSourceInstanceIds) continue
-                if (src.color == reqColor) {
+                if (canPayRequirement(src, reqColor)) {
                     usedSourceInstanceIds.add(src.instanceId)
-                    matched.add(src to reqColor)
+                    matched.add(src to src.color)
                     remaining--
                 }
             }
@@ -1576,22 +1631,25 @@ object ActionMapper {
         var manaIdCounter = INITIAL_MANA_ID
         for ((src, payingColor) in matched) {
             val manaId = manaIdCounter++
+            val manaInfo =
+                ManaInfo
+                    .newBuilder()
+                    .setManaId(manaId)
+                    .setColor(payingColor)
+                    .setSrcInstanceId(src.instanceId)
+                    .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
+                    .setAbilityGrpId(src.abilityGrpId)
+                    .setCount(1)
+            if (src.fromSnow) {
+                manaInfo.addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.FromSnow))
+            }
             builder.addAutoTapActions(
                 AutoTapAction
                     .newBuilder()
                     .setInstanceId(src.instanceId)
                     .setAbilityGrpId(src.abilityGrpId)
                     .setManaPaymentOption(
-                        ManaPaymentOption.newBuilder().addMana(
-                            ManaInfo
-                                .newBuilder()
-                                .setManaId(manaId)
-                                .setColor(payingColor)
-                                .setSrcInstanceId(src.instanceId)
-                                .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
-                                .setAbilityGrpId(src.abilityGrpId)
-                                .setCount(1),
-                        ),
+                        ManaPaymentOption.newBuilder().addMana(manaInfo),
                     ),
             )
         }
@@ -1639,7 +1697,7 @@ object ActionMapper {
     private fun manaCostColorCounts(manaCost: forge.card.mana.ManaCost): Map<ManaColor, Int> {
         val counts = mutableMapOf<ManaColor, Int>()
         for (shard in manaCost) {
-            val color = producedToManaColor(shard.toString().removeSurrounding("{", "}")) ?: continue
+            val color = ManaColorMapping.fromShard(shard) ?: continue
             counts[color] = (counts[color] ?: 0) + 1
         }
         return counts

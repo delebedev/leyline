@@ -178,9 +178,8 @@ class AbilityRegistry private constructor(
             saMap: MutableMap<Int, Int>,
         ) {
             var idx = 0
-            for (sa in card.spellAbilities ?: emptyList()) {
+            for (sa in nonManaActivatedAbilities(card)) {
                 if (!sa.isActivatedAbility || sa.isManaAbility()) continue
-                if (!sa.isIntrinsic) continue
                 if (isReconfigureUnattach(sa)) {
                     saMap[sa.id] = KeywordAbilityIds.RECONFIGURE_UNATTACH
                     continue
@@ -193,6 +192,19 @@ class AbilityRegistry private constructor(
                 if (slotIdx < abilityIds.size) saMap[sa.id] = abilityIds[slotIdx].first
                 idx++
             }
+        }
+
+        private fun nonManaActivatedAbilities(card: Card): List<SpellAbility> {
+            val abilities = card.spellAbilities.toMutableList()
+            val seen = abilities.map { it.id }.toMutableSet()
+            for (sa in card.allSpellAbilities.orEmpty()) {
+                if (sa.id in seen) continue
+                if (sa.isActivatedAbility && !sa.isManaAbility()) {
+                    abilities.add(sa)
+                    seen.add(sa.id)
+                }
+            }
+            return abilities
         }
 
         private fun mapReconfigureUnattachAbilities(

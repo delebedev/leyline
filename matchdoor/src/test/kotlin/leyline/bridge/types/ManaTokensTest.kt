@@ -20,6 +20,7 @@ class ManaTokensTest :
                 manaTokenToPair("G") shouldBe (ManaColor.Green_afc9 to 1)
                 manaTokenToPair("C") shouldBe (ManaColor.Colorless_afc9 to 1)
                 manaTokenToPair("S") shouldBe (ManaColor.Snow_afc9 to 1)
+                manaTokenToPair("Si") shouldBe (ManaColor.Snow_afc9 to 1)
                 manaTokenToPair("X") shouldBe (ManaColor.X to 1)
             }
         }

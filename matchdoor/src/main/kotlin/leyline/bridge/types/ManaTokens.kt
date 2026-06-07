@@ -24,7 +24,7 @@ internal fun manaTokenToPair(token: String): Pair<ManaColor, Int>? {
         "R" -> ManaColor.Red_afc9 to 1
         "G" -> ManaColor.Green_afc9 to 1
         "C" -> ManaColor.Colorless_afc9 to 1
-        "S" -> ManaColor.Snow_afc9 to 1
+        "S", "SI" -> ManaColor.Snow_afc9 to 1
         "X" -> ManaColor.X to 1
         else -> token.toIntOrNull()?.takeIf { it > 0 }?.let { ManaColor.Generic to it }
     }

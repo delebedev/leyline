@@ -1,0 +1,29 @@
+# Design Narrative
+# Mechanic: snow mana payment for an activated ability cost.
+# Forcing: Ascendant Spirit's first activation requires exactly {S}{S}; two Snow-Covered Islands are the only usable sources.
+# AI behavior: the AI has no meaningful decisions; the script drives the activation and stack resolution.
+# Failure modes:
+#   WIN   = the client can offer, pay, and resolve a snow-mana activation.
+#   LOSE  = not expected; no opposing pressure exists.
+#   TIMEOUT = activation offer/payment/priority wiring failed.
+# Card roles:
+#   Ascendant Spirit -- source of the {S}{S} activated ability.
+#   Snow-Covered Island -- snow sources that produce blue mana with snow-source metadata.
+# Protocol path: ActionsAvailableReq Activate + manaCost Snow, ActivateMana payment options with FromSnow.
+
+[metadata]
+Name:Snow Mana Ascendant Spirit
+Goal:None
+Turns:3
+Difficulty:Easy
+Description:Activate Ascendant Spirit's {S}{S} ability using two Snow-Covered Islands.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Ascendant Spirit;Snow-Covered Island;Snow-Covered Island
+humanlibrary=Island;Island
+ailibrary=Mountain;Mountain

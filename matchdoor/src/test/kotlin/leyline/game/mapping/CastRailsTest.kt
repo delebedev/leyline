@@ -183,7 +183,7 @@ class CastRailsTest :
         test("Rails inventory covers AltCostKind values without overlap loss") {
             assertSoftly {
                 CastRails.fromExile.map { it.kind } shouldContainExactly
-                    listOf(AltCostKind.PLOT, AltCostKind.FORETELL, AltCostKind.PARADIGM)
+                    listOf(AltCostKind.PLOT, AltCostKind.FORETELL, AltCostKind.PARADIGM, AltCostKind.AIRBEND)
                 CastRails.fromGraveyard.map { it.kind } shouldContainExactly
                     listOf(AltCostKind.FLASHBACK, AltCostKind.DISTURB, AltCostKind.ESCAPE, AltCostKind.JUMP_START)
                 CastRails.handWithAltCost.map { it.kind } shouldContainExactly

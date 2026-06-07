@@ -1,6 +1,19 @@
 name: mechanics-protocol
 description: Focused protocol-mechanic acceptance scenarios promoted from manual puzzles.
 scenarios:
+  - id: snow-mana-ascendant-spirit
+    puzzle: snow-mana-ascendant-spirit
+    run: activate Ascendant Spirit using snow mana
+    expect: Ascendant Spirit becomes at least 2/3 after the snow activation resolves
+    steps:
+      - expect:
+          action: { type: activate, card: Ascendant Spirit }
+      - activate: { card: Ascendant Spirit, ability_index: 0 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats_at_least: { side: ours, card: Ascendant Spirit, power: 2, toughness: 3 }
+            - stack_empty: true
   - id: crew-vehicle
     puzzle: vehicle-crew
     run: crew Brute Suit with Centaur Courser, then attack

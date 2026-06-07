@@ -24,6 +24,7 @@ object ManaColorMapping {
             ManaCostShard.RED to ManaColor.Red_afc9,
             ManaCostShard.GREEN to ManaColor.Green_afc9,
             ManaCostShard.COLORLESS to ManaColor.Colorless_afc9,
+            ManaCostShard.S to ManaColor.Snow_afc9,
             ManaCostShard.X to ManaColor.X,
         )
 
