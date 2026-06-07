@@ -598,7 +598,13 @@ class MatchdoorAcceptanceExecutor(
                     .map { it.sourceCard }
                     .filter { harness.bridge.seatOf(it.owner) == seat(side) }
 
-            else -> player(side, harness).getZone(zone.toForgeZone()).cards.toList()
+            AcceptanceZone.Battlefield,
+            AcceptanceZone.Hand,
+            AcceptanceZone.Graveyard,
+            AcceptanceZone.Exile,
+            AcceptanceZone.Library,
+            AcceptanceZone.Sideboard,
+            -> player(side, harness).getZone(zone.toForgeZone()).cards.toList()
         }
 
     private fun requireAction(
