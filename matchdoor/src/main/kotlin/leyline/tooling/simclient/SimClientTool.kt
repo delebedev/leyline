@@ -45,7 +45,7 @@ class SimClientRunner(
     fun run(): SimClientRunResult {
         config.outDir.mkdirs()
         val rows = expandSimClientRows(config)
-        if (rows.any { it.useCardDb }) {
+        if (rows.any { it.useCardDb } || resolvedCardDbPath != null) {
             require(resolvedCardDbPath != null) { "Card database not found; set LEYLINE_CARD_DB or --card-db for deck-file rows" }
         }
         val runLine =
@@ -112,7 +112,7 @@ class SimClientRunner(
                     opponentDeckList = row.opponentDeckList,
                     validation = InvariantSelection.protocolFacts(),
                     validationStrict = false,
-                    cardRepositoryOverride = if (row.useCardDb) cardRepo else null,
+                    cardRepositoryOverride = if (row.useCardDb || resolvedCardDbPath != null) cardRepo else null,
                 )
             is PuzzleSimClientRow ->
                 MatchFlowHarness(
@@ -120,7 +120,7 @@ class SimClientRunner(
                     deckList = null,
                     validation = InvariantSelection.protocolFacts(),
                     validationStrict = false,
-                    cardRepositoryOverride = if (row.useCardDb) cardRepo else null,
+                    cardRepositoryOverride = if (row.useCardDb || resolvedCardDbPath != null) cardRepo else null,
                 )
         }
 
