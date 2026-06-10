@@ -12,6 +12,7 @@ import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.player.PlayerView
 import forge.game.spellability.AlternativeCost
+import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.getNonManaActivatedAbilities
@@ -295,7 +296,7 @@ class GameEventCollector(
                 isAbility && !isTrigger -> resolveActivationZoneId(topSa, card.id, seat, evSaId = ev.sa()?.id ?: 0)
                 else -> 0
             }
-        val (kickerAbilityGrpId, chosenX) = readCastingTimeOptionState(topSa, card)
+        val castingTimeOptionState = readCastingTimeOptionState(topSa, card)
         frame.add(
             GameEvent.SpellCast(
                 cardId = ForgeCardId(card.id),
@@ -313,13 +314,14 @@ class GameEventCollector(
                 triggeringObjectCardId = triggeringObjectCardId,
                 triggeringObjectInstanceId = triggeringObjectInstanceId,
                 activationZoneId = activationZoneId,
-                kickerAbilityGrpId = kickerAbilityGrpId,
-                chosenX = chosenX,
+                kickerAbilityGrpId = castingTimeOptionState.kickerAbilityGrpId,
+                additionalCostGrpId = castingTimeOptionState.additionalCostGrpId,
+                chosenX = castingTimeOptionState.chosenX,
             ),
         )
         log.debug(
             "event: SpellCast card={} seat={} manaPayments={} adventure={} omen={} " +
-                "altCost={} trigger={} abilityForgeId={} kicker={} chosenX={}",
+                "altCost={} trigger={} abilityForgeId={} kicker={} additionalCost={} chosenX={}",
             card.name,
             seat,
             payments.size,
@@ -328,8 +330,9 @@ class GameEventCollector(
             altCostAbilityGrpId,
             isTrigger,
             abilityForgeId,
-            kickerAbilityGrpId,
-            chosenX,
+            castingTimeOptionState.kickerAbilityGrpId,
+            castingTimeOptionState.additionalCostGrpId,
+            castingTimeOptionState.chosenX,
         )
     }
 
@@ -603,17 +606,21 @@ class GameEventCollector(
             else -> 0
         }
 
-    /** CastingTimeOption type=3 (Kicker) and type=2 (ChooseX) state, read from
-     *  the live SA on top of the stack — same window altCost is read in.
-     *  Returns `(kickerAbilityGrpId, chosenX)`; either is 0 when not applicable. */
+    private data class CastingTimeOptionState(
+        val kickerAbilityGrpId: Int = 0,
+        val additionalCostGrpId: Int = 0,
+        val chosenX: Int = 0,
+    )
+
+    /** CastingTimeOption state read from the live SA on top of the stack. */
     private fun readCastingTimeOptionState(
         topSa: forge.game.spellability.SpellAbility?,
         card: forge.game.card.CardView,
-    ): Pair<Int, Int> {
-        if (topSa == null || topSa.hostCard?.id != card.id) return 0 to 0
+    ): CastingTimeOptionState {
+        if (topSa == null || topSa.hostCard?.id != card.id) return CastingTimeOptionState()
+        val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
         val kicker =
             if (topSa.isKicked) {
-                val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
                 if (grpId != 0) {
                     bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.KICKER) ?: 0
                 } else {
@@ -622,8 +629,14 @@ class GameEventCollector(
             } else {
                 0
             }
+        val additionalCost =
+            if (topSa.isOptionalCostPaid(OptionalCost.Generic) && grpId != 0) {
+                bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.WATERBEND) ?: 0
+            } else {
+                0
+            }
         val x = topSa.xManaCostPaid ?: 0
-        return kicker to x
+        return CastingTimeOptionState(kickerAbilityGrpId = kicker, additionalCostGrpId = additionalCost, chosenX = x)
     }
 
     override fun visit(ev: GameEventSpellMovedToStack) {

@@ -225,6 +225,20 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.KICKER_ABILITY_GRP_ID, kickerAbilityGrpId.value))
             .build()
 
+    /** CastingTimeOption type=5 (AdditionalCost) — spell cast with an additional cost paid. */
+    fun castingTimeOptionAdditionalCost(
+        stackInstanceId: InstanceId,
+        additionalCostGrpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.CastingTimeOption)
+            .setAffectorId(stackInstanceId.value)
+            .addAffectedIds(stackInstanceId.value)
+            .addDetails(int32Detail(DetailKeys.TYPE, CastingTimeOptionType.AdditionalCost.number))
+            .addDetails(int32Detail(DetailKeys.ADDITIONAL_COST_GRP_ID, additionalCostGrpId.value))
+            .build()
+
     /** CastingTimeOption type=2 (ChooseX_a7b4) — spell cast with chosen X value. */
     fun castingTimeOptionChooseX(
         stackInstanceId: InstanceId,

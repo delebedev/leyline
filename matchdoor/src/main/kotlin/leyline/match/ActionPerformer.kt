@@ -71,6 +71,10 @@ class ActionPerformer(
             return
         }
 
+        if (targetingHandler.tryHandlePayCostsPerformAction(greMsg) { autoPassEngine.autoPassAndAdvance() }) {
+            return
+        }
+
         val pending =
             seatBridge.action.getPending() ?: run {
                 log.warn("ActionPerformer: PerformActionResp but no pending action — resyncing current state")

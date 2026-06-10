@@ -49,6 +49,7 @@ class ActionMapperPureTest :
                     idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
                     grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
                     cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
+                    abilityRegistryLookup = { card, cardData -> b.abilityRegistryFor(card, cardData) },
                 )
 
             val hasPass = actions.actionsList.any { it.actionType == ActionType.Pass }
@@ -74,6 +75,7 @@ class ActionMapperPureTest :
                     idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
                     grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
                     cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
+                    abilityRegistryLookup = { card, cardData -> b.abilityRegistryFor(card, cardData) },
                 )
 
             // In naive mode lands are always non-playable → inactiveActions
@@ -243,6 +245,33 @@ class ActionMapperPureTest :
                 )
 
             actions.actionsList.any { it.actionType == ActionType.Activate_add3 }.shouldBeTrue()
+        }
+
+        test("snow-costed Activate carries snow mana cost when payable") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Ascendant Spirit", human, ZoneType.Battlefield)
+                    base.addCard("Snow-Covered Island", human, ZoneType.Battlefield)
+                    base.addCard("Snow-Covered Island", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+
+            val actions =
+                ActionMapper.buildActionList(
+                    player = human,
+                    seatId = 1,
+                    checkLegality = true,
+                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
+                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
+                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
+                    abilityRegistryLookup = { card, cardData -> b.abilityRegistryFor(card, cardData) },
+                )
+
+            val activate = actions.actionsList.first { it.actionType == ActionType.Activate_add3 }
+            assertSoftly {
+                activate.abilityGrpId shouldBe 139877
+                activate should haveManaCost(snow = 2)
+            }
         }
 
         // -----------------------------------------------------------------------

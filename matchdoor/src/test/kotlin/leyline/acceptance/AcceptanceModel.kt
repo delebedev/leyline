@@ -267,6 +267,7 @@ enum class AcceptanceZone(
     Exile("exile"),
     Library("library"),
     Sideboard("sideboard"),
+    Stack("stack"),
     ;
 
     companion object {
@@ -304,6 +305,7 @@ enum class AcceptanceAltCost(
     Plot("plot"),
     Warp("warp"),
     Enlist("enlist"),
+    Airbend("airbend"),
     ;
 
     companion object {

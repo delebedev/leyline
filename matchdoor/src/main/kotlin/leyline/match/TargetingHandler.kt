@@ -34,6 +34,8 @@ class TargetingHandler(
     private val bundles: BundleBuilderHolder,
     private val ctx: SessionContext,
 ) {
+    private val waterbendPaymentSelections = mutableMapOf<String, LinkedHashSet<Int>>()
+
     companion object {
         private const val EATEN_ALIVE_GRP_ID = 93885
 
@@ -339,6 +341,9 @@ class TargetingHandler(
 
         val ids = greMsg.effectCostResp.costSelection.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(ids, pendingPrompt)
+        if (pendingPrompt.request.semantic == PromptSemantic.WaterbendCost) {
+            waterbendPaymentSelections.remove(pendingPrompt.promptId)
+        }
 
         log.info("TargetingHandler: EffectCostResp indices={}", selectedIndices)
 
@@ -346,6 +351,116 @@ class TargetingHandler(
         bridge.awaitPriority()
         autoPass()
     }
+
+    /**
+     * Native PayCostsReq mana-payment UIs answer through PerformActionResp.
+     * Waterbend reducer clicks are MakePayment actions; the Done button is Pass.
+     */
+    fun tryHandlePayCostsPerformAction(
+        greMsg: ClientToGREMessage,
+        autoPass: () -> Unit,
+    ): Boolean {
+        val actions = greMsg.performActionResp.actionsList
+        if (actions.none { it.actionType == ActionType.MakePayment || it.actionType == ActionType.Pass }) {
+            return false
+        }
+
+        val bridge = ctx.bridge
+        val seatBridge = bridge.seat(counters.seatId)
+        val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return false
+        if (pendingPrompt.request.semantic != PromptSemantic.WaterbendCost) return false
+
+        val selectedIds =
+            actions
+                .flatMap { action ->
+                    buildList {
+                        if (action.actionType == ActionType.MakePayment && action.instanceId != 0) {
+                            add(action.instanceId)
+                        }
+                        action.manaSelectionsList.mapNotNullTo(this) { selection ->
+                            selection.instanceId.takeIf { id -> id != 0 }
+                        }
+                    }
+                }.distinct()
+        val selectedSet = waterbendPaymentSelections.getOrPut(pendingPrompt.promptId) { linkedSetOf() }
+        selectedSet.addAll(selectedIds)
+
+        if (actions.any { it.actionType == ActionType.Pass }) {
+            val ids = waterbendPaymentSelections.remove(pendingPrompt.promptId)?.toList().orEmpty()
+            submitWaterbendPayment(pendingPrompt, ids, autoPass)
+            return true
+        }
+
+        if (selectedIds.isNotEmpty()) {
+            log.info("TargetingHandler: Waterbend MakePayment ids={} accumulated={}", selectedIds, selectedSet)
+            sendWaterbendCostPayCostsReq(adjustWaterbendPaymentPrompt(pendingPrompt, selectedSet.toList()))
+            return true
+        }
+
+        return true
+    }
+
+    private fun submitWaterbendPayment(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        selectedIds: List<Int>,
+        autoPass: () -> Unit,
+    ) {
+        val selectedIndices = mapSelectedInstanceIdsToPromptIndices(selectedIds, pendingPrompt)
+        log.info("TargetingHandler: Waterbend payment ids={} indices={}", selectedIds, selectedIndices)
+        ctx.bridge
+            .seat(counters.seatId)
+            .prompt
+            .submitResponse(pendingPrompt.promptId, selectedIndices)
+        ctx.bridge.awaitPriority()
+        autoPass()
+    }
+
+    private fun adjustWaterbendPaymentPrompt(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        selectedIds: List<Int>,
+    ): InteractivePromptBridge.PendingPrompt {
+        val bridge = ctx.bridge
+        val selectedForgeIds = selectedIds.mapNotNull { bridge.getForgeCardId(InstanceId(it))?.value }.toSet()
+        val remainingRefs = pendingPrompt.request.candidateRefs.filterNot { it.entityId in selectedForgeIds }
+        val remainingOptions = remainingRefs.map { ref -> pendingPrompt.request.options.getOrNull(ref.index) ?: "" }
+        val remainingManaCost = pendingPrompt.request.waterbendManaCost.reduceGenericBy(selectedIds.size)
+        return pendingPrompt.copy(
+            request =
+                pendingPrompt.request.copy(
+                    options = remainingOptions,
+                    max = (pendingPrompt.request.max - selectedIds.size).coerceAtLeast(0),
+                    candidateRefs = remainingRefs.mapIndexed { index, ref -> ref.copy(index = index) },
+                    waterbendManaCost = remainingManaCost,
+                    waterbendCostString = remainingManaCost.toArenaCostString().takeIf { it.isNotEmpty() },
+                ),
+        )
+    }
+
+    private fun List<Pair<ManaColor, Int>>.reduceGenericBy(count: Int): List<Pair<ManaColor, Int>> {
+        var remainingReduction = count
+        return mapNotNull { (color, amount) ->
+            if (color == ManaColor.Generic && remainingReduction > 0) {
+                val reducedAmount = (amount - remainingReduction).coerceAtLeast(0)
+                remainingReduction = (remainingReduction - amount).coerceAtLeast(0)
+                if (reducedAmount > 0) color to reducedAmount else null
+            } else {
+                color to amount
+            }
+        }
+    }
+
+    private fun List<Pair<ManaColor, Int>>.toArenaCostString(): String =
+        joinToString(separator = "") { (color, count) ->
+            when (color) {
+                ManaColor.Generic -> "o$count"
+                ManaColor.White_afc9 -> "oW".repeat(count)
+                ManaColor.Blue_afc9 -> "oU".repeat(count)
+                ManaColor.Black_afc9 -> "oB".repeat(count)
+                ManaColor.Red_afc9 -> "oR".repeat(count)
+                ManaColor.Green_afc9 -> "oG".repeat(count)
+                else -> ""
+            }
+        }
 
     private fun mapSelectedInstanceIdsToPromptIndices(
         selectedInstanceIds: List<Int>,
@@ -569,6 +684,8 @@ class TargetingHandler(
                 sendStationTapCostPayCostsReq(pendingPrompt)
             ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost ->
                 sendReturnUnblockedAttackerPayCostsReq(pendingPrompt)
+            ClassifiedPrompt.SelectN.Reason.WaterbendCost ->
+                sendWaterbendCostPayCostsReq(pendingPrompt)
             ClassifiedPrompt.SelectN.Reason.LegendRule,
             ClassifiedPrompt.SelectN.Reason.Discard,
             ClassifiedPrompt.SelectN.Reason.SacrificeEffect,
@@ -688,6 +805,15 @@ class TargetingHandler(
             log.warn("TargetingHandler: CancelActionReq but no pending prompt (likely timeout race)")
             DevCheck.failOnAutoPass { "CancelActionReq but no pending prompt" }
             return
+        }
+
+        if (pendingPrompt.request.semantic == PromptSemantic.WaterbendCost) {
+            val ids = waterbendPaymentSelections.remove(pendingPrompt.promptId)?.toList().orEmpty()
+            if (ids.isNotEmpty()) {
+                log.info("TargetingHandler: CancelActionReq — completing Waterbend payment ids={}", ids)
+                submitWaterbendPayment(pendingPrompt, ids, autoPass)
+                return
+            }
         }
 
         log.info("TargetingHandler: CancelActionReq — submitting empty targets to unwind spell")
@@ -1416,6 +1542,7 @@ class TargetingHandler(
             ClassifiedPrompt.SelectN.Reason.EnlistCost,
             ClassifiedPrompt.SelectN.Reason.StationTapCost,
             ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost,
+            ClassifiedPrompt.SelectN.Reason.WaterbendCost,
             -> error("cost SelectN uses PayCostsReq")
         }
 
@@ -1466,6 +1593,14 @@ class TargetingHandler(
             )
         val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
         Tap.outboundTemplate("PayCostsReq(return-unblocked-attacker) seat=${counters.seatId}")
+        sink.sendBundledGRE(result.messages)
+    }
+
+    private fun sendWaterbendCostPayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
+        val bridge = ctx.bridge
+        val (req, prompt) = RequestBuilder.buildWaterbendCostPayCostsReq(pendingPrompt, bridge)
+        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
+        Tap.outboundTemplate("PayCostsReq(waterbend) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 

@@ -15,7 +15,10 @@ import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OptionalActionGate
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.types.PromptCandidateRefDto
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
  * Owns the cost-payment override surface that routes user decisions through
@@ -48,15 +51,23 @@ class CostPaymentCoordinator(
      * generic). Empty result means the player tapped no cards.
      */
     fun chooseCardsForConvokeOrImprovise(
+        sa: SpellAbility,
         manaCost: ManaCost,
         untappedCards: CardCollectionView,
         artifacts: Boolean,
+        creatures: Boolean,
         maxReduction: Int?,
     ): Map<Card, ManaCostShard> {
         val options = untappedCards.map { it.name }
         if (options.isEmpty()) return emptyMap()
 
-        val keyword = if (artifacts) "improvise" else "convoke"
+        val isWaterbend = artifacts && creatures
+        val keyword =
+            when {
+                isWaterbend -> "waterbend"
+                artifacts -> "improvise"
+                else -> "convoke"
+            }
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -65,6 +76,19 @@ class CostPaymentCoordinator(
                 min = 0,
                 max = options.size.coerceAtMost(maxReduction ?: options.size),
                 defaultIndex = 0,
+                semantic = if (isWaterbend) PromptSemantic.WaterbendCost else PromptSemantic.Generic,
+                candidateRefs =
+                    if (isWaterbend) {
+                        untappedCards.mapIndexed { index, card ->
+                            PromptCandidateRefDto(index = index, kind = "card", entityId = card.id, zone = card.zone?.zoneType?.name)
+                        }
+                    } else {
+                        emptyList()
+                    },
+                sourceEntityId = sa.hostCard?.id,
+                sourceCardName = sa.hostCard?.name,
+                waterbendManaCost = if (isWaterbend) manaCost.toColorCounts() else emptyList(),
+                waterbendCostString = if (isWaterbend) manaCost.toArenaCostString() else null,
             )
         val indices = bridge.requestChoice(request)
         if (indices.isEmpty()) return emptyMap()
@@ -84,7 +108,7 @@ class CostPaymentCoordinator(
         val result = mutableMapOf<Card, ManaCostShard>()
         for (idx in indices) {
             val card = cardList.getOrNull(idx) ?: continue
-            val shard = pickShardForConvoke(card, colorShardCounts, genericRemaining)
+            val shard = pickShardForConvoke(card, colorShardCounts, genericRemaining, artifacts)
             if (shard != null) {
                 result[card] = shard
                 if (shard == ManaCostShard.GENERIC) {
@@ -247,7 +271,9 @@ class CostPaymentCoordinator(
         card: Card,
         colorCounts: Map<ManaCostShard, Int>,
         genericRemaining: Int,
+        artifacts: Boolean,
     ): ManaCostShard? {
+        if (artifacts) return ManaCostShard.GENERIC.takeIf { genericRemaining > 0 }
         val colors = card.color
         if (colors.hasWhite() && (colorCounts[ManaCostShard.WHITE] ?: 0) > 0) return ManaCostShard.WHITE
         if (colors.hasBlue() && (colorCounts[ManaCostShard.BLUE] ?: 0) > 0) return ManaCostShard.BLUE
@@ -257,6 +283,36 @@ class CostPaymentCoordinator(
         if (genericRemaining > 0) return ManaCostShard.GENERIC
         return null
     }
+
+    private fun ManaCost.toColorCounts(): List<Pair<ManaColor, Int>> =
+        buildList {
+            if (genericCost > 0) add(ManaColor.Generic to genericCost)
+            val shards =
+                listOf(
+                    ManaCostShard.WHITE to ManaColor.White_afc9,
+                    ManaCostShard.BLUE to ManaColor.Blue_afc9,
+                    ManaCostShard.BLACK to ManaColor.Black_afc9,
+                    ManaCostShard.RED to ManaColor.Red_afc9,
+                    ManaCostShard.GREEN to ManaColor.Green_afc9,
+                )
+            for ((shard, color) in shards) {
+                val count = getShardCount(shard)
+                if (count > 0) add(color to count)
+            }
+        }
+
+    private fun ManaCost.toArenaCostString(): String =
+        toColorCounts().joinToString(separator = "") { (color, count) ->
+            when (color) {
+                ManaColor.Generic -> "o$count"
+                ManaColor.White_afc9 -> "oW".repeat(count)
+                ManaColor.Blue_afc9 -> "oU".repeat(count)
+                ManaColor.Black_afc9 -> "oB".repeat(count)
+                ManaColor.Red_afc9 -> "oR".repeat(count)
+                ManaColor.Green_afc9 -> "oG".repeat(count)
+                else -> ""
+            }
+        }
 
     companion object {
         /** Drain the optional cost stash from [bridge]'s journal, or null if none recorded. */

@@ -1,0 +1,12 @@
+name: "Make Disappear"
+grpId: 80200
+titleId: 567178
+abilities:
+  - id: 149393
+    textId: 567174
+    category: 3
+    baseId: 241
+  - id: 6374
+    textId: 30988
+    category: 4
+expansionCode: "SNC"

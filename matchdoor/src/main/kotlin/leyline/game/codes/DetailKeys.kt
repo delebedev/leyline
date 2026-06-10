@@ -74,6 +74,7 @@ object DetailKeys {
     const val ALTERNATE_COST_GRP_ID = "alternateCostGrpId"
     const val CAST_ABILITY_GRP_ID = "castAbilityGrpId"
     const val KICKER_ABILITY_GRP_ID = "kickerAbilityGrpId"
+    const val ADDITIONAL_COST_GRP_ID = "additionalCostGrpId"
     const val REMOVES_FROM_ZONE = "removesFromZone"
     const val IS_TOP = "isTop"
     const val COIN_FLIP_RESULT = "CoinFlipResult"

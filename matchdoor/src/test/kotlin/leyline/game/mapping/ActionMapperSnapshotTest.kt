@@ -4,11 +4,13 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTestBase
+import leyline.testkit.haveManaCost
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -118,6 +120,42 @@ class ActionMapperSnapshotTest :
             assertSoftly {
                 activate.abilityGrpId shouldBe 19490
                 activate.uniqueAbilityId shouldBe 50
+            }
+        }
+
+        test("snow-costed activated ability carries snow mana cost") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Ascendant Spirit", human, ZoneType.Battlefield)
+                    base.addCard("Snow-Covered Island", human, ZoneType.Battlefield)
+                    base.addCard("Snow-Covered Island", human, ZoneType.Battlefield)
+                }
+
+            val snap = SnapshotCapture.run(game, b, "test", 0)
+            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val activate = fromSnap.actionsList.first { it.actionType == ActionType.Activate_add3 }
+            val snowMana =
+                fromSnap.actionsList
+                    .asSequence()
+                    .filter { it.actionType == ActionType.ActivateMana }
+                    .flatMap { it.manaPaymentOptionsList.asSequence() }
+                    .flatMap { it.manaList.asSequence() }
+                    .first { mana -> mana.specsList.any { it.type == ManaSpecType.FromSnow } }
+            val autoTapMana =
+                activate.autoTapSolution.autoTapActionsList.flatMap { it.manaPaymentOption.manaList }
+
+            assertSoftly {
+                activate.abilityGrpId shouldBe 139877
+                activate should haveManaCost(snow = 2)
+                activate.hasAutoTapSolution().shouldBeTrue()
+                autoTapMana.map { it.color } shouldBe listOf(ManaColor.Blue_afc9, ManaColor.Blue_afc9)
+                autoTapMana.map { mana -> mana.specsList.map { it.type } } shouldBe
+                    listOf(
+                        listOf(ManaSpecType.Predictive, ManaSpecType.FromSnow),
+                        listOf(ManaSpecType.Predictive, ManaSpecType.FromSnow),
+                    )
+                snowMana.color shouldBe ManaColor.Blue_afc9
+                snowMana.specsList.map { it.type } shouldBe listOf(ManaSpecType.Predictive, ManaSpecType.FromSnow)
             }
         }
 

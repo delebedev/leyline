@@ -1,0 +1,12 @@
+name: "Ruinous Waterbending"
+grpId: 97394
+titleId: 1070706
+abilities:
+  - id: 192688
+    textId: 1070707
+    category: 5
+    baseId: 8100003
+  - id: 192689
+    textId: 1070708
+    category: 4
+expansionCode: "TLA"

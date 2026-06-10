@@ -2,6 +2,7 @@ package leyline.game.mapping
 
 import forge.game.spellability.AlternativeCost
 import forge.game.spellability.SpellAbility
+import forge.game.zone.ZoneType
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.snapshot.AltCostBinding
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -59,6 +60,7 @@ enum class AltCostKind(
     SNEAK(KeywordAbilityIds.SNEAK),
     DISGUISE(KeywordAbilityIds.DISGUISE),
     PARADIGM(KeywordAbilityIds.PARADIGM),
+    AIRBEND(KeywordAbilityIds.AIRBEND),
 }
 
 /**
@@ -82,6 +84,11 @@ sealed interface AltGrpIdSource {
     /** Per-card row from [AltCostBinding] list, keyed by [AltCostKind]. */
     data class FromBoundCard(
         val lookupMode: LookupMode = LookupMode.CostAware,
+    ) : AltGrpIdSource
+
+    /** Fixed keyword row for effect-granted zone casts whose source card has no alt-cost row. */
+    data class Fixed(
+        val abilityGrpId: Int,
     ) : AltGrpIdSource
 }
 
@@ -219,6 +226,14 @@ object CastRails {
                 emitManaCost = false,
                 echoAlternativeOnMana = false,
             ),
+            FromExile(
+                kind = AltCostKind.AIRBEND,
+                saPredicate = ::isAirbendMayPlay,
+                altGrpIdSource = AltGrpIdSource.Fixed(KeywordAbilityIds.AIRBEND),
+                abilityGrpIdMode = AbilityGrpIdMode.FixedKeyword(KeywordAbilityIds.AIRBEND),
+                emitManaCost = true,
+                echoAlternativeOnMana = true,
+            ),
         )
 
     val fromGraveyard: List<FromGraveyard> =
@@ -343,6 +358,7 @@ internal fun resolveAltGrpId(
             when (val src = rail.altGrpIdSource) {
                 AltGrpIdSource.Universal149 -> 149
                 is AltGrpIdSource.FromBoundCard -> resolveByMode(altCosts, rail.kind, src.lookupMode, payCostPairs)
+                is AltGrpIdSource.Fixed -> src.abilityGrpId
             }
     }
 
@@ -361,3 +377,11 @@ private fun resolveByMode(
                     it.keywordBaseId == kind.keywordBaseId && it.manaCost.toMap() == payCostPairs.toMap()
                 }?.abilityGrpId ?: 0
     }
+
+private fun isAirbendMayPlay(sa: SpellAbility): Boolean {
+    val mayPlay = sa.mayPlay ?: return false
+    return sa.hostCard?.isInZone(ZoneType.Exile) == true &&
+        mayPlay.hostCard?.name?.startsWith("Airbend ") == true &&
+        mayPlay.hasParam("MayPlayAltManaCost") &&
+        mayPlay.getParam("MayPlayAltManaCost") == "2"
+}

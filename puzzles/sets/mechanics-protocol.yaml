@@ -1,6 +1,19 @@
 name: mechanics-protocol
 description: Focused protocol-mechanic acceptance scenarios promoted from manual puzzles.
 scenarios:
+  - id: snow-mana-ascendant-spirit
+    puzzle: snow-mana-ascendant-spirit
+    run: activate Ascendant Spirit using snow mana
+    expect: Ascendant Spirit becomes at least 2/3 after the snow activation resolves
+    steps:
+      - expect:
+          action: { type: activate, card: Ascendant Spirit }
+      - activate: { card: Ascendant Spirit, ability_index: 0 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats_at_least: { side: ours, card: Ascendant Spirit, power: 2, toughness: 3 }
+            - stack_empty: true
   - id: crew-vehicle
     puzzle: vehicle-crew
     run: crew Brute Suit with Centaur Courser, then attack
@@ -199,6 +212,35 @@ scenarios:
             - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
             - zone_not_contains: { side: ours, zone: hand, card: Cut Your Losses }
             - stack_empty: true
+  - id: casualty-make-disappear-stack-spells
+    puzzle: make-disappear-own-stack-casualty
+    run: cast Shock, Lightning Bolt, then Make Disappear with Casualty to counter both stack spells
+    expect: both burn spells are countered and opponent life remains unchanged
+    steps:
+      - expect:
+          action: { type: cast, card: Shock }
+      - cast: Shock
+      - target: opponent
+      - expect:
+          action: { type: cast, card: Lightning Bolt }
+      - cast: Lightning Bolt
+      - target: opponent
+      - expect:
+          action: { type: cast, card: Make Disappear }
+      - cast: Make Disappear
+      - choose: { optional_cost: additional_cost }
+      - target: { side: ours, zone: stack, card: Lightning Bolt }
+      - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
+      - target: { side: ours, zone: stack, card: Shock }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Shock }
+            - zone_contains: { side: ours, zone: graveyard, card: Lightning Bolt }
+            - zone_contains: { side: ours, zone: graveyard, card: Make Disappear }
+            - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
+            - opponent_life: 20
+            - stack_empty: true
   - id: training-hopeful-initiate
     puzzle: training-hopeful-initiate
     run: attack with Hopeful Initiate and Grizzly Bears
@@ -268,6 +310,68 @@ scenarios:
             - annotation_seen: LayeredEffect
             - annotation_seen: CounterAdded
             - battlefield_stats_at_least: { side: ours, card: Forest, power: 4, toughness: 4 }
+            - stack_empty: true
+  - id: waterbend-ruinous-waterbending
+    puzzle: waterbend-ruinous-waterbending
+    run: cast Ruinous Waterbending and pay Waterbend with artifact and creature reducers
+    expect: Waterbend emits PayCostsReq payment actions and resolves the spell
+    steps:
+      - expect:
+          action: { type: cast, card: Ruinous Waterbending }
+      - cast: Ruinous Waterbending
+      - choose: { optional_cost: additional_cost, label: Waterbend }
+      - expect:
+          prompt: PayCostsReq
+      - select_cost: { zone: battlefield, cards: [Coral Merfolk, Grizzly Bears, Llanowar Elves, Savannah Lions, Monastery Swiftspear, Healer's Hawk, Sol Ring] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: CastingTimeOption
+            - zone_contains: { side: ours, zone: graveyard, card: Ruinous Waterbending }
+            - zone_contains: { side: ours, zone: graveyard, card: Coral Merfolk }
+            - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: battlefield, card: Monastery Swiftspear }
+            - zone_contains: { side: ours, zone: battlefield, card: Sol Ring }
+            - zone_contains: { side: ours, zone: battlefield, card: Manalith }
+            - our_life: 25
+            - stack_empty: true
+  - id: waterbend-giant-koi
+    puzzle: waterbend-giant-koi
+    run: activate Giant Koi and pay Waterbend with creature and artifact reducers
+    expect: Waterbend emits PayCostsReq payment actions and accepts MakePayment clicks
+    steps:
+      - expect:
+          action: { type: activate, card: Giant Koi }
+      - activate: Giant Koi
+      - expect:
+          prompt: PayCostsReq
+      - select_cost: { zone: battlefield, cards: [Coral Merfolk, Sol Ring] }
+      - resolve_stack: {}
+      - expect:
+          stack_empty: true
+  - id: airbend-airbending-lesson
+    puzzle: airbend-airbending-lesson
+    run: cast Airbending Lesson, airbend Grizzly Bears, then cast it from exile
+    expect: Grizzly Bears moves through exile and resolves from the Airbend cast rail
+    steps:
+      - expect:
+          action: { type: cast, card: Airbending Lesson }
+      - cast: Airbending Lesson
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 8
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: exile, card: Grizzly Bears }
+            - action: { type: cast, card: Grizzly Bears, alt_cost: airbend }
+      - cast: { card: Grizzly Bears, zone: exile, alt_cost: airbend }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: graveyard, card: Airbending Lesson }
             - stack_empty: true
   - id: investigate-novice-inspector
     puzzle: novice-inspector-investigate

@@ -169,6 +169,14 @@ object TransferAnnotations {
                 ),
             )
         }
+        if (transfer.additionalCostGrpId != 0) {
+            persistent.add(
+                AnnotationBuilder.castingTimeOptionAdditionalCost(
+                    stackInstanceId = newId,
+                    additionalCostGrpId = GrpId(transfer.additionalCostGrpId),
+                ),
+            )
+        }
         if (transfer.chosenX != 0) {
             persistent.add(
                 AnnotationBuilder.castingTimeOptionChooseX(
@@ -352,6 +360,14 @@ object TransferAnnotations {
                 AnnotationBuilder.castingTimeOptionKicker(
                     stackInstanceId = spellIid,
                     kickerAbilityGrpId = GrpId(ev.kickerAbilityGrpId),
+                ),
+            )
+        }
+        if (ev.additionalCostGrpId != 0) {
+            annotations.add(
+                AnnotationBuilder.castingTimeOptionAdditionalCost(
+                    stackInstanceId = spellIid,
+                    additionalCostGrpId = GrpId(ev.additionalCostGrpId),
                 ),
             )
         }

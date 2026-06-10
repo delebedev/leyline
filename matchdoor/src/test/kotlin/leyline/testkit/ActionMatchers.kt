@@ -97,6 +97,7 @@ fun haveManaCost(
     red: Int = 0,
     green: Int = 0,
     colorless: Int = 0,
+    snow: Int = 0,
 ): Matcher<Action> =
     Matcher { action ->
         val expectedCounts =
@@ -108,6 +109,7 @@ fun haveManaCost(
                 putIfNonZero(ManaColor.Red_afc9, red)
                 putIfNonZero(ManaColor.Green_afc9, green)
                 putIfNonZero(ManaColor.Colorless_afc9, colorless)
+                putIfNonZero(ManaColor.Snow_afc9, snow)
             }
         val actualCounts =
             action.manaCostList

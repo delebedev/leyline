@@ -37,6 +37,9 @@ object RequestBuilder {
         val optionContext: OptionContext,
     )
 
+    private const val WATERBEND_PAYMENT_ABILITY_GRP_ID = 384
+    private const val WATERBEND_MANA_ID_BASE = 50_000
+
     /**
      * Build a [SelectTargetsReq] from an [InteractivePromptBridge.PendingPrompt].
      *
@@ -645,6 +648,117 @@ object RequestBuilder {
         bridge: GameBridge,
     ): Pair<PayCostsReq, Prompt> = buildSelectCostPayCostsReq(prompt, bridge, PromptIds.ENLIST_TAP_COST)
 
+    fun buildWaterbendCostPayCostsReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Pair<PayCostsReq, Prompt> {
+        val sourceInstanceId =
+            prompt.request.sourceEntityId?.let {
+                bridge.getOrAllocInstanceId(ForgeCardId(it)).value
+            } ?: 0
+        val sourceGrpId =
+            prompt.request.sourceEntityId
+                ?.let { bridge.findCard(ForgeCardId(it)) }
+                ?.let { card ->
+                    bridge.resolveGrpId(card, sourceInstanceId).takeIf { it != 0 }
+                        ?: bridge.cardRepository.findGrpIdByName(card.name)
+                }
+                ?: prompt.request.sourceCardName?.let { bridge.cardRepository.findGrpIdByName(it) }
+                ?: 0
+        val waterbendAbilityGrpId =
+            if (sourceGrpId != 0) {
+                bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, KeywordAbilityIds.WATERBEND) ?: 0
+            } else {
+                0
+            }
+        val req =
+            PayCostsReq
+                .newBuilder()
+                .addAllManaCost(
+                    prompt.request.waterbendManaCost.map { (color, count) ->
+                        ManaRequirement
+                            .newBuilder()
+                            .addColor(color)
+                            .setCount(count)
+                            .setObjectId(sourceInstanceId)
+                            .apply { if (waterbendAbilityGrpId != 0) setAbilityGrpId(waterbendAbilityGrpId) }
+                            .build()
+                    },
+                ).setPaymentActions(buildWaterbendPaymentActions(prompt, bridge))
+                .setPaymentSelection(
+                    SelectNReq
+                        .newBuilder()
+                        .setContext(SelectionContext.ManaPool)
+                        .setOptionContext(OptionContext.Payment)
+                        .setListType(SelectionListType.Dynamic)
+                        .setIdType(IdType.ManaId)
+                        .setValidationType(SelectionValidationType.NonRepeatable)
+                        .setMinWeight(Int.MIN_VALUE)
+                        .setMaxWeight(Int.MAX_VALUE),
+                ).build()
+        val promptProto =
+            Prompt
+                .newBuilder()
+                .setPromptId(PromptIds.PAY_COSTS)
+                .apply {
+                    prompt.request.waterbendCostString?.let { cost ->
+                        addParameters(
+                            PromptParameter
+                                .newBuilder()
+                                .setParameterName("Cost")
+                                .setType(ParameterType.NonLocalizedString)
+                                .setStringValue(cost),
+                        )
+                    }
+                }.build()
+        return req to promptProto
+    }
+
+    private fun buildWaterbendPaymentActions(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): ActionsAvailableReq {
+        val builder = ActionsAvailableReq.newBuilder()
+        for ((idx, ref) in prompt.request.candidateRefs.withIndex()) {
+            val forgeId = ForgeCardId(ref.entityId)
+            val card = bridge.findCard(forgeId) ?: continue
+            val iid = bridge.getOrAllocInstanceId(forgeId).value
+            val grpId = bridge.resolveGrpId(card, iid)
+            builder.addActions(waterbendPaymentAction(iid, grpId, card.isCreature, idx))
+        }
+        return builder.build()
+    }
+
+    private fun waterbendPaymentAction(
+        instanceId: Int,
+        grpId: Int,
+        fromCreature: Boolean,
+        index: Int,
+    ): Action {
+        val manaInfo =
+            ManaInfo
+                .newBuilder()
+                .setManaId(WATERBEND_MANA_ID_BASE + index)
+                .setColor(ManaColor.Colorless_afc9)
+                .setSrcInstanceId(instanceId)
+                .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
+                .apply {
+                    if (fromCreature) addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.FromCreature))
+                }.addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.ManaSubstitution))
+                .setAbilityGrpId(WATERBEND_PAYMENT_ABILITY_GRP_ID)
+                .setCount(1)
+                .build()
+        return Action
+            .newBuilder()
+            .setActionType(ActionType.MakePayment)
+            .setGrpId(grpId)
+            .setInstanceId(instanceId)
+            .setFacetId(instanceId)
+            .setAbilityGrpId(WATERBEND_PAYMENT_ABILITY_GRP_ID)
+            .addManaPaymentOptions(ManaPaymentOption.newBuilder().addMana(manaInfo))
+            .build()
+    }
+
     /**
      * Build a `PayCostsReq` for an additional cost paid by selecting N cards
      * (sacrifice, exile-from-grave, etc). Builder is uniform —
@@ -655,6 +769,7 @@ object RequestBuilder {
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
         promptId: Int,
+        mandatory: Boolean = true,
     ): Pair<PayCostsReq, Prompt> {
         val sourceInstanceId =
             prompt.request.sourceEntityId?.let {
@@ -674,7 +789,7 @@ object RequestBuilder {
             prompt.request.max
                 .coerceAtLeast(prompt.request.min)
                 .coerceAtLeast(1)
-        val minSel = maxSel
+        val minSel = if (mandatory) maxSel else prompt.request.min.coerceAtLeast(0)
         val selection =
             SelectNReq
                 .newBuilder()
