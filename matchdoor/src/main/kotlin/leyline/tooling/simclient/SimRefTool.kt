@@ -130,7 +130,10 @@ class SimRefRunner(
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
             }
             val durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
-            val decisions = ledger.snapshot()
+            // The game thread keeps appending ledger entries between loop exit and
+            // shutdown; cut at the turn cap so turn-capped rows stay deterministic
+            // across reruns.
+            val decisions = ledger.snapshot().filter { it.turn <= config.maxTurns }
             File(
                 config.outDir,
                 "${row.tag}.refdecisions.json",
