@@ -1,12 +1,14 @@
 package leyline.session.zones
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import leyline.testkit.assertGsIdChain
+import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -114,12 +116,62 @@ class DiscardInteractionTest :
                 req.idsList shouldHaveSize 1
             }
 
-            respondToSelectN(listOf(divinationId))
+            val response = after { respondToSelectN(listOf(divinationId)) }
 
-            ai
-                .getZone(ForgeZoneType.Graveyard)
-                .cards
-                .filter { it.name == "Divination" } shouldHaveSize 1
+            val discarded =
+                ai
+                    .getZone(ForgeZoneType.Graveyard)
+                    .cards
+                    .filter { it.name == "Divination" }
+            discarded shouldHaveSize 1
+            response.messages.persistentAnnotationsOfType(AnnotationType.DisplayCardUnderCard) shouldHaveSize 0
+        }
+
+        test("Deep-Cavern Bat reveal exile emits SelectNReq") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Deep-Cavern Bat
+                humanbattlefield=Swamp;Swamp
+                humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp
+                aihand=Divination;Walking Corpse;Swamp
+                ailibrary=Island;Island;Island;Island;Island
+                """,
+                name = "Deep-Cavern Bat reveal exile",
+                turns = 2,
+            )
+
+            castSpellByName("Deep-Cavern Bat") shouldBe true
+            val promptStart = messageSnapshot()
+            passUntil(maxPasses = 10) { messagesSince(promptStart).any { it.hasSelectNReq() } } shouldBe true
+
+            val req = messagesSince(promptStart).last { it.hasSelectNReq() }.selectNReq
+            val divinationId = findInstanceId(req.idsList, "Divination")
+            assertSoftly {
+                req.context shouldBe SelectionContext.Resolution_a163
+                req.minSel shouldBe 0
+                req.maxSel shouldBe 1
+                req.idsList shouldHaveSize 2
+                req.unfilteredIdsList shouldHaveSize 3
+                req.idsList shouldContain divinationId
+            }
+
+            val response = after { respondToSelectN(listOf(divinationId)) }
+
+            val batIds =
+                harness.accumulator.objects.values
+                    .filter { it.grpId == 87246 }
+                    .map { it.instanceId }
+            val exiledDivinationId = instanceIdOf("Divination", ai, ForgeZoneType.Exile)
+            val underCard = response.messages.persistentAnnotationsOfType(AnnotationType.DisplayCardUnderCard).single()
+            assertSoftly {
+                batIds shouldContain underCard.affectorId
+                underCard.affectedIdsList shouldBe listOf(exiledDivinationId)
+            }
         }
 
         // --- Cleanup discard (hand exceeds max hand size) ---

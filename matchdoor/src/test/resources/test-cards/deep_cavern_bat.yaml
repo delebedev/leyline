@@ -1,0 +1,14 @@
+name: "Deep-Cavern Bat"
+grpId: 87246
+titleId: 737423
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 12
+    textId: 38
+    category: 3
+  - id: 169561
+    textId: 967036
+    category: 2
+expansionCode: "LCI"

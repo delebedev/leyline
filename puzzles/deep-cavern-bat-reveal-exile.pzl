@@ -1,0 +1,18 @@
+[metadata]
+Name:Deep-Cavern Bat Reveal Exile
+Goal:Survive
+Turns:4
+Difficulty:Easy
+Description:Cast Deep-Cavern Bat, target the opponent, and choose a revealed nonland card to exile.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Deep-Cavern Bat
+humanbattlefield=Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aihand=Divination;Walking Corpse;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest

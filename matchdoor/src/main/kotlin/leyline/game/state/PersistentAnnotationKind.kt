@@ -433,7 +433,8 @@ data object EnteredZoneThisTurnKind : PersistentAnnotationKind {
         if (ann.affectorId == ZoneIds.STACK && ann.affectedIdsList.any { it in frame.resolvingStackIids }) {
             return true
         }
-        if (frame.phase != PhaseType.UPKEEP) return false
+        val phase = frame.phase ?: return false
+        if (phase != PhaseType.UPKEEP) return false
         val affected = ann.affectedIdsList.firstOrNull() ?: return false
         val controller = frame.controllerOf[affected]
         // Known controller: gate on activePlayer == controller. Unknown

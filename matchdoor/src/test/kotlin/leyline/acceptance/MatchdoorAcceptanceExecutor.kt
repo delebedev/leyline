@@ -3,6 +3,7 @@ package leyline.acceptance
 import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.zone.ZoneType
+import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -293,14 +294,28 @@ class MatchdoorAcceptanceExecutor(
         step: PassUntilStep,
         context: String,
     ) {
-        val reached =
-            harness.passUntil(maxPasses = step.maxPasses) {
-                step.conditions.all { matchesCondition(harness, it) }
-            }
+        val reached = harness.passUntil(maxPasses = step.maxPasses) { passUntilConditionReached(harness, step) }
         require(reached) {
-            "$context did not reach: ${step.conditions.joinToString { it.label }}"
+            "$context did not reach: ${step.conditions.joinToString { it.label }}; " +
+                "latest prompt=${latestPromptNameWithId(harness) ?: "none"}; " +
+                "prompts=${harness.allMessages.filter { it.isPromptMessage() }.map { it.promptName() + "#" + it.prompt.promptId }}; " +
+                "actions=${harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(harness, it) }}"
         }
     }
+
+    private fun passUntilConditionReached(
+        harness: MatchFlowHarness,
+        step: PassUntilStep,
+    ): Boolean =
+        try {
+            GameLoopPoller.awaitCondition(timeoutMs = 200, pollIntervalMs = 20) {
+                harness.drainSink()
+                step.conditions.all { matchesCondition(harness, it) }
+            }
+            true
+        } catch (_: AssertionError) {
+            false
+        }
 
     private fun assertConditions(
         harness: MatchFlowHarness,
@@ -549,7 +564,7 @@ class MatchdoorAcceptanceExecutor(
         harness: MatchFlowHarness,
         prompt: String,
         promptId: Int?,
-    ): Boolean = latestPromptMatches(harness, prompt, promptId)
+    ): Boolean = harness.allMessages.any { it.matchesPrompt(prompt, promptId) }
 
     private fun latestPromptMatches(
         harness: MatchFlowHarness,
