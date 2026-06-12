@@ -30,8 +30,8 @@ import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.DelayedReveal
 import forge.game.player.PlaySpellAbility
 import forge.game.player.Player
-import forge.game.player.PlayerView
 import forge.game.player.PlayerActionConfirmMode
+import forge.game.player.PlayerView
 import forge.game.replacement.ReplacementEffect
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.OptionalCostValue

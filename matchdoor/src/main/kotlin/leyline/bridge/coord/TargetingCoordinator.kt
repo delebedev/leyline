@@ -916,8 +916,7 @@ class TargetingCoordinator(
     private fun isExileUnderSourceRevealChoice(
         sa: SpellAbility?,
         message: String,
-    ): Boolean =
-        sa?.let(::isExileUnderSourceChangeZone) ?: message.contains("exile", ignoreCase = true)
+    ): Boolean = sa?.let(::isExileUnderSourceChangeZone) ?: message.contains("exile", ignoreCase = true)
 
     private fun isExileUnderSourceChangeZone(sa: SpellAbility): Boolean =
         sa.api == ApiType.ChangeZone &&

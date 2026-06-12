@@ -910,7 +910,12 @@ class GameEventCollector(
 
     private fun exileUnderSourceId(card: CardView): Int? {
         card.exiledWith?.id?.let { return it }
-        val sa = bridge.getGame()?.stack?.peek()?.spellAbility ?: return null
+        val sa =
+            bridge
+                .getGame()
+                ?.stack
+                ?.peek()
+                ?.spellAbility ?: return null
         if (sa.api != ApiType.ChangeZone || sa.getParam("Destination") != "Exile") return null
         if (sa.getParam("Duration") != "UntilHostLeavesPlay" && !sa.hasParam("IsCurse")) return null
         return sa.hostCard?.id
@@ -1060,7 +1065,11 @@ class GameEventCollector(
     private fun consumeExileUnderSource(forgeCardId: Int): ForgeCardId? {
         val id = ForgeCardId(forgeCardId)
         for (seat in bridge.allSeatIds()) {
-            bridge.promptBridge(SeatId(seat)).journal.consumeExiledUnderSource(id)?.let { return it }
+            bridge
+                .promptBridge(SeatId(seat))
+                .journal
+                .consumeExiledUnderSource(id)
+                ?.let { return it }
         }
         return null
     }

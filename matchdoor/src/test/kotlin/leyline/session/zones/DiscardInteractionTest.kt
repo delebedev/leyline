@@ -162,7 +162,10 @@ class DiscardInteractionTest :
 
             val response = after { respondToSelectN(listOf(divinationId)) }
 
-            val batIds = harness.accumulator.objects.values.filter { it.grpId == 87246 }.map { it.instanceId }
+            val batIds =
+                harness.accumulator.objects.values
+                    .filter { it.grpId == 87246 }
+                    .map { it.instanceId }
             val exiledDivinationId = instanceIdOf("Divination", ai, ForgeZoneType.Exile)
             val underCard = response.messages.persistentAnnotationsOfType(AnnotationType.DisplayCardUnderCard).single()
             assertSoftly {
