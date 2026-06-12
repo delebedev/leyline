@@ -75,6 +75,11 @@ class EffectTracker {
         val destroyed: List<TrackedKeywordEffect>,
     )
 
+    private data class LifecycleDiff<T>(
+        val created: List<T>,
+        val destroyed: List<T>,
+    )
+
     /** Whether init effects have been emitted for this game. */
     private var initEmitted = false
 
@@ -91,33 +96,14 @@ class EffectTracker {
      * LayeredEffectCreated / LayeredEffectDestroyed annotations.
      */
     fun diffBoosts(currentBoosts: Map<Int, List<BoostEntry>>): DiffResult {
-        val currentFingerprints = mutableMapOf<EffectFingerprint, BoostEntry>()
-        for ((cardIid, entries) in currentBoosts) {
-            for (entry in entries) {
-                currentFingerprints[EffectFingerprint(cardIid, entry.timestamp, entry.staticId)] = entry
-            }
-        }
-
-        val destroyed = mutableListOf<TrackedEffect>()
-        val toRemove = mutableListOf<EffectFingerprint>()
-        for ((fp, tracked) in activeEffects) {
-            if (fp !in currentFingerprints) {
-                destroyed.add(tracked)
-                toRemove.add(fp)
-            }
-        }
-        for (fp in toRemove) activeEffects.remove(fp)
-
-        val created = mutableListOf<TrackedEffect>()
-        for ((fp, entry) in currentFingerprints) {
-            if (fp !in activeEffects) {
-                val tracked = TrackedEffect(nextEffectId(), fp, entry.power, entry.toughness)
-                activeEffects[fp] = tracked
-                created.add(tracked)
-            }
-        }
-
-        return DiffResult(created, destroyed)
+        val diff =
+            diffLifecycle(
+                currentByCard = currentBoosts,
+                active = activeEffects,
+                fingerprintOf = { cardIid, entry -> EffectFingerprint(cardIid, entry.timestamp, entry.staticId) },
+                createTracked = { fp, entry -> TrackedEffect(nextEffectId(), fp, entry.power, entry.toughness) },
+            )
+        return DiffResult(diff.created, diff.destroyed)
     }
 
     /**
@@ -126,33 +112,49 @@ class EffectTracker {
      * LayeredEffectDestroyed + AddAbility pAnn emission.
      */
     fun diffKeywords(currentKeywords: Map<Int, List<KeywordEntry>>): KeywordDiffResult {
-        val currentFps = mutableMapOf<KeywordFingerprint, KeywordEntry>()
-        for ((cardIid, entries) in currentKeywords) {
+        val diff =
+            diffLifecycle(
+                currentByCard = currentKeywords,
+                active = activeKeywordEffects,
+                fingerprintOf = { cardIid, entry -> KeywordFingerprint(cardIid, entry.timestamp, entry.staticId) },
+                createTracked = { fp, entry -> TrackedKeywordEffect(nextEffectId(), fp, entry.keyword) },
+            )
+        return KeywordDiffResult(diff.created, diff.destroyed)
+    }
+
+    private fun <Entry, Fingerprint, Tracked> diffLifecycle(
+        currentByCard: Map<Int, List<Entry>>,
+        active: MutableMap<Fingerprint, Tracked>,
+        fingerprintOf: (cardInstanceId: Int, entry: Entry) -> Fingerprint,
+        createTracked: (Fingerprint, Entry) -> Tracked,
+    ): LifecycleDiff<Tracked> {
+        val current = mutableMapOf<Fingerprint, Entry>()
+        for ((cardIid, entries) in currentByCard) {
             for (entry in entries) {
-                currentFps[KeywordFingerprint(cardIid, entry.timestamp, entry.staticId)] = entry
+                current[fingerprintOf(cardIid, entry)] = entry
             }
         }
 
-        val destroyed = mutableListOf<TrackedKeywordEffect>()
-        val toRemove = mutableListOf<KeywordFingerprint>()
-        for ((fp, tracked) in activeKeywordEffects) {
-            if (fp !in currentFps) {
+        val destroyed = mutableListOf<Tracked>()
+        val toRemove = mutableListOf<Fingerprint>()
+        for ((fp, tracked) in active) {
+            if (fp !in current) {
                 destroyed.add(tracked)
                 toRemove.add(fp)
             }
         }
-        for (fp in toRemove) activeKeywordEffects.remove(fp)
+        for (fp in toRemove) active.remove(fp)
 
-        val created = mutableListOf<TrackedKeywordEffect>()
-        for ((fp, entry) in currentFps) {
-            if (fp !in activeKeywordEffects) {
-                val tracked = TrackedKeywordEffect(nextEffectId(), fp, entry.keyword)
-                activeKeywordEffects[fp] = tracked
+        val created = mutableListOf<Tracked>()
+        for ((fp, entry) in current) {
+            if (fp !in active) {
+                val tracked = createTracked(fp, entry)
+                active[fp] = tracked
                 created.add(tracked)
             }
         }
 
-        return KeywordDiffResult(created, destroyed)
+        return LifecycleDiff(created, destroyed)
     }
 
     /**
