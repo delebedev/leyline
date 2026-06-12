@@ -516,6 +516,9 @@ enum class PromptSemantic {
 
     /** Static enum choice: choose a subtype via `StaticList_SubTypes`. */
     StaticSubtypeChoice,
+
+    /** Static enum choice: choose odd or even via `StaticList_Parities`. */
+    StaticParityChoice,
 }
 
 data class PromptRequest(

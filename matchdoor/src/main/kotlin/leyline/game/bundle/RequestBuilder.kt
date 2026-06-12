@@ -521,6 +521,12 @@ object RequestBuilder {
                     SelectionListType.Static,
                     OptionContext.Resolution_a9d7,
                 )
+            semantic == PromptSemantic.StaticParityChoice ->
+                SelectNShape(
+                    SelectionContext.Resolution_a163,
+                    SelectionListType.Static,
+                    OptionContext.Resolution_a9d7,
+                )
             semantic == PromptSemantic.StaticSubtypeChoice ->
                 SelectNShape(
                     SelectionContext.Resolution_a163,
@@ -541,7 +547,9 @@ object RequestBuilder {
         semantic: PromptSemantic,
     ) {
         when {
-            semantic == PromptSemantic.StaticColorChoice || semantic == PromptSemantic.StaticSubtypeChoice -> {
+            semantic == PromptSemantic.StaticColorChoice ||
+                semantic == PromptSemantic.StaticSubtypeChoice ||
+                semantic == PromptSemantic.StaticParityChoice -> {
                 setSourceIdIfPresent(prompt, bridge)
                 setPrompt(Prompt.newBuilder())
             }

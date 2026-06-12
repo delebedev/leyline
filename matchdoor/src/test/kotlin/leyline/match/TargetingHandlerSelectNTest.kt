@@ -108,4 +108,31 @@ class TargetingHandlerSelectNTest :
                     ),
                 )
         }
+
+        test("static parity SelectN records ChoiceResult with parity domain") {
+            val pending =
+                pendingPrompt(
+                    PromptRequest(
+                        promptType = "confirm",
+                        message = "Odd or even",
+                        options = listOf("Odd", "Even"),
+                        semantic = PromptSemantic.StaticParityChoice,
+                        sourceEntityId = 77,
+                        staticOptionIds = listOf(2, 1),
+                    ),
+                )
+
+            val results = TargetingHandler.choiceResultSideEffects(pending, listOf(1), SeatId(1))
+
+            results shouldBe
+                listOf(
+                    PromptSideEffect.ChoiceResult(
+                        sourceForgeCardId = ForgeCardId(77),
+                        chooserSeatId = SeatId(1),
+                        choiceValue = 1,
+                        choiceDomain = 14,
+                        sentiment = 2,
+                    ),
+                )
+        }
     })

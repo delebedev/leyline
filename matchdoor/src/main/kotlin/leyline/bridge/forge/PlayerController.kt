@@ -507,6 +507,7 @@ class PlayerController(
             } else {
                 options.toList()
             }
+        val parityIds = parityOptionIds(displayOptions)
         val request =
             PromptRequest(
                 promptType = "confirm",
@@ -515,6 +516,10 @@ class PlayerController(
                 min = 1,
                 max = 1,
                 defaultIndex = 0,
+                semantic = if (parityIds != null) PromptSemantic.StaticParityChoice else PromptSemantic.Generic,
+                sourceEntityId = (cardToShow ?: sa?.hostCard)?.id?.takeIf { it > 0 },
+                staticList = if (parityIds != null) StaticList.Parities else null,
+                staticOptionIds = parityIds.orEmpty(),
             )
         val result = bridge.requestChoice(request)
         return result.firstOrNull() == 0
@@ -738,6 +743,7 @@ class PlayerController(
                 BinaryChoiceType.IncreaseOrDecrease -> listOf("Increase", "Decrease")
                 else -> listOf("Yes", "No")
             }
+        val parityIds = parityOptionIds(labels)
         val request =
             PromptRequest(
                 promptType = "confirm",
@@ -746,9 +752,19 @@ class PlayerController(
                 min = 1,
                 max = 1,
                 defaultIndex = if (defaultVal != false) 0 else 1,
+                semantic = if (parityIds != null) PromptSemantic.StaticParityChoice else PromptSemantic.Generic,
+                sourceEntityId = sa?.hostCard?.id?.takeIf { it > 0 },
+                staticList = if (parityIds != null) StaticList.Parities else null,
+                staticOptionIds = parityIds.orEmpty(),
             )
         val result = bridge.requestChoice(request)
         return result.firstOrNull() == 0
+    }
+
+    private fun parityOptionIds(labels: List<String>): List<Int>? {
+        if (labels.size != 2) return null
+        val ids = labels.map { StaticChoiceIds.parityIdForName(it) ?: return null }
+        return ids.takeIf { it.toSet().size == 2 }
     }
 
     override fun chooseColor(

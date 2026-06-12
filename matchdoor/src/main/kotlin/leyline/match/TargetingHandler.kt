@@ -75,6 +75,7 @@ class TargetingHandler(
                 when {
                     semantic == PromptSemantic.StaticSubtypeChoice -> 5 to 2
                     semantic == PromptSemantic.StaticColorChoice -> 6 to 2
+                    semantic == PromptSemantic.StaticParityChoice -> StaticList.Parities.number to 2
                     semantic == PromptSemantic.SelectNDiscard ||
                         semantic == PromptSemantic.SelectNSacrificeEffect -> null to 1
                     else -> return emptyList()
@@ -696,6 +697,7 @@ class TargetingHandler(
             ClassifiedPrompt.SelectN.Reason.LearnLesson,
             ClassifiedPrompt.SelectN.Reason.StaticColorChoice,
             ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice,
+            ClassifiedPrompt.SelectN.Reason.StaticParityChoice,
             -> sendSelectNReq(pendingPrompt, reason)
         }
     }
@@ -1536,6 +1538,7 @@ class TargetingHandler(
             ClassifiedPrompt.SelectN.Reason.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId(pendingPrompt))
             ClassifiedPrompt.SelectN.Reason.StaticColorChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_COLOR)
             ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_TYPE)
+            ClassifiedPrompt.SelectN.Reason.StaticParityChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_TYPE)
             ClassifiedPrompt.SelectN.Reason.Sacrifice,
             ClassifiedPrompt.SelectN.Reason.ExileFromGrave,
             ClassifiedPrompt.SelectN.Reason.CollectEvidenceCost,

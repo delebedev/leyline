@@ -45,6 +45,7 @@ sealed interface ClassifiedPrompt {
             LearnLesson,
             StaticColorChoice,
             StaticSubtypeChoice,
+            StaticParityChoice,
         }
     }
 
@@ -103,6 +104,7 @@ object PromptClassifier {
             PromptSemantic.LearnLesson,
             PromptSemantic.StaticColorChoice,
             PromptSemantic.StaticSubtypeChoice,
+            PromptSemantic.StaticParityChoice,
             PromptSemantic.Generic,
             -> null
         }
@@ -127,6 +129,7 @@ object PromptClassifier {
             PromptSemantic.LearnLesson -> ClassifiedPrompt.SelectN.Reason.LearnLesson
             PromptSemantic.StaticColorChoice -> ClassifiedPrompt.SelectN.Reason.StaticColorChoice
             PromptSemantic.StaticSubtypeChoice -> ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice
+            PromptSemantic.StaticParityChoice -> ClassifiedPrompt.SelectN.Reason.StaticParityChoice
             PromptSemantic.GroupingSurveil,
             PromptSemantic.GroupingScry,
             PromptSemantic.ModalChoice,

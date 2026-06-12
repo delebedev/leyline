@@ -108,6 +108,7 @@ object PromptRouteAuditor {
             PromptSemantic.LearnLesson,
             PromptSemantic.StaticColorChoice,
             PromptSemantic.StaticSubtypeChoice,
+            PromptSemantic.StaticParityChoice,
             -> "SelectNReq"
             PromptSemantic.Generic ->
                 when {

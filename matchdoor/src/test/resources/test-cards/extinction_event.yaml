@@ -1,0 +1,8 @@
+name: "Extinction Event"
+grpId: 71155
+titleId: 428136
+abilities:
+  - id: 142906
+    textId: 511314
+    category: 4
+expansionCode: "IKO"
