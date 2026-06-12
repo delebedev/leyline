@@ -253,7 +253,7 @@ class PlayerController(
     private val optionalActionGate = OptionalActionGate(this, actionBridge)
     private val numericInputGate = NumericInputGate(this, actionBridge)
     private val spellExecutor = SpellExecutor(game, player, bridge)
-    private val targetingCoordinator = TargetingCoordinator(bridge, seating)
+    private val targetingCoordinator = TargetingCoordinator(bridge, seating, currentSourceEntityId = ::currentSourceEntityId)
     private val costPaymentCoordinator = CostPaymentCoordinator(bridge, player, optionalActionGate)
     private var activeSpellSourceId: Int? = null
     private val priorityLoopCoordinator: PriorityLoopCoordinator? =
@@ -274,12 +274,7 @@ class PlayerController(
             ClientGuiGame(
                 bridge,
                 currentStackSourceId = {
-                    activeSpellSourceId
-                        ?: game
-                            .stack
-                            .firstOrNull()
-                            ?.sourceCard
-                            ?.id
+                    currentSourceEntityId()
                 },
                 stackCardRefs = { game.stack.map { it.sourceCard.id to it.sourceCard.name } },
             ),
@@ -1235,6 +1230,14 @@ class PlayerController(
             activeSpellSourceId = previous
         }
     }
+
+    private fun currentSourceEntityId(): Int? =
+        activeSpellSourceId
+            ?: game
+                .stack
+                .firstOrNull()
+                ?.sourceCard
+                ?.id
 
     override fun playSpellAbilityNoStack(
         effectSA: SpellAbility,

@@ -306,9 +306,7 @@ object MechanicAnnotations {
                 is GameEvent.CardBounced -> exileSourceLeftPlayForgeCardIds.add(ev.cardId)
                 is GameEvent.CardExiled -> {
                     val sourceId = ev.sourceCardId
-                    // Only render "exiled under this card" for BF→Exile (e.g. Fiend Hunter).
-                    // GY→Exile (e.g. Predator trigger) should go to the exile zone normally.
-                    if (sourceId != null && ev.fromBattlefield) {
+                    if (sourceId != null) {
                         val sourceIid = idResolver(sourceId)
                         val exiledIid = idResolver(ev.cardId)
                         persistent.add(AnnotationBuilder.displayCardUnderCard(affectorId = sourceIid, instanceId = exiledIid))

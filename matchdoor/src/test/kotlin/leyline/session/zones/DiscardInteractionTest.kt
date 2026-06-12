@@ -8,6 +8,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import leyline.testkit.assertGsIdChain
+import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -142,11 +143,10 @@ class DiscardInteractionTest :
             )
 
             castSpellByName("Deep-Cavern Bat") shouldBe true
-            passUntil(maxPasses = 5) { allMessages.any { it.hasSelectTargetsReq() } }
-            selectTargets(listOf(2))
-            passUntil(maxPasses = 5) { allMessages.any { it.hasSelectNReq() } }
+            val promptStart = messageSnapshot()
+            passUntil(maxPasses = 10) { messagesSince(promptStart).any { it.hasSelectNReq() } } shouldBe true
 
-            val req = lastSelectNReq()
+            val req = messagesSince(promptStart).last { it.hasSelectNReq() }.selectNReq
             val divinationId = findInstanceId(req.idsList, "Divination")
             assertSoftly {
                 req.context shouldBe SelectionContext.Resolution_a163
@@ -155,6 +155,15 @@ class DiscardInteractionTest :
                 req.idsList shouldHaveSize 2
                 req.unfilteredIdsList shouldHaveSize 3
                 req.idsList shouldContain divinationId
+            }
+
+            val response = after { respondToSelectN(listOf(divinationId)) }
+
+            val batIds = harness.accumulator.objects.values.filter { it.grpId == 87246 }.map { it.instanceId }
+            val underCard = response.messages.persistentAnnotationsOfType(AnnotationType.DisplayCardUnderCard).single()
+            assertSoftly {
+                batIds shouldContain underCard.affectorId
+                underCard.affectedIdsList shouldHaveSize 1
             }
         }
 

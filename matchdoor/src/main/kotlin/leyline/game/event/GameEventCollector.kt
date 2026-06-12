@@ -702,6 +702,7 @@ class GameEventCollector(
         val from = ev.from()?.zoneType
         val to = ev.to()?.zoneType ?: return
         val seat = seatOf(card.controller)
+        val exileUnderSource = consumeExileUnderSource(card.id)
 
         // Emit the most specific variant possible based on zone pair.
         // When seat is unavailable or source zone is null (e.g. token entering
@@ -722,7 +723,7 @@ class GameEventCollector(
                     from == ZoneType.Hand && to == ZoneType.Exile && hasDiscardReplacementKeyword(card) ->
                         GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
                     to == ZoneType.Exile -> {
-                        val sourceId = card.exiledWith?.id
+                        val sourceId = exileUnderSource?.value ?: exileUnderSourceId(card)
                         GameEvent.CardExiled(
                             ForgeCardId(card.id),
                             seat,
@@ -907,6 +908,14 @@ class GameEventCollector(
         return sa.hostCard?.id == cardId && sa.api == ApiType.Unattach && sa.getParam("PrecostDesc") == "Reconfigure"
     }
 
+    private fun exileUnderSourceId(card: CardView): Int? {
+        card.exiledWith?.id?.let { return it }
+        val sa = bridge.getGame()?.stack?.peek()?.spellAbility ?: return null
+        if (sa.api != ApiType.ChangeZone || sa.getParam("Destination") != "Exile") return null
+        if (sa.getParam("Duration") != "UntilHostLeavesPlay" && !sa.hasParam("IsCurse")) return null
+        return sa.hostCard?.id
+    }
+
     // -- Group B: annotation-producing events --
 
     override fun visit(ev: GameEventCardCounters) {
@@ -1046,6 +1055,14 @@ class GameEventCollector(
             if (bridge.promptBridge(SeatId(seat)).journal.consumeSearched(id)) return true
         }
         return false
+    }
+
+    private fun consumeExileUnderSource(forgeCardId: Int): ForgeCardId? {
+        val id = ForgeCardId(forgeCardId)
+        for (seat in bridge.allSeatIds()) {
+            bridge.promptBridge(SeatId(seat)).journal.consumeExiledUnderSource(id)?.let { return it }
+        }
+        return null
     }
 
     /**

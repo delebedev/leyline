@@ -3,6 +3,7 @@ package leyline.acceptance
 import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.zone.ZoneType
+import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -305,14 +306,16 @@ class MatchdoorAcceptanceExecutor(
     private fun passUntilConditionReached(
         harness: MatchFlowHarness,
         step: PassUntilStep,
-    ): Boolean {
-        repeat(10) {
-            harness.drainSink()
-            if (step.conditions.all { matchesCondition(harness, it) }) return true
-            Thread.sleep(20)
+    ): Boolean =
+        try {
+            GameLoopPoller.awaitCondition(timeoutMs = 200, pollIntervalMs = 20) {
+                harness.drainSink()
+                step.conditions.all { matchesCondition(harness, it) }
+            }
+            true
+        } catch (_: AssertionError) {
+            false
         }
-        return false
-    }
 
     private fun assertConditions(
         harness: MatchFlowHarness,

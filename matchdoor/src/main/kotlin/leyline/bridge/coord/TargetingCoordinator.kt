@@ -50,6 +50,7 @@ import org.slf4j.LoggerFactory
 class TargetingCoordinator(
     private val bridge: InteractivePromptBridge,
     private val seating: Seating,
+    private val currentSourceEntityId: () -> Int? = { null },
 ) {
     private val log = LoggerFactory.getLogger(TargetingCoordinator::class.java)
 
@@ -69,17 +70,7 @@ class TargetingCoordinator(
         val reveal = bridge.journal.activeReveal()
         val revealedCards = optionList.filterIsInstance<Card>()
         if (reveal != null && revealedCards.size == optionList.size) {
-            val chosen =
-                chooseCardsViaBridgeForReveal(
-                    filteredCards = CardCollection(revealedCards),
-                    min = if (isOptional) 0 else 1,
-                    max = 1,
-                    sa = sa,
-                    reveal = reveal,
-                    message = revealChoiceMessage(sa, title),
-                ).firstOrNull()
-            @Suppress("UNCHECKED_CAST")
-            return chosen as T?
+            return chooseSingleEntityFromReveal(revealedCards, isOptional, sa, title, reveal)
         }
         if (optionList.size == 1 && !isOptional) return optionList.getFirst()
 
@@ -145,6 +136,26 @@ class TargetingCoordinator(
         }
 
         return chosen
+    }
+
+    private fun <T : GameEntity> chooseSingleEntityFromReveal(
+        revealedCards: List<Card>,
+        isOptional: Boolean,
+        sa: SpellAbility?,
+        title: String?,
+        reveal: PromptSideEffect.RevealStarted,
+    ): T? {
+        val chosen =
+            chooseCardsViaBridgeForReveal(
+                filteredCards = CardCollection(revealedCards),
+                min = if (isOptional) 0 else 1,
+                max = 1,
+                sa = sa,
+                reveal = reveal,
+                message = revealChoiceMessage(sa, title),
+            ).firstOrNull()
+        @Suppress("UNCHECKED_CAST")
+        return chosen as? T
     }
 
     private fun recordLearnRevealIfNeeded(
@@ -860,9 +871,10 @@ class TargetingCoordinator(
                     semantic = PromptSemantic.RevealChoose,
                     candidateRefs = candidateRefs,
                     unfilteredRefs = unfilteredRefs,
-                    sourceEntityId = sa?.hostCard?.id,
+                    sourceEntityId = sa?.hostCard?.id ?: currentSourceEntityId()?.takeIf { it > 0 },
                 )
             val indices = bridge.requestChoice(request)
+            recordRevealChoiceExileSources(indices, candidateRefs, request.sourceEntityId)
             val result = CardCollection()
             for (idx in indices) {
                 if (idx in 0 until filteredCards.size) {
@@ -873,6 +885,17 @@ class TargetingCoordinator(
         } finally {
             TargetingCoordinator.endReveal(bridge)
         }
+    }
+
+    private fun recordRevealChoiceExileSources(
+        selectedIndices: List<Int>,
+        candidateRefs: List<PromptCandidateRefDto>,
+        sourceEntityId: Int?,
+    ) {
+        val source = sourceEntityId?.let(::ForgeCardId) ?: return
+        selectedIndices
+            .mapNotNull { idx -> candidateRefs.getOrNull(idx)?.entityId?.let(::ForgeCardId) }
+            .forEach { cardId -> bridge.journal.record(PromptSideEffect.ExiledUnderSource(cardId, source)) }
     }
 
     private fun revealChoiceMessage(

@@ -16,6 +16,12 @@ sealed interface PromptSideEffect {
         val forgeCardId: ForgeCardId,
     ) : PromptSideEffect
 
+    /** Card chosen for a source-linked exile-under-source effect. */
+    data class ExiledUnderSource(
+        val forgeCardId: ForgeCardId,
+        val sourceForgeCardId: ForgeCardId,
+    ) : PromptSideEffect
+
     /** Legendary about to die to the legend rule SBA. Consumer emits LegendRuleDeath. */
     data class LegendVictim(
         val forgeCardId: ForgeCardId,
