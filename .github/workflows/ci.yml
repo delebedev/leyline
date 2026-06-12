@@ -137,9 +137,69 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  acceptance:
+    name: Acceptance
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, ARM64]
+    continue-on-error: true
+    steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: '' # disable on self-hosted runners
+
+      - name: Setup Maven
+        uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
+
+      - name: Setup just
+        uses: extractions/setup-just@v2
+
+      - name: Install forge JARs
+        run: just install-forge
+
+      - name: Build
+        run: just build
+
+      - name: Test (acceptance)
+        run: just test-acceptance
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-acceptance
+          path: '**/build/test-results/**/TEST-*.xml'
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-acceptance
+          path: '**/build/reports/jacoco/**/jacocoTestReport.xml'
+          if-no-files-found: ignore
+          retention-days: 7
+
   report:
     name: Report
-    needs: [gate, integration]
+    needs: [gate, integration, acceptance]
     if: always()
     runs-on: ubuntu-latest
     steps:
