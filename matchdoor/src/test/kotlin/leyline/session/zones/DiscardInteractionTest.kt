@@ -5,6 +5,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import leyline.testkit.assertGsIdChain
@@ -118,10 +119,16 @@ class DiscardInteractionTest :
 
             respondToSelectN(listOf(divinationId))
 
-            ai
-                .getZone(ForgeZoneType.Graveyard)
-                .cards
-                .filter { it.name == "Divination" } shouldHaveSize 1
+            val discarded =
+                ai
+                    .getZone(ForgeZoneType.Graveyard)
+                    .cards
+                    .filter { it.name == "Divination" }
+            discarded shouldHaveSize 1
+            harness.bridge
+                .promptBridge(SeatId(1))
+                .journal
+                .consumeExiledUnderSource(ForgeCardId(discarded.single().id)) shouldBe null
         }
 
         test("Deep-Cavern Bat reveal exile emits SelectNReq") {
@@ -160,10 +167,11 @@ class DiscardInteractionTest :
             val response = after { respondToSelectN(listOf(divinationId)) }
 
             val batIds = harness.accumulator.objects.values.filter { it.grpId == 87246 }.map { it.instanceId }
+            val exiledDivinationId = instanceIdOf("Divination", ai, ForgeZoneType.Exile)
             val underCard = response.messages.persistentAnnotationsOfType(AnnotationType.DisplayCardUnderCard).single()
             assertSoftly {
                 batIds shouldContain underCard.affectorId
-                underCard.affectedIdsList shouldHaveSize 1
+                underCard.affectedIdsList shouldBe listOf(exiledDivinationId)
             }
         }
 

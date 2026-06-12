@@ -145,6 +145,7 @@ class TargetingCoordinator(
         title: String?,
         reveal: PromptSideEffect.RevealStarted,
     ): T? {
+        val message = revealChoiceMessage(sa, title)
         val chosen =
             chooseCardsViaBridgeForReveal(
                 filteredCards = CardCollection(revealedCards),
@@ -152,7 +153,8 @@ class TargetingCoordinator(
                 max = 1,
                 sa = sa,
                 reveal = reveal,
-                message = revealChoiceMessage(sa, title),
+                message = message,
+                recordExiledUnderSource = isExileUnderSourceRevealChoice(sa, message),
             ).firstOrNull()
         @Suppress("UNCHECKED_CAST")
         return chosen as? T
@@ -845,6 +847,7 @@ class TargetingCoordinator(
         sa: SpellAbility?,
         reveal: PromptSideEffect.RevealStarted,
         message: String = revealChoiceMessage(sa, null),
+        recordExiledUnderSource: Boolean = false,
     ): CardCollection {
         try {
             val candidateRefs =
@@ -874,7 +877,9 @@ class TargetingCoordinator(
                     sourceEntityId = sa?.hostCard?.id ?: currentSourceEntityId()?.takeIf { it > 0 },
                 )
             val indices = bridge.requestChoice(request)
-            recordRevealChoiceExileSources(indices, candidateRefs, request.sourceEntityId)
+            if (recordExiledUnderSource) {
+                recordRevealChoiceExileSources(indices, candidateRefs, request.sourceEntityId)
+            }
             val result = CardCollection()
             for (idx in indices) {
                 if (idx in 0 until filteredCards.size) {
@@ -907,6 +912,17 @@ class TargetingCoordinator(
             sa?.api == ApiType.ChangeZone && sa.hasParamValue("Destination", "Exile") -> "Choose a card to exile"
             else -> "Choose a card to discard"
         }
+
+    private fun isExileUnderSourceRevealChoice(
+        sa: SpellAbility?,
+        message: String,
+    ): Boolean =
+        sa?.let(::isExileUnderSourceChangeZone) ?: message.contains("exile", ignoreCase = true)
+
+    private fun isExileUnderSourceChangeZone(sa: SpellAbility): Boolean =
+        sa.api == ApiType.ChangeZone &&
+            sa.hasParamValue("Destination", "Exile") &&
+            (sa.hasParamValue("Duration", "UntilHostLeavesPlay") || sa.hasParam("IsCurse"))
 
     private fun buildCandidateRefs(entities: Iterable<GameEntity>): List<PromptCandidateRefDto> =
         entities.mapIndexedNotNull { idx, entity ->
