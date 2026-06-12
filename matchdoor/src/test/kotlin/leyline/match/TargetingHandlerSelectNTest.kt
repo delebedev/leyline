@@ -69,6 +69,25 @@ class TargetingHandlerSelectNTest :
             indices shouldBe listOf(1)
         }
 
+        test("candidate refs map back to original sparse option indices") {
+            val pending =
+                pendingPrompt(
+                    PromptRequest(
+                        promptType = "choose_cards",
+                        message = "Choose a target",
+                        options = listOf("--CARDS ON BATTLEFIELD:--", "A", "[FINISH TARGETING]"),
+                        candidateRefs = listOf(PromptCandidateRefDto(index = 1, kind = "card", entityId = 10)),
+                    ),
+                )
+
+            val indices =
+                TargetingHandler.mapSelectNIdsToPromptIndices(listOf(100), pending) { instanceId ->
+                    mapOf(100 to ForgeCardId(10))[instanceId]
+                }
+
+            indices shouldBe listOf(1)
+        }
+
         test("sacrifice SelectN records one ChoiceResult per selected id without domain") {
             val pending =
                 pendingPrompt(

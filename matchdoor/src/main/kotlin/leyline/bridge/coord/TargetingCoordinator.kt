@@ -898,9 +898,14 @@ class TargetingCoordinator(
         sourceEntityId: Int?,
     ) {
         val source = sourceEntityId?.let(::ForgeCardId) ?: return
-        selectedIndices
-            .mapNotNull { idx -> candidateRefs.getOrNull(idx)?.entityId?.let(::ForgeCardId) }
-            .forEach { cardId -> bridge.journal.record(PromptSideEffect.ExiledUnderSource(cardId, source)) }
+        val selectedCardIds =
+            selectedIndices.mapNotNull { idx ->
+                candidateRefs
+                    .firstOrNull { it.index == idx }
+                    ?.entityId
+                    ?.let(::ForgeCardId)
+            }
+        selectedCardIds.forEach { cardId -> bridge.journal.record(PromptSideEffect.ExiledUnderSource(cardId, source)) }
     }
 
     private fun revealChoiceMessage(
