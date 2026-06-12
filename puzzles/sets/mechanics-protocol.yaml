@@ -58,6 +58,25 @@ scenarios:
           all:
             - annotation_seen: CoinFlip
             - stack_empty: true
+  - id: extinction-event-parity-choice
+    puzzle: extinction-event-choice
+    run: cast Extinction Event and choose even
+    expect: Grizzly Bears is exiled and Serra Angel remains on the battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Extinction Event }
+      - cast: Extinction Event
+      - pass_until:
+          prompt: { type: SelectNReq, prompt_id: 23 }
+          max_passes: 8
+      - static_choice: { id: 1 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+            - zone_contains: { side: opponent, zone: battlefield, card: Serra Angel }
+            - zone_contains: { side: ours, zone: graveyard, card: Extinction Event }
+            - stack_empty: true
   - id: ward-tax
     puzzle: try-ward-vren
     run: cast Lightning Bolt targeting Vren and pay Ward 2
