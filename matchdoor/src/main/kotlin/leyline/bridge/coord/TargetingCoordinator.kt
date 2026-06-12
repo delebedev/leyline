@@ -7,7 +7,9 @@ import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
+import forge.game.card.CardView
 import forge.game.player.Player
+import forge.game.player.PlayerView
 import forge.game.spellability.AlternativeCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
@@ -63,6 +65,21 @@ class TargetingCoordinator(
         if (optionList.isEmpty()) return null
         if (sa?.isMutate == true) {
             return chooseMutateTopCard(optionList, sa, title, isOptional)
+        }
+        val reveal = bridge.journal.activeReveal()
+        val revealedCards = optionList.filterIsInstance<Card>()
+        if (reveal != null && revealedCards.size == optionList.size) {
+            val chosen =
+                chooseCardsViaBridgeForReveal(
+                    filteredCards = CardCollection(revealedCards),
+                    min = if (isOptional) 0 else 1,
+                    max = 1,
+                    sa = sa,
+                    reveal = reveal,
+                    message = revealChoiceMessage(sa, title),
+                ).firstOrNull()
+            @Suppress("UNCHECKED_CAST")
+            return chosen as T?
         }
         if (optionList.size == 1 && !isOptional) return optionList.getFirst()
 
@@ -388,6 +405,22 @@ class TargetingCoordinator(
         val ownerSeat = if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
         bridge.recordReveal(cardIds, ownerSeat)
         if (zone == ZoneType.Hand && revealsWholeCurrentHand(cardIds, owner)) {
+            TargetingCoordinator.startReveal(bridge, cardIds, ownerSeat)
+        }
+    }
+
+    fun captureReveal(
+        cards: List<CardView>,
+        zone: ZoneType,
+        owner: PlayerView,
+        players: Iterable<Player>,
+    ) {
+        if (cards.isEmpty()) return
+        val ownerPlayer = players.firstOrNull { owner.isLobbyPlayer(it.lobbyPlayer) } ?: return
+        val cardIds = cards.map { ForgeCardId(it.id) }
+        val ownerSeat = if (ownerPlayer.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+        bridge.recordReveal(cardIds, ownerSeat)
+        if (zone == ZoneType.Hand && revealsWholeCurrentHand(cardIds, ownerPlayer)) {
             TargetingCoordinator.startReveal(bridge, cardIds, ownerSeat)
         }
     }
@@ -800,6 +833,7 @@ class TargetingCoordinator(
         max: Int,
         sa: SpellAbility?,
         reveal: PromptSideEffect.RevealStarted,
+        message: String = revealChoiceMessage(sa, null),
     ): CardCollection {
         try {
             val candidateRefs =
@@ -818,7 +852,7 @@ class TargetingCoordinator(
             val request =
                 PromptRequest(
                     promptType = "choose_cards",
-                    message = "Choose a card to discard",
+                    message = message,
                     options = labels,
                     min = effectiveMin,
                     max = effectiveMax.coerceAtLeast(effectiveMin),
@@ -840,6 +874,16 @@ class TargetingCoordinator(
             TargetingCoordinator.endReveal(bridge)
         }
     }
+
+    private fun revealChoiceMessage(
+        sa: SpellAbility?,
+        title: String?,
+    ): String =
+        when {
+            !title.isNullOrBlank() -> title
+            sa?.api == ApiType.ChangeZone && sa.hasParamValue("Destination", "Exile") -> "Choose a card to exile"
+            else -> "Choose a card to discard"
+        }
 
     private fun buildCandidateRefs(entities: Iterable<GameEntity>): List<PromptCandidateRefDto> =
         entities.mapIndexedNotNull { idx, entity ->

@@ -1,6 +1,7 @@
 package leyline.session.zones
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.InteractivePromptBridge
@@ -120,6 +121,41 @@ class DiscardInteractionTest :
                 .getZone(ForgeZoneType.Graveyard)
                 .cards
                 .filter { it.name == "Divination" } shouldHaveSize 1
+        }
+
+        test("Deep-Cavern Bat reveal exile emits SelectNReq") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Deep-Cavern Bat
+                humanbattlefield=Swamp;Swamp
+                humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp
+                aihand=Divination;Walking Corpse;Swamp
+                ailibrary=Island;Island;Island;Island;Island
+                """,
+                name = "Deep-Cavern Bat reveal exile",
+                turns = 2,
+            )
+
+            castSpellByName("Deep-Cavern Bat") shouldBe true
+            passUntil(maxPasses = 5) { allMessages.any { it.hasSelectTargetsReq() } }
+            selectTargets(listOf(2))
+            passUntil(maxPasses = 5) { allMessages.any { it.hasSelectNReq() } }
+
+            val req = lastSelectNReq()
+            val divinationId = findInstanceId(req.idsList, "Divination")
+            assertSoftly {
+                req.context shouldBe SelectionContext.Resolution_a163
+                req.minSel shouldBe 0
+                req.maxSel shouldBe 1
+                req.idsList shouldHaveSize 2
+                req.unfilteredIdsList shouldHaveSize 3
+                req.idsList shouldContain divinationId
+            }
         }
 
         // --- Cleanup discard (hand exceeds max hand size) ---

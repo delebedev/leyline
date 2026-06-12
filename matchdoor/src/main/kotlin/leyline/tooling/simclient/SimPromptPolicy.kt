@@ -184,6 +184,9 @@ internal open class GreedyPromptPolicy(
         if (msg.prompt.promptId == PromptIds.LEARN_LESSON_OR_DISCARD || msg.prompt.promptId == PromptIds.LEARN_LESSON_ONLY) {
             return SimDecision.SelectN(learnLessonIds(req).take(1))
         }
+        if (isRevealChoice(req)) {
+            return SimDecision.SelectN(req.idsList.take(req.maxSel.coerceAtLeast(1)))
+        }
         val min = req.minSel.coerceAtLeast(0)
         val max = if (req.maxSel > 0) req.maxSel else min
         val count = min.coerceAtMost(max)
@@ -204,6 +207,14 @@ internal open class GreedyPromptPolicy(
         val sideboardIds = req.idsList.filter { id -> harness.accumulator.objects[id]?.zoneId == ZoneIds.P1_SIDEBOARD }
         return sideboardIds.ifEmpty { req.idsList }
     }
+
+    private fun isRevealChoice(req: SelectNReq): Boolean =
+        req.prompt.promptId == PromptIds.SELECT_N &&
+            req.context == wotc.mtgo.gre.external.messaging.Messages.SelectionContext.Resolution_a163 &&
+            req.listType == wotc.mtgo.gre.external.messaging.Messages.SelectionListType.Dynamic &&
+            req.minSel == 0 &&
+            req.maxSel > 0 &&
+            req.unfilteredIdsCount > req.idsCount
 
     private fun respondPayCosts(msg: GREToClientMessage): SimDecision {
         val selection = msg.payCostsReq.effectCostReq.costSelection

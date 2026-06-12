@@ -14,6 +14,7 @@ import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
+import forge.game.card.CardView
 import forge.game.combat.Combat
 import forge.game.cost.Cost
 import forge.game.cost.CostDecisionMakerBase
@@ -29,6 +30,7 @@ import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.DelayedReveal
 import forge.game.player.PlaySpellAbility
 import forge.game.player.Player
+import forge.game.player.PlayerView
 import forge.game.player.PlayerActionConfirmMode
 import forge.game.replacement.ReplacementEffect
 import forge.game.spellability.AbilitySub
@@ -359,6 +361,16 @@ class PlayerController(
         addMsgSuffix: Boolean,
     ) {
         targetingCoordinator.captureReveal(cards, zone, owner)
+    }
+
+    override fun reveal(
+        cards: List<CardView>,
+        zone: ZoneType,
+        owner: PlayerView,
+        messagePrefix: String?,
+        addMsgSuffix: Boolean,
+    ) {
+        targetingCoordinator.captureReveal(cards, zone, owner, game.players)
     }
 
     // -- Sacrifice / Destroy ----------------------------------------------

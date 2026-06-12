@@ -293,13 +293,25 @@ class MatchdoorAcceptanceExecutor(
         step: PassUntilStep,
         context: String,
     ) {
-        val reached =
-            harness.passUntil(maxPasses = step.maxPasses) {
-                step.conditions.all { matchesCondition(harness, it) }
-            }
+        val reached = harness.passUntil(maxPasses = step.maxPasses) { passUntilConditionReached(harness, step) }
         require(reached) {
-            "$context did not reach: ${step.conditions.joinToString { it.label }}"
+            "$context did not reach: ${step.conditions.joinToString { it.label }}; " +
+                "latest prompt=${latestPromptNameWithId(harness) ?: "none"}; " +
+                "prompts=${harness.allMessages.filter { it.isPromptMessage() }.map { it.promptName() + "#" + it.prompt.promptId }}; " +
+                "actions=${harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(harness, it) }}"
         }
+    }
+
+    private fun passUntilConditionReached(
+        harness: MatchFlowHarness,
+        step: PassUntilStep,
+    ): Boolean {
+        repeat(10) {
+            harness.drainSink()
+            if (step.conditions.all { matchesCondition(harness, it) }) return true
+            Thread.sleep(20)
+        }
+        return false
     }
 
     private fun assertConditions(
@@ -549,7 +561,7 @@ class MatchdoorAcceptanceExecutor(
         harness: MatchFlowHarness,
         prompt: String,
         promptId: Int?,
-    ): Boolean = latestPromptMatches(harness, prompt, promptId)
+    ): Boolean = harness.allMessages.any { it.matchesPrompt(prompt, promptId) }
 
     private fun latestPromptMatches(
         harness: MatchFlowHarness,

@@ -110,6 +110,23 @@ scenarios:
           all:
             - zone_contains: { side: opponent, zone: graveyard, card: Murder }
             - zone_not_contains: { side: opponent, zone: hand, card: Murder }
+  - id: deep-cavern-bat-reveal-exile
+    puzzle: deep-cavern-bat-reveal-exile
+    run: cast Deep-Cavern Bat and choose Divination from the revealed opponent hand
+    expect: Divination leaves opponent hand and Deep-Cavern Bat remains on battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Deep-Cavern Bat }
+      - cast: Deep-Cavern Bat
+      - pass_until:
+          prompt: SelectNReq
+          max_passes: 8
+      - select_card: { side: opponent, zone: hand, card: Divination }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: hand, card: Divination }
+            - zone_contains: { side: ours, zone: battlefield, card: Deep-Cavern Bat }
   - id: stock-up-bottom-order
     puzzle: stock-up
     run: cast Stock Up, choose two cards, then order the unchosen cards on bottom
