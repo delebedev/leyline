@@ -439,7 +439,9 @@ object ActionMapper {
      * Zone casts (graveyard, exile, command) — picks the first castable SA per
      * card and dispatches via [CastRails]. Each (zone, rail-bucket) pair is
      * declared in [zoneRailBuckets]; rails matching the SA win, otherwise the
-     * fallback path emits a printed-cost or best-effort shape.
+     * fallback path emits a printed-cost or best-effort shape. Unpayable zone
+     * casts stay visible as inactive actions so automation does not repeatedly
+     * submit a cast that Forge will bounce back to the source zone.
      */
     private fun addZoneCastActionsFromSnap(
         seatId: Int,
@@ -462,6 +464,7 @@ object ActionMapper {
                         ?: bridge.resolveGrpId(forgeCard, instanceId)
                 val bound = snap.boundCards[fid]
                 val rail = rails.firstOrNull { it.saPredicate(sa) }
+                val canPay = canPayManaCost(sa, player)
                 val omit = rail?.omitGrpIdAndFacetId == true
                 val actionGrpId =
                     when (rail?.grpIdMode) {
@@ -480,7 +483,9 @@ object ActionMapper {
                         .newBuilder()
                         .setActionType(ActionType.Cast)
                         .setInstanceId(instanceId)
-                        .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+                if (canPay) {
+                    actionBuilder.setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+                }
                 if (!omit) {
                     actionBuilder.setGrpId(actionGrpId)
                     actionBuilder.setFacetId(actionFacetId)
@@ -494,7 +499,11 @@ object ActionMapper {
                 } else {
                     configureZoneCastFallback(actionBuilder, sa, bound, player)
                 }
-                builder.addActions(actionBuilder)
+                if (canPay) {
+                    builder.addActions(actionBuilder)
+                } else {
+                    builder.addInactiveActions(actionBuilder)
+                }
             }
         }
     }
@@ -779,7 +788,7 @@ object ActionMapper {
      * @param seatId Arena seat identifier (for logging).
      * @param checkLegality true → live legality checks for hand/battlefield actions
      *   (canPlayLand, canPayManaCost, activated ability canPlay, autoTapSolution,
-     *   inactive land actions). Zone-cast actions are snapshot-only.
+     *   inactive land actions). Zone-cast actions also check mana payability.
      *   false → naive mode (everything playable, no autoTap, no Activate abilities).
      * @param idResolver forgeCardId → instanceId.
      * @param grpIdResolver card → grpId (handles both battlefield and hand cards).
