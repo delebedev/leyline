@@ -504,56 +504,62 @@ class GameBridge(
     }
 
     /**
-     * Active crew type-change effects: forgeCardId → effectId.
-     * Allocated when a vehicle is crewed (type changes to creature),
-     * removed when the crew effect expires (end of turn, vehicle reverts).
+     * Active synthetic type-change effects: stable key → effectId while the
+     * layered effect remains live, released when the key leaves the frame.
      */
-    private val activeCrewEffects = mutableMapOf<ForgeCardId, Int>()
-    private val activeReconfigureEffects = mutableMapOf<ForgeCardId, Int>()
+    private class SyntheticEffectMap<K>(
+        private val nextEffectId: () -> Int,
+    ) {
+        private val active = mutableMapOf<K, Int>()
+
+        fun getOrAllocId(key: K): Int = active.getOrPut(key, nextEffectId)
+
+        fun getOrAlloc(key: K): EffectAllocation {
+            active[key]?.let { return EffectAllocation(it, created = false) }
+            val effectId = nextEffectId()
+            active[key] = effectId
+            return EffectAllocation(effectId, created = true)
+        }
+
+        fun releaseMissing(currentKeys: Set<K>): List<Int> {
+            val expired = active.keys - currentKeys
+            return expired.mapNotNull { active.remove(it) }
+        }
+
+        fun clear() {
+            active.clear()
+        }
+    }
+
+    private val crewEffects = SyntheticEffectMap<ForgeCardId> { effects.nextEffectId() }
+    private val reconfigureEffects = SyntheticEffectMap<ForgeCardId> { effects.nextEffectId() }
 
     /** Get or allocate a synthetic effect ID for a crewed vehicle's type-change effect. */
-    fun getOrAllocCrewEffectId(vehicleId: ForgeCardId): Int = activeCrewEffects.getOrPut(vehicleId) { effects.nextEffectId() }
+    fun getOrAllocCrewEffectId(vehicleId: ForgeCardId): Int = crewEffects.getOrAllocId(vehicleId)
 
-    fun getOrAllocReconfigureEffectId(cardId: ForgeCardId): EffectAllocation {
-        activeReconfigureEffects[cardId]?.let { return EffectAllocation(it, created = false) }
-        val effectId = effects.nextEffectId()
-        activeReconfigureEffects[cardId] = effectId
-        return EffectAllocation(effectId, created = true)
-    }
+    fun getOrAllocReconfigureEffectId(cardId: ForgeCardId): EffectAllocation = reconfigureEffects.getOrAlloc(cardId)
 
     /** Release expired crew effects. Returns effectIds that were removed. */
-    fun releaseCrewEffects(currentCrewedIds: Set<ForgeCardId>): List<Int> {
-        val expired = activeCrewEffects.keys - currentCrewedIds
-        return expired.mapNotNull { activeCrewEffects.remove(it) }
-    }
+    fun releaseCrewEffects(currentCrewedIds: Set<ForgeCardId>): List<Int> = crewEffects.releaseMissing(currentCrewedIds)
 
-    fun releaseReconfigureEffects(currentAttachedIds: Set<ForgeCardId>): List<Int> {
-        val expired = activeReconfigureEffects.keys - currentAttachedIds
-        return expired.mapNotNull { activeReconfigureEffects.remove(it) }
-    }
+    fun releaseReconfigureEffects(currentAttachedIds: Set<ForgeCardId>): List<Int> = reconfigureEffects.releaseMissing(currentAttachedIds)
 
     data class EffectAllocation(
         val effectId: Int,
         val created: Boolean,
     )
 
-    private val activeMutateMergeEffects = mutableMapOf<Pair<Int, Int>, Int>()
+    private val mutateMergeEffects = SyntheticEffectMap<Pair<Int, Int>> { effects.nextEffectId() }
 
     fun getOrAllocMutateMergeEffectId(
         componentInstanceId: Int,
         targetInstanceId: Int,
     ): EffectAllocation {
         val key = componentInstanceId to targetInstanceId
-        activeMutateMergeEffects[key]?.let { return EffectAllocation(it, created = false) }
-        val effectId = effects.nextEffectId()
-        activeMutateMergeEffects[key] = effectId
-        return EffectAllocation(effectId, created = true)
+        return mutateMergeEffects.getOrAlloc(key)
     }
 
-    fun releaseMutateMergeEffects(currentKeys: Set<Pair<Int, Int>>): List<Int> {
-        val expired = activeMutateMergeEffects.keys - currentKeys
-        return expired.mapNotNull { activeMutateMergeEffects.remove(it) }
-    }
+    fun releaseMutateMergeEffects(currentKeys: Set<Pair<Int, Int>>): List<Int> = mutateMergeEffects.releaseMissing(currentKeys)
 
     /** Drain pending target specs from all seat prompt bridges. */
     fun drainPendingTargetSpecs(): List<InteractivePromptBridge.PendingTarget> =
@@ -1233,9 +1239,9 @@ class GameBridge(
         annotations.resetAll()
         delayedTriggerHolders.resetAll()
         resetDecayedCleanupSources()
-        activeCrewEffects.clear()
-        activeReconfigureEffects.clear()
-        activeMutateMergeEffects.clear()
+        crewEffects.clear()
+        reconfigureEffects.clear()
+        mutateMergeEffects.clear()
         abilityRegistries.clear()
         stackAbilityGrpIdsByForgeAbilityId.clear()
         tokenRegistry.clear()
