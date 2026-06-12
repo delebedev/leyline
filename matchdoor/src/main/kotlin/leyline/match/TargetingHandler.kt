@@ -60,7 +60,9 @@ class TargetingHandler(
                 selectedIds
                     .mapNotNull { instanceId ->
                         val cardId = resolveForgeCardId(instanceId) ?: return@mapNotNull null
-                        pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
+                        pendingPrompt.request.candidateRefs
+                            .firstOrNull { it.entityId == cardId.value }
+                            ?.index
                     }.filter { it >= 0 }
             }
 
@@ -163,9 +165,10 @@ class TargetingHandler(
                     // the same int space and frequently collide (e.g. card.id=1 and
                     // opp player.id=1). Without the kind guard, indexOfFirst hits the
                     // wrong candidate (saw bolt-on-Gixian register as bolt-on-opponent).
-                    pendingPrompt.request.candidateRefs.indexOfFirst {
-                        it.kind == "card" && it.entityId == cardId.value
-                    }
+                    pendingPrompt.request.candidateRefs
+                        .firstOrNull {
+                            it.kind == "card" && it.entityId == cardId.value
+                        }?.index ?: -1
                 }.filter { it >= 0 }
 
         log.info(
@@ -861,7 +864,9 @@ class TargetingHandler(
                     val cardId = bridge.getForgeCardId(InstanceId(chosenInstanceId))
                     val idx =
                         if (cardId != null) {
-                            prompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
+                            prompt.request.candidateRefs
+                                .firstOrNull { it.entityId == cardId.value }
+                                ?.index ?: -1
                         } else {
                             -1
                         }
@@ -899,16 +904,18 @@ class TargetingHandler(
         // Arena uses seatId as instanceId for player targets (1 or 2)
         val player = ctx.bridge.getPlayer(SeatId(instanceId)) ?: return null
         val idx =
-            pendingPrompt.request.candidateRefs.indexOfFirst {
-                it.kind == "player" && it.entityId == player.id
-            }
-        if (idx >= 0) return idx
+            pendingPrompt.request.candidateRefs
+                .firstOrNull {
+                    it.kind == "player" && it.entityId == player.id
+                }?.index
+        if (idx != null) return idx
 
         val seatIdx =
-            pendingPrompt.request.candidateRefs.indexOfFirst {
-                it.kind == "player" && it.entityId == instanceId
-            }
-        return if (seatIdx >= 0) seatIdx else null
+            pendingPrompt.request.candidateRefs
+                .firstOrNull {
+                    it.kind == "player" && it.entityId == instanceId
+                }?.index
+        return seatIdx
     }
 
     /**
