@@ -5,7 +5,6 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import leyline.testkit.assertGsIdChain
@@ -117,7 +116,7 @@ class DiscardInteractionTest :
                 req.idsList shouldHaveSize 1
             }
 
-            respondToSelectN(listOf(divinationId))
+            val response = after { respondToSelectN(listOf(divinationId)) }
 
             val discarded =
                 ai
@@ -125,10 +124,7 @@ class DiscardInteractionTest :
                     .cards
                     .filter { it.name == "Divination" }
             discarded shouldHaveSize 1
-            harness.bridge
-                .promptBridge(SeatId(1))
-                .journal
-                .consumeExiledUnderSource(ForgeCardId(discarded.single().id)) shouldBe null
+            response.messages.persistentAnnotationsOfType(AnnotationType.DisplayCardUnderCard) shouldHaveSize 0
         }
 
         test("Deep-Cavern Bat reveal exile emits SelectNReq") {
