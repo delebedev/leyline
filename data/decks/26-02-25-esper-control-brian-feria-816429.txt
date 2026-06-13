@@ -1,0 +1,34 @@
+Deck
+4 Deceit (ECL) 212
+2 Quantum Riddler (EOE) 72
+2 Kavaero, Mind-Bitten (OM1) 140
+2 Wan Shi Tong, Librarian (TLA) 78
+1 Doomsday Excruciator (DSK) 94
+4 Consult the Star Charts (EOE) 51
+4 Get Lost (LCI) 14
+3 No More Lies (MKM) 221
+3 Requiting Hex (ECL) 116
+3 Three Steps Ahead (OTJ) 75
+3 Deadly Cover-Up (MKM) 83
+3 Stock Up (SOA) 24
+1 Day of Black Sun (TLA) 94
+1 Day of Judgment (STA) 2
+4 Gloomlake Verge (DSK) 260
+4 Godless Shrine (RNA) 248
+4 Restless Reef (LCI) 282
+4 Watery Grave (GRN) 259
+3 Bleachbone Verge (DFT) 250
+2 Hallowed Fountain (RNA) 251
+1 Island (ZNR) 381
+1 Plains (ZNR) 380
+1 Swamp (ZNR) 382
+
+Sideboard
+3 Duress (XLN) 105
+2 Annul (KHM) 42
+2 Disdainful Stroke (WOE) 47
+2 Intimidation Tactics (DFT) 92
+2 Soul-Guide Lantern (WOE) 251
+2 Voice of Victory (TDM) 33
+1 Ghost Vacuum (DSK) 248
+1 The Unagi of Kyoshi Island (TLA) 77

@@ -1,0 +1,29 @@
+Deck
+4 Sleight of Hand (WOE) 67
+4 Opt (XLN) 65
+4 Boomerang Basics (TLA) 46
+4 Stormchaser's Talent (BLB) 75
+4 Colorstorm Stallion (SOS) 180
+4 Slickshot Show-Off (OTJ) 146
+3 Elusive Otter (WOE) 225
+4 Burst Lightning (SOA) 41
+4 Flow State (SOS) 49
+1 Secret Identity (OM1) 42
+1 Impractical Joke (SOS) 119
+2 Vibrant Outburst (SOS) 240
+4 Spirebluff Canal (OTJ) 270
+4 Steam Vents (GRN) 257
+2 Multiversal Passage (OM1) 181
+4 Riverpyre Verge (DFT) 260
+7 Island (ZNR) 381
+
+Sideboard
+2 Ghost Vacuum (DSK) 248
+2 Spell Snare (ECL) 71
+1 Soul-Guide Lantern (WOE) 251
+2 Spell Pierce (XLN) 81
+2 Slagstorm (FDN) 207
+2 Broadside Barrage (DFT) 192
+1 Flashfreeze (FDN) 590
+2 Ral, Crackling Wit (BLB) 230
+1 Sear (ECL) 154

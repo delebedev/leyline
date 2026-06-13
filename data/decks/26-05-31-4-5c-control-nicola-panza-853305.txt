@@ -1,0 +1,46 @@
+Deck
+1 North Wind Avatar (TMT) 162
+4 Tablet of Discovery (SOS) 132
+4 Jeskai Revelation (TDM) 196
+3 Consult the Star Charts (EOE) 51
+3 Inevitable Defeat (TDM) 194
+2 Firebending Lesson (TLA) 138
+2 Flashback (SOS) 115
+2 No More Lies (MKM) 221
+2 Sear (ECL) 154
+1 Abrade (VOW) 139
+1 Fire Magic (FIN) 136
+1 Lightning Helix (STA) 62
+1 Negate (ZNR) 71
+4 Stock Up (SOA) 24
+2 Day of Judgment (STA) 2
+4 Great Hall of the Biblioplex (SOS) 257
+4 Steam Vents (GRN) 257
+3 Hallowed Fountain (RNA) 251
+2 Mistrise Village (TDM) 261
+2 Shattered Sanctum (VOW) 264
+2 Stormcarved Coast (VOW) 265
+1 Gloomlake Verge (DSK) 260
+1 Godless Shrine (RNA) 248
+1 Meticulous Archive (MKM) 264
+1 Mountain (ZNR) 383
+1 Multiversal Passage (OM1) 181
+1 Plains (ZNR) 380
+1 Riverpyre Verge (DFT) 260
+1 Sacred Foundry (GRN) 254
+1 Sundown Pass (VOW) 266
+1 Watery Grave (GRN) 259
+
+Sideboard
+1 Day of Judgment (STA) 2
+2 Emeritus of Ideation (SOS) 45
+2 Flashfreeze (FDN) 590
+2 High Noon (OTJ) 15
+1 Disdainful Stroke (WOE) 47
+1 Outrageous Robbery (MKM) 97
+1 Petrified Hamlet (SOS) 259
+1 Pyroclasm (DSK) 149
+1 Rest in Peace (WOT) 12
+1 Return the Favor (SOA) 47
+1 Riverchurn Monument (DFT) 57
+1 Spell Snare (ECL) 71

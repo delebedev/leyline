@@ -1,0 +1,33 @@
+Deck
+2 Aang's Iceberg (TLA) 5
+2 Archenemy's Charm (EOE) 88
+4 Bleachbone Verge (DFT) 250
+2 Cease // Desist (MKM) 246
+4 Concealed Courtyard (OTJ) 268
+2 Day of Judgment (STA) 2
+2 Deadly Cover-Up (MKM) 83
+2 Duress (XLN) 105
+2 Elspeth, Storm Slayer (TDM) 11
+2 Fabled Passage (TLE) 57
+4 Godless Shrine (RNA) 248
+2 Harvester of Misery (BIG) 9
+4 Ketramose, the New Dawn (DFT) 209
+4 Mazemind Tome (M21) 232
+2 Plains (ZNR) 380
+4 Requiting Hex (ECL) 116
+2 Seam Rip (EOE) 34
+4 Shadowy Backstreet (MKM) 268
+2 Soul-Guide Lantern (WOE) 251
+2 Strategic Betrayal (TDM) 94
+4 Swamp (ZNR) 382
+2 The End (WOE) 87
+
+Sideboard
+2 Duress (XLN) 105
+1 Clarion Conqueror (TDM) 5
+2 Devout Decree (M20) 13
+2 Exorcise (DSK) 8
+3 Iron-Shield Elf (ECL) 108
+1 Malicious Eclipse (LCI) 111
+2 Rest in Peace (WOT) 12
+2 Unholy Annex // Ritual Chamber (DSK) 118

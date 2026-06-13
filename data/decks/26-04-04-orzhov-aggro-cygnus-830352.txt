@@ -1,0 +1,25 @@
+Deck
+3 Abandoned Air Temple (TLA) 263
+4 Bleachbone Verge (DFT) 250
+4 Godless Shrine (RNA) 248
+4 Cosmogrand Zenith (EOE) 9
+4 Deep-Cavern Bat (LCI) 102
+4 Springleaf Drum (LRW) 261
+4 Haliya, Guided by Light (EOE) 19
+4 Momo, Friendly Flier (TLA) 29
+3 Nurturing Pixie (OTJ) 20
+6 Plains (ZNR) 380
+4 Sage of the Skies (TDM) 22
+4 Seam Rip (EOE) 34
+4 Starfield Shepherd (EOE) 37
+4 Tragic Trajectory (EOE) 122
+4 Concealed Courtyard (OTJ) 268
+
+Sideboard
+2 Ademi of the Silkchutes (OM1) 1
+3 Rest in Peace (WOT) 12
+2 Intimidation Tactics (DFT) 92
+2 Winnowing (ECL) 43
+2 Restricted Office // Lecture Hall (DSK) 227
+2 Zero Point Ballad (EOE) 128
+2 Pyrrhic Strike (ECL) 30

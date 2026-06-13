@@ -1,0 +1,31 @@
+Deck
+4 Ashling, Rekindled (ECL) 124
+3 Quantum Riddler (EOE) 72
+3 Bitter Triumph (SOA) 26
+4 Blazemire Verge (DSK) 256
+4 Deceit (ECL) 212
+2 Winternight Stories (TDM) 67
+4 Blood Crypt (RNA) 245
+4 Ill-Timed Explosion (MKM) 207
+2 Multiversal Passage (OM1) 181
+4 Overlord of the Balemurk (DSK) 113
+3 Steam Vents (GRN) 257
+1 Raucous Theater (MKM) 266
+3 Requiting Hex (ECL) 116
+1 Undercity Sewers (PZA) 0
+2 Spell Snare (ECL) 71
+4 Kavaero, Mind-Bitten (OM1) 140
+1 Swamp (ZNR) 382
+2 Ardyn, the Usurper (FIN) 89
+1 Wistfulness (ECL) 252
+4 Watery Grave (GRN) 259
+4 Gloomlake Verge (DSK) 260
+
+Sideboard
+3 Duress (XLN) 105
+3 Soul-Guide Lantern (WOE) 251
+2 Sear (ECL) 154
+2 Detect Intrusion (OM1) 28
+2 Annul (KHM) 42
+1 Frostcliff Siege (TDM) 187
+2 Pyroclasm (DSK) 149

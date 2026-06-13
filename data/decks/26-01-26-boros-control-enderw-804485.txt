@@ -1,0 +1,27 @@
+Deck
+5 Plains (ZNR) 380
+4 Caretaker's Talent (BLB) 6
+4 Carrot Cake (BLB) 7
+3 Clay-Fired Bricks (LCI) 6
+4 Dusk Rose Reliquary (LCI) 10
+2 Fountainport (BLB) 253
+3 Mountain (ZNR) 383
+4 Legion Extruder (BIG) 12
+1 Perilous Snare (DFT) 23
+3 Pinnacle Starcage (EOE) 27
+4 Inspiring Vantage (OTJ) 269
+3 Elegant Parlor (MKM) 260
+3 Torch the Tower (WOE) 153
+1 Ajani, Outland Chaperone (ECL) 4
+4 Weapons Manufacturing (EOE) 168
+4 Sacred Foundry (GRN) 254
+4 Sunbillow Verge (DFT) 264
+4 United Battlefront (TDM) 32
+
+Sideboard
+2 Ajani, Outland Chaperone (ECL) 4
+2 Rest in Peace (WOT) 12
+3 Authority of the Consuls (KLR) 9
+2 Requisition Raid (SOA) 10
+2 Torpor Orb (BIG) 27
+4 Voice of Victory (TDM) 33
