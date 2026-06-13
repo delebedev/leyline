@@ -2,14 +2,10 @@ package leyline.game.bundle
 
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
-import leyline.bridge.types.ForgeCardId
-import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
-import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
-import wotc.mtgo.gre.external.messaging.Messages.PromptParameter
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
@@ -20,39 +16,6 @@ internal data class SelectNShape(
     val listType: SelectionListType,
     val optionContext: OptionContext,
 )
-
-internal fun sourceInstanceId(
-    prompt: InteractivePromptBridge.PendingPrompt,
-    bridge: GameBridge,
-): Int {
-    if (prompt.request.isTriggeredAbility && prompt.request.forgeAbilityId != 0) {
-        return bridge.getOrAllocInstanceId(FrameIdResolver.triggerStackAbilityForgeId(prompt.request.forgeAbilityId)).value
-    }
-    val sourceEntityId = prompt.request.sourceEntityId ?: return 0
-    return bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
-}
-
-internal fun SelectNReq.Builder.setSourceIdIfPresent(
-    prompt: InteractivePromptBridge.PendingPrompt,
-    bridge: GameBridge,
-) {
-    val sourceInstanceId = sourceInstanceId(prompt, bridge)
-    if (sourceInstanceId != 0) setSourceId(sourceInstanceId)
-}
-
-internal fun SelectNReq.Builder.setSelectNInnerPrompt(promptId: Int) {
-    setPrompt(
-        Prompt
-            .newBuilder()
-            .addParameters(
-                PromptParameter
-                    .newBuilder()
-                    .setParameterName("Parameter")
-                    .setType(ParameterType.PromptId)
-                    .setPromptId(promptId),
-            ),
-    )
-}
 
 internal enum class SelectNInnerPrompt {
     StaticChoice,
@@ -74,13 +37,17 @@ internal enum class SelectNEnvelopeKind {
     StaticChoice,
 }
 
+internal data class StaticChoiceRouteMetadata(
+    val outerPromptId: Int,
+    val choiceDomain: Int,
+)
+
 internal data class SelectNPromptRoute(
     val semantic: PromptSemantic,
     val shape: SelectNShape,
     val innerPrompt: SelectNInnerPrompt,
     val envelopeKind: SelectNEnvelopeKind,
-    val outerPromptId: Int,
-    val choiceDomain: Int,
+    val staticChoice: StaticChoiceRouteMetadata? = null,
 ) {
     fun configureInnerPrompt(
         builder: SelectNReq.Builder,
@@ -124,7 +91,11 @@ internal data class SelectNPromptRoute(
             SelectNEnvelopeKind.LibraryPutback -> SelectNEnvelope.libraryPutback(req)
             SelectNEnvelopeKind.MutateTopBottom -> SelectNEnvelope.mutateTopBottom(req)
             SelectNEnvelopeKind.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId())
-            SelectNEnvelopeKind.StaticChoice -> SelectNEnvelope.staticChoice(req, outerPromptId)
+            SelectNEnvelopeKind.StaticChoice ->
+                SelectNEnvelope.staticChoice(
+                    req,
+                    staticChoice?.outerPromptId ?: error("missing static choice route metadata for $semantic"),
+                )
         }
 }
 
@@ -152,88 +123,69 @@ internal object SelectNPromptRoutes {
                 shape = staticResolutionShape,
                 innerPrompt = SelectNInnerPrompt.StaticChoice,
                 envelopeKind = SelectNEnvelopeKind.StaticChoice,
-                outerPromptId = PromptIds.CHOOSE_COLOR,
-                choiceDomain = 6,
+                staticChoice = StaticChoiceRouteMetadata(outerPromptId = PromptIds.CHOOSE_COLOR, choiceDomain = 6),
             ),
             SelectNPromptRoute(
                 semantic = PromptSemantic.StaticSubtypeChoice,
                 shape = staticResolutionShape.copy(listType = SelectionListType.StaticSubset),
                 innerPrompt = SelectNInnerPrompt.StaticChoice,
                 envelopeKind = SelectNEnvelopeKind.StaticChoice,
-                outerPromptId = PromptIds.CHOOSE_TYPE,
-                choiceDomain = 5,
+                staticChoice = StaticChoiceRouteMetadata(outerPromptId = PromptIds.CHOOSE_TYPE, choiceDomain = 5),
             ),
             SelectNPromptRoute(
                 semantic = PromptSemantic.StaticParityChoice,
                 shape = staticResolutionShape,
                 innerPrompt = SelectNInnerPrompt.StaticChoice,
                 envelopeKind = SelectNEnvelopeKind.StaticChoice,
-                outerPromptId = PromptIds.CHOOSE_TYPE,
-                choiceDomain = StaticList.Parities.number,
+                staticChoice = StaticChoiceRouteMetadata(outerPromptId = PromptIds.CHOOSE_TYPE, choiceDomain = StaticList.Parities.number),
             ),
             SelectNPromptRoute(
                 semantic = PromptSemantic.SelectNLegendRule,
                 shape = dynamicResolutionShape,
                 innerPrompt = SelectNInnerPrompt.LegendRule,
                 envelopeKind = SelectNEnvelopeKind.LegendRule,
-                outerPromptId = PromptIds.SELECT_N_LEGEND_RULE,
-                choiceDomain = 0,
             ),
             SelectNPromptRoute(
                 semantic = PromptSemantic.SelectNDiscard,
                 shape = discardShape,
                 innerPrompt = SelectNInnerPrompt.DiscardCost,
                 envelopeKind = SelectNEnvelopeKind.Default,
-                outerPromptId = PromptIds.SELECT_N,
-                choiceDomain = 0,
             ),
             SelectNPromptRoute(
                 semantic = PromptSemantic.SelectNSacrificeEffect,
                 shape = dynamicResolutionShape,
                 innerPrompt = SelectNInnerPrompt.GenericSelectN,
                 envelopeKind = SelectNEnvelopeKind.Default,
-                outerPromptId = PromptIds.SELECT_N,
-                choiceDomain = 0,
             ),
             SelectNPromptRoute(
                 semantic = PromptSemantic.RevealChoose,
                 shape = dynamicResolutionShape,
                 innerPrompt = SelectNInnerPrompt.GenericSelectN,
                 envelopeKind = SelectNEnvelopeKind.RevealChoose,
-                outerPromptId = PromptIds.SELECT_N,
-                choiceDomain = 0,
             ),
             SelectNPromptRoute(
                 semantic = PromptSemantic.SelectNResolution,
                 shape = dynamicResolutionShape,
                 innerPrompt = SelectNInnerPrompt.SelectNInnerParameter,
                 envelopeKind = SelectNEnvelopeKind.Resolution,
-                outerPromptId = PromptIds.SELECT_N_STOCK_UP,
-                choiceDomain = 0,
             ),
             SelectNPromptRoute(
                 semantic = PromptSemantic.SelectNLibraryPutback,
                 shape = dynamicResolutionShape,
                 innerPrompt = SelectNInnerPrompt.SelectNInnerParameter,
                 envelopeKind = SelectNEnvelopeKind.LibraryPutback,
-                outerPromptId = PromptIds.SELECT_N_LIBRARY_PUTBACK,
-                choiceDomain = 0,
             ),
             SelectNPromptRoute(
                 semantic = PromptSemantic.MutateTopBottom,
                 shape = dynamicResolutionShape,
                 innerPrompt = SelectNInnerPrompt.GenericSelectN,
                 envelopeKind = SelectNEnvelopeKind.MutateTopBottom,
-                outerPromptId = PromptIds.SELECT_N,
-                choiceDomain = 0,
             ),
             SelectNPromptRoute(
                 semantic = PromptSemantic.LearnLesson,
                 shape = dynamicResolutionShape,
                 innerPrompt = SelectNInnerPrompt.LearnInnerParameter,
                 envelopeKind = SelectNEnvelopeKind.LearnLesson,
-                outerPromptId = PromptIds.LEARN_LESSON_ONLY,
-                choiceDomain = 0,
             ),
         ).associateBy { it.semantic }
 
@@ -248,6 +200,6 @@ internal object SelectNPromptRoutes {
     ): SelectNEnvelope =
         SelectNEnvelope.staticChoice(
             req,
-            staticChoice(semantic)?.outerPromptId ?: error("missing static choice route for $semantic"),
+            staticChoice(semantic)?.staticChoice?.outerPromptId ?: error("missing static choice route for $semantic"),
         )
 }
