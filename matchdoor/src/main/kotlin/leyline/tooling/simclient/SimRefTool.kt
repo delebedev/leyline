@@ -61,7 +61,7 @@ object SimRefMain {
 class SimRefRunner(
     private val config: SimClientConfig,
 ) {
-    private val resolvedCardDbPath: String? by lazy { resolveSimClientCardDbPath(config) }
+    private val resolvedCardDbPath by lazy { resolveSimClientCardDbPath(config) }
 
     private val cardRepo: CardRepository by lazy {
         val path = requireNotNull(resolvedCardDbPath) { "Card database not found; set LEYLINE_CARD_DB or --card-db" }
@@ -84,7 +84,7 @@ class SimRefRunner(
             summaries += summary
             println(
                 "[${row.runLabel} s=${row.seed}] ${summary.durationMs}ms turn=${summary.turn} " +
-                    "gameOver=${summary.gameOver} callbacks=${summary.totalCallbacks}",
+                    "reason=${summary.completionReason} gameOver=${summary.gameOver} callbacks=${summary.totalCallbacks}",
             )
         }
         File(config.outDir, "simref-summary.json").writeText(simRefSummaryJson(summaries))
@@ -99,6 +99,9 @@ class SimRefRunner(
             row.opponentDeckList?.let(TestCardRegistry::ensureDeckRegistered)
         }
 
+        val ledger = SimRefDecisionLedger()
+        val startedAt = System.nanoTime()
+        val logTap = GameLogCollector().apply { start() }
         val bridge =
             GameBridge(
                 bridgeTimeoutMs = 5_000L,
@@ -107,8 +110,12 @@ class SimRefRunner(
                 messageCounter = MessageCounter(),
                 cardRepository = if (useCardDb) cardRepo else TestCardRegistry.repo,
             )
-        val ledger = SimRefDecisionLedger()
-        val startedAt = System.nanoTime()
+        var turn = 0
+        var gameOver = false
+        var completionReason = "exception"
+        var exceptionMessage: String? = null
+        var exceptionStackTop: String? = null
+        var collectedLogs = CollectedLogs(emptyMap(), emptyMap(), emptyList())
         try {
             bridge.startAiVsAi(
                 seed = row.seed,
@@ -129,19 +136,43 @@ class SimRefRunner(
             while (!game.isGameOver && game.phaseHandler.turn <= config.maxTurns && System.nanoTime() < deadline) {
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
             }
-            val durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
-            // The game thread keeps appending ledger entries between loop exit and
-            // shutdown; cut at the turn cap so turn-capped rows stay deterministic
-            // across reruns.
-            val decisions = ledger.snapshot().filter { it.turn <= config.maxTurns }
-            File(
-                config.outDir,
-                "${row.tag}.refdecisions.json",
-            ).writeText(simRefDecisionsJson(row, decisions, durationMs, game.isGameOver, game.phaseHandler.turn))
-            return SimRefRowSummary(row.tag, row.runLabel, row.seed, durationMs, game.phaseHandler.turn, game.isGameOver, decisions.size)
+            turn = game.phaseHandler.turn
+            gameOver = game.isGameOver
+            completionReason =
+                when {
+                    gameOver -> "natural"
+                    System.nanoTime() >= deadline -> "wall-timeout"
+                    turn > config.maxTurns -> "max-turns"
+                    else -> "incomplete"
+                }
+        } catch (t: Throwable) {
+            exceptionMessage = "${t::class.java.name}: ${t.message.orEmpty()}".trimEnd()
+            exceptionStackTop = t.stackTrace.firstOrNull()?.toString()
         } finally {
-            bridge.shutdown()
+            runCatching { bridge.shutdown() }
+            collectedLogs = logTap.stopAndDrain()
         }
+        val durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
+        // The game thread can append ledger entries between loop exit and shutdown;
+        // cut at the turn cap so turn-capped rows stay deterministic across reruns.
+        val decisions = ledger.snapshot().filter { it.turn <= config.maxTurns }
+        File(
+            config.outDir,
+            "${row.tag}.refdecisions.json",
+        ).writeText(
+            simRefDecisionsJson(
+                row = row,
+                decisions = decisions,
+                durationMs = durationMs,
+                gameOver = gameOver,
+                turn = turn,
+                completionReason = completionReason,
+                exceptionMessage = exceptionMessage,
+                exceptionStackTop = exceptionStackTop,
+                logs = collectedLogs,
+            ),
+        )
+        return SimRefRowSummary(row.tag, row.runLabel, row.seed, durationMs, turn, gameOver, decisions.size, completionReason)
     }
 }
 
@@ -295,10 +326,10 @@ private class TappingPlayerControllerAi(
         }
 
     override fun confirmAction(
-        sa: SpellAbility,
-        mode: PlayerActionConfirmMode,
-        message: String,
-        options: MutableList<String>,
+        sa: SpellAbility?,
+        mode: PlayerActionConfirmMode?,
+        message: String?,
+        options: MutableList<String>?,
         cardToShow: Card?,
         params: MutableMap<String, Any>?,
     ): Boolean =
@@ -615,13 +646,13 @@ private class TappingPlayerControllerAi(
     }
 
     private fun context(
-        sa: SpellAbility,
+        sa: SpellAbility?,
         prompt: String? = null,
         card: Card? = null,
     ): SimRefDecisionContext =
         SimRefDecisionContext(
-            source = (card ?: sa.hostCard)?.name,
-            api = sa.api?.name,
+            source = (card ?: sa?.hostCard)?.name,
+            api = sa?.api?.name,
             prompt = prompt?.takeIf { it.isNotBlank() },
         )
 
@@ -643,14 +674,19 @@ private data class SimRefRowSummary(
     val turn: Int,
     val gameOver: Boolean,
     val totalCallbacks: Int,
+    val completionReason: String,
 )
 
-private fun simRefDecisionsJson(
+internal fun simRefDecisionsJson(
     row: DeckSimClientRow,
     decisions: List<SimRefDecision>,
     durationMs: Long,
     gameOver: Boolean,
     turn: Int,
+    completionReason: String,
+    exceptionMessage: String?,
+    exceptionStackTop: String?,
+    logs: CollectedLogs,
 ): String {
     val counts = decisions.groupingBy { it.callback }.eachCount().toSortedMap()
     return buildString {
@@ -663,6 +699,12 @@ private fun simRefDecisionsJson(
         append("\"durationMs\":$durationMs,")
         append("\"turn\":$turn,")
         append("\"gameOver\":$gameOver,")
+        append("\"completionReason\":${simJsonString(completionReason)},")
+        append("\"exceptionMessage\":${nullableSimJsonString(exceptionMessage)},")
+        append("\"exceptionStackTop\":${nullableSimJsonString(exceptionStackTop)},")
+        append("\"warnsByLogger\":${mapToJson(logs.warnsByLogger)},")
+        append("\"errorsByType\":${mapToJson(logs.errorsByType)},")
+        append("\"errorSamples\":${stringsToJson(logs.errorSamples)},")
         append("\"callbackCounts\":${mapToJson(counts)},")
         append("\"decisions\":")
         append(
@@ -679,9 +721,11 @@ private fun simRefDecisionsJson(
 
 private fun nullableSimJsonString(value: String?): String = value?.let(::simJsonString) ?: "null"
 
+private fun stringsToJson(values: List<String>): String = values.joinToString(",", "[", "]") { simJsonString(it) }
+
 private fun simRefSummaryJson(summaries: List<SimRefRowSummary>): String =
     summaries.joinToString(",", "[", "]") { s ->
         "{\"tag\":${simJsonString(s.tag)},\"deck\":${simJsonString(s.deck)},\"seed\":${s.seed}," +
             "\"durationMs\":${s.durationMs},\"turn\":${s.turn},\"gameOver\":${s.gameOver}," +
-            "\"totalCallbacks\":${s.totalCallbacks}}"
+            "\"completionReason\":${simJsonString(s.completionReason)},\"totalCallbacks\":${s.totalCallbacks}}"
     }

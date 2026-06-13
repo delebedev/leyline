@@ -17,7 +17,7 @@ fun statsToJson(
             append("\"opponentDeckOverlay\":${overlayToJson(row.opponentOverlay)},")
         }
         append("\"seed\":${row.seed},")
-        append("\"policy\":${simJsonString(if (policy == SimClientPolicyMode.ForgeAi) "forge-ai" else "greedy")},")
+        append("\"policy\":${simJsonString(policy.serializedName())},")
         append("\"failureClass\":${simJsonString(failureClass(stats))},")
         append("\"durationMs\":${stats.durationMs},")
         append("\"turn\":${stats.turn},")
@@ -35,6 +35,9 @@ fun statsToJson(
         append("\"aiChose\":${stats.aiChose},")
         append("\"aiConsultedByPrompt\":${mapToJson(stats.aiConsultedByPrompt)},")
         append("\"aiChoseByPrompt\":${mapToJson(stats.aiChoseByPrompt)},")
+        append("\"advisorDisagreementsByPrompt\":${mapToJson(stats.advisorDisagreementsByPrompt)},")
+        append("\"advisorMatchesByPrompt\":${mapToJson(stats.advisorMatchesByPrompt)},")
+        append("\"advisorDisagreementSamples\":${stringMapToJson(stats.advisorDisagreementSamples)},")
         append("\"aiTotalMs\":${stats.aiTotalMs},")
         append("\"aiTotalMsByPrompt\":${longMapToJson(stats.aiTotalMsByPrompt)},")
         append("\"aiMaxMsByPrompt\":${longMapToJson(stats.aiMaxMsByPrompt)},")
@@ -74,6 +77,13 @@ fun statsToJson(
         append('}')
     }
 }
+
+private fun SimClientPolicyMode.serializedName(): String =
+    when (this) {
+        SimClientPolicyMode.Greedy -> "greedy"
+        SimClientPolicyMode.ForgeAi -> "forge-ai"
+        SimClientPolicyMode.ShadowAi -> "shadow-ai"
+    }
 
 fun failureClass(stats: GameStats): String =
     when {

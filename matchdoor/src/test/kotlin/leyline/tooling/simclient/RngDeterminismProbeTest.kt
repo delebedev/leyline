@@ -3,6 +3,7 @@ package leyline.tooling.simclient
 import forge.util.MyRandom
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
@@ -13,6 +14,7 @@ import leyline.game.state.GameBridge
 import leyline.tooling.headless.TestCardRegistry
 import java.util.Collections
 import java.util.Random
+import java.util.concurrent.locks.LockSupport
 
 /** Logs every primitive draw off the shared RNG with a callsite hint. */
 private class LoggingRandom(
@@ -55,6 +57,8 @@ private class LoggingRandom(
  */
 class RngDeterminismProbeTest :
     FunSpec({
+        tags(UnitTag)
+
         val deck = "24 Forest\n36 Grizzly Bears"
 
         fun newBridge(): GameBridge {
@@ -100,7 +104,7 @@ class RngDeterminismProbeTest :
             refBridge.startAiVsAi(seed = null, deckList1 = deck, deckList2 = deck)
             val deadline = System.currentTimeMillis() + 10_000L
             while (refRng.draws.size < n && System.currentTimeMillis() < deadline) {
-                Thread.sleep(5)
+                LockSupport.parkNanos(5_000_000L)
             }
             val refDraws = snapshot(refRng).take(n)
             runCatching { refBridge.shutdown() }
