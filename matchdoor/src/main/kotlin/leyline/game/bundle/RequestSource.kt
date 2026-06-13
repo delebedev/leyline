@@ -9,23 +9,47 @@ import wotc.mtgo.gre.external.messaging.Messages.Prompt
 import wotc.mtgo.gre.external.messaging.Messages.PromptParameter
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
+internal data class PromptSource(
+    val sourceInstanceId: Int = 0,
+    val sourceCardInstanceId: Int = 0,
+) {
+    val hasSource: Boolean get() = sourceInstanceId != 0
+}
+
+internal object PromptSourceResolver {
+    fun resolve(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+        fallbackSourceEntityId: Int? = null,
+    ): PromptSource {
+        val sourceCardInstanceId =
+            (prompt.request.sourceEntityId ?: fallbackSourceEntityId)
+                ?.let { bridge.getOrAllocInstanceId(ForgeCardId(it)).value }
+                ?: 0
+        val sourceInstanceId =
+            if (prompt.request.isTriggeredAbility && prompt.request.forgeAbilityId != 0) {
+                bridge.getOrAllocInstanceId(FrameIdResolver.triggerStackAbilityForgeId(prompt.request.forgeAbilityId)).value
+            } else {
+                sourceCardInstanceId
+            }
+        return PromptSource(
+            sourceInstanceId = sourceInstanceId,
+            sourceCardInstanceId = sourceCardInstanceId,
+        )
+    }
+}
+
 internal fun sourceInstanceId(
     prompt: InteractivePromptBridge.PendingPrompt,
     bridge: GameBridge,
-): Int {
-    if (prompt.request.isTriggeredAbility && prompt.request.forgeAbilityId != 0) {
-        return bridge.getOrAllocInstanceId(FrameIdResolver.triggerStackAbilityForgeId(prompt.request.forgeAbilityId)).value
-    }
-    val sourceEntityId = prompt.request.sourceEntityId ?: return 0
-    return bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
-}
+): Int = PromptSourceResolver.resolve(prompt, bridge).sourceInstanceId
 
 internal fun SelectNReq.Builder.setSourceIdIfPresent(
     prompt: InteractivePromptBridge.PendingPrompt,
     bridge: GameBridge,
 ) {
-    val sourceInstanceId = sourceInstanceId(prompt, bridge)
-    if (sourceInstanceId != 0) setSourceId(sourceInstanceId)
+    val source = PromptSourceResolver.resolve(prompt, bridge)
+    if (source.hasSource) setSourceId(source.sourceInstanceId)
 }
 
 internal fun SelectNReq.Builder.setSelectNInnerPrompt(promptId: Int) {

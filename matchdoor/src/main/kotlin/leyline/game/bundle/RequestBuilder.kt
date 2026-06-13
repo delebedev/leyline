@@ -225,15 +225,18 @@ object RequestBuilder {
     private fun orderSourceInstanceId(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
-    ): Int {
-        val sourceEntityId =
-            prompt.request.sourceEntityId ?: bridge
-                .getGame()
-                ?.stack
-                ?.firstOrNull()
-                ?.id ?: return 0
-        return bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
-    }
+    ): Int =
+        PromptSourceResolver
+            .resolve(
+                prompt,
+                bridge,
+                fallbackSourceEntityId =
+                    bridge
+                        .getGame()
+                        ?.stack
+                        ?.firstOrNull()
+                        ?.id,
+            ).sourceInstanceId
 
     private fun applyTargetPromptShape(
         prompt: InteractivePromptBridge.PendingPrompt,
