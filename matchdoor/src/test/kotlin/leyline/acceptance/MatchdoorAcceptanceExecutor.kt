@@ -3,6 +3,7 @@ package leyline.acceptance
 import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.zone.ZoneType
+import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -13,6 +14,8 @@ import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
+import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
@@ -248,9 +251,43 @@ class MatchdoorAcceptanceExecutor(
         }
         val attackerIds = step.cards.map { resolveBattlefieldCard(harness, AcceptanceSide.Ours, it) }
         val alternatives = step.altCost?.let { altCost -> attackerIds.associateWith { keywordAbilityId(altCost) } }.orEmpty()
-        harness.toggleAttackers(attackerIds, alternatives)
+        val damageRecipients =
+            step.target
+                ?.let { target -> attackerIds.associateWith { damageRecipientForAttackTarget(harness, target, context) } }
+                .orEmpty()
+        harness.toggleAttackers(attackerIds, alternatives, damageRecipients)
         harness.submitAttackers()
     }
+
+    private fun damageRecipientForAttackTarget(
+        harness: MatchFlowHarness,
+        target: AcceptanceTargetSpec,
+        context: String,
+    ): DamageRecipient =
+        when (target) {
+            is PlayerTargetSpec ->
+                DamageRecipient
+                    .newBuilder()
+                    .setType(DamageRecType.Player_a0e5)
+                    .setPlayerSystemSeatId(seat(target.side).value)
+                    .build()
+
+            is CardTargetSpec -> {
+                require(target.side == AcceptanceSide.Opponent && target.zone == AcceptanceZone.Battlefield) {
+                    "$context attack target must be an opponent battlefield planeswalker, got ${target.label}"
+                }
+                val card =
+                    cardsInZone(harness, target.side, target.zone)
+                        .firstOrNull { it.name.equals(target.card, ignoreCase = true) }
+                        ?: error("$context could not find attack target ${target.label}")
+                require(card.isPlaneswalker) { "$context attack target ${target.card} is not a planeswalker" }
+                DamageRecipient
+                    .newBuilder()
+                    .setType(DamageRecType.PlanesWalker)
+                    .setPlaneswalkerInstanceId(harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
+                    .build()
+            }
+        }
 
     private fun turnFaceUp(
         harness: MatchFlowHarness,
@@ -293,14 +330,28 @@ class MatchdoorAcceptanceExecutor(
         step: PassUntilStep,
         context: String,
     ) {
-        val reached =
-            harness.passUntil(maxPasses = step.maxPasses) {
-                step.conditions.all { matchesCondition(harness, it) }
-            }
+        val reached = harness.passUntil(maxPasses = step.maxPasses) { passUntilConditionReached(harness, step) }
         require(reached) {
-            "$context did not reach: ${step.conditions.joinToString { it.label }}"
+            "$context did not reach: ${step.conditions.joinToString { it.label }}; " +
+                "latest prompt=${latestPromptNameWithId(harness) ?: "none"}; " +
+                "prompts=${harness.allMessages.filter { it.isPromptMessage() }.map { it.promptName() + "#" + it.prompt.promptId }}; " +
+                "actions=${harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(harness, it) }}"
         }
     }
+
+    private fun passUntilConditionReached(
+        harness: MatchFlowHarness,
+        step: PassUntilStep,
+    ): Boolean =
+        try {
+            GameLoopPoller.awaitCondition(timeoutMs = 200, pollIntervalMs = 20) {
+                harness.drainSink()
+                step.conditions.all { matchesCondition(harness, it) }
+            }
+            true
+        } catch (_: AssertionError) {
+            false
+        }
 
     private fun assertConditions(
         harness: MatchFlowHarness,
@@ -549,7 +600,7 @@ class MatchdoorAcceptanceExecutor(
         harness: MatchFlowHarness,
         prompt: String,
         promptId: Int?,
-    ): Boolean = latestPromptMatches(harness, prompt, promptId)
+    ): Boolean = harness.allMessages.any { it.matchesPrompt(prompt, promptId) }
 
     private fun latestPromptMatches(
         harness: MatchFlowHarness,

@@ -1,0 +1,34 @@
+Deck
+1 Bedeck // Bedazzle (RNA) 221
+4 Hinterland Sanctifier (J25) 5
+4 Amalia Benavides Aguirre (LCI) 221
+4 Essence Channeler (BLB) 12
+4 Haliya, Guided by Light (EOE) 19
+4 Deep-Cavern Bat (LCI) 102
+3 Starscape Cleric (BLB) 116
+1 Darkstar Augur (BLB) 90
+2 Zoraline, Cosmos Caller (BLB) 242
+1 Leonardo, Cutting Edge (TMT) 15
+2 Moseo, Vein's New Dean (SOS) 91
+1 Bloodthirsty Conqueror (FDN) 58
+4 Case of the Uneaten Feast (MKM) 10
+2 Sheltered by Ghosts (DSK) 30
+2 Seam Rip (EOE) 34
+4 Godless Shrine (RNA) 248
+4 Concealed Courtyard (OTJ) 268
+4 Starting Town (FIN) 289
+3 Scoured Barrens (TDM) 267
+5 Plains (ZNR) 380
+1 Mudflat Village (BLB) 257
+1 Lupinflower Village (BLB) 256
+
+Sideboard
+1 Bloodthirsty Conqueror (FDN) 58
+1 Sheltered by Ghosts (DSK) 30
+1 Seam Rip (EOE) 34
+2 Cathar Commando (MID) 10
+2 Shrouded Shepherd (WOE) 236
+3 Lunar Convocation (BLB) 223
+2 Clarion Conqueror (TDM) 5
+2 Soul-Guide Lantern (WOE) 251
+1 Kutzil's Flanker (LCI) 20

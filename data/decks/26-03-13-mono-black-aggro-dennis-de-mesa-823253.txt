@@ -1,0 +1,31 @@
+Deck
+1 Soulstone Sanctuary (FDN) 133
+2 Duress (XLN) 105
+2 Requiting Hex (ECL) 116
+1 Bitter Triumph (SOA) 26
+2 Nowhere to Run (DSK) 111
+4 Rot-Curse Rakshasa (TDM) 87
+1 Shoot the Sheriff (OTJ) 106
+1 Strategic Betrayal (TDM) 94
+2 Abigale, Eloquent First-Year (ECL) 204
+4 Unstoppable Slasher (DSK) 119
+4 Firdoch Core (ECL) 255
+4 Bloodletter of Aclazotz (LCI) 92
+2 Deceit (ECL) 212
+2 Virtue of Persistence (WOE) 115
+4 Unholy Annex // Ritual Chamber (DSK) 118
+1 Luis, Pompous Pillager (OM1) 60
+2 Realm of Koh (TLA) 276
+19 Swamp (ZNR) 382
+2 Cavern of Souls (LCI) 269
+
+Sideboard
+2 Duress (XLN) 105
+2 Requiting Hex (ECL) 116
+1 Bitter Triumph (SOA) 26
+1 Shoot the Sheriff (OTJ) 106
+3 Strategic Betrayal (TDM) 94
+1 Luis, Pompous Pillager (OM1) 60
+2 Cruelclaw's Heist (BLB) 88
+1 The End (WOE) 87
+2 Deadly Cover-Up (MKM) 83

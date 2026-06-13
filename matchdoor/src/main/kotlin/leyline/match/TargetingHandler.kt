@@ -60,7 +60,9 @@ class TargetingHandler(
                 selectedIds
                     .mapNotNull { instanceId ->
                         val cardId = resolveForgeCardId(instanceId) ?: return@mapNotNull null
-                        pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
+                        pendingPrompt.request.candidateRefs
+                            .firstOrNull { it.entityId == cardId.value }
+                            ?.index
                     }.filter { it >= 0 }
             }
 
@@ -75,6 +77,7 @@ class TargetingHandler(
                 when {
                     semantic == PromptSemantic.StaticSubtypeChoice -> 5 to 2
                     semantic == PromptSemantic.StaticColorChoice -> 6 to 2
+                    semantic == PromptSemantic.StaticParityChoice -> StaticList.Parities.number to 2
                     semantic == PromptSemantic.SelectNDiscard ||
                         semantic == PromptSemantic.SelectNSacrificeEffect -> null to 1
                     else -> return emptyList()
@@ -162,9 +165,10 @@ class TargetingHandler(
                     // the same int space and frequently collide (e.g. card.id=1 and
                     // opp player.id=1). Without the kind guard, indexOfFirst hits the
                     // wrong candidate (saw bolt-on-Gixian register as bolt-on-opponent).
-                    pendingPrompt.request.candidateRefs.indexOfFirst {
-                        it.kind == "card" && it.entityId == cardId.value
-                    }
+                    pendingPrompt.request.candidateRefs
+                        .firstOrNull {
+                            it.kind == "card" && it.entityId == cardId.value
+                        }?.index ?: -1
                 }.filter { it >= 0 }
 
         log.info(
@@ -696,6 +700,7 @@ class TargetingHandler(
             ClassifiedPrompt.SelectN.Reason.LearnLesson,
             ClassifiedPrompt.SelectN.Reason.StaticColorChoice,
             ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice,
+            ClassifiedPrompt.SelectN.Reason.StaticParityChoice,
             -> sendSelectNReq(pendingPrompt, reason)
         }
     }
@@ -859,7 +864,9 @@ class TargetingHandler(
                     val cardId = bridge.getForgeCardId(InstanceId(chosenInstanceId))
                     val idx =
                         if (cardId != null) {
-                            prompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
+                            prompt.request.candidateRefs
+                                .firstOrNull { it.entityId == cardId.value }
+                                ?.index ?: -1
                         } else {
                             -1
                         }
@@ -897,16 +904,18 @@ class TargetingHandler(
         // Arena uses seatId as instanceId for player targets (1 or 2)
         val player = ctx.bridge.getPlayer(SeatId(instanceId)) ?: return null
         val idx =
-            pendingPrompt.request.candidateRefs.indexOfFirst {
-                it.kind == "player" && it.entityId == player.id
-            }
-        if (idx >= 0) return idx
+            pendingPrompt.request.candidateRefs
+                .firstOrNull {
+                    it.kind == "player" && it.entityId == player.id
+                }?.index
+        if (idx != null) return idx
 
         val seatIdx =
-            pendingPrompt.request.candidateRefs.indexOfFirst {
-                it.kind == "player" && it.entityId == instanceId
-            }
-        return if (seatIdx >= 0) seatIdx else null
+            pendingPrompt.request.candidateRefs
+                .firstOrNull {
+                    it.kind == "player" && it.entityId == instanceId
+                }?.index
+        return seatIdx
     }
 
     /**
@@ -1536,6 +1545,7 @@ class TargetingHandler(
             ClassifiedPrompt.SelectN.Reason.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId(pendingPrompt))
             ClassifiedPrompt.SelectN.Reason.StaticColorChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_COLOR)
             ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_TYPE)
+            ClassifiedPrompt.SelectN.Reason.StaticParityChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_TYPE)
             ClassifiedPrompt.SelectN.Reason.Sacrifice,
             ClassifiedPrompt.SelectN.Reason.ExileFromGrave,
             ClassifiedPrompt.SelectN.Reason.CollectEvidenceCost,

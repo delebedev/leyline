@@ -51,6 +51,7 @@ class PromptJournal {
     fun record(effect: PromptSideEffect) {
         when (effect) {
             is PromptSideEffect.SearchedToHand,
+            is PromptSideEffect.ExiledUnderSource,
             is PromptSideEffect.LegendVictim,
             is PromptSideEffect.EnlistTapAffector,
             is PromptSideEffect.ChoiceResult,
@@ -65,6 +66,19 @@ class PromptJournal {
 
     /** Remove + return `true` iff a [PromptSideEffect.SearchedToHand] for [id] was present. */
     fun consumeSearched(id: ForgeCardId): Boolean = drainFirstMatching { it is PromptSideEffect.SearchedToHand && it.forgeCardId == id }
+
+    /** Remove + return source iff an [PromptSideEffect.ExiledUnderSource] for [id] was present. */
+    fun consumeExiledUnderSource(id: ForgeCardId): ForgeCardId? {
+        val iter = drains.iterator()
+        while (iter.hasNext()) {
+            val effect = iter.next()
+            if (effect is PromptSideEffect.ExiledUnderSource && effect.forgeCardId == id) {
+                iter.remove()
+                return effect.sourceForgeCardId
+            }
+        }
+        return null
+    }
 
     /** Remove + return `true` iff a [PromptSideEffect.LegendVictim] for [id] was present. */
     fun consumeLegendVictim(id: ForgeCardId): Boolean = drainFirstMatching { it is PromptSideEffect.LegendVictim && it.forgeCardId == id }

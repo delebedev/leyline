@@ -214,6 +214,17 @@ class PromptClassifierTest :
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice
         }
 
+        test("static parity semantic classifies as select-n") {
+            val result =
+                classify(
+                    promptType = "confirm",
+                    message = "Odd or even",
+                    semantic = PromptSemantic.StaticParityChoice,
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.StaticParityChoice
+        }
+
         test("library order semantic classifies as order even with card refs") {
             val bottom =
                 classify(

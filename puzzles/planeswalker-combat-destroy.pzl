@@ -1,0 +1,17 @@
+[metadata]
+Name:Planeswalker Combat Destroy
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Attack an opposing planeswalker and verify combat damage removes it without damaging the player.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Raging Goblin;Mountain
+humanlibrary=Mountain;Mountain;Mountain
+aibattlefield=Liliana of the Veil|Counters:LOYALTY=1
+ailibrary=Mountain;Mountain;Mountain

@@ -1,0 +1,39 @@
+Deck
+3 Aang, Swift Savior (TLA) 204
+3 Enduring Curiosity (DSK) 51
+3 Shiko, Paragon of the Way (TDM) 223
+3 Voice of Victory (TDM) 33
+2 Nia, Skysail Storyteller (OM1) 89
+1 Tishana's Tidebinder (LCI) 81
+4 Get Lost (LCI) 14
+4 Lightning Helix (STA) 62
+1 Burst Lightning (SOA) 41
+1 Spell Snare (ECL) 71
+4 Stock Up (SOA) 24
+2 Pyroclasm (DSK) 149
+2 Seam Rip (EOE) 34
+1 Elspeth, Storm Slayer (TDM) 11
+4 Steam Vents (GRN) 257
+3 Floodfarm Verge (DSK) 259
+3 Hallowed Fountain (RNA) 251
+3 Restless Anchorage (LCI) 280
+3 Sacred Foundry (GRN) 254
+2 Elegant Parlor (MKM) 260
+2 Riverpyre Verge (DFT) 260
+2 Spirebluff Canal (OTJ) 270
+1 Cori Mountain Monastery (TDM) 252
+1 Island (ZNR) 381
+1 Plains (ZNR) 380
+1 Sunbillow Verge (DFT) 264
+
+Sideboard
+1 Voice of Victory (TDM) 33
+1 Tishana's Tidebinder (LCI) 81
+1 Pyroclasm (DSK) 149
+1 Elspeth, Storm Slayer (TDM) 11
+3 Rest in Peace (WOT) 12
+2 Day of Judgment (STA) 2
+2 Doorkeeper Thrull (MKM) 13
+2 Negate (ZNR) 71
+1 Pyrrhic Strike (ECL) 30
+1 Requisition Raid (SOA) 10

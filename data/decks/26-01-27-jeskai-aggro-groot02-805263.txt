@@ -1,0 +1,31 @@
+Deck
+4 Boomerang Basics (TLA) 46
+4 Clarion Conqueror (TDM) 5
+4 Floodfarm Verge (DSK) 259
+2 Frostcliff Siege (TDM) 187
+2 Get Lost (LCI) 14
+4 Hallowed Fountain (RNA) 251
+4 Momo, Friendly Flier (TLA) 29
+1 Multiversal Passage (OM1) 181
+4 Nurturing Pixie (OTJ) 20
+2 Plains (ZNR) 380
+3 Quantum Riddler (EOE) 72
+3 Roaring Furnace // Steaming Sauna (DSK) 230
+1 Sacred Foundry (GRN) 254
+4 Seam Rip (EOE) 34
+3 Starfield Shepherd (EOE) 37
+4 Starting Town (FIN) 289
+3 Steam Vents (GRN) 257
+4 Stormchaser's Talent (BLB) 75
+2 Sunbillow Verge (DFT) 264
+2 Spirebluff Canal (OTJ) 270
+
+Sideboard
+2 Get Lost (LCI) 14
+1 Quantum Riddler (EOE) 72
+2 Chandra, Spark Hunter (DFT) 116
+2 Detect Intrusion (OM1) 28
+2 Requisition Raid (SOA) 10
+2 Sage of the Skies (TDM) 22
+1 Wan Shi Tong, Librarian (TLA) 78
+3 Rest in Peace (WOT) 12

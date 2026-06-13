@@ -257,8 +257,8 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /** A card was exiled (any zone → Exile).
-     *  [sourceCardId] = the permanent that exiled this card (from Card.exiledWith),
-     *  present only for "exile-under-permanent" effects (Banishing Light, Stasis Snare, etc.).
+     *  [sourceCardId] = the permanent that exiled this card, present only for
+     *  source-linked "exile under this permanent" effects.
      *  When set, triggers [leyline.game.annotations.AnnotationBuilder.displayCardUnderCard] persistent annotation. */
     data class CardExiled(
         val cardId: ForgeCardId,

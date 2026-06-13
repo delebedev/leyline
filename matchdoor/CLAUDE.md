@@ -197,7 +197,7 @@ All 47 overrides, by concern. "Bridge" column names the primary mechanism each u
 | `chooseCardsToRevealFromHand` | Select cards from hand to reveal |
 | `selectTargetsInteractively` | Target selection (players + cards), auto-resolve single mandatory |
 | `chooseSomeType` | Pick a subtype via static SelectN |
-| `reveal` | Capture revealed card IDs for the annotation pipeline |
+| `reveal` | Capture revealed card IDs for the annotation pipeline (both card-list overloads) |
 
 **Binary confirmations.** Uses `InteractivePromptBridge` or `OptionalActionGate`.
 

@@ -90,4 +90,35 @@ class RequestBuilderStaticChoiceTest :
                 req.prompt.parametersList shouldBe emptyList()
             }
         }
+
+        test("parity choices use the static Parities domain without ids or instance id type") {
+            val bridge = GameBridge(cardRepository = InMemoryCardRepository())
+            val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(100)).value
+            val req =
+                RequestBuilder.buildSelectNReq(
+                    pending(
+                        PromptRequest(
+                            promptType = "confirm",
+                            message = "Odd or even",
+                            options = listOf("Odd", "Even"),
+                            semantic = PromptSemantic.StaticParityChoice,
+                            sourceEntityId = 100,
+                            staticList = StaticList.Parities,
+                            staticOptionIds = listOf(2, 1),
+                        ),
+                    ),
+                    bridge,
+                )
+
+            assertSoftly {
+                req.context shouldBe SelectionContext.Resolution_a163
+                req.optionContext shouldBe OptionContext.Resolution_a9d7
+                req.listType shouldBe SelectionListType.Static
+                req.staticList shouldBe StaticList.Parities
+                req.idType shouldBe IdType.None_ab2c
+                req.idsList shouldBe emptyList()
+                req.sourceId shouldBe sourceIid
+                req.prompt.parametersList shouldBe emptyList()
+            }
+        }
     })

@@ -3,6 +3,7 @@ package leyline.mechanics.flashback
 import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
@@ -79,6 +80,39 @@ class FlashbackActionTest :
                 flashbackOffer.alternativeSourceZcid shouldBe thinkTwiceIid
                 flashbackOffer should haveManaCost(generic = 2, blue = 1)
             }
+        }
+
+        test("unpayable flashback card in graveyard is inactive") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Think Twice", human, ZoneType.Graveyard)
+                }
+            val human = game.humanPlayer
+            val thinkTwice = human.getZone(ZoneType.Graveyard).cards.first { it.name == "Think Twice" }
+            val thinkTwiceIid = b.getOrAllocInstanceId(ForgeCardId(thinkTwice.id)).value
+            val thinkTwiceGrpId = b.cardRepository.findGrpIdByName("Think Twice")!!
+            val flashbackAbilityGrpId =
+                b.cardRepository.findKeywordAbilityGrpId(thinkTwiceGrpId, KeywordAbilityIds.FLASHBACK)!!
+
+            val actions =
+                ActionMapper.buildFromSnapshot(
+                    seatId = 1,
+                    snap = SnapshotCapture.run(game, b, "test", 0),
+                    bridge = b,
+                )
+
+            val activeCastActions =
+                actions.actionsList.filter {
+                    it.actionType == ActionType.Cast && it.instanceId == thinkTwiceIid
+                }
+            activeCastActions.shouldBeEmpty()
+            val flashbackOffer =
+                actions.inactiveActionsList.firstOrNull {
+                    it.actionType == ActionType.Cast &&
+                        it.instanceId == thinkTwiceIid &&
+                        it.alternativeGrpId == flashbackAbilityGrpId
+                }
+            flashbackOffer should beAltCostOffer(flashbackAbilityGrpId)
         }
 
         test("flashback card only in hand has no graveyard alt-cost offer") {

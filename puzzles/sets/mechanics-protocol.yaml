@@ -58,6 +58,25 @@ scenarios:
           all:
             - annotation_seen: CoinFlip
             - stack_empty: true
+  - id: extinction-event-parity-choice
+    puzzle: extinction-event-choice
+    run: cast Extinction Event and choose even
+    expect: Grizzly Bears is exiled and Serra Angel remains on the battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Extinction Event }
+      - cast: Extinction Event
+      - pass_until:
+          prompt: { type: SelectNReq, prompt_id: 23 }
+          max_passes: 8
+      - static_choice: { id: 1 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+            - zone_contains: { side: opponent, zone: battlefield, card: Serra Angel }
+            - zone_contains: { side: ours, zone: graveyard, card: Extinction Event }
+            - stack_empty: true
   - id: ward-tax
     puzzle: try-ward-vren
     run: cast Lightning Bolt targeting Vren and pay Ward 2
@@ -91,6 +110,23 @@ scenarios:
           all:
             - zone_contains: { side: opponent, zone: graveyard, card: Murder }
             - zone_not_contains: { side: opponent, zone: hand, card: Murder }
+  - id: deep-cavern-bat-reveal-exile
+    puzzle: deep-cavern-bat-reveal-exile
+    run: cast Deep-Cavern Bat and choose Divination from the revealed opponent hand
+    expect: Divination leaves opponent hand and Deep-Cavern Bat remains on battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Deep-Cavern Bat }
+      - cast: Deep-Cavern Bat
+      - pass_until:
+          prompt: SelectNReq
+          max_passes: 8
+      - select_card: { side: opponent, zone: hand, card: Divination }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: hand, card: Divination }
+            - zone_contains: { side: ours, zone: battlefield, card: Deep-Cavern Bat }
   - id: stock-up-bottom-order
     puzzle: stock-up
     run: cast Stock Up, choose two cards, then order the unchosen cards on bottom
@@ -549,3 +585,20 @@ scenarios:
       - resolve_stack: {}
       - expect:
           stack_empty: true
+  - id: planeswalker-combat-destroy
+    puzzle: planeswalker-combat-destroy
+    run: attack Liliana of the Veil with Raging Goblin
+    expect: Liliana is destroyed and opponent life stays unchanged
+    steps:
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack: { cards: [Raging Goblin], target: { side: opponent, zone: battlefield, card: Liliana of the Veil } }
+      - pass_until:
+          phase: Main2
+          max_passes: 8
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Liliana of the Veil }
+            - zone_contains: { side: opponent, zone: graveyard, card: Liliana of the Veil }
+            - opponent_life: 20

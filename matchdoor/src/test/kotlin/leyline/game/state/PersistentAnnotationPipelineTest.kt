@@ -57,6 +57,26 @@ class PersistentAnnotationPipelineTest :
             tmpZone.getValueInt32(0) shouldBe 1
         }
 
+        test("cardExiledFromHandWithSourceEmitsDisplayCardUnderCard") {
+            val events =
+                listOf(
+                    GameEvent.CardExiled(
+                        cardId = ForgeCardId(80),
+                        seatId = SeatId(2),
+                        sourceCardId = ForgeCardId(90),
+                        fromBattlefield = false,
+                    ),
+                )
+            val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
+
+            val ann = result.persistent.single()
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.DisplayCardUnderCard
+                ann.affectorId shouldBe testResolver(ForgeCardId(90)).value
+                ann.affectedIdsList shouldBe listOf(testResolver(ForgeCardId(80)).value)
+            }
+        }
+
         test("cardExiledWithoutSourceDoesNotEmitDisplayCardUnderCard") {
             val events =
                 listOf(

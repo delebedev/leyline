@@ -1,0 +1,35 @@
+Deck
+2 Bitter Triumph (SOA) 26
+1 Deadly Cover-Up (MKM) 83
+3 Day of Black Sun (TLA) 94
+1 Intimidation Tactics (DFT) 92
+2 Undercity Sewers (PZA) 0
+1 Multiversal Passage (OM1) 181
+4 Requiting Hex (ECL) 116
+4 Kavaero, Mind-Bitten (OM1) 140
+3 Duress (XLN) 105
+3 Winternight Stories (TDM) 67
+3 Emeritus of Ideation (SOS) 45
+1 Shoot the Sheriff (OTJ) 106
+4 Restless Reef (LCI) 282
+4 Deceit (ECL) 212
+1 Strategic Betrayal (TDM) 94
+8 Swamp (ZNR) 382
+2 Doomsday Excruciator (DSK) 94
+4 Watery Grave (GRN) 259
+4 Gloomlake Verge (DSK) 260
+3 Cavern of Souls (LCI) 269
+2 Stock Up (SOA) 24
+
+Sideboard
+1 Intimidation Tactics (DFT) 92
+1 Duress (XLN) 105
+1 Strategic Betrayal (TDM) 94
+1 Doomsday Excruciator (DSK) 94
+1 Ghost Vacuum (DSK) 248
+2 Qarsi Revenant (TDM) 86
+2 Flashfreeze (FDN) 590
+1 Disdainful Stroke (WOE) 47
+1 Nowhere to Run (DSK) 111
+2 Quantum Riddler (EOE) 72
+2 Deathmark (FDN) 601

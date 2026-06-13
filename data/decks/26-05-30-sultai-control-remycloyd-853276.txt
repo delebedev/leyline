@@ -1,0 +1,44 @@
+Deck
+4 Deceit (ECL) 212
+4 Kavaero, Mind-Bitten (OM1) 140
+2 Emeritus of Ideation (SOS) 45
+1 Wrench, Speedway Saboteur (OM1) 74
+1 Wistfulness (ECL) 252
+3 Ancient Cornucopia (BIG) 16
+4 Rakshasa's Bargain (TDM) 214
+2 Quandrix Charm (SOS) 217
+2 Requiting Hex (ECL) 116
+2 Shoot the Sheriff (OTJ) 106
+1 Bounce Off (DFT) 39
+1 Witherbloom Charm (SOS) 244
+3 Withering Curse (SOS) 105
+1 Deadly Cover-Up (MKM) 83
+1 Strategic Betrayal (TDM) 94
+3 Awaken the Honored Dead (TDM) 170
+1 Professor Dellian Fel (SOS) 214
+4 Overgrown Tomb (GRN) 253
+4 Wastewood Verge (DFT) 268
+4 Watery Grave (GRN) 259
+3 Starting Town (FIN) 289
+2 Undercity Sewers (PZA) 0
+1 Cavern of Souls (LCI) 269
+1 Dreamroot Cascade (VOW) 262
+1 Gloomlake Verge (DSK) 260
+1 Island (ZNR) 381
+1 Multiversal Passage (OM1) 181
+1 Swamp (ZNR) 382
+1 Underground Mortuary (MKM) 271
+
+Sideboard
+1 Emeritus of Ideation (SOS) 45
+1 Strategic Betrayal (TDM) 94
+2 Duress (XLN) 105
+2 Keen-Eyed Curator (BLB) 181
+2 Negate (ZNR) 71
+1 Bitter Triumph (SOA) 26
+1 Disdainful Stroke (WOE) 47
+1 Flashfreeze (FDN) 590
+1 Intimidation Tactics (DFT) 92
+1 Pest Control (BIG) 22
+1 The End (WOE) 87
+1 Tishana's Tidebinder (LCI) 81

@@ -10,7 +10,7 @@ object PromptIds {
     const val PAY_COSTS = 11
     const val CASTING_TIME_OPTIONS = 23
 
-    /** Static SelectN type choice — "Choose a creature type." */
+    /** Static SelectN choice — type and parity prompts use this loc key. */
     const val CHOOSE_TYPE = 23
     const val MATCH_RESULT_WIN_LOSS = 27
 

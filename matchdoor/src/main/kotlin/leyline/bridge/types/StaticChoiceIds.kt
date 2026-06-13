@@ -37,6 +37,13 @@ object StaticChoiceIds {
             else -> null
         }
 
+    fun parityIdForName(name: String): Int? =
+        when (normalize(name)) {
+            "even", "evens" -> 1
+            "odd", "odds" -> 2
+            else -> null
+        }
+
     fun subtypeIdFor(typeName: String): Int? = subtypeByKey[normalize(typeName)]
 
     private fun normalize(value: String): String = value.filter { it.isLetterOrDigit() }.lowercase()

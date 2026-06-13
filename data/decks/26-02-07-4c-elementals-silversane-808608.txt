@@ -1,0 +1,34 @@
+Deck
+4 Ashling, Rekindled (ECL) 124
+2 Blazemire Verge (DSK) 256
+4 Cavern of Souls (LCI) 269
+4 Deceit (ECL) 212
+1 Eclipsed Realms (ECL) 263
+3 Kavaero, Mind-Bitten (OM1) 140
+2 Multiversal Passage (OM1) 181
+4 Not Dead After All (WOE) 101
+4 Overlord of the Balemurk (DSK) 113
+1 Pit of Offerings (LCI) 278
+1 Quantum Riddler (EOE) 72
+4 Requiting Hex (ECL) 116
+1 Restless Reef (LCI) 282
+4 Secluded Courtyard (SPG) 63
+4 Starting Town (FIN) 289
+1 Steam Vents (GRN) 257
+3 Sunderflock (ECL) 74
+1 Swamp (ZNR) 382
+4 Vibrance (ECL) 249
+4 Watery Grave (GRN) 259
+3 Wistfulness (ECL) 252
+1 Ygra, Eater of All (BLB) 241
+
+Sideboard
+1 Quantum Riddler (EOE) 72
+1 Wistfulness (ECL) 252
+2 Beza, the Bounding Spring (BLB) 2
+1 The End (WOE) 87
+1 Negate (ZNR) 71
+2 Shoot the Sheriff (OTJ) 106
+3 Intimidation Tactics (DFT) 92
+2 Duress (XLN) 105
+2 Soul-Guide Lantern (WOE) 251

@@ -1,0 +1,34 @@
+Deck
+1 The Fire Crystal (FIN) 135
+1 White Auracite (FIN) 41
+1 The Irencrag (WOE) 248
+2 Day of Judgment (STA) 2
+2 Erode (SOS) 15
+3 Spring-Loaded Sawblades (LCI) 36
+3 Clay-Fired Bricks (LCI) 6
+3 Cryogen Relic (EOE) 52
+4 United Battlefront (TDM) 32
+4 Perilous Snare (DFT) 23
+4 Pinnacle Starcage (EOE) 27
+4 Repurposing Bay (DFT) 56
+4 Simulacrum Synthesizer (BIG) 6
+1 Dauntless Scrapbot (EOE) 237
+1 Fomori Vault (BIG) 29
+1 Meticulous Archive (MKM) 264
+1 Adagia, Windswept Bastion (EOE) 250
+4 Floodfarm Verge (DSK) 259
+4 Hallowed Fountain (RNA) 251
+4 Island (ZNR) 381
+8 Plains (ZNR) 380
+
+Sideboard
+3 Voice of Victory (TDM) 33
+1 Astelli Reclaimer (EOE) 4
+2 Authority of the Consuls (KLR) 9
+1 Krang, Master Mind (TMT) 43
+1 Mistrise Village (TDM) 261
+1 Negate (ZNR) 71
+1 Rest in Peace (WOT) 12
+1 Spectral Restitching (OM1) 44
+2 Torpor Orb (BIG) 27
+2 Day of Judgment (STA) 2
