@@ -18,6 +18,7 @@ class BridgeMutationsTest :
                 m.retiredIds.size shouldBe 0
                 m.zoneRecordings.size shouldBe 0
                 m.persistentBatch.allAnnotations.size shouldBe 0
+                m.consumedTargetSpecs.size shouldBe 0
                 m.nextAnnotationId shouldBe 50
             }
         }
