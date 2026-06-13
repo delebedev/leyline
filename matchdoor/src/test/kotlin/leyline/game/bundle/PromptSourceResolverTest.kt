@@ -59,4 +59,19 @@ class PromptSourceResolverTest :
             source.sourceInstanceId shouldBe abilityIid
             source.sourceCardInstanceId shouldBe cardIid
         }
+
+        test("fallback source resolves source card iid when request has no source") {
+            val bridge = GameBridge(cardRepository = InMemoryCardRepository())
+            val cardIid = bridge.getOrAllocInstanceId(ForgeCardId(200)).value
+
+            val source =
+                PromptSourceResolver.resolve(
+                    pending(PromptRequest(promptType = "order", message = "Order", options = emptyList())),
+                    bridge,
+                    fallbackSourceEntityId = 200,
+                )
+
+            source.sourceInstanceId shouldBe cardIid
+            source.sourceCardInstanceId shouldBe cardIid
+        }
     })

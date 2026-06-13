@@ -236,7 +236,7 @@ object RequestBuilder {
                         ?.stack
                         ?.firstOrNull()
                         ?.id,
-            ).sourceInstanceId
+            ).sourceCardInstanceId
 
     private fun applyTargetPromptShape(
         prompt: InteractivePromptBridge.PendingPrompt,
