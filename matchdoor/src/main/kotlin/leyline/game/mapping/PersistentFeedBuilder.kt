@@ -59,6 +59,15 @@ private data class DesignationFeedSet(
     val rightUnlocked: List<AnnotationInfo>,
 )
 
+internal class PersistentFeedContext(
+    private val bridge: GameBridge,
+    private val frameIds: FrameIdResolver,
+) {
+    fun allocatedCardIid(forgeCardId: ForgeCardId): InstanceId = bridge.getOrAllocInstanceId(forgeCardId)
+
+    fun visibleCardIid(forgeCardId: ForgeCardId): InstanceId = frameIds.cardIid(forgeCardId)
+}
+
 internal object PersistentFeedBuilder {
     fun build(
         events: List<GameEvent>,
@@ -79,7 +88,8 @@ internal object PersistentFeedBuilder {
                 transferResult,
             )
         val abilityWord = buildAbilityWordAnnotations(events, snap, prev, bridge, frameIds)
-        val designations = buildDesignationAnnotations(snap, bridge, frameIds)
+        val context = PersistentFeedContext(bridge, frameIds)
+        val designations = buildDesignationAnnotations(snap, context)
         val dayNightDesignation = buildDayNightDesignationAnnotations(snap)
         val faceDownDisguise = buildFaceDownDisguiseAnnotations(snap, frameIds)
         val colorProduction = buildColorProductionAnnotations(snap, frameIds)
@@ -224,8 +234,7 @@ internal object PersistentFeedBuilder {
 
     private fun buildDesignationAnnotations(
         snap: GsmSnapshot,
-        bridge: GameBridge,
-        frameIds: FrameIdResolver,
+        context: PersistentFeedContext,
     ): DesignationFeedSet =
         DesignationFeedSet(
             prepared =
@@ -233,8 +242,8 @@ internal object PersistentFeedBuilder {
                     .mapNotNull { bound ->
                         val source = bound.designations.prepared as? PreparedRole.Source ?: return@mapNotNull null
                         AnnotationBuilder.preparedDesignation(
-                            instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
-                            preparedCopyInstanceId = bridge.getOrAllocInstanceId(source.copyForgeCardId),
+                            instanceId = context.allocatedCardIid(bound.forgeCardId),
+                            preparedCopyInstanceId = context.allocatedCardIid(source.copyForgeCardId),
                         )
                     },
             plotted =
@@ -242,7 +251,7 @@ internal object PersistentFeedBuilder {
                     .mapNotNull { bound ->
                         if (!bound.designations.isPlotted) return@mapNotNull null
                         AnnotationBuilder.plottedDesignation(
-                            instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
+                            instanceId = context.allocatedCardIid(bound.forgeCardId),
                         )
                     },
             saddled =
@@ -250,14 +259,14 @@ internal object PersistentFeedBuilder {
                     .mapNotNull { bound ->
                         if (!bound.designations.isSaddled) return@mapNotNull null
                         AnnotationBuilder.saddledDesignation(
-                            instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
+                            instanceId = context.allocatedCardIid(bound.forgeCardId),
                         )
                     },
             commander =
                 snap.boundCards.values
                     .filter { it.designations.isCommander && it.snapshot.grpId > 0 }
                     .flatMap { bound ->
-                        val iid = frameIds.cardIid(bound.forgeCardId)
+                        val iid = context.visibleCardIid(bound.forgeCardId)
                         val grpId = GrpId(bound.snapshot.grpId)
                         val colorIdentity = bound.designations.commanderColorIdentity
                         val tax = bound.designations.commanderTax
@@ -281,7 +290,7 @@ internal object PersistentFeedBuilder {
                     .mapNotNull { bound ->
                         if (!bound.designations.isLeftDoorUnlocked) return@mapNotNull null
                         AnnotationBuilder.leftUnlockedDesignation(
-                            instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
+                            instanceId = context.allocatedCardIid(bound.forgeCardId),
                         )
                     },
             rightUnlocked =
@@ -289,7 +298,7 @@ internal object PersistentFeedBuilder {
                     .mapNotNull { bound ->
                         if (!bound.designations.isRightDoorUnlocked) return@mapNotNull null
                         AnnotationBuilder.rightUnlockedDesignation(
-                            instanceId = bridge.getOrAllocInstanceId(bound.forgeCardId),
+                            instanceId = context.allocatedCardIid(bound.forgeCardId),
                         )
                     },
         )

@@ -10,9 +10,10 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.CollectEvidencePayCostsBuilder
+import leyline.game.bundle.PayCostsPromptRoute
 import leyline.game.bundle.RequestBuilder
 import leyline.game.bundle.SelectNEnvelope
+import leyline.game.bundle.SelectNPromptRoutes
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.SearchShape
@@ -74,13 +75,14 @@ class TargetingHandler(
             val source = pendingPrompt.request.sourceEntityId ?: return emptyList()
             val semantic = pendingPrompt.request.semantic
             val (choiceDomain, sentiment) =
-                when {
-                    semantic == PromptSemantic.StaticSubtypeChoice -> 5 to 2
-                    semantic == PromptSemantic.StaticColorChoice -> 6 to 2
-                    semantic == PromptSemantic.StaticParityChoice -> StaticList.Parities.number to 2
-                    semantic == PromptSemantic.SelectNDiscard ||
-                        semantic == PromptSemantic.SelectNSacrificeEffect -> null to 1
-                    else -> return emptyList()
+                when (val staticChoice = SelectNPromptRoutes.staticChoice(semantic)) {
+                    null ->
+                        when {
+                            semantic == PromptSemantic.SelectNDiscard ||
+                                semantic == PromptSemantic.SelectNSacrificeEffect -> null to 1
+                            else -> return emptyList()
+                        }
+                    else -> staticChoice.choiceDomain to 2
                 }
             return selectedIds.map { value ->
                 PromptSideEffect.ChoiceResult(
@@ -397,7 +399,11 @@ class TargetingHandler(
 
         if (selectedIds.isNotEmpty()) {
             log.info("TargetingHandler: Waterbend MakePayment ids={} accumulated={}", selectedIds, selectedSet)
-            sendWaterbendCostPayCostsReq(adjustWaterbendPaymentPrompt(pendingPrompt, selectedSet.toList()))
+            sendPayCostsReq(
+                adjustWaterbendPaymentPrompt(pendingPrompt, selectedSet.toList()),
+                SelectNPromptRoutes.payCosts(PromptSemantic.WaterbendCost)
+                    ?: error("missing PayCosts route for ${PromptSemantic.WaterbendCost}"),
+            )
             return true
         }
 
@@ -673,35 +679,34 @@ class TargetingHandler(
 
     private fun sendSelectNPrompt(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        reason: ClassifiedPrompt.SelectN.Reason,
+        reason: SelectNReason,
     ) {
+        SelectNPromptRoutes.payCosts(pendingPrompt.request.semantic)?.let { route ->
+            sendPayCostsReq(pendingPrompt, route)
+            return
+        }
+
         when (reason) {
-            ClassifiedPrompt.SelectN.Reason.Sacrifice ->
-                sendSacrificePayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.ExileFromGrave ->
-                sendExileFromGravePayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.CollectEvidenceCost ->
-                sendCollectEvidencePayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.EnlistCost ->
-                sendEnlistCostPayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.StationTapCost ->
-                sendStationTapCostPayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost ->
-                sendReturnUnblockedAttackerPayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.WaterbendCost ->
-                sendWaterbendCostPayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.LegendRule,
-            ClassifiedPrompt.SelectN.Reason.Discard,
-            ClassifiedPrompt.SelectN.Reason.SacrificeEffect,
-            ClassifiedPrompt.SelectN.Reason.RevealChoose,
-            ClassifiedPrompt.SelectN.Reason.Resolution,
-            ClassifiedPrompt.SelectN.Reason.LibraryPutback,
-            ClassifiedPrompt.SelectN.Reason.MutateTopBottom,
-            ClassifiedPrompt.SelectN.Reason.LearnLesson,
-            ClassifiedPrompt.SelectN.Reason.StaticColorChoice,
-            ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice,
-            ClassifiedPrompt.SelectN.Reason.StaticParityChoice,
+            SelectNReason.LegendRule,
+            SelectNReason.Discard,
+            SelectNReason.SacrificeEffect,
+            SelectNReason.RevealChoose,
+            SelectNReason.Resolution,
+            SelectNReason.LibraryPutback,
+            SelectNReason.MutateTopBottom,
+            SelectNReason.LearnLesson,
+            SelectNReason.StaticColorChoice,
+            SelectNReason.StaticSubtypeChoice,
+            SelectNReason.StaticParityChoice,
             -> sendSelectNReq(pendingPrompt, reason)
+            SelectNReason.Sacrifice,
+            SelectNReason.ExileFromGrave,
+            SelectNReason.CollectEvidenceCost,
+            SelectNReason.EnlistCost,
+            SelectNReason.StationTapCost,
+            SelectNReason.ReturnUnblockedAttackerCost,
+            SelectNReason.WaterbendCost,
+            -> error("missing PayCosts route for ${pendingPrompt.request.semantic}")
         }
     }
 
@@ -1503,7 +1508,7 @@ class TargetingHandler(
 
     private fun sendSelectNReq(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        reason: ClassifiedPrompt.SelectN.Reason,
+        reason: SelectNReason,
     ) {
         val game = ctx.game
         val bb = bundles.bundleBuilder
@@ -1530,95 +1535,42 @@ class TargetingHandler(
 
     private fun selectNEnvelope(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        reason: ClassifiedPrompt.SelectN.Reason,
+        reason: SelectNReason,
         req: SelectNReq,
     ): SelectNEnvelope =
         when (reason) {
-            ClassifiedPrompt.SelectN.Reason.LegendRule -> SelectNEnvelope.legendRule(req)
-            ClassifiedPrompt.SelectN.Reason.Discard,
-            ClassifiedPrompt.SelectN.Reason.SacrificeEffect,
-            -> SelectNEnvelope.default(req)
-            ClassifiedPrompt.SelectN.Reason.RevealChoose -> SelectNEnvelope.revealChoose(req)
-            ClassifiedPrompt.SelectN.Reason.Resolution -> SelectNEnvelope.resolution(req)
-            ClassifiedPrompt.SelectN.Reason.LibraryPutback -> SelectNEnvelope.libraryPutback(req)
-            ClassifiedPrompt.SelectN.Reason.MutateTopBottom -> SelectNEnvelope.mutateTopBottom(req)
-            ClassifiedPrompt.SelectN.Reason.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId(pendingPrompt))
-            ClassifiedPrompt.SelectN.Reason.StaticColorChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_COLOR)
-            ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_TYPE)
-            ClassifiedPrompt.SelectN.Reason.StaticParityChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_TYPE)
-            ClassifiedPrompt.SelectN.Reason.Sacrifice,
-            ClassifiedPrompt.SelectN.Reason.ExileFromGrave,
-            ClassifiedPrompt.SelectN.Reason.CollectEvidenceCost,
-            ClassifiedPrompt.SelectN.Reason.EnlistCost,
-            ClassifiedPrompt.SelectN.Reason.StationTapCost,
-            ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost,
-            ClassifiedPrompt.SelectN.Reason.WaterbendCost,
+            SelectNReason.Discard,
+            SelectNReason.SacrificeEffect,
+            SelectNReason.LegendRule,
+            SelectNReason.RevealChoose,
+            SelectNReason.Resolution,
+            SelectNReason.LibraryPutback,
+            SelectNReason.MutateTopBottom,
+            SelectNReason.LearnLesson,
+            SelectNReason.StaticColorChoice,
+            SelectNReason.StaticSubtypeChoice,
+            SelectNReason.StaticParityChoice,
+            ->
+                SelectNPromptRoutes.route(pendingPrompt.request.semantic)?.envelope(req) { learnPromptId(pendingPrompt) }
+                    ?: error("missing SelectN route for ${pendingPrompt.request.semantic}")
+            SelectNReason.Sacrifice,
+            SelectNReason.ExileFromGrave,
+            SelectNReason.CollectEvidenceCost,
+            SelectNReason.EnlistCost,
+            SelectNReason.StationTapCost,
+            SelectNReason.ReturnUnblockedAttackerCost,
+            SelectNReason.WaterbendCost,
             -> error("cost SelectN uses PayCostsReq")
         }
 
-    private fun sendSacrificePayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
+    private fun sendPayCostsReq(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        route: PayCostsPromptRoute,
+    ) {
         val bridge = ctx.bridge
-        val (req, prompt) = RequestBuilder.buildSacrificePayCostsReq(pendingPrompt, bridge)
+        val (req, prompt) = route.build(pendingPrompt, bridge)
         val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(sacrifice) seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    private fun sendExileFromGravePayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        val (req, prompt) =
-            RequestBuilder.buildSelectCostPayCostsReq(
-                pendingPrompt,
-                bridge,
-                leyline.game.mapping.PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE,
-            )
-        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(exile-from-grave) seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    private fun sendCollectEvidencePayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        val (req, prompt) = CollectEvidencePayCostsBuilder.build(pendingPrompt, bridge)
-        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(collect-evidence) seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    private fun sendStationTapCostPayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        val (req, prompt) = RequestBuilder.buildStationTapCostPayCostsReq(pendingPrompt, bridge)
-        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(station) seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    private fun sendReturnUnblockedAttackerPayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        val (req, prompt) =
-            RequestBuilder.buildSelectCostPayCostsReq(
-                pendingPrompt,
-                bridge,
-                leyline.game.mapping.PromptIds.NINJUTSU_RETURN_UNBLOCKED_ATTACKER_COST,
-            )
-        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(return-unblocked-attacker) seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    private fun sendWaterbendCostPayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        val (req, prompt) = RequestBuilder.buildWaterbendCostPayCostsReq(pendingPrompt, bridge)
-        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(waterbend) seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    private fun sendEnlistCostPayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        val (req, prompt) = RequestBuilder.buildEnlistCostPayCostsReq(pendingPrompt, bridge)
-        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(enlist) seat=${counters.seatId}")
+        Tap.outboundTemplate("PayCostsReq(${route.templateLabel}) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 
