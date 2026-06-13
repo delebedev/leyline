@@ -13,6 +13,8 @@ import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.CollectEvidencePayCostsBuilder
 import leyline.game.bundle.RequestBuilder
 import leyline.game.bundle.SelectNEnvelope
+import leyline.game.bundle.SelectNPromptRoutes
+import leyline.game.bundle.SelectNReason
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.SearchShape
@@ -74,13 +76,14 @@ class TargetingHandler(
             val source = pendingPrompt.request.sourceEntityId ?: return emptyList()
             val semantic = pendingPrompt.request.semantic
             val (choiceDomain, sentiment) =
-                when {
-                    semantic == PromptSemantic.StaticSubtypeChoice -> 5 to 2
-                    semantic == PromptSemantic.StaticColorChoice -> 6 to 2
-                    semantic == PromptSemantic.StaticParityChoice -> StaticList.Parities.number to 2
-                    semantic == PromptSemantic.SelectNDiscard ||
-                        semantic == PromptSemantic.SelectNSacrificeEffect -> null to 1
-                    else -> return emptyList()
+                when (val staticChoice = SelectNPromptRoutes.staticChoice(semantic)) {
+                    null ->
+                        when {
+                            semantic == PromptSemantic.SelectNDiscard ||
+                                semantic == PromptSemantic.SelectNSacrificeEffect -> null to 1
+                            else -> return emptyList()
+                        }
+                    else -> staticChoice.choiceDomain to 2
                 }
             return selectedIds.map { value ->
                 PromptSideEffect.ChoiceResult(
@@ -673,34 +676,34 @@ class TargetingHandler(
 
     private fun sendSelectNPrompt(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        reason: ClassifiedPrompt.SelectN.Reason,
+        reason: SelectNReason,
     ) {
         when (reason) {
-            ClassifiedPrompt.SelectN.Reason.Sacrifice ->
+            SelectNReason.Sacrifice ->
                 sendSacrificePayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.ExileFromGrave ->
+            SelectNReason.ExileFromGrave ->
                 sendExileFromGravePayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.CollectEvidenceCost ->
+            SelectNReason.CollectEvidenceCost ->
                 sendCollectEvidencePayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.EnlistCost ->
+            SelectNReason.EnlistCost ->
                 sendEnlistCostPayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.StationTapCost ->
+            SelectNReason.StationTapCost ->
                 sendStationTapCostPayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost ->
+            SelectNReason.ReturnUnblockedAttackerCost ->
                 sendReturnUnblockedAttackerPayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.WaterbendCost ->
+            SelectNReason.WaterbendCost ->
                 sendWaterbendCostPayCostsReq(pendingPrompt)
-            ClassifiedPrompt.SelectN.Reason.LegendRule,
-            ClassifiedPrompt.SelectN.Reason.Discard,
-            ClassifiedPrompt.SelectN.Reason.SacrificeEffect,
-            ClassifiedPrompt.SelectN.Reason.RevealChoose,
-            ClassifiedPrompt.SelectN.Reason.Resolution,
-            ClassifiedPrompt.SelectN.Reason.LibraryPutback,
-            ClassifiedPrompt.SelectN.Reason.MutateTopBottom,
-            ClassifiedPrompt.SelectN.Reason.LearnLesson,
-            ClassifiedPrompt.SelectN.Reason.StaticColorChoice,
-            ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice,
-            ClassifiedPrompt.SelectN.Reason.StaticParityChoice,
+            SelectNReason.LegendRule,
+            SelectNReason.Discard,
+            SelectNReason.SacrificeEffect,
+            SelectNReason.RevealChoose,
+            SelectNReason.Resolution,
+            SelectNReason.LibraryPutback,
+            SelectNReason.MutateTopBottom,
+            SelectNReason.LearnLesson,
+            SelectNReason.StaticColorChoice,
+            SelectNReason.StaticSubtypeChoice,
+            SelectNReason.StaticParityChoice,
             -> sendSelectNReq(pendingPrompt, reason)
         }
     }
@@ -1503,7 +1506,7 @@ class TargetingHandler(
 
     private fun sendSelectNReq(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        reason: ClassifiedPrompt.SelectN.Reason,
+        reason: SelectNReason,
     ) {
         val game = ctx.game
         val bb = bundles.bundleBuilder
@@ -1530,29 +1533,35 @@ class TargetingHandler(
 
     private fun selectNEnvelope(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        reason: ClassifiedPrompt.SelectN.Reason,
+        reason: SelectNReason,
         req: SelectNReq,
     ): SelectNEnvelope =
         when (reason) {
-            ClassifiedPrompt.SelectN.Reason.LegendRule -> SelectNEnvelope.legendRule(req)
-            ClassifiedPrompt.SelectN.Reason.Discard,
-            ClassifiedPrompt.SelectN.Reason.SacrificeEffect,
+            SelectNReason.LegendRule -> SelectNEnvelope.legendRule(req)
+            SelectNReason.Discard,
+            SelectNReason.SacrificeEffect,
             -> SelectNEnvelope.default(req)
-            ClassifiedPrompt.SelectN.Reason.RevealChoose -> SelectNEnvelope.revealChoose(req)
-            ClassifiedPrompt.SelectN.Reason.Resolution -> SelectNEnvelope.resolution(req)
-            ClassifiedPrompt.SelectN.Reason.LibraryPutback -> SelectNEnvelope.libraryPutback(req)
-            ClassifiedPrompt.SelectN.Reason.MutateTopBottom -> SelectNEnvelope.mutateTopBottom(req)
-            ClassifiedPrompt.SelectN.Reason.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId(pendingPrompt))
-            ClassifiedPrompt.SelectN.Reason.StaticColorChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_COLOR)
-            ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_TYPE)
-            ClassifiedPrompt.SelectN.Reason.StaticParityChoice -> SelectNEnvelope.staticChoice(req, PromptIds.CHOOSE_TYPE)
-            ClassifiedPrompt.SelectN.Reason.Sacrifice,
-            ClassifiedPrompt.SelectN.Reason.ExileFromGrave,
-            ClassifiedPrompt.SelectN.Reason.CollectEvidenceCost,
-            ClassifiedPrompt.SelectN.Reason.EnlistCost,
-            ClassifiedPrompt.SelectN.Reason.StationTapCost,
-            ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost,
-            ClassifiedPrompt.SelectN.Reason.WaterbendCost,
+            SelectNReason.RevealChoose -> SelectNEnvelope.revealChoose(req)
+            SelectNReason.Resolution -> SelectNEnvelope.resolution(req)
+            SelectNReason.LibraryPutback -> SelectNEnvelope.libraryPutback(req)
+            SelectNReason.MutateTopBottom -> SelectNEnvelope.mutateTopBottom(req)
+            SelectNReason.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId(pendingPrompt))
+            SelectNReason.StaticColorChoice,
+            SelectNReason.StaticSubtypeChoice,
+            SelectNReason.StaticParityChoice,
+            ->
+                SelectNEnvelope.staticChoice(
+                    req,
+                    SelectNPromptRoutes.staticChoice(pendingPrompt.request.semantic)?.outerPromptId
+                        ?: error("missing static choice route for ${pendingPrompt.request.semantic}"),
+                )
+            SelectNReason.Sacrifice,
+            SelectNReason.ExileFromGrave,
+            SelectNReason.CollectEvidenceCost,
+            SelectNReason.EnlistCost,
+            SelectNReason.StationTapCost,
+            SelectNReason.ReturnUnblockedAttackerCost,
+            SelectNReason.WaterbendCost,
             -> error("cost SelectN uses PayCostsReq")
         }
 

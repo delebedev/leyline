@@ -3,6 +3,8 @@ package leyline.match
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
+import leyline.game.bundle.SelectNPromptRoutes
+import leyline.game.bundle.SelectNReason
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 
 /**
@@ -25,29 +27,8 @@ sealed interface ClassifiedPrompt {
 
     data class SelectN(
         override val pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        val reason: Reason,
-    ) : ClassifiedPrompt {
-        enum class Reason {
-            LegendRule,
-            Discard,
-            Sacrifice,
-            SacrificeEffect,
-            RevealChoose,
-            Resolution,
-            LibraryPutback,
-            ExileFromGrave,
-            CollectEvidenceCost,
-            EnlistCost,
-            StationTapCost,
-            ReturnUnblockedAttackerCost,
-            WaterbendCost,
-            MutateTopBottom,
-            LearnLesson,
-            StaticColorChoice,
-            StaticSubtypeChoice,
-            StaticParityChoice,
-        }
-    }
+        val reason: SelectNReason,
+    ) : ClassifiedPrompt
 
     data class Targeting(
         override val pendingPrompt: InteractivePromptBridge.PendingPrompt,
@@ -110,26 +91,26 @@ object PromptClassifier {
         }
     }
 
-    private fun selectNReason(semantic: PromptSemantic): ClassifiedPrompt.SelectN.Reason? =
+    private fun selectNReason(semantic: PromptSemantic): SelectNReason? =
+        SelectNPromptRoutes.staticChoice(semantic)?.reason ?: selectNReasonBySemantic(semantic)
+
+    private fun selectNReasonBySemantic(semantic: PromptSemantic): SelectNReason? =
         when (semantic) {
-            PromptSemantic.SelectNLegendRule -> ClassifiedPrompt.SelectN.Reason.LegendRule
-            PromptSemantic.SelectNDiscard -> ClassifiedPrompt.SelectN.Reason.Discard
-            PromptSemantic.RevealChoose -> ClassifiedPrompt.SelectN.Reason.RevealChoose
-            PromptSemantic.SelectNSacrificeEffect -> ClassifiedPrompt.SelectN.Reason.SacrificeEffect
-            PromptSemantic.SelectNCostSacrifice -> ClassifiedPrompt.SelectN.Reason.Sacrifice
-            PromptSemantic.SelectNCostExileFromGrave -> ClassifiedPrompt.SelectN.Reason.ExileFromGrave
-            PromptSemantic.SelectNCostCollectEvidence -> ClassifiedPrompt.SelectN.Reason.CollectEvidenceCost
-            PromptSemantic.EnlistCost -> ClassifiedPrompt.SelectN.Reason.EnlistCost
-            PromptSemantic.StationTapCost -> ClassifiedPrompt.SelectN.Reason.StationTapCost
-            PromptSemantic.ReturnUnblockedAttackerCost -> ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost
-            PromptSemantic.WaterbendCost -> ClassifiedPrompt.SelectN.Reason.WaterbendCost
-            PromptSemantic.SelectNResolution -> ClassifiedPrompt.SelectN.Reason.Resolution
-            PromptSemantic.SelectNLibraryPutback -> ClassifiedPrompt.SelectN.Reason.LibraryPutback
-            PromptSemantic.MutateTopBottom -> ClassifiedPrompt.SelectN.Reason.MutateTopBottom
-            PromptSemantic.LearnLesson -> ClassifiedPrompt.SelectN.Reason.LearnLesson
-            PromptSemantic.StaticColorChoice -> ClassifiedPrompt.SelectN.Reason.StaticColorChoice
-            PromptSemantic.StaticSubtypeChoice -> ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice
-            PromptSemantic.StaticParityChoice -> ClassifiedPrompt.SelectN.Reason.StaticParityChoice
+            PromptSemantic.SelectNLegendRule -> SelectNReason.LegendRule
+            PromptSemantic.SelectNDiscard -> SelectNReason.Discard
+            PromptSemantic.RevealChoose -> SelectNReason.RevealChoose
+            PromptSemantic.SelectNSacrificeEffect -> SelectNReason.SacrificeEffect
+            PromptSemantic.SelectNCostSacrifice -> SelectNReason.Sacrifice
+            PromptSemantic.SelectNCostExileFromGrave -> SelectNReason.ExileFromGrave
+            PromptSemantic.SelectNCostCollectEvidence -> SelectNReason.CollectEvidenceCost
+            PromptSemantic.EnlistCost -> SelectNReason.EnlistCost
+            PromptSemantic.StationTapCost -> SelectNReason.StationTapCost
+            PromptSemantic.ReturnUnblockedAttackerCost -> SelectNReason.ReturnUnblockedAttackerCost
+            PromptSemantic.WaterbendCost -> SelectNReason.WaterbendCost
+            PromptSemantic.SelectNResolution -> SelectNReason.Resolution
+            PromptSemantic.SelectNLibraryPutback -> SelectNReason.LibraryPutback
+            PromptSemantic.MutateTopBottom -> SelectNReason.MutateTopBottom
+            PromptSemantic.LearnLesson -> SelectNReason.LearnLesson
             PromptSemantic.GroupingSurveil,
             PromptSemantic.GroupingScry,
             PromptSemantic.ModalChoice,
@@ -137,6 +118,9 @@ object PromptClassifier {
             PromptSemantic.OrderForBottom,
             PromptSemantic.OrderForTop,
             PromptSemantic.OrderGeneric,
+            PromptSemantic.StaticColorChoice,
+            PromptSemantic.StaticSubtypeChoice,
+            PromptSemantic.StaticParityChoice,
             PromptSemantic.Generic,
             -> null
         }

@@ -8,6 +8,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.PromptCandidateRefDto
+import leyline.game.bundle.SelectNReason
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.util.concurrent.CompletableFuture
 
@@ -81,7 +82,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.LegendRule
+            result.reason shouldBe SelectNReason.LegendRule
         }
 
         test("discard cost prompt classifies as select-n with Discard reason") {
@@ -93,7 +94,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.Discard
+            result.reason shouldBe SelectNReason.Discard
         }
 
         test("resolution-time multi-pick classifies as select-n with Resolution reason") {
@@ -105,7 +106,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.Resolution
+            result.reason shouldBe SelectNReason.Resolution
         }
 
         test("library putback semantic classifies as select-n with LibraryPutback reason") {
@@ -117,7 +118,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.LibraryPutback
+            result.reason shouldBe SelectNReason.LibraryPutback
         }
 
         test("sacrifice cost semantic classifies as select-n with Sacrifice reason") {
@@ -129,7 +130,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.Sacrifice
+            result.reason shouldBe SelectNReason.Sacrifice
         }
 
         test("sacrifice effect semantic classifies as select-n without cost-payment reason") {
@@ -141,7 +142,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.SacrificeEffect
+            result.reason shouldBe SelectNReason.SacrificeEffect
         }
 
         test("station tap-cost semantic classifies as station cost payment") {
@@ -153,7 +154,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.StationTapCost
+            result.reason shouldBe SelectNReason.StationTapCost
         }
 
         test("collect evidence semantic classifies as weighted cost payment") {
@@ -165,7 +166,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.CollectEvidenceCost
+            result.reason shouldBe SelectNReason.CollectEvidenceCost
         }
 
         test("return-unblocked-attacker semantic classifies as cost payment") {
@@ -177,7 +178,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.ReturnUnblockedAttackerCost
+            result.reason shouldBe SelectNReason.ReturnUnblockedAttackerCost
         }
 
         test("learn semantic classifies as select-n with LearnLesson reason") {
@@ -189,7 +190,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.LearnLesson
+            result.reason shouldBe SelectNReason.LearnLesson
         }
 
         test("static color semantic classifies as select-n") {
@@ -200,7 +201,7 @@ class PromptClassifierTest :
                     semantic = PromptSemantic.StaticColorChoice,
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.StaticColorChoice
+            result.reason shouldBe SelectNReason.StaticColorChoice
         }
 
         test("static subtype semantic classifies as select-n") {
@@ -211,7 +212,7 @@ class PromptClassifierTest :
                     semantic = PromptSemantic.StaticSubtypeChoice,
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.StaticSubtypeChoice
+            result.reason shouldBe SelectNReason.StaticSubtypeChoice
         }
 
         test("static parity semantic classifies as select-n") {
@@ -222,7 +223,7 @@ class PromptClassifierTest :
                     semantic = PromptSemantic.StaticParityChoice,
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.StaticParityChoice
+            result.reason shouldBe SelectNReason.StaticParityChoice
         }
 
         test("library order semantic classifies as order even with card refs") {

@@ -33,12 +33,6 @@ import forge.game.zone.ZoneType as ForgeZoneType
 object RequestBuilder {
     private val log = LoggerFactory.getLogger(RequestBuilder::class.java)
 
-    private data class SelectNShape(
-        val context: SelectionContext,
-        val listType: SelectionListType,
-        val optionContext: OptionContext,
-    )
-
     private const val WATERBEND_PAYMENT_ABILITY_GRP_ID = 384
     private const val WATERBEND_MANA_ID_BASE = 50_000
 
@@ -510,30 +504,15 @@ object RequestBuilder {
     }
 
     private fun selectNShape(semantic: PromptSemantic): SelectNShape =
+        SelectNPromptRoutes.staticChoice(semantic)?.shape ?: selectNShapeBySemantic(semantic)
+
+    private fun selectNShapeBySemantic(semantic: PromptSemantic): SelectNShape =
         when {
             semantic == PromptSemantic.SelectNDiscard ->
                 SelectNShape(
                     SelectionContext.Discard_a163,
                     SelectionListType.Static,
                     OptionContext.Payment,
-                )
-            semantic == PromptSemantic.StaticColorChoice ->
-                SelectNShape(
-                    SelectionContext.Resolution_a163,
-                    SelectionListType.Static,
-                    OptionContext.Resolution_a9d7,
-                )
-            semantic == PromptSemantic.StaticParityChoice ->
-                SelectNShape(
-                    SelectionContext.Resolution_a163,
-                    SelectionListType.Static,
-                    OptionContext.Resolution_a9d7,
-                )
-            semantic == PromptSemantic.StaticSubtypeChoice ->
-                SelectNShape(
-                    SelectionContext.Resolution_a163,
-                    SelectionListType.StaticSubset,
-                    OptionContext.Resolution_a9d7,
                 )
             else ->
                 SelectNShape(
