@@ -15,7 +15,6 @@ import leyline.DevCheck
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
-import leyline.bridge.forge.PlayerController
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
@@ -54,6 +53,8 @@ import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
+import forge.game.player.PlayerController as ForgePlayerController
+import leyline.bridge.forge.PlayerController as BridgedPlayerController
 
 /**
  * Bridges the client protocol to a real Forge [Game] engine.
@@ -276,7 +277,7 @@ class GameBridge(
     }
 
     /** Human player's controller — set during [start]/[startFromPuzzle] for debug observability. */
-    var humanController: PlayerController? = null
+    var humanController: BridgedPlayerController? = null
         private set
 
     private class PlaybackRegistry {
@@ -760,7 +761,7 @@ class GameBridge(
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
         phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
         val controller =
-            PlayerController(
+            BridgedPlayerController(
                 game = g,
                 player = human,
                 lobbyPlayer = human.lobbyPlayer,
@@ -823,6 +824,7 @@ class GameBridge(
         deckList2: String? = null,
         variant: String? = null,
         startGameHook: Runnable? = null,
+        aiControllerFactory: ((Game, Player) -> ForgePlayerController)? = null,
     ) {
         log.info("GameBridge: initializing AI-vs-AI spectator game")
         GameBootstrap.initializeCardDatabase()
@@ -846,6 +848,12 @@ class GameBridge(
             }
         game = g
         populateSeatMap(g)
+
+        if (aiControllerFactory != null) {
+            for (player in g.players) {
+                player.addController(Long.MAX_VALUE - 1, player, aiControllerFactory(g, player), false)
+            }
+        }
 
         val collector = GameEventCollector(this)
         eventCollector = collector
@@ -1180,7 +1188,7 @@ class GameBridge(
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
         phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
         val controller =
-            PlayerController(
+            BridgedPlayerController(
                 game = g,
                 player = human,
                 lobbyPlayer = human.lobbyPlayer,
@@ -1323,7 +1331,7 @@ class GameBridge(
         val tempAction = GameActionBridge(timeoutMs = 0)
         val tempMulligan = MulliganBridge(autoKeep = true, timeoutMs = 0)
         val tempController =
-            PlayerController(
+            BridgedPlayerController(
                 game = player.game,
                 player = player,
                 lobbyPlayer = player.lobbyPlayer,

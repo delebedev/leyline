@@ -51,6 +51,32 @@ Fast tool wiring smoke:
 ./gradlew :matchdoor:simclientSmoke
 ```
 
+Differential policy audit smoke:
+
+```bash
+SIMCLIENT_DECKS="forest-only,bears" \
+SIMCLIENT_SEEDS=1..2 \
+SIMCLIENT_MAX_TURNS=8 \
+SIMCLIENT_GAME_TIMEOUT_SECONDS=30 \
+  ./gradlew :matchdoor:simRef \
+    -PsimrefArgs="--out-dir matchdoor/build/sim-ref-shadow-smoke"
+
+SIMCLIENT_DECKS="forest-only,bears" \
+SIMCLIENT_SEEDS=1..2 \
+SIMCLIENT_POLICY=shadow-ai \
+SIMCLIENT_MAX_TURNS=8 \
+SIMCLIENT_GAME_TIMEOUT_SECONDS=30 \
+  ./gradlew :matchdoor:simclient \
+    -PsimclientArgs="--out-dir matchdoor/build/simclient-shadow-smoke"
+
+./gradlew :matchdoor:simDiffReport \
+  -PsimDiffReportArgs="--ref-dir matchdoor/build/sim-ref-shadow-smoke --cand-dir matchdoor/build/simclient-shadow-smoke --out-dir matchdoor/build/sim-diff-shadow-smoke"
+```
+
+Read `coverage-report.md` as a priority list, not a verdict. Prefer aggregate
+coverage gaps with high `healthyRows` and low `issueRows`. Use advisor-gap
+`category` and `sample` fields to choose the next small policy seam.
+
 Resume or shard a sweep without changing row identity:
 
 ```bash

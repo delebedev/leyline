@@ -122,7 +122,8 @@ data class SimClientConfig(
                   --opponent-deck <name>        Fixed seat-2 deck; omitted means mirror.
                   --puzzles <a.pzl,b.pzl>       Puzzle matrix instead of decks.
                   --seeds <1..20|1,2,3>         Seed matrix.
-                  --policy <greedy|forge-ai>    Prompt policy.
+                  --policy <greedy|forge-ai|shadow-ai>
+                                                  Prompt policy.
                   --max-turns <n>               Turn cap.
                   --game-timeout-seconds <n>    Per-game wall-clock watchdog.
                   --out-dir <path>              Artifact directory.
@@ -155,6 +156,7 @@ private fun defaultQuarantineFile(): File? =
 enum class SimClientPolicyMode {
     Greedy,
     ForgeAi,
+    ShadowAi,
     ;
 
     companion object {
@@ -162,6 +164,7 @@ enum class SimClientPolicyMode {
             when (value.trim().lowercase()) {
                 "greedy" -> Greedy
                 "forge-ai" -> ForgeAi
+                "shadow-ai" -> ShadowAi
                 else -> error("unknown SIMCLIENT_POLICY: $value")
             }
     }

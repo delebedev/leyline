@@ -45,7 +45,7 @@ class SimClientRunner(
     fun run(): SimClientRunResult {
         config.outDir.mkdirs()
         val rows = expandSimClientRows(config)
-        if (rows.any { it.useCardDb }) {
+        if (rows.any { it.useCardDb } || resolvedCardDbPath != null) {
             require(resolvedCardDbPath != null) { "Card database not found; set LEYLINE_CARD_DB or --card-db for deck-file rows" }
         }
         val runLine =
@@ -112,7 +112,7 @@ class SimClientRunner(
                     opponentDeckList = row.opponentDeckList,
                     validation = InvariantSelection.protocolFacts(),
                     validationStrict = false,
-                    cardRepositoryOverride = if (row.useCardDb) cardRepo else null,
+                    cardRepositoryOverride = if (row.useCardDb || resolvedCardDbPath != null) cardRepo else null,
                 )
             is PuzzleSimClientRow ->
                 MatchFlowHarness(
@@ -120,7 +120,7 @@ class SimClientRunner(
                     deckList = null,
                     validation = InvariantSelection.protocolFacts(),
                     validationStrict = false,
-                    cardRepositoryOverride = if (row.useCardDb) cardRepo else null,
+                    cardRepositoryOverride = if (row.useCardDb || resolvedCardDbPath != null) cardRepo else null,
                 )
         }
 
@@ -129,7 +129,12 @@ class SimClientRunner(
         harness: MatchFlowHarness,
         playerLog: PlayerLogWriter,
     ): SimClientDriver {
-        val forgeAi = if (config.policy == SimClientPolicyMode.ForgeAi) ForgeAiPolicy(harness, leyline.bridge.types.SeatId(1)) else null
+        val forgeAi =
+            if (config.policy == SimClientPolicyMode.ForgeAi || config.policy == SimClientPolicyMode.ShadowAi) {
+                ForgeAiPolicy(harness, leyline.bridge.types.SeatId(1))
+            } else {
+                null
+            }
         return when (row) {
             is DeckSimClientRow ->
                 SimClientDriver(
@@ -138,6 +143,7 @@ class SimClientRunner(
                     maxTurns = config.maxTurns,
                     maxIterations = 3_000,
                     forgeAi = forgeAi,
+                    shadowAdvisor = config.policy == SimClientPolicyMode.ShadowAi,
                 )
             is PuzzleSimClientRow ->
                 SimClientDriver(

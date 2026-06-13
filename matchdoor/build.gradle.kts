@@ -167,6 +167,7 @@ val simclient by tasks.registering(JavaExec::class) {
     dependsOn(tasks.named("classes"))
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("leyline.tooling.simclient.SimClientToolKt")
+    workingDir = rootProject.projectDir
     // Only pass through env vars that are actually set — pushing an empty
     // string clobbers the test's `?: default` fallbacks.
     val simclientKnobs =
@@ -204,6 +205,7 @@ val simclientSmoke by tasks.registering(JavaExec::class) {
     dependsOn(tasks.named("classes"))
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("leyline.tooling.simclient.SimClientToolKt")
+    workingDir = rootProject.projectDir
     args(
         "--decks",
         "forest-only",
@@ -217,6 +219,30 @@ val simclientSmoke by tasks.registering(JavaExec::class) {
         "--out-dir",
         "${layout.buildDirectory.get().asFile}/simclient-smoke",
     )
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+}
+
+val simRef by tasks.registering(JavaExec::class) {
+    group = "simclient"
+    description = "Run Forge-AI reference callback ledger rows for simclient differential audit"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("leyline.tooling.simclient.SimRefToolKt")
+    workingDir = rootProject.projectDir
+    args((project.findProperty("simrefArgs") as String?)?.split(" ")?.filter { it.isNotBlank() }.orEmpty())
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+}
+
+val simDiffReport by tasks.registering(JavaExec::class) {
+    group = "simclient"
+    description = "Join sim-ref and simclient artifacts into a differential coverage report"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("leyline.tooling.simclient.SimDiffReportToolKt")
+    workingDir = rootProject.projectDir
+    args((project.findProperty("simDiffReportArgs") as String?)?.split(" ")?.filter { it.isNotBlank() }.orEmpty())
     outputs.upToDateWhen { false }
     outputs.cacheIf { false }
 }

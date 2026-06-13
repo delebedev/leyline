@@ -110,7 +110,8 @@ just simclient mono-r-burn 1..50           # 50 burn games
 just simclient "bears,mono-r-burn" 1..20   # 40 mixed games
 just simclient "Auras,Black aggro" 1,2,3   # 6 games using data/decks/*.txt
 
-# Pick the policy (greedy default; forge-ai consults Forge AI as advisor)
+# Pick the policy (greedy default; forge-ai executes advisor choices; shadow-ai
+# executes greedy choices while tracking advisor-vs-greedy disagreement)
 SIMCLIENT_POLICY=forge-ai just simclient bears 1..5
 
 # Scout mode is the default: record exception stats instead of aborting the batch
@@ -180,7 +181,7 @@ properties (`SIMCLIENT_OPPONENT_DECK` ↔ `-Dsimclient.opponent.deck`):
 | `SIMCLIENT_DECKS` | `forest-only,bears,mono-g-curve,mono-r-burn` | Seat-1 deck matrix; built-ins or `data/decks/<name>.txt` |
 | `SIMCLIENT_OPPONENT_DECK` | unset | Seat-2 fixed deck; unset means mirror |
 | `SIMCLIENT_SEEDS` | `7,13,42,99,314` | Comma list or inclusive range, e.g. `1..20` |
-| `SIMCLIENT_POLICY` | `greedy` | `greedy` or `forge-ai` |
+| `SIMCLIENT_POLICY` | `greedy` | `greedy`, `forge-ai`, or `shadow-ai` |
 | `SIMCLIENT_ACCEPT_OPTIONAL_COSTS` | unset | When `true`, greedy policy accepts optional costs instead of declining them |
 | `SIMCLIENT_MAX_TURNS` | `25` | Unresolved-game cap before cleanup concede |
 | `SIMCLIENT_GAME_TIMEOUT_SECONDS` | `120` | Wall-clock watchdog per game |
@@ -232,6 +233,45 @@ Output filenames are file-safe labels derived from deck names. Fixed-opponent
 runs include `-vs-<opponent>` to avoid overwriting mirror runs for the same
 deck/seed.
 
+## Differential audit smoke
+
+Use `sim-ref` + `shadow-ai` when deciding which prompt policy seam to wire next.
+`sim-ref` records the reference decision callbacks. `shadow-ai` executes the
+greedy policy but consults the advisor and records disagreements. The report
+joins both outputs into coverage gaps and advisor gaps.
+
+```bash
+SIMCLIENT_DECKS="forest-only,bears" \
+SIMCLIENT_SEEDS=1..2 \
+SIMCLIENT_MAX_TURNS=8 \
+SIMCLIENT_GAME_TIMEOUT_SECONDS=30 \
+  ./gradlew :matchdoor:simRef \
+    -PsimrefArgs="--out-dir matchdoor/build/sim-ref-shadow-smoke"
+
+SIMCLIENT_DECKS="forest-only,bears" \
+SIMCLIENT_SEEDS=1..2 \
+SIMCLIENT_POLICY=shadow-ai \
+SIMCLIENT_MAX_TURNS=8 \
+SIMCLIENT_GAME_TIMEOUT_SECONDS=30 \
+  ./gradlew :matchdoor:simclient \
+    -PsimclientArgs="--out-dir matchdoor/build/simclient-shadow-smoke"
+
+./gradlew :matchdoor:simDiffReport \
+  -PsimDiffReportArgs="--ref-dir matchdoor/build/sim-ref-shadow-smoke --cand-dir matchdoor/build/simclient-shadow-smoke --out-dir matchdoor/build/sim-diff-shadow-smoke"
+```
+
+Read `coverage-report.md` in this order:
+
+- **Row health**: `natural` and `max-turns` rows are usable comparison signal;
+  `issue` rows had errors/timeouts and lower confidence.
+- **Aggregate-zero mapped coverage gaps**: callbacks fired in the reference rows
+  while the candidate emitted none of the mapped prompt type. Prefer gaps with
+  high `healthyRows` and low `issueRows`.
+- **Advisor-gap ranking**: surfaced prompts where greedy and advisor choices
+  disagreed. `category` and `sample` identify the policy seam to inspect first.
+- **Callback disposition notes**: explains unmapped callbacks and mapped special
+  cases such as mana color choices.
+
 ## Trackio Ledger
 
 Use Trackio as a lightweight dashboard over simclient artifacts, not as a
@@ -273,25 +313,26 @@ make the failure deterministic, patch, then widen.
 
 ## Policy modes — what each prompt does
 
-`SIMCLIENT_POLICY=greedy` (default) or `forge-ai`. Forge-AI mode falls through
-to greedy on prompts not yet wired through an AI translator or when the advisor
-returns no useful choice.
+`SIMCLIENT_POLICY=greedy` (default), `forge-ai`, or `shadow-ai`. Forge-AI mode
+executes advisor choices and falls through to greedy on prompts not yet wired
+through an AI translator or when the advisor returns no useful choice.
+Shadow-AI mode keeps greedy behavior but records advisor-vs-greedy telemetry.
 
-| Prompt | greedy | forge-ai |
-|---|---|---|
-| `MulliganReq` | always keep (via `connectAndKeep`) | same |
-| `ActionsAvailableReq` | prompt-bound land then first castable spell, else pass | AI picks from the active prompt's AAR actions; falls through to greedy on null / no-castable |
-| `DeclareAttackersReq` | declare all, then submit | AI chooses attackers; falls through to greedy on null |
-| `DeclareBlockersReq` | submit empty | AI mutates live `Combat`; emits the resulting blocker→attacker map |
-| `SelectTargetsReq` | first legal target across slots | greedy (translator not yet wired) |
-| `SelectNReq` | choose minimum required ids | AI handles hand-card choices; greedy otherwise |
-| `SearchReq` | choose up to `maxFind` from sought ids | greedy |
-| `PayCostsReq` | choose minimum required non-mana cost ids | greedy |
-| `GroupReq` | scry-style top-all | greedy |
-| `CastingTimeOptionsReq` | decline all (`ctoId=0`) | greedy |
-| `NumericInputReq` | submit bounded small value | greedy |
-| `AssignDamageReq` | echo server-prefilled damage assignments | greedy |
-| `IntermissionReq` | pass | greedy |
+| Prompt | greedy | forge-ai | shadow-ai |
+|---|---|---|---|
+| `MulliganReq` | always keep (via `connectAndKeep`) | same | same |
+| `ActionsAvailableReq` | prompt-bound land then first castable spell, else pass | AI picks from the active prompt's AAR actions; falls through to greedy on null / no-castable | submit greedy, record advisor choice when available |
+| `DeclareAttackersReq` | declare all, then submit | AI chooses attackers; falls through to greedy on null | submit greedy, record advisor choice when available |
+| `DeclareBlockersReq` | submit empty | AI mutates live `Combat`; emits the resulting blocker→attacker map | submit greedy, record advisor choice when available |
+| `SelectTargetsReq` | first legal target across slots | greedy (translator not yet wired) | submit greedy, record advisor choice when available |
+| `SelectNReq` | choose minimum required ids | AI handles hand-card choices; greedy otherwise | submit greedy, record advisor choice when available |
+| `SearchReq` | choose up to `maxFind` from sought ids | greedy | greedy |
+| `PayCostsReq` | choose minimum required non-mana cost ids | greedy | greedy |
+| `GroupReq` | scry-style top-all | greedy | greedy |
+| `CastingTimeOptionsReq` | decline all (`ctoId=0`) | greedy | greedy |
+| `NumericInputReq` | submit bounded small value | greedy | greedy |
+| `AssignDamageReq` | echo server-prefilled damage assignments | greedy | greedy |
+| `IntermissionReq` | pass | greedy | greedy |
 
 Anything outside the table falls back to `passPriority`. Adding a new AI
 translator: see "Forge-AI advisor" below.
