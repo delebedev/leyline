@@ -37,16 +37,16 @@ class RequestBuilderStaticChoiceTest :
             val selectNReq = SelectNReq.newBuilder().setSourceId(123).build()
 
             assertSoftly {
-                color.staticChoice!!.outerPromptId shouldBe PromptIds.CHOOSE_COLOR
-                color.staticChoice.choiceDomain shouldBe 6
+                color.outerPromptId shouldBe PromptIds.CHOOSE_COLOR
+                color.choiceDomain shouldBe 6
                 SelectNPromptRoutes.staticChoiceEnvelope(PromptSemantic.StaticColorChoice, selectNReq).prompt.promptId shouldBe
                     PromptIds.CHOOSE_COLOR
-                subtype.staticChoice!!.outerPromptId shouldBe PromptIds.CHOOSE_TYPE
-                subtype.staticChoice.choiceDomain shouldBe 5
+                subtype.outerPromptId shouldBe PromptIds.CHOOSE_TYPE
+                subtype.choiceDomain shouldBe 5
                 SelectNPromptRoutes.staticChoiceEnvelope(PromptSemantic.StaticSubtypeChoice, selectNReq).prompt.promptId shouldBe
                     PromptIds.CHOOSE_TYPE
-                parity.staticChoice!!.outerPromptId shouldBe PromptIds.CHOOSE_TYPE
-                parity.staticChoice.choiceDomain shouldBe StaticList.Parities.number
+                parity.outerPromptId shouldBe PromptIds.CHOOSE_TYPE
+                parity.choiceDomain shouldBe StaticList.Parities.number
                 SelectNPromptRoutes.staticChoiceEnvelope(PromptSemantic.StaticParityChoice, selectNReq).prompt.promptId shouldBe
                     PromptIds.CHOOSE_TYPE
             }

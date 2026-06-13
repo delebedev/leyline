@@ -82,7 +82,7 @@ class TargetingHandler(
                                 semantic == PromptSemantic.SelectNSacrificeEffect -> null to 1
                             else -> return emptyList()
                         }
-                    else -> staticChoice.staticChoice!!.choiceDomain to 2
+                    else -> staticChoice.choiceDomain to 2
                 }
             return selectedIds.map { value ->
                 PromptSideEffect.ChoiceResult(
