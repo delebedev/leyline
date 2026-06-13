@@ -9,6 +9,7 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.ForgeCardId
 import leyline.game.InMemoryCardRepository
+import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
@@ -27,6 +28,21 @@ class RequestBuilderStaticChoiceTest :
                 request = request,
                 future = CompletableFuture(),
             )
+
+        test("static choice routes pin outer prompt ids and choice domains") {
+            val color = SelectNPromptRoutes.staticChoice(PromptSemantic.StaticColorChoice)!!
+            val subtype = SelectNPromptRoutes.staticChoice(PromptSemantic.StaticSubtypeChoice)!!
+            val parity = SelectNPromptRoutes.staticChoice(PromptSemantic.StaticParityChoice)!!
+
+            assertSoftly {
+                color.outerPromptId shouldBe PromptIds.CHOOSE_COLOR
+                color.choiceDomain shouldBe 6
+                subtype.outerPromptId shouldBe PromptIds.CHOOSE_TYPE
+                subtype.choiceDomain shouldBe 5
+                parity.outerPromptId shouldBe PromptIds.CHOOSE_TYPE
+                parity.choiceDomain shouldBe StaticList.Parities.number
+            }
+        }
 
         test("color choices use the static Colors domain without ids or instance id type") {
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())

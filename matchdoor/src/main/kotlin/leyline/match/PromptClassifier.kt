@@ -4,7 +4,6 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.game.bundle.SelectNPromptRoutes
-import leyline.game.bundle.SelectNReason
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 
 /**
@@ -91,8 +90,16 @@ object PromptClassifier {
         }
     }
 
-    private fun selectNReason(semantic: PromptSemantic): SelectNReason? =
-        SelectNPromptRoutes.staticChoice(semantic)?.reason ?: selectNReasonBySemantic(semantic)
+    private fun selectNReason(semantic: PromptSemantic): SelectNReason? = staticChoiceReason(semantic) ?: selectNReasonBySemantic(semantic)
+
+    private fun staticChoiceReason(semantic: PromptSemantic): SelectNReason? =
+        when {
+            SelectNPromptRoutes.staticChoice(semantic) == null -> null
+            semantic == PromptSemantic.StaticColorChoice -> SelectNReason.StaticColorChoice
+            semantic == PromptSemantic.StaticSubtypeChoice -> SelectNReason.StaticSubtypeChoice
+            semantic == PromptSemantic.StaticParityChoice -> SelectNReason.StaticParityChoice
+            else -> null
+        }
 
     private fun selectNReasonBySemantic(semantic: PromptSemantic): SelectNReason? =
         when (semantic) {

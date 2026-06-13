@@ -7,27 +7,6 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
-enum class SelectNReason {
-    LegendRule,
-    Discard,
-    Sacrifice,
-    SacrificeEffect,
-    RevealChoose,
-    Resolution,
-    LibraryPutback,
-    ExileFromGrave,
-    CollectEvidenceCost,
-    EnlistCost,
-    StationTapCost,
-    ReturnUnblockedAttackerCost,
-    WaterbendCost,
-    MutateTopBottom,
-    LearnLesson,
-    StaticColorChoice,
-    StaticSubtypeChoice,
-    StaticParityChoice,
-}
-
 internal data class SelectNShape(
     val context: SelectionContext,
     val listType: SelectionListType,
@@ -36,7 +15,6 @@ internal data class SelectNShape(
 
 internal data class StaticChoiceSelectNRoute(
     val semantic: PromptSemantic,
-    val reason: SelectNReason,
     val shape: SelectNShape,
     val outerPromptId: Int,
     val choiceDomain: Int,
@@ -54,21 +32,18 @@ internal object SelectNPromptRoutes {
         listOf(
             StaticChoiceSelectNRoute(
                 semantic = PromptSemantic.StaticColorChoice,
-                reason = SelectNReason.StaticColorChoice,
                 shape = staticResolutionShape,
                 outerPromptId = PromptIds.CHOOSE_COLOR,
                 choiceDomain = 6,
             ),
             StaticChoiceSelectNRoute(
                 semantic = PromptSemantic.StaticSubtypeChoice,
-                reason = SelectNReason.StaticSubtypeChoice,
                 shape = staticResolutionShape.copy(listType = SelectionListType.StaticSubset),
                 outerPromptId = PromptIds.CHOOSE_TYPE,
                 choiceDomain = 5,
             ),
             StaticChoiceSelectNRoute(
                 semantic = PromptSemantic.StaticParityChoice,
-                reason = SelectNReason.StaticParityChoice,
                 shape = staticResolutionShape,
                 outerPromptId = PromptIds.CHOOSE_TYPE,
                 choiceDomain = StaticList.Parities.number,
