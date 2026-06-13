@@ -585,3 +585,20 @@ scenarios:
       - resolve_stack: {}
       - expect:
           stack_empty: true
+  - id: planeswalker-combat-destroy
+    puzzle: planeswalker-combat-destroy
+    run: attack Liliana of the Veil with Raging Goblin
+    expect: Liliana is destroyed and opponent life stays unchanged
+    steps:
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack: { cards: [Raging Goblin], target: { side: opponent, zone: battlefield, card: Liliana of the Veil } }
+      - pass_until:
+          phase: Main2
+          max_passes: 8
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Liliana of the Veil }
+            - zone_contains: { side: opponent, zone: graveyard, card: Liliana of the Veil }
+            - opponent_life: 20

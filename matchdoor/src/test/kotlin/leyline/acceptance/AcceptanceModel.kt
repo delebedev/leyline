@@ -86,8 +86,9 @@ data class BlockStep(
 data class AttackStep(
     val cards: List<String>,
     val altCost: AcceptanceAltCost? = null,
+    val target: AcceptanceTargetSpec? = null,
 ) : AcceptanceStep {
-    override val label: String = "attack ${cards.joinToString()}"
+    override val label: String = "attack ${cards.joinToString()}${target?.let { " at ${it.label}" } ?: ""}"
 }
 
 data class TurnFaceUpStep(

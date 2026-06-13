@@ -36,6 +36,7 @@ class AcceptanceSuiteLoaderTest :
                     |      - select_card: { zone: sideboard, card: Environmental Sciences }
                     |      - select_cards: { zone: library, cards: [Lightning Bolt, Counterspell] }
                     |      - order_cards: [Counterspell, Lightning Bolt]
+                    |      - attack: { cards: [Raging Goblin], target: { side: opponent, zone: battlefield, card: Liliana of the Veil } }
                     |      - expect:
                     |          all:
                     |            - prompt: { type: OrderReq, prompt_id: 42 }
@@ -50,7 +51,7 @@ class AcceptanceSuiteLoaderTest :
                 suite.scenarios shouldHaveSize 1
                 val scenario = suite.scenarios.single()
                 scenario.id shouldBe "cast-face"
-                scenario.steps shouldHaveSize 16
+                scenario.steps shouldHaveSize 17
                 scenario.steps[0] shouldBe WaitStep(listOf(ActionAvailableCondition(AcceptanceActionType.Activate, "Miscalculation")))
                 scenario.steps[1] shouldBe ActivateStep("Miscalculation", AcceptanceZone.Hand, 0)
                 scenario.steps[2] shouldBe ChooseStep(AcceptanceCastingTimeOption.Kicker, null)
@@ -67,6 +68,11 @@ class AcceptanceSuiteLoaderTest :
                 scenario.steps[13] shouldBe SelectCardsStep(zone = AcceptanceZone.Library, cards = listOf("Lightning Bolt", "Counterspell"))
                 scenario.steps[14] shouldBe OrderCardsStep(listOf("Counterspell", "Lightning Bolt"))
                 scenario.steps[15] shouldBe
+                    AttackStep(
+                        cards = listOf("Raging Goblin"),
+                        target = CardTargetSpec(AcceptanceSide.Opponent, AcceptanceZone.Battlefield, "Liliana of the Veil"),
+                    )
+                scenario.steps[16] shouldBe
                     ExpectStep(
                         listOf(
                             PromptCondition("OrderReq", 42),

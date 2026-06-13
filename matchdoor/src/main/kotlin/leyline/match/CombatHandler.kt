@@ -13,6 +13,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.opponent
 import leyline.game.bundle.RequestBuilder
 import leyline.game.mapping.PromptIds
+import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
@@ -48,6 +49,7 @@ open class CombatHandler(
      *  (the "Done" button, which carries no payload). */
     private var lastDeclaredAttackerIds: List<Int> = emptyList()
     private var lastDeclaredAttackAlternatives: Map<Int, Int> = emptyMap()
+    private var lastDeclaredDamageRecipients: Map<Int, DamageRecipient> = emptyMap()
 
     /** Last declared blocker assignments: blockerInstanceId → attackerInstanceId.
      *  Updated by iterative DeclareBlockersResp, consumed by SubmitBlockersReq. */
@@ -64,9 +66,33 @@ open class CombatHandler(
         pendingLegalAttackers = emptyList()
         lastDeclaredAttackerIds = emptyList()
         lastDeclaredAttackAlternatives = emptyMap()
+        lastDeclaredDamageRecipients = emptyMap()
         lastDeclaredBlockAssignments.clear()
         pendingBlockersSent = false
     }
+
+    private fun defaultAttackRecipient(): DamageRecipient =
+        DamageRecipient
+            .newBuilder()
+            .setType(DamageRecType.Player_a0e5)
+            .setPlayerSystemSeatId(counters.seatId.opponent.value)
+            .build()
+
+    private data class AttackSelection(
+        val alternativeGrpId: Int,
+        val damageRecipient: DamageRecipient,
+    )
+
+    private fun DamageRecipient.toTarget(bridge: GameBridge): Target? =
+        when (type) {
+            DamageRecType.None_a0e5,
+            DamageRecType.Team_a0e5,
+            DamageRecType.UNRECOGNIZED,
+            -> null
+            DamageRecType.Player_a0e5 -> Target.Player(ForgePlayerId(playerSystemSeatId))
+            DamageRecType.PlanesWalker ->
+                bridge.getForgeCardId(InstanceId(planeswalkerInstanceId))?.let { Target.Card(it) }
+        }
 
     /**
      * Loop signal from combat phase checks.
@@ -132,21 +158,39 @@ open class CombatHandler(
                 // "Attack All" — select all legal attackers
                 lastDeclaredAttackerIds = pendingLegalAttackers.toList()
                 lastDeclaredAttackAlternatives = lastDeclaredAttackerIds.associateWith { 0 }
+                lastDeclaredDamageRecipients = lastDeclaredAttackerIds.associateWith { defaultAttackRecipient() }
                 log.info("CombatHandler: Attack All — selected all {} pending attackers", lastDeclaredAttackerIds.size)
             } else {
                 // XOR toggle: selectedAttackers contains the clicked attacker option.
                 // Same option toggles off; a different alternativeGrpId switches the option.
-                val current = lastDeclaredAttackAlternatives.toMutableMap()
+                val current =
+                    lastDeclaredAttackerIds
+                        .associateWith { id ->
+                            AttackSelection(
+                                alternativeGrpId = lastDeclaredAttackAlternatives[id] ?: 0,
+                                damageRecipient = lastDeclaredDamageRecipients[id] ?: defaultAttackRecipient(),
+                            )
+                        }.toMutableMap()
                 for (attacker in resp.selectedAttackersList) {
                     val id = attacker.attackerInstanceId
-                    val alternativeGrpId = attacker.alternativeGrpId
-                    if (current[id] == alternativeGrpId) {
+                    val selection =
+                        AttackSelection(
+                            alternativeGrpId = attacker.alternativeGrpId,
+                            damageRecipient =
+                                if (attacker.hasSelectedDamageRecipient()) {
+                                    attacker.selectedDamageRecipient
+                                } else {
+                                    defaultAttackRecipient()
+                                },
+                        )
+                    if (current[id] == selection) {
                         current.remove(id)
                     } else {
-                        current[id] = alternativeGrpId
+                        current[id] = selection
                     }
                 }
-                lastDeclaredAttackAlternatives = current
+                lastDeclaredAttackAlternatives = current.mapValues { it.value.alternativeGrpId }
+                lastDeclaredDamageRecipients = current.mapValues { it.value.damageRecipient }
                 lastDeclaredAttackerIds = current.keys.toList()
                 log.info("CombatHandler: toggle {} → committed {}", resp.selectedAttackersList, lastDeclaredAttackAlternatives)
             }
@@ -184,6 +228,7 @@ open class CombatHandler(
                 }
             }
         val selectedAlternatives = lastDeclaredAttackAlternatives
+        val selectedDamageRecipients = lastDeclaredDamageRecipients
         val attackAlternativeByAttacker =
             selectedInstanceIds
                 .mapNotNull { instanceId ->
@@ -191,9 +236,17 @@ open class CombatHandler(
                     val alternativeGrpId = selectedAlternatives[instanceId] ?: 0
                     if (alternativeGrpId == 0) null else cardId to alternativeGrpId
                 }.toMap()
+        val defenderByAttacker =
+            selectedInstanceIds
+                .mapNotNull { instanceId ->
+                    val cardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@mapNotNull null
+                    val target = selectedDamageRecipients[instanceId]?.toTarget(bridge) ?: return@mapNotNull null
+                    cardId to target
+                }.toMap()
         pendingLegalAttackers = emptyList()
         lastDeclaredAttackerIds = emptyList()
         lastDeclaredAttackAlternatives = emptyMap()
+        lastDeclaredDamageRecipients = emptyMap()
 
         log.info("CombatHandler: SubmitAttackers forgeCardIds={}", attackerCardIds)
 
@@ -219,6 +272,7 @@ open class CombatHandler(
                 attackerCardIds,
                 attackAlternativeByAttacker = attackAlternativeByAttacker,
                 defender = defenderPlayerId?.let { Target.Player(ForgePlayerId(it)) },
+                defenderByAttacker = defenderByAttacker,
             ),
         )
         bridge.awaitPriority()
@@ -248,6 +302,7 @@ open class CombatHandler(
         pendingLegalAttackers = emptyList()
         lastDeclaredAttackerIds = emptyList()
         lastDeclaredAttackAlternatives = emptyMap()
+        lastDeclaredDamageRecipients = emptyMap()
 
         sink.sendBundledGRE(
             listOf(
@@ -670,6 +725,7 @@ open class CombatHandler(
                 counters.counter,
                 selectedAttackerIds = lastDeclaredAttackerIds,
                 selectedAttackAlternatives = lastDeclaredAttackAlternatives,
+                selectedDamageRecipients = lastDeclaredDamageRecipients,
                 allLegalAttackerIds = pendingLegalAttackers,
             )
         Tap.outboundTemplate("DeclareAttackersReq echo seat=${counters.seatId}")
@@ -691,6 +747,8 @@ open class CombatHandler(
         if (resetSelection) {
             // Initial send — no attackers selected yet. Client clicks populate lastDeclaredAttackerIds.
             lastDeclaredAttackerIds = emptyList()
+            lastDeclaredAttackAlternatives = emptyMap()
+            lastDeclaredDamageRecipients = emptyMap()
         }
         log.debug("DeclareAttackersReq: pendingLegalAttackers={} lastDeclared={}", pendingLegalAttackers, lastDeclaredAttackerIds)
 

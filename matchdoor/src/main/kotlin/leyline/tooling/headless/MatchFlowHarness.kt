@@ -518,6 +518,11 @@ class MatchFlowHarness(
      */
     fun declareAttackers(attackerInstanceIds: List<Int>) = combatDriver.declareAttackers(attackerInstanceIds)
 
+    fun declareAttackers(
+        attackerInstanceIds: List<Int>,
+        damageRecipients: Map<Int, DamageRecipient>,
+    ) = combatDriver.declareAttackers(attackerInstanceIds, damageRecipients)
+
     /** Declare no attackers (skip combat). Sends empty selection then submits. */
     fun declareNoAttackers() = combatDriver.declareNoAttackers()
 
@@ -528,7 +533,8 @@ class MatchFlowHarness(
     fun toggleAttackers(
         attackerInstanceIds: List<Int>,
         attackerAlternatives: Map<Int, Int> = emptyMap(),
-    ): List<GREToClientMessage> = combatDriver.toggleAttackers(attackerInstanceIds, attackerAlternatives)
+        damageRecipients: Map<Int, DamageRecipient> = emptyMap(),
+    ): List<GREToClientMessage> = combatDriver.toggleAttackers(attackerInstanceIds, attackerAlternatives, damageRecipients)
 
     /**
      * Send SubmitAttackersReq (type=31, no payload) — the reference client's "Done" button.

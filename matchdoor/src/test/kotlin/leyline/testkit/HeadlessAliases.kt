@@ -43,9 +43,20 @@ fun performAction(block: Action.Builder.() -> Unit): ClientToGREMessage = leylin
 fun declareAttackersResp(
     attackers: List<Int> = emptyList(),
     attackerAlternatives: Map<Int, Int> = emptyMap(),
+    damageRecipients: Map<Int, DamageRecipient> = emptyMap(),
     autoDeclare: Boolean = false,
     autoDeclareTarget: Int? = null,
-): ClientToGREMessage = leyline.tooling.headless.declareAttackersResp(attackers, attackerAlternatives, autoDeclare, autoDeclareTarget)
+): ClientToGREMessage =
+    leyline.tooling.headless.declareAttackersResp(
+        attackers = attackers,
+        attackerAlternatives = attackerAlternatives,
+        damageRecipients = damageRecipients,
+        autoDeclare = autoDeclare,
+        autoDeclareTarget = autoDeclareTarget,
+    )
+
+fun planeswalkerDamageRecipient(planeswalkerInstanceId: Int): DamageRecipient =
+    leyline.tooling.headless.planeswalkerDamageRecipient(planeswalkerInstanceId)
 
 fun submitAttackersReq(seatId: Int = 1): ClientToGREMessage = leyline.tooling.headless.submitAttackersReq(seatId)
 

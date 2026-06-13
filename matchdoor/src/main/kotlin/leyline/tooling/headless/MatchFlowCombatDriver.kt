@@ -6,6 +6,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
 import leyline.match.MatchSession
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 internal class MatchFlowCombatDriver(
@@ -29,8 +30,20 @@ internal class MatchFlowCombatDriver(
     }
 
     fun declareAttackers(attackerInstanceIds: List<Int>) {
+        declareAttackers(attackerInstanceIds, emptyMap())
+    }
+
+    fun declareAttackers(
+        attackerInstanceIds: List<Int>,
+        damageRecipients: Map<Int, DamageRecipient>,
+    ) {
         session().onDeclareAttackers(
-            submitWithGsId(declareAttackersResp(attackers = attackerInstanceIds)),
+            submitWithGsId(
+                declareAttackersResp(
+                    attackers = attackerInstanceIds,
+                    damageRecipients = damageRecipients,
+                ),
+            ),
         )
         drainSink()
 
@@ -45,6 +58,7 @@ internal class MatchFlowCombatDriver(
     fun toggleAttackers(
         attackerInstanceIds: List<Int>,
         attackerAlternatives: Map<Int, Int> = emptyMap(),
+        damageRecipients: Map<Int, DamageRecipient> = emptyMap(),
     ): List<GREToClientMessage> {
         val snap = messageSnapshot()
         session().onDeclareAttackers(
@@ -52,6 +66,7 @@ internal class MatchFlowCombatDriver(
                 declareAttackersResp(
                     attackers = attackerInstanceIds,
                     attackerAlternatives = attackerAlternatives,
+                    damageRecipients = damageRecipients,
                 ),
             ),
         )

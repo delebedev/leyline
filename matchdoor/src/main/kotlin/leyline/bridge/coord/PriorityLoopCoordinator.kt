@@ -157,11 +157,15 @@ class PriorityLoopCoordinator(
         when (val action = actionBridge.awaitAction(state)) {
             is PlayerAction.DeclareAttackers -> {
                 pendingAttackAlternativeByAttacker = action.attackAlternativeByAttacker
-                val resolvedDefender = resolveAttackDefender(game, attacker, action.defender)
+                val fallbackDefender = resolveAttackDefender(game, attacker, action.defender)
                 for (cardId in action.attackerIds) {
                     val card = findCard(game, cardId) ?: continue
                     if (!CombatUtil.canAttack(card)) continue
-                    val defender = resolvedDefender ?: combat.defenders.firstOrNull() ?: continue
+                    val defender =
+                        action.defenderByAttacker[cardId]?.let { resolveAttackDefender(game, attacker, it) }
+                            ?: fallbackDefender
+                            ?: combat.defenders.firstOrNull()
+                            ?: continue
                     combat.addAttacker(card, defender)
                 }
             }

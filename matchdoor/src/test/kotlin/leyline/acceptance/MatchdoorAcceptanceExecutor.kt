@@ -14,6 +14,8 @@ import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
+import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
@@ -249,9 +251,43 @@ class MatchdoorAcceptanceExecutor(
         }
         val attackerIds = step.cards.map { resolveBattlefieldCard(harness, AcceptanceSide.Ours, it) }
         val alternatives = step.altCost?.let { altCost -> attackerIds.associateWith { keywordAbilityId(altCost) } }.orEmpty()
-        harness.toggleAttackers(attackerIds, alternatives)
+        val damageRecipients =
+            step.target
+                ?.let { target -> attackerIds.associateWith { damageRecipientForAttackTarget(harness, target, context) } }
+                .orEmpty()
+        harness.toggleAttackers(attackerIds, alternatives, damageRecipients)
         harness.submitAttackers()
     }
+
+    private fun damageRecipientForAttackTarget(
+        harness: MatchFlowHarness,
+        target: AcceptanceTargetSpec,
+        context: String,
+    ): DamageRecipient =
+        when (target) {
+            is PlayerTargetSpec ->
+                DamageRecipient
+                    .newBuilder()
+                    .setType(DamageRecType.Player_a0e5)
+                    .setPlayerSystemSeatId(seat(target.side).value)
+                    .build()
+
+            is CardTargetSpec -> {
+                require(target.side == AcceptanceSide.Opponent && target.zone == AcceptanceZone.Battlefield) {
+                    "$context attack target must be an opponent battlefield planeswalker, got ${target.label}"
+                }
+                val card =
+                    cardsInZone(harness, target.side, target.zone)
+                        .firstOrNull { it.name.equals(target.card, ignoreCase = true) }
+                        ?: error("$context could not find attack target ${target.label}")
+                require(card.isPlaneswalker) { "$context attack target ${target.card} is not a planeswalker" }
+                DamageRecipient
+                    .newBuilder()
+                    .setType(DamageRecType.PlanesWalker)
+                    .setPlaneswalkerInstanceId(harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
+                    .build()
+            }
+        }
 
     private fun turnFaceUp(
         harness: MatchFlowHarness,

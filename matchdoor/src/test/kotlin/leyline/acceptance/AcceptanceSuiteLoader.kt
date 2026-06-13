@@ -225,6 +225,7 @@ object AcceptanceSuiteLoader {
         return AttackStep(
             cards = map.requiredList("cards", context).mapIndexed { index, item -> item.asString("$context.cards[$index]") },
             altCost = map.optionalString("alt_cost")?.let(AcceptanceAltCost::parse),
+            target = map["target"]?.let { parseTarget(it, "$context.target") },
         )
     }
 

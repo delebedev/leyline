@@ -497,6 +497,7 @@ class BundleBuilder(
         selectedAttackerIds: List<Int>,
         allLegalAttackerIds: List<Int>,
         selectedAttackAlternatives: Map<Int, Int> = emptyMap(),
+        selectedDamageRecipients: Map<Int, DamageRecipient> = emptyMap(),
     ): BundleResult {
         val nextGs = counter.nextGsId()
         val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
@@ -549,6 +550,7 @@ class BundleBuilder(
                 bridge,
                 committedAttackerIds = selectedAttackerIds.toSet(),
                 committedAttackAlternatives = selectedAttackAlternatives,
+                committedDamageRecipients = selectedDamageRecipients,
             )
         val msg2 =
             makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, counter.nextMsgId()) {
