@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldNotBe
 import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.RoomDoorCastDescriptors
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTestBase
 import leyline.testkit.humanPlayer
@@ -179,7 +180,7 @@ class RoomActionTest :
             roomOffersForIid(actions.inactiveActionsList, iid).shouldBeEmpty()
         }
 
-        test("pickRoomDoorSa from hand returns the per-door SpellPermanent SA") {
+        test("room door descriptors use the same hand SA for offer and accept") {
             // Regression: ActionPerformer's CastRightRoom accept arm originally
             // looked up `card.getUnlockAbility(state)` and matched by reference
             // in `getAllCastableAbilities`. From hand the unlock SA's canPlay
@@ -196,22 +197,23 @@ class RoomActionTest :
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.isRoom }
+            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val offers = roomOffersForIid(actions.actionsList, iid)
 
-            val leftSa = leyline.bridge.pickRoomDoorSa(card, forge.card.CardStateName.LeftSplit)
-            val rightSa = leyline.bridge.pickRoomDoorSa(card, forge.card.CardStateName.RightSplit)
             val castable = leyline.bridge.getAllCastableAbilities(card, human)
+            offers.map { it.actionType } shouldContainExactlyInAnyOrder
+                listOf(ActionType.CastLeftRoom, ActionType.CastRightRoom)
             assertSoftly {
-                leftSa shouldNotBe null
-                rightSa shouldNotBe null
-                leftSa!!.cardStateName shouldBe forge.card.CardStateName.LeftSplit
-                rightSa!!.cardStateName shouldBe forge.card.CardStateName.RightSplit
-                // Both must be reachable in getAllCastableAbilities so the
-                // ActionPerformer accept arm's `===` lookup succeeds.
-                castable.any { it === leftSa } shouldBe true
-                castable.any { it === rightSa } shouldBe true
+                offers.forEach { offer ->
+                    val descriptor = RoomDoorCastDescriptors.forActionType(offer.actionType)!!
+                    val selected = descriptor.pickSpellAbility(card)
+                    selected shouldNotBe null
+                    // The accept resolver must point back to the exact SA the
+                    // offer descriptor selected.
+                    descriptor.resolveAbilityIndex(card, human) shouldBe castable.indexOfFirst { it === selected }
+                }
             }
-            // Just to keep the unused warning quiet.
-            b.toString()
         }
 
         test("StateMapper emits LeftUnlocked Designation pAnn for bf room with left door open") {
