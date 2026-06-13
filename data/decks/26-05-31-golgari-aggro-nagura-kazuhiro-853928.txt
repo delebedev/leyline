@@ -1,0 +1,33 @@
+Deck
+4 Llanowar Elves (M19) 314
+4 Deep-Cavern Bat (LCI) 102
+2 Enduring Tenacity (DSK) 95
+1 Overlord of the Balemurk (DSK) 113
+3 Bloodthirsty Conqueror (FDN) 58
+4 Badgermole Cub (TLA) 167
+2 Emeritus of Abundance (SOS) 145
+3 Requiting Hex (ECL) 116
+3 Witherbloom Charm (SOS) 244
+2 Maelstrom Pulse (FDN) 661
+2 Strategic Betrayal (TDM) 94
+3 Nature's Rhythm (TDM) 150
+3 Professor Dellian Fel (SOS) 214
+4 Swamp (ZNR) 382
+2 Forest (ZNR) 384
+2 Blooming Marsh (OTJ) 266
+2 Cavern of Souls (LCI) 269
+3 Overgrown Tomb (GRN) 253
+2 Restless Cottage (WOE) 258
+2 Underground Mortuary (MKM) 271
+4 Wastewood Verge (DFT) 268
+2 Ba Sing Se (TLA) 266
+1 Petrified Hamlet (SOS) 259
+
+Sideboard
+4 Duress (XLN) 105
+2 Torpor Orb (BIG) 27
+1 Urgent Necropsy (MKM) 240
+2 Keen-Eyed Curator (BLB) 181
+1 Surrak, Elusive Hunter (TDM) 161
+2 Leatherhead, Swamp Stalker (TMT) 117
+3 Withering Curse (SOS) 105

@@ -1,0 +1,28 @@
+Deck
+4 Badgermole Cub (TLA) 167
+4 Icetill Explorer (EOE) 192
+4 Llanowar Elves (M19) 314
+4 Mightform Harmonizer (EOE) 200
+4 Sazh's Chocobo (FIN) 200
+2 Surrak, Elusive Hunter (TDM) 161
+4 Esper Origins (FIN) 185
+1 Lumbering Worldwagon (DFT) 168
+1 Royal Treatment (WOE) 183
+4 Earthbender Ascension (TLA) 175
+2 Meltstrider's Resolve (EOE) 199
+12 Forest (ZNR) 384
+4 Escape Tunnel (TMT) 184
+4 Fabled Passage (TLE) 57
+3 Ba Sing Se (TLA) 266
+2 Demolition Field (FIC) 385
+1 Cavern of Souls (LCI) 269
+
+Sideboard
+1 Surrak, Elusive Hunter (TDM) 161
+1 Lumbering Worldwagon (DFT) 168
+1 Royal Treatment (WOE) 183
+2 Meltstrider's Resolve (EOE) 199
+4 Mossborn Hydra (FDN) 107
+2 Dragon Sniper (TDM) 139
+2 Pawpatch Formation (BLB) 186
+2 Torpor Orb (BIG) 27
