@@ -1,0 +1,186 @@
+package leyline.bridge.coord
+
+import forge.card.ColorSet
+import forge.game.player.PlayerController.BinaryChoiceType
+import forge.game.spellability.SpellAbility
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.types.StaticChoiceIds
+import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.StaticList
+
+/** Routes Forge static enum choices through static-list SelectN prompts. */
+class StaticChoiceCoordinator(
+    private val bridge: InteractivePromptBridge,
+) {
+    fun confirmAction(
+        message: String,
+        options: List<String>,
+        sourceEntityId: Int?,
+    ): Boolean {
+        val parityIds = parityOptionIds(options)
+        val result =
+            bridge.requestChoice(
+                PromptRequest(
+                    promptType = "confirm",
+                    message = message,
+                    options = options,
+                    min = 1,
+                    max = 1,
+                    defaultIndex = 0,
+                    semantic = if (parityIds != null) PromptSemantic.StaticParityChoice else PromptSemantic.Generic,
+                    sourceEntityId = sourceEntityId?.takeIf { it > 0 },
+                    staticList = if (parityIds != null) StaticList.Parities else null,
+                    staticOptionIds = parityIds.orEmpty(),
+                ),
+            )
+        return result.firstOrNull() == 0
+    }
+
+    fun chooseBinary(
+        sa: SpellAbility?,
+        question: String?,
+        kindOfChoice: BinaryChoiceType?,
+        defaultVal: Boolean?,
+    ): Boolean {
+        val labels = binaryLabels(kindOfChoice)
+        val parityIds = parityOptionIds(labels)
+        val result =
+            bridge.requestChoice(
+                PromptRequest(
+                    promptType = "confirm",
+                    message = question ?: "Choose one",
+                    options = labels,
+                    min = 1,
+                    max = 1,
+                    defaultIndex = if (defaultVal != false) 0 else 1,
+                    semantic = if (parityIds != null) PromptSemantic.StaticParityChoice else PromptSemantic.Generic,
+                    sourceEntityId = sourceEntityId(sa),
+                    staticList = if (parityIds != null) StaticList.Parities else null,
+                    staticOptionIds = parityIds.orEmpty(),
+                ),
+            )
+        return result.firstOrNull() == 0
+    }
+
+    fun chooseColor(
+        message: String,
+        sa: SpellAbility?,
+        colors: ColorSet,
+    ): Byte {
+        val cntColors = colors.countColors()
+        if (cntColors == 0) return 0
+        if (cntColors == 1) return colors.color
+        if (sa?.isManaAbility() == true) return colors.orderedColors.first().colorMask
+
+        val colorChoices = colors.orderedColors.toList()
+        val colorOptions = colorChoices.map { it.translatedName }
+        log.debug("chooseColor: options={}", colorOptions)
+        val indices =
+            bridge.requestChoice(
+                PromptRequest(
+                    promptType = "choose_one",
+                    message = message,
+                    options = colorOptions,
+                    min = 1,
+                    max = 1,
+                    defaultIndex = 0,
+                    semantic = PromptSemantic.StaticColorChoice,
+                    sourceEntityId = sourceEntityId(sa),
+                    staticList = StaticList.Colors,
+                    staticOptionIds = colorChoices.mapNotNull { StaticChoiceIds.colorIdForMask(it.colorMask) },
+                ),
+            )
+        val idx = indices.firstOrNull() ?: return 0
+        if (idx >= colorOptions.size) return 0
+        return colorChoices[idx].colorMask
+    }
+
+    fun chooseColors(
+        message: String,
+        sa: SpellAbility?,
+        min: Int,
+        max: Int,
+        options: ColorSet,
+    ): ColorSet {
+        if (options.countColors() == 0) return ColorSet.fromMask(0)
+        if (options.countColors() == min && min == max) return options
+
+        val colorChoices = options.orderedColors.toList()
+        val indices =
+            bridge.requestChoice(
+                PromptRequest(
+                    promptType = "choose_colors",
+                    message = message,
+                    options = colorChoices.map { it.translatedName },
+                    min = min,
+                    max = max,
+                    defaultIndex = 0,
+                    semantic = PromptSemantic.StaticColorChoice,
+                    sourceEntityId = sourceEntityId(sa),
+                    staticList = StaticList.Colors,
+                    staticOptionIds = colorChoices.mapNotNull { StaticChoiceIds.colorIdForMask(it.colorMask) },
+                ),
+            )
+        val mask = indices.fold(0) { acc, idx -> acc or (colorChoices.getOrNull(idx)?.colorMask?.toInt() ?: 0) }
+        return ColorSet.fromMask(mask)
+    }
+
+    fun chooseSomeType(
+        kindOfType: String,
+        sa: SpellAbility?,
+        validTypes: Collection<String>,
+        isOptional: Boolean,
+    ): String? {
+        val choices =
+            validTypes
+                .sorted()
+                .mapNotNull { type -> StaticChoiceIds.subtypeIdFor(type)?.let { id -> type to id } }
+        if (choices.isEmpty()) return if (isOptional) null else validTypes.firstOrNull()
+
+        val idx =
+            bridge
+                .requestChoice(
+                    PromptRequest(
+                        promptType = "choose_type",
+                        message = "Choose a ${kindOfType.lowercase()} type",
+                        options = choices.map { it.first },
+                        min = if (isOptional) 0 else 1,
+                        max = 1,
+                        defaultIndex = 0,
+                        semantic = PromptSemantic.StaticSubtypeChoice,
+                        sourceEntityId = sourceEntityId(sa),
+                        staticList = StaticList.SubTypes,
+                        staticOptionIds = choices.map { it.second },
+                    ),
+                ).firstOrNull()
+        return idx?.let { choices.getOrNull(it)?.first } ?: if (isOptional) null else choices.first().first
+    }
+
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+    private fun binaryLabels(kindOfChoice: BinaryChoiceType?): List<String> =
+        when (kindOfChoice) {
+            BinaryChoiceType.HeadsOrTails -> listOf("Heads", "Tails")
+            BinaryChoiceType.TapOrUntap -> listOf("Tap", "Untap")
+            BinaryChoiceType.OddsOrEvens -> listOf("Odds", "Evens")
+            BinaryChoiceType.UntapOrLeaveTapped -> listOf("Untap", "Leave Tapped")
+            BinaryChoiceType.PlayOrDraw -> listOf("Play", "Draw")
+            BinaryChoiceType.LeftOrRight -> listOf("Left", "Right")
+            BinaryChoiceType.AddOrRemove -> listOf("Add Counter", "Remove Counter")
+            BinaryChoiceType.IncreaseOrDecrease -> listOf("Increase", "Decrease")
+            else -> listOf("Yes", "No")
+        }
+
+    private fun parityOptionIds(labels: List<String>): List<Int>? {
+        if (labels.size != 2) return null
+        val ids = labels.map { StaticChoiceIds.parityIdForName(it) ?: return null }
+        return ids.takeIf { it.toSet().size == 2 }
+    }
+
+    private fun sourceEntityId(sa: SpellAbility?): Int? = sa?.hostCard?.id?.takeIf { it > 0 }
+
+    companion object {
+        private val log = LoggerFactory.getLogger(StaticChoiceCoordinator::class.java)
+    }
+}
