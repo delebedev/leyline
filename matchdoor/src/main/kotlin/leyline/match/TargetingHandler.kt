@@ -1536,20 +1536,20 @@ class TargetingHandler(
         req: SelectNReq,
     ): SelectNEnvelope =
         when (reason) {
-            SelectNReason.LegendRule -> SelectNEnvelope.legendRule(req)
             SelectNReason.Discard,
             SelectNReason.SacrificeEffect,
-            -> SelectNEnvelope.default(req)
-            SelectNReason.RevealChoose -> SelectNEnvelope.revealChoose(req)
-            SelectNReason.Resolution -> SelectNEnvelope.resolution(req)
-            SelectNReason.LibraryPutback -> SelectNEnvelope.libraryPutback(req)
-            SelectNReason.MutateTopBottom -> SelectNEnvelope.mutateTopBottom(req)
-            SelectNReason.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId(pendingPrompt))
+            SelectNReason.LegendRule,
+            SelectNReason.RevealChoose,
+            SelectNReason.Resolution,
+            SelectNReason.LibraryPutback,
+            SelectNReason.MutateTopBottom,
+            SelectNReason.LearnLesson,
             SelectNReason.StaticColorChoice,
             SelectNReason.StaticSubtypeChoice,
             SelectNReason.StaticParityChoice,
             ->
-                SelectNPromptRoutes.staticChoiceEnvelope(pendingPrompt.request.semantic, req)
+                SelectNPromptRoutes.route(pendingPrompt.request.semantic)?.envelope(req) { learnPromptId(pendingPrompt) }
+                    ?: error("missing SelectN route for ${pendingPrompt.request.semantic}")
             SelectNReason.Sacrifice,
             SelectNReason.ExileFromGrave,
             SelectNReason.CollectEvidenceCost,

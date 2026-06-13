@@ -14,7 +14,6 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
@@ -179,17 +178,6 @@ object RequestBuilder {
 
         builder.addTargets(selBuilder)
         return builder.build()
-    }
-
-    private fun sourceInstanceId(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-    ): Int {
-        if (prompt.request.isTriggeredAbility && prompt.request.forgeAbilityId != 0) {
-            return bridge.getOrAllocInstanceId(FrameIdResolver.triggerStackAbilityForgeId(prompt.request.forgeAbilityId)).value
-        }
-        val sourceEntityId = prompt.request.sourceEntityId ?: return 0
-        return bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
     }
 
     /** Build an [OrderReq] plus its outer prompt envelope. */
@@ -504,16 +492,10 @@ object RequestBuilder {
     }
 
     private fun selectNShape(semantic: PromptSemantic): SelectNShape =
-        SelectNPromptRoutes.staticChoice(semantic)?.shape ?: selectNShapeBySemantic(semantic)
+        SelectNPromptRoutes.route(semantic)?.shape ?: selectNShapeBySemantic(semantic)
 
     private fun selectNShapeBySemantic(semantic: PromptSemantic): SelectNShape =
         when {
-            semantic == PromptSemantic.SelectNDiscard ->
-                SelectNShape(
-                    SelectionContext.Discard_a163,
-                    SelectionListType.Static,
-                    OptionContext.Payment,
-                )
             else ->
                 SelectNShape(
                     SelectionContext.Resolution_a163,
@@ -527,62 +509,17 @@ object RequestBuilder {
         bridge: GameBridge,
         semantic: PromptSemantic,
     ) {
+        SelectNPromptRoutes.route(semantic)?.let { route ->
+            route.configureInnerPrompt(this, prompt, bridge)
+            return
+        }
+
         when {
-            semantic == PromptSemantic.StaticColorChoice ||
-                semantic == PromptSemantic.StaticSubtypeChoice ||
-                semantic == PromptSemantic.StaticParityChoice -> {
-                setSourceIdIfPresent(prompt, bridge)
-                setPrompt(Prompt.newBuilder())
-            }
-            semantic == PromptSemantic.SelectNLegendRule -> {
-                // Empty inner prompt; the real promptId goes on the outer GRE message.
-                setPrompt(Prompt.newBuilder())
-                setSourceId(PromptIds.SELECT_N_LEGEND_RULE_SOURCE)
-            }
-            semantic == PromptSemantic.SelectNDiscard -> {
-                setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST))
-            }
-            semantic == PromptSemantic.RevealChoose -> {
-                setSourceIdIfPresent(prompt, bridge)
-                setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
-            }
-            semantic == PromptSemantic.SelectNResolution -> {
-                // Look-and-pick inner prompt carries a PromptId parameter; the
-                // outer GRE message carries the card-specific prompt.
-                setSourceIdIfPresent(prompt, bridge)
-                setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
-            }
-            semantic == PromptSemantic.SelectNLibraryPutback -> {
-                setSourceIdIfPresent(prompt, bridge)
-                setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
-            }
-            semantic == PromptSemantic.MutateTopBottom -> {
-                setSourceIdIfPresent(prompt, bridge)
-                setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
-            }
-            semantic == PromptSemantic.LearnLesson -> {
-                setSourceIdIfPresent(prompt, bridge)
-                setSelectNInnerPrompt(PromptIds.SELECT_N_LEARN_INNER_PARAMETER)
-            }
             else -> {
                 setSourceIdIfPresent(prompt, bridge)
                 setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
             }
         }
-    }
-
-    private fun SelectNReq.Builder.setSelectNInnerPrompt(promptId: Int) {
-        setPrompt(
-            Prompt
-                .newBuilder()
-                .addParameters(
-                    PromptParameter
-                        .newBuilder()
-                        .setParameterName("Parameter")
-                        .setType(ParameterType.PromptId)
-                        .setPromptId(promptId),
-                ),
-        )
     }
 
     private fun selectNMinSel(
@@ -612,14 +549,6 @@ object RequestBuilder {
         prompt.request.unfilteredRefs.forEach { ref ->
             addUnfilteredIds(bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value)
         }
-    }
-
-    private fun SelectNReq.Builder.setSourceIdIfPresent(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-    ) {
-        val sourceInstanceId = sourceInstanceId(prompt, bridge)
-        if (sourceInstanceId != 0) setSourceId(sourceInstanceId)
     }
 
     fun buildSacrificePayCostsReq(
