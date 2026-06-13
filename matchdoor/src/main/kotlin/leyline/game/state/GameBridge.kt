@@ -508,18 +508,20 @@ class GameBridge(
     private val reconfigureEffects = SyntheticEffectLifecycle<ForgeCardId> { effects.nextEffectId() }
 
     /** Get or allocate a synthetic effect ID for a crewed vehicle's type-change effect. */
-    fun getOrAllocCrewEffectId(vehicleId: ForgeCardId): Int = crewEffects.getOrAllocId(vehicleId)
+    internal fun getOrAllocCrewEffectId(vehicleId: ForgeCardId): Int = crewEffects.getOrAllocId(vehicleId)
 
-    fun getOrAllocReconfigureEffectId(cardId: ForgeCardId): SyntheticEffectLifecycle.Allocation = reconfigureEffects.getOrAlloc(cardId)
+    internal fun getOrAllocReconfigureEffectId(cardId: ForgeCardId): SyntheticEffectLifecycle.Allocation =
+        reconfigureEffects.getOrAlloc(cardId)
 
     /** Release expired crew effects. Returns effectIds that were removed. */
-    fun releaseCrewEffects(currentCrewedIds: Set<ForgeCardId>): List<Int> = crewEffects.releaseMissing(currentCrewedIds)
+    internal fun releaseCrewEffects(currentCrewedIds: Set<ForgeCardId>): List<Int> = crewEffects.releaseMissing(currentCrewedIds)
 
-    fun releaseReconfigureEffects(currentAttachedIds: Set<ForgeCardId>): List<Int> = reconfigureEffects.releaseMissing(currentAttachedIds)
+    internal fun releaseReconfigureEffects(currentAttachedIds: Set<ForgeCardId>): List<Int> =
+        reconfigureEffects.releaseMissing(currentAttachedIds)
 
     private val mutateMergeEffects = SyntheticEffectLifecycle<Pair<Int, Int>> { effects.nextEffectId() }
 
-    fun getOrAllocMutateMergeEffectId(
+    internal fun getOrAllocMutateMergeEffectId(
         componentInstanceId: Int,
         targetInstanceId: Int,
     ): SyntheticEffectLifecycle.Allocation {
@@ -527,7 +529,7 @@ class GameBridge(
         return mutateMergeEffects.getOrAlloc(key)
     }
 
-    fun releaseMutateMergeEffects(currentKeys: Set<Pair<Int, Int>>): List<Int> = mutateMergeEffects.releaseMissing(currentKeys)
+    internal fun releaseMutateMergeEffects(currentKeys: Set<Pair<Int, Int>>): List<Int> = mutateMergeEffects.releaseMissing(currentKeys)
 
     /** Drain pending target specs from all seat prompt bridges. */
     fun drainPendingTargetSpecs(): List<InteractivePromptBridge.PendingTarget> =

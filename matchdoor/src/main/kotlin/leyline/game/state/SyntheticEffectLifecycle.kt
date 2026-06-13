@@ -7,7 +7,7 @@ package leyline.game.state
  * keep an id while a key is live, allocate an id for a new key, and release ids
  * whose keys disappear from the current frame.
  */
-class SyntheticEffectLifecycle<K>(
+internal class SyntheticEffectLifecycle<K>(
     private val nextEffectId: () -> Int,
 ) {
     data class Allocation(
