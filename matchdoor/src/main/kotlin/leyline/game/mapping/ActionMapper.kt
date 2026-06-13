@@ -1303,8 +1303,8 @@ object ActionMapper {
         checkLegality: Boolean,
     ) {
         for (state in card.lockedRooms) {
-            val actionType = roomDoorActionType(state) ?: continue
-            val sa = leyline.bridge.pickRoomDoorSa(card, state) ?: continue
+            val descriptor = RoomDoorCastDescriptors.forState(state) ?: continue
+            val sa = descriptor.pickSpellAbility(card) ?: continue
             sa.setActivatingPlayer(player)
             val canPay =
                 if (checkLegality) {
@@ -1319,9 +1319,9 @@ object ActionMapper {
             val actionBuilder =
                 Action
                     .newBuilder()
-                    .setActionType(actionType)
+                    .setActionType(descriptor.actionType)
                     .setInstanceId(instanceId)
-                    .setShouldStop(ShouldStopEvaluator.shouldStop(actionType))
+                    .setShouldStop(ShouldStopEvaluator.shouldStop(descriptor.actionType))
             val effective = computeEffectiveCost(sa, player)
             val manaCost = effective?.takeIf { !it.isNoCost } ?: sa.payCosts?.totalMana?.takeIf { !it.isNoCost }
             if (manaCost != null) {
@@ -1387,17 +1387,6 @@ object ActionMapper {
             builder.addInactiveActions(actionBuilder)
         }
     }
-
-    /** Map a Room door's [CardStateName] to its `ActionType`. Returns null for
-     *  any [CardStateName] that isn't a room door (LeftSplit / RightSplit). */
-    private fun roomDoorActionType(state: CardStateName): ActionType? =
-        if (state == CardStateName.LeftSplit) {
-            ActionType.CastLeftRoom
-        } else if (state == CardStateName.RightSplit) {
-            ActionType.CastRightRoom
-        } else {
-            null
-        }
 
     /**
      * Build a CastOmen action for an Omen-capable card, or null if not castable.

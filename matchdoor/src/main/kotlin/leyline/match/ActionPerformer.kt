@@ -16,6 +16,7 @@ import leyline.game.mapping.AbilityGrpIdMode
 import leyline.game.mapping.AltGrpIdSource
 import leyline.game.mapping.CastRail
 import leyline.game.mapping.CastRails
+import leyline.game.mapping.RoomDoorCastDescriptors
 import leyline.game.mapping.ZoneCastRail
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
@@ -275,24 +276,16 @@ class ActionPerformer(
                     if (cardId != null) {
                         val card = findCard(game, cardId)
                         val player = bridge.getPlayer(counters.seatId)
-                        val targetState =
-                            if (action.actionType == ActionType.CastLeftRoom) {
-                                forge.card.CardStateName.LeftSplit
-                            } else {
-                                forge.card.CardStateName.RightSplit
-                            }
                         // Hand: the split-spell SA from card.getSpells() is the
                         // correct cast SA (the activated unlock SA is filtered out
                         // by canPlay's zone gate from hand). Battlefield: the
-                        // unlock SA is the only castable. pickRoomDoorSa handles
+                        // unlock SA is the only castable. The descriptor handles
                         // both — the SA the offer-side emitted and the SA the
                         // accept-side expects must match by reference.
-                        val doorSa = if (card != null) leyline.bridge.pickRoomDoorSa(card, targetState) else null
+                        val descriptor = RoomDoorCastDescriptors.forActionType(action.actionType)
                         val abilityIndex =
-                            if (card != null && player != null && doorSa != null) {
-                                getAllCastableAbilities(card, player)
-                                    .indexOfFirst { it === doorSa }
-                                    .takeIf { it >= 0 }
+                            if (card != null && player != null && descriptor != null) {
+                                descriptor.resolveAbilityIndex(card, player)
                             } else {
                                 null
                             }
