@@ -1549,11 +1549,7 @@ class TargetingHandler(
             SelectNReason.StaticSubtypeChoice,
             SelectNReason.StaticParityChoice,
             ->
-                SelectNEnvelope.staticChoice(
-                    req,
-                    SelectNPromptRoutes.staticChoice(pendingPrompt.request.semantic)?.outerPromptId
-                        ?: error("missing static choice route for ${pendingPrompt.request.semantic}"),
-                )
+                SelectNPromptRoutes.staticChoiceEnvelope(pendingPrompt.request.semantic, req)
             SelectNReason.Sacrifice,
             SelectNReason.ExileFromGrave,
             SelectNReason.CollectEvidenceCost,

@@ -51,4 +51,13 @@ internal object SelectNPromptRoutes {
         ).associateBy { it.semantic }
 
     fun staticChoice(semantic: PromptSemantic): StaticChoiceSelectNRoute? = routesBySemantic[semantic]
+
+    fun staticChoiceEnvelope(
+        semantic: PromptSemantic,
+        req: wotc.mtgo.gre.external.messaging.Messages.SelectNReq,
+    ): SelectNEnvelope =
+        SelectNEnvelope.staticChoice(
+            req,
+            staticChoice(semantic)?.outerPromptId ?: error("missing static choice route for $semantic"),
+        )
 }
