@@ -491,18 +491,14 @@ object RequestBuilder {
         return builder.build()
     }
 
-    private fun selectNShape(semantic: PromptSemantic): SelectNShape =
-        SelectNPromptRoutes.route(semantic)?.shape ?: selectNShapeBySemantic(semantic)
+    private fun selectNShape(semantic: PromptSemantic): SelectNShape = SelectNPromptRoutes.route(semantic)?.shape ?: defaultSelectNShape()
 
-    private fun selectNShapeBySemantic(semantic: PromptSemantic): SelectNShape =
-        when {
-            else ->
-                SelectNShape(
-                    SelectionContext.Resolution_a163,
-                    SelectionListType.Dynamic,
-                    OptionContext.Resolution_a9d7,
-                )
-        }
+    private fun defaultSelectNShape(): SelectNShape =
+        SelectNShape(
+            SelectionContext.Resolution_a163,
+            SelectionListType.Dynamic,
+            OptionContext.Resolution_a9d7,
+        )
 
     private fun SelectNReq.Builder.configureSelectNPrompt(
         prompt: InteractivePromptBridge.PendingPrompt,

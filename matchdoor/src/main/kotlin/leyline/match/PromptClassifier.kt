@@ -96,7 +96,30 @@ object PromptClassifier {
             PromptSemantic.StaticColorChoice -> SelectNReason.StaticColorChoice
             PromptSemantic.StaticSubtypeChoice -> SelectNReason.StaticSubtypeChoice
             PromptSemantic.StaticParityChoice -> SelectNReason.StaticParityChoice
-            else -> null
+            PromptSemantic.GroupingSurveil,
+            PromptSemantic.GroupingScry,
+            PromptSemantic.ModalChoice,
+            PromptSemantic.SelectNLegendRule,
+            PromptSemantic.SelectNDiscard,
+            PromptSemantic.RevealChoose,
+            PromptSemantic.SelectNSacrificeEffect,
+            PromptSemantic.SelectNCostSacrifice,
+            PromptSemantic.SelectNCostExileFromGrave,
+            PromptSemantic.SelectNCostCollectEvidence,
+            PromptSemantic.EnlistCost,
+            PromptSemantic.StationTapCost,
+            PromptSemantic.ReturnUnblockedAttackerCost,
+            PromptSemantic.WaterbendCost,
+            PromptSemantic.SelectNResolution,
+            PromptSemantic.SelectNLibraryPutback,
+            PromptSemantic.MutateTopBottom,
+            PromptSemantic.LearnLesson,
+            PromptSemantic.Search,
+            PromptSemantic.OrderForBottom,
+            PromptSemantic.OrderForTop,
+            PromptSemantic.OrderGeneric,
+            PromptSemantic.Generic,
+            -> null
         }
 
     private fun selectNReasonBySemantic(semantic: PromptSemantic): SelectNReason? =
