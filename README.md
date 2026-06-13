@@ -26,6 +26,7 @@ matchdoor/   Game engine adapter — the big module
 ```
 
 [Architecture deep-dive →](docs/architecture.md)
+Run `just docs` from the repository root to list setup and troubleshooting guides.
 
 ## Forge
 
