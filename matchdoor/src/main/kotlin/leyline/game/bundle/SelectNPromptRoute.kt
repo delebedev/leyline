@@ -5,6 +5,7 @@ import leyline.bridge.handoff.PromptSemantic
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
+import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
@@ -85,6 +86,40 @@ internal data class StaticChoiceSelectNRoute(
     ): SelectNEnvelope = SelectNEnvelope.staticChoice(req, outerPromptId)
 }
 
+internal enum class PayCostsRouteKind {
+    Sacrifice,
+    SelectCost,
+    CollectEvidence,
+    StationTapCost,
+    EnlistCost,
+    WaterbendCost,
+}
+
+internal data class PayCostsPromptRoute(
+    override val semantic: PromptSemantic,
+    val kind: PayCostsRouteKind,
+    val templateLabel: String,
+    val promptId: Int? = null,
+) : PromptRoute {
+    fun build(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Pair<PayCostsReq, Prompt> =
+        when (kind) {
+            PayCostsRouteKind.Sacrifice -> RequestBuilder.buildSacrificePayCostsReq(prompt, bridge)
+            PayCostsRouteKind.SelectCost ->
+                RequestBuilder.buildSelectCostPayCostsReq(
+                    prompt,
+                    bridge,
+                    promptId ?: error("missing SelectCost PayCosts prompt id for $semantic"),
+                )
+            PayCostsRouteKind.CollectEvidence -> CollectEvidencePayCostsBuilder.build(prompt, bridge)
+            PayCostsRouteKind.StationTapCost -> RequestBuilder.buildStationTapCostPayCostsReq(prompt, bridge)
+            PayCostsRouteKind.EnlistCost -> RequestBuilder.buildEnlistCostPayCostsReq(prompt, bridge)
+            PayCostsRouteKind.WaterbendCost -> RequestBuilder.buildWaterbendCostPayCostsReq(prompt, bridge)
+        }
+}
+
 internal fun SelectNPromptRoute.configureInnerPrompt(
     builder: SelectNReq.Builder,
     prompt: InteractivePromptBridge.PendingPrompt,
@@ -132,7 +167,7 @@ internal object SelectNPromptRoutes {
             OptionContext.Payment,
         )
 
-    private val routesBySemantic =
+    private val selectNRoutesBySemantic =
         listOf(
             StaticChoiceSelectNRoute(
                 semantic = PromptSemantic.StaticColorChoice,
@@ -202,7 +237,50 @@ internal object SelectNPromptRoutes {
             ),
         ).associateBy { it.semantic }
 
-    fun route(semantic: PromptSemantic): SelectNPromptRoute? = routesBySemantic[semantic]
+    private val payCostsRoutesBySemantic =
+        listOf(
+            PayCostsPromptRoute(
+                semantic = PromptSemantic.SelectNCostSacrifice,
+                kind = PayCostsRouteKind.Sacrifice,
+                templateLabel = "sacrifice",
+            ),
+            PayCostsPromptRoute(
+                semantic = PromptSemantic.SelectNCostExileFromGrave,
+                kind = PayCostsRouteKind.SelectCost,
+                templateLabel = "exile-from-grave",
+                promptId = PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE,
+            ),
+            PayCostsPromptRoute(
+                semantic = PromptSemantic.SelectNCostCollectEvidence,
+                kind = PayCostsRouteKind.CollectEvidence,
+                templateLabel = "collect-evidence",
+            ),
+            PayCostsPromptRoute(
+                semantic = PromptSemantic.StationTapCost,
+                kind = PayCostsRouteKind.StationTapCost,
+                templateLabel = "station",
+            ),
+            PayCostsPromptRoute(
+                semantic = PromptSemantic.ReturnUnblockedAttackerCost,
+                kind = PayCostsRouteKind.SelectCost,
+                templateLabel = "return-unblocked-attacker",
+                promptId = PromptIds.NINJUTSU_RETURN_UNBLOCKED_ATTACKER_COST,
+            ),
+            PayCostsPromptRoute(
+                semantic = PromptSemantic.WaterbendCost,
+                kind = PayCostsRouteKind.WaterbendCost,
+                templateLabel = "waterbend",
+            ),
+            PayCostsPromptRoute(
+                semantic = PromptSemantic.EnlistCost,
+                kind = PayCostsRouteKind.EnlistCost,
+                templateLabel = "enlist",
+            ),
+        ).associateBy { it.semantic }
+
+    fun route(semantic: PromptSemantic): SelectNPromptRoute? = selectNRoutesBySemantic[semantic]
+
+    fun payCosts(semantic: PromptSemantic): PayCostsPromptRoute? = payCostsRoutesBySemantic[semantic]
 
     fun staticChoice(semantic: PromptSemantic): StaticChoiceSelectNRoute? = route(semantic) as? StaticChoiceSelectNRoute
 

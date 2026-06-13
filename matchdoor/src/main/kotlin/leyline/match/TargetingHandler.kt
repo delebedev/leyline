@@ -10,7 +10,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.CollectEvidencePayCostsBuilder
+import leyline.game.bundle.PayCostsPromptRoute
 import leyline.game.bundle.RequestBuilder
 import leyline.game.bundle.SelectNEnvelope
 import leyline.game.bundle.SelectNPromptRoutes
@@ -399,7 +399,11 @@ class TargetingHandler(
 
         if (selectedIds.isNotEmpty()) {
             log.info("TargetingHandler: Waterbend MakePayment ids={} accumulated={}", selectedIds, selectedSet)
-            sendWaterbendCostPayCostsReq(adjustWaterbendPaymentPrompt(pendingPrompt, selectedSet.toList()))
+            sendPayCostsReq(
+                adjustWaterbendPaymentPrompt(pendingPrompt, selectedSet.toList()),
+                SelectNPromptRoutes.payCosts(PromptSemantic.WaterbendCost)
+                    ?: error("missing PayCosts route for ${PromptSemantic.WaterbendCost}"),
+            )
             return true
         }
 
@@ -677,21 +681,12 @@ class TargetingHandler(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
         reason: SelectNReason,
     ) {
+        SelectNPromptRoutes.payCosts(pendingPrompt.request.semantic)?.let { route ->
+            sendPayCostsReq(pendingPrompt, route)
+            return
+        }
+
         when (reason) {
-            SelectNReason.Sacrifice ->
-                sendSacrificePayCostsReq(pendingPrompt)
-            SelectNReason.ExileFromGrave ->
-                sendExileFromGravePayCostsReq(pendingPrompt)
-            SelectNReason.CollectEvidenceCost ->
-                sendCollectEvidencePayCostsReq(pendingPrompt)
-            SelectNReason.EnlistCost ->
-                sendEnlistCostPayCostsReq(pendingPrompt)
-            SelectNReason.StationTapCost ->
-                sendStationTapCostPayCostsReq(pendingPrompt)
-            SelectNReason.ReturnUnblockedAttackerCost ->
-                sendReturnUnblockedAttackerPayCostsReq(pendingPrompt)
-            SelectNReason.WaterbendCost ->
-                sendWaterbendCostPayCostsReq(pendingPrompt)
             SelectNReason.LegendRule,
             SelectNReason.Discard,
             SelectNReason.SacrificeEffect,
@@ -704,6 +699,14 @@ class TargetingHandler(
             SelectNReason.StaticSubtypeChoice,
             SelectNReason.StaticParityChoice,
             -> sendSelectNReq(pendingPrompt, reason)
+            SelectNReason.Sacrifice,
+            SelectNReason.ExileFromGrave,
+            SelectNReason.CollectEvidenceCost,
+            SelectNReason.EnlistCost,
+            SelectNReason.StationTapCost,
+            SelectNReason.ReturnUnblockedAttackerCost,
+            SelectNReason.WaterbendCost,
+            -> error("missing PayCosts route for ${pendingPrompt.request.semantic}")
         }
     }
 
@@ -1560,69 +1563,14 @@ class TargetingHandler(
             -> error("cost SelectN uses PayCostsReq")
         }
 
-    private fun sendSacrificePayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
+    private fun sendPayCostsReq(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        route: PayCostsPromptRoute,
+    ) {
         val bridge = ctx.bridge
-        val (req, prompt) = RequestBuilder.buildSacrificePayCostsReq(pendingPrompt, bridge)
+        val (req, prompt) = route.build(pendingPrompt, bridge)
         val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(sacrifice) seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    private fun sendExileFromGravePayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        val (req, prompt) =
-            RequestBuilder.buildSelectCostPayCostsReq(
-                pendingPrompt,
-                bridge,
-                leyline.game.mapping.PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE,
-            )
-        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(exile-from-grave) seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    private fun sendCollectEvidencePayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        val (req, prompt) = CollectEvidencePayCostsBuilder.build(pendingPrompt, bridge)
-        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(collect-evidence) seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    private fun sendStationTapCostPayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        val (req, prompt) = RequestBuilder.buildStationTapCostPayCostsReq(pendingPrompt, bridge)
-        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(station) seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    private fun sendReturnUnblockedAttackerPayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        val (req, prompt) =
-            RequestBuilder.buildSelectCostPayCostsReq(
-                pendingPrompt,
-                bridge,
-                leyline.game.mapping.PromptIds.NINJUTSU_RETURN_UNBLOCKED_ATTACKER_COST,
-            )
-        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(return-unblocked-attacker) seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    private fun sendWaterbendCostPayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        val (req, prompt) = RequestBuilder.buildWaterbendCostPayCostsReq(pendingPrompt, bridge)
-        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(waterbend) seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    private fun sendEnlistCostPayCostsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        val (req, prompt) = RequestBuilder.buildEnlistCostPayCostsReq(pendingPrompt, bridge)
-        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
-        Tap.outboundTemplate("PayCostsReq(enlist) seat=${counters.seatId}")
+        Tap.outboundTemplate("PayCostsReq(${route.templateLabel}) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 
