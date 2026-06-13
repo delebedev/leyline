@@ -21,8 +21,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * via the bridge-side pending target store.
  *
  * Targets are captured during selectTargetsInteractively and stored on
- * InteractivePromptBridge. buildTargetSpecAnnotations reads from the store,
- * not from the live stack (spell may have already resolved).
+ * InteractivePromptBridge. The mapper computes from pending records without
+ * consuming them; GameBridge.applyMutations consumes them after the persistent
+ * annotation batch is committed.
  */
 class TargetSpecAnnotationTest :
     FunSpec({
@@ -79,6 +80,57 @@ class TargetSpecAnnotationTest :
             }
         }
 
+        test("pending target spec is consumed only when mapper mutations apply") {
+            val (b, game) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    base.addCard("Murder", human, ZoneType.Hand)
+                }
+
+            val creature =
+                b
+                    .getPlayer(SeatId(1))!!
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Grizzly Bears" }
+            val spell =
+                b
+                    .getPlayer(SeatId(1))!!
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.name == "Murder" }
+
+            b.seat(SeatId(1)).prompt.addPendingTargetSpec(
+                InteractivePromptBridge.PendingTarget(
+                    spellForgeCardId = spell.id,
+                    spellName = spell.name,
+                    targetForgeCardId = creature.id,
+                    index = 1,
+                    affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
+                ),
+            )
+
+            val snapTarget = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
+            val result = StateMapper.buildFromSnapshot(snapTarget, 1, BoardTestBase.TEST_MATCH_ID, b)
+
+            result.gsm.persistentAnnotationsList.any { ann ->
+                AnnotationType.TargetSpec in ann.typeList
+            } shouldBe true
+            b
+                .seat(SeatId(1))
+                .prompt
+                .snapshotPendingTargetSpecs()
+                .size shouldBe 1
+
+            b.applyMutations(result.mutations)
+
+            b
+                .seat(SeatId(1))
+                .prompt
+                .snapshotPendingTargetSpecs()
+                .size shouldBe 0
+        }
+
         test("no pending targets emits no TargetSpec") {
             val (b, game) =
                 base.startWithBoard { _, human, _ ->
@@ -129,8 +181,9 @@ class TargetSpecAnnotationTest :
             gs1.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.TargetSpec in ann.typeList
             } shouldBe true
+            b.applyMutations(gs1.mutations)
 
-            // Second GSM: pending drained, no new targets → TargetSpec removed
+            // Second GSM: pending consumed, no new targets → TargetSpec removed
             val snapTs2 = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 2)
             val gs2 = StateMapper.buildFromSnapshot(snapTs2, 2, BoardTestBase.TEST_MATCH_ID, b)
             gs2.gsm.persistentAnnotationsList.none { ann ->

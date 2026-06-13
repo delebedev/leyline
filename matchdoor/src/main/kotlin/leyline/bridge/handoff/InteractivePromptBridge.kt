@@ -127,12 +127,10 @@ class InteractivePromptBridge(
 
     fun nextTargetSpecIndex(): Int = targetSpecIndexCounter.incrementAndGet()
 
-    fun drainPendingTargetSpecs(): List<PendingTarget> {
-        val result = mutableListOf<PendingTarget>()
-        while (true) {
-            result.add(pendingTargetSpecs.poll() ?: break)
-        }
-        return result
+    fun snapshotPendingTargetSpecs(): List<PendingTarget> = pendingTargetSpecs.toList()
+
+    fun consumePendingTargetSpecs(specs: List<PendingTarget>) {
+        pendingTargetSpecs.removeIf { queued -> specs.any { queued === it } }
     }
 
     companion object {

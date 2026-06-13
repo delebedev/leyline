@@ -531,9 +531,18 @@ class GameBridge(
 
     internal fun releaseMutateMergeEffects(currentKeys: Set<Pair<Int, Int>>): List<Int> = mutateMergeEffects.releaseMissing(currentKeys)
 
-    /** Drain pending target specs from all seat prompt bridges. */
-    fun drainPendingTargetSpecs(): List<InteractivePromptBridge.PendingTarget> =
-        promptBridges.values.flatMap { it.drainPendingTargetSpecs() }
+    /** Snapshot pending target specs from all seat prompt bridges without consuming them. */
+    fun snapshotPendingTargetSpecs(): List<PendingTargetSpecRecord> =
+        promptBridges.entries.flatMap { (seatId, prompt) ->
+            prompt.snapshotPendingTargetSpecs().map { PendingTargetSpecRecord(SeatId(seatId), it) }
+        }
+
+    /** Consume the pending target specs represented in an applied mapper result. */
+    fun consumePendingTargetSpecs(specs: List<PendingTargetSpecRecord>) {
+        specs.groupBy({ it.seatId }, { it.spec }).forEach { (seatId, targets) ->
+            promptBridge(seatId).consumePendingTargetSpecs(targets)
+        }
+    }
 
     override fun nextAnnotationId(): Int = annotations.nextAnnotationId()
 
@@ -576,7 +585,7 @@ class GameBridge(
     /**
      * Apply ordering-sensitive mutations returned by [leyline.game.mapping.StateMapper.buildDiff].
      * Fixed order: id reallocations → limbo retires → zone recordings →
-     * persistent annotation batch → next annotation ID counter → delayed-trigger holders.
+     * persistent annotation batch → pending target specs → next annotation ID counter → delayed-trigger holders.
      *
      * Called by [leyline.game.bundle.BundleBuilder] between diff compute and action build.
      */
@@ -585,6 +594,7 @@ class GameBridge(
         for (id in m.retiredIds) retireToLimbo(id)
         for ((iid, zid) in m.zoneRecordings) recordZone(iid, zid)
         annotations.applyBatchResult(m.persistentBatch)
+        consumePendingTargetSpecs(m.consumedTargetSpecs)
         annotations.setAnnotationId(m.nextAnnotationId)
         delayedTriggerHolders.apply(m.holderBatch)
     }

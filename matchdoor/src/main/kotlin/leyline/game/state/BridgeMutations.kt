@@ -1,6 +1,13 @@
 package leyline.game.state
 
+import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
+
+data class PendingTargetSpecRecord(
+    val seatId: SeatId,
+    val spec: InteractivePromptBridge.PendingTarget,
+)
 
 /**
  * Ordering-sensitive writes that `StateMapper.buildDiff` computes but does not commit.
@@ -15,8 +22,9 @@ import leyline.bridge.types.InstanceId
  * 2. `retiredIds` — old ids moved to limbo (writes to [LimboTracker])
  * 3. `zoneRecordings` — new zone assignments (writes to [DiffSnapshotter.previousZones])
  * 4. `persistentBatch` — persistent annotation state writes (writes to [PersistentAnnotationStore])
- * 5. `nextAnnotationId` — transient annotation ID counter update
- * 6. `holderBatch` — delayed-trigger holder lifecycle writes (writes to [DelayedTriggerHolderTracker])
+ * 5. `consumedTargetSpecs` — pending TargetSpec prompt records consumed after their persistent batch is committed
+ * 6. `nextAnnotationId` — transient annotation ID counter update
+ * 7. `holderBatch` — delayed-trigger holder lifecycle writes (writes to [DelayedTriggerHolderTracker])
  *
  * `diffDeletedInstanceIds` is compute-time output for GSM assembly only. It is
  * not applied to bridge state; the rest of this batch still owns bridge writes.
@@ -31,6 +39,7 @@ data class BridgeMutations(
     val retiredIds: List<InstanceId>,
     val zoneRecordings: List<Pair<InstanceId, Int>>,
     val persistentBatch: PersistentAnnotationStore.BatchResult,
+    val consumedTargetSpecs: List<PendingTargetSpecRecord> = emptyList(),
     val nextAnnotationId: Int,
     val holderBatch: HolderBatch,
     /** Extra object deletions emitted in this Diff GSM, without bridge-state writes. */
@@ -48,6 +57,7 @@ data class BridgeMutations(
                         deletedIds = emptyList(),
                         nextPersistentId = 1,
                     ),
+                consumedTargetSpecs = emptyList(),
                 nextAnnotationId = 50,
                 holderBatch = HolderBatch.EMPTY,
             )

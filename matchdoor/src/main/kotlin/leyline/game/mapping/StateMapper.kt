@@ -2,6 +2,7 @@ package leyline.game.mapping
 
 import leyline.DevCheck
 import leyline.bridge.coord.TargetingCoordinator
+import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.EffectId
 import leyline.bridge.types.ForgeCardId
@@ -46,6 +47,7 @@ import leyline.game.state.ManaCreatureDesignationKind
 import leyline.game.state.ManaDetailsKind
 import leyline.game.state.ModifiedTypeForCrewKind
 import leyline.game.state.MutateLayeredEffectKind
+import leyline.game.state.PendingTargetSpecRecord
 import leyline.game.state.PersistentAnnotationKind
 import leyline.game.state.PersistentAnnotationStore
 import leyline.game.state.PlottedDesignationKind
@@ -117,9 +119,6 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *   steal lifecycle.
  * - `bridge.snapshotCrewState()` / `bridge.getOrAllocCrewEffectId()` /
  *   `bridge.releaseCrewEffects()` — vehicle crew lifecycle.
- * - `bridge.drainPendingTargetSpecs()` — pending targeted-spell spec drain;
- *   ordering-sensitive but currently not exercised by the replay test.
- *   Highest-priority candidate to either lift or cover.
  *
  * Incidental in-stage writes:
  * - `bridge.evictAbilityRegistry(...)` — cache invalidation for zone-changed
@@ -482,6 +481,7 @@ object StateMapper {
                 retiredIds = transferResult.retiredIds.map { InstanceId(it) },
                 zoneRecordings = transferResult.zoneRecordings.map { (iid, zid) -> InstanceId(iid) to zid },
                 persistentBatch = remaining.batch,
+                consumedTargetSpecs = remaining.consumedTargetSpecs,
                 nextAnnotationId = remaining.nextAnnotationId,
                 holderBatch = holderBatch,
                 diffDeletedInstanceIds = stackTransferDeletedIds(transferResult).map { InstanceId(it) },
@@ -943,6 +943,7 @@ object StateMapper {
         val persistent: List<AnnotationInfo>,
         val batch: PersistentAnnotationStore.BatchResult,
         val nextAnnotationId: Int,
+        val consumedTargetSpecs: List<PendingTargetSpecRecord>,
     )
 
     /** Stages 4-5: mechanic + effect annotations, persistent computation, numbering. */
@@ -1098,7 +1099,8 @@ object StateMapper {
         val delayedTriggerAffecteesPersistent = persistentFeeds.delayedTriggerAffectees
 
         // TargetSpec pAnn for each targeted spell/ability on the stack
-        val targetSpecPersistent = buildTargetSpecAnnotations(bridge, frameIds, snap)
+        val pendingTargetSpecs = bridge.snapshotPendingTargetSpecs()
+        val targetSpecPersistent = buildTargetSpecAnnotations(pendingTargetSpecs.map { it.spec }, bridge, frameIds, snap)
         val (mutateMergeTransient, mutateMergePersistent) = buildMutateMergeAnnotations(snap, bridge, frameIds)
         annotations.addAll(mutateMergeTransient)
 
@@ -1166,7 +1168,13 @@ object StateMapper {
         val ordered = AnnotationOrderEnforcer.enforce(annotations)
         var annId = startAnnotationId
         val numbered = ordered.map { it.toBuilder().setId(annId++).build() }
-        return RemainingAnnotationsResult(numbered, batch.allAnnotations, batch, annId)
+        return RemainingAnnotationsResult(
+            numbered = numbered,
+            persistent = batch.allAnnotations,
+            batch = batch,
+            nextAnnotationId = annId,
+            consumedTargetSpecs = pendingTargetSpecs,
+        )
     }
 
     private fun earthbendCreatedAnnotations(created: List<EarthbendTracker.Active>): List<AnnotationInfo> =
@@ -1978,20 +1986,20 @@ object StateMapper {
     }
 
     /**
-     * Scan the stack for spells/abilities with targets and emit TargetSpec pAnns.
+     * Build TargetSpec pAnns from pending target records.
      * Each card target gets a separate annotation with 1-based index per target group.
      * Pruned automatically by the registry-driven upsert pass (TargetSpecKind's
      * full-replacement semantics) when the spell resolves and leaves the stack.
      */
     private fun buildTargetSpecAnnotations(
+        pending: List<InteractivePromptBridge.PendingTarget>,
         bridge: GameBridge,
         frameIds: FrameIdResolver,
         snap: GsmSnapshot,
     ): List<AnnotationInfo> {
-        // Drain target picks recorded during selectTargetsInteractively.
+        // Read target picks recorded during selectTargetsInteractively.
         // The spell may have already resolved by now (auto-pass), so we can't
         // rely on scanning game.getStack() — the stack is often empty.
-        val pending = bridge.drainPendingTargetSpecs()
         if (pending.isEmpty()) return emptyList()
 
         // promptId still needs per-ability prompt-shape mapping. Fall back to
@@ -2046,7 +2054,7 @@ object StateMapper {
     }
 
     private fun targetSpecAbilityGrpId(
-        spec: leyline.bridge.handoff.InteractivePromptBridge.PendingTarget,
+        spec: InteractivePromptBridge.PendingTarget,
         bridge: GameBridge,
         snap: GsmSnapshot,
     ): Int {
