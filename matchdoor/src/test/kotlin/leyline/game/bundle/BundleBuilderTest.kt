@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -659,6 +660,34 @@ class BundleBuilderTest :
                 result.messages[0].gameStateMessage.pendingMessageCount shouldBe 1
                 result.messages[1].type shouldBe GREMessageType.SelectNreq
                 result.messages[1].prompt.promptId shouldBe PromptIds.SELECT_N
+            }
+        }
+
+        test("orderBundle shape") {
+            val (b, game, counter) = base.startWithBoard { _, _, _ -> }
+            val prompt =
+                InteractivePromptBridge.PendingPrompt(
+                    promptId = "order-test",
+                    request =
+                        PromptRequest(
+                            promptType = "order_cards",
+                            message = "Order cards",
+                            options = emptyList(),
+                            semantic = PromptSemantic.OrderForTop,
+                        ),
+                    future = java.util.concurrent.CompletableFuture(),
+                )
+
+            val result = base.bundleBuilder(b).orderBundle(game, counter, prompt)
+
+            assertSoftly {
+                result.messages.size shouldBe 2
+                result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+                result.messages[0].gameStateMessage.pendingMessageCount shouldBe 1
+                result.messages[1].type shouldBe GREMessageType.OrderReq_695e
+                result.messages[1].prompt.promptId shouldBe PromptIds.ORDER_LIBRARY_TOP
+                result.messages[1].allowCancel shouldBe Messages.AllowCancel.No_a526
+                result.messages[1].allowUndo shouldBe true
             }
         }
 

@@ -753,7 +753,6 @@ class BundleBuilder(
         counter: MessageCounter,
         envelope: SelectNEnvelope,
     ): BundleResult {
-        val nextGs = diff.gameStateId
         val snap = diff.snap
         val baseGs =
             when (envelope.gameStateAugmentation) {
@@ -768,22 +767,13 @@ class BundleBuilder(
                 .toBuilder()
                 .setPendingMessageCount(1)
                 .build()
-        val msg1 =
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                it.gameStateMessage = gs
+        return promptRequestBundle(diff, counter, gs, GREMessageType.SelectNreq) {
+            it.selectNReq = envelope.req
+            it.setPrompt(envelope.prompt)
+            if (envelope.allowCancel != AllowCancel.None_a526) {
+                it.allowCancel = envelope.allowCancel
             }
-
-        val msg2 =
-            makeGRE(GREMessageType.SelectNreq, nextGs, counter.nextMsgId()) {
-                it.selectNReq = envelope.req
-                it.setPrompt(envelope.prompt)
-                if (envelope.allowCancel != AllowCancel.None_a526) {
-                    it.allowCancel = envelope.allowCancel
-                }
-            }
-
-        cursor.lastSent = snap
-        return BundleResult(listOf(msg1, msg2))
+        }
     }
 
     /** Order bundle: GameState + OrderReq. */
@@ -793,7 +783,6 @@ class BundleBuilder(
         prompt: InteractivePromptBridge.PendingPrompt,
     ): BundleResult {
         val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
-        val nextGs = diff.gameStateId
         val snap = diff.snap
         val stagedMove = stagePendingOrderZoneMove(diff.result.gsm, snap, prompt)
         val (req, promptProto) = buildOrderReq(prompt)
@@ -803,21 +792,38 @@ class BundleBuilder(
                 .toBuilder()
                 .setPendingMessageCount(1)
                 .build()
+        return promptRequestBundle(
+            diff,
+            counter,
+            gs,
+            GREMessageType.OrderReq_695e,
+            cursorSnap = stagedMove?.snap ?: snap,
+        ) {
+            it.orderReq = req
+            it.setPrompt(promptProto)
+            it.allowCancel = AllowCancel.No_a526
+            if (prompt.request.semantic == PromptSemantic.OrderForTop) {
+                it.allowUndo = true
+            }
+        }
+    }
+
+    private fun promptRequestBundle(
+        diff: FrameDiff,
+        counter: MessageCounter,
+        gameStateMessage: GameStateMessage,
+        requestType: GREMessageType,
+        cursorSnap: GsmSnapshot = diff.snap,
+        configureRequest: (GREToClientMessage.Builder) -> Unit,
+    ): BundleResult {
+        val nextGs = diff.gameStateId
         val msg1 =
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                it.gameStateMessage = gs
+                it.gameStateMessage = gameStateMessage
             }
-        val msg2 =
-            makeGRE(GREMessageType.OrderReq_695e, nextGs, counter.nextMsgId()) {
-                it.orderReq = req
-                it.setPrompt(promptProto)
-                it.allowCancel = AllowCancel.No_a526
-                if (prompt.request.semantic == PromptSemantic.OrderForTop) {
-                    it.allowUndo = true
-                }
-            }
+        val msg2 = makeGRE(requestType, nextGs, counter.nextMsgId(), configureRequest)
 
-        cursor.lastSent = stagedMove?.snap ?: snap
+        cursor.lastSent = cursorSnap
         return BundleResult(listOf(msg1, msg2))
     }
 
