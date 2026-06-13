@@ -113,31 +113,16 @@ class GameEventCollector(
     private var frame: MutableList<GameEvent> = mutableListOf()
 
     /**
-     * SpellAbility ids of triggered abilities currently on the stack. Populated when
-     * the trigger is cast (visit GameEventSpellAbilityCast with si.isTrigger == true),
-     * consumed when the same id resolves. The resolved event carries only a
-     * SpellAbilityView, which doesn't expose isTrigger — this map is the bridge.
+     * Stack AbilityInstance context keyed by Forge SpellAbility id. Cast events
+     * record whether the id represents a trigger or an activated ability; resolve
+     * events consume the same context because SpellAbilityView doesn't expose the
+     * distinction at resolution time.
      *
-     * **Subscriber independence:** [leyline.game.GamePlayback] keeps its own
-     * `pendingLocalTriggers` map for the same saIds. The Guava EventBus
-     * delivers subscribers in registration order — by the time
-     * `GamePlayback.visit(GameEventSpellResolved)` runs, this collector has
-     * already consumed its entry. Both maps populate at cast and drain at
-     * resolve, independently — neither can rely on the other's state.
+     * Subscriber independence: [leyline.game.GamePlayback] keeps its own pending
+     * trigger map for the same saIds. Both populate at cast and drain at resolve;
+     * neither can rely on the other's state.
      */
-    private val pendingTriggers = ConcurrentHashMap<Int, ForgeCardId>()
-
-    /**
-     * Active player-activated abilities on the stack, keyed by Forge SA id.
-     * Parallel to [pendingTriggers] so the SpellResolved visitor can recover
-     * the `isAbility` flag and re-emit it on the resolution event — closing
-     * the AbilityInstance lifecycle for cycling / channel / unearth and other
-     * activated abilities.
-     */
-    private val pendingActivations = ConcurrentHashMap<Int, ForgeCardId>()
-
-    /** Ability grpIds paired with pending stack ability ids. */
-    private val pendingAbilityGrpIds = ConcurrentHashMap<Int, Int>()
+    private val pendingStackAbilities = PendingStackAbilityRegistry()
 
     /** Stack iids for Paradigm copy casts, keyed by Forge SpellAbility id until resolution. */
     private val pendingParadigmCopyStackIids = ConcurrentHashMap<Int, Int>()
@@ -152,7 +137,7 @@ class GameEventCollector(
     /** Non-consuming check: is this SpellAbility a triggered ability currently on the stack?
      *  Used by [leyline.game.GamePlayback] to decide whether to insert a per-step diff
      *  for trigger resolutions on the local player's turn. */
-    fun isTriggerResolving(saId: Int): Boolean = pendingTriggers.containsKey(saId)
+    fun isTriggerResolving(saId: Int): Boolean = pendingStackAbilities.isTriggerResolving(saId)
 
     /**
      * Close the current frame: returns events accumulated since the last
@@ -280,11 +265,9 @@ class GameEventCollector(
             pendingEnlistAffectors[triggeringObjectCardId] = ForgeCardId(card.id)
         }
         if (isTrigger && abilityForgeId != 0) {
-            pendingTriggers[abilityForgeId] = ForgeCardId(card.id)
-            if (abilityGrpId != 0) pendingAbilityGrpIds[abilityForgeId] = abilityGrpId
+            pendingStackAbilities.recordTrigger(abilityForgeId, ForgeCardId(card.id), abilityGrpId)
         } else if (isAbility && abilityForgeId != 0) {
-            pendingActivations[abilityForgeId] = ForgeCardId(card.id)
-            if (abilityGrpId != 0) pendingAbilityGrpIds[abilityForgeId] = abilityGrpId
+            pendingStackAbilities.recordActivation(abilityForgeId, ForgeCardId(card.id), abilityGrpId)
         }
         bridge.recordStackAbilityGrpId(abilityForgeId, abilityGrpId)
         // Activation zone: only meaningful for activated abilities (cycling →
@@ -650,9 +633,10 @@ class GameEventCollector(
         val spell = ev.spell()
         val card = spell.hostCard ?: return
         val saId = spell.id
-        val isTrigger = pendingTriggers.remove(saId) != null
-        val isAbility = !isTrigger && pendingActivations.remove(saId) != null
-        val abilityGrpId = pendingAbilityGrpIds.remove(saId) ?: 0
+        val context = pendingStackAbilities.consume(saId)
+        val isTrigger = context?.kind == PendingStackAbilityKind.Trigger
+        val isAbility = context?.kind == PendingStackAbilityKind.Activation
+        val abilityGrpId = context?.abilityGrpId ?: 0
         val paradigmCopyStackIid = pendingParadigmCopyStackIids.remove(saId) ?: 0
         val liveCard = bridge.findCard(ForgeCardId(card.id))
         val liveSa = findLiveSaOnCard(card.id, saId)
@@ -820,13 +804,14 @@ class GameEventCollector(
         val won = ev.won()
         val flipper = seatOf(flipperView) ?: return
         val card = sa.hostCard ?: return
-        val abilityForgeId = sa.id.takeIf { pendingTriggers.containsKey(it) || pendingActivations.containsKey(it) } ?: 0
+        val abilityContext = pendingStackAbilities.contextFor(sa.id)
+        val abilityForgeId = sa.id.takeIf { abilityContext != null } ?: 0
         frame.add(
             GameEvent.CoinFlipped(
                 flipperSeatId = flipper,
                 sourceCardId = ForgeCardId(card.id),
                 abilityForgeId = abilityForgeId,
-                abilityGrpId = pendingAbilityGrpIds[abilityForgeId] ?: 0,
+                abilityGrpId = abilityContext?.abilityGrpId ?: 0,
                 result = if (won) 1 else 0,
             ),
         )
@@ -940,10 +925,7 @@ class GameEventCollector(
     }
 
     private fun trainingTriggerAbilityIdFor(cardId: ForgeCardId): Int? =
-        pendingTriggers.entries
-            .firstOrNull { (abilityId, sourceCardId) ->
-                sourceCardId == cardId && pendingAbilityGrpIds[abilityId] == KeywordAbilityIds.TRAINING
-            }?.key
+        pendingStackAbilities.abilityIdFor(cardId, KeywordAbilityIds.TRAINING, PendingStackAbilityKind.Trigger)
 
     override fun visit(ev: GameEventPlayerPoisoned) {
         val seat = seatOf(ev.receiver()) ?: return
