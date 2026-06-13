@@ -57,6 +57,9 @@ just test-one MyTest   # single test class
 just puzzle file.pzl   # run a puzzle scenario
 ```
 
+For documentation-only changes, `just docs` lists the documentation map and
+`just docs-lint` checks Markdown cross-references.
+
 ## 🧭 Design philosophy
 
 **Architecture-first.** Keep the bridge small, explicit, and observable.
