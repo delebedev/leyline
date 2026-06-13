@@ -44,6 +44,7 @@ import forge.util.collect.FCollectionView
 import leyline.bridge.coord.CostPaymentCoordinator
 import leyline.bridge.coord.PriorityLoopCoordinator
 import leyline.bridge.coord.SpellExecutor
+import leyline.bridge.coord.StaticChoiceCoordinator
 import leyline.bridge.coord.TargetingCoordinator
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.DamageAssignmentPrompt
@@ -62,13 +63,11 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.Seating
-import leyline.bridge.types.StaticChoiceIds
 import leyline.bridge.types.manaTokenToPair
 import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
-import wotc.mtgo.gre.external.messaging.Messages.StaticList
 import java.util.concurrent.CompletableFuture
 import java.util.function.Predicate
 
@@ -106,6 +105,8 @@ import java.util.function.Predicate
  *   reveals, discards, sacrifices, zone ordering. Writes bridge flag-contract fields.
  * - [CostPaymentCoordinator] — convoke/improvise, keyword-cost binary, optional
  *   costs, shock-land pay-life, AI mana payment.
+ * - [StaticChoiceCoordinator] — static enum selections for color, subtype,
+ *   parity-like binary choices, and parity-flavoured confirmations.
  *
  * Current helpers:
  * - [SpellExecutor] — the `executeCastSpell` / `executeActivateAbility` /
@@ -255,6 +256,7 @@ class PlayerController(
     private val spellExecutor = SpellExecutor(game, player, bridge)
     private val targetingCoordinator = TargetingCoordinator(bridge, seating, currentSourceEntityId = ::currentSourceEntityId)
     private val costPaymentCoordinator = CostPaymentCoordinator(bridge, player, optionalActionGate)
+    private val staticChoiceCoordinator = StaticChoiceCoordinator(bridge)
     private var activeSpellSourceId: Int? = null
     private val priorityLoopCoordinator: PriorityLoopCoordinator? =
         actionBridge?.let { ab ->
@@ -514,22 +516,7 @@ class PlayerController(
             } else {
                 options.toList()
             }
-        val parityIds = parityOptionIds(displayOptions)
-        val request =
-            PromptRequest(
-                promptType = "confirm",
-                message = displayMessage,
-                options = displayOptions,
-                min = 1,
-                max = 1,
-                defaultIndex = 0,
-                semantic = if (parityIds != null) PromptSemantic.StaticParityChoice else PromptSemantic.Generic,
-                sourceEntityId = (cardToShow ?: sa?.hostCard)?.id?.takeIf { it > 0 },
-                staticList = if (parityIds != null) StaticList.Parities else null,
-                staticOptionIds = parityIds.orEmpty(),
-            )
-        val result = bridge.requestChoice(request)
-        return result.firstOrNull() == 0
+        return staticChoiceCoordinator.confirmAction(displayMessage, displayOptions, (cardToShow ?: sa?.hostCard)?.id)
     }
 
     override fun confirmTrigger(wrapper: WrappedAbility): Boolean {
@@ -736,43 +723,7 @@ class PlayerController(
         question: String?,
         kindOfChoice: BinaryChoiceType?,
         defaultVal: Boolean?,
-    ): Boolean {
-        // PCHuman uses InputConfirm
-        val labels =
-            when (kindOfChoice) {
-                BinaryChoiceType.HeadsOrTails -> listOf("Heads", "Tails")
-                BinaryChoiceType.TapOrUntap -> listOf("Tap", "Untap")
-                BinaryChoiceType.OddsOrEvens -> listOf("Odds", "Evens")
-                BinaryChoiceType.UntapOrLeaveTapped -> listOf("Untap", "Leave Tapped")
-                BinaryChoiceType.PlayOrDraw -> listOf("Play", "Draw")
-                BinaryChoiceType.LeftOrRight -> listOf("Left", "Right")
-                BinaryChoiceType.AddOrRemove -> listOf("Add Counter", "Remove Counter")
-                BinaryChoiceType.IncreaseOrDecrease -> listOf("Increase", "Decrease")
-                else -> listOf("Yes", "No")
-            }
-        val parityIds = parityOptionIds(labels)
-        val request =
-            PromptRequest(
-                promptType = "confirm",
-                message = question ?: "Choose one",
-                options = labels,
-                min = 1,
-                max = 1,
-                defaultIndex = if (defaultVal != false) 0 else 1,
-                semantic = if (parityIds != null) PromptSemantic.StaticParityChoice else PromptSemantic.Generic,
-                sourceEntityId = sa?.hostCard?.id?.takeIf { it > 0 },
-                staticList = if (parityIds != null) StaticList.Parities else null,
-                staticOptionIds = parityIds.orEmpty(),
-            )
-        val result = bridge.requestChoice(request)
-        return result.firstOrNull() == 0
-    }
-
-    private fun parityOptionIds(labels: List<String>): List<Int>? {
-        if (labels.size != 2) return null
-        val ids = labels.map { StaticChoiceIds.parityIdForName(it) ?: return null }
-        return ids.takeIf { it.toSet().size == 2 }
-    }
+    ): Boolean = staticChoiceCoordinator.chooseBinary(sa, question, kindOfChoice, defaultVal)
 
     override fun chooseColor(
         message: String,
@@ -786,28 +737,7 @@ class PlayerController(
             pendingManaColorChoice = null
             if (colors.orderedColors.any { it.colorMask == selectedColor }) return selectedColor
         }
-        if (sa?.isManaAbility() == true) return colors.orderedColors.first().colorMask
-        // PCHuman uses InputConfirm.confirm → showAndWait (desktop-only).
-        // Route through our prompt bridge instead.
-        val colorOptions = colors.orderedColors.map { it.translatedName }
-        val request =
-            PromptRequest(
-                promptType = "choose_one",
-                message = message,
-                options = colorOptions,
-                min = 1,
-                max = 1,
-                defaultIndex = 0,
-                semantic = PromptSemantic.StaticColorChoice,
-                sourceEntityId = sa?.hostCard?.id?.takeIf { it > 0 },
-                staticList = StaticList.Colors,
-                staticOptionIds = colors.orderedColors.mapNotNull { StaticChoiceIds.colorIdForMask(it.colorMask) },
-            )
-        log.debug("chooseColor: options={}", colorOptions)
-        val indices = bridge.requestChoice(request)
-        val idx = indices.firstOrNull() ?: return 0
-        if (idx >= colorOptions.size) return 0
-        return colors.orderedColors.toList()[idx].colorMask
+        return staticChoiceCoordinator.chooseColor(message, sa, colors)
     }
 
     override fun chooseColors(
@@ -816,55 +746,14 @@ class PlayerController(
         min: Int,
         max: Int,
         options: ColorSet,
-    ): ColorSet {
-        if (options.countColors() == 0) return ColorSet.fromMask(0)
-        if (options.countColors() == min && min == max) return options
-        val colorChoices = options.orderedColors.toList()
-        val request =
-            PromptRequest(
-                promptType = "choose_colors",
-                message = message,
-                options = colorChoices.map { it.translatedName },
-                min = min,
-                max = max,
-                defaultIndex = 0,
-                semantic = PromptSemantic.StaticColorChoice,
-                sourceEntityId = sa?.hostCard?.id?.takeIf { it > 0 },
-                staticList = StaticList.Colors,
-                staticOptionIds = colorChoices.mapNotNull { StaticChoiceIds.colorIdForMask(it.colorMask) },
-            )
-        val indices = bridge.requestChoice(request)
-        val mask = indices.fold(0) { acc, idx -> acc or (colorChoices.getOrNull(idx)?.colorMask?.toInt() ?: 0) }
-        return ColorSet.fromMask(mask)
-    }
+    ): ColorSet = staticChoiceCoordinator.chooseColors(message, sa, min, max, options)
 
     override fun chooseSomeType(
         kindOfType: String,
         sa: SpellAbility?,
         validTypes: Collection<String>,
         isOptional: Boolean,
-    ): String? {
-        val choices =
-            validTypes
-                .sorted()
-                .mapNotNull { type -> StaticChoiceIds.subtypeIdFor(type)?.let { id -> type to id } }
-        if (choices.isEmpty()) return if (isOptional) null else validTypes.firstOrNull()
-        val request =
-            PromptRequest(
-                promptType = "choose_type",
-                message = "Choose a ${kindOfType.lowercase()} type",
-                options = choices.map { it.first },
-                min = if (isOptional) 0 else 1,
-                max = 1,
-                defaultIndex = 0,
-                semantic = PromptSemantic.StaticSubtypeChoice,
-                sourceEntityId = sa?.hostCard?.id?.takeIf { it > 0 },
-                staticList = StaticList.SubTypes,
-                staticOptionIds = choices.map { it.second },
-            )
-        val idx = bridge.requestChoice(request).firstOrNull()
-        return idx?.let { choices.getOrNull(it)?.first } ?: if (isOptional) null else choices.first().first
-    }
+    ): String? = staticChoiceCoordinator.chooseSomeType(kindOfType, sa, validTypes, isOptional)
 
     override fun willPutCardOnTop(c: Card): Boolean {
         // PCHuman uses InputConfirm
