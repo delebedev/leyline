@@ -1,0 +1,29 @@
+Deck
+4 Cosmogrand Zenith (EOE) 9
+4 Voice of Victory (TDM) 33
+2 Beza, the Bounding Spring (BLB) 2
+2 Overlord of the Mistmoors (DSK) 23
+1 Enduring Innocence (DSK) 6
+4 Carrot Cake (BLB) 7
+3 Ride's End (DFT) 25
+2 Get Lost (LCI) 14
+1 Fumigate (KLR) 19
+1 No Witnesses (MKM) 27
+4 Caretaker's Talent (BLB) 6
+4 Sheltered by Ghosts (DSK) 30
+3 Seam Rip (EOE) 34
+3 Elspeth, Storm Slayer (TDM) 11
+22 Plains (ZNR) 380
+
+Sideboard
+4 Disenchant (ZNR) 10
+2 Elspeth's Smite (MOM) 13
+1 Angel of Finality (FDN) 136
+1 Beyond the Quiet (EOE) 7
+1 Crystal Barricade (FDN) 7
+1 Expel the Interlopers (WOE) 13
+1 Ghost Vacuum (DSK) 248
+1 Luminous Rebuke (FDN) 20
+1 Repel Calamity (SOA) 8
+1 Soul-Guide Lantern (WOE) 251
+1 Stroke of Midnight (WOE) 33

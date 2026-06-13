@@ -1,0 +1,30 @@
+Deck
+2 Origin of Metalbending (TLA) 187
+4 Practiced Offense (SOS) 25
+3 Keen-Eyed Curator (BLB) 181
+4 Ouroboroid (EOE) 201
+4 Brightglass Gearhulk (DFT) 191
+4 Gene Pollinator (EOE) 186
+4 Surrak, Elusive Hunter (TDM) 161
+4 Llanowar Elves (M19) 314
+4 Badgermole Cub (TLA) 167
+4 Pawpatch Recruit (BLB) 187
+1 Multiversal Passage (OM1) 181
+1 Ba Sing Se (TLA) 266
+2 Starting Town (FIN) 289
+2 Plains (ZNR) 380
+3 Abandoned Air Temple (TLA) 263
+4 Hushwood Verge (DSK) 261
+4 Temple Garden (GRN) 258
+6 Forest (ZNR) 384
+
+Sideboard
+2 Leatherhead, Swamp Stalker (TMT) 117
+3 Soul-Guide Lantern (WOE) 251
+1 Goldvein Hydra (OTJ) 167
+1 Rest in Peace (WOT) 12
+2 Seam Rip (EOE) 34
+2 Restoration Magic (FIN) 30
+2 Meltstrider's Resolve (EOE) 199
+1 Origin of Metalbending (TLA) 187
+1 Keen-Eyed Curator (BLB) 181
