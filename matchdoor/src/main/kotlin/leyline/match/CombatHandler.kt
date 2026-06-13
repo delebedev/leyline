@@ -85,10 +85,13 @@ open class CombatHandler(
 
     private fun DamageRecipient.toTarget(bridge: GameBridge): Target? =
         when (type) {
+            DamageRecType.None_a0e5,
+            DamageRecType.Team_a0e5,
+            DamageRecType.UNRECOGNIZED,
+            -> null
             DamageRecType.Player_a0e5 -> Target.Player(ForgePlayerId(playerSystemSeatId))
             DamageRecType.PlanesWalker ->
                 bridge.getForgeCardId(InstanceId(planeswalkerInstanceId))?.let { Target.Card(it) }
-            else -> null
         }
 
     /**

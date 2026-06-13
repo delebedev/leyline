@@ -851,6 +851,58 @@ object RequestBuilder {
         return req to promptProto
     }
 
+    private fun playerDamageRecipient(seatId: SeatId): DamageRecipient =
+        DamageRecipient
+            .newBuilder()
+            .setType(DamageRecType.Player_a0e5)
+            .setPlayerSystemSeatId(seatId.opponent.value)
+            .build()
+
+    private fun planeswalkerDamageRecipient(
+        card: Card,
+        bridge: GameBridge,
+    ): DamageRecipient =
+        DamageRecipient
+            .newBuilder()
+            .setType(DamageRecType.PlanesWalker)
+            .setPlaneswalkerInstanceId(bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
+            .build()
+
+    private fun legalAttackDamageRecipients(
+        player: Player,
+        card: Card,
+        seatId: SeatId,
+        bridge: GameBridge,
+    ): List<DamageRecipient> =
+        buildList {
+            for (defender in CombatUtil.getAllPossibleDefenders(player)) {
+                if (!CombatUtil.canAttack(card, defender)) continue
+                when (defender) {
+                    is Player -> add(playerDamageRecipient(seatId))
+                    is Card -> if (defender.isPlaneswalker) add(planeswalkerDamageRecipient(defender, bridge))
+                }
+            }
+        }
+
+    private fun selectedAttackDamageRecipient(
+        instanceId: Int,
+        seatId: SeatId,
+        committedDamageRecipients: Map<Int, DamageRecipient>,
+    ): DamageRecipient = committedDamageRecipients[instanceId] ?: playerDamageRecipient(seatId)
+
+    private fun buildAttackerOption(
+        instanceId: Int,
+        legalRecipients: List<DamageRecipient>,
+        alternativeGrpId: Int = 0,
+    ): Attacker.Builder =
+        Attacker
+            .newBuilder()
+            .setAttackerInstanceId(instanceId)
+            .addAllLegalDamageRecipients(legalRecipients)
+            .apply {
+                if (alternativeGrpId != 0) setAlternativeGrpId(alternativeGrpId)
+            }
+
     /**
      * Build [DeclareAttackersReq] listing all creatures that can legally attack.
      * Each attacker includes legal damage recipients (opponent player and planeswalkers).
@@ -870,33 +922,6 @@ object RequestBuilder {
         val player = bridge.getPlayer(seatId) ?: return DeclareAttackersReq.getDefaultInstance()
         val builder = DeclareAttackersReq.newBuilder()
 
-        fun playerRecipient() =
-            DamageRecipient
-                .newBuilder()
-                .setType(DamageRecType.Player_a0e5)
-                .setPlayerSystemSeatId(seatId.opponent.value)
-                .build()
-
-        fun planeswalkerRecipient(card: Card) =
-            DamageRecipient
-                .newBuilder()
-                .setType(DamageRecType.PlanesWalker)
-                .setPlaneswalkerInstanceId(bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
-                .build()
-
-        fun legalRecipients(card: Card): List<DamageRecipient> =
-            buildList {
-                for (defender in CombatUtil.getAllPossibleDefenders(player)) {
-                    if (!CombatUtil.canAttack(card, defender)) continue
-                    when (defender) {
-                        is Player -> add(playerRecipient())
-                        is Card -> if (defender.isPlaneswalker) add(planeswalkerRecipient(defender))
-                    }
-                }
-            }
-
-        fun selectedRecipient(instanceId: Int): DamageRecipient = committedDamageRecipients[instanceId] ?: playerRecipient()
-
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
             if (!CombatUtil.canAttack(card)) continue
@@ -905,35 +930,26 @@ object RequestBuilder {
             val hasEnlist = card.hasKeyword("Enlist")
             val isCommitted = instanceId in committedAttackerIds
             val selectedAlternativeGrpId = committedAttackAlternatives[instanceId] ?: 0
-            val legalRecipients = legalRecipients(card)
+            val legalRecipients = legalAttackDamageRecipients(player, card, seatId, bridge)
             if (legalRecipients.isEmpty()) continue
 
-            fun attackerOption(alternativeGrpId: Int = 0): Attacker.Builder =
-                Attacker
-                    .newBuilder()
-                    .setAttackerInstanceId(instanceId)
-                    .addAllLegalDamageRecipients(legalRecipients)
-                    .apply {
-                        if (alternativeGrpId != 0) setAlternativeGrpId(alternativeGrpId)
-                    }
-
-            val attacker = attackerOption()
+            val attacker = buildAttackerOption(instanceId, legalRecipients)
             if (isCommitted && selectedAlternativeGrpId == 0) {
-                attacker.setSelectedDamageRecipient(selectedRecipient(instanceId))
+                attacker.setSelectedDamageRecipient(selectedAttackDamageRecipient(instanceId, seatId, committedDamageRecipients))
             }
             builder.addAttackers(attacker)
 
             if (hasEnlist) {
-                val enlistAttacker = attackerOption(KeywordAbilityIds.ENLIST)
+                val enlistAttacker = buildAttackerOption(instanceId, legalRecipients, KeywordAbilityIds.ENLIST)
                 if (isCommitted && selectedAlternativeGrpId == KeywordAbilityIds.ENLIST) {
-                    enlistAttacker.setSelectedDamageRecipient(selectedRecipient(instanceId))
+                    enlistAttacker.setSelectedDamageRecipient(selectedAttackDamageRecipient(instanceId, seatId, committedDamageRecipients))
                 }
                 builder.addAttackers(enlistAttacker)
             }
 
             // qualifiedAttackers never has selectedDamageRecipient
-            builder.addQualifiedAttackers(attackerOption())
-            if (hasEnlist) builder.addQualifiedAttackers(attackerOption(KeywordAbilityIds.ENLIST))
+            builder.addQualifiedAttackers(buildAttackerOption(instanceId, legalRecipients))
+            if (hasEnlist) builder.addQualifiedAttackers(buildAttackerOption(instanceId, legalRecipients, KeywordAbilityIds.ENLIST))
         }
         builder.setCanSubmitAttackers(true)
         // Conformance: client expects an empty manaCost entry entry.
