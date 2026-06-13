@@ -11,6 +11,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.InvariantSelection
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
+import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GroupReq
@@ -238,6 +239,11 @@ abstract class SessionTest(
 
     fun declareAttackers(attackerInstanceIds: List<Int>) = harness.declareAttackers(attackerInstanceIds)
 
+    fun declareAttackers(
+        attackerInstanceIds: List<Int>,
+        damageRecipients: Map<Int, DamageRecipient>,
+    ) = harness.declareAttackers(attackerInstanceIds, damageRecipients)
+
     fun declareNoAttackers() = harness.declareNoAttackers()
 
     fun declareAllAttackers() = harness.declareAllAttackers()
@@ -247,7 +253,8 @@ abstract class SessionTest(
     fun toggleAttackers(
         attackerInstanceIds: List<Int>,
         attackerAlternatives: Map<Int, Int> = emptyMap(),
-    ): List<GREToClientMessage> = harness.toggleAttackers(attackerInstanceIds, attackerAlternatives)
+        damageRecipients: Map<Int, DamageRecipient> = emptyMap(),
+    ): List<GREToClientMessage> = harness.toggleAttackers(attackerInstanceIds, attackerAlternatives, damageRecipients)
 
     // --- Combat: declare blockers ---
 

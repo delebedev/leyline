@@ -100,6 +100,7 @@ fun performAction(block: Action.Builder.() -> Unit): ClientToGREMessage =
 fun declareAttackersResp(
     attackers: List<Int> = emptyList(),
     attackerAlternatives: Map<Int, Int> = emptyMap(),
+    damageRecipients: Map<Int, DamageRecipient> = emptyMap(),
     autoDeclare: Boolean = false,
     autoDeclareTarget: Int? = null,
 ): ClientToGREMessage =
@@ -125,12 +126,20 @@ fun declareAttackersResp(
                             .apply {
                                 val alternativeGrpId = attackerAlternatives[iid] ?: 0
                                 if (alternativeGrpId != 0) setAlternativeGrpId(alternativeGrpId)
+                                damageRecipients[iid]?.let { setSelectedDamageRecipient(it) }
                             },
                     )
                 }
             },
         )
     }
+
+fun planeswalkerDamageRecipient(planeswalkerInstanceId: Int): DamageRecipient =
+    DamageRecipient
+        .newBuilder()
+        .setType(DamageRecType.PlanesWalker)
+        .setPlaneswalkerInstanceId(planeswalkerInstanceId)
+        .build()
 
 /** [SubmitAttackersReq] — type-only "Done" button, no payload. */
 fun submitAttackersReq(seatId: Int = 1): ClientToGREMessage =

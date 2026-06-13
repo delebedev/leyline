@@ -2,7 +2,9 @@ package leyline.game.bundle
 
 import forge.game.Game
 import forge.game.GameEntity
+import forge.game.card.Card
 import forge.game.combat.CombatUtil
+import forge.game.player.Player
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
@@ -851,10 +853,10 @@ object RequestBuilder {
 
     /**
      * Build [DeclareAttackersReq] listing all creatures that can legally attack.
-     * Each attacker includes legal damage recipients (opponent player seat).
+     * Each attacker includes legal damage recipients (opponent player and planeswalkers).
      *
      * @param committedAttackerIds instanceIds of attackers already selected (echo-back).
-     *   Committed attackers get [selectedDamageRecipient] set to the opponent player.
+     *   Committed attackers get [selectedDamageRecipient] set to their chosen recipient.
      * @param committedAttackAlternatives selected attack alternative per attacker; 0 means normal attack.
      *   Initial request passes empty set (no pre-selection).
      */
@@ -863,17 +865,37 @@ object RequestBuilder {
         bridge: GameBridge,
         committedAttackerIds: Set<Int> = emptySet(),
         committedAttackAlternatives: Map<Int, Int> = emptyMap(),
+        committedDamageRecipients: Map<Int, DamageRecipient> = emptyMap(),
     ): DeclareAttackersReq {
         val player = bridge.getPlayer(seatId) ?: return DeclareAttackersReq.getDefaultInstance()
         val builder = DeclareAttackersReq.newBuilder()
 
-        val opponentSeatId = seatId.opponent.value
-        val defaultRecipient =
+        fun playerRecipient() =
             DamageRecipient
                 .newBuilder()
                 .setType(DamageRecType.Player_a0e5)
-                .setPlayerSystemSeatId(opponentSeatId)
+                .setPlayerSystemSeatId(seatId.opponent.value)
                 .build()
+
+        fun planeswalkerRecipient(card: Card) =
+            DamageRecipient
+                .newBuilder()
+                .setType(DamageRecType.PlanesWalker)
+                .setPlaneswalkerInstanceId(bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
+                .build()
+
+        fun legalRecipients(card: Card): List<DamageRecipient> =
+            buildList {
+                for (defender in CombatUtil.getAllPossibleDefenders(player)) {
+                    if (!CombatUtil.canAttack(card, defender)) continue
+                    when (defender) {
+                        is Player -> add(playerRecipient())
+                        is Card -> if (defender.isPlaneswalker) add(planeswalkerRecipient(defender))
+                    }
+                }
+            }
+
+        fun selectedRecipient(instanceId: Int): DamageRecipient = committedDamageRecipients[instanceId] ?: playerRecipient()
 
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
@@ -883,24 +905,28 @@ object RequestBuilder {
             val hasEnlist = card.hasKeyword("Enlist")
             val isCommitted = instanceId in committedAttackerIds
             val selectedAlternativeGrpId = committedAttackAlternatives[instanceId] ?: 0
+            val legalRecipients = legalRecipients(card)
+            if (legalRecipients.isEmpty()) continue
 
             fun attackerOption(alternativeGrpId: Int = 0): Attacker.Builder =
                 Attacker
                     .newBuilder()
                     .setAttackerInstanceId(instanceId)
-                    .addLegalDamageRecipients(defaultRecipient)
+                    .addAllLegalDamageRecipients(legalRecipients)
                     .apply {
                         if (alternativeGrpId != 0) setAlternativeGrpId(alternativeGrpId)
                     }
 
             val attacker = attackerOption()
-            if (isCommitted && selectedAlternativeGrpId == 0) attacker.setSelectedDamageRecipient(defaultRecipient)
+            if (isCommitted && selectedAlternativeGrpId == 0) {
+                attacker.setSelectedDamageRecipient(selectedRecipient(instanceId))
+            }
             builder.addAttackers(attacker)
 
             if (hasEnlist) {
                 val enlistAttacker = attackerOption(KeywordAbilityIds.ENLIST)
                 if (isCommitted && selectedAlternativeGrpId == KeywordAbilityIds.ENLIST) {
-                    enlistAttacker.setSelectedDamageRecipient(defaultRecipient)
+                    enlistAttacker.setSelectedDamageRecipient(selectedRecipient(instanceId))
                 }
                 builder.addAttackers(enlistAttacker)
             }

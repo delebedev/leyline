@@ -294,6 +294,7 @@ sealed class PlayerAction {
         val attackerIds: List<ForgeCardId>,
         val attackAlternativeByAttacker: Map<ForgeCardId, Int> = emptyMap(),
         val defender: Target? = null,
+        val defenderByAttacker: Map<ForgeCardId, Target> = emptyMap(),
     ) : PlayerAction()
 
     data class DeclareBlockers(

@@ -1,7 +1,9 @@
 package leyline.session.combat
 
+import forge.game.card.CounterEnumType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
@@ -17,10 +19,12 @@ import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantSelection
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
+import leyline.testkit.TestCardInjector
 import leyline.testkit.allAnnotations
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.detailInt
 import leyline.testkit.gsm
+import leyline.tooling.headless.planeswalkerDamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AttackState
@@ -300,6 +304,93 @@ class CombatInteractionTest :
             ai.life shouldBeLessThan lifeBefore
 
             assertAccumulatorConsistent("after combat damage")
+        }
+
+        test("human can destroy opposing planeswalker in combat") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Mountain
+                humanlibrary=Mountain;Mountain;Mountain
+                ailibrary=Mountain;Mountain;Mountain
+                """,
+                name = "Planeswalker Combat Target",
+                turns = 5,
+                validating = true,
+                validation = combatValidation,
+            )
+            val attacker =
+                TestCardInjector.inject(
+                    harness.bridge,
+                    HUMAN_SEAT,
+                    "Raging Goblin",
+                    ZoneType.Battlefield,
+                    sick = false,
+                )
+            val planeswalker =
+                TestCardInjector.inject(
+                    harness.bridge,
+                    OPPONENT_SEAT,
+                    "Liliana of the Veil",
+                    ZoneType.Battlefield,
+                )
+            planeswalker.card.setCounters(CounterEnumType.LOYALTY, 1)
+            val attackerIid = attacker.instanceId
+            val planeswalkerIid = planeswalker.instanceId
+            val startTurn = turn()
+
+            val promptSnap = messageSnapshot()
+            passUntil(maxPasses = 5) {
+                messagesSince(promptSnap).any { it.hasDeclareAttackersReq() }
+            }.shouldBeTrue()
+            val req = messagesSince(promptSnap).last { it.hasDeclareAttackersReq() }.declareAttackersReq
+            val attackerPrompt = req.attackersList.first { it.attackerInstanceId == attackerIid }
+            assertSoftly {
+                attackerPrompt.legalDamageRecipientsList
+                    .any { it.type == DamageRecType.Player_a0e5 && it.playerSystemSeatId == OPPONENT_SEAT }
+                    .shouldBeTrue()
+                attackerPrompt.legalDamageRecipientsList
+                    .any { it.type == DamageRecType.PlanesWalker && it.planeswalkerInstanceId == planeswalkerIid }
+                    .shouldBeTrue()
+            }
+
+            val recipient = planeswalkerDamageRecipient(planeswalkerIid)
+            val echoReq =
+                after {
+                    toggleAttackers(listOf(attackerIid), damageRecipients = mapOf(attackerIid to recipient))
+                }.expectOneDeclareAttackersReq()
+            val selectedAttacker =
+                echoReq.attackersList.firstOrNull { it.attackerInstanceId == attackerIid }
+            withClue("echo attackers=${echoReq.attackersList.map { it.attackerInstanceId }} expected=$attackerIid") {
+                selectedAttacker.shouldNotBeNull()
+            }
+            assertSoftly {
+                selectedAttacker!!.hasSelectedDamageRecipient().shouldBeTrue()
+                selectedAttacker.selectedDamageRecipient.type shouldBe DamageRecType.PlanesWalker
+                selectedAttacker.selectedDamageRecipient.planeswalkerInstanceId shouldBe planeswalkerIid
+            }
+
+            submitAttackers()
+            passThroughCombat(startTurn)
+
+            val battlefieldPlaneswalker =
+                ai.getZone(ZoneType.Battlefield).cards.firstOrNull { it.id == planeswalker.forgeCardId }
+            val graveyardPlaneswalker =
+                ai.getZone(ZoneType.Graveyard).cards.firstOrNull { it.id == planeswalker.forgeCardId }
+            assertSoftly {
+                ai.life shouldBe 20
+                withClue(
+                    "aiBattlefield=${ai.getZone(ZoneType.Battlefield).cards.map { it.name to it.currentLoyalty }} " +
+                        "aiGraveyard=${ai.getZone(ZoneType.Graveyard).cards.map { it.name }}",
+                ) {
+                    battlefieldPlaneswalker.shouldBeNull()
+                    graveyardPlaneswalker.shouldNotBeNull()
+                }
+            }
         }
 
         test("combat damage GSM has correct phase and annotation shape") {
