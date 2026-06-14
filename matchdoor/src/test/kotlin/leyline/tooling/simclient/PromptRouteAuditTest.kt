@@ -53,6 +53,25 @@ class PromptRouteAuditTest :
             audit.findings.single().expectedGreType shouldBe "OrderReq"
         }
 
+        test("accepts explicit non-library order prompts as auto-resolved") {
+            val audit =
+                PromptRouteAuditor.audit(
+                    history =
+                        listOf(
+                            promptRecord(
+                                promptType = "choose_cards",
+                                semantic = PromptSemantic.OrderGeneric,
+                                message = "Order cards being put into exile",
+                                outcome = InteractivePromptBridge.PromptCallStatus.RESPONDED,
+                            ),
+                        ),
+                    promptHistogram = emptyMap(),
+                )
+
+            audit.requestsByKind shouldContainExactly mapOf("choose_cards|OrderGeneric" to 1)
+            audit.findings shouldHaveSize 0
+        }
+
         test("accepts routed SelectN semantics when SelectNReq is emitted") {
             val audit =
                 PromptRouteAuditor.audit(
