@@ -225,7 +225,7 @@ class AbilityRegistry private constructor(
             saMap: MutableMap<Int, Int>,
         ) {
             var idx = 0
-            for (sa in card.spellAbilities ?: emptyList()) {
+            for (sa in card.manaAbilities ?: emptyList()) {
                 if (!sa.isManaAbility() || !sa.isIntrinsic) continue
                 val slotIdx = manaSlotIndices.getOrNull(idx)
                 val grpId = if (slotIdx != null && slotIdx < abilityIds.size) abilityIds[slotIdx].first else fallbackGrpId

@@ -1,0 +1,32 @@
+name: "Loot, the Pathfinder"
+grpId: 95014
+titleId: 879355
+abilities:
+  - id: 3
+    textId: 22
+    category: 3
+  - id: 15
+    textId: 137
+    category: 3
+  - id: 9
+    textId: 101
+    category: 3
+  - id: 176608
+    textId: 879356
+    category: 1
+    subCategory: 1
+    baseId: 353
+    mana: "oG"
+  - id: 176609
+    textId: 879357
+    category: 1
+    subCategory: 1
+    baseId: 353
+    mana: "oU"
+  - id: 176610
+    textId: 879358
+    category: 1
+    subCategory: 1
+    baseId: 353
+    mana: "oR"
+expansionCode: "DFT"

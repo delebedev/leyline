@@ -1,0 +1,16 @@
+[metadata]
+Name:Exhaust Jeong Jeong
+Goal:Activate Jeong Jeong's exhaust ability once.
+Turns:3
+Difficulty:Easy
+Description:Jeong Jeong activates his exhaust ability, gains a +1/+1 counter, and cannot activate it again that turn.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Jeong Jeong, the Deserter;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

@@ -1,7 +1,10 @@
 package leyline.game.mapping
 
+import forge.game.spellability.SpellAbility
+import forge.game.staticability.StaticAbilityExhaust
 import leyline.DevCheck
 import leyline.bridge.coord.TargetingCoordinator
+import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.EffectId
@@ -27,6 +30,7 @@ import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.SnapDeltaSynthesizer
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.AbilityExhaustedKind
 import leyline.game.state.AbilityWireIdentity
 import leyline.game.state.AbilityWordActiveKind
 import leyline.game.state.BridgeMutations
@@ -134,6 +138,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
 @Suppress("LargeClass") // pipeline orchestrator; stages already delegated to mapper/* and helper objects
 object StateMapper {
     private val log = LoggerFactory.getLogger(StateMapper::class.java)
+    private const val INITIAL_UNIQUE_ABILITY_ID = 50
     private val disturbBackPlayerZoneIds =
         setOf(
             ZoneIds.P1_HAND,
@@ -1102,6 +1107,7 @@ object StateMapper {
         val pendingTargetSpecs = bridge.snapshotPendingTargetSpecs()
         val targetSpecPersistent = buildTargetSpecAnnotations(pendingTargetSpecs.map { it.spec }, bridge, frameIds, snap)
         val (mutateMergeTransient, mutateMergePersistent) = buildMutateMergeAnnotations(snap, bridge, frameIds)
+        val abilityExhaustedPersistent = buildAbilityExhaustedAnnotations(snap, bridge, frameIds)
         annotations.addAll(mutateMergeTransient)
 
         val (crewedThisTurnPersistent, crewTypeChangePersistent, crewExpiredAnnotations) =
@@ -1140,6 +1146,7 @@ object StateMapper {
                         put(ColorProductionKind, persistentFeeds.colorProduction)
                         put(LinkInfoChoiceKind, persistentFeeds.linkInfo)
                         put(ManaDetailsKind, buildManaDetailsAnnotations(snap))
+                        put(AbilityExhaustedKind, abilityExhaustedPersistent)
                     },
             )
         val batch =
@@ -1768,6 +1775,48 @@ object StateMapper {
         }
         return bound.snapshot.grpId
     }
+
+    private fun buildAbilityExhaustedAnnotations(
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+        frameIds: FrameIdResolver,
+    ): List<AnnotationInfo> =
+        snap.boundCards.values.flatMap { bound ->
+            val card = bridge.findCard(bound.forgeCardId) ?: return@flatMap emptyList()
+            val player = card.controller ?: return@flatMap emptyList()
+            val registry = bridge.abilityRegistryFor(card, bound.data) ?: return@flatMap emptyList()
+            val usesRemaining = if (StaticAbilityExhaust.anyWithExhaust(player)) 1 else 0
+            val abilities =
+                card.allSpellAbilities.orEmpty() +
+                    card.manaAbilities.orEmpty() +
+                    getNonManaActivatedAbilities(card, player)
+            exhaustedAbilities(abilities).mapNotNull { ability ->
+                val abilityGrpId = registry.forSpellAbility(ability.id).takeIf { it != 0 } ?: return@mapNotNull null
+                AnnotationBuilder.abilityExhausted(
+                    instanceId = frameIds.cardIid(bound.forgeCardId),
+                    abilityGrpId = GrpId(abilityGrpId),
+                    usesRemaining = usesRemaining,
+                    uniqueAbilityId = uniqueAbilityIdFor(bound.data, abilityGrpId),
+                )
+            }
+        }
+
+    private fun exhaustedAbilities(abilities: List<SpellAbility>): List<SpellAbility> =
+        abilities
+            .distinctBy { it.id }
+            .filter { it.isExhaust && it.activationsThisGame > 0 }
+
+    private fun uniqueAbilityIdFor(
+        cardData: leyline.game.data.CardData?,
+        abilityGrpId: Int,
+    ): Int =
+        cardData
+            ?.abilityIds
+            .orEmpty()
+            .indexOfFirst { (grpId, _) -> grpId == abilityGrpId }
+            .takeIf { it >= 0 }
+            ?.let { INITIAL_UNIQUE_ABILITY_ID + it }
+            ?: INITIAL_UNIQUE_ABILITY_ID
 
     private fun TransferResult.withDecayedCleanupAffectors(
         events: List<GameEvent>,
