@@ -1,5 +1,6 @@
 package leyline.match
 
+import forge.card.mana.ManaCost
 import forge.card.mana.ManaCostShard
 import leyline.DevCheck
 import leyline.bridge.coord.ConvokeShardAssigner
@@ -18,7 +19,9 @@ import leyline.game.bundle.PayCostsPromptRoute
 import leyline.game.bundle.RequestBuilder
 import leyline.game.bundle.SelectNEnvelope
 import leyline.game.bundle.SelectNPromptRoutes
+import leyline.game.codes.ManaColorMapping
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.SearchShape
@@ -971,8 +974,14 @@ class TargetingHandler(
         when (pendingInteraction) {
             is PendingClientInteraction.OptionalCost,
             is PendingClientInteraction.AlternateCostChoice,
+            is PendingClientInteraction.HybridManaType,
             -> {
                 pendingInteraction = null
+                bridge
+                    .seat(counters.seatId)
+                    .prompt
+                    .journal
+                    .clearHybridManaStash()
                 log.info("TargetingHandler: CancelActionReq — cancelling deferred cast before engine submit")
                 autoPass()
                 return
@@ -1275,6 +1284,12 @@ class TargetingHandler(
                 return
             }
 
+            is PendingClientInteraction.HybridManaType -> {
+                pendingInteraction = null
+                onHybridManaTypeResponse(greMsg, pending, autoPass)
+                return
+            }
+
             is PendingClientInteraction.ModalChoice -> {
                 val resp = greMsg.castingTimeOptionsResp
                 val chosenGrpIds = resp.castingTimeOptionResp.chooseModalResp.grpIdsList
@@ -1302,6 +1317,55 @@ class TargetingHandler(
         }
     }
 
+    fun checkHybridManaTypeOptions(
+        action: Action,
+        pendingActionId: String,
+        castAbilityIndex: Int?,
+    ): Boolean {
+        if (action.alternativeGrpId != 0) return false
+        val bridge = ctx.bridge
+        val game = ctx.game
+        val seatBridge = bridge.seat(counters.seatId)
+        seatBridge.prompt.journal.clearHybridManaStash()
+
+        val cardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return false
+        val card = game.findById(cardId.value) ?: return false
+        val player = bridge.getPlayer(counters.seatId) ?: return false
+        val castable = getAllCastableAbilities(card, player)
+        val sa = castAbilityIndex?.let { castable.getOrNull(it) } ?: castable.firstOrNull() ?: return false
+        sa.setActivatingPlayer(player)
+        val effectiveCost = ActionMapper.computeEffectiveCost(sa, player) ?: return false
+        val paymentColors = effectiveCost.hybridOrTwoGenericColors()
+        if (paymentColors.isEmpty()) return false
+        val baseCost = sa.payCosts?.totalMana
+        val promptCost = baseCost?.takeIf { it.hybridOrTwoGenericColors().size == paymentColors.size } ?: effectiveCost
+        val promptColors = promptCost.hybridOrTwoGenericColors()
+
+        val (ctoReq, ctoIds) =
+            bundles.bundleBuilder.buildManaTypeCastingTimeOptionsReq(
+                instanceId = action.instanceId,
+                grpId = action.grpId,
+                playerIdToPrompt = counters.seatId.value,
+                hybridColors = promptColors,
+                manaCost = promptCost.toManaRequirementSpecs(),
+            )
+        pendingInteraction =
+            PendingClientInteraction.HybridManaType(
+                pendingActionId = pendingActionId,
+                action = PlayerAction.CastSpell(cardId, castAbilityIndex),
+                clientAction = action,
+                castAbilityIndex = castAbilityIndex,
+                ctoIds = ctoIds,
+                promptColors = promptColors,
+                paymentColors = paymentColors,
+            )
+
+        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
+        Tap.outboundTemplate("CastingTimeOptionsReq (hybrid mana type) seat=${counters.seatId} card=${card.name}")
+        sink.sendBundledGRE(result.messages)
+        return true
+    }
+
     /**
      * Check if a Cast action targets a card with optional costs (kicker, buyback, etc.).
      * If yes, sends CastingTimeOptionsReq to client and returns true (caller should NOT submit to engine).
@@ -1311,6 +1375,7 @@ class TargetingHandler(
         action: Action,
         pendingActionId: String,
         castAbilityIndex: Int?,
+        preserveHybridStash: Boolean = false,
     ): Boolean {
         val bridge = ctx.bridge
         val game = ctx.game
@@ -1324,20 +1389,7 @@ class TargetingHandler(
                 ?: castable.firstOrNull()
                 ?: return false
         sa.setActivatingPlayer(player)
-        // Drop any stale keyword-cost stash from a prior cast: every
-        // `checkOptionalCosts` invocation either emits a fresh CTO (and
-        // overwrites the stash via `onOptionalCostResponse`) or no CTO at
-        // all. Without this clear, a prior cast's stale `Offspring=true`
-        // leaks into a subsequent non-CTO `chooseNumberForKeywordCost` call
-        // (e.g., a triggered cast that doesn't go through this gate).
-        bridge
-            .seat(counters.seatId)
-            .prompt.journal
-            .clearKeywordCostStash()
-        bridge
-            .seat(counters.seatId)
-            .prompt.journal
-            .clearCollectEvidenceCost()
+        clearDeferredCastCostStashes(clearHybrid = !preserveHybridStash)
 
         val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
         // Keyword-with-cost keywords (Offspring, Casualty, Conspire) ride a separate
@@ -1562,6 +1614,102 @@ class TargetingHandler(
             DevCheck.failOnAutoPass { "optional cost response but no pending engine action" }
         }
     }
+
+    private fun onHybridManaTypeResponse(
+        greMsg: ClientToGREMessage,
+        pending: PendingClientInteraction.HybridManaType,
+        autoPass: () -> Unit,
+    ) {
+        val bridge = ctx.bridge
+        val resp = greMsg.castingTimeOptionsResp
+        val optionResponses =
+            if (resp.castingTimeOptionRespsCount > 0) {
+                resp.castingTimeOptionRespsList
+            } else {
+                listOf(resp.castingTimeOptionResp)
+            }
+        val byCtoId = optionResponses.associateBy { it.ctoId }
+        val promptChoices =
+            pending.ctoIds.mapIndexed { index, ctoId ->
+                byCtoId[ctoId]
+                    ?.takeIf { it.hasSelectManaTypeResp() }
+                    ?.selectManaTypeResp
+                    ?.manaColor
+                    ?: optionResponses
+                        .getOrNull(index)
+                        ?.takeIf { it.hasSelectManaTypeResp() }
+                        ?.selectManaTypeResp
+                        ?.manaColor
+                    ?: pending.promptColors.getOrNull(index)
+                    ?: ManaColor.TwoGeneric
+            }
+        val choices = promptChoices.reorderHybridChoices(pending.promptColors, pending.paymentColors)
+        val seatBridge = bridge.seat(counters.seatId)
+        seatBridge.prompt.journal.record(PromptSideEffect.HybridManaStash(choices))
+        log.info("TargetingHandler: hybrid mana type choices stashed: prompt={} payment={}", promptChoices, choices)
+
+        if (checkOptionalCosts(pending.clientAction, pending.pendingActionId, pending.castAbilityIndex, preserveHybridStash = true)) {
+            Tap.outboundTemplate("Cast deferred — optional cost prompt sent after hybrid mana type")
+            return
+        }
+
+        val pendingAction = seatBridge.action.getPending()
+        if (pendingAction != null) {
+            seatBridge.action.submitAction(pendingAction.actionId, pending.action)
+            bridge.awaitPriority()
+            autoPass()
+        } else {
+            log.warn("TargetingHandler: hybrid mana response but no pending engine action (likely timeout race)")
+            DevCheck.failOnAutoPass { "hybrid mana response but no pending engine action" }
+        }
+    }
+
+    private fun clearDeferredCastCostStashes(clearHybrid: Boolean = true) {
+        // Drop stale decisions from prior casts: each cast prompt overwrites
+        // these stashes, and non-prompt casts must not inherit old choices.
+        val journal =
+            ctx.bridge
+                .seat(counters.seatId)
+                .prompt
+                .journal
+        journal.clearKeywordCostStash()
+        if (clearHybrid) journal.clearHybridManaStash()
+        journal.clearCollectEvidenceCost()
+    }
+
+    private fun ManaCost.hybridOrTwoGenericColors(): List<ManaColor> = mapNotNull { shard -> ManaColorMapping.fromOrTwoGenericShard(shard) }
+
+    private fun List<ManaColor>.reorderHybridChoices(
+        promptColors: List<ManaColor>,
+        paymentColors: List<ManaColor>,
+    ): List<ManaColor> {
+        val used = BooleanArray(size)
+        return paymentColors.map { paymentColor ->
+            val promptIndex = promptColors.indices.firstOrNull { index -> !used[index] && promptColors[index] == paymentColor }
+            if (promptIndex == null) {
+                paymentColor
+            } else {
+                used[promptIndex] = true
+                getOrNull(promptIndex) ?: paymentColor
+            }
+        }
+    }
+
+    private fun ManaCost.toManaRequirementSpecs(): List<BundleBuilder.ManaRequirementSpec> =
+        buildList {
+            for (shard in this@toManaRequirementSpecs) {
+                val hybridColor = ManaColorMapping.fromOrTwoGenericShard(shard)
+                val color = hybridColor ?: ManaColorMapping.fromShard(shard) ?: continue
+                add(
+                    BundleBuilder.ManaRequirementSpec(
+                        colors = if (hybridColor != null) listOf(ManaColor.TwoGeneric, color) else listOf(color),
+                    ),
+                )
+            }
+            if (genericCost > 0) {
+                add(BundleBuilder.ManaRequirementSpec(colors = listOf(ManaColor.Generic), count = genericCost))
+            }
+        }
 
     private fun onAlternateCostChoiceResponse(
         greMsg: ClientToGREMessage,

@@ -69,6 +69,11 @@ class BundleBuilder(
         val messages: List<GREToClientMessage>,
     )
 
+    data class ManaRequirementSpec(
+        val colors: List<ManaColor>,
+        val count: Int = 1,
+    )
+
     private data class FrameDiff(
         val gameStateId: Int,
         val snap: GsmSnapshot,
@@ -1711,6 +1716,49 @@ class BundleBuilder(
         )
         return Pair(ctoReqBuilder.build(), costCtoIds)
     }
+
+    fun buildManaTypeCastingTimeOptionsReq(
+        instanceId: Int,
+        grpId: Int,
+        playerIdToPrompt: Int,
+        hybridColors: List<ManaColor>,
+        manaCost: List<ManaRequirementSpec>,
+    ): Pair<CastingTimeOptionsReq, List<Int>> {
+        val manaRequirements = manaCost.map { it.toProto(instanceId) }
+        val ctoReqBuilder = CastingTimeOptionsReq.newBuilder()
+        val ctoIds = mutableListOf<Int>()
+        for ((index, color) in hybridColors.withIndex()) {
+            val ctoId = index + 2
+            ctoIds.add(ctoId)
+            ctoReqBuilder.addCastingTimeOptionReq(
+                CastingTimeOptionReq
+                    .newBuilder()
+                    .setCtoId(ctoId)
+                    .setCastingTimeOptionType(CastingTimeOptionType.ManaType)
+                    .setAffectedId(instanceId)
+                    .setAffectorId(instanceId)
+                    .setGrpId(grpId)
+                    .setPlayerIdToPrompt(playerIdToPrompt)
+                    .setIsRequired(true)
+                    .setSelectManaTypeReq(
+                        SelectManaTypeReq
+                            .newBuilder()
+                            .addManaColors(ManaColor.TwoGeneric)
+                            .addManaColors(color)
+                            .setSourceId(instanceId),
+                    ).addAllManaCost(manaRequirements),
+            )
+        }
+        return ctoReqBuilder.build() to ctoIds
+    }
+
+    private fun ManaRequirementSpec.toProto(objectId: Int): ManaRequirement =
+        ManaRequirement
+            .newBuilder()
+            .addAllColor(colors)
+            .setCount(count)
+            .setObjectId(objectId)
+            .build()
 
     fun buildChooseOrCostCastingTimeOptionsReq(
         instanceId: Int,

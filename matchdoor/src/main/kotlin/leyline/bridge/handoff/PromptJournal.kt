@@ -1,6 +1,7 @@
 package leyline.bridge.handoff
 
 import leyline.bridge.types.ForgeCardId
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.util.concurrent.ConcurrentLinkedDeque
 
 /**
@@ -49,6 +50,9 @@ class PromptJournal {
     private var currentKeywordStash: Map<String, Boolean>? = null
 
     @Volatile
+    private var currentHybridManaStash: List<ManaColor>? = null
+
+    @Volatile
     private var currentCollectEvidenceCost: PromptSideEffect.CollectEvidenceCost? = null
 
     @Volatile
@@ -66,6 +70,7 @@ class PromptJournal {
             PromptSideEffect.RevealEnded -> currentReveal = null
             is PromptSideEffect.OptionalCostStash -> currentStash = effect.indices
             is PromptSideEffect.KeywordCostStash -> currentKeywordStash = effect.decisionsByKeyword
+            is PromptSideEffect.HybridManaStash -> currentHybridManaStash = effect.choices
             is PromptSideEffect.CollectEvidenceCost -> currentCollectEvidenceCost = effect
             is PromptSideEffect.ConvokePayments ->
                 currentConvokePayments =
@@ -166,6 +171,16 @@ class PromptJournal {
         currentKeywordStash = null
     }
 
+    fun consumeHybridManaStash(): List<ManaColor>? {
+        val out = currentHybridManaStash
+        currentHybridManaStash = null
+        return out
+    }
+
+    fun clearHybridManaStash() {
+        currentHybridManaStash = null
+    }
+
     fun activeCollectEvidenceCost(): PromptSideEffect.CollectEvidenceCost? = currentCollectEvidenceCost
 
     fun clearCollectEvidenceCost() {
@@ -186,6 +201,7 @@ class PromptJournal {
         currentReveal = null
         currentStash = null
         currentKeywordStash = null
+        currentHybridManaStash = null
         currentCollectEvidenceCost = null
         currentConvokePayments = emptyMap()
     }

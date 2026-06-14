@@ -157,6 +157,10 @@ class ActionPerformer(
                     Tap.outboundTemplate("Cast deferred — alternate additional cost prompt sent")
                     return
                 }
+                if (targetingHandler.checkHybridManaTypeOptions(action, pending.actionId, castAbilityIndex)) {
+                    Tap.outboundTemplate("Cast deferred — hybrid mana type prompt sent")
+                    return
+                }
                 // Check for optional costs (kicker, buyback, etc.) before submitting.
                 // If found, sends CastingTimeOptionsReq to client and returns without
                 // submitting to engine. onCastingTimeOptions resumes the cast.

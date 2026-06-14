@@ -62,14 +62,21 @@ object ActionMapper {
         ABILITY_ONLY(includesSourceIdentity = false, activeShouldStop = false, activeManaCost = true),
     }
 
+    private data class ManaSource(
+        val instanceId: Int,
+        val color: ManaColor,
+        val abilityGrpId: Int,
+        val fromSnow: Boolean,
+    )
+
     private fun canPayManaCost(
         sa: SpellAbility,
         player: Player,
     ): Boolean =
         try {
-            ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+            ComputerUtilMana.canPayManaCost(sa, player, 0, false) || canPayOrTwoGenericManaCost(sa, player)
         } catch (_: Exception) {
-            false
+            canPayOrTwoGenericManaCost(sa, player)
         }
 
     private fun canPlayAndPayManaCost(
@@ -77,10 +84,96 @@ object ActionMapper {
         player: Player,
     ): Boolean =
         try {
-            sa.canPlay() && ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+            sa.canPlay() && canPayManaCost(sa, player)
         } catch (_: Exception) {
             false
         }
+
+    @Suppress("CyclomaticComplexMethod") // Bounded DFS over a small mana-source set; keeps hybrid affordability local.
+    private fun canPayOrTwoGenericManaCost(
+        sa: SpellAbility,
+        player: Player,
+    ): Boolean {
+        val cost = computeEffectiveCost(sa, player) ?: return false
+        val hybridColors = cost.mapNotNull { ManaColorMapping.fromOrTwoGenericShard(it) }
+        if (hybridColors.isEmpty()) return false
+
+        val coloredRequirements =
+            cost.mapNotNull { shard ->
+                if (ManaColorMapping.fromOrTwoGenericShard(shard) == null) ManaColorMapping.fromShard(shard) else null
+            }
+        val sourceColors = availableManaSourceColors(player)
+        if (sourceColors.isEmpty()) return false
+
+        fun canPayColor(
+            sourceIndex: Int,
+            color: ManaColor,
+        ): Boolean = ManaColor.Generic in sourceColors[sourceIndex] || color in sourceColors[sourceIndex]
+
+        fun payGeneric(
+            needed: Int,
+            used: BooleanArray,
+            then: () -> Boolean,
+        ): Boolean {
+            if (needed == 0) return then()
+            for (i in sourceColors.indices) {
+                if (used[i]) continue
+                used[i] = true
+                if (payGeneric(needed - 1, used, then)) return true
+                used[i] = false
+            }
+            return false
+        }
+
+        fun payHybrids(
+            index: Int,
+            used: BooleanArray,
+        ): Boolean {
+            if (index == hybridColors.size) {
+                return payGeneric(cost.genericCost, used) { true }
+            }
+            val color = hybridColors[index]
+            for (i in sourceColors.indices) {
+                if (used[i] || !canPayColor(i, color)) continue
+                used[i] = true
+                if (payHybrids(index + 1, used)) return true
+                used[i] = false
+            }
+            return payGeneric(2, used) { payHybrids(index + 1, used) }
+        }
+
+        fun payColored(
+            index: Int,
+            used: BooleanArray,
+        ): Boolean {
+            if (index == coloredRequirements.size) return payHybrids(0, used)
+            val color = coloredRequirements[index]
+            for (i in sourceColors.indices) {
+                if (used[i] || !canPayColor(i, color)) continue
+                used[i] = true
+                if (payColored(index + 1, used)) return true
+                used[i] = false
+            }
+            return false
+        }
+
+        return payColored(0, BooleanArray(sourceColors.size))
+    }
+
+    private fun availableManaSourceColors(player: Player): List<Set<ManaColor>> =
+        player
+            .getZone(ForgeZoneType.Battlefield)
+            .cards
+            .filterNot { it.isTapped }
+            .mapNotNull { card ->
+                getPlayableManaAbilities(card, player)
+                    .flatMap { sa ->
+                        val mana = sa.manaPart ?: return@flatMap emptyList()
+                        val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
+                        produced.split(" ").mapNotNull { producedToManaColor(it) }
+                    }.toSet()
+                    .takeIf { it.isNotEmpty() }
+            }
 
     /**
      * Naive action list: Cast for all non-lands, Play for all lands in hand,
@@ -135,7 +228,7 @@ object ActionMapper {
             cost: ManaCost,
         ): AutoTapSolution? =
             buildAutoTapSolution(
-                forgeManaCostToPairs(cost),
+                cost,
                 player,
                 idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(forgeCardId) },
                 grpIdResolver = { c -> GrpId(bridge.resolveGrpId(c, bridge.getOrAllocInstanceId(ForgeCardId(c.id)).value)) },
@@ -324,10 +417,9 @@ object ActionMapper {
             val effectiveCost = if (printedCostAdded) null else computeEffectiveCost(sa, player)
             if (effectiveCost != null && !effectiveCost.isNoCost) {
                 addManaCostFromForge(effectiveCost, actionBuilder)
-                val costPairs = forgeManaCostToPairs(effectiveCost)
                 val autoTap =
                     buildAutoTapSolution(
-                        costPairs,
+                        effectiveCost,
                         player,
                         idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(forgeCardId) },
                         grpIdResolver = { c -> GrpId(bridge.resolveGrpId(c, bridge.getOrAllocInstanceId(ForgeCardId(c.id)).value)) },
@@ -830,7 +922,7 @@ object ActionMapper {
                     abilityRegistryLookup = abilityRegistryLookup,
                     autoTapSolution = { cost ->
                         buildAutoTapSolution(
-                            forgeManaCostToPairs(cost),
+                            cost,
                             player,
                             idResolver,
                             grpIdResolver,
@@ -923,7 +1015,7 @@ object ActionMapper {
                     abilityRegistryLookup = abilityRegistryLookup,
                     autoTapSolution = { cost ->
                         buildAutoTapSolution(
-                            forgeManaCostToPairs(cost),
+                            cost,
                             player,
                             idResolver,
                             grpIdResolver,
@@ -1083,8 +1175,15 @@ object ActionMapper {
             }
         }
         if (effectiveCost != null && !effectiveCost.isNoCost && checkLegality) {
-            val costPairs = forgeManaCostToPairs(effectiveCost)
-            val autoTap = buildAutoTapSolution(costPairs, player, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup)
+            val autoTap =
+                buildAutoTapSolution(
+                    effectiveCost,
+                    player,
+                    idResolver,
+                    grpIdResolver,
+                    cardDataLookup,
+                    abilityRegistryLookup,
+                )
             if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
         }
         return actionBuilder.build()
@@ -1537,6 +1636,35 @@ object ActionMapper {
             .addActions(Action.newBuilder().setActionType(ActionType.Pass))
             .build()
 
+    @Suppress("LongParameterList")
+    private fun buildAutoTapSolution(
+        manaCost: ManaCost,
+        player: Player,
+        idResolver: (ForgeCardId) -> InstanceId,
+        grpIdResolver: (Card) -> GrpId,
+        cardDataLookup: (GrpId) -> CardData?,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+    ): AutoTapSolution? =
+        if (manaCost.any { ManaColorMapping.fromOrTwoGenericShard(it) != null }) {
+            buildOrTwoGenericAutoTapSolution(
+                manaCost,
+                player,
+                idResolver,
+                grpIdResolver,
+                cardDataLookup,
+                abilityRegistryLookup,
+            )
+        } else {
+            buildAutoTapSolution(
+                forgeManaCostToPairs(manaCost),
+                player,
+                idResolver,
+                grpIdResolver,
+                cardDataLookup,
+                abilityRegistryLookup,
+            )
+        }
+
     /**
      * Greedy auto-tap solver: maps mana cost requirements to untapped mana sources.
      * Returns null if no complete solution found (spell still castable via manual tap).
@@ -1551,45 +1679,13 @@ object ActionMapper {
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ): AutoTapSolution? {
         if (manaCost.isEmpty()) return null
-
-        data class ManaSource(
-            val card: Card,
-            val instanceId: Int,
-            val color: ManaColor,
-            val abilityGrpId: Int,
-            val fromSnow: Boolean,
-        )
-
-        // Collect untapped mana sources with their produced color
-        val sources = mutableListOf<ManaSource>()
-        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
-            if (card.isTapped) continue
-            for (sa in getPlayableManaAbilities(card, player)) {
-                val mana = sa.manaPart ?: continue
-                val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
-                val colors = produced.split(" ").mapNotNull { producedToManaColor(it) }
-                if (colors.isEmpty()) continue
-                val instanceId = idResolver(ForgeCardId(card.id)).value
-                val grpId = grpIdResolver(card).value
-                val cardData = cardDataLookup(GrpId(grpId))
-                val registry = abilityRegistryLookup(card, cardData)
-                val abilityGrpId = registry?.forSpellAbility(sa.id) ?: basicLandAbilityGrpId(card)
-                for (color in colors) {
-                    sources.add(ManaSource(card, instanceId, color, abilityGrpId, fromSnow = card.type.isSnow))
-                }
-            }
-        }
+        val sources = collectManaSources(player, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup)
 
         // Greedy match: colored requirements first, then generic
         val usedSourceInstanceIds = mutableSetOf<Int>()
         val matched = mutableListOf<Pair<ManaSource, ManaColor>>() // (source, paying color)
         val coloredReqs = manaCost.filter { it.first != ManaColor.Generic }
         val genericReqs = manaCost.filter { it.first == ManaColor.Generic }
-
-        fun canPayRequirement(
-            src: ManaSource,
-            reqColor: ManaColor,
-        ): Boolean = if (reqColor == ManaColor.Snow_afc9) src.fromSnow else src.color == reqColor
 
         // Match colored requirements
         for ((reqColor, reqCount) in coloredReqs) {
@@ -1619,8 +1715,121 @@ object ActionMapper {
             if (remaining > 0) return null
         }
 
-        // Build AutoTapSolution matching expected protocol format:
-        // Each AutoTapAction has manaPaymentOption with full ManaInfo
+        return buildAutoTapSolution(matched)
+    }
+
+    @Suppress("LongParameterList", "CyclomaticComplexMethod")
+    private fun buildOrTwoGenericAutoTapSolution(
+        manaCost: ManaCost,
+        player: Player,
+        idResolver: (ForgeCardId) -> InstanceId,
+        grpIdResolver: (Card) -> GrpId,
+        cardDataLookup: (GrpId) -> CardData?,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+    ): AutoTapSolution? {
+        val sources = collectManaSources(player, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup)
+        if (sources.isEmpty()) return null
+
+        val coloredRequirements = mutableListOf<ManaColor>()
+        val hybridRequirements = mutableListOf<ManaColor>()
+        for (shard in manaCost) {
+            val hybridColor = ManaColorMapping.fromOrTwoGenericShard(shard)
+            if (hybridColor != null) {
+                hybridRequirements.add(hybridColor)
+            } else {
+                ManaColorMapping.fromShard(shard)?.let(coloredRequirements::add)
+            }
+        }
+
+        val used = mutableSetOf<Int>()
+        val matched = mutableListOf<Pair<ManaSource, ManaColor>>()
+
+        fun payColor(
+            color: ManaColor,
+            then: () -> Boolean,
+        ): Boolean {
+            for (src in sources) {
+                if (src.instanceId in used || !canPayRequirement(src, color)) continue
+                used.add(src.instanceId)
+                matched.add(src to src.color)
+                if (then()) return true
+                matched.removeAt(matched.lastIndex)
+                used.remove(src.instanceId)
+            }
+            return false
+        }
+
+        fun payGeneric(
+            needed: Int,
+            then: () -> Boolean,
+        ): Boolean {
+            if (needed == 0) return then()
+            for (src in sources) {
+                if (src.instanceId in used) continue
+                used.add(src.instanceId)
+                matched.add(src to src.color)
+                if (payGeneric(needed - 1, then)) return true
+                matched.removeAt(matched.lastIndex)
+                used.remove(src.instanceId)
+            }
+            return false
+        }
+
+        fun payHybrids(index: Int): Boolean {
+            if (index == hybridRequirements.size) {
+                return payGeneric(manaCost.genericCost) { true }
+            }
+            val color = hybridRequirements[index]
+            return payColor(color) { payHybrids(index + 1) } ||
+                payGeneric(2) { payHybrids(index + 1) }
+        }
+
+        fun payColored(index: Int): Boolean {
+            if (index == coloredRequirements.size) return payHybrids(0)
+            return payColor(coloredRequirements[index]) { payColored(index + 1) }
+        }
+
+        return if (payColored(0)) buildAutoTapSolution(matched) else null
+    }
+
+    private fun canPayRequirement(
+        src: ManaSource,
+        reqColor: ManaColor,
+    ): Boolean =
+        if (reqColor == ManaColor.Snow_afc9) {
+            src.fromSnow
+        } else {
+            reqColor == ManaColor.Generic || src.color == ManaColor.Generic || src.color == reqColor
+        }
+
+    @Suppress("LongParameterList")
+    private fun collectManaSources(
+        player: Player,
+        idResolver: (ForgeCardId) -> InstanceId,
+        grpIdResolver: (Card) -> GrpId,
+        cardDataLookup: (GrpId) -> CardData?,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+    ): List<ManaSource> {
+        val sources = mutableListOf<ManaSource>()
+        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
+            if (card.isTapped) continue
+            for (sa in getPlayableManaAbilities(card, player)) {
+                val colors = producedManaColors(sa)
+                if (colors.isEmpty()) continue
+                val instanceId = idResolver(ForgeCardId(card.id)).value
+                val grpId = grpIdResolver(card).value
+                val cardData = cardDataLookup(GrpId(grpId))
+                val registry = abilityRegistryLookup(card, cardData)
+                val abilityGrpId = registry?.forSpellAbility(sa.id) ?: basicLandAbilityGrpId(card)
+                for (color in colors) {
+                    sources.add(ManaSource(instanceId, color, abilityGrpId, fromSnow = card.type.isSnow))
+                }
+            }
+        }
+        return sources
+    }
+
+    private fun buildAutoTapSolution(matched: List<Pair<ManaSource, ManaColor>>): AutoTapSolution {
         val builder = AutoTapSolution.newBuilder()
         var manaIdCounter = INITIAL_MANA_ID
         for ((src, payingColor) in matched) {
@@ -1738,17 +1947,52 @@ object ActionMapper {
         actionBuilder: Action.Builder,
         abilityGrpId: Int? = null,
     ) {
-        for ((color, count) in manaCostColorCounts(manaCost)) {
-            val req = ManaRequirement.newBuilder().addColor(color).setCount(count)
+        forgeManaCostToRequirements(manaCost, abilityGrpId).forEach(actionBuilder::addManaCost)
+    }
+
+    internal fun forgeManaCostToRequirements(
+        manaCost: forge.card.mana.ManaCost,
+        abilityGrpId: Int? = null,
+    ): List<ManaRequirement> {
+        if (manaCost.none { ManaColorMapping.fromOrTwoGenericShard(it) != null }) {
+            return aggregatedManaRequirements(manaCost, abilityGrpId)
+        }
+        val result = mutableListOf<ManaRequirement>()
+        for (shard in manaCost) {
+            val hybridColor = ManaColorMapping.fromOrTwoGenericShard(shard)
+            val color = hybridColor ?: ManaColorMapping.fromShard(shard) ?: continue
+            val req = ManaRequirement.newBuilder().setCount(1)
+            if (hybridColor != null) req.addColor(ManaColor.TwoGeneric)
+            req.addColor(color)
             if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
-            actionBuilder.addManaCost(req)
+            result.add(req.build())
         }
         val generic = manaCost.genericCost
         if (generic > 0) {
             val req = ManaRequirement.newBuilder().addColor(ManaColor.Generic).setCount(generic)
             if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
-            actionBuilder.addManaCost(req)
+            result.add(req.build())
         }
+        return result
+    }
+
+    private fun aggregatedManaRequirements(
+        manaCost: forge.card.mana.ManaCost,
+        abilityGrpId: Int?,
+    ): List<ManaRequirement> {
+        val result = mutableListOf<ManaRequirement>()
+        for ((color, count) in manaCostColorCounts(manaCost)) {
+            val req = ManaRequirement.newBuilder().addColor(color).setCount(count)
+            if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
+            result.add(req.build())
+        }
+        val generic = manaCost.genericCost
+        if (generic > 0) {
+            val req = ManaRequirement.newBuilder().addColor(ManaColor.Generic).setCount(generic)
+            if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
+            result.add(req.build())
+        }
+        return result
     }
 
     /** Map Forge's produced-mana string (e.g. "G", "W", "Any") to proto ManaColor. */

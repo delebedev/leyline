@@ -10,6 +10,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.HighlightType
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
@@ -251,9 +252,22 @@ internal open class GreedyPromptPolicy(
     }
 
     private fun respondCastingTimeOptions(msg: GREToClientMessage): SimDecision {
+        chooseSimClientManaTypeChoices(msg)?.let { return SimDecision.ManaTypeChoices(it) }
         chooseSimClientModalGrpIds(msg)?.let { return SimDecision.ModalChoice(it) }
         val acceptOptionalCosts = System.getenv("SIMCLIENT_ACCEPT_OPTIONAL_COSTS").equals("true", ignoreCase = true)
         return SimDecision.OptionalCost(chooseSimClientCastingTimeOptionId(msg, acceptOptionalCosts))
+    }
+
+    private fun chooseSimClientManaTypeChoices(msg: GREToClientMessage): List<Pair<Int, ManaColor>>? {
+        val options =
+            msg.castingTimeOptionsReq.castingTimeOptionReqList.filter {
+                it.castingTimeOptionType == CastingTimeOptionType.ManaType && it.hasSelectManaTypeReq()
+            }
+        if (options.isEmpty()) return null
+        return options.map { option ->
+            val color = option.selectManaTypeReq.manaColorsList.firstOrNull { it != ManaColor.TwoGeneric } ?: ManaColor.TwoGeneric
+            option.ctoId to color
+        }
     }
 
     private fun respondNumericInput(msg: GREToClientMessage): SimDecision {

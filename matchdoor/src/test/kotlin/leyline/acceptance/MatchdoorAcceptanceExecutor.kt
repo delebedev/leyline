@@ -13,10 +13,12 @@ import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import java.nio.file.Files
@@ -55,6 +57,7 @@ class MatchdoorAcceptanceExecutor(
             is PassUntilStep -> passUntil(harness, step, context)
             is ActivateStep -> activate(harness, step, context)
             is ChooseStep -> choose(harness, step, context)
+            is ManaTypeChoicesStep -> manaTypeChoices(harness, step, context)
             is ModalChoiceStep -> modalChoice(harness, step, context)
             is StaticChoiceStep -> staticChoice(harness, step, context)
             is OptionalActionStep -> harness.respondToOptionalAction(step.accept)
@@ -180,6 +183,34 @@ class MatchdoorAcceptanceExecutor(
                 )
         harness.respondToOptionalCost(option.ctoId)
     }
+
+    private fun manaTypeChoices(
+        harness: MatchFlowHarness,
+        step: ManaTypeChoicesStep,
+        context: String,
+    ) {
+        val options =
+            harness.allMessages
+                .lastOrNull { it.hasCastingTimeOptionsReq() }
+                ?.castingTimeOptionsReq
+                ?.castingTimeOptionReqList
+                ?.filter { it.castingTimeOptionType == CastingTimeOptionType.ManaType }
+                ?: error("$context missing ManaType options in latest CastingTimeOptionsReq")
+        require(options.size == step.choices.size) {
+            "$context expected ${step.choices.size} ManaType choices, got ${options.size}"
+        }
+        harness.respondToManaTypeChoices(options.zip(step.choices).map { (option, choice) -> option.ctoId to choice.toManaColor() })
+    }
+
+    private fun AcceptanceManaTypeChoice.toManaColor(): ManaColor =
+        when (this) {
+            AcceptanceManaTypeChoice.TwoGeneric -> ManaColor.TwoGeneric
+            AcceptanceManaTypeChoice.White -> ManaColor.White_afc9
+            AcceptanceManaTypeChoice.Blue -> ManaColor.Blue_afc9
+            AcceptanceManaTypeChoice.Black -> ManaColor.Black_afc9
+            AcceptanceManaTypeChoice.Red -> ManaColor.Red_afc9
+            AcceptanceManaTypeChoice.Green -> ManaColor.Green_afc9
+        }
 
     private fun modalChoice(
         harness: MatchFlowHarness,

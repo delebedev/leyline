@@ -24,6 +24,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
@@ -276,13 +277,23 @@ class ForgeAiPolicy(
     fun canChooseCastingTimeOptions(msg: GREToClientMessage): Boolean {
         if (!msg.hasCastingTimeOptionsReq()) return false
         val options = msg.castingTimeOptionsReq.castingTimeOptionReqList
-        return isSimpleModalCto(options) || isSingleOptionalCostCto(options)
+        return isManaTypeCto(options) || isSimpleModalCto(options) || isSingleOptionalCostCto(options)
     }
 
     internal fun chooseCastingTimeOptions(msg: GREToClientMessage): SimDecision? {
         if (!canChooseCastingTimeOptions(msg)) return null
-        return chooseModalCastingTimeOptions(msg)?.let { SimDecision.ModalChoice(it) }
+        return chooseManaTypeCastingTimeOptions(msg)?.let { SimDecision.ManaTypeChoices(it) }
+            ?: chooseModalCastingTimeOptions(msg)?.let { SimDecision.ModalChoice(it) }
             ?: chooseOptionalCastingTimeOptions(msg)?.let { SimDecision.OptionalCost(it) }
+    }
+
+    private fun chooseManaTypeCastingTimeOptions(msg: GREToClientMessage): List<Pair<Int, ManaColor>>? {
+        val options = msg.castingTimeOptionsReq.castingTimeOptionReqList
+        if (!isManaTypeCto(options)) return null
+        return options.map { option ->
+            val color = option.selectManaTypeReq.manaColorsList.firstOrNull { it != ManaColor.TwoGeneric } ?: ManaColor.TwoGeneric
+            option.ctoId to color
+        }
     }
 
     private fun chooseModalCastingTimeOptions(msg: GREToClientMessage): List<Int>? {
@@ -335,6 +346,15 @@ class ForgeAiPolicy(
         val modal = option.modalReq
         return modal.minSel == 1 && modal.maxSel == 1 && modal.modalOptionsCount > 0
     }
+
+    private fun isManaTypeCto(options: List<wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq>): Boolean =
+        options.isNotEmpty() &&
+            options.all {
+                it.ctoId > 0 &&
+                    it.isRequired &&
+                    it.castingTimeOptionType == CastingTimeOptionType.ManaType &&
+                    it.hasSelectManaTypeReq()
+            }
 
     private fun isSingleOptionalCostCto(options: List<wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq>): Boolean {
         if (options.size != 2) return false

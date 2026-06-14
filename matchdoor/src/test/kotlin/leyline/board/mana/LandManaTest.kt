@@ -317,6 +317,30 @@ class LandManaTest :
             }
         }
 
+        test("hybrid two-or-color autoTapSolution can use two generic for a missing color") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Swamp", human, ZoneType.Battlefield)
+                    addCard("Temur Tawnyback", human, ZoneType.Hand)
+                }
+
+            val cast = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b).ofType(ActionType.Cast)
+            cast.shouldHaveSize(1)
+
+            val autoTap = cast[0].autoTapSolution
+            assertSoftly {
+                cast[0].hasAutoTapSolution().shouldBeTrue()
+                autoTap.autoTapActionsCount shouldBe 4
+                autoTap.autoTapActionsList
+                    .flatMap { it.manaPaymentOption.manaList }
+                    .map { it.color } shouldContainExactlyInAnyOrder
+                    listOf(ManaColor.Blue_afc9, ManaColor.Red_afc9, ManaColor.White_afc9, ManaColor.Black_afc9)
+            }
+        }
+
         test("dual land autoTapSolution — Jungle Hollow casts Grizzly Bears") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->

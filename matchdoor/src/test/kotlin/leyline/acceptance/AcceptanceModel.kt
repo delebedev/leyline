@@ -52,6 +52,12 @@ data class ChooseStep(
     override val label: String = optionalCost?.let { "choose ${it.yamlName}" } ?: "choose cto $ctoId"
 }
 
+data class ManaTypeChoicesStep(
+    val choices: List<AcceptanceManaTypeChoice>,
+) : AcceptanceStep {
+    override val label: String = "mana_type_choices ${choices.joinToString { it.yamlName }}"
+}
+
 data class ModalChoiceStep(
     val index: Int,
 ) : AcceptanceStep {
@@ -290,6 +296,23 @@ enum class AcceptanceCastingTimeOption(
     companion object {
         fun parse(value: String): AcceptanceCastingTimeOption =
             entries.firstOrNull { it.yamlName == value } ?: error("unknown casting time option: $value")
+    }
+}
+
+enum class AcceptanceManaTypeChoice(
+    val yamlName: String,
+) {
+    TwoGeneric("two_generic"),
+    White("white"),
+    Blue("blue"),
+    Black("black"),
+    Red("red"),
+    Green("green"),
+    ;
+
+    companion object {
+        fun parse(value: String): AcceptanceManaTypeChoice =
+            entries.firstOrNull { it.yamlName == value } ?: error("unknown mana type choice: $value")
     }
 }
 

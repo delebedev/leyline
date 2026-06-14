@@ -358,6 +358,23 @@ fun optionalCostResp(ctoId: Int): ClientToGREMessage =
         )
     }
 
+fun manaTypeResp(choicesByCtoId: List<Pair<Int, ManaColor>>): ClientToGREMessage =
+    clientMessage(ClientMessageType.CastingTimeOptionsResp_097b) {
+        setCastingTimeOptionsResp(
+            CastingTimeOptionsResp.newBuilder().apply {
+                choicesByCtoId.forEach { (ctoId, color) ->
+                    addCastingTimeOptionResps(
+                        CastingTimeOptionResp
+                            .newBuilder()
+                            .setCtoId(ctoId)
+                            .setCastingTimeOptionType(CastingTimeOptionType.ManaType)
+                            .setSelectManaTypeResp(SelectManaTypeResp.newBuilder().setManaColor(color)),
+                    )
+                }
+            },
+        )
+    }
+
 fun effectCostResp(selectedInstanceIds: List<Int>): ClientToGREMessage =
     clientMessage(ClientMessageType.EffectCostResp_097b) {
         setEffectCostResp(

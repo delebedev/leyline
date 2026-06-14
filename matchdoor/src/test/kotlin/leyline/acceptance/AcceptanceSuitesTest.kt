@@ -19,6 +19,7 @@ class AcceptanceSuitesTest :
                 "interactions-warmup",
                 "cost-selection-warmup",
                 "modal-warmup",
+                "hybrid-mana",
                 "mechanics-protocol",
             )
 

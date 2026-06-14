@@ -2,6 +2,8 @@ package leyline.match
 
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
+import wotc.mtgo.gre.external.messaging.Messages.Action
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
  * Session-layer interaction awaiting a specific client response.
@@ -50,6 +52,16 @@ sealed interface PendingClientInteraction {
          * when Forge calls `addKeywordCost` during cost prep.
          */
         val keywordCostsByCtoId: Map<Int, String> = emptyMap(),
+    ) : PendingClientInteraction
+
+    data class HybridManaType(
+        val pendingActionId: String,
+        val action: PlayerAction.CastSpell,
+        val clientAction: Action,
+        val castAbilityIndex: Int?,
+        val ctoIds: List<Int>,
+        val promptColors: List<ManaColor>,
+        val paymentColors: List<ManaColor>,
     ) : PendingClientInteraction
 
     data class AlternateCostChoice(

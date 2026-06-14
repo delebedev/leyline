@@ -2,6 +2,7 @@ package leyline.bridge.handoff
 
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
  * A typed side-effect produced while resolving an interactive prompt.
@@ -56,6 +57,11 @@ sealed interface PromptSideEffect {
      */
     data class KeywordCostStash(
         val decisionsByKeyword: Map<String, Boolean>,
+    ) : PromptSideEffect
+
+    /** Per-pip choices for `{2/X}` hybrid mana, in prompt order. */
+    data class HybridManaStash(
+        val choices: List<ManaColor>,
     ) : PromptSideEffect
 
     /** Active Collect Evidence cost-payment context for AbilityWordActive emission. */

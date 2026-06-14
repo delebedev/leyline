@@ -918,6 +918,11 @@ class MatchFlowHarness(
         session.onCastingTimeOptions(submitWithGsId(optionalCostResp(ctoId)))
         drainSink()
     }
+
+    fun respondToManaTypeChoices(choicesByCtoId: List<Pair<Int, ManaColor>>) {
+        session.onCastingTimeOptions(submitWithGsId(manaTypeResp(choicesByCtoId)))
+        drainSink()
+    }
     // --- Message inspection ---
 
     /** Snapshot current message count for later comparison with [messagesSince]. */
