@@ -333,9 +333,6 @@ class SimClientDriver(
             elapsedMs = elapsedMsSince(policyT0),
         )
         val submittedAction = (response.decision as? SimDecision.PerformAction)?.action
-        if (response.aarActionFingerprint != null && submittedAction != null) {
-            attemptLedger.markSubmitted(submittedAction.retryFingerprints(), response.decision.kind)
-        }
         val submitT0 = System.nanoTime()
         val submitResult = submitter.submit(response.decision)
         promptProgress.record(
@@ -353,7 +350,11 @@ class SimClientDriver(
             elapsedMs = elapsedMsSince(submitT0),
         )
         when (submitResult) {
-            SimSubmitResult.Submitted -> Unit
+            SimSubmitResult.Submitted -> {
+                if (response.aarActionFingerprint != null && submittedAction != null) {
+                    attemptLedger.markSubmitted(submittedAction.retryFingerprints(), response.decision.kind)
+                }
+            }
             SimSubmitResult.NoPending -> {
                 promptLedger.retire(prompt, "no-pending-submit")
                 attemptLedger.markNoPending(response.decision.kind)

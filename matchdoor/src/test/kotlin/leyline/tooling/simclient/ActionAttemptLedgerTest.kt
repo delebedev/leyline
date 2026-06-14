@@ -58,6 +58,16 @@ class ActionAttemptLedgerTest :
             ledger.stats().outcomes shouldBe mapOf("no-pending" to 2)
         }
 
+        test("no-pending does not add retry skip fingerprints") {
+            val action = castAction(instanceId = 10, grpId = 89134, abilityGrpId = 204314)
+            val ledger = ActionAttemptLedger { 1 }
+
+            ledger.markNoPending("perform:Cast")
+
+            action.isSkippedBy(ledger.skipFingerprints()) shouldBe false
+            ledger.stats().noPendingByDecision shouldBe mapOf("perform:Cast" to 1)
+        }
+
         test("cast retry fingerprint ignores changing instance id within a turn") {
             val first = castAction(instanceId = 10, grpId = 89134, abilityGrpId = 204314)
             val replay = castAction(instanceId = 99, grpId = 89134, abilityGrpId = 204314)
