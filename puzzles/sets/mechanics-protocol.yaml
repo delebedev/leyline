@@ -58,6 +58,19 @@ scenarios:
           all:
             - annotation_seen: CoinFlip
             - stack_empty: true
+  - id: exhaust-jeong-jeong
+    puzzle: exhaust-jeong-jeong
+    run: activate Jeong Jeong's exhaust ability
+    expect: the activation resolves and emits an AbilityExhausted marker
+    steps:
+      - expect:
+          action: { type: activate, card: "Jeong Jeong, the Deserter" }
+      - activate: "Jeong Jeong, the Deserter"
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: AbilityExhausted
+            - stack_empty: true
   - id: extinction-event-parity-choice
     puzzle: extinction-event-choice
     run: cast Extinction Event and choose even

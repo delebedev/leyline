@@ -1,0 +1,17 @@
+name: "Redshift, Rocketeer Chief"
+grpId: 95020
+titleId: 879374
+abilities:
+  - id: 15
+    textId: 137
+    category: 3
+  - id: 176618
+    textId: 879375
+    category: 1
+  - id: 176619
+    textId: 879376
+    category: 1
+    subCategory: 1
+    baseId: 353
+    mana: "o10oRoG"
+expansionCode: "DFT"

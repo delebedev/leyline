@@ -71,6 +71,13 @@ class PersistentAnnotationKindTest :
                 perKindPersistent = mapOf(ManaDetailsKind to annotations.toList()),
             )
 
+        fun abilityExhaustedResult(vararg annotations: wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo): MechanicAnnotationResult =
+            MechanicAnnotationResult(
+                transient = emptyList(),
+                persistent = emptyList(),
+                perKindPersistent = mapOf(AbilityExhaustedKind to annotations.toList()),
+            )
+
         fun annotationDetailInt(
             ann: wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo,
             key: String,
@@ -188,6 +195,64 @@ class PersistentAnnotationKindTest :
             assertSoftly {
                 result.deletedIds.shouldBeEmpty()
                 result.allAnnotations shouldHaveSize 1
+            }
+        }
+
+        test("AbilityExhausted survives while source remains visible outside the battlefield") {
+            val exhausted =
+                AnnotationBuilder
+                    .abilityExhausted(InstanceId(101), GrpId(176619), usesRemaining = 0, uniqueAbilityId = 52)
+                    .toBuilder()
+                    .setId(7)
+                    .build()
+            val active = mapOf(7 to exhausted)
+
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = active,
+                    startPersistentId = 100,
+                    frame = frame(PhaseType.MAIN1, battlefield = emptySet(), controllerOf = mapOf(101 to SeatId(1))),
+                    effectPersistent = emptyList(),
+                    effectDiff = emptyEffectDiff,
+                    transferPersistent = emptyList(),
+                    mechanicResult = abilityExhaustedResult(exhausted),
+                    resolveInstanceId = { InstanceId(it.value) },
+                )
+
+            assertSoftly {
+                result.deletedIds.shouldBeEmpty()
+                result.allAnnotations shouldHaveSize 1
+                result.allAnnotations[0].id shouldBe 7
+            }
+        }
+
+        test("AbilityExhausted updates when remaining uses changes") {
+            val exhausted =
+                AnnotationBuilder
+                    .abilityExhausted(InstanceId(101), GrpId(176544), usesRemaining = 0, uniqueAbilityId = 51)
+                    .toBuilder()
+                    .setId(7)
+                    .build()
+            val refreshed = AnnotationBuilder.abilityExhausted(InstanceId(101), GrpId(176544), usesRemaining = 1, uniqueAbilityId = 51)
+            val active = mapOf(7 to exhausted)
+
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = active,
+                    startPersistentId = 100,
+                    frame = frame(PhaseType.MAIN1, battlefield = setOf(101), controllerOf = mapOf(101 to SeatId(1))),
+                    effectPersistent = emptyList(),
+                    effectDiff = emptyEffectDiff,
+                    transferPersistent = emptyList(),
+                    mechanicResult = abilityExhaustedResult(refreshed),
+                    resolveInstanceId = { InstanceId(it.value) },
+                )
+
+            assertSoftly {
+                result.deletedIds shouldContain 7
+                result.allAnnotations shouldHaveSize 1
+                result.allAnnotations[0].id shouldNotBe 7
+                annotationDetailInt(result.allAnnotations[0], "UsesRemaining") shouldBe 1
             }
         }
 

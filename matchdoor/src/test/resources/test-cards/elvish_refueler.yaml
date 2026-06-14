@@ -1,0 +1,14 @@
+name: "Elvish Refueler"
+grpId: 94963
+titleId: 879210
+abilities:
+  - id: 176543
+    textId: 879212
+    category: 3
+  - id: 176544
+    textId: 879213
+    category: 1
+    subCategory: 1
+    baseId: 353
+    mana: "o1oG"
+expansionCode: "DFT"

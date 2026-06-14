@@ -489,6 +489,24 @@ data object ManaDetailsKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId to firstAffectedId(ann)
 }
 
+data object AbilityExhaustedKind : PersistentAnnotationKind {
+    override val name = "AbilityExhausted"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.AbilityExhausted in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann) to (int32Detail(ann, DetailKeys.ABILITY_GRP_ID_UPPER) ?: 0)
+
+    override fun shouldExpire(
+        ann: AnnotationInfo,
+        frame: FrameContext,
+    ): Boolean {
+        val sourceIid = firstAffectedId(ann)
+        return sourceIid != 0 && sourceIid !in frame.controllerOf
+    }
+}
+
 /**
  * Pure-snapshot persistent annotation: the "trigger ↔ source" link drawn by
  * the client as a glowing arrow. One row per ability instance on the stack,
@@ -536,6 +554,7 @@ object PersistentAnnotationKinds {
             ColorProductionKind,
             LinkInfoChoiceKind,
             ManaDetailsKind,
+            AbilityExhaustedKind,
             PreparedDesignationKind,
             PlottedDesignationKind,
             CommanderDesignationKind,
