@@ -19,6 +19,9 @@ interface CardRepository {
     /** Like [findGrpIdByName] but includes secondary faces (adventure, DFC back). */
     fun findGrpIdByNameAnyFace(name: String): Int? = findGrpIdByName(name)
 
+    /** Token-only name lookup. Forge often appends " Token" to the DB display name. */
+    fun findTokenGrpIdByName(name: String): Int? = null
+
     fun findGrpIdByNameAndSet(
         name: String,
         setCode: String,

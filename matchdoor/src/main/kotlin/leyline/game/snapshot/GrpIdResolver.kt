@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory
  *    - `card.copiedPermanent != null` — copy permanent uses source's grpId.
  *    - Standard token via `tokenSpawningAbility.hostCard`'s
  *      `AbilityIdToLinkedTokenGrpId` mapping.
+ *    - Token-name fallback for generated tokens whose source mapping is gone.
  * 3. Face-down alternate-state cards (Foretell / Disguise) — `card.name` is
  *    empty while face-down. Resolve via the Original state's name.
  * 4. Standard non-token — `findGrpIdByName` (primary) → `findGrpIdByNameAnyFace`
@@ -62,12 +63,16 @@ object GrpIdResolver {
     private val reportedMissingCardNames: MutableSet<String> =
         java.util.concurrent.ConcurrentHashMap
             .newKeySet()
+    private val reportedUnsupportedCardNames: MutableSet<String> =
+        java.util.concurrent.ConcurrentHashMap
+            .newKeySet()
     private const val MAX_REPORTED_MISSING = 256
 
     /** Test-only: clear the dedup set so a new batch starts fresh. */
     @Suppress("unused")
     fun resetReportedMissingCardNamesForTest() {
         reportedMissingCardNames.clear()
+        reportedUnsupportedCardNames.clear()
     }
 
     private fun reportMissingOnce(
@@ -78,6 +83,18 @@ object GrpIdResolver {
         if (reportedMissingCardNames.size >= MAX_REPORTED_MISSING) return
         if (reportedMissingCardNames.add(name)) {
             log.error("$kind grpId=0 for card '{}' (forgeId={}): not in client card DB", name, forgeId)
+        }
+    }
+
+    private fun reportUnsupportedOnce(
+        kind: String,
+        name: String,
+        forgeId: Int,
+    ) {
+        if (reportedUnsupportedCardNames.size >= MAX_REPORTED_MISSING) return
+        val key = "$kind:$name"
+        if (reportedUnsupportedCardNames.add(key)) {
+            log.warn("$kind uses unsupported card '{}' (forgeId={}); projecting fallback grpId", name, forgeId)
         }
     }
 
@@ -125,7 +142,7 @@ object GrpIdResolver {
             val copiedPermanent = card.copiedPermanent
             if (copiedPermanent != null) {
                 val sourceGrpId =
-                    resolveByCardName(copiedPermanent, cards)
+                    resolveCopiedPermanentGrpId(copiedPermanent, cards)
                         ?: run {
                             reportMissingOnce("copy token", copiedPermanent.name, card.id)
                             return GameBridge.FALLBACK_GRPID
@@ -139,6 +156,11 @@ object GrpIdResolver {
             if (tokenGrpId != null) {
                 if (instanceId != 0) tokenRegistry.register(instanceId, tokenGrpId)
                 return tokenGrpId
+            }
+
+            resolveTokenByName(card, cards)?.let { nameGrpId ->
+                if (instanceId != 0) tokenRegistry.register(instanceId, nameGrpId)
+                return nameGrpId
             }
             reportMissingOnce("token", card.name, card.id)
             DevCheck.fail { "token grpId=0 for '${card.name}' (forgeId=${card.id})" }
@@ -182,7 +204,9 @@ object GrpIdResolver {
         // Primary-face lookup, falling back to any-face for DFC back faces
         // (e.g. saga transforms to Echo of Death's Wail — the back face lives in
         // the Arena DB under a non-primary flag; findGrpIdByName misses it).
-        return resolveByCardName(card, cards)
+        return resolveCloneSourceGrpId(card, cards)
+            ?: resolveByCardName(card, cards)
+            ?: unsupportedNonDbFallback(card)
             ?: run {
                 reportMissingOnce("standard", card.name, card.id)
                 DevCheck.fail { "grpId=0 for '${card.name}' (forgeId=${card.id}): not in client card DB" }
@@ -211,6 +235,50 @@ object GrpIdResolver {
     ): Int? =
         resolveByName(card.name, cards)
             ?: card.displayName.takeIf { it != card.name }?.let { resolveByName(it, cards) }
+            ?: card.getOriginalState(forge.card.CardStateName.Original)?.name?.takeIf { it.isNotEmpty() }?.let {
+                resolveByName(it, cards)
+            }
+
+    private fun resolveCloneSourceGrpId(
+        card: Card,
+        cards: CardRepository,
+    ): Int? {
+        val candidates = mutableListOf<Card>()
+        card.cloneOrigin?.let { candidates += it }
+        if (card.isCloned) {
+            candidates += card.remembered.filterIsInstance<Card>()
+        }
+        return candidates.firstNotNullOfOrNull { source ->
+            if (source.isToken) {
+                resolveTokenByName(source, cards) ?: resolveByCardName(source, cards)
+            } else {
+                resolveByCardName(source, cards)
+            }
+        }
+    }
+
+    private fun resolveCopiedPermanentGrpId(
+        copiedPermanent: Card,
+        cards: CardRepository,
+    ): Int? =
+        if (copiedPermanent.isToken) {
+            resolveTokenByName(copiedPermanent, cards) ?: resolveByCardName(copiedPermanent, cards)
+        } else {
+            resolveByCardName(copiedPermanent, cards)
+        }
+
+    private fun unsupportedNonDbFallback(card: Card): Int? {
+        val originalName = card.getOriginalState(forge.card.CardStateName.Original)?.name.orEmpty()
+        if (card.isCloned && card.cloneOrigin == null && !card.remembered.iterator().hasNext()) {
+            reportUnsupportedOnce("clone", card.name.ifEmpty { originalName }, card.id)
+            return GameBridge.FALLBACK_GRPID
+        }
+        if (card.currentStateName == forge.card.CardStateName.FaceDown && card.name.isEmpty() && originalName.isNotEmpty()) {
+            reportUnsupportedOnce("face-down", originalName, card.id)
+            return GameBridge.FALLBACK_GRPID
+        }
+        return null
+    }
 
     private fun resolveByName(
         name: String,
@@ -218,4 +286,11 @@ object GrpIdResolver {
     ): Int? =
         cards.findGrpIdByName(name)
             ?: cards.findGrpIdByNameAnyFace(name)
+
+    private fun resolveTokenByName(
+        card: Card,
+        cards: CardRepository,
+    ): Int? =
+        cards.findTokenGrpIdByName(card.name)
+            ?: card.displayName.takeIf { it != card.name }?.let { cards.findTokenGrpIdByName(it) }
 }
