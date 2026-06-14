@@ -189,7 +189,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.ConvokeCost
+            result.reason shouldBe SelectNReason.ConvokeCost
         }
 
         test("learn semantic classifies as select-n with LearnLesson reason") {

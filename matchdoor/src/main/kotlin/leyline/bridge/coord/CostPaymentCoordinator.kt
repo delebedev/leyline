@@ -69,32 +69,18 @@ class CostPaymentCoordinator(
         val indices = bridge.requestChoice(request)
         if (indices.isEmpty()) return emptyMap()
 
-        // Map selected cards to mana cost shards.
-        // TODO: delegate shard assignment to ComputerUtilMana when implementing full convoke support.
-        // Greedy WUBRG-order assignment can be suboptimal for multi-color
-        // creatures vs costs with mixed colored / generic.
-        val colorShardCounts = mutableMapOf<ManaCostShard, Int>()
-        for (shard in listOf(ManaCostShard.WHITE, ManaCostShard.BLUE, ManaCostShard.BLACK, ManaCostShard.RED, ManaCostShard.GREEN)) {
-            val count = manaCost.getShardCount(shard)
-            if (count > 0) colorShardCounts[shard] = count
-        }
-        var genericRemaining = manaCost.genericCost
-
         val cardList = untappedCards.toList()
-        val result = mutableMapOf<Card, ManaCostShard>()
-        for (idx in indices) {
-            val card = cardList.getOrNull(idx) ?: continue
-            val shard = pickShardForConvoke(card, colorShardCounts, genericRemaining, artifacts)
-            if (shard != null) {
-                result[card] = shard
-                if (shard == ManaCostShard.GENERIC) {
-                    genericRemaining--
-                } else {
-                    val remaining = (colorShardCounts[shard] ?: 1) - 1
-                    if (remaining <= 0) colorShardCounts.remove(shard) else colorShardCounts[shard] = remaining
-                }
+        val selectedCards = indices.mapNotNull { cardList.getOrNull(it) }
+        val result =
+            if (artifacts) {
+                selectedCards
+                    .take(manaCost.genericCost)
+                    .associateWith { ManaCostShard.GENERIC }
+            } else {
+                ConvokeShardAssigner
+                    .assign(selectedCards, ConvokeShardAssigner.costCounts(manaCost)) { it.color }
+                    .toMap()
             }
-        }
         if (isConvoke) recordConvokePayments(sa, result)
         return result
     }
@@ -307,23 +293,6 @@ class CostPaymentCoordinator(
             log.warn("payWardManaTax: auto-tap could not pay {} for {}", cost, hostCard?.name)
         }
         return paid
-    }
-
-    private fun pickShardForConvoke(
-        card: Card,
-        colorCounts: Map<ManaCostShard, Int>,
-        genericRemaining: Int,
-        artifacts: Boolean,
-    ): ManaCostShard? {
-        if (artifacts) return ManaCostShard.GENERIC.takeIf { genericRemaining > 0 }
-        val colors = card.color
-        if (colors.hasWhite() && (colorCounts[ManaCostShard.WHITE] ?: 0) > 0) return ManaCostShard.WHITE
-        if (colors.hasBlue() && (colorCounts[ManaCostShard.BLUE] ?: 0) > 0) return ManaCostShard.BLUE
-        if (colors.hasBlack() && (colorCounts[ManaCostShard.BLACK] ?: 0) > 0) return ManaCostShard.BLACK
-        if (colors.hasRed() && (colorCounts[ManaCostShard.RED] ?: 0) > 0) return ManaCostShard.RED
-        if (colors.hasGreen() && (colorCounts[ManaCostShard.GREEN] ?: 0) > 0) return ManaCostShard.GREEN
-        if (genericRemaining > 0) return ManaCostShard.GENERIC
-        return null
     }
 
     private fun ManaCost.toColorCounts(): List<Pair<ManaColor, Int>> =

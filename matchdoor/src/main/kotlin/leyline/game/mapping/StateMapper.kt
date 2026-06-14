@@ -983,7 +983,7 @@ object StateMapper {
             if (promptBridges.isEmpty()) continue
 
             if (transfer.category == TransferCategory.Resolve) {
-                val resolvingId = InstanceId(transfer.origId.takeIf { it != 0 } ?: transfer.newId)
+                val resolvingId = InstanceId(transfer.newId.takeIf { it != 0 } ?: transfer.origId)
                 annotations.add(AnnotationBuilder.abilityWordActive(resolvingId, "Convoke"))
             }
             promptBridges.forEach { it.journal.clearConvokePayments(sourceForgeCardId) }

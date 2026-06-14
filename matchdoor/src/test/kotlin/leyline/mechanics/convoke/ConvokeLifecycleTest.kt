@@ -5,6 +5,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
@@ -13,6 +14,7 @@ import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.hasDetail
+import leyline.testkit.haveManaCost
 import leyline.testkit.performAction
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -42,6 +44,15 @@ class ConvokeLifecycleTest :
 
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearIid = human.battlefield.iid("Grizzly Bears")
+            val tribunalHandIid = human.hand.iid("Conclave Tribunal")
+            val tribunalCastAction =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq
+                    .actionsList
+                    .single { it.actionType == ActionType.Cast && it.instanceId == tribunalHandIid }
+
+            tribunalCastAction should haveManaCost(generic = 3, white = 1)
 
             val initialPayCosts = after { castSpellByName("Conclave Tribunal").shouldBeTrue() }.expectOnePayCostsReq()
             assertSoftly {
@@ -51,11 +62,17 @@ class ConvokeLifecycleTest :
                 assertConvokePaymentActions(initialPayCosts, listOf(merfolkIid, bearIid))
             }
 
+            val firstPaymentSnap = messageSnapshot()
             val updatedPayCosts = after { respondToConvokeMakePayment(merfolkIid) }.expectOnePayCostsReq()
+            val interimConvokeCount =
+                messagesSince(firstPaymentSnap).persistentAnnotationsOfType(AnnotationType.AbilityWordActive).filter {
+                    it.detailString(DetailKeys.ABILITY_WORD_NAME) == "ConvokeCount"
+                }
             assertSoftly {
                 updatedPayCosts.manaCostList.single { it.colorList == listOf(ManaColor.Generic) }.count shouldBe 2
                 updatedPayCosts.paymentActions.actionsList.any { it.instanceId == merfolkIid } shouldBe false
                 updatedPayCosts.paymentActions.actionsList.single { it.instanceId == bearIid }
+                interimConvokeCount.single().detailInt(DetailKeys.VALUE) shouldBe 1
             }
 
             val paymentSnap = messageSnapshot()
@@ -85,11 +102,13 @@ class ConvokeLifecycleTest :
             assertSoftly {
                 convokeManaPaid shouldHaveSize 2
                 convokeManaPaid.map { it.affectorId }.toSet() shouldBe setOf(merfolkIid, bearIid)
+                convokeManaPaid.forEach { it.hasDetail(DetailKeys.ID) shouldBe false }
                 convokeTappedIds shouldContain merfolkIid
                 convokeTappedIds shouldContain bearIid
-                convokeCount.single().detailInt(DetailKeys.VALUE) shouldBe 2
-                convokeCount.single().detailInt(DetailKeys.ABILITY_GRP_ID_UPPER) shouldBe KeywordAbilityIds.CONVOKE
+                convokeCount.map { it.detailInt(DetailKeys.VALUE) } shouldContain 2
+                convokeCount.last().detailInt(DetailKeys.ABILITY_GRP_ID_UPPER) shouldBe KeywordAbilityIds.CONVOKE
                 convokeLabel shouldHaveSize 1
+                convokeLabel.single().affectorId shouldBe human.battlefield.iid("Conclave Tribunal")
             }
 
             passUntilResolved(maxPasses = 8)

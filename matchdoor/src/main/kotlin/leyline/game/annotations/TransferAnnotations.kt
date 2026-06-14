@@ -323,10 +323,9 @@ object TransferAnnotations {
             )
             annotations.add(AnnotationBuilder.abilityInstanceDeleted(manaAbilityIid, landIid))
         }
-        for ((i, payment) in convokePayments.withIndex()) {
+        for (payment in convokePayments) {
             emitConvokePayment(
                 annotations = annotations,
-                index = ev.manaPayments.size + i,
                 payment = payment,
                 spellIid = spellIid,
                 actingSeat = ev.seatId,
@@ -355,7 +354,6 @@ object TransferAnnotations {
 
     private fun emitConvokePayment(
         annotations: MutableList<AnnotationInfo>,
-        index: Int,
         payment: ConvokePaymentRecord,
         spellIid: InstanceId,
         actingSeat: SeatId,
@@ -376,7 +374,7 @@ object TransferAnnotations {
             AnnotationBuilder.manaPaid(
                 spellInstanceId = spellIid,
                 landInstanceId = paymentSourceIid,
-                manaId = index + MANA_ID_BASE,
+                manaId = null,
                 color = payment.color,
                 substitutionGrpId = GrpId(KeywordAbilityIds.CONVOKE),
             ),

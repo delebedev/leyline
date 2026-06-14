@@ -1,19 +1,24 @@
 package leyline.match
 
+import forge.card.mana.ManaCostShard
 import leyline.DevCheck
+import leyline.bridge.coord.ConvokeShardAssigner
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.PayCostsPromptRoute
 import leyline.game.bundle.RequestBuilder
 import leyline.game.bundle.SelectNEnvelope
 import leyline.game.bundle.SelectNPromptRoutes
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.SearchShape
@@ -404,6 +409,7 @@ class TargetingHandler(
                 selectedIds,
                 selectedSet,
             )
+            recordPendingConvokePayments(pendingPrompt, selectedSet.toList())
             sendPayCostsReq(
                 adjustManaSourcePaymentPrompt(pendingPrompt, selectedSet.toList()),
                 SelectNPromptRoutes.payCosts(pendingPrompt.request.semantic)
@@ -461,34 +467,100 @@ class TargetingHandler(
         )
     }
 
+    private fun recordPendingConvokePayments(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        selectedIds: List<Int>,
+    ) {
+        if (pendingPrompt.request.semantic != PromptSemantic.ConvokeCost) return
+        val source =
+            ctx.game.stack
+                .firstOrNull()
+                ?.spellAbility
+                ?.hostCard
+                ?.id ?: pendingPrompt.request.sourceEntityId ?: return
+        val assignments = convokeAssignments(pendingPrompt.request.waterbendManaCost, selectedIds)
+        ctx.bridge
+            .seat(counters.seatId)
+            .prompt
+            .journal
+            .record(
+                PromptSideEffect.ConvokePayments(
+                    sourceForgeCardId = ForgeCardId(source),
+                    payments =
+                        assignments.map { (forgeId, shard) ->
+                            PromptSideEffect.ConvokePayment(
+                                paymentForgeCardId = forgeId,
+                                color = shard.toConvokeWireColor().number,
+                            )
+                        },
+                ),
+            )
+    }
+
     private fun reduceConvokeManaCost(
         cost: List<Pair<ManaColor, Int>>,
         selectedIds: List<Int>,
     ): List<Pair<ManaColor, Int>> {
         val remaining = cost.associate { it.first to it.second }.toMutableMap()
-        for (iid in selectedIds) {
-            val forgeId = ctx.bridge.getForgeCardId(InstanceId(iid)) ?: continue
-            val card = ctx.bridge.findCard(forgeId) ?: continue
-            val color = convokeReductionColor(card.color, remaining) ?: continue
+        for ((_, shard) in convokeAssignments(cost, selectedIds)) {
+            val color = shard.toConvokeCostColor()
             val next = (remaining[color] ?: 0) - 1
             if (next <= 0) remaining.remove(color) else remaining[color] = next
         }
         return cost.mapNotNull { (color, _) -> remaining[color]?.takeIf { it > 0 }?.let { color to it } }
     }
 
-    private fun convokeReductionColor(
-        cardColor: forge.card.ColorSet,
-        remaining: Map<ManaColor, Int>,
-    ): ManaColor? =
+    private fun convokeAssignments(
+        cost: List<Pair<ManaColor, Int>>,
+        selectedIds: List<Int>,
+    ): List<Pair<ForgeCardId, ManaCostShard>> {
+        val selectedCards =
+            selectedIds.mapNotNull { iid ->
+                val forgeId = ctx.bridge.getForgeCardId(InstanceId(iid)) ?: return@mapNotNull null
+                val card = ctx.bridge.findCard(forgeId) ?: return@mapNotNull null
+                forgeId to card
+            }
+        return ConvokeShardAssigner
+            .assign(selectedCards, cost.toConvokeShardCounts()) { (_, card) -> card.color }
+            .map { (entry, shard) -> entry.first to shard }
+    }
+
+    private fun List<Pair<ManaColor, Int>>.toConvokeShardCounts(): Map<ManaCostShard, Int> =
+        buildMap {
+            for ((color, count) in this@toConvokeShardCounts) {
+                val shard = color.toConvokeShard() ?: continue
+                put(shard, count)
+            }
+        }
+
+    private fun ManaColor.toConvokeShard(): ManaCostShard? =
         when {
-            cardColor.hasWhite() && remaining.getOrDefault(ManaColor.White_afc9, 0) > 0 -> ManaColor.White_afc9
-            cardColor.hasBlue() && remaining.getOrDefault(ManaColor.Blue_afc9, 0) > 0 -> ManaColor.Blue_afc9
-            cardColor.hasBlack() && remaining.getOrDefault(ManaColor.Black_afc9, 0) > 0 -> ManaColor.Black_afc9
-            cardColor.hasRed() && remaining.getOrDefault(ManaColor.Red_afc9, 0) > 0 -> ManaColor.Red_afc9
-            cardColor.hasGreen() && remaining.getOrDefault(ManaColor.Green_afc9, 0) > 0 -> ManaColor.Green_afc9
-            remaining.getOrDefault(ManaColor.Generic, 0) > 0 -> ManaColor.Generic
+            this == ManaColor.White_afc9 -> ManaCostShard.WHITE
+            this == ManaColor.Blue_afc9 -> ManaCostShard.BLUE
+            this == ManaColor.Black_afc9 -> ManaCostShard.BLACK
+            this == ManaColor.Red_afc9 -> ManaCostShard.RED
+            this == ManaColor.Green_afc9 -> ManaCostShard.GREEN
+            this == ManaColor.Generic -> ManaCostShard.GENERIC
             else -> null
         }
+
+    private fun ManaCostShard.toConvokeWireColor(): ManaColor =
+        if (this == ManaCostShard.WHITE) {
+            ManaColor.White_afc9
+        } else if (this == ManaCostShard.BLUE) {
+            ManaColor.Blue_afc9
+        } else if (this == ManaCostShard.BLACK) {
+            ManaColor.Black_afc9
+        } else if (this == ManaCostShard.RED) {
+            ManaColor.Red_afc9
+        } else if (this == ManaCostShard.GREEN) {
+            ManaColor.Green_afc9
+        } else {
+            ManaColor.Colorless_afc9
+        }
+
+    private fun ManaCostShard.toConvokeCostColor(): ManaColor =
+        if (this == ManaCostShard.GENERIC) ManaColor.Generic else toConvokeWireColor()
 
     private fun isManaSourcePaymentSemantic(semantic: PromptSemantic): Boolean =
         semantic == PromptSemantic.WaterbendCost || semantic == PromptSemantic.ConvokeCost
@@ -1629,9 +1701,35 @@ class TargetingHandler(
     ) {
         val bridge = ctx.bridge
         val (req, prompt) = route.build(pendingPrompt, bridge)
-        val result = bundles.bundleBuilder.payCostsBundle(ctx.game, counters.counter, req, prompt)
+        val result =
+            bundles.bundleBuilder.payCostsBundle(
+                ctx.game,
+                counters.counter,
+                req,
+                prompt,
+                convokeCountPersistentAnnotations(pendingPrompt),
+            )
         Tap.outboundTemplate("PayCostsReq(${route.templateLabel}) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
+    }
+
+    private fun convokeCountPersistentAnnotations(pendingPrompt: InteractivePromptBridge.PendingPrompt): List<AnnotationInfo> {
+        if (pendingPrompt.request.semantic != PromptSemantic.ConvokeCost) return emptyList()
+        return ctx.bridge
+            .seat(counters.seatId)
+            .prompt
+            .journal
+            .activeConvokePayments()
+            .mapNotNull { (sourceForgeCardId, payments) ->
+                if (payments.isEmpty()) return@mapNotNull null
+                val sourceIid = ctx.bridge.getOrAllocInstanceId(sourceForgeCardId)
+                AnnotationBuilder.abilityWordActive(
+                    instanceId = sourceIid,
+                    abilityWordName = "ConvokeCount",
+                    value = payments.size,
+                    abilityGrpId = GrpId(KeywordAbilityIds.CONVOKE),
+                )
+            }
     }
 
     /**

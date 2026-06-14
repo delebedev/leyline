@@ -14,6 +14,7 @@ import leyline.game.sid
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.detailUint
+import leyline.testkit.hasDetail
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -304,6 +305,7 @@ class TransferAnnotationPipelineTest :
                 annotations[2].detailInt(DetailKeys.GRPID) shouldBe KeywordAbilityIds.CONVOKE_PAYMENT
                 annotations[3].affectorId shouldBe 43
                 annotations[3].affectedIdsList shouldBe listOf(100)
+                annotations[3].hasDetail(DetailKeys.ID) shouldBe false
                 annotations[3].detailInt(DetailKeys.COLOR) shouldBe 7
                 annotations[3].detailInt(DetailKeys.SUBSTITUTION_GRPID) shouldBe KeywordAbilityIds.CONVOKE
                 annotations[5].detailInt(DetailKeys.ACTION_TYPE) shouldBe ActionType.MakePayment.number

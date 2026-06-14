@@ -257,7 +257,7 @@ object AnnotationBuilder {
      * Mana was spent to pay for a spell/ability.
      * [spellInstanceId] = the spell/ability instance that consumed the mana (affectedIds).
      * [landInstanceId] = the land (or mana source) that produced the mana (affectorId).
-     * [manaId] = mana payment tracking ID (protocol uses sequential assignment here).
+     * [manaId] = mana payment tracking ID, or null when substitution payments omit it.
      * [color] = mana color as int bitmask (e.g. 2 = blue), matching the client wire format.
      * [substitutionGrpId] = keyword/base row when the payment substitutes for mana (Convoke).
      * When mana tracking is not available, pass defaults (0, 0).
@@ -265,7 +265,7 @@ object AnnotationBuilder {
     fun manaPaid(
         spellInstanceId: InstanceId,
         landInstanceId: InstanceId,
-        manaId: Int = 0,
+        manaId: Int? = 0,
         color: Int = 0,
         substitutionGrpId: GrpId = GrpId(0),
     ): AnnotationInfo =
@@ -274,9 +274,11 @@ object AnnotationBuilder {
             .addType(AnnotationType.ManaPaid)
             .setAffectorId(landInstanceId.value)
             .addAffectedIds(spellInstanceId.value)
-            .addDetails(int32Detail(DetailKeys.ID, manaId))
-            .addDetails(int32Detail(DetailKeys.COLOR, color))
             .apply {
+                if (manaId != null) {
+                    addDetails(int32Detail(DetailKeys.ID, manaId))
+                }
+                addDetails(int32Detail(DetailKeys.COLOR, color))
                 if (substitutionGrpId.value != 0) {
                     addDetails(int32Detail(DetailKeys.SUBSTITUTION_GRPID, substitutionGrpId.value))
                 }

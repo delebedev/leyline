@@ -1268,11 +1268,25 @@ class BundleBuilder(
         counter: MessageCounter,
         req: PayCostsReq,
         prompt: Prompt? = null,
+        promptPersistentAnnotations: List<AnnotationInfo> = emptyList(),
     ): BundleResult {
         val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
         val nextGs = diff.gameStateId
         val snap = diff.snap
-        val gs = diff.result.gsm
+        val promptOnlyPersistentAnnotations =
+            promptPersistentAnnotations.filterNot { extra ->
+                diff.result.gsm.persistentAnnotationsList
+                    .any { it == extra }
+            }
+        val gs =
+            if (promptOnlyPersistentAnnotations.isEmpty()) {
+                diff.result.gsm
+            } else {
+                diff.result.gsm
+                    .toBuilder()
+                    .addAllPersistentAnnotations(promptOnlyPersistentAnnotations)
+                    .build()
+            }
         val msg1 =
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                 it.gameStateMessage = gs
