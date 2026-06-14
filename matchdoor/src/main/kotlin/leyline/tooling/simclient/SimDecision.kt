@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 internal sealed interface SimDecision {
     val kind: String
@@ -70,6 +71,12 @@ internal sealed interface SimDecision {
         val selectedGrpIds: List<Int>,
     ) : SimDecision {
         override val kind: String = "modal-choice"
+    }
+
+    data class ManaTypeChoices(
+        val choicesByCtoId: List<Pair<Int, ManaColor>>,
+    ) : SimDecision {
+        override val kind: String = "mana-type"
     }
 
     data class NumericInput(
@@ -144,6 +151,7 @@ internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
         is SimDecision.GroupAway -> "group-away:${awayInstanceIds.sorted().joinToString("+")}:context=${context.name}"
         is SimDecision.OptionalCost -> "optional-cost:$ctoId"
         is SimDecision.ModalChoice -> "modal-choice:${selectedGrpIds.sorted().joinToString("+")}"
+        is SimDecision.ManaTypeChoices -> "mana-type:${choicesByCtoId.joinToString("+") { (ctoId, color) -> "$ctoId=$color" }}"
         is SimDecision.NumericInput -> "numeric-input:$value"
         is SimDecision.AssignDamage -> {
             val assignmentDigest =
@@ -235,6 +243,7 @@ internal class SimDecisionSubmitter(
                 SimSubmitResult.Submitted
             }
             is SimDecision.ModalChoice -> submitted { harness.respondModalChoice(decision.selectedGrpIds) }
+            is SimDecision.ManaTypeChoices -> submitted { harness.respondToManaTypeChoices(decision.choicesByCtoId) }
             is SimDecision.NumericInput -> submitted { harness.respondToNumericInput(decision.value) }
             is SimDecision.AssignDamage -> submitted { harness.assignDamage(decision.assigners) }
             SimDecision.DeclareAllAttackers ->

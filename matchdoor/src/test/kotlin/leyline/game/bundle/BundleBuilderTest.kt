@@ -239,6 +239,55 @@ class BundleBuilderTest :
             }
         }
 
+        test("buildManaTypeCastingTimeOptionsReq emits one required option per hybrid pip") {
+            val (req, ids) =
+                pureBB().buildManaTypeCastingTimeOptionsReq(
+                    instanceId = 236,
+                    grpId = 95755,
+                    playerIdToPrompt = 2,
+                    hybridColors =
+                        listOf(
+                            Messages.ManaColor.Green_afc9,
+                            Messages.ManaColor.Blue_afc9,
+                            Messages.ManaColor.Red_afc9,
+                        ),
+                    manaCost =
+                        listOf(
+                            BundleBuilder.ManaRequirementSpec(
+                                listOf(Messages.ManaColor.TwoGeneric, Messages.ManaColor.Green_afc9),
+                            ),
+                            BundleBuilder.ManaRequirementSpec(
+                                listOf(Messages.ManaColor.TwoGeneric, Messages.ManaColor.Blue_afc9),
+                            ),
+                            BundleBuilder.ManaRequirementSpec(
+                                listOf(Messages.ManaColor.TwoGeneric, Messages.ManaColor.Red_afc9),
+                            ),
+                        ),
+                )
+
+            ids shouldBe listOf(2, 3, 4)
+            assertSoftly {
+                req.castingTimeOptionReqCount shouldBe 3
+                val green = req.getCastingTimeOptionReq(0)
+                green.ctoId shouldBe 2
+                green.castingTimeOptionType shouldBe Messages.CastingTimeOptionType.ManaType
+                green.isRequired.shouldBeTrue()
+                green.affectedId shouldBe 236
+                green.affectorId shouldBe 236
+                green.grpId shouldBe 95755
+                green.playerIdToPrompt shouldBe 2
+                green.selectManaTypeReq.sourceId shouldBe 236
+                green.selectManaTypeReq.manaColorsList shouldBe
+                    listOf(Messages.ManaColor.TwoGeneric, Messages.ManaColor.Green_afc9)
+                green.manaCostCount shouldBe 3
+                green.getManaCost(0).colorList shouldBe listOf(Messages.ManaColor.TwoGeneric, Messages.ManaColor.Green_afc9)
+                req.getCastingTimeOptionReq(1).selectManaTypeReq.manaColorsList shouldBe
+                    listOf(Messages.ManaColor.TwoGeneric, Messages.ManaColor.Blue_afc9)
+                req.getCastingTimeOptionReq(2).selectManaTypeReq.manaColorsList shouldBe
+                    listOf(Messages.ManaColor.TwoGeneric, Messages.ManaColor.Red_afc9)
+            }
+        }
+
         test("buildOptionalCostCastingTimeOptionsReq — combined Bargain + Offspring shape (mixed ctoTypes)") {
             // Unified emit: an OptionalCost-enum cost (Bargain) and a
             // KeywordWithCost cost (Offspring) on the same cast surface as

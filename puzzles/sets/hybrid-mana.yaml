@@ -1,0 +1,16 @@
+name: hybrid-mana
+description: Hybrid mana-cost prompt and payment smoke.
+scenarios:
+  - id: temur-tawnyback-two-generic-pip
+    puzzle: hybrid-mana-temur-tawnyback
+    run: cast Temur Tawnyback choosing two-generic, U, R for its three hybrid pips
+    expect: Temur Tawnyback resolves without a green source by paying the first pip as generic
+    steps:
+      - expect:
+          action: { type: cast, card: Temur Tawnyback }
+      - cast: Temur Tawnyback
+      - expect:
+          prompt: CastingTimeOptionsReq
+      - mana_type_choices: [two_generic, blue, red]
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Temur Tawnyback }

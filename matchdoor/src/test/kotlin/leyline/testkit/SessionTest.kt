@@ -313,6 +313,8 @@ abstract class SessionTest(
     fun respondToEffectCost(selectedInstanceIds: List<Int>) = harness.respondToEffectCost(selectedInstanceIds)
 
     fun respondToOptionalCost(ctoId: Int) = harness.respondToOptionalCost(ctoId)
+
+    fun respondToManaTypeChoices(choicesByCtoId: List<Pair<Int, ManaColor>>) = harness.respondToManaTypeChoices(choicesByCtoId)
     // --- Message inspection ---
 
     val allMessages: List<GREToClientMessage> get() = harness.allMessages

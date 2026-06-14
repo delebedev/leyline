@@ -60,6 +60,7 @@ object AcceptanceSuiteLoader {
             "pass_until" -> parsePassUntil(value, "$context.pass_until")
             "activate" -> parseActivate(value, "$context.activate")
             "choose" -> parseChoose(value, "$context.choose")
+            "mana_type_choices" -> parseManaTypeChoices(value, "$context.mana_type_choices")
             "modal_choice" -> parseModalChoice(value, "$context.modal_choice")
             "static_choice" -> parseStaticChoice(value, "$context.static_choice")
             "optional_action" -> parseOptionalAction(value, "$context.optional_action")
@@ -181,6 +182,14 @@ object AcceptanceSuiteLoader {
             ctoId = map.optionalInt("cto_id"),
         )
     }
+
+    private fun parseManaTypeChoices(
+        raw: Any?,
+        context: String,
+    ): ManaTypeChoicesStep =
+        ManaTypeChoicesStep(
+            raw.asList(context).mapIndexed { index, item -> AcceptanceManaTypeChoice.parse(item.asString("$context[$index]")) },
+        )
 
     private fun parseModalChoice(
         raw: Any?,

@@ -1,0 +1,18 @@
+[metadata]
+Name:Hybrid Mana Temur Tawnyback
+Goal:Cast Temur Tawnyback
+Turns:1
+Difficulty:Easy
+Description:Cast Temur Tawnyback while paying the {2/U} pip as two generic mana.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Island;Mountain;Plains;Swamp
+humanhand=Temur Tawnyback
+humanlibrary=Forest
+aibattlefield=
+ailibrary=Forest

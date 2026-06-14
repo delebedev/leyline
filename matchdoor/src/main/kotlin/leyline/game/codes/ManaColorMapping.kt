@@ -44,6 +44,28 @@ object ManaColorMapping {
     /** Map a [ManaCostShard] to proto ManaColor, or null if unmapped (hybrid, etc.). */
     fun fromShard(shard: ManaCostShard): ManaColor? = SHARD_MAP[shard]
 
+    fun fromOrTwoGenericShard(shard: ManaCostShard): ManaColor? {
+        if (!shard.isOr2Generic() || !shard.isMonoColor) return null
+        return when {
+            shard.isWhite -> ManaColor.White_afc9
+            shard.isBlue -> ManaColor.Blue_afc9
+            shard.isBlack -> ManaColor.Black_afc9
+            shard.isRed -> ManaColor.Red_afc9
+            shard.isGreen -> ManaColor.Green_afc9
+            else -> null
+        }
+    }
+
+    fun monoColorShard(color: ManaColor): ManaCostShard? =
+        when {
+            color == ManaColor.White_afc9 -> ManaCostShard.WHITE
+            color == ManaColor.Blue_afc9 -> ManaCostShard.BLUE
+            color == ManaColor.Black_afc9 -> ManaCostShard.BLACK
+            color == ManaColor.Red_afc9 -> ManaCostShard.RED
+            color == ManaColor.Green_afc9 -> ManaCostShard.GREEN
+            else -> null
+        }
+
     /**
      * Derive `(ManaColor, count)` pairs from a Forge [ManaCost].
      * Shared by [PuzzleCardRegistrar] and test `CardDataDeriver`.

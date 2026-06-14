@@ -19,6 +19,7 @@ import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
+import leyline.game.codes.ManaColorMapping
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
@@ -161,7 +162,32 @@ class CostPaymentCoordinator(
         effect: Boolean,
     ): Boolean {
         log.debug("applyManaToCost [AI]: {} for {}", toPay, ability.hostCard?.name)
+        applyHybridManaChoices(toPay, ability)
         return ComputerUtilMana.payManaCost(toPay, ability, player, effect)
+    }
+
+    private fun applyHybridManaChoices(
+        toPay: ManaCostBeingPaid,
+        ability: SpellAbility,
+    ) {
+        val choices = bridge.journal.consumeHybridManaStash() ?: return
+        val hybridShards = toPay.getUnpaidShards().filter { it.isOr2Generic }
+        if (hybridShards.isEmpty()) return
+
+        for ((index, shard) in hybridShards.withIndex()) {
+            val coloredChoice = ManaColorMapping.fromOrTwoGenericShard(shard) ?: continue
+            val choice = choices.getOrNull(index) ?: coloredChoice
+            toPay.decreaseShard(shard, 1)
+            if (choice == ManaColor.TwoGeneric) {
+                toPay.increaseGenericMana(2)
+                continue
+            }
+            val replacement = ManaColorMapping.monoColorShard(choice.takeIf { it == coloredChoice } ?: coloredChoice)
+            if (replacement != null) {
+                toPay.increaseShard(replacement, 1)
+            }
+        }
+        log.info("applyManaToCost: applied hybrid mana choices {} for {}", choices, ability.hostCard?.name)
     }
 
     /**
