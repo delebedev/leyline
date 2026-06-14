@@ -141,9 +141,9 @@ class ForgeAiPolicy(
                 it.actionType == actionType &&
                     it.grpId == grpId &&
                     it.instanceId == mappedInstanceId &&
-                    it.actionFingerprint() !in skipFingerprints
+                    !it.isSkippedBy(skipFingerprints)
             } ?: promptActions.firstOrNull {
-                it.actionType == actionType && it.grpId == grpId && it.actionFingerprint() !in skipFingerprints
+                it.actionType == actionType && it.grpId == grpId && !it.isSkippedBy(skipFingerprints)
             }
         }
 
@@ -154,7 +154,7 @@ class ForgeAiPolicy(
             it.actionType == ActionType.Activate_add3 &&
                 it.instanceId == mappedInstanceId &&
                 it.abilityGrpId == abilityGrpId &&
-                it.actionFingerprint() !in skipFingerprints
+                !it.isSkippedBy(skipFingerprints)
         }
     }
 

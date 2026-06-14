@@ -64,6 +64,8 @@ class InMemoryCardRepository : CardRepository {
 
     override fun findGrpIdByName(name: String): Int? = nameToGrpId[name]
 
+    override fun findTokenGrpIdByName(name: String): Int? = nameToGrpId[name] ?: nameToGrpId[name.removeSuffix(" Token")]
+
     override fun findAllGrpIds(): List<Int> = grpIdToName.keys.toList()
 
     override fun lookupModalOptions(cardGrpId: Int): ModalAbilityInfo? = modalCache[cardGrpId]

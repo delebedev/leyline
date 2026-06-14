@@ -85,6 +85,8 @@ class ExposedCardRepository(
     private val nameToGrpId = ConcurrentHashMap<String, Int>()
     private val missingNames = ConcurrentHashMap.newKeySet<String>()
     private val missingAnyFaceNames = ConcurrentHashMap.newKeySet<String>()
+    private val tokenNameToGrpId = ConcurrentHashMap<String, Int>()
+    private val missingTokenNames = ConcurrentHashMap.newKeySet<String>()
     private val modalCache = ConcurrentHashMap<Int, ModalAbilityInfo?>()
     private val abilityInfoCache = ConcurrentHashMap<Int, java.util.Optional<AbilityInfo>>()
 
@@ -133,6 +135,19 @@ class ExposedCardRepository(
                 nameToGrpId[name] = grpId
                 grpIdToName[grpId] = name
                 missingNames.remove(name)
+            }
+        }
+    }
+
+    override fun findTokenGrpIdByName(name: String): Int? {
+        tokenNameToGrpId[name]?.let { return it }
+        if (name in missingTokenNames) return null
+        return queryTokenGrpIdByName(name).also { grpId ->
+            if (grpId == null) {
+                missingTokenNames.add(name)
+            } else {
+                tokenNameToGrpId[name] = grpId
+                grpIdToName[grpId] = name.removeSuffix(" Token")
             }
         }
     }
@@ -376,6 +391,28 @@ class ExposedCardRepository(
             }
         } catch (e: Exception) {
             log.warn("Failed to query grpId (any face) for name='{}': {}", cardName, e.message)
+            null
+        }
+
+    private fun queryTokenGrpIdByName(cardName: String): Int? =
+        try {
+            val normalizedName = cardName.removeSuffix(" Token")
+            transaction(database) {
+                Cards
+                    .join(Localizations, JoinType.INNER, Cards.titleId, Localizations.locId)
+                    .selectAll()
+                    .where {
+                        (Localizations.formatted eq 1) and
+                            (locMatches(cardName) or locMatches(normalizedName)) and
+                            (Cards.isToken eq 1)
+                    }.orderBy(Cards.isDigitalOnly)
+                    .orderBy(Cards.isRebalanced)
+                    .orderBy(Cards.grpId, order = SortOrder.DESC)
+                    .firstOrNull()
+                    ?.get(Cards.grpId)
+            }
+        } catch (e: Exception) {
+            log.warn("Failed to query token grpId for name='{}': {}", cardName, e.message)
             null
         }
 }

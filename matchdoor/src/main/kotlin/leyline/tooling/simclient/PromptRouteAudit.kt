@@ -88,8 +88,8 @@ object PromptRouteAuditor {
             PromptSemantic.Search -> "SearchReq"
             PromptSemantic.OrderForBottom,
             PromptSemantic.OrderForTop,
-            PromptSemantic.OrderGeneric,
             -> "OrderReq"
+            PromptSemantic.OrderGeneric -> null
             PromptSemantic.SelectNCostSacrifice,
             PromptSemantic.SelectNCostExileFromGrave,
             PromptSemantic.SelectNCostCollectEvidence,

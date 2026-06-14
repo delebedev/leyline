@@ -155,7 +155,8 @@ internal open class GreedyPromptPolicy(
     ): Action? {
         val casts = prompt.aarActions().filter { it.actionType == ActionType.Cast }
         val ordered = casts.sortedBy { if (it.alternativeGrpId != 0) 0 else 1 }
-        val action = ordered.firstOrNull { it.actionFingerprint() !in attempts.skipFingerprints() }
+        val skipFingerprints = attempts.skipFingerprints()
+        val action = ordered.firstOrNull { !it.isSkippedBy(skipFingerprints) }
         if (action == null && casts.isNotEmpty()) attempts.noteSkippedAlreadyTried()
         return action
     }
