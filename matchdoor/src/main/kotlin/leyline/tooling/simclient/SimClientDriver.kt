@@ -332,7 +332,10 @@ class SimClientDriver(
             key = prompt.type.name,
             elapsedMs = elapsedMsSince(policyT0),
         )
-        response.aarActionFingerprint?.let { attemptLedger.markSubmitted(it, response.decision.kind) }
+        val submittedAction = (response.decision as? SimDecision.PerformAction)?.action
+        if (response.aarActionFingerprint != null && submittedAction != null) {
+            attemptLedger.markSubmitted(submittedAction.retryFingerprints(), response.decision.kind)
+        }
         val submitT0 = System.nanoTime()
         val submitResult = submitter.submit(response.decision)
         promptProgress.record(

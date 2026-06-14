@@ -21,7 +21,7 @@ internal class ActionAttemptLedger(
     private val outcomes = mutableMapOf<String, Int>()
     private val noPendingByDecision = mutableMapOf<String, Int>()
     private var skippedAlreadyTried = 0
-    private var lastSubmitted: String? = null
+    private var lastSubmitted = emptySet<String>()
 
     fun skipFingerprints(): Set<String> {
         resetIfTurnChanged()
@@ -35,22 +35,27 @@ internal class ActionAttemptLedger(
     fun markSubmitted(
         fingerprint: String,
         kind: String,
+    ) = markSubmitted(setOf(fingerprint), kind)
+
+    fun markSubmitted(
+        fingerprints: Set<String>,
+        kind: String,
     ) {
         resetIfTurnChanged()
-        attemptedThisTurn += fingerprint
-        lastSubmitted = fingerprint
+        attemptedThisTurn += fingerprints
+        lastSubmitted = fingerprints
         submittedByType.merge(kind, 1) { a, b -> a + b }
     }
 
     fun markProgress() {
-        lastSubmitted = null
+        lastSubmitted = emptySet()
         outcomes.merge("progress", 1) { a, b -> a + b }
     }
 
     fun markNoProgress() {
         resetIfTurnChanged()
-        lastSubmitted?.let { quarantinedThisTurn += it }
-        lastSubmitted = null
+        quarantinedThisTurn += lastSubmitted
+        lastSubmitted = emptySet()
         outcomes.merge("no-progress", 1) { a, b -> a + b }
     }
 
@@ -73,7 +78,7 @@ internal class ActionAttemptLedger(
             turn = current
             attemptedThisTurn.clear()
             quarantinedThisTurn.clear()
-            lastSubmitted = null
+            lastSubmitted = emptySet()
         }
     }
 }
