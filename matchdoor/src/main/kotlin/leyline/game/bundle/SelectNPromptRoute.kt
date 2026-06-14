@@ -92,6 +92,7 @@ internal enum class PayCostsRouteKind {
     CollectEvidence,
     StationTapCost,
     EnlistCost,
+    ConvokeCost,
     WaterbendCost,
 }
 
@@ -116,6 +117,7 @@ internal data class PayCostsPromptRoute(
             PayCostsRouteKind.CollectEvidence -> CollectEvidencePayCostsBuilder.build(prompt, bridge)
             PayCostsRouteKind.StationTapCost -> RequestBuilder.buildStationTapCostPayCostsReq(prompt, bridge)
             PayCostsRouteKind.EnlistCost -> RequestBuilder.buildEnlistCostPayCostsReq(prompt, bridge)
+            PayCostsRouteKind.ConvokeCost -> RequestBuilder.buildConvokeCostPayCostsReq(prompt, bridge)
             PayCostsRouteKind.WaterbendCost -> RequestBuilder.buildWaterbendCostPayCostsReq(prompt, bridge)
         }
 }
@@ -265,6 +267,11 @@ internal object SelectNPromptRoutes {
                 kind = PayCostsRouteKind.SelectCost,
                 templateLabel = "return-unblocked-attacker",
                 promptId = PromptIds.NINJUTSU_RETURN_UNBLOCKED_ATTACKER_COST,
+            ),
+            PayCostsPromptRoute(
+                semantic = PromptSemantic.ConvokeCost,
+                kind = PayCostsRouteKind.ConvokeCost,
+                templateLabel = "convoke",
             ),
             PayCostsPromptRoute(
                 semantic = PromptSemantic.WaterbendCost,

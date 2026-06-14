@@ -13,6 +13,7 @@ enum class SelectNReason {
     EnlistCost,
     StationTapCost,
     ReturnUnblockedAttackerCost,
+    ConvokeCost,
     WaterbendCost,
     MutateTopBottom,
     LearnLesson,

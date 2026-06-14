@@ -64,6 +64,18 @@ sealed interface PromptSideEffect {
         val threshold: Int,
     ) : PromptSideEffect
 
+    /** Cards tapped for Convoke while paying a spell cost. */
+    data class ConvokePayments(
+        val sourceForgeCardId: ForgeCardId,
+        val payments: List<ConvokePayment>,
+    ) : PromptSideEffect
+
+    data class ConvokePayment(
+        val paymentForgeCardId: ForgeCardId,
+        /** Client ManaColor enum number used by the ManaPaid annotation. */
+        val color: Int,
+    )
+
     /** Completed SelectN choice. Consumer emits ChoiceResult transient annotation. */
     data class ChoiceResult(
         val sourceForgeCardId: ForgeCardId,

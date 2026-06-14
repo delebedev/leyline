@@ -139,6 +139,21 @@ class PromptJournalTest :
             j.peekKeywordCostDecision("Offspring") shouldBe null
         }
 
+        test("ConvokePayments remain active until source is cleared") {
+            val j = PromptJournal()
+            val source = ForgeCardId(100)
+            val payment = PromptSideEffect.ConvokePayment(ForgeCardId(200), color = 7)
+            j.record(PromptSideEffect.ConvokePayments(source, listOf(payment)))
+
+            assertSoftly {
+                j.activeConvokePayments(source) shouldBe listOf(payment)
+                j.activeConvokePayments()[source] shouldBe listOf(payment)
+            }
+
+            j.clearConvokePayments(source)
+            j.activeConvokePayments(source) shouldBe emptyList()
+        }
+
         test("resetForPuzzle clears KeywordCostStash") {
             val j = PromptJournal()
             j.record(PromptSideEffect.KeywordCostStash(mapOf("Offspring" to true)))

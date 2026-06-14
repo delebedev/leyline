@@ -1,11 +1,13 @@
 package leyline.game.bundle
 
+import forge.card.mana.ManaCostShard
 import forge.game.Game
 import forge.game.GameEntity
 import forge.game.card.Card
 import forge.game.combat.CombatUtil
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
+import leyline.bridge.coord.ConvokeShardAssigner
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.ForgeCardId
@@ -33,7 +35,16 @@ object RequestBuilder {
     private val log = LoggerFactory.getLogger(RequestBuilder::class.java)
 
     private const val WATERBEND_PAYMENT_ABILITY_GRP_ID = 384
-    private const val WATERBEND_MANA_ID_BASE = 50_000
+    private const val MANA_SOURCE_MANA_ID_BASE = 50_000
+
+    private enum class ManaSourcePaymentKind(
+        val keywordAbilityId: Int,
+        val paymentAbilityGrpId: Int,
+        val includeSourceAbilityOnCost: Boolean,
+    ) {
+        Convoke(KeywordAbilityIds.CONVOKE, KeywordAbilityIds.CONVOKE_PAYMENT, false),
+        Waterbend(KeywordAbilityIds.WATERBEND, WATERBEND_PAYMENT_ABILITY_GRP_ID, true),
+    }
 
     /**
      * Build a [SelectTargetsReq] from an [InteractivePromptBridge.PendingPrompt].
@@ -568,6 +579,17 @@ object RequestBuilder {
     fun buildWaterbendCostPayCostsReq(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
+    ): Pair<PayCostsReq, Prompt> = buildManaSourceCostPayCostsReq(prompt, bridge, ManaSourcePaymentKind.Waterbend)
+
+    fun buildConvokeCostPayCostsReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Pair<PayCostsReq, Prompt> = buildManaSourceCostPayCostsReq(prompt, bridge, ManaSourcePaymentKind.Convoke)
+
+    private fun buildManaSourceCostPayCostsReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+        kind: ManaSourcePaymentKind,
     ): Pair<PayCostsReq, Prompt> {
         val sourceInstanceId =
             prompt.request.sourceEntityId?.let {
@@ -584,7 +606,7 @@ object RequestBuilder {
                 ?: 0
         val waterbendAbilityGrpId =
             if (sourceGrpId != 0) {
-                bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, KeywordAbilityIds.WATERBEND) ?: 0
+                bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, kind.keywordAbilityId) ?: 0
             } else {
                 0
             }
@@ -598,10 +620,13 @@ object RequestBuilder {
                             .addColor(color)
                             .setCount(count)
                             .setObjectId(sourceInstanceId)
-                            .apply { if (waterbendAbilityGrpId != 0) setAbilityGrpId(waterbendAbilityGrpId) }
-                            .build()
+                            .apply {
+                                if (kind.includeSourceAbilityOnCost && waterbendAbilityGrpId != 0) {
+                                    setAbilityGrpId(waterbendAbilityGrpId)
+                                }
+                            }.build()
                     },
-                ).setPaymentActions(buildWaterbendPaymentActions(prompt, bridge))
+                ).setPaymentActions(buildManaSourcePaymentActions(prompt, bridge, kind))
                 .setPaymentSelection(
                     SelectNReq
                         .newBuilder()
@@ -631,38 +656,61 @@ object RequestBuilder {
         return req to promptProto
     }
 
-    private fun buildWaterbendPaymentActions(
+    private fun buildManaSourcePaymentActions(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
+        kind: ManaSourcePaymentKind,
     ): ActionsAvailableReq {
         val builder = ActionsAvailableReq.newBuilder()
+        val convokeShards = if (kind == ManaSourcePaymentKind.Convoke) convokePaymentShards(prompt, bridge) else emptyMap()
         for ((idx, ref) in prompt.request.candidateRefs.withIndex()) {
             val forgeId = ForgeCardId(ref.entityId)
             val card = bridge.findCard(forgeId) ?: continue
             val iid = bridge.getOrAllocInstanceId(forgeId).value
             val grpId = bridge.resolveGrpId(card, iid)
-            builder.addActions(waterbendPaymentAction(iid, grpId, card.isCreature, idx))
+            builder.addActions(manaSourcePaymentAction(iid, grpId, card.isCreature, idx, card.color, prompt, kind, convokeShards[forgeId]))
         }
         return builder.build()
     }
 
-    private fun waterbendPaymentAction(
+    private fun convokePaymentShards(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Map<ForgeCardId, ManaCostShard> {
+        val candidates =
+            prompt.request.candidateRefs.mapNotNull { ref ->
+                val forgeId = ForgeCardId(ref.entityId)
+                val card = bridge.findCard(forgeId) ?: return@mapNotNull null
+                forgeId to card
+            }
+        return ConvokeShardAssigner
+            .assign(candidates, prompt.request.waterbendManaCost.toConvokeShardCounts()) { (_, card) -> card.color }
+            .associate { (entry, shard) -> entry.first to shard }
+    }
+
+    private fun manaSourcePaymentAction(
         instanceId: Int,
         grpId: Int,
         fromCreature: Boolean,
         index: Int,
+        cardColor: forge.card.ColorSet,
+        prompt: InteractivePromptBridge.PendingPrompt,
+        kind: ManaSourcePaymentKind,
+        convokeShard: ManaCostShard?,
     ): Action {
         val manaInfo =
             ManaInfo
                 .newBuilder()
-                .setManaId(WATERBEND_MANA_ID_BASE + index)
-                .setColor(ManaColor.Colorless_afc9)
+                .setManaId(MANA_SOURCE_MANA_ID_BASE + index)
+                .setColor(paymentActionColor(cardColor, prompt, kind, convokeShard))
                 .setSrcInstanceId(instanceId)
                 .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
                 .apply {
-                    if (fromCreature) addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.FromCreature))
+                    if (fromCreature || kind == ManaSourcePaymentKind.Convoke) {
+                        addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.FromCreature))
+                    }
                 }.addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.ManaSubstitution))
-                .setAbilityGrpId(WATERBEND_PAYMENT_ABILITY_GRP_ID)
+                .setAbilityGrpId(kind.paymentAbilityGrpId)
                 .setCount(1)
                 .build()
         return Action
@@ -671,10 +719,58 @@ object RequestBuilder {
             .setGrpId(grpId)
             .setInstanceId(instanceId)
             .setFacetId(instanceId)
-            .setAbilityGrpId(WATERBEND_PAYMENT_ABILITY_GRP_ID)
+            .setAbilityGrpId(kind.paymentAbilityGrpId)
             .addManaPaymentOptions(ManaPaymentOption.newBuilder().addMana(manaInfo))
             .build()
     }
+
+    private fun paymentActionColor(
+        cardColor: forge.card.ColorSet,
+        prompt: InteractivePromptBridge.PendingPrompt,
+        kind: ManaSourcePaymentKind,
+        convokeShard: ManaCostShard?,
+    ): ManaColor {
+        if (kind == ManaSourcePaymentKind.Waterbend) return ManaColor.Colorless_afc9
+        convokeShard?.let { return it.toConvokeWireColor() }
+        val colorsNeeded = prompt.request.waterbendManaCost.toMap()
+        return when {
+            cardColor.hasWhite() && colorsNeeded.getOrDefault(ManaColor.White_afc9, 0) > 0 -> ManaColor.White_afc9
+            cardColor.hasBlue() && colorsNeeded.getOrDefault(ManaColor.Blue_afc9, 0) > 0 -> ManaColor.Blue_afc9
+            cardColor.hasBlack() && colorsNeeded.getOrDefault(ManaColor.Black_afc9, 0) > 0 -> ManaColor.Black_afc9
+            cardColor.hasRed() && colorsNeeded.getOrDefault(ManaColor.Red_afc9, 0) > 0 -> ManaColor.Red_afc9
+            cardColor.hasGreen() && colorsNeeded.getOrDefault(ManaColor.Green_afc9, 0) > 0 -> ManaColor.Green_afc9
+            else -> ManaColor.Colorless_afc9
+        }
+    }
+
+    private fun List<Pair<ManaColor, Int>>.toConvokeShardCounts(): Map<ManaCostShard, Int> =
+        buildMap {
+            for ((color, count) in this@toConvokeShardCounts) {
+                val shard = color.toConvokeShard() ?: continue
+                put(shard, count)
+            }
+        }
+
+    private fun ManaColor.toConvokeShard(): ManaCostShard? =
+        when {
+            this == ManaColor.White_afc9 -> ManaCostShard.WHITE
+            this == ManaColor.Blue_afc9 -> ManaCostShard.BLUE
+            this == ManaColor.Black_afc9 -> ManaCostShard.BLACK
+            this == ManaColor.Red_afc9 -> ManaCostShard.RED
+            this == ManaColor.Green_afc9 -> ManaCostShard.GREEN
+            this == ManaColor.Generic -> ManaCostShard.GENERIC
+            else -> null
+        }
+
+    private fun ManaCostShard.toConvokeWireColor(): ManaColor =
+        when {
+            this == ManaCostShard.WHITE -> ManaColor.White_afc9
+            this == ManaCostShard.BLUE -> ManaColor.Blue_afc9
+            this == ManaCostShard.BLACK -> ManaColor.Black_afc9
+            this == ManaCostShard.RED -> ManaColor.Red_afc9
+            this == ManaCostShard.GREEN -> ManaColor.Green_afc9
+            else -> ManaColor.Colorless_afc9
+        }
 
     /**
      * Build a `PayCostsReq` for an additional cost paid by selecting N cards

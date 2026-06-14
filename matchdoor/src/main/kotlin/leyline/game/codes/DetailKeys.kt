@@ -17,6 +17,7 @@ object DetailKeys {
     const val ABILITY_GRP_IDS = "abilityGRPIDs"
     const val ID = "id"
     const val COLOR = "color"
+    const val SUBSTITUTION_GRPID = "substitution_grpid"
     const val MANA_SPEC_TYPE_DOES_NOT_EMPTY = "ManaSpecType_DoesNotEmpty"
     const val TAPPED = "tapped"
     const val SOURCE_ZONE = "source_zone"

@@ -1,0 +1,17 @@
+[metadata]
+Name:Convoke - Conclave Tribunal
+Goal:Cast Conclave Tribunal using a creature as a Convoke reducer.
+Turns:4
+Difficulty:Easy
+Description:Conclave Tribunal exposes native Convoke payment actions, taps a creature, pays remaining mana, and resolves.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Conclave Tribunal
+humanbattlefield=Plains;Plains;Plains;Coral Merfolk;Grizzly Bears
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

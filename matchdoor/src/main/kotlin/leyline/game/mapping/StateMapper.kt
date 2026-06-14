@@ -372,6 +372,9 @@ object StateMapper {
                 frameIds = frameIds,
             )
 
+        val convokePaymentsBySource = activeConvokePaymentsBySource(eventsMutable, bridge)
+        annotations.addAll(buildConvokeResolveAnnotations(transferResult, bridge))
+
         val decayedCleanupSourcesThisGsm = updateDecayedCleanupSources(eventsMutable, snap, bridge, transferResult)
 
         val persistentFeedResult =
@@ -452,6 +455,7 @@ object StateMapper {
                 keywordDiff,
                 combatResult,
                 persistentFeeds,
+                convokePaymentsBySource,
                 transferResult = transferResult,
             )
 
@@ -937,6 +941,56 @@ object StateMapper {
                 bridge.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(fid)).value
             }
 
+    private fun activeConvokePaymentsBySource(
+        events: List<GameEvent>,
+        bridge: GameBridge,
+    ): Map<ForgeCardId, List<TransferAnnotations.ConvokePaymentRecord>> {
+        val promptSeatIds = bridge.allSeatIds()
+        return events
+            .filterIsInstance<GameEvent.SpellCast>()
+            .filterNot { it.isAbility }
+            .mapNotNull { ev ->
+                if (ev.seatId.value !in promptSeatIds) return@mapNotNull null
+                val payments = bridge.promptBridge(ev.seatId).journal.activeConvokePayments(ev.cardId)
+                if (payments.isEmpty()) {
+                    null
+                } else {
+                    ev.cardId to payments.map { it.toConvokePaymentRecord() }
+                }
+            }.toMap()
+    }
+
+    private fun PromptSideEffect.ConvokePayment.toConvokePaymentRecord(): TransferAnnotations.ConvokePaymentRecord =
+        TransferAnnotations.ConvokePaymentRecord(
+            paymentForgeCardId = paymentForgeCardId,
+            color = color,
+        )
+
+    private fun buildConvokeResolveAnnotations(
+        transferResult: TransferResult,
+        bridge: GameBridge,
+    ): List<AnnotationInfo> {
+        val annotations = mutableListOf<AnnotationInfo>()
+        for (transfer in transferResult.transfers) {
+            val sourceForgeCardId = transfer.forgeCardId ?: continue
+            if (transfer.srcZoneId != ZoneIds.STACK) continue
+            val promptBridges =
+                bridge
+                    .allSeatIds()
+                    .sorted()
+                    .map { bridge.promptBridge(SeatId(it)) }
+                    .filter { it.journal.activeConvokePayments(sourceForgeCardId).isNotEmpty() }
+            if (promptBridges.isEmpty()) continue
+
+            if (transfer.category == TransferCategory.Resolve) {
+                val resolvingId = InstanceId(transfer.newId.takeIf { it != 0 } ?: transfer.origId)
+                annotations.add(AnnotationBuilder.abilityWordActive(resolvingId, "Convoke"))
+            }
+            promptBridges.forEach { it.journal.clearConvokePayments(sourceForgeCardId) }
+        }
+        return annotations
+    }
+
     /** Result of stages 4-5 + persistent annotation computation. */
     private data class RemainingAnnotationsResult(
         val numbered: List<AnnotationInfo>,
@@ -964,6 +1018,7 @@ object StateMapper {
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
         persistentFeeds: PersistentFeedSet = PersistentFeedSet(),
+        convokePaymentsBySource: Map<ForgeCardId, List<TransferAnnotations.ConvokePaymentRecord>> = emptyMap(),
         transferResult: TransferResult,
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds =
@@ -971,13 +1026,14 @@ object StateMapper {
                 .filterIsInstance<GameEvent.SpellCast>()
                 .flatMap { it.manaPayments.map { mp -> mp.sourceCardId } }
                 .toSet()
+        val convokePaymentForgeIds = convokePaymentsBySource.values.flatten().mapTo(mutableSetOf()) { it.paymentForgeCardId }
         val sacrificedManaForgeIds =
             events
                 .filterIsInstance<GameEvent.ManaAbilityActivated>()
                 .filter { ma -> events.any { it is GameEvent.CardSacrificed && it.cardId == ma.cardId } }
                 .map { it.cardId }
                 .toSet()
-        val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds
+        val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds + convokePaymentForgeIds
         val castStackIidsByCard =
             transferResult.transfers
                 .asSequence()
@@ -1009,6 +1065,7 @@ object StateMapper {
                 playerCounterAffectorResolver = { eventIndex, ev -> playerCounterAffectorFor(eventIndex, ev, events, frameIds) },
                 stackInstanceResolver = { ev -> castStackIidsByCard[ev.cardId] },
                 castSpellTransferCardIds = castSpellTransferCardIds,
+                convokePaymentsBySource = convokePaymentsBySource,
             )
         val earthbendFrame = bridge.drainEarthbendFrame()
         val earthbendDestroyed = earthbendFrame.destroyedLayerIds.map { AnnotationBuilder.layeredEffectDestroyed(EffectId(it)) }

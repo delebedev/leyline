@@ -7,11 +7,15 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.game.codes.DetailKeys
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.sid
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.detailUint
+import leyline.testkit.hasDetail
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -262,6 +266,51 @@ class TransferAnnotationPipelineTest :
                 annotations.size shouldBe 6
                 annotations.last().typeList shouldContain AnnotationType.UserActionTaken
                 annotations.last().detailInt("actionType") shouldBe 1 // Cast
+            }
+        }
+
+        test("castSpellEventAnnotations emits Convoke payment bracket") {
+            val ev =
+                leyline.game.event.GameEvent.SpellCast(
+                    cardId = leyline.bridge.types.ForgeCardId(100),
+                    seatId = 1.sid,
+                    isAbility = false,
+                    isTrigger = false,
+                )
+            val annotations =
+                TransferAnnotations.castSpellEventAnnotations(
+                    ev,
+                    idResolver = { leyline.bridge.types.InstanceId(it.value) },
+                    manaAbilityGrpIdResolver = { leyline.bridge.types.GrpId(0) },
+                    convokePayments =
+                        listOf(
+                            TransferAnnotations.ConvokePaymentRecord(
+                                paymentForgeCardId = leyline.bridge.types.ForgeCardId(43),
+                                color = 7,
+                            ),
+                        ),
+                )
+
+            assertSoftly {
+                annotations.map { it.typeList.first() } shouldBe
+                    listOf(
+                        AnnotationType.AbilityInstanceCreated,
+                        AnnotationType.TappedUntappedPermanent,
+                        AnnotationType.ResolutionStart,
+                        AnnotationType.ManaPaid,
+                        AnnotationType.AbilityInstanceDeleted,
+                        AnnotationType.UserActionTaken,
+                        AnnotationType.UserActionTaken,
+                    )
+                annotations[2].detailInt(DetailKeys.GRPID) shouldBe KeywordAbilityIds.CONVOKE_PAYMENT
+                annotations[3].affectorId shouldBe 43
+                annotations[3].affectedIdsList shouldBe listOf(100)
+                annotations[3].hasDetail(DetailKeys.ID) shouldBe false
+                annotations[3].detailInt(DetailKeys.COLOR) shouldBe 7
+                annotations[3].detailInt(DetailKeys.SUBSTITUTION_GRPID) shouldBe KeywordAbilityIds.CONVOKE
+                annotations[5].detailInt(DetailKeys.ACTION_TYPE) shouldBe ActionType.MakePayment.number
+                annotations[5].detailInt(DetailKeys.ABILITY_GRP_ID) shouldBe KeywordAbilityIds.CONVOKE_PAYMENT
+                annotations[6].detailInt(DetailKeys.ACTION_TYPE) shouldBe ActionType.Cast.number
             }
         }
 

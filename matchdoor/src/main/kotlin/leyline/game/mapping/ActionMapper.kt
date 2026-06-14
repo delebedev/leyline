@@ -9,6 +9,7 @@ import forge.game.card.Card
 import forge.game.card.CardLists
 import forge.game.card.CardPredicates
 import forge.game.cost.CostAdjustment
+import forge.game.keyword.Keyword
 import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
@@ -283,15 +284,13 @@ object ActionMapper {
                         .setInstanceId(instanceId)
                         .setGrpId(grpId)
                         .setFacetId(instanceId)
-                val effectiveCost = computeEffectiveCost(sa, player)
-                if (effectiveCost != null && !effectiveCost.isNoCost) {
-                    addManaCostFromForge(effectiveCost, inactiveBuilder)
-                } else {
-                    val cardData = snap.boundCards[fid]?.data
-                    if (cardData != null) {
-                        for ((color, count) in cardData.manaCost) {
-                            inactiveBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
-                        }
+                val cardData = snap.boundCards[fid]?.data
+                if (!usesPaymentSourceReducer(sa) || !addManaCostFromCardData(cardData, inactiveBuilder)) {
+                    val effectiveCost = computeEffectiveCost(sa, player)
+                    if (effectiveCost != null && !effectiveCost.isNoCost) {
+                        addManaCostFromForge(effectiveCost, inactiveBuilder)
+                    } else {
+                        addManaCostFromCardData(cardData, inactiveBuilder)
                     }
                 }
                 builder.addInactiveActions(inactiveBuilder)
@@ -320,7 +319,9 @@ object ActionMapper {
                     .setFacetId(instanceId)
                     .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
 
-            val effectiveCost = computeEffectiveCost(sa, player)
+            val cardData = snap.boundCards[fid]?.data
+            val printedCostAdded = usesPaymentSourceReducer(sa) && addManaCostFromCardData(cardData, actionBuilder)
+            val effectiveCost = if (printedCostAdded) null else computeEffectiveCost(sa, player)
             if (effectiveCost != null && !effectiveCost.isNoCost) {
                 addManaCostFromForge(effectiveCost, actionBuilder)
                 val costPairs = forgeManaCostToPairs(effectiveCost)
@@ -334,13 +335,8 @@ object ActionMapper {
                         abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
                     )
                 if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
-            } else {
-                val cardData = snap.boundCards[fid]?.data
-                if (cardData != null) {
-                    for ((color, count) in cardData.manaCost) {
-                        actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
-                    }
-                }
+            } else if (!printedCostAdded) {
+                addManaCostFromCardData(cardData, actionBuilder)
             }
             builder.addActions(actionBuilder)
 
@@ -1689,6 +1685,22 @@ object ActionMapper {
             if (seededCastFrom) hostCard?.setCastFrom(originalCastFrom)
             if (originalActivator == null) sa.setActivatingPlayer(null)
         }
+    }
+
+    private fun usesPaymentSourceReducer(sa: SpellAbility): Boolean {
+        val host = sa.hostCard ?: return false
+        return host.hasKeyword(Keyword.CONVOKE) || host.hasKeyword(Keyword.IMPROVISE)
+    }
+
+    private fun addManaCostFromCardData(
+        cardData: CardData?,
+        actionBuilder: Action.Builder,
+    ): Boolean {
+        if (cardData == null || cardData.manaCost.isEmpty()) return false
+        for ((color, count) in cardData.manaCost) {
+            actionBuilder.addManaCost(ManaRequirement.newBuilder().addColor(color).setCount(count))
+        }
+        return true
     }
 
     /** Aggregate colored shards from a Forge [ManaCost] into a color→count map. */

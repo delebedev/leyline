@@ -4,6 +4,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ZoneIds
@@ -24,6 +25,11 @@ object TransferAnnotations {
      * would track a global counter across the GSM.
      */
     private const val MANA_ID_BASE = 3
+
+    data class ConvokePaymentRecord(
+        val paymentForgeCardId: ForgeCardId,
+        val color: Int,
+    )
 
     /**
      * Generate annotations for a single zone transfer.
@@ -290,6 +296,7 @@ object TransferAnnotations {
         idResolver: (ForgeCardId) -> InstanceId,
         manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
         stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
+        convokePayments: List<ConvokePaymentRecord> = emptyList(),
     ): List<AnnotationInfo> {
         if (ev.isAbility) return emptyList()
         val annotations = mutableListOf<AnnotationInfo>()
@@ -316,6 +323,15 @@ object TransferAnnotations {
             )
             annotations.add(AnnotationBuilder.abilityInstanceDeleted(manaAbilityIid, landIid))
         }
+        for (payment in convokePayments) {
+            emitConvokePayment(
+                annotations = annotations,
+                payment = payment,
+                spellIid = spellIid,
+                actingSeat = ev.seatId,
+                idResolver = idResolver,
+            )
+        }
         val castActionType =
             when {
                 ev.isOmen -> ActionType.CastOmen
@@ -334,6 +350,44 @@ object TransferAnnotations {
             ),
         )
         return annotations
+    }
+
+    private fun emitConvokePayment(
+        annotations: MutableList<AnnotationInfo>,
+        payment: ConvokePaymentRecord,
+        spellIid: InstanceId,
+        actingSeat: SeatId,
+        idResolver: (ForgeCardId) -> InstanceId,
+    ) {
+        val paymentSourceIid = idResolver(payment.paymentForgeCardId)
+        val paymentAbilityIid = idResolver(FrameIdResolver.costPaymentAbilityForgeId(payment.paymentForgeCardId))
+        annotations.add(
+            AnnotationBuilder.abilityInstanceCreated(
+                abilityInstanceId = paymentAbilityIid,
+                affectorId = paymentSourceIid,
+                sourceZoneId = ZoneIds.BATTLEFIELD,
+            ),
+        )
+        annotations.add(AnnotationBuilder.tappedUntappedPermanent(paymentSourceIid, paymentAbilityIid))
+        annotations.add(AnnotationBuilder.resolutionStart(paymentAbilityIid, GrpId(KeywordAbilityIds.CONVOKE_PAYMENT)))
+        annotations.add(
+            AnnotationBuilder.manaPaid(
+                spellInstanceId = spellIid,
+                landInstanceId = paymentSourceIid,
+                manaId = null,
+                color = payment.color,
+                substitutionGrpId = GrpId(KeywordAbilityIds.CONVOKE),
+            ),
+        )
+        annotations.add(AnnotationBuilder.abilityInstanceDeleted(paymentAbilityIid, paymentSourceIid))
+        annotations.add(
+            AnnotationBuilder.userActionTaken(
+                instanceId = paymentAbilityIid,
+                seatId = actingSeat,
+                actionType = ActionType.MakePayment,
+                abilityGrpId = GrpId(KeywordAbilityIds.CONVOKE_PAYMENT),
+            ),
+        )
     }
 
     internal fun castSpellEventPersistentAnnotations(

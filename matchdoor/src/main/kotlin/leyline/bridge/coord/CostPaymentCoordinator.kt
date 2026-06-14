@@ -16,6 +16,8 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OptionalActionGate
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -62,64 +64,90 @@ class CostPaymentCoordinator(
         if (options.isEmpty()) return emptyMap()
 
         val isWaterbend = artifacts && creatures
+        val isConvoke = creatures && !artifacts
+        val request = buildConvokeOrImproviseRequest(sa, manaCost, untappedCards, options, maxReduction, artifacts, isWaterbend, isConvoke)
+        val indices = bridge.requestChoice(request)
+        if (indices.isEmpty()) return emptyMap()
+
+        val cardList = untappedCards.toList()
+        val selectedCards = indices.mapNotNull { cardList.getOrNull(it) }
+        val result =
+            if (artifacts) {
+                selectedCards
+                    .take(manaCost.genericCost)
+                    .associateWith { ManaCostShard.GENERIC }
+            } else {
+                ConvokeShardAssigner
+                    .assign(selectedCards, ConvokeShardAssigner.costCounts(manaCost)) { it.color }
+                    .toMap()
+            }
+        if (isConvoke) recordConvokePayments(sa, result)
+        return result
+    }
+
+    private fun buildConvokeOrImproviseRequest(
+        sa: SpellAbility,
+        manaCost: ManaCost,
+        untappedCards: CardCollectionView,
+        options: List<String>,
+        maxReduction: Int?,
+        artifacts: Boolean,
+        isWaterbend: Boolean,
+        isConvoke: Boolean,
+    ): PromptRequest {
         val keyword =
             when {
                 isWaterbend -> "waterbend"
                 artifacts -> "improvise"
                 else -> "convoke"
             }
-        val request =
-            PromptRequest(
-                promptType = "choose_cards",
-                message = "Choose cards to tap for $keyword",
-                options = options,
-                min = 0,
-                max = options.size.coerceAtMost(maxReduction ?: options.size),
-                defaultIndex = 0,
-                semantic = if (isWaterbend) PromptSemantic.WaterbendCost else PromptSemantic.Generic,
-                candidateRefs =
-                    if (isWaterbend) {
-                        untappedCards.mapIndexed { index, card ->
-                            PromptCandidateRefDto(index = index, kind = "card", entityId = card.id, zone = card.zone?.zoneType?.name)
-                        }
-                    } else {
-                        emptyList()
-                    },
-                sourceEntityId = sa.hostCard?.id,
-                sourceCardName = sa.hostCard?.name,
-                waterbendManaCost = if (isWaterbend) manaCost.toColorCounts() else emptyList(),
-                waterbendCostString = if (isWaterbend) manaCost.toArenaCostString() else null,
-            )
-        val indices = bridge.requestChoice(request)
-        if (indices.isEmpty()) return emptyMap()
-
-        // Map selected cards to mana cost shards.
-        // TODO: delegate shard assignment to ComputerUtilMana when implementing full convoke support.
-        // Greedy WUBRG-order assignment can be suboptimal for multi-color
-        // creatures vs costs with mixed colored / generic.
-        val colorShardCounts = mutableMapOf<ManaCostShard, Int>()
-        for (shard in listOf(ManaCostShard.WHITE, ManaCostShard.BLUE, ManaCostShard.BLACK, ManaCostShard.RED, ManaCostShard.GREEN)) {
-            val count = manaCost.getShardCount(shard)
-            if (count > 0) colorShardCounts[shard] = count
-        }
-        var genericRemaining = manaCost.genericCost
-
-        val cardList = untappedCards.toList()
-        val result = mutableMapOf<Card, ManaCostShard>()
-        for (idx in indices) {
-            val card = cardList.getOrNull(idx) ?: continue
-            val shard = pickShardForConvoke(card, colorShardCounts, genericRemaining, artifacts)
-            if (shard != null) {
-                result[card] = shard
-                if (shard == ManaCostShard.GENERIC) {
-                    genericRemaining--
+        val isNativeManaSource = isWaterbend || isConvoke
+        return PromptRequest(
+            promptType = "choose_cards",
+            message = "Choose cards to tap for $keyword",
+            options = options,
+            min = 0,
+            max = options.size.coerceAtMost(maxReduction ?: options.size),
+            defaultIndex = 0,
+            semantic =
+                when {
+                    isWaterbend -> PromptSemantic.WaterbendCost
+                    isConvoke -> PromptSemantic.ConvokeCost
+                    else -> PromptSemantic.Generic
+                },
+            candidateRefs =
+                if (isNativeManaSource) {
+                    untappedCards.mapIndexed { index, card ->
+                        PromptCandidateRefDto(index = index, kind = "card", entityId = card.id, zone = card.zone?.zoneType?.name)
+                    }
                 } else {
-                    val remaining = (colorShardCounts[shard] ?: 1) - 1
-                    if (remaining <= 0) colorShardCounts.remove(shard) else colorShardCounts[shard] = remaining
-                }
-            }
-        }
-        return result
+                    emptyList()
+                },
+            sourceEntityId = sa.hostCard?.id,
+            sourceCardName = sa.hostCard?.name,
+            waterbendManaCost = if (isNativeManaSource) manaCost.toColorCounts() else emptyList(),
+            waterbendCostString = if (isNativeManaSource) manaCost.toArenaCostString() else null,
+        )
+    }
+
+    private fun recordConvokePayments(
+        sa: SpellAbility,
+        payments: Map<Card, ManaCostShard>,
+    ) {
+        val source = sa.hostCard ?: return
+        if (payments.isEmpty()) return
+        bridge.journal.record(
+            PromptSideEffect.ConvokePayments(
+                sourceForgeCardId = ForgeCardId(source.id),
+                payments =
+                    payments.map { (card, shard) ->
+                        PromptSideEffect.ConvokePayment(
+                            paymentForgeCardId = ForgeCardId(card.id),
+                            color = shard.toConvokeWireColor().number,
+                        )
+                    },
+            ),
+        )
     }
 
     /**
@@ -267,23 +295,6 @@ class CostPaymentCoordinator(
         return paid
     }
 
-    private fun pickShardForConvoke(
-        card: Card,
-        colorCounts: Map<ManaCostShard, Int>,
-        genericRemaining: Int,
-        artifacts: Boolean,
-    ): ManaCostShard? {
-        if (artifacts) return ManaCostShard.GENERIC.takeIf { genericRemaining > 0 }
-        val colors = card.color
-        if (colors.hasWhite() && (colorCounts[ManaCostShard.WHITE] ?: 0) > 0) return ManaCostShard.WHITE
-        if (colors.hasBlue() && (colorCounts[ManaCostShard.BLUE] ?: 0) > 0) return ManaCostShard.BLUE
-        if (colors.hasBlack() && (colorCounts[ManaCostShard.BLACK] ?: 0) > 0) return ManaCostShard.BLACK
-        if (colors.hasRed() && (colorCounts[ManaCostShard.RED] ?: 0) > 0) return ManaCostShard.RED
-        if (colors.hasGreen() && (colorCounts[ManaCostShard.GREEN] ?: 0) > 0) return ManaCostShard.GREEN
-        if (genericRemaining > 0) return ManaCostShard.GENERIC
-        return null
-    }
-
     private fun ManaCost.toColorCounts(): List<Pair<ManaColor, Int>> =
         buildList {
             if (genericCost > 0) add(ManaColor.Generic to genericCost)
@@ -314,7 +325,18 @@ class CostPaymentCoordinator(
             }
         }
 
+    private fun ManaCostShard.toConvokeWireColor(): ManaColor = convokeWireColors[this] ?: ManaColor.Colorless_afc9
+
     companion object {
+        private val convokeWireColors =
+            mapOf(
+                ManaCostShard.WHITE to ManaColor.White_afc9,
+                ManaCostShard.BLUE to ManaColor.Blue_afc9,
+                ManaCostShard.BLACK to ManaColor.Black_afc9,
+                ManaCostShard.RED to ManaColor.Red_afc9,
+                ManaCostShard.GREEN to ManaColor.Green_afc9,
+            )
+
         /** Drain the optional cost stash from [bridge]'s journal, or null if none recorded. */
         fun consumeStashFor(bridge: InteractivePromptBridge): List<Int>? = bridge.journal.consumeOptionalCostStash()
 
