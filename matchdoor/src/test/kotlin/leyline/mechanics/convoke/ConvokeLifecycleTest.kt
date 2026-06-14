@@ -7,6 +7,8 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
@@ -55,6 +57,8 @@ class ConvokeLifecycleTest :
             tribunalCastAction should haveManaCost(generic = 3, white = 1)
 
             val initialPayCosts = after { castSpellByName("Conclave Tribunal").shouldBeTrue() }.expectOnePayCostsReq()
+            val tribunalForgeId = ForgeCardId(game().stackZone.first().id)
+            val tribunalStackIid = harness.bridge.getOrAllocInstanceId(tribunalForgeId).value
             assertSoftly {
                 allMessages.last { it.hasPrompt() }.prompt.promptId shouldBe PromptIds.PAY_COSTS
                 initialPayCosts.manaCostList.single { it.colorList == listOf(ManaColor.Generic) }.count shouldBe 3
@@ -73,6 +77,7 @@ class ConvokeLifecycleTest :
                 updatedPayCosts.paymentActions.actionsList.any { it.instanceId == merfolkIid } shouldBe false
                 updatedPayCosts.paymentActions.actionsList.single { it.instanceId == bearIid }
                 interimConvokeCount.single().detailInt(DetailKeys.VALUE) shouldBe 1
+                interimConvokeCount.single().affectorId shouldBe tribunalStackIid
             }
 
             val paymentSnap = messageSnapshot()
@@ -113,12 +118,70 @@ class ConvokeLifecycleTest :
 
             passUntilResolved(maxPasses = 8)
             human.battlefield.iid("Conclave Tribunal") shouldBeGreaterThan 0
+            harness.bridge
+                .promptBridge(SeatId(1))
+                .journal
+                .activeConvokePayments(tribunalForgeId) shouldBe emptyList()
+        }
+
+        test("white creature pays white Convoke pip through native MakePayment") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Conclave Tribunal
+                humanbattlefield=Plains;Plains;Plains;Savannah Lions
+                humanlibrary=Plains;Plains;Plains
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+                name = "Convoke Colored Pip",
+                validating = true,
+            )
+
+            val lionIid = human.battlefield.iid("Savannah Lions")
+            val initialPayCosts = after { castSpellByName("Conclave Tribunal").shouldBeTrue() }.expectOnePayCostsReq()
+            val tribunalStackIid = harness.bridge.getOrAllocInstanceId(ForgeCardId(game().stackZone.first().id)).value
+            assertConvokePaymentActions(initialPayCosts, listOf(lionIid), ManaColor.White_afc9)
+
+            val firstPaymentSnap = messageSnapshot()
+            val updatedPayCosts = after { respondToConvokeMakePayment(lionIid) }.expectOnePayCostsReq()
+            val interimConvokeCount =
+                messagesSince(firstPaymentSnap).persistentAnnotationsOfType(AnnotationType.AbilityWordActive).filter {
+                    it.detailString(DetailKeys.ABILITY_WORD_NAME) == "ConvokeCount"
+                }
+            assertSoftly {
+                updatedPayCosts.manaCostList.any { it.colorList == listOf(ManaColor.White_afc9) } shouldBe false
+                updatedPayCosts.manaCostList.single { it.colorList == listOf(ManaColor.Generic) }.count shouldBe 3
+                updatedPayCosts.paymentActions.actionsList.any { it.instanceId == lionIid } shouldBe false
+                interimConvokeCount.single().affectorId shouldBe tribunalStackIid
+            }
+
+            val paymentSnap = messageSnapshot()
+            respondToConvokePaymentDone()
+            val convokeManaPaid =
+                annotationsSince(paymentSnap).filter {
+                    AnnotationType.ManaPaid in it.typeList &&
+                        it.hasDetail(DetailKeys.SUBSTITUTION_GRPID) &&
+                        it.detailInt(DetailKeys.SUBSTITUTION_GRPID) == KeywordAbilityIds.CONVOKE
+                }
+            assertSoftly {
+                convokeManaPaid.single().affectorId shouldBe lionIid
+                convokeManaPaid.single().detailInt(DetailKeys.COLOR) shouldBe ManaColor.White_afc9.number
+                convokeManaPaid.single().hasDetail(DetailKeys.ID) shouldBe false
+            }
+
+            passUntilResolved(maxPasses = 8)
+            human.battlefield.iid("Conclave Tribunal") shouldBeGreaterThan 0
         }
     })
 
 private fun assertConvokePaymentActions(
     payCosts: PayCostsReq,
     ids: List<Int>,
+    expectedColor: ManaColor = ManaColor.Colorless_afc9,
 ) {
     val actions = payCosts.paymentActions.actionsList
     ids.forEach { iid ->
@@ -133,7 +196,7 @@ private fun assertConvokePaymentActions(
             action.abilityGrpId shouldBe KeywordAbilityIds.CONVOKE_PAYMENT
             mana.abilityGrpId shouldBe KeywordAbilityIds.CONVOKE_PAYMENT
             mana.srcInstanceId shouldBe iid
-            mana.color shouldBe ManaColor.Colorless_afc9
+            mana.color shouldBe expectedColor
             mana.specsList.map { it.type } shouldContain ManaSpecType.FromCreature
             mana.specsList.map { it.type } shouldContain ManaSpecType.ManaSubstitution
         }
