@@ -69,9 +69,15 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 object AnnotationPipeline {
     /**
      * Registered mechanic contributors, ordered by [AnnotationContributor.rank].
-     * Seeded in the emitter-port slice; the spine calls emitters directly today.
+     *
+     * The spine invokes each contributor at its phase-correct site rather than as
+     * one flat rank-sorted block: both the transient ordering and the shared
+     * effect-id allocator (`effects.nextEffectId()`, drawn by crew / reconfigure /
+     * mutate-merge alike) are load-bearing, so call order pins emitted ids and
+     * positions. [rank] documents that canonical order; the registry gives the
+     * boundary fitness function a single list to assert over.
      */
-    val contributors: List<AnnotationContributor> = emptyList()
+    val contributors: List<AnnotationContributor> = listOf(VehicleAttachContributor)
 
     /** Result of stages 4-5 + persistent annotation computation. */
     internal data class RemainingAnnotationsResult(
@@ -735,12 +741,11 @@ object AnnotationPipeline {
         val abilityExhaustedPersistent = buildAbilityExhaustedAnnotations(snap, bridge, frameIds)
         annotations.addAll(mutateMergeTransient)
 
-        val (crewedThisTurnPersistent, crewTypeChangePersistent, crewExpiredAnnotations) =
-            computeCrewAnnotations(bridge)
-        val (reconfigureTypeChangeTransient, reconfigureTypeChangePersistent) = computeReconfigureAnnotations(bridge)
-        val saddledThisTurnPersistent = computeSaddleAnnotations(bridge)
-        annotations.addAll(crewExpiredAnnotations)
-        annotations.addAll(reconfigureTypeChangeTransient)
+        // Vehicle/Attach (Crew + Saddle + Reconfigure) — invoked here so its
+        // crew/reconfigure effect-id allocations follow mutate-merge's on the
+        // shared counter, preserving emitted effect ids.
+        val vehicleAttach = VehicleAttachContributor.contribute(ctx)
+        annotations.addAll(vehicleAttach.transient)
 
         val enrichedMechanicResult =
             mechanicResult.copy(
@@ -752,9 +757,9 @@ object AnnotationPipeline {
                             qualificationPersistent +
                                 mechanicResult.perKindPersistent[QualificationKind].orEmpty(),
                         )
-                        put(CrewedThisTurnKind, crewedThisTurnPersistent)
-                        put(SaddledThisTurnKind, saddledThisTurnPersistent)
-                        put(ModifiedTypeForCrewKind, crewTypeChangePersistent + reconfigureTypeChangePersistent)
+                        put(CrewedThisTurnKind, vehicleAttach.persistent[CrewedThisTurnKind].orEmpty())
+                        put(SaddledThisTurnKind, vehicleAttach.persistent[SaddledThisTurnKind].orEmpty())
+                        put(ModifiedTypeForCrewKind, vehicleAttach.persistent[ModifiedTypeForCrewKind].orEmpty())
                         put(TemporaryPermanentKind, temporaryPermanentPersistent)
                         put(DelayedTriggerAffecteesKind, delayedTriggerAffecteesPersistent)
                         put(TargetSpecKind, targetSpecPersistent)
