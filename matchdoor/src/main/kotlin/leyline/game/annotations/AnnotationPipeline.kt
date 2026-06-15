@@ -54,17 +54,16 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  *   persistent-store batch computation, and final numbering.
  *
  * The shared annotation-time resolvers live on [AnnotationContext]; the
- * per-mechanic emitters live as plain functions in `AnnotationEmitters.kt` and
- * are still called directly by the spine. The [contributors] registry is the
- * extension point those emitters move behind in a later slice — empty for now.
+ * per-mechanic emitters live behind the [contributors] registry. The earthbend
+ * layer emitters and `buildAbilityExhaustedAnnotations` stay as spine-called
+ * functions in `AnnotationEmitters.kt` (see that file for why earthbend is
+ * effect-diff-channel coupled and does not fit the contributor contract).
  *
  * Transfer-model patchers (decayed-cleanup, delayed-trigger holders, reveal
  * proxies, redaction) deliberately stay in StateMapper: they reassign the
  * transfer result / mutate GSM zones and flow into GSM assembly, so they belong
  * to the mapper's mutation boundary rather than this annotation host.
  */
-// Carries the per-mechanic emitter wiring inline for now; the emitter-port slice
-// moves those calls onto the [contributors] registry, which shrinks this host.
 @Suppress("LargeClass")
 object AnnotationPipeline {
     /**

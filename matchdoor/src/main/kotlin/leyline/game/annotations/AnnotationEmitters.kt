@@ -14,10 +14,23 @@ import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 
 /**
- * Per-mechanic annotation emitters lifted out of StateMapper alongside the
- * [AnnotationPipeline] spine. These remain plain functions called directly by
- * `computeRemainingAnnotations`; the registry-driven [AnnotationContributor]
- * port is a later slice. Behavior is unchanged from the StateMapper originals.
+ * Spine-called annotation emitters that deliberately stay off the
+ * [AnnotationContributor] registry.
+ *
+ * - The earthbend emitters are effect-diff-channel coupled: a single
+ *   `drainEarthbendFrame()` mutation feeds both contributor-shaped output
+ *   (transient layer annotations, ManaCreatureDesignation persistent) and
+ *   spine-shaped output (`earthbendPersistent` merged into the effect-layer
+ *   persistent channel, and `destroyedLayerIds` consumed by the retained
+ *   `withDestroyedEarthbendLayers` diff patch). Splitting that drain across the
+ *   contributor boundary isn't possible without either double-draining or
+ *   widening [Contribution] for one mechanic, so the spine keeps draining and
+ *   calling these.
+ * - [buildAbilityExhaustedAnnotations] is a per-card persistent scan, not one of
+ *   the registry mechanics.
+ *
+ * All are pure functions of their explicit arguments; behavior is unchanged from
+ * the StateMapper originals.
  */
 
 private const val INITIAL_UNIQUE_ABILITY_ID = 50
