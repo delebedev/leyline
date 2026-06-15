@@ -67,20 +67,23 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 @Suppress("LargeClass")
 object AnnotationPipeline {
     /**
-     * Registered mechanic contributors, ordered by [AnnotationContributor.rank].
+     * Mechanic contributors, listed in [AnnotationContributor.rank] order.
      *
-     * The spine invokes each contributor at its phase-correct site rather than as
-     * one flat rank-sorted block: both the transient ordering and the shared
-     * effect-id allocator (`effects.nextEffectId()`, drawn by crew / reconfigure /
-     * mutate-merge alike) are load-bearing, so call order pins emitted ids and
-     * positions. [rank] documents that canonical order; the registry gives the
-     * boundary fitness function a single list to assert over.
+     * This is a documentation + fitness anchor, NOT a runtime dispatch list:
+     * membership here does not wire a contributor in. The spine invokes each
+     * contributor explicitly at its phase-correct call site, because both the
+     * transient ordering and the shared effect-id allocator (`effects.nextEffectId()`,
+     * drawn by crew / reconfigure / mutate-merge alike) are load-bearing — a flat
+     * rank-sorted pass would reorder emitted ids and positions. [rank] is
+     * descriptive: it records the canonical contribution order the call sites
+     * already follow. The boundary fitness function asserts over this list; a new
+     * contributor must be both registered here and invoked at a call site.
      */
     val contributors: List<AnnotationContributor> =
         listOf(
             ConvokeContributor,
-            ManaDetailsContributor,
             TargetSpecContributor,
+            ManaDetailsContributor,
             MutateMergeContributor,
             VehicleAttachContributor,
         )

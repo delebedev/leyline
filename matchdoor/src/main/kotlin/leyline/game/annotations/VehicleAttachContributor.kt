@@ -16,7 +16,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
  * the pipeline concatenates those persistent lists.
  */
 object VehicleAttachContributor : AnnotationContributor {
-    override val rank: Int = 100
+    override val rank: Int = 50
 
     override fun contribute(ctx: AnnotationContext): Contribution {
         val bridge = ctx.bridge

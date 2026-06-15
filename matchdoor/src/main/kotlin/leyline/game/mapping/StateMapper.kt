@@ -405,6 +405,8 @@ object StateMapper {
                 stackIids = stackIids,
                 resolvingStackIids = resolvingStackIids,
             )
+        // Stage-4-5 context deliberately omits transferResult — only the
+        // transfer-stage Convoke emission (convokeCtx above) diffs zone transfers.
         val annCtx = AnnotationContext(bridge = bridge, snap = snap, frameIds = frameIds, events = eventsMutable)
         val remaining =
             AnnotationPipeline.computeRemainingAnnotations(

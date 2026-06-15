@@ -71,6 +71,10 @@ class AnnotationBoundaryTest :
         }
 
         test("StateMapper declares no index-based annotation insertion") {
+            // Scope is StateMapper.kt — the file the registry de-accreted. Sibling
+            // mapping helpers (CardStateDesignations, DayNightTransients) still do
+            // pre-existing index inserts; this guards the orchestrator, not all of
+            // mapping.
             val file = sourceRoot.resolve("leyline/game/mapping/StateMapper.kt")
             // Two-arg add/addAll on an annotation list whose first arg is an
             // identifier index — the accretion pattern the registry replaced.

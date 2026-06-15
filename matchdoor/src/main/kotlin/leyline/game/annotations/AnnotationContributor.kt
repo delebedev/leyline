@@ -13,15 +13,19 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
  * hand-wired per-mechanic emitter functions and `put(Kind, ...)` calls inside
  * the spine.
  *
- * Contract for slice ordering: a lower [rank] contributes earlier. Ranks are
- * chosen to reproduce the current emission order exactly when emitters are
- * ported onto this seam (see the AnnotationPipeline extraction epic). The
- * transient stream is order-sensitive — the client accumulates state as it
- * processes annotations — so rank pins the relative position of each
- * contributor's transient block.
+ * [contribute] may mutate bridge-attached state as a side effect — effect-id
+ * allocators (crew / reconfigure / mutate-merge) and the convoke payment journal
+ * are read-then-advanced here. That is why invocation order is load-bearing and
+ * why [AnnotationPipeline] calls contributors at fixed phase-correct sites rather
+ * than via a rank-sorted loop.
+ *
+ * [rank] is descriptive, not a runtime sort key: it records the canonical order
+ * the call sites already follow (lower contributes earlier), so the registry
+ * reads in the same order the spine invokes. The transient stream is
+ * order-sensitive — the client accumulates state as it processes annotations.
  */
 interface AnnotationContributor {
-    /** Ordering key; lower contributes earlier. */
+    /** Canonical contribution order (descriptive); lower contributes earlier. */
     val rank: Int
 
     fun contribute(ctx: AnnotationContext): Contribution

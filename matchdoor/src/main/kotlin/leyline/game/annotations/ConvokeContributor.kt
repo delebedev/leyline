@@ -16,7 +16,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
  * than the stage-4-5 snapshot. Transient-only — no persistent output.
  */
 object ConvokeContributor : AnnotationContributor {
-    override val rank: Int = 60
+    override val rank: Int = 10
 
     override fun contribute(ctx: AnnotationContext): Contribution {
         val transferResult =

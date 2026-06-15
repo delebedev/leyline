@@ -19,7 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
  * its own snapshot for the consumed-spec records that flow into bridge mutations.
  */
 object TargetSpecContributor : AnnotationContributor {
-    override val rank: Int = 80
+    override val rank: Int = 20
 
     override fun contribute(ctx: AnnotationContext): Contribution {
         val pending = ctx.bridge.snapshotPendingTargetSpecs().map { it.spec }

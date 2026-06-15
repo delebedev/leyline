@@ -10,7 +10,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
  * Pure and persistent-only — reads the snapshot mana pools, no allocation.
  */
 object ManaDetailsContributor : AnnotationContributor {
-    override val rank: Int = 70
+    override val rank: Int = 30
 
     override fun contribute(ctx: AnnotationContext): Contribution {
         val details =

@@ -14,7 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
  * LayeredEffectDestroyed transient.
  */
 object MutateMergeContributor : AnnotationContributor {
-    override val rank: Int = 90
+    override val rank: Int = 40
 
     override fun contribute(ctx: AnnotationContext): Contribution {
         val snap = ctx.snap
