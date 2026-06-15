@@ -12,7 +12,6 @@ import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.EarthbendTracker
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
-import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
 
 /**
  * Per-mechanic annotation emitters lifted out of StateMapper alongside the
@@ -132,14 +131,3 @@ private fun uniqueAbilityIdFor(
         .takeIf { it >= 0 }
         ?.let { INITIAL_UNIQUE_ABILITY_ID + it }
         ?: INITIAL_UNIQUE_ABILITY_ID
-
-internal fun buildManaDetailsAnnotations(snap: GsmSnapshot): List<AnnotationInfo> =
-    snap.seats.flatMap { seat ->
-        seat.manaPool.mapNotNull { mana ->
-            if (ManaSpecType.DoesNotEmpty !in mana.specs) return@mapNotNull null
-            AnnotationBuilder.manaDetails(
-                sourceInstanceId = InstanceId(mana.srcInstanceId),
-                manaId = mana.manaId,
-            )
-        }
-    }

@@ -79,6 +79,7 @@ object AnnotationPipeline {
      */
     val contributors: List<AnnotationContributor> =
         listOf(
+            ManaDetailsContributor,
             TargetSpecContributor,
             MutateMergeContributor,
             VehicleAttachContributor,
@@ -742,6 +743,7 @@ object AnnotationPipeline {
         // TargetSpec pAnn for each targeted spell/ability on the stack
         val pendingTargetSpecs = bridge.snapshotPendingTargetSpecs()
         val targetSpec = TargetSpecContributor.contribute(ctx)
+        val manaDetails = ManaDetailsContributor.contribute(ctx)
         val mutateMerge = MutateMergeContributor.contribute(ctx)
         val abilityExhaustedPersistent = buildAbilityExhaustedAnnotations(snap, bridge, frameIds)
         annotations.addAll(mutateMerge.transient)
@@ -780,7 +782,7 @@ object AnnotationPipeline {
                         put(FaceDownDisguiseKind, persistentFeeds.faceDownDisguise)
                         put(ColorProductionKind, persistentFeeds.colorProduction)
                         put(LinkInfoChoiceKind, persistentFeeds.linkInfo)
-                        put(ManaDetailsKind, buildManaDetailsAnnotations(snap))
+                        put(ManaDetailsKind, manaDetails.persistent[ManaDetailsKind].orEmpty())
                         put(AbilityExhaustedKind, abilityExhaustedPersistent)
                     },
             )
