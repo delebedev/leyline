@@ -77,7 +77,12 @@ object AnnotationPipeline {
      * positions. [rank] documents that canonical order; the registry gives the
      * boundary fitness function a single list to assert over.
      */
-    val contributors: List<AnnotationContributor> = listOf(VehicleAttachContributor)
+    val contributors: List<AnnotationContributor> =
+        listOf(
+            TargetSpecContributor,
+            MutateMergeContributor,
+            VehicleAttachContributor,
+        )
 
     /** Result of stages 4-5 + persistent annotation computation. */
     internal data class RemainingAnnotationsResult(
@@ -736,7 +741,7 @@ object AnnotationPipeline {
 
         // TargetSpec pAnn for each targeted spell/ability on the stack
         val pendingTargetSpecs = bridge.snapshotPendingTargetSpecs()
-        val targetSpecPersistent = buildTargetSpecAnnotations(pendingTargetSpecs.map { it.spec }, ctx)
+        val targetSpec = TargetSpecContributor.contribute(ctx)
         val mutateMerge = MutateMergeContributor.contribute(ctx)
         val abilityExhaustedPersistent = buildAbilityExhaustedAnnotations(snap, bridge, frameIds)
         annotations.addAll(mutateMerge.transient)
@@ -762,7 +767,7 @@ object AnnotationPipeline {
                         put(ModifiedTypeForCrewKind, vehicleAttach.persistent[ModifiedTypeForCrewKind].orEmpty())
                         put(TemporaryPermanentKind, temporaryPermanentPersistent)
                         put(DelayedTriggerAffecteesKind, delayedTriggerAffecteesPersistent)
-                        put(TargetSpecKind, targetSpecPersistent)
+                        put(TargetSpecKind, targetSpec.persistent[TargetSpecKind].orEmpty())
                         put(MutateLayeredEffectKind, mutateMerge.persistent[MutateLayeredEffectKind].orEmpty())
                         put(PreparedDesignationKind, persistentFeeds.preparedDesignation)
                         put(PlottedDesignationKind, persistentFeeds.plottedDesignation)
