@@ -79,6 +79,7 @@ object AnnotationPipeline {
      */
     val contributors: List<AnnotationContributor> =
         listOf(
+            ConvokeContributor,
             ManaDetailsContributor,
             TargetSpecContributor,
             MutateMergeContributor,

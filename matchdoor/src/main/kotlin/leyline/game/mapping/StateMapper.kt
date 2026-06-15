@@ -6,11 +6,10 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
-import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationContext
 import leyline.game.annotations.AnnotationPipeline
 import leyline.game.annotations.CombatAnnotationResult
-import leyline.game.annotations.TransferAnnotations
+import leyline.game.annotations.ConvokeContributor
 import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
 import leyline.game.annotations.ZoneTransferDetector
@@ -338,8 +337,10 @@ object StateMapper {
                 frameIds = frameIds,
             )
 
-        val convokePaymentsBySource = activeConvokePaymentsBySource(eventsMutable, bridge)
-        annotations.addAll(buildConvokeResolveAnnotations(transferResult, bridge))
+        val convokeCtx =
+            AnnotationContext(bridge = bridge, snap = snap, frameIds = frameIds, events = eventsMutable, transferResult = transferResult)
+        val convokePaymentsBySource = convokeCtx.activeConvokePaymentsBySource()
+        annotations.addAll(ConvokeContributor.contribute(convokeCtx).transient)
 
         val decayedCleanupSourcesThisGsm = updateDecayedCleanupSources(eventsMutable, snap, bridge, transferResult, frameIds)
 
@@ -904,56 +905,6 @@ object StateMapper {
             .mapTo(mutableSetOf()) { fid ->
                 bridge.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(fid)).value
             }
-
-    private fun activeConvokePaymentsBySource(
-        events: List<GameEvent>,
-        bridge: GameBridge,
-    ): Map<ForgeCardId, List<TransferAnnotations.ConvokePaymentRecord>> {
-        val promptSeatIds = bridge.allSeatIds()
-        return events
-            .filterIsInstance<GameEvent.SpellCast>()
-            .filterNot { it.isAbility }
-            .mapNotNull { ev ->
-                if (ev.seatId.value !in promptSeatIds) return@mapNotNull null
-                val payments = bridge.promptBridge(ev.seatId).journal.activeConvokePayments(ev.cardId)
-                if (payments.isEmpty()) {
-                    null
-                } else {
-                    ev.cardId to payments.map { it.toConvokePaymentRecord() }
-                }
-            }.toMap()
-    }
-
-    private fun PromptSideEffect.ConvokePayment.toConvokePaymentRecord(): TransferAnnotations.ConvokePaymentRecord =
-        TransferAnnotations.ConvokePaymentRecord(
-            paymentForgeCardId = paymentForgeCardId,
-            color = color,
-        )
-
-    private fun buildConvokeResolveAnnotations(
-        transferResult: TransferResult,
-        bridge: GameBridge,
-    ): List<AnnotationInfo> {
-        val annotations = mutableListOf<AnnotationInfo>()
-        for (transfer in transferResult.transfers) {
-            val sourceForgeCardId = transfer.forgeCardId ?: continue
-            if (transfer.srcZoneId != ZoneIds.STACK) continue
-            val promptBridges =
-                bridge
-                    .allSeatIds()
-                    .sorted()
-                    .map { bridge.promptBridge(SeatId(it)) }
-                    .filter { it.journal.activeConvokePayments(sourceForgeCardId).isNotEmpty() }
-            if (promptBridges.isEmpty()) continue
-
-            if (transfer.category == TransferCategory.Resolve) {
-                val resolvingId = InstanceId(transfer.newId.takeIf { it != 0 } ?: transfer.origId)
-                annotations.add(AnnotationBuilder.abilityWordActive(resolvingId, "Convoke"))
-            }
-            promptBridges.forEach { it.journal.clearConvokePayments(sourceForgeCardId) }
-        }
-        return annotations
-    }
 
     private fun TransferResult.withDecayedCleanupAffectors(
         events: List<GameEvent>,

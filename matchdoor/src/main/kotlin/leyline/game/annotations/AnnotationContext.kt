@@ -1,6 +1,7 @@
 package leyline.game.annotations
 
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.codes.CounterTypes
@@ -19,6 +20,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Holds the four pieces of state every resolver needs — the live [bridge], the
  * frame [snap], the frame-scoped [frameIds], and this frame's [events] — so
  * call sites read `ctx.counterAffectorFor(...)` instead of threading six args.
+ * [transferResult] is optional frame context, supplied only by transfer-stage
+ * contributors (Convoke) that diff this frame's zone transfers.
  *
  * The frame-pure helpers ([stackAbilityIid], [keywordCounterResolutionForEvent])
  * are also exposed on the companion for callers that hold only a
@@ -30,7 +33,35 @@ class AnnotationContext(
     val snap: GsmSnapshot,
     val frameIds: FrameIdResolver,
     val events: List<GameEvent>,
+    val transferResult: TransferResult? = null,
 ) {
+    /**
+     * Convoke payments still pending per cast spell this frame, keyed by source
+     * card. Feeds mechanic-annotation resolution; the Convoke resolve emission
+     * consumes the journal entries separately.
+     */
+    fun activeConvokePaymentsBySource(): Map<ForgeCardId, List<TransferAnnotations.ConvokePaymentRecord>> {
+        val promptSeatIds = bridge.allSeatIds()
+        return events
+            .filterIsInstance<GameEvent.SpellCast>()
+            .filterNot { it.isAbility }
+            .mapNotNull { ev ->
+                if (ev.seatId.value !in promptSeatIds) return@mapNotNull null
+                val payments = bridge.promptBridge(ev.seatId).journal.activeConvokePayments(ev.cardId)
+                if (payments.isEmpty()) {
+                    null
+                } else {
+                    ev.cardId to payments.map { it.toConvokePaymentRecord() }
+                }
+            }.toMap()
+    }
+
+    private fun PromptSideEffect.ConvokePayment.toConvokePaymentRecord(): TransferAnnotations.ConvokePaymentRecord =
+        TransferAnnotations.ConvokePaymentRecord(
+            paymentForgeCardId = paymentForgeCardId,
+            color = color,
+        )
+
     /** Affector iid for a `CountersChanged` event, or null when none resolves. */
     fun counterAffectorFor(
         eventIndex: Int,
