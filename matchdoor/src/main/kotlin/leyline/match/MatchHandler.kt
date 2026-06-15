@@ -54,18 +54,66 @@ class MatchHandler(
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
 
-    private var matchId = "forge-match-1"
-    private var clientId = "forge-player-1"
-    private var seatId = 1
+    /**
+     * Connection lifecycle. Identity accrues while [MatchHandlerState.Handshaking]
+     * (auth → connect request), then freezes into [MatchHandlerState.Connected] once
+     * the session exists. The split keeps placeholder identity out of the connected
+     * state and makes "the session exists" a type-level fact at every post-handshake
+     * dispatch rather than a `session?.onX(...)` safe-call that lies about an
+     * impossible null.
+     */
+    private var state: MatchHandlerState = MatchHandlerState.Handshaking()
 
-    /** True when this connection is the Familiar (spectator), detected by `_Familiar` client ID suffix. */
-    private var isFamiliar = false
+    private val handshaking: MatchHandlerState.Handshaking?
+        get() = state as? MatchHandlerState.Handshaking
 
-    /** Netty context — saved for template senders and cross-connection calls. */
-    private var nettyCtx: ChannelHandlerContext? = null
+    private val connected: MatchHandlerState.Connected?
+        get() = state as? MatchHandlerState.Connected
 
-    /** Game session — created on connect, holds all post-mulligan state. */
-    internal var session: SessionOps? = null
+    private val matchId: String
+        get() =
+            when (val s = state) {
+                is MatchHandlerState.Handshaking -> s.matchId
+                is MatchHandlerState.Connected -> s.matchId
+            }
+
+    private val clientId: String
+        get() =
+            when (val s = state) {
+                is MatchHandlerState.Handshaking -> s.clientId
+                is MatchHandlerState.Connected -> s.clientId
+            }
+
+    private val seatId: Int
+        get() =
+            when (val s = state) {
+                is MatchHandlerState.Handshaking -> s.seatId
+                is MatchHandlerState.Connected -> s.seatId
+            }
+
+    private val isFamiliar: Boolean
+        get() =
+            when (val s = state) {
+                is MatchHandlerState.Handshaking -> s.isFamiliar
+                is MatchHandlerState.Connected -> s.isFamiliar
+            }
+
+    private val nettyCtx: ChannelHandlerContext?
+        get() =
+            when (val s = state) {
+                is MatchHandlerState.Handshaking -> s.nettyCtx
+                is MatchHandlerState.Connected -> s.nettyCtx
+            }
+
+    /**
+     * Game session — null until connect completes, reassigned on puzzle hot-swap.
+     * Reads/writes are backed by the [MatchHandlerState.Connected] state.
+     */
+    internal var session: SessionOps?
+        get() = connected?.session
+        set(value) {
+            bindSession(value ?: error("session cannot be cleared via assignment"))
+        }
 
     private var spectatorRandomDeckPair: Pair<String, String>? = null
 
@@ -162,8 +210,9 @@ class MatchHandler(
         msg: ClientToMatchServiceMessage,
     ) {
         val authReq = AuthenticateRequest.parseFrom(msg.payload)
-        clientId = authReq.clientId.ifEmpty { "leyline-player-$seatId" }
-        isFamiliar = clientId.endsWith("_Familiar")
+        val hs = requireHandshaking()
+        hs.clientId = authReq.clientId.ifEmpty { "leyline-player-${hs.seatId}" }
+        hs.isFamiliar = hs.clientId.endsWith("_Familiar")
         val playerName = authReq.playerName.ifEmpty { "Player" }
         log.info("Match Door: auth clientId={} playerName={} familiar={}", clientId, playerName, isFamiliar)
 
@@ -187,20 +236,40 @@ class MatchHandler(
         msg: ClientToMatchServiceMessage,
     ) {
         val connectReq = ClientToMatchDoorConnectRequest.parseFrom(msg.payload)
-        if (connectReq.matchId.isNotEmpty()) matchId = connectReq.matchId
-        log.info("Match Door: connect matchId={}", matchId)
+        val hs = requireHandshaking()
+        if (connectReq.matchId.isNotEmpty()) hs.matchId = connectReq.matchId
+        log.info("Match Door: connect matchId={}", hs.matchId)
 
         if (connectReq.clientToGreMessageBytes.isEmpty) return
 
         val greMsg = ClientToGREMessage.parseFrom(connectReq.clientToGreMessageBytes)
-        if (greMsg.systemSeatId > 0) seatId = greMsg.systemSeatId
-        log.info("Match Door: detected seatId={}", seatId)
-        nettyCtx = ctx
+        if (greMsg.systemSeatId > 0) hs.seatId = greMsg.systemSeatId
+        log.info("Match Door: detected seatId={}", hs.seatId)
+        hs.nettyCtx = ctx
 
         // Session creation deferred to the ConnectReq branch in processGREMessage:
         // MatchSession requires a non-null bridge at construction, so we wait for
         // getOrCreateMatch() to build the bridge before constructing the session.
         processGREMessage(ctx, greMsg)
+    }
+
+    private fun requireHandshaking(): MatchHandlerState.Handshaking =
+        handshaking ?: error("Expected handshaking state but connection is already established")
+
+    /**
+     * Freeze the accrued handshake identity and bind the session — Handshaking → Connected.
+     * The connect ctx was already stored in [MatchHandlerState.Handshaking.nettyCtx] during
+     * the connect request; on re-bind (puzzle hot-swap) identity stays frozen and only the
+     * session is replaced.
+     */
+    private fun bindSession(session: SessionOps) {
+        state =
+            when (val s = state) {
+                is MatchHandlerState.Handshaking ->
+                    MatchHandlerState.Connected(s.matchId, s.clientId, s.seatId, s.isFamiliar, s.nettyCtx, session)
+                is MatchHandlerState.Connected ->
+                    MatchHandlerState.Connected(s.matchId, s.clientId, s.seatId, s.isFamiliar, s.nettyCtx, session)
+            }
     }
 
     /** Create and register a [MatchSession] bound to [bridge]. */
@@ -220,7 +289,7 @@ class MatchHandler(
                 coordinator = coordinator,
             ).also { it.playerId = clientId.removeSuffix("_Familiar") }
         val s = MatchSession(connection = connection, gameBridge = bridge)
-        session = s
+        bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
         registry.registerHandler(matchId, SeatId(seatId), this)
         return s
@@ -233,7 +302,7 @@ class MatchHandler(
     ): FamiliarSession {
         val sink = NettyMessageSink(ctx, dumpEnabled = false)
         val s = FamiliarSession(SeatId(seatId), matchId, sink, counter = counter)
-        session = s
+        bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
         registry.registerHandler(matchId, SeatId(seatId), this)
         return s
@@ -245,7 +314,7 @@ class MatchHandler(
     ): SpectatorSession {
         val sink = NettyMessageSink(ctx, dumpEnabled = true)
         val s = SpectatorSession(SeatId(seatId), matchId, sink, bridge, playerId = clientId.removeSuffix("_Familiar"))
-        session = s
+        bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
         registry.registerHandler(matchId, SeatId(seatId), this)
         return s
@@ -259,18 +328,18 @@ class MatchHandler(
         processGREMessage(ctx, greMsg)
     }
 
-    @Suppress("LongMethod", "CyclomaticComplexMethod", "ElseCaseInsteadOfExhaustiveWhen")
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun processGREMessage(
         ctx: ChannelHandlerContext,
         greMsg: ClientToGREMessage,
     ) {
         Tap.inboundGRE(greMsg.type, greMsg.systemSeatId, greMsg.gameStateId)
-        val s = session
 
+        // Pre-session messages drive the handshake/mulligan flow, which read session
+        // state defensively through providers. Everything else is a post-handshake
+        // game action that requires a live session — dispatched against Connected.
         when (greMsg.type) {
-            ClientMessageType.ConnectReq_097b -> {
-                connectFlow.onConnect(ctx)
-            }
+            ClientMessageType.ConnectReq_097b -> connectFlow.onConnect(ctx)
 
             ClientMessageType.ChooseStartingPlayerResp_097b ->
                 mulliganHandler.onChooseStartingPlayer(this)
@@ -280,65 +349,85 @@ class MatchHandler(
 
             // GroupResp routes to mulligan handler (London tuck) or session (surveil/scry).
             // During mulligan phase, route to mulligan handler; otherwise to session.
-            ClientMessageType.GroupResp_097b -> {
-                val gameSession = s as? GameOps
-                val pendingPrompt =
-                    gameSession
-                        ?.gameBridge
-                        ?.seat(SeatId(seatId))
-                        ?.prompt
-                        ?.getPendingPrompt()
-                if (pendingPrompt != null) {
-                    gameSession.onGroupResp(greMsg)
-                } else {
-                    mulliganHandler.onGroupResp(greMsg)
+            ClientMessageType.GroupResp_097b -> dispatchGroupResp(greMsg)
+
+            else -> dispatchToSession(greMsg)
+        }
+    }
+
+    private fun dispatchGroupResp(greMsg: ClientToGREMessage) {
+        val gameSession = session as? GameOps
+        val pendingPrompt =
+            gameSession
+                ?.gameBridge
+                ?.seat(SeatId(seatId))
+                ?.prompt
+                ?.getPendingPrompt()
+        if (pendingPrompt != null) {
+            gameSession.onGroupResp(greMsg)
+        } else {
+            mulliganHandler.onGroupResp(greMsg)
+        }
+    }
+
+    /** Dispatch a post-handshake game action against the live [Connected] session. */
+    @Suppress("CyclomaticComplexMethod", "ElseCaseInsteadOfExhaustiveWhen")
+    private fun dispatchToSession(greMsg: ClientToGREMessage) {
+        val s =
+            connected?.session ?: run {
+                when (greMsg.type) {
+                    // Cosmetic relay / post-game ack — harmless without a session.
+                    ClientMessageType.Uimessage_a39e -> {}
+                    ClientMessageType.CheckpointReq ->
+                        log.info("Match Door GRE: CheckpointReq (post-game acknowledgement)")
+                    else -> log.warn("Match Door GRE: {} before session established", greMsg.type)
                 }
+                return
             }
 
-            ClientMessageType.SetSettingsReq_097b -> {
-                s?.onSettings(greMsg)
-            }
+        when (greMsg.type) {
+            ClientMessageType.SetSettingsReq_097b -> s.onSettings(greMsg)
 
             ClientMessageType.ConcedeReq_097b -> {
                 log.info("Match Door GRE: concede")
-                s?.onConcede()
+                s.onConcede()
             }
 
-            ClientMessageType.PerformActionResp_097b -> s?.onPerformAction(greMsg)
+            ClientMessageType.PerformActionResp_097b -> s.onPerformAction(greMsg)
 
-            ClientMessageType.DeclareAttackersResp_097b -> s?.onDeclareAttackers(greMsg)
+            ClientMessageType.DeclareAttackersResp_097b -> s.onDeclareAttackers(greMsg)
 
             // SubmitAttackersReq: client race condition may send on Familiar channel.
             // FamiliarSession no-ops handle it.
-            ClientMessageType.SubmitAttackersReq -> s?.onDeclareAttackers(greMsg)
+            ClientMessageType.SubmitAttackersReq -> s.onDeclareAttackers(greMsg)
 
-            ClientMessageType.DeclareBlockersResp_097b -> s?.onDeclareBlockers(greMsg)
+            ClientMessageType.DeclareBlockersResp_097b -> s.onDeclareBlockers(greMsg)
 
             // Same pattern as SubmitAttackersReq.
-            ClientMessageType.SubmitBlockersReq -> s?.onDeclareBlockers(greMsg)
+            ClientMessageType.SubmitBlockersReq -> s.onDeclareBlockers(greMsg)
 
-            ClientMessageType.SelectTargetsResp_097b -> s?.onSelectTargets(greMsg)
+            ClientMessageType.SelectTargetsResp_097b -> s.onSelectTargets(greMsg)
 
             // SubmitTargetsReq: client's "Done" button for targeting (like SubmitAttackersReq for combat).
-            ClientMessageType.SubmitTargetsReq -> s?.onSubmitTargets(greMsg)
+            ClientMessageType.SubmitTargetsReq -> s.onSubmitTargets(greMsg)
 
-            ClientMessageType.EffectCostResp_097b -> s?.onEffectCost(greMsg)
+            ClientMessageType.EffectCostResp_097b -> s.onEffectCost(greMsg)
 
-            ClientMessageType.CancelActionReq_097b -> s?.onCancelAction(greMsg)
+            ClientMessageType.CancelActionReq_097b -> s.onCancelAction(greMsg)
 
-            ClientMessageType.SelectNresp -> s?.onSelectN(greMsg)
+            ClientMessageType.SelectNresp -> s.onSelectN(greMsg)
 
-            ClientMessageType.OrderResp_097b -> s?.onOrderResp(greMsg)
+            ClientMessageType.OrderResp_097b -> s.onOrderResp(greMsg)
 
-            ClientMessageType.CastingTimeOptionsResp_097b -> s?.onCastingTimeOptions(greMsg)
+            ClientMessageType.CastingTimeOptionsResp_097b -> s.onCastingTimeOptions(greMsg)
 
-            ClientMessageType.SearchResp_097b -> s?.onSearch(greMsg)
+            ClientMessageType.SearchResp_097b -> s.onSearch(greMsg)
 
-            ClientMessageType.AssignDamageResp_097b -> s?.onAssignDamage(greMsg)
+            ClientMessageType.AssignDamageResp_097b -> s.onAssignDamage(greMsg)
 
-            ClientMessageType.OptionalActionResp -> s?.onOptionalActionResp(greMsg)
+            ClientMessageType.OptionalActionResp -> s.onOptionalActionResp(greMsg)
 
-            ClientMessageType.NumericInputResp_097b -> s?.onNumericInputResp(greMsg)
+            ClientMessageType.NumericInputResp_097b -> s.onNumericInputResp(greMsg)
 
             ClientMessageType.CheckpointReq -> {
                 // Client acknowledges IntermissionReq — MatchCompleted room state
@@ -444,8 +533,45 @@ class MatchHandler(
     }
 
     internal fun detachAfterTeardown() {
-        session = null
-        nettyCtx = null
+        // Connection is gone — drop session/ctx by reverting to a fresh handshake state.
+        state = MatchHandlerState.Handshaking()
+    }
+
+    /**
+     * MatchHandler connection lifecycle.
+     *
+     * Identity is mutable and tentative during [Handshaking] (accrues across
+     * AuthenticateRequest then ClientToMatchDoorConnectRequest). Once the session is
+     * built it freezes into [Connected], where `session` is non-null — so every
+     * post-handshake dispatch typechecks against a session that must exist instead of
+     * a `session?.onX(...)` safe-call that lies about an impossible null. The
+     * placeholder identity defaults live only in [Handshaking]; [Connected] carries
+     * the resolved values.
+     */
+    private sealed class MatchHandlerState {
+        class Handshaking : MatchHandlerState() {
+            /** Tentative until ClientToMatchDoorConnectRequest carries a non-empty matchId. */
+            var matchId: String = "forge-match-1"
+
+            /** Tentative until AuthenticateRequest; otherwise a seat-derived fallback. */
+            var clientId: String = "forge-player-1"
+
+            /** Tentative until the connect-request GRE reports a positive systemSeatId. */
+            var seatId: Int = 1
+
+            var isFamiliar: Boolean = false
+            var nettyCtx: ChannelHandlerContext? = null
+        }
+
+        class Connected(
+            val matchId: String,
+            val clientId: String,
+            val seatId: Int,
+            val isFamiliar: Boolean,
+            // Null only in tests that bind a session without driving the connect request.
+            val nettyCtx: ChannelHandlerContext?,
+            var session: SessionOps,
+        ) : MatchHandlerState()
     }
 
     private data class SeatDecks(
