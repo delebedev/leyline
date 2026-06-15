@@ -737,9 +737,9 @@ object AnnotationPipeline {
         // TargetSpec pAnn for each targeted spell/ability on the stack
         val pendingTargetSpecs = bridge.snapshotPendingTargetSpecs()
         val targetSpecPersistent = buildTargetSpecAnnotations(pendingTargetSpecs.map { it.spec }, ctx)
-        val (mutateMergeTransient, mutateMergePersistent) = buildMutateMergeAnnotations(snap, bridge, frameIds)
+        val mutateMerge = MutateMergeContributor.contribute(ctx)
         val abilityExhaustedPersistent = buildAbilityExhaustedAnnotations(snap, bridge, frameIds)
-        annotations.addAll(mutateMergeTransient)
+        annotations.addAll(mutateMerge.transient)
 
         // Vehicle/Attach (Crew + Saddle + Reconfigure) — invoked here so its
         // crew/reconfigure effect-id allocations follow mutate-merge's on the
@@ -763,7 +763,7 @@ object AnnotationPipeline {
                         put(TemporaryPermanentKind, temporaryPermanentPersistent)
                         put(DelayedTriggerAffecteesKind, delayedTriggerAffecteesPersistent)
                         put(TargetSpecKind, targetSpecPersistent)
-                        put(MutateLayeredEffectKind, mutateMergePersistent)
+                        put(MutateLayeredEffectKind, mutateMerge.persistent[MutateLayeredEffectKind].orEmpty())
                         put(PreparedDesignationKind, persistentFeeds.preparedDesignation)
                         put(PlottedDesignationKind, persistentFeeds.plottedDesignation)
                         put(CommanderDesignationKind, persistentFeeds.commanderDesignation)
