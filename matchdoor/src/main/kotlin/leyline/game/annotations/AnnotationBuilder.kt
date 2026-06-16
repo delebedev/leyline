@@ -921,16 +921,18 @@ object AnnotationBuilder {
             .build()
 
     /** GainDesignation transient on a card (Prepared, Saddled, Plotted, Door states).
-     *  Card-scoped variant — affector and affected both = the affected card's instance id.
+     *  Card-scoped variant — defaults affector to the affected card unless a
+     *  resolving ability is the protocol source for this designation change.
      *  See [gainDesignation] for the seat-scoped variant (Monarch, Initiative, City's Blessing). */
     fun gainDesignationOnCard(
         instanceId: InstanceId,
         designationType: Int,
+        affectorId: InstanceId = instanceId,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.GainDesignation)
-            .setAffectorId(instanceId.value)
+            .setAffectorId(affectorId.value)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
             .build()
@@ -1059,6 +1061,16 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_SADDLED))
             .build()
 
+    /** Persistent `Designation` for the `Suspected` card-state designation (DesignationType=16). */
+    fun suspectedDesignation(instanceId: InstanceId): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_SUSPECTED))
+            .build()
+
     /** Persistent `Designation` for the `LeftUnlocked` Room-door state (DesignationType=19).
      *  affector / affectedIds both = the Room card's battlefield instance id. */
     fun leftUnlockedDesignation(instanceId: InstanceId): AnnotationInfo =
@@ -1086,11 +1098,12 @@ object AnnotationBuilder {
     fun loseDesignation(
         instanceId: InstanceId,
         designationType: Int,
+        affectorId: InstanceId = instanceId,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.LoseDesignation)
-            .setAffectorId(instanceId.value)
+            .setAffectorId(affectorId.value)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
             .build()

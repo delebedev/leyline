@@ -121,6 +121,8 @@ data class CardSnapshot(
      * for the turn. Drives the `Saddled` Designation pAnn (DesignationType=17).
      */
     val isSaddled: Boolean = false,
+    /** True when this battlefield permanent is suspected. Drives DesignationType=16. */
+    val isSuspected: Boolean = false,
     /**
      * True when the card is currently in Exile with the foretold state.
      * Drives the face-down exile rendering (FaceDown +

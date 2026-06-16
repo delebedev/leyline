@@ -79,6 +79,7 @@ object PromptClassifier {
             PromptSemantic.ConvokeCost,
             PromptSemantic.WaterbendCost,
             PromptSemantic.SelectNResolution,
+            PromptSemantic.SuspectChoice,
             PromptSemantic.SelectNLibraryPutback,
             PromptSemantic.MutateTopBottom,
             PromptSemantic.LearnLesson,
@@ -113,6 +114,7 @@ object PromptClassifier {
             PromptSemantic.ConvokeCost,
             PromptSemantic.WaterbendCost,
             PromptSemantic.SelectNResolution,
+            PromptSemantic.SuspectChoice,
             PromptSemantic.SelectNLibraryPutback,
             PromptSemantic.MutateTopBottom,
             PromptSemantic.LearnLesson,
@@ -139,6 +141,7 @@ object PromptClassifier {
             PromptSemantic.ConvokeCost -> SelectNReason.ConvokeCost
             PromptSemantic.WaterbendCost -> SelectNReason.WaterbendCost
             PromptSemantic.SelectNResolution -> SelectNReason.Resolution
+            PromptSemantic.SuspectChoice -> SelectNReason.SuspectChoice
             PromptSemantic.SelectNLibraryPutback -> SelectNReason.LibraryPutback
             PromptSemantic.MutateTopBottom -> SelectNReason.MutateTopBottom
             PromptSemantic.LearnLesson -> SelectNReason.LearnLesson

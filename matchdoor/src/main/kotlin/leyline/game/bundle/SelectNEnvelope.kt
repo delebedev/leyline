@@ -66,6 +66,13 @@ data class SelectNEnvelope(
                 allowCancel = AllowCancel.No_a526,
             )
 
+        fun suspectChoice(req: SelectNReq): SelectNEnvelope =
+            SelectNEnvelope(
+                req = req,
+                prompt = promptWithSourceAndCount(PromptIds.SUSPECT_ONE_OF_THOSE_CREATURES, req),
+                allowCancel = AllowCancel.Continue,
+            )
+
         fun mutateTopBottom(req: SelectNReq): SelectNEnvelope =
             SelectNEnvelope(
                 req = req,

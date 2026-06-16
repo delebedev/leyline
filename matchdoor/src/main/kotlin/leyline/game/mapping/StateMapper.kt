@@ -369,9 +369,22 @@ object StateMapper {
         // snapshot rebuild (prev == null) — the persistent Designation pAnn alone
         // re-syncs client state on rebuild.
         if (prev != null) {
-            insertStateDesignationTransients(annotations, prev, snap) { fid ->
-                bridge.getOrAllocInstanceId(fid)
-            }
+            val resolvingAbilityIid =
+                eventsMutable
+                    .filterIsInstance<GameEvent.SpellResolved>()
+                    .filter { it.isTrigger || it.isAbility }
+                    .map { resolved ->
+                        InstanceId(AnnotationContext.stackAbilityIid(resolved.abilityForgeId, resolved.cardId, frameIds))
+                    }.singleOrNull()
+            insertStateDesignationTransients(
+                annotations = annotations,
+                prev = prev,
+                cur = snap,
+                resolveInstanceId = { fid -> bridge.getOrAllocInstanceId(fid) },
+                resolveAffectorId = { spec, _ ->
+                    if (spec.kind == DesignationKind.SUSPECTED) resolvingAbilityIid else null
+                },
+            )
             insertDayNightDesignationTransients(annotations, prev.dayTime, snap.dayTime)
         }
 

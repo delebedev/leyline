@@ -108,6 +108,18 @@ class PromptClassifierTest :
             result.reason shouldBe SelectNReason.Resolution
         }
 
+        test("suspect choice semantic classifies as select-n with SuspectChoice reason") {
+            val result =
+                classify(
+                    promptType = "choose_cards",
+                    message = "Choose cards",
+                    semantic = PromptSemantic.SuspectChoice,
+                    candidateRefs = listOf(cardRef),
+                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe SelectNReason.SuspectChoice
+        }
+
         test("library putback semantic classifies as select-n with LibraryPutback reason") {
             val result =
                 classify(

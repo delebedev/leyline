@@ -191,7 +191,7 @@ data class AltCostBinding(
 
 /**
  * Card-state designations gathered into one struct: Prepared role, Plotted
- * role, and the Foretold flag. StateMapper's per-designation transient
+ * role, simple battlefield flags, and the Foretold flag. StateMapper's per-designation transient
  * inserters address this one field rather than scanning three independent
  * snapshot fields.
  *
@@ -203,6 +203,7 @@ data class DesignationSet(
     val prepared: PreparedRole = PreparedRole.None,
     val plotted: PlottedRole = PlottedRole.None,
     val isSaddled: Boolean = false,
+    val isSuspected: Boolean = false,
     val foretold: Boolean = false,
     val isCommander: Boolean = false,
     val commanderTax: Int = 0,

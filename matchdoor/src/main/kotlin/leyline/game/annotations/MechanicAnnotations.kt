@@ -421,6 +421,7 @@ object MechanicAnnotations {
         keywordAffectorResolver: ((String, Long, Long) -> InstanceId)? = null,
         boostAffectorResolver: ((EffectTracker.TrackedEffect, GrpId?) -> InstanceId?)? = null,
         uniqueAbilityIdAllocator: (() -> Int)? = null,
+        keywordExtraAbilityGrpIds: ((InstanceId, String) -> List<GrpId>)? = null,
     ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
         val hasBoosts = diff.created.isNotEmpty() || diff.destroyed.isNotEmpty()
         val hasKeywords = keywordDiff.created.isNotEmpty() || keywordDiff.destroyed.isNotEmpty()
@@ -431,27 +432,43 @@ object MechanicAnnotations {
         val transient = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
 
-        // ── P/T boosts ──────────────────────────────────────────────────────
+        addBoostEffectAnnotations(
+            transient,
+            persistent,
+            diff,
+            sourceAbilityResolver,
+            boostAffectorResolver,
+        )
+        addKeywordEffectAnnotations(
+            transient,
+            persistent,
+            keywordDiff,
+            keywordAffectorResolver,
+            uniqueAbilityIdAllocator,
+            keywordExtraAbilityGrpIds,
+        )
+
+        return transient to persistent
+    }
+
+    private fun addBoostEffectAnnotations(
+        transient: MutableList<AnnotationInfo>,
+        persistent: MutableList<AnnotationInfo>,
+        diff: EffectTracker.DiffResult,
+        sourceAbilityResolver: ((InstanceId, Long) -> GrpId?)?,
+        boostAffectorResolver: ((EffectTracker.TrackedEffect, GrpId?) -> InstanceId?)?,
+    ) {
         for (effect in diff.created) {
             val sourceAbilityGrpId =
                 sourceAbilityResolver?.invoke(
                     InstanceId(effect.cardInstanceId),
                     effect.fingerprint.staticId,
                 )
-
             val cardIid = InstanceId(effect.cardInstanceId)
             val effectId = EffectId(effect.syntheticId)
             val affectorId = boostAffectorResolver?.invoke(effect, sourceAbilityGrpId) ?: cardIid
 
-            // Transient: LayeredEffectCreated with affectorId = card instance
-            transient.add(
-                AnnotationBuilder.layeredEffectCreated(
-                    effectId = effectId,
-                    affectorId = affectorId,
-                ),
-            )
-
-            // Transient companion: PowerToughnessModCreated (drives buff animation)
+            transient.add(AnnotationBuilder.layeredEffectCreated(effectId, affectorId))
             if (effect.powerDelta != 0 || effect.toughnessDelta != 0) {
                 transient.add(
                     AnnotationBuilder.powerToughnessModCreated(
@@ -462,9 +479,6 @@ object MechanicAnnotations {
                     ),
                 )
             }
-
-            // Persistent: multi-typed [ModifiedToughness, ModifiedPower, LayeredEffect]
-            // No LayeredEffectType for P/T buffs — client only expects that for CopyObject
             persistent.add(
                 AnnotationBuilder.layeredEffect(
                     instanceId = cardIid,
@@ -480,48 +494,32 @@ object MechanicAnnotations {
         for (effect in diff.destroyed) {
             transient.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effect.syntheticId)))
         }
+    }
 
-        // ── Keyword grants ──────────────────────────────────────────────────
-        // Group created keyword effects by (keyword, timestamp, staticId) so that
-        // all creatures affected by the same static ability get one shared pAnn.
+    private fun addKeywordEffectAnnotations(
+        transient: MutableList<AnnotationInfo>,
+        persistent: MutableList<AnnotationInfo>,
+        keywordDiff: EffectTracker.KeywordDiffResult,
+        keywordAffectorResolver: ((String, Long, Long) -> InstanceId)?,
+        uniqueAbilityIdAllocator: (() -> Int)?,
+        keywordExtraAbilityGrpIds: ((InstanceId, String) -> List<GrpId>)?,
+    ) {
         if (keywordDiff.created.isNotEmpty() && uniqueAbilityIdAllocator != null) {
             val groups =
                 keywordDiff.created
                     .groupBy { Triple(it.keyword, it.fingerprint.timestamp, it.fingerprint.staticId) }
-
             for ((key, effects) in groups) {
                 val (keyword, timestamp, staticId) = key
                 val grpId = GrpId(KeywordGrpIds.forKeyword(keyword) ?: continue)
-                val effectId = EffectId(effects.first().syntheticId)
                 val affectorId = keywordAffectorResolver?.invoke(keyword, timestamp, staticId) ?: InstanceId(0)
-
-                transient.add(
-                    AnnotationBuilder.layeredEffectCreated(
-                        effectId,
-                        if (affectorId.value != 0) affectorId else null,
-                    ),
-                )
-
-                val creatureIids = effects.map { InstanceId(it.cardInstanceId) }
-                val uniqueAbilityIds = creatureIids.map { uniqueAbilityIdAllocator() }
-
-                persistent.add(
-                    AnnotationBuilder.addAbilityMulti(
-                        affectedIds = creatureIids,
-                        grpId = grpId,
-                        effectId = effectId,
-                        uniqueAbilityIds = uniqueAbilityIds,
-                        originalAbilityObjectZcid = affectorId.value,
-                        affectorId = affectorId,
-                    ),
-                )
-
-                log.debug(
-                    "effectAnnotations: keyword grant {} grpId={} effectId={} creatures={}",
-                    keyword,
-                    grpId.value,
-                    effectId.value,
-                    creatureIids.size,
+                addCreatedKeywordEffectAnnotations(
+                    transient,
+                    persistent,
+                    effects,
+                    grpId,
+                    affectorId,
+                    uniqueAbilityIdAllocator,
+                    keywordExtraAbilityGrpIds,
                 )
             }
         }
@@ -530,7 +528,101 @@ object MechanicAnnotations {
             if (KeywordGrpIds.forKeyword(effect.keyword) == null) continue
             transient.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effect.syntheticId)))
         }
+    }
 
-        return transient to persistent
+    private fun addCreatedKeywordEffectAnnotations(
+        transient: MutableList<AnnotationInfo>,
+        persistent: MutableList<AnnotationInfo>,
+        effects: List<EffectTracker.TrackedKeywordEffect>,
+        grpId: GrpId,
+        affectorId: InstanceId,
+        uniqueAbilityIdAllocator: () -> Int,
+        keywordExtraAbilityGrpIds: ((InstanceId, String) -> List<GrpId>)?,
+    ) {
+        val keyword = effects.first().keyword
+        val effectsWithExtras =
+            effects.map { effect ->
+                effect to keywordExtraAbilityGrpIds?.invoke(InstanceId(effect.cardInstanceId), keyword).orEmpty()
+            }
+
+        if (effectsWithExtras.all { (_, extraGrpIds) -> extraGrpIds.isEmpty() }) {
+            addSharedKeywordEffectAnnotations(
+                transient,
+                persistent,
+                keyword,
+                effects,
+                grpId,
+                affectorId,
+                uniqueAbilityIdAllocator,
+            )
+            return
+        }
+
+        for ((effect, extraGrpIds) in effectsWithExtras) {
+            val effectId = EffectId(effect.syntheticId)
+            val creatureIid = InstanceId(effect.cardInstanceId)
+            val grpIds = listOf(grpId) + extraGrpIds
+            transient.add(
+                AnnotationBuilder.layeredEffectCreated(
+                    effectId,
+                    if (affectorId.value != 0) affectorId else null,
+                ),
+            )
+            persistent.add(
+                AnnotationBuilder.addAbilityPacked(
+                    affectedId = creatureIid,
+                    grpIds = grpIds,
+                    effectId = effectId,
+                    uniqueAbilityIds = grpIds.map { uniqueAbilityIdAllocator() },
+                    originalAbilityObjectZcids = grpIds.map { affectorId.value },
+                    affectorId = affectorId,
+                ),
+            )
+            log.debug(
+                "effectAnnotations: keyword grant {} grpIds={} effectId={} iid={}",
+                keyword,
+                grpIds.map { it.value },
+                effectId.value,
+                creatureIid.value,
+            )
+        }
+    }
+
+    private fun addSharedKeywordEffectAnnotations(
+        transient: MutableList<AnnotationInfo>,
+        persistent: MutableList<AnnotationInfo>,
+        keyword: String,
+        effects: List<EffectTracker.TrackedKeywordEffect>,
+        grpId: GrpId,
+        affectorId: InstanceId,
+        uniqueAbilityIdAllocator: () -> Int,
+    ) {
+        val effectId = EffectId(effects.first().syntheticId)
+        transient.add(
+            AnnotationBuilder.layeredEffectCreated(
+                effectId,
+                if (affectorId.value != 0) affectorId else null,
+            ),
+        )
+
+        val creatureIids = effects.map { InstanceId(it.cardInstanceId) }
+        persistent.add(
+            AnnotationBuilder.addAbilityMulti(
+                affectedIds = creatureIids,
+                grpId = grpId,
+                effectId = effectId,
+                uniqueAbilityIds = creatureIids.map { uniqueAbilityIdAllocator() },
+                originalAbilityObjectZcid = affectorId.value,
+                affectorId = affectorId,
+            ),
+        )
+
+        log.debug(
+            "effectAnnotations: keyword grant {} grpId={} effectId={} creatures={}",
+            keyword,
+            grpId.value,
+            effectId.value,
+            creatureIids.size,
+        )
     }
 }

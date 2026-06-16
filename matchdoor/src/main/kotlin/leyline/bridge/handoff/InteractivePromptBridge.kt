@@ -454,6 +454,9 @@ enum class PromptSemantic {
      */
     SelectNResolution,
 
+    /** Frantic Scapegoat's trigger choice: suspect one newly-entered creature. */
+    SuspectChoice,
+
     /**
      * Brainstorm-style resolution pick: choose hand cards to put into the
      * library, followed by an `OrderReq` for top-library ordering.

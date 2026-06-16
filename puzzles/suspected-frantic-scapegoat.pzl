@@ -1,0 +1,16 @@
+[metadata]
+Name:Frantic Scapegoat Suspected
+Goal:Move Suspected from Frantic Scapegoat to another creature.
+Turns:2
+Difficulty:Easy
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Frantic Scapegoat;Grizzly Bears
+humanbattlefield=Mountain;Forest;Forest
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+ailibrary=Island;Island;Island;Island

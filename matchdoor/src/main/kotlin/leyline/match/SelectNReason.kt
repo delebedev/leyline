@@ -7,6 +7,7 @@ enum class SelectNReason {
     SacrificeEffect,
     RevealChoose,
     Resolution,
+    SuspectChoice,
     LibraryPutback,
     ExileFromGrave,
     CollectEvidenceCost,

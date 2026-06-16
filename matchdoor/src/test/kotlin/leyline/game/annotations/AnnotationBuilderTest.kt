@@ -903,6 +903,16 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("suspectedDesignationFields") {
+            val ann = AnnotationBuilder.suspectedDesignation(instanceId = 411.iid)
+            assertSoftly {
+                ann.typeList shouldContain AnnotationType.Designation
+                ann.affectorId shouldBe 411
+                ann.affectedIdsList shouldContain 411
+                ann.detailInt("DesignationType") shouldBe AnnotationConstants.DESIGNATION_TYPE_SUSPECTED
+            }
+        }
+
         test("gainDesignationOnGameFields — game-scope lite shape, no affector") {
             val ann = AnnotationBuilder.gainDesignationOnGame(designationType = 10)
             assertSoftly {

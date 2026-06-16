@@ -104,6 +104,32 @@ scenarios:
           all:
             - zone_contains: { side: ours, zone: graveyard, card: Lightning Bolt }
             - stack_empty: true
+  - id: suspected-frantic-scapegoat
+    puzzle: suspected-frantic-scapegoat
+    run: cast Frantic Scapegoat, then suspect Grizzly Bears when it enters
+    expect: the Suspected designation moves from Scapegoat to Grizzly Bears
+    steps:
+      - expect:
+          action: { type: cast, card: Frantic Scapegoat }
+      - cast: Frantic Scapegoat
+      - resolve_stack: {}
+      - expect:
+          annotation_seen: Designation
+      - expect:
+          action: { type: cast, card: Grizzly Bears }
+      - cast: Grizzly Bears
+      - pass_until:
+          prompt: { type: SelectNReq, prompt_id: 12761 }
+          max_passes: 8
+      - select_card: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: GainDesignation
+            - annotation_seen: LoseDesignation
+            - zone_contains: { side: ours, zone: battlefield, card: Frantic Scapegoat }
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - stack_empty: true
   - id: duress-reveal-discard
     puzzle: duress-reveal
     run: cast Duress and choose Murder from the revealed opponent hand

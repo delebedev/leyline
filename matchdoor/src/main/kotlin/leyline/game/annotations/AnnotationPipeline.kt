@@ -39,6 +39,7 @@ import leyline.game.state.QualificationKind
 import leyline.game.state.RightUnlockedDesignationKind
 import leyline.game.state.SaddledDesignationKind
 import leyline.game.state.SaddledThisTurnKind
+import leyline.game.state.SuspectedDesignationKind
 import leyline.game.state.TargetSpecKind
 import leyline.game.state.TemporaryPermanentKind
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -699,6 +700,12 @@ object AnnotationPipeline {
         }
 
         val sourceAbilityResolver = SourceAbilityResolverFactory.build(bridge)
+        val suspectedIids =
+            snap.boundCards.values
+                .asSequence()
+                .filter { it.snapshot.isOnBattlefield && it.designations.isSuspected }
+                .map { frameIds.cardIid(it.forgeCardId).value }
+                .toSet()
         val (effectTransient, effectPersistent) =
             MechanicAnnotations.effectAnnotations(
                 diff = effectDiff,
@@ -729,6 +736,13 @@ object AnnotationPipeline {
                     }
                 },
                 uniqueAbilityIdAllocator = { bridge.effects.nextEffectId() },
+                keywordExtraAbilityGrpIds = { instanceId, keyword ->
+                    if (keyword == "Menace" && instanceId.value in suspectedIids) {
+                        listOf(AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID)
+                    } else {
+                        emptyList()
+                    }
+                },
             )
         annotations.addAll(effectTransient)
 
@@ -778,6 +792,7 @@ object AnnotationPipeline {
                         put(PlottedDesignationKind, persistentFeeds.plottedDesignation)
                         put(CommanderDesignationKind, persistentFeeds.commanderDesignation)
                         put(SaddledDesignationKind, persistentFeeds.saddledDesignation)
+                        put(SuspectedDesignationKind, persistentFeeds.suspectedDesignation)
                         put(LeftUnlockedDesignationKind, persistentFeeds.leftUnlockedDesignation)
                         put(RightUnlockedDesignationKind, persistentFeeds.rightUnlockedDesignation)
                         put(ManaCreatureDesignationKind, earthbendDesignations)

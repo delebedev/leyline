@@ -128,6 +128,32 @@ class TargetingHandlerSelectNTest :
                 )
         }
 
+        test("suspect SelectN records accepted ChoiceResult sentiment") {
+            val pending =
+                pendingPrompt(
+                    PromptRequest(
+                        promptType = "choose_cards",
+                        message = "Choose a creature",
+                        options = listOf("A"),
+                        semantic = PromptSemantic.SuspectChoice,
+                        sourceEntityId = 77,
+                    ),
+                )
+
+            val results = TargetingHandler.choiceResultSideEffects(pending, listOf(200), SeatId(1))
+
+            results shouldBe
+                listOf(
+                    PromptSideEffect.ChoiceResult(
+                        sourceForgeCardId = ForgeCardId(77),
+                        chooserSeatId = SeatId(1),
+                        choiceValue = 200,
+                        choiceDomain = null,
+                        sentiment = 2,
+                    ),
+                )
+        }
+
         test("static parity SelectN records ChoiceResult with parity domain") {
             val pending =
                 pendingPrompt(
