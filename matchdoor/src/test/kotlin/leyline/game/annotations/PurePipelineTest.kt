@@ -20,7 +20,6 @@ import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
 import leyline.game.annotations.ZoneTransferDetector
 import leyline.game.event.GameEvent
-import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
 import leyline.game.state.InstanceIdRegistry
@@ -378,7 +377,7 @@ class PurePipelineTest :
                 )
 
             val (annotations, _) =
-                StateMapper.assembleTransferAndCombatAnnotations(
+                AnnotationPipeline.assembleTransferAndCombatAnnotations(
                     events =
                         listOf(
                             GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3),
@@ -433,7 +432,7 @@ class PurePipelineTest :
                 )
 
             val (annotations, _) =
-                StateMapper.assembleTransferAndCombatAnnotations(
+                AnnotationPipeline.assembleTransferAndCombatAnnotations(
                     events =
                         listOf(
                             GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(99), amount = 3),
@@ -496,7 +495,7 @@ class PurePipelineTest :
                     GameEvent.DamageDealtToCard(sourceCardId = blockerFid, targetCardId = attackerFid, amount = 5),
                 )
 
-            val pipeline = StateMapper.computeAnnotations(events, transferResult, actingSeat = 1, bridge = bridge)
+            val pipeline = AnnotationPipeline.computeAnnotations(events, transferResult, actingSeat = 1, bridge = bridge)
             val ordered = AnnotationOrderEnforcer.enforce(pipeline.annotations)
 
             ordered
