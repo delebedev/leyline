@@ -1059,6 +1059,16 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_SADDLED))
             .build()
 
+    /** Persistent `Designation` for the `Suspected` card-state designation (DesignationType=16). */
+    fun suspectedDesignation(instanceId: InstanceId): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_SUSPECTED))
+            .build()
+
     /** Persistent `Designation` for the `LeftUnlocked` Room-door state (DesignationType=19).
      *  affector / affectedIds both = the Room card's battlefield instance id. */
     fun leftUnlockedDesignation(instanceId: InstanceId): AnnotationInfo =

@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.InstanceId
 import leyline.game.annotations.MechanicAnnotations
+import leyline.game.codes.DetailKeys
 import leyline.game.state.EffectTracker
 import leyline.testkit.detailInt
 import leyline.testkit.detailUint
@@ -52,6 +53,43 @@ class KeywordGrantAnnotationTest :
                 pAnn.affectedIdsList shouldHaveSize 3
                 pAnn.detailsList.filter { it.key == "UniqueAbilityId" } shouldHaveSize 3
                 pAnn.detailUint("grpid") shouldBe 14
+            }
+        }
+
+        test("effectAnnotations packs extra ability grpIds for selected keyword grants") {
+            val kwDiff =
+                EffectTracker.KeywordDiffResult(
+                    created =
+                        listOf(
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(119, 1L, 5L), "Menace"),
+                        ),
+                    destroyed = emptyList(),
+                )
+            var uniqueId = 330
+            val (transient, persistent) =
+                MechanicAnnotations.effectAnnotations(
+                    diff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    keywordDiff = kwDiff,
+                    keywordAffectorResolver = { _, _, _ -> InstanceId(114) },
+                    uniqueAbilityIdAllocator = { uniqueId++ },
+                    keywordExtraAbilityGrpIds = { instanceId, keyword ->
+                        if (instanceId.value == 119 && keyword == "Menace") {
+                            listOf(AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID)
+                        } else {
+                            emptyList()
+                        }
+                    },
+                )
+
+            transient.filter { it.typeList.contains(AnnotationType.LayeredEffectCreated) } shouldHaveSize 1
+            val pAnn = persistent.single { it.typeList.contains(AnnotationType.AddAbility_af5a) }
+            assertSoftly {
+                pAnn.affectedIdsList shouldBe listOf(119)
+                pAnn.detailsList.filter { it.key == DetailKeys.GRPID }.flatMap { it.valueInt32List } shouldBe
+                    listOf(142, 86476)
+                pAnn.detailsList.filter { it.key == DetailKeys.UNIQUE_ABILITY_ID } shouldHaveSize 2
+                pAnn.detailsList.filter { it.key == DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID }.flatMap { it.valueInt32List } shouldBe
+                    listOf(114, 114)
             }
         }
 

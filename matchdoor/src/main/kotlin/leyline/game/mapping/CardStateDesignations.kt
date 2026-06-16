@@ -33,6 +33,7 @@ enum class DesignationKind {
     PREPARED,
     PLOTTED,
     SADDLED,
+    SUSPECTED,
     FORETOLD,
     LEFT_UNLOCKED,
     RIGHT_UNLOCKED,
@@ -87,6 +88,13 @@ object CardStateDesignations {
             mode = TransientMode.GAIN_APPEND,
             readRole = { it.designations.isSaddled },
         )
+    val Suspected =
+        CardStateDesignationSpec(
+            kind = DesignationKind.SUSPECTED,
+            designationType = AnnotationConstants.DESIGNATION_TYPE_SUSPECTED,
+            mode = TransientMode.GAIN_APPEND,
+            readRole = { it.designations.isSuspected },
+        )
     val Foretold =
         CardStateDesignationSpec(
             kind = DesignationKind.FORETOLD,
@@ -111,7 +119,7 @@ object CardStateDesignations {
             readRole = { it.designations.isRightDoorUnlocked },
         )
 
-    val all: List<CardStateDesignationSpec> = listOf(Prepared, Plotted, Saddled, Foretold, LeftUnlocked, RightUnlocked)
+    val all: List<CardStateDesignationSpec> = listOf(Prepared, Plotted, Saddled, Suspected, Foretold, LeftUnlocked, RightUnlocked)
 }
 
 /**

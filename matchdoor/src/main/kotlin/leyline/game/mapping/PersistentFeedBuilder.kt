@@ -11,6 +11,8 @@ import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
+import leyline.game.codes.KeywordGrpIds
+import leyline.game.codes.QualificationType
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.BoundCard
@@ -30,6 +32,7 @@ internal data class PersistentFeedSet(
     val preparedDesignation: List<AnnotationInfo> = emptyList(),
     val plottedDesignation: List<AnnotationInfo> = emptyList(),
     val saddledDesignation: List<AnnotationInfo> = emptyList(),
+    val suspectedDesignation: List<AnnotationInfo> = emptyList(),
     val commanderDesignation: List<AnnotationInfo> = emptyList(),
     val leftUnlockedDesignation: List<AnnotationInfo> = emptyList(),
     val rightUnlockedDesignation: List<AnnotationInfo> = emptyList(),
@@ -54,6 +57,7 @@ private data class DesignationFeedSet(
     val prepared: List<AnnotationInfo>,
     val plotted: List<AnnotationInfo>,
     val saddled: List<AnnotationInfo>,
+    val suspected: List<AnnotationInfo>,
     val commander: List<AnnotationInfo>,
     val leftUnlocked: List<AnnotationInfo>,
     val rightUnlocked: List<AnnotationInfo>,
@@ -105,6 +109,7 @@ internal object PersistentFeedBuilder {
                     preparedDesignation = designations.prepared,
                     plottedDesignation = designations.plotted,
                     saddledDesignation = designations.saddled,
+                    suspectedDesignation = designations.suspected,
                     commanderDesignation = designations.commander,
                     leftUnlockedDesignation = designations.leftUnlocked,
                     rightUnlockedDesignation = designations.rightUnlocked,
@@ -125,7 +130,37 @@ internal object PersistentFeedBuilder {
         snap.objects.values
             .filter { it.isOnAdventure }
             .map { AnnotationBuilder.qualification(instanceId = frameIds.cardIid(it.forgeCardId)) } +
+            suspectedQualificationAnnotations(snap, frameIds) +
             CombatQualificationScanner.scan(snap, bridge, frameIds)
+
+    private fun suspectedQualificationAnnotations(
+        snap: GsmSnapshot,
+        frameIds: FrameIdResolver,
+    ): List<AnnotationInfo> {
+        val menaceGrpId = KeywordGrpIds.forKeyword("Menace")?.let(::GrpId) ?: return emptyList()
+        return snap.boundCards.values
+            .asSequence()
+            .filter { it.snapshot.isOnBattlefield && it.designations.isSuspected }
+            .flatMap { card ->
+                val iid = frameIds.cardIid(card.forgeCardId)
+                sequenceOf(
+                    AnnotationBuilder.qualification(
+                        affectorId = iid,
+                        instanceId = iid,
+                        grpId = menaceGrpId,
+                        qualificationType = QualificationType.CombatKeyword,
+                        sourceParent = iid,
+                    ),
+                    AnnotationBuilder.qualification(
+                        affectorId = iid,
+                        instanceId = iid,
+                        grpId = AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID,
+                        qualificationType = QualificationType.CantBlock,
+                        sourceParent = iid,
+                    ),
+                )
+            }.toList()
+    }
 
     private fun buildTemporaryPermanentAnnotations(
         snap: GsmSnapshot,
@@ -289,6 +324,14 @@ internal object PersistentFeedBuilder {
                     .mapNotNull { bound ->
                         if (!bound.designations.isSaddled) return@mapNotNull null
                         AnnotationBuilder.saddledDesignation(
+                            instanceId = context.allocatedCardIid(bound.forgeCardId),
+                        )
+                    },
+            suspected =
+                snap.boundCards.values
+                    .mapNotNull { bound ->
+                        if (!bound.designations.isSuspected) return@mapNotNull null
+                        AnnotationBuilder.suspectedDesignation(
                             instanceId = context.allocatedCardIid(bound.forgeCardId),
                         )
                     },

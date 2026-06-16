@@ -94,6 +94,7 @@ class TargetingHandler(
                         when {
                             semantic == PromptSemantic.SelectNDiscard ||
                                 semantic == PromptSemantic.SelectNSacrificeEffect -> null to 1
+                            semantic == PromptSemantic.SuspectChoice -> null to 2
                             else -> return emptyList()
                         }
                     else -> staticChoice.choiceDomain to 2
@@ -870,6 +871,7 @@ class TargetingHandler(
             SelectNReason.SacrificeEffect,
             SelectNReason.RevealChoose,
             SelectNReason.Resolution,
+            SelectNReason.SuspectChoice,
             SelectNReason.LibraryPutback,
             SelectNReason.MutateTopBottom,
             SelectNReason.LearnLesson,
@@ -1873,6 +1875,7 @@ class TargetingHandler(
             SelectNReason.LegendRule,
             SelectNReason.RevealChoose,
             SelectNReason.Resolution,
+            SelectNReason.SuspectChoice,
             SelectNReason.LibraryPutback,
             SelectNReason.MutateTopBottom,
             SelectNReason.LearnLesson,

@@ -1,0 +1,14 @@
+name: "Frantic Scapegoat"
+grpId: 89041
+titleId: 748704
+abilities:
+  - id: 9
+    textId: 101
+    category: 3
+  - id: 170438
+    textId: 967972
+    category: 2
+  - id: 170504
+    textId: 968132
+    category: 2
+expansionCode: "MKM"

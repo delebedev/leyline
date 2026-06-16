@@ -200,6 +200,9 @@ internal open class GreedyPromptPolicy(
         if (msg.prompt.promptId == PromptIds.LEARN_LESSON_OR_DISCARD || msg.prompt.promptId == PromptIds.LEARN_LESSON_ONLY) {
             return SimDecision.SelectN(learnLessonIds(req).take(1))
         }
+        if (msg.prompt.promptId == PromptIds.SUSPECT_ONE_OF_THOSE_CREATURES) {
+            return SimDecision.SelectN(req.idsList.take(req.maxSel.coerceAtLeast(1)))
+        }
         if (isRevealChoice(req)) {
             return SimDecision.SelectN(req.idsList.take(req.maxSel.coerceAtLeast(1)))
         }

@@ -274,10 +274,30 @@ class TargetingCoordinator(
             val effectiveMin = if (isOptional) 0 else min
             return chooseCardsViaBridgeForReveal(sourceList, effectiveMin, max, sa, reveal)
         }
-        if (!isOptional && sourceList.size <= min) return sourceList
+        val semantic = chooseCardsForEffectSemantic(sa)
+        val forcePrompt = semantic == PromptSemantic.SuspectChoice
+        if (!forcePrompt && !isOptional && sourceList.size <= min) return sourceList
         val effectiveMin = if (isOptional) 0 else min
-        return chooseCardsViaBridge(sourceList, effectiveMin, max, title ?: "Choose cards")
+        return chooseCardsViaBridge(
+            sourceList,
+            effectiveMin,
+            max,
+            title ?: "Choose cards",
+            semantic = semantic,
+            candidateRefs = if (forcePrompt) buildCandidateRefs(sourceList) else emptyList(),
+            sourceEntityId = if (forcePrompt) sa?.hostCard?.id else null,
+            forcePrompt = forcePrompt,
+        )
     }
+
+    private fun chooseCardsForEffectSemantic(sa: SpellAbility?): PromptSemantic =
+        if (isFranticScapegoatSuspectChoice(sa)) PromptSemantic.SuspectChoice else PromptSemantic.Generic
+
+    private fun isFranticScapegoatSuspectChoice(sa: SpellAbility?): Boolean =
+        sa?.api == ApiType.ChooseCard &&
+            sa.hostCard?.name == "Frantic Scapegoat" &&
+            sa.hasParamValue("DefinedCards", "TriggeredCards") &&
+            sa.hasParamValue("SubAbility", "SuspectOther")
 
     fun chooseCardsToRevealFromHand(
         min: Int,
@@ -810,11 +830,12 @@ class TargetingCoordinator(
         semantic: PromptSemantic = PromptSemantic.Generic,
         candidateRefs: List<PromptCandidateRefDto> = emptyList(),
         sourceEntityId: Int? = null,
+        forcePrompt: Boolean = false,
     ): CardCollection {
         if (cards.isEmpty()) return CardCollection()
         val effectiveMax = max.coerceAtMost(cards.size)
         val effectiveMin = min.coerceAtLeast(0).coerceAtMost(effectiveMax)
-        if (cards.size <= effectiveMin) return CardCollection(cards)
+        if (!forcePrompt && cards.size <= effectiveMin) return CardCollection(cards)
         val labels = cards.map { it.name }
         val request =
             PromptRequest(

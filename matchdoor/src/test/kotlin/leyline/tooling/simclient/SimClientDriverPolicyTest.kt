@@ -350,6 +350,30 @@ class SimClientDriverPolicyTest :
             response.decision shouldBe SimDecision.SelectN(listOf(402))
         }
 
+        test("greedy SelectN policy accepts Suspect choice prompts") {
+            val harness = MatchFlowHarness()
+            val msg =
+                GREToClientMessage
+                    .newBuilder()
+                    .setMsgId(6)
+                    .setGameStateId(16)
+                    .setType(GREMessageType.SelectNreq)
+                    .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SUSPECT_ONE_OF_THOSE_CREATURES))
+                    .setSelectNReq(
+                        SelectNReq
+                            .newBuilder()
+                            .setMinSel(0)
+                            .setMaxSel(1)
+                            .addAllIds(listOf(501, 502)),
+                    ).build()
+            harness.allMessages += msg
+
+            val prompt = SimPromptLedger(harness).activePrompt()!!
+            val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
+
+            response.decision shouldBe SimDecision.SelectN(listOf(501))
+        }
+
         test("Forge AI attacker advice can choose no attackers") {
             val harness = MatchFlowHarness()
             val msg =

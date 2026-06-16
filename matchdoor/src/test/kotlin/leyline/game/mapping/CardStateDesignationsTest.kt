@@ -157,6 +157,34 @@ class CardStateDesignationsTest :
             }
         }
 
+        test("Suspected gain and lose both append") {
+            val suspectFid = 19
+            val annotations = mutableListOf<AnnotationInfo>()
+            val prev = snap(listOf(bound(suspectFid, DesignationSet())))
+            val cur = snap(listOf(bound(suspectFid, DesignationSet(isSuspected = true))))
+
+            insertStateDesignationTransients(annotations, prev, cur, resolveIid)
+            assertSoftly {
+                annotations shouldHaveSize 1
+                annotations[0].typeList shouldContain AnnotationType.GainDesignation
+                annotations[0]
+                    .detailsList
+                    .first { it.key == DetailKeys.DESIGNATION_TYPE }
+                    .getValueInt32(0) shouldBe AnnotationConstants.DESIGNATION_TYPE_SUSPECTED
+            }
+
+            val loseAnnotations = mutableListOf<AnnotationInfo>()
+            insertStateDesignationTransients(loseAnnotations, cur, prev, resolveIid)
+            assertSoftly {
+                loseAnnotations shouldHaveSize 1
+                loseAnnotations[0].typeList shouldContain AnnotationType.LoseDesignation
+                loseAnnotations[0]
+                    .detailsList
+                    .first { it.key == DetailKeys.DESIGNATION_TYPE }
+                    .getValueInt32(0) shouldBe AnnotationConstants.DESIGNATION_TYPE_SUSPECTED
+            }
+        }
+
         test("Foretold gain emits FaceDown + SuppressedPowerAndToughness pair, no lose") {
             val foretoldFid = 17
             val gainAnnotations = mutableListOf<AnnotationInfo>()
@@ -180,6 +208,7 @@ class CardStateDesignationsTest :
                     DesignationKind.PREPARED,
                     DesignationKind.PLOTTED,
                     DesignationKind.SADDLED,
+                    DesignationKind.SUSPECTED,
                     DesignationKind.FORETOLD,
                     DesignationKind.LEFT_UNLOCKED,
                     DesignationKind.RIGHT_UNLOCKED,
@@ -191,6 +220,7 @@ class CardStateDesignationsTest :
                 CardStateDesignations.Prepared.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_PREPARED
                 CardStateDesignations.Plotted.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_PLOTTED
                 CardStateDesignations.Saddled.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_SADDLED
+                CardStateDesignations.Suspected.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_SUSPECTED
                 CardStateDesignations.Foretold.designationType shouldBe null
                 CardStateDesignations.LeftUnlocked.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_LEFT_UNLOCKED
                 CardStateDesignations.RightUnlocked.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_RIGHT_UNLOCKED

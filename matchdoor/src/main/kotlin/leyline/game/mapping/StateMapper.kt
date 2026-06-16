@@ -14,6 +14,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.annotations.AnnotationBuilder
+import leyline.game.annotations.AnnotationConstants
 import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.annotations.AppliedTransfer
 import leyline.game.annotations.CombatAnnotationResult
@@ -60,6 +61,7 @@ import leyline.game.state.QualificationKind
 import leyline.game.state.RightUnlockedDesignationKind
 import leyline.game.state.SaddledDesignationKind
 import leyline.game.state.SaddledThisTurnKind
+import leyline.game.state.SuspectedDesignationKind
 import leyline.game.state.TargetSpecKind
 import leyline.game.state.TemporaryPermanentKind
 import org.slf4j.LoggerFactory
@@ -536,6 +538,16 @@ object StateMapper {
                         }
                 }.map { it.origId }
         )
+
+    private fun suspectedBattlefieldIids(
+        snap: GsmSnapshot,
+        frameIds: FrameIdResolver,
+    ): Set<Int> =
+        snap.boundCards.values
+            .asSequence()
+            .filter { it.snapshot.isOnBattlefield && it.designations.isSuspected }
+            .map { frameIds.cardIid(it.forgeCardId).value }
+            .toSet()
 
     /**
      * Build a Diff [GameStateMessage] by snap-vs-snap field comparison.
@@ -1116,6 +1128,7 @@ object StateMapper {
         }
 
         val sourceAbilityResolver = SourceAbilityResolverFactory.build(bridge)
+        val suspectedIids = suspectedBattlefieldIids(snap, frameIds)
         val (effectTransient, effectPersistent) =
             MechanicAnnotations.effectAnnotations(
                 diff = effectDiff,
@@ -1146,6 +1159,13 @@ object StateMapper {
                     }
                 },
                 uniqueAbilityIdAllocator = { bridge.effects.nextEffectId() },
+                keywordExtraAbilityGrpIds = { instanceId, keyword ->
+                    if (keyword == "Menace" && instanceId.value in suspectedIids) {
+                        listOf(AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID)
+                    } else {
+                        emptyList()
+                    }
+                },
             )
         annotations.addAll(effectTransient)
 
@@ -1195,6 +1215,7 @@ object StateMapper {
                         put(PlottedDesignationKind, persistentFeeds.plottedDesignation)
                         put(CommanderDesignationKind, persistentFeeds.commanderDesignation)
                         put(SaddledDesignationKind, persistentFeeds.saddledDesignation)
+                        put(SuspectedDesignationKind, persistentFeeds.suspectedDesignation)
                         put(LeftUnlockedDesignationKind, persistentFeeds.leftUnlockedDesignation)
                         put(RightUnlockedDesignationKind, persistentFeeds.rightUnlockedDesignation)
                         put(ManaCreatureDesignationKind, earthbendDesignations)

@@ -117,6 +117,9 @@ object PromptIds {
     /** Station activation cost — "Tap a creature to add charge counters equal to its power." */
     const val STATION_TAP_COST = 14726
 
+    /** Frantic Scapegoat trigger — "Suspect one of those creatures?" */
+    const val SUSPECT_ONE_OF_THOSE_CREATURES = 12761
+
     /** Ninjutsu activation cost — "Return an unblocked attacking creature you control to its owner's hand." */
     const val NINJUTSU_RETURN_UNBLOCKED_ATTACKER_COST = 8580
 

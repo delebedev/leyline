@@ -35,6 +35,12 @@ object AnnotationConstants {
      *  for mounts saddled this turn. */
     const val DESIGNATION_TYPE_SADDLED: Int = 17
 
+    /** `DesignationType` enum value for the `Suspected` card-state designation. */
+    const val DESIGNATION_TYPE_SUSPECTED: Int = 16
+
+    /** Ability grpId for the static "can't block" row paired with Suspected. */
+    val SUSPECTED_CANT_BLOCK_GRP_ID: GrpId = GrpId(86476)
+
     /** `DesignationType` enum value for the `Prepared` card-state designation.
      *  Carried on `GainDesignation` / persistent `Designation` / `LoseDesignation`. */
     const val DESIGNATION_TYPE_PREPARED: Int = 24

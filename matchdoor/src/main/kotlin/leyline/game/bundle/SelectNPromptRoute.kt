@@ -33,6 +33,7 @@ internal enum class SelectNEnvelopeKind {
     RevealChoose,
     Resolution,
     LibraryPutback,
+    SuspectChoice,
     MutateTopBottom,
     LearnLesson,
 }
@@ -67,6 +68,7 @@ internal data class StandardSelectNRoute(
             SelectNEnvelopeKind.RevealChoose -> SelectNEnvelope.revealChoose(req)
             SelectNEnvelopeKind.Resolution -> SelectNEnvelope.resolution(req)
             SelectNEnvelopeKind.LibraryPutback -> SelectNEnvelope.libraryPutback(req)
+            SelectNEnvelopeKind.SuspectChoice -> SelectNEnvelope.suspectChoice(req)
             SelectNEnvelopeKind.MutateTopBottom -> SelectNEnvelope.mutateTopBottom(req)
             SelectNEnvelopeKind.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId())
         }
@@ -224,6 +226,12 @@ internal object SelectNPromptRoutes {
                 shape = dynamicResolutionShape,
                 innerPrompt = SelectNInnerPrompt.SelectNInnerParameter,
                 envelopeKind = SelectNEnvelopeKind.LibraryPutback,
+            ),
+            StandardSelectNRoute(
+                semantic = PromptSemantic.SuspectChoice,
+                shape = dynamicResolutionShape,
+                innerPrompt = SelectNInnerPrompt.SelectNInnerParameter,
+                envelopeKind = SelectNEnvelopeKind.SuspectChoice,
             ),
             StandardSelectNRoute(
                 semantic = PromptSemantic.MutateTopBottom,

@@ -103,6 +103,7 @@ object PromptRouteAuditor {
             PromptSemantic.SelectNDiscard,
             PromptSemantic.RevealChoose,
             PromptSemantic.SelectNResolution,
+            PromptSemantic.SuspectChoice,
             PromptSemantic.SelectNLibraryPutback,
             PromptSemantic.SelectNSacrificeEffect,
             PromptSemantic.MutateTopBottom,
