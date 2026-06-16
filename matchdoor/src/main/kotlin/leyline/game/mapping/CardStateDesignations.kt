@@ -135,15 +135,22 @@ internal fun insertStateDesignationTransients(
     prev: GsmSnapshot,
     cur: GsmSnapshot,
     resolveInstanceId: (ForgeCardId) -> InstanceId,
+    resolveAffectorId: (CardStateDesignationSpec, InstanceId) -> InstanceId? = { _, _ -> null },
 ) {
     for (spec in CardStateDesignations.all) {
         val curIds = forgeIdsByRole(cur, spec.readRole)
         val prevIds = forgeIdsByRole(prev, spec.readRole)
-        for (fid in curIds - prevIds) emitGain(annotations, spec, resolveInstanceId(fid))
+        for (fid in curIds - prevIds) {
+            val iid = resolveInstanceId(fid)
+            emitGain(annotations, spec, iid, resolveAffectorId(spec, iid) ?: iid)
+        }
         // FACE_DOWN_PAIR has no lose path — skip the prev-set scan entirely
         // rather than iterate just to call a no-op emitter.
         if (spec.mode == TransientMode.FACE_DOWN_PAIR) continue
-        for (fid in prevIds - curIds) emitLose(annotations, spec, resolveInstanceId(fid))
+        for (fid in prevIds - curIds) {
+            val iid = resolveInstanceId(fid)
+            emitLose(annotations, spec, iid, resolveAffectorId(spec, iid) ?: iid)
+        }
     }
 }
 
@@ -160,6 +167,7 @@ private fun emitGain(
     annotations: MutableList<AnnotationInfo>,
     spec: CardStateDesignationSpec,
     iid: InstanceId,
+    affectorId: InstanceId,
 ) {
     when (spec.mode) {
         TransientMode.GAIN_INSERT_BEFORE_RESOLVE_ZT -> {
@@ -167,6 +175,7 @@ private fun emitGain(
                 AnnotationBuilder.gainDesignationOnCard(
                     instanceId = iid,
                     designationType = requireDesignationType(spec, "GAIN_INSERT_BEFORE_RESOLVE_ZT"),
+                    affectorId = affectorId,
                 )
             insertGainBeforeResolveZt(annotations, gain, iid.value)
         }
@@ -175,6 +184,7 @@ private fun emitGain(
                 AnnotationBuilder.gainDesignationOnCard(
                     instanceId = iid,
                     designationType = requireDesignationType(spec, "GAIN_APPEND"),
+                    affectorId = affectorId,
                 ),
             )
         }
@@ -189,6 +199,7 @@ private fun emitLose(
     annotations: MutableList<AnnotationInfo>,
     spec: CardStateDesignationSpec,
     iid: InstanceId,
+    affectorId: InstanceId,
 ) {
     when (spec.mode) {
         TransientMode.GAIN_INSERT_BEFORE_RESOLVE_ZT,
@@ -198,6 +209,7 @@ private fun emitLose(
                 AnnotationBuilder.loseDesignation(
                     instanceId = iid,
                     designationType = requireDesignationType(spec, "lose path"),
+                    affectorId = affectorId,
                 ),
             )
         }

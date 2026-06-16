@@ -921,16 +921,18 @@ object AnnotationBuilder {
             .build()
 
     /** GainDesignation transient on a card (Prepared, Saddled, Plotted, Door states).
-     *  Card-scoped variant — affector and affected both = the affected card's instance id.
+     *  Card-scoped variant — defaults affector to the affected card unless a
+     *  resolving ability is the protocol source for this designation change.
      *  See [gainDesignation] for the seat-scoped variant (Monarch, Initiative, City's Blessing). */
     fun gainDesignationOnCard(
         instanceId: InstanceId,
         designationType: Int,
+        affectorId: InstanceId = instanceId,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.GainDesignation)
-            .setAffectorId(instanceId.value)
+            .setAffectorId(affectorId.value)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
             .build()
@@ -1096,11 +1098,12 @@ object AnnotationBuilder {
     fun loseDesignation(
         instanceId: InstanceId,
         designationType: Int,
+        affectorId: InstanceId = instanceId,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.LoseDesignation)
-            .setAffectorId(instanceId.value)
+            .setAffectorId(affectorId.value)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
             .build()

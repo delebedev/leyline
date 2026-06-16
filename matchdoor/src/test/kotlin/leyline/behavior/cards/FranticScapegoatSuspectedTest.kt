@@ -40,6 +40,8 @@ private val PUZZLE =
     ailibrary=Island;Island;Island;Island
     """.trimIndent()
 
+private const val SCAPEGOAT_TRANSFER_ABILITY_GRP_ID = 170504
+
 private fun AnnotationInfo.detailInts(key: String): List<Int> = detailsList.filter { it.key == key }.flatMap { it.valueInt32List }
 
 class FranticScapegoatSuspectedTest :
@@ -117,6 +119,10 @@ class FranticScapegoatSuspectedTest :
                     .filter { it.affectedIdsList.contains(bearIid) }
             val bearQualificationTypes = bearQualificationRows.map { it.detailInt(DetailKeys.QUALIFICATION_TYPE) }.toSet()
             val bearQualificationGrpIds = bearQualificationRows.map { it.detailInt(DetailKeys.GRPID) }.toSet()
+            val transferResolution =
+                allMessages
+                    .annotationsOfType(AnnotationType.ResolutionComplete)
+                    .lastOrNull { it.detailInt(DetailKeys.GRPID) == SCAPEGOAT_TRANSFER_ABILITY_GRP_ID }
 
             assertSoftly {
                 scapegoat.isSuspected.shouldBeFalse()
@@ -134,7 +140,10 @@ class FranticScapegoatSuspectedTest :
                 bearQualificationGrpIds shouldContain AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID.value
                 bearQualificationTypes shouldContain QualificationType.CombatKeyword.wireValue
                 bearQualificationTypes shouldContain QualificationType.CantBlock.wireValue
+                transferResolution.shouldNotBeNull()
+                gainBear!!.affectorId shouldBe transferResolution!!.affectorId
                 gainBear!!.affectedIdsList shouldContain bearIid
+                loseScapegoat!!.affectorId shouldBe transferResolution.affectorId
                 loseScapegoat!!.affectedIdsList shouldContain scapegoatIid
             }
         }
