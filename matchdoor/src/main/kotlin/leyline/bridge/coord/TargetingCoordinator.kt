@@ -291,13 +291,7 @@ class TargetingCoordinator(
     }
 
     private fun chooseCardsForEffectSemantic(sa: SpellAbility?): PromptSemantic =
-        if (isFranticScapegoatSuspectChoice(sa)) PromptSemantic.SuspectChoice else PromptSemantic.Generic
-
-    private fun isFranticScapegoatSuspectChoice(sa: SpellAbility?): Boolean =
-        sa?.api == ApiType.ChooseCard &&
-            sa.hostCard?.name == "Frantic Scapegoat" &&
-            sa.hasParamValue("DefinedCards", "TriggeredCards") &&
-            sa.hasParamValue("SubAbility", "SuspectOther")
+        if (SuspectChoiceClassifier.isSuspectChoice(sa)) PromptSemantic.SuspectChoice else PromptSemantic.Generic
 
     fun chooseCardsToRevealFromHand(
         min: Int,
