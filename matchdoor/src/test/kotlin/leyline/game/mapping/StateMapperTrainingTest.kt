@@ -5,6 +5,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
+import leyline.game.annotations.AnnotationContext
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 
@@ -34,8 +35,8 @@ class StateMapperTrainingTest :
                 )
             val events = listOf(trainingCounter, trainingResolved, unrelatedCounter, unrelatedResolved)
 
-            StateMapper.keywordCounterResolutionForEvent(0, trainingCounter, events)?.abilityForgeId shouldBe 10
-            StateMapper.keywordCounterResolutionForEvent(2, unrelatedCounter, events).shouldBeNull()
+            AnnotationContext.keywordCounterResolutionForEvent(0, trainingCounter, events)?.abilityForgeId shouldBe 10
+            AnnotationContext.keywordCounterResolutionForEvent(2, unrelatedCounter, events).shouldBeNull()
         }
 
         test("Backup counter on another target inherits resolving ability affector") {
@@ -53,7 +54,7 @@ class StateMapperTrainingTest :
                 )
             val events = listOf(counter, resolved)
 
-            StateMapper
+            AnnotationContext
                 .keywordCounterResolutionForEvent(0, counter, events) { it.abilityGrpId == backupOne }
                 ?.abilityForgeId shouldBe 12
         }
@@ -75,10 +76,10 @@ class StateMapperTrainingTest :
                 )
             val events = listOf(firstCounter, secondCounter, resolved)
 
-            StateMapper
+            AnnotationContext
                 .keywordCounterResolutionForEvent(0, firstCounter, events) { it.abilityGrpId == backupOne }
                 .shouldBeNull()
-            StateMapper
+            AnnotationContext
                 .keywordCounterResolutionForEvent(1, secondCounter, events) { it.abilityGrpId == backupOne }
                 ?.abilityForgeId shouldBe 12
         }
