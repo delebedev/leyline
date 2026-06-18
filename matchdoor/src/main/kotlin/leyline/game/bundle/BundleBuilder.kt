@@ -575,23 +575,12 @@ class BundleBuilder(
         prebuiltReq: DeclareAttackersReq? = null,
     ): BundleResult {
         val diff = buildFrameDiff(game, counter) { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
-        val nextGs = diff.gameStateId
-        val snap = diff.snap
         val gs = diff.result.gsm
-        val msg1 =
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                it.gameStateMessage = gs
-            }
-
         val req = prebuiltReq ?: RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
-        val msg2 =
-            makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, counter.nextMsgId()) {
-                it.declareAttackersReq = req
-                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
-            }
-
-        cursor.lastSent = snap
-        return BundleResult(listOf(msg1, msg2))
+        return promptRequestBundle(diff, counter, gs, GREMessageType.DeclareAttackersReq_695e) {
+            it.declareAttackersReq = req
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
+        }
     }
 
     /**
@@ -670,23 +659,12 @@ class BundleBuilder(
         counter: MessageCounter,
     ): BundleResult {
         val diff = buildFrameDiff(game, counter) { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
-        val nextGs = diff.gameStateId
-        val snap = diff.snap
         val gs = diff.result.gsm
-        val msg1 =
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                it.gameStateMessage = gs
-            }
-
         val req = RequestBuilder.buildDeclareBlockersReq(game, SeatId(seatId), bridge)
-        val msg2 =
-            makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, counter.nextMsgId()) {
-                it.declareBlockersReq = req
-                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
-            }
-
-        cursor.lastSent = snap
-        return BundleResult(listOf(msg1, msg2))
+        return promptRequestBundle(diff, counter, gs, GREMessageType.DeclareBlockersReq_695e) {
+            it.declareBlockersReq = req
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
+        }
     }
 
     /**
@@ -708,26 +686,15 @@ class BundleBuilder(
     ): BundleResult {
         // Build diff first — triggers instanceId reallocs for zone transfers
         val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
-        val nextGs = diff.gameStateId
-        val snap = diff.snap
         val gs = appendPlayerSelectingTargets(diff.result.gsm, prompt)
-        val msg1 =
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                it.gameStateMessage = gs
-            }
-
         // Build SelectTargetsReq AFTER diff so sourceId uses post-realloc instanceIds
         val req = RequestBuilder.buildSelectTargetsReq(prompt, bridge, seatId)
-        val msg2 =
-            makeGRE(GREMessageType.SelectTargetsReq_695e, nextGs, counter.nextMsgId()) {
-                it.selectTargetsReq = req
-                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
-                it.allowCancel = AllowCancel.Abort
-                it.allowUndo = true
-            }
-
-        cursor.lastSent = snap
-        return BundleResult(listOf(msg1, msg2))
+        return promptRequestBundle(diff, counter, gs, GREMessageType.SelectTargetsReq_695e) {
+            it.selectTargetsReq = req
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
+            it.allowCancel = AllowCancel.Abort
+            it.allowUndo = true
+        }
     }
 
     /**
@@ -1173,8 +1140,6 @@ class BundleBuilder(
         sourceCardGrpId: Int? = null,
     ): BundleResult {
         val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
-        val nextGs = diff.gameStateId
-        val snap = diff.snap
         val gsResult = diff.result
         val gsBuilder =
             gsResult.gsm
@@ -1240,22 +1205,12 @@ class BundleBuilder(
         }
 
         val gs = gsBuilder.build()
-
-        val msg1 =
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                it.gameStateMessage = gs
-            }
-
-        val msg2 =
-            makeGRE(GREMessageType.CastingTimeOptionsReq_695e, nextGs, counter.nextMsgId()) {
-                it.castingTimeOptionsReq = req
-                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.CASTING_TIME_OPTIONS).build())
-                it.allowCancel = AllowCancel.Abort
-                it.allowUndo = true
-            }
-
-        cursor.lastSent = snap
-        return BundleResult(listOf(msg1, msg2))
+        return promptRequestBundle(diff, counter, gs, GREMessageType.CastingTimeOptionsReq_695e) {
+            it.castingTimeOptionsReq = req
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.CASTING_TIME_OPTIONS).build())
+            it.allowCancel = AllowCancel.Abort
+            it.allowUndo = true
+        }
     }
 
     /**
@@ -1276,8 +1231,6 @@ class BundleBuilder(
         promptPersistentAnnotations: List<AnnotationInfo> = emptyList(),
     ): BundleResult {
         val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
-        val nextGs = diff.gameStateId
-        val snap = diff.snap
         val promptOnlyPersistentAnnotations =
             promptPersistentAnnotations.filterNot { extra ->
                 diff.result.gsm.persistentAnnotationsList
@@ -1292,25 +1245,16 @@ class BundleBuilder(
                     .addAllPersistentAnnotations(promptOnlyPersistentAnnotations)
                     .build()
             }
-        val msg1 =
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                it.gameStateMessage = gs
-            }
-
-        val msg2 =
-            makeGRE(GREMessageType.PayCostsReq_695e, nextGs, counter.nextMsgId()) {
-                it.payCostsReq = req
-                it.setPrompt(prompt ?: Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
-                // Without these two flags the client renders the cost-selection
-                // picker but treats every card as non-clickable (greyed out).
-                // Matches the canonical envelope for non-mana-payment costs
-                // (sacrifice, exile-from-grave additional cost).
-                it.allowCancel = AllowCancel.Abort
-                it.allowUndo = true
-            }
-
-        cursor.lastSent = snap
-        return BundleResult(listOf(msg1, msg2))
+        return promptRequestBundle(diff, counter, gs, GREMessageType.PayCostsReq_695e) {
+            it.payCostsReq = req
+            it.setPrompt(prompt ?: Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
+            // Without these two flags the client renders the cost-selection
+            // picker but treats every card as non-clickable (greyed out).
+            // Matches the canonical envelope for non-mana-payment costs
+            // (sacrifice, exile-from-grave additional cost).
+            it.allowCancel = AllowCancel.Abort
+            it.allowUndo = true
+        }
     }
 
     /**
