@@ -22,6 +22,9 @@ import leyline.bridge.interaction.ChooseCardsForEffectContext
 import leyline.bridge.interaction.ChooseCardsForEffectPlanner
 import leyline.bridge.interaction.ChooseEntitiesContext
 import leyline.bridge.interaction.ChooseEntitiesPlanner
+import leyline.bridge.interaction.ChooseSingleEntityContext
+import leyline.bridge.interaction.ChooseSingleEntityPlanner
+import leyline.bridge.interaction.ChooseSingleEntityRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -67,27 +70,32 @@ class TargetingCoordinator(
         hasDelayedReveal: Boolean,
     ): T? {
         if (optionList.isEmpty()) return null
-        if (sa?.isMutate == true) {
-            return chooseMutateTopCard(optionList, sa, title, isOptional)
-        }
         val reveal = bridge.journal.activeReveal()
         val revealedCards = optionList.filterIsInstance<Card>()
-        if (reveal != null && revealedCards.size == optionList.size) {
-            return chooseSingleEntityFromReveal(revealedCards, isOptional, sa, title, reveal)
+        val plan =
+            ChooseSingleEntityPlanner.plan(
+                ChooseSingleEntityContext(
+                    sa = sa,
+                    isOptional = isOptional,
+                    hasDelayedReveal = hasDelayedReveal,
+                    optionCount = optionList.size,
+                    allOptionsAreCards = revealedCards.size == optionList.size,
+                    activeReveal = reveal != null,
+                    candidateRefs = buildCandidateRefs(optionList),
+                ),
+            )
+        when (plan.route) {
+            ChooseSingleEntityRoute.MutateTopCard ->
+                if (sa != null) {
+                    return chooseMutateTopCard(optionList, sa, title, isOptional)
+                }
+            ChooseSingleEntityRoute.ActiveReveal ->
+                if (reveal != null) {
+                    return chooseSingleEntityFromReveal(revealedCards, isOptional, sa, title, reveal)
+                }
+            ChooseSingleEntityRoute.AutoReturnFirst -> return optionList.getFirst()
+            ChooseSingleEntityRoute.Prompt -> Unit
         }
-        if (optionList.size == 1 && !isOptional) return optionList.getFirst()
-
-        val isLegendRule = sa?.api == ApiType.InternalLegendaryRule
-        val isSearch = sa?.api == ApiType.ChangeZone || hasDelayedReveal
-        val isLearn = sa?.api == ApiType.Learn
-
-        val semantic =
-            when {
-                isLegendRule -> PromptSemantic.SelectNLegendRule
-                isLearn -> PromptSemantic.LearnLesson
-                isSearch -> PromptSemantic.Search
-                else -> PromptSemantic.SelectNResolution
-            }
 
         val labels = optionList.map { it.entityLabel() }
         val request =
@@ -95,12 +103,12 @@ class TargetingCoordinator(
                 promptType = "choose_cards",
                 message = title ?: "Choose one",
                 options = labels,
-                min = if (isOptional) 0 else 1,
-                max = 1,
+                min = plan.min,
+                max = plan.max,
                 defaultIndex = 0,
-                semantic = semantic,
-                candidateRefs = buildCandidateRefs(optionList),
-                sourceEntityId = if (isLearn) sa?.hostCard?.id else null,
+                semantic = plan.semantic,
+                candidateRefs = plan.candidateRefs,
+                sourceEntityId = plan.sourceEntityId,
             )
         val indices = bridge.requestChoice(request)
         val idx = indices.firstOrNull()
@@ -112,15 +120,15 @@ class TargetingCoordinator(
             }
 
         // Search: mark chosen card so GameEventCollector emits CardSearchedToHand (Put category).
-        if (isSearch && chosen is Card) {
+        if (plan.isSearch && chosen is Card) {
             TargetingCoordinator.recordSearchedToHand(bridge, ForgeCardId(chosen.id))
             log.debug("search to hand: marked card {} (id={})", chosen.name, chosen.id)
         }
 
-        recordLearnRevealIfNeeded(isLearn, chosen)
+        recordLearnRevealIfNeeded(plan.isLearn, chosen)
 
         // Legend rule: mark all unchosen legendaries as victims for SBA_LegendRule annotation.
-        if (isLegendRule && chosen != null) {
+        if (plan.isLegendRule && chosen != null) {
             val cards = optionList.filterIsInstance<Card>()
             val victimIds = mutableListOf<ForgeCardId>()
             for (card in cards) {
