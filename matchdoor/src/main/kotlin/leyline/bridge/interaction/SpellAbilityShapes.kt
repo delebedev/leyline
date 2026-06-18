@@ -9,6 +9,12 @@ object SpellAbilityShapes {
             sa.paramTokens("DefinedCards").any(::isTriggeredCardsToken) &&
             sa.subAbilityChain().any { subAbility -> subAbility.suspectsChosenCard() }
 
+    fun isHandToLibraryReorder(sa: SpellAbility?): Boolean =
+        sa?.api == ApiType.ChangeZone &&
+            sa.hasParamValue("Origin", "Hand") &&
+            sa.hasParamValue("Destination", "Library") &&
+            sa.hasParamValue("Reorder", "True")
+
     private fun SpellAbility.suspectsChosenCard(): Boolean =
         api == ApiType.AlterAttribute &&
             !hasParamValue("Activate", "False") &&

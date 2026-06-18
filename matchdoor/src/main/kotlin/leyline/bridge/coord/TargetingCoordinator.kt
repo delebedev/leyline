@@ -10,7 +10,6 @@ import forge.game.card.CardCollectionView
 import forge.game.card.CardView
 import forge.game.player.Player
 import forge.game.player.PlayerView
-import forge.game.spellability.AlternativeCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.TargetSelectionResult
@@ -21,6 +20,8 @@ import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.interaction.ChooseCardsForEffectContext
 import leyline.bridge.interaction.ChooseCardsForEffectPlanner
+import leyline.bridge.interaction.ChooseEntitiesContext
+import leyline.bridge.interaction.ChooseEntitiesPlanner
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -213,49 +214,35 @@ class TargetingCoordinator(
         sa: SpellAbility?,
     ): List<T> {
         if (optionList.isEmpty()) return emptyList()
-        val effectiveMax = max.coerceAtMost(optionList.size)
-        val effectiveMin = min.coerceAtLeast(0).coerceAtMost(effectiveMax)
-        if (optionList.size <= effectiveMin) return optionList.toList()
         val labels = optionList.map { it.entityLabel() }
         val candidateRefs = buildCandidateRefs(optionList)
-        // Escape's "exile N other cards from your graveyard" additional cost
-        // routes through chooseCardsForZoneChange → chooseEntitiesForEffect →
-        // here. Detect by SA's alternativeCost so the prompt is classified as
-        // a non-mana cost payment (PayCostsReq) instead of a resolution-time
-        // SelectN. Mirrors the existing sacrifice cost-payment path.
-        val effectiveSemantic =
-            when {
-                sa?.alternativeCost == AlternativeCost.Escape -> PromptSemantic.SelectNCostExileFromGrave
-                isLibraryPutback(sa) -> PromptSemantic.SelectNLibraryPutback
-                else -> PromptSemantic.SelectNResolution
-            }
+        val plan =
+            ChooseEntitiesPlanner.plan(
+                ChooseEntitiesContext(
+                    sa = sa,
+                    min = min,
+                    max = max,
+                    optionCount = optionList.size,
+                    candidateRefs = candidateRefs,
+                ),
+            )
+        if (plan.autoReturnAll) return optionList.toList()
         val request =
             PromptRequest(
                 promptType = "choose_cards",
                 message = title ?: "Choose cards",
                 options = labels,
-                min = effectiveMin,
-                max = effectiveMax,
+                min = plan.effectiveMin,
+                max = plan.effectiveMax,
                 defaultIndex = 0,
-                semantic = effectiveSemantic,
-                candidateRefs = candidateRefs,
-                // Mirror candidateRefs into unfilteredRefs for look-and-pick: every
-                // revealed card is selectable, so unfiltered = candidate. The split
-                // matters for RevealChoose (Duress, filtered ⊂ revealed) but not
-                // here. RevealChoose has its own path through
-                // `chooseCardsViaBridgeForReveal` where the two sets diverge.
-                unfilteredRefs = if (effectiveSemantic == PromptSemantic.SelectNResolution) candidateRefs else emptyList(),
-                sourceEntityId = sa?.hostCard?.id,
+                semantic = plan.semantic,
+                candidateRefs = plan.candidateRefs,
+                unfilteredRefs = plan.unfilteredRefs,
+                sourceEntityId = plan.sourceEntityId,
             )
         val indices = bridge.requestChoice(request)
         return indices.filter { it in optionList.indices }.map { optionList.get(it) }
     }
-
-    private fun isLibraryPutback(sa: SpellAbility?): Boolean =
-        sa?.api == ApiType.ChangeZone &&
-            sa.hasParamValue("Origin", "Hand") &&
-            sa.hasParamValue("Destination", "Library") &&
-            sa.hasParamValue("Reorder", "True")
 
     private fun SpellAbility.hasParamValue(
         name: String,

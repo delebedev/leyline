@@ -10,11 +10,13 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PromptSemantic
 
 class ChooseCardsForEffectPlannerTest :
     FunSpec({
         tags(UnitTag)
+        beforeSpec { GameBootstrap.initializeCardDatabase(quiet = true) }
 
         test("renamed host with ChooseCard TriggeredCards and ChosenCard suspect subability plans SuspectChoice") {
             val sa = suspectChoiceSa(hostName = "Different Card Name")
