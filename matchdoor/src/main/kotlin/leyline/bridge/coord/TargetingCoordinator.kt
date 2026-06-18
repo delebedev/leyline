@@ -19,6 +19,8 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.interaction.ChooseCardsForEffectContext
+import leyline.bridge.interaction.ChooseCardsForEffectPlanner
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -270,34 +272,24 @@ class TargetingCoordinator(
     ): CardCollectionView {
         if (sourceList.isEmpty()) return CardCollection()
         val reveal = bridge.journal.activeReveal()
-        if (reveal != null) {
+        val plan = ChooseCardsForEffectPlanner.plan(ChooseCardsForEffectContext(sa, activeReveal = reveal != null))
+        if (plan.semantic == PromptSemantic.RevealChoose && reveal != null) {
             val effectiveMin = if (isOptional) 0 else min
             return chooseCardsViaBridgeForReveal(sourceList, effectiveMin, max, sa, reveal)
         }
-        val semantic = chooseCardsForEffectSemantic(sa)
-        val forcePrompt = semantic == PromptSemantic.SuspectChoice
-        if (!forcePrompt && !isOptional && sourceList.size <= min) return sourceList
+        if (plan.autoResolveSingleMandatory && !isOptional && sourceList.size <= min) return sourceList
         val effectiveMin = if (isOptional) 0 else min
         return chooseCardsViaBridge(
             sourceList,
             effectiveMin,
             max,
             title ?: "Choose cards",
-            semantic = semantic,
-            candidateRefs = if (forcePrompt) buildCandidateRefs(sourceList) else emptyList(),
-            sourceEntityId = if (forcePrompt) sa?.hostCard?.id else null,
-            forcePrompt = forcePrompt,
+            semantic = plan.semantic,
+            candidateRefs = if (plan.includeCandidateRefs) buildCandidateRefs(sourceList) else emptyList(),
+            sourceEntityId = if (plan.includeSourceEntityId) sa?.hostCard?.id else null,
+            forcePrompt = plan.forcePrompt,
         )
     }
-
-    private fun chooseCardsForEffectSemantic(sa: SpellAbility?): PromptSemantic =
-        if (isFranticScapegoatSuspectChoice(sa)) PromptSemantic.SuspectChoice else PromptSemantic.Generic
-
-    private fun isFranticScapegoatSuspectChoice(sa: SpellAbility?): Boolean =
-        sa?.api == ApiType.ChooseCard &&
-            sa.hostCard?.name == "Frantic Scapegoat" &&
-            sa.hasParamValue("DefinedCards", "TriggeredCards") &&
-            sa.hasParamValue("SubAbility", "SuspectOther")
 
     fun chooseCardsToRevealFromHand(
         min: Int,
