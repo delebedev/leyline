@@ -10,7 +10,6 @@ import forge.game.card.CardCollectionView
 import forge.game.card.CardView
 import forge.game.player.Player
 import forge.game.player.PlayerView
-import forge.game.spellability.AlternativeCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.TargetSelectionResult
@@ -19,6 +18,18 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.interaction.ChooseCardsForEffectContext
+import leyline.bridge.interaction.ChooseCardsForEffectPlanner
+import leyline.bridge.interaction.ChooseEntitiesContext
+import leyline.bridge.interaction.ChooseEntitiesPlanner
+import leyline.bridge.interaction.ChooseSingleEntityContext
+import leyline.bridge.interaction.ChooseSingleEntityPlanner
+import leyline.bridge.interaction.ChooseSingleEntityRoutePolicy
+import leyline.bridge.interaction.candidateRefs
+import leyline.bridge.interaction.shouldAutoResolve
+import leyline.bridge.interaction.shouldReturnAll
+import leyline.bridge.interaction.sourceEntityId
+import leyline.bridge.interaction.unfilteredRefs
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -64,27 +75,31 @@ class TargetingCoordinator(
         hasDelayedReveal: Boolean,
     ): T? {
         if (optionList.isEmpty()) return null
-        if (sa?.isMutate == true) {
-            return chooseMutateTopCard(optionList, sa, title, isOptional)
-        }
         val reveal = bridge.journal.activeReveal()
         val revealedCards = optionList.filterIsInstance<Card>()
-        if (reveal != null && revealedCards.size == optionList.size) {
-            return chooseSingleEntityFromReveal(revealedCards, isOptional, sa, title, reveal)
+        val plan =
+            ChooseSingleEntityPlanner.plan(
+                ChooseSingleEntityContext(
+                    sa = sa,
+                    isOptional = isOptional,
+                    hasDelayedReveal = hasDelayedReveal,
+                    optionCount = optionList.size,
+                    allOptionsAreCards = revealedCards.size == optionList.size,
+                    activeReveal = reveal != null,
+                ),
+            )
+        when (plan.routePolicy) {
+            ChooseSingleEntityRoutePolicy.MutateTopCard ->
+                if (sa != null) {
+                    return chooseMutateTopCard(optionList, sa, title, isOptional)
+                }
+            ChooseSingleEntityRoutePolicy.ActiveReveal ->
+                if (reveal != null) {
+                    return chooseSingleEntityFromReveal(revealedCards, isOptional, sa, title, reveal)
+                }
+            ChooseSingleEntityRoutePolicy.AutoReturnFirst -> return optionList.getFirst()
+            ChooseSingleEntityRoutePolicy.Prompt -> Unit
         }
-        if (optionList.size == 1 && !isOptional) return optionList.getFirst()
-
-        val isLegendRule = sa?.api == ApiType.InternalLegendaryRule
-        val isSearch = sa?.api == ApiType.ChangeZone || hasDelayedReveal
-        val isLearn = sa?.api == ApiType.Learn
-
-        val semantic =
-            when {
-                isLegendRule -> PromptSemantic.SelectNLegendRule
-                isLearn -> PromptSemantic.LearnLesson
-                isSearch -> PromptSemantic.Search
-                else -> PromptSemantic.SelectNResolution
-            }
 
         val labels = optionList.map { it.entityLabel() }
         val request =
@@ -92,12 +107,12 @@ class TargetingCoordinator(
                 promptType = "choose_cards",
                 message = title ?: "Choose one",
                 options = labels,
-                min = if (isOptional) 0 else 1,
-                max = 1,
+                min = plan.min,
+                max = plan.max,
                 defaultIndex = 0,
-                semantic = semantic,
-                candidateRefs = buildCandidateRefs(optionList),
-                sourceEntityId = if (isLearn) sa?.hostCard?.id else null,
+                semantic = plan.semantic,
+                candidateRefs = plan.candidateRefsPolicy.candidateRefs(buildCandidateRefs(optionList)),
+                sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
             )
         val indices = bridge.requestChoice(request)
         val idx = indices.firstOrNull()
@@ -109,15 +124,15 @@ class TargetingCoordinator(
             }
 
         // Search: mark chosen card so GameEventCollector emits CardSearchedToHand (Put category).
-        if (isSearch && chosen is Card) {
+        if (plan.isSearch && chosen is Card) {
             TargetingCoordinator.recordSearchedToHand(bridge, ForgeCardId(chosen.id))
             log.debug("search to hand: marked card {} (id={})", chosen.name, chosen.id)
         }
 
-        recordLearnRevealIfNeeded(isLearn, chosen)
+        recordLearnRevealIfNeeded(plan.isLearn, chosen)
 
         // Legend rule: mark all unchosen legendaries as victims for SBA_LegendRule annotation.
-        if (isLegendRule && chosen != null) {
+        if (plan.isLegendRule && chosen != null) {
             val cards = optionList.filterIsInstance<Card>()
             val victimIds = mutableListOf<ForgeCardId>()
             for (card in cards) {
@@ -211,49 +226,34 @@ class TargetingCoordinator(
         sa: SpellAbility?,
     ): List<T> {
         if (optionList.isEmpty()) return emptyList()
-        val effectiveMax = max.coerceAtMost(optionList.size)
-        val effectiveMin = min.coerceAtLeast(0).coerceAtMost(effectiveMax)
-        if (optionList.size <= effectiveMin) return optionList.toList()
         val labels = optionList.map { it.entityLabel() }
         val candidateRefs = buildCandidateRefs(optionList)
-        // Escape's "exile N other cards from your graveyard" additional cost
-        // routes through chooseCardsForZoneChange → chooseEntitiesForEffect →
-        // here. Detect by SA's alternativeCost so the prompt is classified as
-        // a non-mana cost payment (PayCostsReq) instead of a resolution-time
-        // SelectN. Mirrors the existing sacrifice cost-payment path.
-        val effectiveSemantic =
-            when {
-                sa?.alternativeCost == AlternativeCost.Escape -> PromptSemantic.SelectNCostExileFromGrave
-                isLibraryPutback(sa) -> PromptSemantic.SelectNLibraryPutback
-                else -> PromptSemantic.SelectNResolution
-            }
+        val plan =
+            ChooseEntitiesPlanner.plan(
+                ChooseEntitiesContext(
+                    sa = sa,
+                    min = min,
+                    max = max,
+                    optionCount = optionList.size,
+                ),
+            )
+        if (plan.autoReturnPolicy.shouldReturnAll) return optionList.toList()
         val request =
             PromptRequest(
                 promptType = "choose_cards",
                 message = title ?: "Choose cards",
                 options = labels,
-                min = effectiveMin,
-                max = effectiveMax,
+                min = plan.effectiveMin,
+                max = plan.effectiveMax,
                 defaultIndex = 0,
-                semantic = effectiveSemantic,
-                candidateRefs = candidateRefs,
-                // Mirror candidateRefs into unfilteredRefs for look-and-pick: every
-                // revealed card is selectable, so unfiltered = candidate. The split
-                // matters for RevealChoose (Duress, filtered ⊂ revealed) but not
-                // here. RevealChoose has its own path through
-                // `chooseCardsViaBridgeForReveal` where the two sets diverge.
-                unfilteredRefs = if (effectiveSemantic == PromptSemantic.SelectNResolution) candidateRefs else emptyList(),
-                sourceEntityId = sa?.hostCard?.id,
+                semantic = plan.semantic,
+                candidateRefs = plan.candidateRefsPolicy.candidateRefs(candidateRefs),
+                unfilteredRefs = plan.candidateRefsPolicy.unfilteredRefs(candidateRefs, plan.semantic),
+                sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
             )
         val indices = bridge.requestChoice(request)
         return indices.filter { it in optionList.indices }.map { optionList.get(it) }
     }
-
-    private fun isLibraryPutback(sa: SpellAbility?): Boolean =
-        sa?.api == ApiType.ChangeZone &&
-            sa.hasParamValue("Origin", "Hand") &&
-            sa.hasParamValue("Destination", "Library") &&
-            sa.hasParamValue("Reorder", "True")
 
     private fun SpellAbility.hasParamValue(
         name: String,
@@ -270,34 +270,24 @@ class TargetingCoordinator(
     ): CardCollectionView {
         if (sourceList.isEmpty()) return CardCollection()
         val reveal = bridge.journal.activeReveal()
-        if (reveal != null) {
+        val plan = ChooseCardsForEffectPlanner.plan(ChooseCardsForEffectContext(sa, activeReveal = reveal != null))
+        if (plan.semantic == PromptSemantic.RevealChoose && reveal != null) {
             val effectiveMin = if (isOptional) 0 else min
             return chooseCardsViaBridgeForReveal(sourceList, effectiveMin, max, sa, reveal)
         }
-        val semantic = chooseCardsForEffectSemantic(sa)
-        val forcePrompt = semantic == PromptSemantic.SuspectChoice
-        if (!forcePrompt && !isOptional && sourceList.size <= min) return sourceList
+        if (plan.mandatoryChoicePolicy.shouldAutoResolve(isOptional, sourceList.size, min)) return sourceList
         val effectiveMin = if (isOptional) 0 else min
         return chooseCardsViaBridge(
             sourceList,
             effectiveMin,
             max,
             title ?: "Choose cards",
-            semantic = semantic,
-            candidateRefs = if (forcePrompt) buildCandidateRefs(sourceList) else emptyList(),
-            sourceEntityId = if (forcePrompt) sa?.hostCard?.id else null,
-            forcePrompt = forcePrompt,
+            semantic = plan.semantic,
+            candidateRefs = plan.candidateRefsPolicy.candidateRefs(buildCandidateRefs(sourceList)),
+            sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
+            forcePrompt = plan.forcePrompt,
         )
     }
-
-    private fun chooseCardsForEffectSemantic(sa: SpellAbility?): PromptSemantic =
-        if (isFranticScapegoatSuspectChoice(sa)) PromptSemantic.SuspectChoice else PromptSemantic.Generic
-
-    private fun isFranticScapegoatSuspectChoice(sa: SpellAbility?): Boolean =
-        sa?.api == ApiType.ChooseCard &&
-            sa.hostCard?.name == "Frantic Scapegoat" &&
-            sa.hasParamValue("DefinedCards", "TriggeredCards") &&
-            sa.hasParamValue("SubAbility", "SuspectOther")
 
     fun chooseCardsToRevealFromHand(
         min: Int,

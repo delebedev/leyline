@@ -15,8 +15,12 @@ import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OptionalActionGate
 import leyline.bridge.handoff.PromptRequest
-import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.interaction.ConvokeOrImproviseCostPlan
+import leyline.bridge.interaction.ConvokeOrImproviseCostPlanner
+import leyline.bridge.interaction.candidateRefs
+import leyline.bridge.interaction.shouldInclude
+import leyline.bridge.interaction.shouldRecord
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import org.slf4j.LoggerFactory
@@ -63,9 +67,14 @@ class CostPaymentCoordinator(
         val options = untappedCards.map { it.name }
         if (options.isEmpty()) return emptyMap()
 
-        val isWaterbend = artifacts && creatures
-        val isConvoke = creatures && !artifacts
-        val request = buildConvokeOrImproviseRequest(sa, manaCost, untappedCards, options, maxReduction, artifacts, isWaterbend, isConvoke)
+        val plan =
+            ConvokeOrImproviseCostPlanner.plan(
+                optionCount = options.size,
+                maxReduction = maxReduction,
+                artifacts = artifacts,
+                creatures = creatures,
+            )
+        val request = buildConvokeOrImproviseRequest(sa, manaCost, untappedCards, options, plan)
         val indices = bridge.requestChoice(request)
         if (indices.isEmpty()) return emptyMap()
 
@@ -81,7 +90,7 @@ class CostPaymentCoordinator(
                     .assign(selectedCards, ConvokeShardAssigner.costCounts(manaCost)) { it.color }
                     .toMap()
             }
-        if (isConvoke) recordConvokePayments(sa, result)
+        if (plan.convokePaymentRecordPolicy.shouldRecord) recordConvokePayments(sa, result)
         return result
     }
 
@@ -90,45 +99,27 @@ class CostPaymentCoordinator(
         manaCost: ManaCost,
         untappedCards: CardCollectionView,
         options: List<String>,
-        maxReduction: Int?,
-        artifacts: Boolean,
-        isWaterbend: Boolean,
-        isConvoke: Boolean,
-    ): PromptRequest {
-        val keyword =
-            when {
-                isWaterbend -> "waterbend"
-                artifacts -> "improvise"
-                else -> "convoke"
-            }
-        val isNativeManaSource = isWaterbend || isConvoke
-        return PromptRequest(
+        plan: ConvokeOrImproviseCostPlan,
+    ): PromptRequest =
+        PromptRequest(
             promptType = "choose_cards",
-            message = "Choose cards to tap for $keyword",
+            message = "Choose cards to tap for ${plan.keyword}",
             options = options,
             min = 0,
-            max = options.size.coerceAtMost(maxReduction ?: options.size),
+            max = plan.maxSelection,
             defaultIndex = 0,
-            semantic =
-                when {
-                    isWaterbend -> PromptSemantic.WaterbendCost
-                    isConvoke -> PromptSemantic.ConvokeCost
-                    else -> PromptSemantic.Generic
-                },
-            candidateRefs =
-                if (isNativeManaSource) {
-                    untappedCards.mapIndexed { index, card ->
-                        PromptCandidateRefDto(index = index, kind = "card", entityId = card.id, zone = card.zone?.zoneType?.name)
-                    }
-                } else {
-                    emptyList()
-                },
+            semantic = plan.semantic,
+            candidateRefs = plan.candidateRefsPolicy.candidateRefs(buildCandidateRefs(untappedCards)),
             sourceEntityId = sa.hostCard?.id,
             sourceCardName = sa.hostCard?.name,
-            waterbendManaCost = if (isNativeManaSource) manaCost.toColorCounts() else emptyList(),
-            waterbendCostString = if (isNativeManaSource) manaCost.toArenaCostString() else null,
+            waterbendManaCost = if (plan.manaFieldsPolicy.shouldInclude) manaCost.toColorCounts() else emptyList(),
+            waterbendCostString = if (plan.manaFieldsPolicy.shouldInclude) manaCost.toArenaCostString() else null,
         )
-    }
+
+    private fun buildCandidateRefs(cards: CardCollectionView): List<PromptCandidateRefDto> =
+        cards.mapIndexed { index, card ->
+            PromptCandidateRefDto(index = index, kind = "card", entityId = card.id, zone = card.zone?.zoneType?.name)
+        }
 
     private fun recordConvokePayments(
         sa: SpellAbility,

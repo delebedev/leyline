@@ -20,6 +20,8 @@ bridge/             Forge adapter — the thread/process frontier with Forge.
   coord/            Engine-thread orchestration split off from PlayerController
                     (PriorityLoopCoordinator, GameLoopController, GameLoopPoller,
                     CostPaymentCoordinator, TargetingCoordinator, SpellExecutor).
+  interaction/      Callback-specific prompt planners and Forge SpellAbility
+                    shape helpers before PromptRequest construction.
   bootstrap/        Match + deck setup (GameBootstrap, DeckLoader, DeckConverter,
                     FormatService).
   types/            Pure-data shared types (Ids, PriorityDecision, PrioritySignal,

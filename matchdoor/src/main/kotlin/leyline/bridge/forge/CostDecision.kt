@@ -22,6 +22,8 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.interaction.CostCardSelectionPlan
+import leyline.bridge.interaction.CostDecisionPlanner
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import org.slf4j.LoggerFactory
@@ -109,6 +111,25 @@ class CostDecision(
         }
         return if (selected.size >= min) selected else null
     }
+
+    private fun selectCardsWithPlan(
+        message: String,
+        cards: CardCollectionView,
+        min: Int,
+        max: Int,
+        cancelAllowed: Boolean = true,
+        plan: CostCardSelectionPlan,
+    ): CardCollection? =
+        selectCards(
+            message,
+            cards,
+            min,
+            max,
+            cancelAllowed,
+            plan.semantic,
+            plan.costSelectionWeights,
+            plan.minSelectionWeight,
+        )
 
     private fun discardAmount(
         cost: CostDiscard,
@@ -378,16 +399,15 @@ class CostDecision(
             )
         val total = AbilityUtils.calculateAmount(source, cost.amount, ability)
         bridge.journal.record(PromptSideEffect.CollectEvidenceCost(ForgeCardId(source.id), total))
+        val plan = CostDecisionPlanner.collectEvidence(total, list.map { it.getCMC() })
         val selected =
-            selectCards(
+            selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblCollectEvidence", total),
                 list,
                 0,
                 list.size,
                 cancelAllowed = true,
-                semantic = PromptSemantic.SelectNCostCollectEvidence,
-                costSelectionWeights = list.map { it.getCMC().coerceAtLeast(0) },
-                minSelectionWeight = total,
+                plan = plan,
             ) ?: run {
                 bridge.journal.clearCollectEvidenceCost()
                 return null
@@ -480,13 +500,13 @@ class CostDecision(
         hand = CardLists.getValidCards(hand, validType, player, source, ability)
         if (hand.size < 1) return null
         val selected =
-            selectCards(
+            selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblSelectNMoreTargetTypeCardToDiscard", "%d", cost.descriptiveType),
                 hand,
                 c,
                 c,
                 cancelAllowed = !mandatory,
-                semantic = PromptSemantic.SelectNDiscard,
+                plan = CostDecisionPlanner.typedDiscard(),
             ) ?: return null
         if (selected.size != c) return null
         return PaymentDecision.card(selected)
@@ -754,27 +774,15 @@ class CostDecision(
     override fun visit(cost: CostEnlist): PaymentDecision? {
         val list = CostEnlist.getCardsForEnlisting(player)
         if (list.isEmpty()) return null
-        val refs =
-            list.mapIndexed { idx, card ->
-                PromptCandidateRefDto(idx, "card", card.id, card.zone?.zoneType?.name)
-            }
-        val request =
-            PromptRequest(
-                promptType = "choose_cards",
-                message = Localizer.getInstance().getMessage("lblSelectACostToEnlist", cost.descriptiveType, "%d"),
-                options = list.map { it.name },
-                min = 1,
-                max = 1,
-                candidateRefs = refs,
-                semantic = PromptSemantic.EnlistCost,
-                sourceEntityId = source.id,
-            )
-        val indices = bridge.requestChoice(request)
-        if (indices.isEmpty()) return null
-        val selected = CardCollection()
-        for (idx in indices) {
-            if (idx in 0 until list.size) selected.add(list[idx])
-        }
+        val selected =
+            selectCardsWithPlan(
+                Localizer.getInstance().getMessage("lblSelectACostToEnlist", cost.descriptiveType, "%d"),
+                list,
+                1,
+                1,
+                cancelAllowed = true,
+                plan = CostDecisionPlanner.enlist(),
+            ) ?: return null
         if (selected.isEmpty()) return null
         bridge.journal.record(
             PromptSideEffect.EnlistTapAffector(
@@ -799,13 +807,13 @@ class CostDecision(
             )
         if (!food.isEmpty() && confirmAction("Sacrifice Food")) {
             val selected =
-                selectCards(
+                selectCardsWithPlan(
                     Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", "Food", "%d"),
                     food,
                     1,
                     1,
                     cancelAllowed = !mandatory,
-                    semantic = PromptSemantic.SelectNCostSacrifice,
+                    plan = CostDecisionPlanner.sacrifice(),
                 ) ?: return null
             return PaymentDecision.card(selected)
         }
@@ -915,25 +923,16 @@ class CostDecision(
             )
         if (validCards.size < c) return null
         val selected =
-            selectCards(
+            selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblNTypeCardsToHand", "%d", cost.descriptiveType),
                 validCards,
                 c,
                 c,
                 cancelAllowed = !mandatory,
-                semantic = returnCostSemantic(cost),
+                plan = CostDecisionPlanner.returnCost(cost.type, cost.descriptiveType),
             ) ?: return null
         return PaymentDecision.card(selected)
     }
-
-    private fun returnCostSemantic(cost: CostReturn): PromptSemantic =
-        if (cost.type.contains("attacking+unblocked") ||
-            cost.descriptiveType.contains("unblocked attacker", ignoreCase = true)
-        ) {
-            PromptSemantic.ReturnUnblockedAttackerCost
-        } else {
-            PromptSemantic.Generic
-        }
 
     override fun visit(cost: CostReveal): PaymentDecision? {
         if (cost.payCostFromSource()) return PaymentDecision.card(source)
@@ -1248,13 +1247,13 @@ class CostDecision(
             val chosen = CardCollection()
             while (c > 0) {
                 val selected =
-                    selectCards(
+                    selectCardsWithPlan(
                         Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", cost.descriptiveType, c),
                         list,
                         1,
                         1,
                         cancelAllowed = true,
-                        semantic = PromptSemantic.SelectNCostSacrifice,
+                        plan = CostDecisionPlanner.sacrifice(),
                     ) ?: return null
                 val first = selected.first()
                 chosen.add(first)
@@ -1266,13 +1265,13 @@ class CostDecision(
 
         if (list.size < c) return null
         val selected =
-            selectCards(
+            selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", cost.descriptiveType, "%d"),
                 list,
                 c,
                 c,
                 cancelAllowed = !mandatory,
-                semantic = PromptSemantic.SelectNCostSacrifice,
+                plan = CostDecisionPlanner.sacrifice(),
             ) ?: return null
         return PaymentDecision.card(selected)
     }
@@ -1366,13 +1365,13 @@ class CostDecision(
         }
 
         val selected =
-            selectCards(
+            selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblSelectATargetToTap", cost.descriptiveType, "%d"),
                 typeList,
                 c ?: 1,
                 c ?: typeList.size,
                 cancelAllowed = !mandatory,
-                semantic = if (ability.isKeyword(Keyword.STATION)) PromptSemantic.StationTapCost else PromptSemantic.Generic,
+                plan = CostDecisionPlanner.tapType(ability.isKeyword(Keyword.STATION)),
             ) ?: return null
         return PaymentDecision.card(selected)
     }
