@@ -33,6 +33,7 @@ internal fun GREToClientMessage.isPromptMessage(): Boolean =
         hasOptionalActionMessage() ||
         hasOrderReq() ||
         hasPayCostsReq() ||
+        hasSearchReq() ||
         hasSelectNReq() ||
         hasSelectTargetsReq()
 
@@ -45,6 +46,7 @@ internal fun GREToClientMessage.promptName(): String =
         hasOptionalActionMessage() -> "OptionalActionMessage"
         hasOrderReq() -> "OrderReq"
         hasPayCostsReq() -> "PayCostsReq"
+        hasSearchReq() -> "SearchReq"
         hasSelectNReq() -> "SelectNReq"
         hasSelectTargetsReq() -> "SelectTargetsReq"
         else -> "UnknownPrompt"
@@ -62,6 +64,7 @@ internal fun GREToClientMessage.matchesPrompt(
         "OptionalActionMessage" -> hasOptionalActionMessage()
         "OrderReq" -> hasOrderReq()
         "PayCostsReq" -> hasPayCostsReq()
+        "SearchReq" -> hasSearchReq()
         "SelectNReq" -> hasSelectNReq()
         "SelectTargetsReq" -> hasSelectTargetsReq()
         else -> error("unknown prompt condition: $prompt")

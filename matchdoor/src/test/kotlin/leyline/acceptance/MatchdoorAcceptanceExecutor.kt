@@ -65,6 +65,7 @@ class MatchdoorAcceptanceExecutor(
             is SelectCostStep -> selectCost(harness, step)
             is SelectCardStep -> selectCard(harness, step, context)
             is SelectCardsStep -> selectCards(harness, step, context)
+            is SearchCardsStep -> searchCards(harness, step, context)
             is OrderCardsStep -> orderCards(harness, step, context)
             is BlockStep -> block(harness, step, context)
             is AttackStep -> attack(harness, step, context)
@@ -129,6 +130,24 @@ class MatchdoorAcceptanceExecutor(
             }
         }
         harness.respondToSelectN(selectedIds)
+    }
+
+    private fun searchCards(
+        harness: MatchFlowHarness,
+        step: SearchCardsStep,
+        context: String,
+    ) {
+        val prompt = latestPromptMessage(harness)
+        require(prompt?.hasSearchReq() == true) {
+            "$context expected latest prompt SearchReq"
+        }
+        val selectedIds = step.cards.map { resolveCardInZone(harness, step.side, AcceptanceZone.Library, it) }
+        selectedIds.zip(step.cards).forEach { (selectedId, card) ->
+            require(selectedId in prompt.searchReq.itemsSoughtList) {
+                "$context selected $card iid=$selectedId is not in SearchReq candidates ${prompt.searchReq.itemsSoughtList}"
+            }
+        }
+        harness.respondToSearch(selectedIds)
     }
 
     private fun orderCards(

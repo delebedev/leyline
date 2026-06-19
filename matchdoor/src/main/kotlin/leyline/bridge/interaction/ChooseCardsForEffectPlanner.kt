@@ -1,10 +1,12 @@
 package leyline.bridge.interaction
 
+import forge.game.ability.ApiType
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.PromptSemantic
 
 data class ChooseCardsForEffectContext(
     val sa: SpellAbility?,
+    val hiddenLibrarySelection: Boolean,
     val activeReveal: Boolean,
 )
 
@@ -33,6 +35,20 @@ object ChooseCardsForEffectPlanner {
                     candidateRefsPolicy = CandidateRefsPolicy.Selectable,
                     sourceIdPolicy = SourceIdPolicy.HostCard,
                     mandatoryChoicePolicy = MandatoryChoicePolicy.PromptWhenSatisfied,
+                )
+
+            context.sa?.api == ApiType.ChangeZone && context.hiddenLibrarySelection ->
+                ChooseCardsForEffectPlan(
+                    semantic = PromptSemantic.Search,
+                    candidateRefsPolicy = CandidateRefsPolicy.Selectable,
+                    sourceIdPolicy = SourceIdPolicy.HostCard,
+                )
+
+            context.sa?.api == ApiType.ChangeZone ->
+                ChooseCardsForEffectPlan(
+                    semantic = PromptSemantic.SelectNResolution,
+                    candidateRefsPolicy = CandidateRefsPolicy.SelectableAndUnfilteredForResolution,
+                    sourceIdPolicy = SourceIdPolicy.HostCard,
                 )
 
             else -> ChooseCardsForEffectPlan(semantic = PromptSemantic.Generic)

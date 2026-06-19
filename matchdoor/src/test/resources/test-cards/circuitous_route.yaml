@@ -1,0 +1,8 @@
+name: "Circuitous Route"
+grpId: 94063
+titleId: 272855
+abilities:
+  - id: 121356
+    textId: 516774
+    category: 4
+expansionCode: "FDN"

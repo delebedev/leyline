@@ -54,6 +54,21 @@ class ChooseEntitiesPlannerTest :
             }
         }
 
+        test("ChangeZone uses Search only for hidden library selections") {
+            assertSoftly {
+                planFor(changeZoneSa(), hiddenLibrarySelection = true).let { plan ->
+                    plan.semantic shouldBe PromptSemantic.Search
+                    plan.candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
+                    plan.candidateRefsPolicy.unfilteredRefs(refs, plan.semantic).shouldBeEmpty()
+                }
+                planFor(changeZoneSa(), hiddenLibrarySelection = false).let { plan ->
+                    plan.semantic shouldBe PromptSemantic.SelectNResolution
+                    plan.candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
+                    plan.candidateRefsPolicy.unfilteredRefs(refs, plan.semantic) shouldBe refs
+                }
+            }
+        }
+
         test("only resolution prompts mirror candidate refs into unfiltered refs") {
             assertSoftly {
                 planFor(genericSa()).let { it.candidateRefsPolicy.unfilteredRefs(refs, it.semantic) } shouldBe refs
@@ -70,6 +85,7 @@ class ChooseEntitiesPlannerTest :
                         min = 2,
                         max = 4,
                         optionCount = 2,
+                        hiddenLibrarySelection = false,
                     ),
                 )
 
@@ -89,13 +105,17 @@ private val refs =
         PromptCandidateRefDto(index = 2, kind = "card", entityId = 12, zone = "Hand"),
     )
 
-private fun planFor(sa: SpellAbility): ChooseEntitiesPlan =
+private fun planFor(
+    sa: SpellAbility,
+    hiddenLibrarySelection: Boolean = false,
+): ChooseEntitiesPlan =
     ChooseEntitiesPlanner.plan(
         ChooseEntitiesContext(
             sa = sa,
             min = 1,
             max = 2,
             optionCount = refs.size,
+            hiddenLibrarySelection = hiddenLibrarySelection,
         ),
     )
 
@@ -113,6 +133,8 @@ private fun handToLibraryReorderSa(): SpellAbility =
     )
 
 private fun genericSa(): SpellAbility = abilitySub(api = ApiType.ChooseCard)
+
+private fun changeZoneSa(): SpellAbility = abilitySub(api = ApiType.ChangeZone)
 
 private fun abilitySub(
     api: ApiType,

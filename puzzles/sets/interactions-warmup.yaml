@@ -1,6 +1,40 @@
 name: interactions-warmup
 description: Activated ability and simple zone movement protocol smoke.
 scenarios:
+  - id: circuitous-route-library-search
+    puzzle: circuitous-route-library-search
+    run: cast Circuitous Route, choose two library lands, and finish resolving
+    expect: hidden library land selection uses SearchReq and completes after choosing two cards
+    steps:
+      - expect:
+          action: { type: cast, card: Circuitous Route }
+      - cast: Circuitous Route
+      - pass_until:
+          prompt: { type: SearchReq }
+      - search_cards: { side: ours, cards: [Forest, Island] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Forest }
+            - zone_contains: { side: ours, zone: battlefield, card: Island }
+            - stack_empty: true
+  - id: kami-hand-land-select
+    puzzle: kami-hand-land-select
+    run: cast Kami of Bamboo Groves and put a land from hand onto the battlefield
+    expect: known hand land selection uses SelectNReq
+    steps:
+      - expect:
+          action: { type: cast, card: Kami of Bamboo Groves }
+      - cast: Kami of Bamboo Groves
+      - resolve_stack: {}
+      - optional_action: { accept: true }
+      - expect:
+          prompt: { type: SelectNReq }
+      - select_card: { side: ours, zone: hand, card: Island }
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Island }
+            - stack_empty: true
   - id: activated-ability
     puzzle: activated-ability
     run: activate Goblin Fireslinger

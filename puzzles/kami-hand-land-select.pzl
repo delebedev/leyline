@@ -1,0 +1,17 @@
+[metadata]
+Name:Kami Hand Land Select
+Goal:Win
+Turns:2
+Difficulty:Easy
+Description:Cast Kami of Bamboo Groves and choose a known land from hand.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Kami of Bamboo Groves;Island
+humanbattlefield=Forest
+humanlibrary=Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain

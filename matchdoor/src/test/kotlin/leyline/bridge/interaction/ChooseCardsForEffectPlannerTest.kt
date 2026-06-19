@@ -23,7 +23,7 @@ class ChooseCardsForEffectPlannerTest :
 
             SpellAbilityShapes.isSuspectChoice(sa).shouldBeTrue()
 
-            val plan = ChooseCardsForEffectPlanner.plan(ChooseCardsForEffectContext(sa, activeReveal = false))
+            val plan = ChooseCardsForEffectPlanner.plan(context(sa))
             assertSoftly(plan) {
                 semantic shouldBe PromptSemantic.SuspectChoice
                 forcePrompt.shouldBeTrue()
@@ -42,7 +42,7 @@ class ChooseCardsForEffectPlannerTest :
 
             SpellAbilityShapes.isSuspectChoice(sa).shouldBeTrue()
             ChooseCardsForEffectPlanner
-                .plan(ChooseCardsForEffectContext(sa, activeReveal = false))
+                .plan(context(sa))
                 .semantic shouldBe PromptSemantic.SuspectChoice
         }
 
@@ -55,7 +55,7 @@ class ChooseCardsForEffectPlannerTest :
 
             SpellAbilityShapes.isSuspectChoice(sa).shouldBeTrue()
             ChooseCardsForEffectPlanner
-                .plan(ChooseCardsForEffectContext(sa, activeReveal = false))
+                .plan(context(sa))
                 .semantic shouldBe PromptSemantic.SuspectChoice
         }
 
@@ -67,7 +67,7 @@ class ChooseCardsForEffectPlannerTest :
 
             SpellAbilityShapes.isSuspectChoice(sa).shouldBeFalse()
 
-            val plan = ChooseCardsForEffectPlanner.plan(ChooseCardsForEffectContext(sa, activeReveal = false))
+            val plan = ChooseCardsForEffectPlanner.plan(context(sa))
             plan.semantic shouldBe PromptSemantic.Generic
             plan.mandatoryChoicePolicy shouldBe MandatoryChoicePolicy.AutoResolveWhenSatisfied
         }
@@ -77,7 +77,7 @@ class ChooseCardsForEffectPlannerTest :
 
             SpellAbilityShapes.isSuspectChoice(sa).shouldBeFalse()
 
-            val plan = ChooseCardsForEffectPlanner.plan(ChooseCardsForEffectContext(sa, activeReveal = false))
+            val plan = ChooseCardsForEffectPlanner.plan(context(sa))
             plan.semantic shouldBe PromptSemantic.Generic
             plan.forcePrompt.shouldBeFalse()
         }
@@ -90,7 +90,7 @@ class ChooseCardsForEffectPlannerTest :
 
             SpellAbilityShapes.isSuspectChoice(sa).shouldBeFalse()
             ChooseCardsForEffectPlanner
-                .plan(ChooseCardsForEffectContext(sa, activeReveal = false))
+                .plan(context(sa))
                 .semantic shouldBe PromptSemantic.Generic
         }
 
@@ -105,12 +105,12 @@ class ChooseCardsForEffectPlannerTest :
 
             SpellAbilityShapes.isSuspectChoice(sa).shouldBeFalse()
             ChooseCardsForEffectPlanner
-                .plan(ChooseCardsForEffectContext(sa, activeReveal = false))
+                .plan(context(sa))
                 .semantic shouldBe PromptSemantic.Generic
         }
 
         test("generic chooseCardsForEffect plan preserves mandatory single-choice auto-resolve") {
-            val plan = ChooseCardsForEffectPlanner.plan(ChooseCardsForEffectContext(sa = null, activeReveal = false))
+            val plan = ChooseCardsForEffectPlanner.plan(context(sa = null))
 
             assertSoftly(plan) {
                 semantic shouldBe PromptSemantic.Generic
@@ -120,7 +120,28 @@ class ChooseCardsForEffectPlannerTest :
                 mandatoryChoicePolicy shouldBe MandatoryChoicePolicy.AutoResolveWhenSatisfied
             }
         }
+
+        test("ChangeZone cards-for-effect uses Search only for hidden library selections") {
+            assertSoftly {
+                ChooseCardsForEffectPlanner.plan(context(changeZoneSa(), hiddenLibrarySelection = true)).let { plan ->
+                    plan.semantic shouldBe PromptSemantic.Search
+                    plan.candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
+                    plan.sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+                }
+                ChooseCardsForEffectPlanner.plan(context(changeZoneSa(), hiddenLibrarySelection = false)).let { plan ->
+                    plan.semantic shouldBe PromptSemantic.SelectNResolution
+                    plan.candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
+                    plan.sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+                }
+            }
+        }
     })
+
+private fun context(
+    sa: SpellAbility?,
+    hiddenLibrarySelection: Boolean = false,
+    activeReveal: Boolean = false,
+): ChooseCardsForEffectContext = ChooseCardsForEffectContext(sa, hiddenLibrarySelection, activeReveal)
 
 private fun suspectChoiceSa(
     hostName: String = "Host",
@@ -145,6 +166,8 @@ private fun chooseCardSa(
     ).also { it.setSubAbility(subAbility) }
 
 private fun alterAttributeSa(params: Map<String, String>): AbilitySub = abilitySub(api = ApiType.AlterAttribute, params = params)
+
+private fun changeZoneSa(): SpellAbility = abilitySub(api = ApiType.ChangeZone)
 
 private fun abilitySub(
     api: ApiType,
