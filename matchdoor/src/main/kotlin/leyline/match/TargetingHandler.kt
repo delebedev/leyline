@@ -1046,35 +1046,33 @@ class TargetingHandler(
         val seatBridge = bridge.seat(counters.seatId)
         val prompt = seatBridge.prompt.getPendingPrompt()
         if (prompt != null && prompt.promptId == pending.promptId) {
-            val responseIndex =
+            val responseIndices =
                 if (itemsFound.isEmpty()) {
                     // Declined — submit index past the last option (= "none")
                     log.info("SearchResp: player declined (fail to find)")
-                    prompt.request.options.size
+                    listOf(prompt.request.options.size)
                 } else {
-                    // Map instanceId back to prompt option index via candidateRefs
-                    // TODO: multi-pick support — currently only maps first selected card.
-                    //  Future spells with maxFind > 1 will silently ignore subsequent picks.
-                    val chosenInstanceId = itemsFound.first()
-                    val cardId = bridge.getForgeCardId(InstanceId(chosenInstanceId))
-                    val idx =
-                        if (cardId != null) {
-                            prompt.request.candidateRefs
-                                .firstOrNull { it.entityId == cardId.value }
-                                ?.index ?: -1
+                    itemsFound.map { chosenInstanceId ->
+                        val cardId = bridge.getForgeCardId(InstanceId(chosenInstanceId))
+                        val idx =
+                            if (cardId != null) {
+                                prompt.request.candidateRefs
+                                    .firstOrNull { it.entityId == cardId.value }
+                                    ?.index ?: -1
+                            } else {
+                                -1
+                            }
+                        if (idx >= 0) {
+                            log.info("SearchResp: player chose instanceId={} → prompt index {}", chosenInstanceId, idx)
+                            idx
                         } else {
-                            -1
+                            log.warn("SearchResp: instanceId={} not found in candidates, using default", chosenInstanceId)
+                            DevCheck.fail { "SearchResp: instanceId=$chosenInstanceId not in candidates" }
+                            prompt.request.defaultIndex
                         }
-                    if (idx >= 0) {
-                        log.info("SearchResp: player chose instanceId={} → prompt index {}", chosenInstanceId, idx)
-                        idx
-                    } else {
-                        log.warn("SearchResp: instanceId={} not found in candidates, using default", chosenInstanceId)
-                        DevCheck.fail { "SearchResp: instanceId=$chosenInstanceId not in candidates" }
-                        prompt.request.defaultIndex
                     }
                 }
-            seatBridge.prompt.submitResponse(pending.promptId, listOf(responseIndex))
+            seatBridge.prompt.submitResponse(pending.promptId, responseIndices)
             bridge.awaitPriority()
             drainPendingPlayback()
         }

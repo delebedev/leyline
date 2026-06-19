@@ -141,6 +141,13 @@ data class SelectCardsStep(
     override val label: String = "select_cards ${cards.joinToString()}"
 }
 
+data class SearchCardsStep(
+    val side: AcceptanceSide = AcceptanceSide.Ours,
+    val cards: List<String>,
+) : AcceptanceStep {
+    override val label: String = "search_cards ${cards.joinToString()}"
+}
+
 data class OrderCardsStep(
     val cards: List<String>,
 ) : AcceptanceStep {

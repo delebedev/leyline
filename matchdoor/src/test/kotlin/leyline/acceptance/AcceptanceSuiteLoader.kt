@@ -68,6 +68,7 @@ object AcceptanceSuiteLoader {
             "select_cost" -> parseSelectCost(value, "$context.select_cost")
             "select_card" -> parseSelectCard(value, "$context.select_card")
             "select_cards" -> parseSelectCards(value, "$context.select_cards")
+            "search_cards" -> parseSearchCards(value, "$context.search_cards")
             "order_cards" -> parseOrderCards(value, "$context.order_cards")
             "block" -> parseBlock(value, "$context.block")
             "attack" -> parseAttack(value, "$context.attack")
@@ -138,6 +139,17 @@ object AcceptanceSuiteLoader {
         return SelectCardsStep(
             side = map.optionalString("side")?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
             zone = AcceptanceZone.parse(map.requiredString("zone", context)),
+            cards = map.requiredList("cards", context).mapIndexed { index, item -> item.asString("$context.cards[$index]") },
+        )
+    }
+
+    private fun parseSearchCards(
+        raw: Any?,
+        context: String,
+    ): SearchCardsStep {
+        val map = raw.asMap(context)
+        return SearchCardsStep(
+            side = map.optionalString("side")?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
             cards = map.requiredList("cards", context).mapIndexed { index, item -> item.asString("$context.cards[$index]") },
         )
     }

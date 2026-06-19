@@ -1,0 +1,17 @@
+[metadata]
+Name:Circuitous Route Library Search
+Goal:Win
+Turns:2
+Difficulty:Easy
+Description:Cast Circuitous Route, choose two library lands, and finish resolving.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Circuitous Route
+humanbattlefield=Forest;Forest;Forest;Forest
+humanlibrary=Forest;Island;Mountain;Swamp;Plains
+ailibrary=Mountain;Mountain;Mountain
