@@ -144,7 +144,7 @@ Each planner test should include negative cases. A classifier that recognizes on
 
 ## Implementation Notes
 
-The first landing applies this boundary to `chooseCardsForEffect`, `chooseEntities`, and `chooseSingleEntity` callbacks under `leyline.bridge.interaction`. The durable shape is the callback-local planner boundary, not the exact class inventory.
+The first landings apply this boundary to selected card/entity callbacks and cost-decision prompt classification under `leyline.bridge.interaction`. The durable shape is the callback-local planner boundary, not the exact class inventory.
 
 Typed plan fields currently cover:
 
@@ -161,11 +161,13 @@ What stayed in `TargetingCoordinator`:
 - Translating prompt responses back to Forge `Card` and `GameEntity` values.
 - Building `PromptRequest` instances where the coordinator already has labels, candidate refs, and fallback behavior in scope.
 
+Cost decision migration is intentionally partial: planners classify cost-card prompt semantics and convoke/improvise prompt policy, while `CostDecision` and `CostPaymentCoordinator` still build requests, translate responses, and own prompt-journal side effects.
+
 What did not migrate yet:
 
-- Cost visitor prompt routing.
 - Static choice prompts.
 - Confirm-action prompts.
+- Request construction and side-effect execution for cost prompts.
 - A universal `InteractionIntent` model.
 - A route registry or prompt-routing DSL.
 - A generic side-effect runner.
