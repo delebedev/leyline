@@ -52,8 +52,6 @@ class TargetingHandler(
     )
 
     companion object {
-        private const val EATEN_ALIVE_GRP_ID = 93885
-
         /** Stash optional cost indices after client response — writes to journal only. */
         fun stashOptionalCostIndices(
             prompt: InteractivePromptBridge,
@@ -1508,7 +1506,6 @@ class TargetingHandler(
         action: Action,
         pendingActionId: String,
     ): Boolean {
-        if (action.grpId != EATEN_ALIVE_GRP_ID) return false
         val bridge = ctx.bridge
         val game = ctx.game
         val cardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return false
@@ -1519,15 +1516,7 @@ class TargetingHandler(
         val castable = leyline.bridge.getAllCastableAbilities(card, player)
         if (castable.size <= 1) return false
 
-        val optionPromptIds: List<Int> =
-            when (action.grpId) {
-                EATEN_ALIVE_GRP_ID ->
-                    listOf(
-                        PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE,
-                        PromptIds.CHOOSE_OR_COST_PAY_MANA,
-                    )
-                else -> emptyList()
-            }
+        val optionPromptIds = alternateAdditionalCostPromptIds(castable)
 
         val (ctoReq, ctoIds) =
             bundles.bundleBuilder.buildChooseOrCostCastingTimeOptionsReq(
@@ -1547,6 +1536,22 @@ class TargetingHandler(
         Tap.outboundTemplate("CastingTimeOptionsReq (alternate additional cost) seat=${counters.seatId} card=${card.name}")
         sink.sendBundledGRE(result.messages)
         return true
+    }
+
+    private fun alternateAdditionalCostPromptIds(castable: List<forge.game.spellability.SpellAbility>): List<Int> {
+        val promptIds = castable.map { sa -> promptIdForAdditionalCostBranch(sa) }
+        return if (promptIds.all { it != null }) promptIds.filterNotNull() else emptyList()
+    }
+
+    private fun promptIdForAdditionalCostBranch(sa: forge.game.spellability.SpellAbility): Int? {
+        val costs = sa.payCosts ?: return null
+        if (costs.isOnlyManaCost) return PromptIds.CHOOSE_OR_COST_PAY_MANA
+        val costPartNames = costs.costParts.map { it.javaClass.simpleName }
+        return when {
+            costPartNames.any { it.contains("Sacrifice") } -> PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE
+            costPartNames.any { it.contains("Exile") } -> PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE
+            else -> null
+        }
     }
 
     /**
