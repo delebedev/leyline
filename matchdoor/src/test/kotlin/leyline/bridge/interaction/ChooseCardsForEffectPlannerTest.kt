@@ -27,9 +27,9 @@ class ChooseCardsForEffectPlannerTest :
             assertSoftly(plan) {
                 semantic shouldBe PromptSemantic.SuspectChoice
                 forcePrompt.shouldBeTrue()
-                includeCandidateRefs.shouldBeTrue()
-                includeSourceEntityId.shouldBeTrue()
-                autoResolveSingleMandatory.shouldBeFalse()
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
+                sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+                mandatoryChoicePolicy shouldBe MandatoryChoicePolicy.PromptWhenSatisfied
             }
         }
 
@@ -69,7 +69,7 @@ class ChooseCardsForEffectPlannerTest :
 
             val plan = ChooseCardsForEffectPlanner.plan(ChooseCardsForEffectContext(sa, activeReveal = false))
             plan.semantic shouldBe PromptSemantic.Generic
-            plan.autoResolveSingleMandatory.shouldBeTrue()
+            plan.mandatoryChoicePolicy shouldBe MandatoryChoicePolicy.AutoResolveWhenSatisfied
         }
 
         test("non-ChooseCard suspect effect stays generic") {
@@ -114,10 +114,10 @@ class ChooseCardsForEffectPlannerTest :
 
             assertSoftly(plan) {
                 semantic shouldBe PromptSemantic.Generic
-                forcePrompt.shouldBeFalse()
-                includeCandidateRefs.shouldBeFalse()
-                includeSourceEntityId.shouldBeFalse()
-                autoResolveSingleMandatory.shouldBeTrue()
+                forcePrompt shouldBe false
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.None
+                sourceIdPolicy shouldBe SourceIdPolicy.None
+                mandatoryChoicePolicy shouldBe MandatoryChoicePolicy.AutoResolveWhenSatisfied
             }
         }
     })

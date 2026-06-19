@@ -7,8 +7,6 @@ import forge.game.spellability.AlternativeCost
 import forge.game.spellability.SpellAbility
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.booleans.shouldBeFalse
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -26,10 +24,11 @@ class ChooseEntitiesPlannerTest :
 
             assertSoftly(plan) {
                 semantic shouldBe PromptSemantic.SelectNCostExileFromGrave
-                candidateRefs shouldBe refs
-                unfilteredRefs.shouldBeEmpty()
-                sourceEntityId shouldBe 7
-                autoReturnAll.shouldBeFalse()
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
+                sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+                autoReturnPolicy shouldBe AutoReturnPolicy.Prompt
+                candidateRefsPolicy.candidateRefs(refs) shouldBe refs
+                candidateRefsPolicy.unfilteredRefs(refs, semantic).shouldBeEmpty()
             }
         }
 
@@ -38,9 +37,10 @@ class ChooseEntitiesPlannerTest :
 
             assertSoftly(plan) {
                 semantic shouldBe PromptSemantic.SelectNLibraryPutback
-                candidateRefs shouldBe refs
-                unfilteredRefs.shouldBeEmpty()
-                sourceEntityId shouldBe 7
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
+                sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+                candidateRefsPolicy.candidateRefs(refs) shouldBe refs
+                candidateRefsPolicy.unfilteredRefs(refs, semantic).shouldBeEmpty()
             }
         }
 
@@ -49,16 +49,16 @@ class ChooseEntitiesPlannerTest :
 
             assertSoftly(plan) {
                 semantic shouldBe PromptSemantic.SelectNResolution
-                candidateRefs shouldBe refs
-                sourceEntityId shouldBe 7
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
+                sourceIdPolicy shouldBe SourceIdPolicy.HostCard
             }
         }
 
         test("only resolution prompts mirror candidate refs into unfiltered refs") {
             assertSoftly {
-                planFor(genericSa()).unfilteredRefs shouldBe refs
-                planFor(escapeSa()).unfilteredRefs.shouldBeEmpty()
-                planFor(handToLibraryReorderSa()).unfilteredRefs.shouldBeEmpty()
+                planFor(genericSa()).let { it.candidateRefsPolicy.unfilteredRefs(refs, it.semantic) } shouldBe refs
+                planFor(escapeSa()).let { it.candidateRefsPolicy.unfilteredRefs(refs, it.semantic) }.shouldBeEmpty()
+                planFor(handToLibraryReorderSa()).let { it.candidateRefsPolicy.unfilteredRefs(refs, it.semantic) }.shouldBeEmpty()
             }
         }
 
@@ -70,16 +70,14 @@ class ChooseEntitiesPlannerTest :
                         min = 2,
                         max = 4,
                         optionCount = 2,
-                        candidateRefs = refs,
                     ),
                 )
 
             assertSoftly(plan) {
-                autoReturnAll.shouldBeTrue()
+                autoReturnPolicy shouldBe AutoReturnPolicy.ReturnAllWhenSelectionSatisfied
                 effectiveMin shouldBe 2
                 effectiveMax shouldBe 2
-                candidateRefs.shouldBeEmpty()
-                unfilteredRefs.shouldBeEmpty()
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.None
             }
         }
     })
@@ -98,7 +96,6 @@ private fun planFor(sa: SpellAbility): ChooseEntitiesPlan =
             min = 1,
             max = 2,
             optionCount = refs.size,
-            candidateRefs = refs,
         ),
     )
 

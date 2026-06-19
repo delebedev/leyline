@@ -11,9 +11,9 @@ data class ChooseCardsForEffectContext(
 data class ChooseCardsForEffectPlan(
     val semantic: PromptSemantic,
     val forcePrompt: Boolean = false,
-    val includeCandidateRefs: Boolean = false,
-    val includeSourceEntityId: Boolean = false,
-    val autoResolveSingleMandatory: Boolean = true,
+    val candidateRefsPolicy: CandidateRefsPolicy = CandidateRefsPolicy.None,
+    val sourceIdPolicy: SourceIdPolicy = SourceIdPolicy.None,
+    val mandatoryChoicePolicy: MandatoryChoicePolicy = MandatoryChoicePolicy.AutoResolveWhenSatisfied,
 )
 
 object ChooseCardsForEffectPlanner {
@@ -22,17 +22,17 @@ object ChooseCardsForEffectPlanner {
             context.activeReveal ->
                 ChooseCardsForEffectPlan(
                     semantic = PromptSemantic.RevealChoose,
-                    includeCandidateRefs = true,
-                    includeSourceEntityId = true,
+                    candidateRefsPolicy = CandidateRefsPolicy.Selectable,
+                    sourceIdPolicy = SourceIdPolicy.HostCard,
                 )
 
             SpellAbilityShapes.isSuspectChoice(context.sa) ->
                 ChooseCardsForEffectPlan(
                     semantic = PromptSemantic.SuspectChoice,
                     forcePrompt = true,
-                    includeCandidateRefs = true,
-                    includeSourceEntityId = true,
-                    autoResolveSingleMandatory = false,
+                    candidateRefsPolicy = CandidateRefsPolicy.Selectable,
+                    sourceIdPolicy = SourceIdPolicy.HostCard,
+                    mandatoryChoicePolicy = MandatoryChoicePolicy.PromptWhenSatisfied,
                 )
 
             else -> ChooseCardsForEffectPlan(semantic = PromptSemantic.Generic)

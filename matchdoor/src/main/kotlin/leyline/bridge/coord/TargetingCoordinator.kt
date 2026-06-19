@@ -24,7 +24,12 @@ import leyline.bridge.interaction.ChooseEntitiesContext
 import leyline.bridge.interaction.ChooseEntitiesPlanner
 import leyline.bridge.interaction.ChooseSingleEntityContext
 import leyline.bridge.interaction.ChooseSingleEntityPlanner
-import leyline.bridge.interaction.ChooseSingleEntityRoute
+import leyline.bridge.interaction.ChooseSingleEntityRoutePolicy
+import leyline.bridge.interaction.candidateRefs
+import leyline.bridge.interaction.shouldAutoResolve
+import leyline.bridge.interaction.shouldReturnAll
+import leyline.bridge.interaction.sourceEntityId
+import leyline.bridge.interaction.unfilteredRefs
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -81,20 +86,19 @@ class TargetingCoordinator(
                     optionCount = optionList.size,
                     allOptionsAreCards = revealedCards.size == optionList.size,
                     activeReveal = reveal != null,
-                    candidateRefs = buildCandidateRefs(optionList),
                 ),
             )
-        when (plan.route) {
-            ChooseSingleEntityRoute.MutateTopCard ->
+        when (plan.routePolicy) {
+            ChooseSingleEntityRoutePolicy.MutateTopCard ->
                 if (sa != null) {
                     return chooseMutateTopCard(optionList, sa, title, isOptional)
                 }
-            ChooseSingleEntityRoute.ActiveReveal ->
+            ChooseSingleEntityRoutePolicy.ActiveReveal ->
                 if (reveal != null) {
                     return chooseSingleEntityFromReveal(revealedCards, isOptional, sa, title, reveal)
                 }
-            ChooseSingleEntityRoute.AutoReturnFirst -> return optionList.getFirst()
-            ChooseSingleEntityRoute.Prompt -> Unit
+            ChooseSingleEntityRoutePolicy.AutoReturnFirst -> return optionList.getFirst()
+            ChooseSingleEntityRoutePolicy.Prompt -> Unit
         }
 
         val labels = optionList.map { it.entityLabel() }
@@ -107,8 +111,8 @@ class TargetingCoordinator(
                 max = plan.max,
                 defaultIndex = 0,
                 semantic = plan.semantic,
-                candidateRefs = plan.candidateRefs,
-                sourceEntityId = plan.sourceEntityId,
+                candidateRefs = plan.candidateRefsPolicy.candidateRefs(buildCandidateRefs(optionList)),
+                sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
             )
         val indices = bridge.requestChoice(request)
         val idx = indices.firstOrNull()
@@ -231,10 +235,9 @@ class TargetingCoordinator(
                     min = min,
                     max = max,
                     optionCount = optionList.size,
-                    candidateRefs = candidateRefs,
                 ),
             )
-        if (plan.autoReturnAll) return optionList.toList()
+        if (plan.autoReturnPolicy.shouldReturnAll) return optionList.toList()
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -244,9 +247,9 @@ class TargetingCoordinator(
                 max = plan.effectiveMax,
                 defaultIndex = 0,
                 semantic = plan.semantic,
-                candidateRefs = plan.candidateRefs,
-                unfilteredRefs = plan.unfilteredRefs,
-                sourceEntityId = plan.sourceEntityId,
+                candidateRefs = plan.candidateRefsPolicy.candidateRefs(candidateRefs),
+                unfilteredRefs = plan.candidateRefsPolicy.unfilteredRefs(candidateRefs, plan.semantic),
+                sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
             )
         val indices = bridge.requestChoice(request)
         return indices.filter { it in optionList.indices }.map { optionList.get(it) }
@@ -272,7 +275,7 @@ class TargetingCoordinator(
             val effectiveMin = if (isOptional) 0 else min
             return chooseCardsViaBridgeForReveal(sourceList, effectiveMin, max, sa, reveal)
         }
-        if (plan.autoResolveSingleMandatory && !isOptional && sourceList.size <= min) return sourceList
+        if (plan.mandatoryChoicePolicy.shouldAutoResolve(isOptional, sourceList.size, min)) return sourceList
         val effectiveMin = if (isOptional) 0 else min
         return chooseCardsViaBridge(
             sourceList,
@@ -280,8 +283,8 @@ class TargetingCoordinator(
             max,
             title ?: "Choose cards",
             semantic = plan.semantic,
-            candidateRefs = if (plan.includeCandidateRefs) buildCandidateRefs(sourceList) else emptyList(),
-            sourceEntityId = if (plan.includeSourceEntityId) sa?.hostCard?.id else null,
+            candidateRefs = plan.candidateRefsPolicy.candidateRefs(buildCandidateRefs(sourceList)),
+            sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
             forcePrompt = plan.forcePrompt,
         )
     }

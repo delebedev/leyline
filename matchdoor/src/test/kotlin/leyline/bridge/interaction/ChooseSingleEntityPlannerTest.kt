@@ -22,21 +22,31 @@ class ChooseSingleEntityPlannerTest :
         test("mutate uses special route") {
             val plan = planFor(mutateSa())
 
-            plan.route shouldBe ChooseSingleEntityRoute.MutateTopCard
+            plan.routePolicy shouldBe ChooseSingleEntityRoutePolicy.MutateTopCard
         }
 
         test("active reveal over card options uses special route") {
             val plan = planFor(genericSa(), activeReveal = true, allOptionsAreCards = true)
 
-            plan.route shouldBe ChooseSingleEntityRoute.ActiveReveal
+            plan.routePolicy shouldBe ChooseSingleEntityRoutePolicy.ActiveReveal
+        }
+
+        test("special routes keep precedence over mandatory single-option auto-return") {
+            assertSoftly {
+                planFor(mutateSa(), activeReveal = true, optionCount = 1).routePolicy shouldBe
+                    ChooseSingleEntityRoutePolicy.MutateTopCard
+                planFor(genericSa(), activeReveal = true, optionCount = 1).routePolicy shouldBe
+                    ChooseSingleEntityRoutePolicy.ActiveReveal
+            }
         }
 
         test("mandatory single option auto-returns without prompt refs") {
             val plan = planFor(genericSa(), optionCount = 1, isOptional = false)
 
             assertSoftly(plan) {
-                route shouldBe ChooseSingleEntityRoute.AutoReturnFirst
-                candidateRefs.shouldBeEmpty()
+                routePolicy shouldBe ChooseSingleEntityRoutePolicy.AutoReturnFirst
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.None
+                candidateRefsPolicy.candidateRefs(refs).shouldBeEmpty()
             }
         }
 
@@ -52,10 +62,10 @@ class ChooseSingleEntityPlannerTest :
 
         test("Learn is the only regular path that includes source id") {
             assertSoftly {
-                planFor(learnSa()).sourceEntityId shouldBe 7
-                planFor(legendRuleSa()).sourceEntityId shouldBe null
-                planFor(changeZoneSa()).sourceEntityId shouldBe null
-                planFor(genericSa()).sourceEntityId shouldBe null
+                planFor(learnSa()).sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+                planFor(legendRuleSa()).sourceIdPolicy shouldBe SourceIdPolicy.None
+                planFor(changeZoneSa()).sourceIdPolicy shouldBe SourceIdPolicy.None
+                planFor(genericSa()).sourceIdPolicy shouldBe SourceIdPolicy.None
             }
         }
 
@@ -63,8 +73,9 @@ class ChooseSingleEntityPlannerTest :
             val plan = planFor(genericSa())
 
             assertSoftly(plan) {
-                route shouldBe ChooseSingleEntityRoute.Prompt
-                candidateRefs shouldBe refs
+                routePolicy shouldBe ChooseSingleEntityRoutePolicy.Prompt
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
+                candidateRefsPolicy.candidateRefs(refs) shouldBe refs
             }
         }
     })
@@ -91,7 +102,6 @@ private fun planFor(
             optionCount = optionCount,
             allOptionsAreCards = allOptionsAreCards,
             activeReveal = activeReveal,
-            candidateRefs = refs,
         ),
     )
 

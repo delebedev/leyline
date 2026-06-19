@@ -3,9 +3,8 @@ package leyline.bridge.interaction
 import forge.game.ability.ApiType
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.PromptSemantic
-import leyline.bridge.types.PromptCandidateRefDto
 
-enum class ChooseSingleEntityRoute {
+enum class ChooseSingleEntityRoutePolicy {
     MutateTopCard,
     ActiveReveal,
     AutoReturnFirst,
@@ -19,16 +18,15 @@ data class ChooseSingleEntityContext(
     val optionCount: Int,
     val allOptionsAreCards: Boolean,
     val activeReveal: Boolean,
-    val candidateRefs: List<PromptCandidateRefDto>,
 )
 
 data class ChooseSingleEntityPlan(
-    val route: ChooseSingleEntityRoute,
+    val routePolicy: ChooseSingleEntityRoutePolicy,
     val semantic: PromptSemantic,
     val min: Int,
     val max: Int,
-    val candidateRefs: List<PromptCandidateRefDto>,
-    val sourceEntityId: Int?,
+    val candidateRefsPolicy: CandidateRefsPolicy,
+    val sourceIdPolicy: SourceIdPolicy,
     val isSearch: Boolean,
     val isLearn: Boolean,
     val isLegendRule: Boolean,
@@ -48,19 +46,24 @@ object ChooseSingleEntityPlanner {
             }
         val route =
             when {
-                context.sa?.isMutate == true -> ChooseSingleEntityRoute.MutateTopCard
-                context.activeReveal && context.allOptionsAreCards -> ChooseSingleEntityRoute.ActiveReveal
-                context.optionCount == 1 && !context.isOptional -> ChooseSingleEntityRoute.AutoReturnFirst
-                else -> ChooseSingleEntityRoute.Prompt
+                context.sa?.isMutate == true -> ChooseSingleEntityRoutePolicy.MutateTopCard
+                context.activeReveal && context.allOptionsAreCards -> ChooseSingleEntityRoutePolicy.ActiveReveal
+                context.optionCount == 1 && !context.isOptional -> ChooseSingleEntityRoutePolicy.AutoReturnFirst
+                else -> ChooseSingleEntityRoutePolicy.Prompt
             }
 
         return ChooseSingleEntityPlan(
-            route = route,
+            routePolicy = route,
             semantic = semantic,
             min = if (context.isOptional) 0 else 1,
             max = 1,
-            candidateRefs = if (route == ChooseSingleEntityRoute.Prompt) context.candidateRefs else emptyList(),
-            sourceEntityId = if (isLearn) context.sa?.hostCard?.id else null,
+            candidateRefsPolicy =
+                if (route == ChooseSingleEntityRoutePolicy.Prompt) {
+                    CandidateRefsPolicy.Selectable
+                } else {
+                    CandidateRefsPolicy.None
+                },
+            sourceIdPolicy = if (isLearn) SourceIdPolicy.HostCard else SourceIdPolicy.None,
             isSearch = isSearch,
             isLearn = isLearn,
             isLegendRule = isLegendRule,

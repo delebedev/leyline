@@ -14,6 +14,10 @@ Start here for the public technical docs.
 - [`principles-design.md`](principles-design.md) — code-structure rules: bounded contexts, dependency direction, value objects
 - [`principles-documentation.md`](principles-documentation.md) — how to document: rationale at the seam, one source of truth, frontmatter
 
+## Decisions
+
+- [`decisions/0001-prompt-interaction-planners.md`](decisions/0001-prompt-interaction-planners.md) — callback-specific planners for Forge prompt classification before `PromptRequest` construction
+
 ## Setup
 
 - [`local-client-setup.md`](local-client-setup.md) — minimal local client configuration for end-to-end runs

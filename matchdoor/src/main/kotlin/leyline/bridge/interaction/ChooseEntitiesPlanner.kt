@@ -3,24 +3,21 @@ package leyline.bridge.interaction
 import forge.game.spellability.AlternativeCost
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.PromptSemantic
-import leyline.bridge.types.PromptCandidateRefDto
 
 data class ChooseEntitiesContext(
     val sa: SpellAbility?,
     val min: Int,
     val max: Int,
     val optionCount: Int,
-    val candidateRefs: List<PromptCandidateRefDto>,
 )
 
 data class ChooseEntitiesPlan(
     val effectiveMin: Int,
     val effectiveMax: Int,
-    val autoReturnAll: Boolean,
+    val autoReturnPolicy: AutoReturnPolicy,
     val semantic: PromptSemantic,
-    val candidateRefs: List<PromptCandidateRefDto>,
-    val unfilteredRefs: List<PromptCandidateRefDto>,
-    val sourceEntityId: Int?,
+    val candidateRefsPolicy: CandidateRefsPolicy,
+    val sourceIdPolicy: SourceIdPolicy,
 )
 
 object ChooseEntitiesPlanner {
@@ -29,15 +26,13 @@ object ChooseEntitiesPlanner {
         val effectiveMin = context.min.coerceAtLeast(0).coerceAtMost(effectiveMax)
         val semantic = semanticFor(context.sa)
         val prompted = context.optionCount > effectiveMin
-        val candidateRefs = if (prompted) context.candidateRefs else emptyList()
         return ChooseEntitiesPlan(
             effectiveMin = effectiveMin,
             effectiveMax = effectiveMax,
-            autoReturnAll = !prompted,
+            autoReturnPolicy = if (prompted) AutoReturnPolicy.Prompt else AutoReturnPolicy.ReturnAllWhenSelectionSatisfied,
             semantic = semantic,
-            candidateRefs = candidateRefs,
-            unfilteredRefs = if (semantic == PromptSemantic.SelectNResolution) candidateRefs else emptyList(),
-            sourceEntityId = context.sa?.hostCard?.id,
+            candidateRefsPolicy = if (prompted) CandidateRefsPolicy.SelectableAndUnfilteredForResolution else CandidateRefsPolicy.None,
+            sourceIdPolicy = SourceIdPolicy.HostCard,
         )
     }
 
