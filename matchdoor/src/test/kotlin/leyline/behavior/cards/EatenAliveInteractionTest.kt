@@ -1,8 +1,10 @@
 package leyline.behavior.cards
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.haveManaCost
@@ -22,6 +24,20 @@ class EatenAliveInteractionTest :
 
             humanhand=Eaten Alive
             humanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp;Walking Corpse
+            humanlibrary=Swamp
+            aibattlefield=Centaur Courser
+            ailibrary=Swamp
+            """.trimIndent()
+
+        val deadlyPrecisionState =
+            """
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=20
+
+            humanhand=Deadly Precision
+            humanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Grizzly Bears
             humanlibrary=Swamp
             aibattlefield=Centaur Courser
             ailibrary=Swamp
@@ -70,5 +86,23 @@ class EatenAliveInteractionTest :
 
             ai.getZone(ForgeZoneType.Exile).cards.map { it.name } shouldBe listOf("Centaur Courser")
             "Walking Corpse" should beInGraveyardOf(human)
+        }
+
+        test("Deadly Precision prompts for alternate additional cost before targeting") {
+            startPuzzle(deadlyPrecisionState, name = "Deadly Precision")
+
+            val action = latestCastActionsFor("Deadly Precision").single()
+            val req = after { submitAction(action) }.expectOneCastingTimeOptionsReq()
+
+            val option = req.castingTimeOptionReqList.single()
+            assertSoftly {
+                option.castingTimeOptionType shouldBe CastingTimeOptionType.ChooseOrCost
+                option.isRequired shouldBe true
+                option.grpId shouldBe action.grpId
+                option.selectNReq.prompt.promptId shouldBe PromptIds.CHOOSE_OR_COST
+                option.selectNReq.idsList shouldBe listOf(1, 2)
+            }
+
+            after { respondToOptionalCost(2) }.expectOneSelectTargetsReq()
         }
     })
