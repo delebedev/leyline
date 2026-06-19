@@ -53,7 +53,8 @@ class ChooseSingleEntityPlannerTest :
         test("regular prompted semantics follow spell ability shape") {
             assertSoftly {
                 planFor(legendRuleSa()).semantic shouldBe PromptSemantic.SelectNLegendRule
-                planFor(changeZoneSa()).semantic shouldBe PromptSemantic.Search
+                planFor(changeZoneSa(), hiddenLibrarySelection = true).semantic shouldBe PromptSemantic.Search
+                planFor(changeZoneSa(), hiddenLibrarySelection = false).semantic shouldBe PromptSemantic.SelectNResolution
                 planFor(genericSa(), hasDelayedReveal = true).semantic shouldBe PromptSemantic.Search
                 planFor(learnSa()).semantic shouldBe PromptSemantic.LearnLesson
                 planFor(genericSa()).semantic shouldBe PromptSemantic.SelectNResolution
@@ -92,6 +93,7 @@ private fun planFor(
     hasDelayedReveal: Boolean = false,
     optionCount: Int = refs.size,
     allOptionsAreCards: Boolean = true,
+    hiddenLibrarySelection: Boolean = false,
     activeReveal: Boolean = false,
 ): ChooseSingleEntityPlan =
     ChooseSingleEntityPlanner.plan(
@@ -101,6 +103,7 @@ private fun planFor(
             hasDelayedReveal = hasDelayedReveal,
             optionCount = optionCount,
             allOptionsAreCards = allOptionsAreCards,
+            hiddenLibrarySelection = hiddenLibrarySelection,
             activeReveal = activeReveal,
         ),
     )

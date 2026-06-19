@@ -1,0 +1,8 @@
+name: "Cultivate"
+grpId: 97663
+titleId: 3242
+abilities:
+  - id: 5459
+    textId: 499356
+    category: 4
+expansionCode: "FIC"

@@ -17,6 +17,7 @@ data class ChooseSingleEntityContext(
     val hasDelayedReveal: Boolean,
     val optionCount: Int,
     val allOptionsAreCards: Boolean,
+    val hiddenLibrarySelection: Boolean,
     val activeReveal: Boolean,
 )
 
@@ -36,7 +37,7 @@ object ChooseSingleEntityPlanner {
     fun plan(context: ChooseSingleEntityContext): ChooseSingleEntityPlan {
         val isLegendRule = context.sa?.api == ApiType.InternalLegendaryRule
         val isLearn = context.sa?.api == ApiType.Learn
-        val isSearch = context.sa?.api == ApiType.ChangeZone || context.hasDelayedReveal
+        val isSearch = context.sa?.api == ApiType.ChangeZone && context.hiddenLibrarySelection || context.hasDelayedReveal
         val semantic =
             when {
                 isLegendRule -> PromptSemantic.SelectNLegendRule

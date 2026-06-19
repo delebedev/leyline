@@ -85,6 +85,7 @@ class TargetingCoordinator(
                     hasDelayedReveal = hasDelayedReveal,
                     optionCount = optionList.size,
                     allOptionsAreCards = revealedCards.size == optionList.size,
+                    hiddenLibrarySelection = isHiddenLibrarySelection(revealedCards, optionList.size),
                     activeReveal = reveal != null,
                 ),
             )
@@ -235,6 +236,7 @@ class TargetingCoordinator(
                     min = min,
                     max = max,
                     optionCount = optionList.size,
+                    hiddenLibrarySelection = isHiddenLibrarySelection(optionList.filterIsInstance<Card>(), optionList.size),
                 ),
             )
         if (plan.autoReturnPolicy.shouldReturnAll) return optionList.toList()
@@ -260,6 +262,11 @@ class TargetingCoordinator(
         value: String,
     ): Boolean = hasParam(name) && getParam(name).equals(value, ignoreCase = true)
 
+    private fun isHiddenLibrarySelection(
+        cards: List<Card>,
+        optionCount: Int,
+    ): Boolean = cards.size == optionCount && cards.isNotEmpty() && cards.all { it.zone?.zoneType == ZoneType.Library }
+
     fun chooseCardsForEffect(
         sourceList: CardCollectionView,
         sa: SpellAbility?,
@@ -270,7 +277,14 @@ class TargetingCoordinator(
     ): CardCollectionView {
         if (sourceList.isEmpty()) return CardCollection()
         val reveal = bridge.journal.activeReveal()
-        val plan = ChooseCardsForEffectPlanner.plan(ChooseCardsForEffectContext(sa, activeReveal = reveal != null))
+        val plan =
+            ChooseCardsForEffectPlanner.plan(
+                ChooseCardsForEffectContext(
+                    sa = sa,
+                    hiddenLibrarySelection = isHiddenLibrarySelection(sourceList.filterIsInstance<Card>(), sourceList.size),
+                    activeReveal = reveal != null,
+                ),
+            )
         if (plan.semantic == PromptSemantic.RevealChoose && reveal != null) {
             val effectiveMin = if (isOptional) 0 else min
             return chooseCardsViaBridgeForReveal(sourceList, effectiveMin, max, sa, reveal)

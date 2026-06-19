@@ -1,0 +1,12 @@
+name: "Kami of Bamboo Groves"
+grpId: 81103
+titleId: 595474
+abilities:
+  - id: 133133
+    textId: 836399
+    category: 2
+    subCategory: 10
+  - id: 149684
+    textId: 1068837
+    category: 1
+expansionCode: "Y22"
