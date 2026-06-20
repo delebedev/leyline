@@ -1,9 +1,9 @@
 package leyline.bridge.forge
 
 import forge.LobbyPlayer
-import forge.ai.GameState
 import forge.deck.CardPool
 import forge.game.GameEntityView
+import forge.game.GameState
 import forge.game.GameView
 import forge.game.card.CardView
 import forge.game.event.GameEvent
