@@ -1,7 +1,7 @@
 package leyline.game.annotations
 
 import forge.game.spellability.SpellAbility
-import forge.game.staticability.StaticAbilityExhaust
+import forge.game.staticability.StaticAbilityAdditionalActivations
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.types.EffectId
 import leyline.bridge.types.GrpId
@@ -112,13 +112,15 @@ internal fun buildAbilityExhaustedAnnotations(
         val card = bridge.findCard(bound.forgeCardId) ?: return@flatMap emptyList()
         val player = card.controller ?: return@flatMap emptyList()
         val registry = bridge.abilityRegistryFor(card, bound.data) ?: return@flatMap emptyList()
-        val usesRemaining = if (StaticAbilityExhaust.anyWithExhaust(player)) 1 else 0
         val abilities =
             card.allSpellAbilities.orEmpty() +
                 card.manaAbilities.orEmpty() +
                 getNonManaActivatedAbilities(card, player)
         exhaustedAbilities(abilities).mapNotNull { ability ->
             val abilityGrpId = registry.forSpellAbility(ability.id).takeIf { it != 0 } ?: return@mapNotNull null
+            val usesRemaining =
+                (StaticAbilityAdditionalActivations.getLimit(card, ability, player) - ability.activationsThisGame)
+                    .coerceAtLeast(0)
             AnnotationBuilder.abilityExhausted(
                 instanceId = frameIds.cardIid(bound.forgeCardId),
                 abilityGrpId = GrpId(abilityGrpId),

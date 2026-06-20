@@ -411,7 +411,7 @@ private class TappingPlayerControllerAi(
     ): MutableList<OptionalCostValue> =
         tap("chooseOptionalCosts", context(choosen)) { super.chooseOptionalCosts(choosen, optionalCostValues) }
 
-    override fun chooseCardsToDiscardToMaximumHandSize(numDiscard: Int): CardCollection =
+    override fun chooseCardsToDiscardToMaximumHandSize(numDiscard: Int): CardCollectionView =
         tap("chooseCardsToDiscardToMaximumHandSize", SimRefDecisionContext(prompt = numDiscard.toString())) {
             super.chooseCardsToDiscardToMaximumHandSize(numDiscard)
         }
