@@ -340,9 +340,19 @@ class ExposedCardRepository(
                         (Localizations.formatted eq 1) and
                             locMatches(cardName) and
                             (Cards.expansionCode eq setCode) and
-                            (Cards.isToken eq 0) and
-                            (Cards.isPrimaryCard eq 1)
-                    }.firstOrNull()
+                            (Cards.isToken eq 0)
+                    }
+                    // An explicit name + set uniquely identifies a printing, so
+                    // we don't require IsPrimaryCard here: Universes Within sets
+                    // mark every printing non-primary (the linked base printing
+                    // in another set carries IsPrimaryCard=1 under a different
+                    // name). Still prefer a primary printing when one exists in
+                    // the set, then order deterministically.
+                    .orderBy(Cards.isPrimaryCard, order = SortOrder.DESC)
+                    .orderBy(Cards.isDigitalOnly)
+                    .orderBy(Cards.isRebalanced)
+                    .orderBy(Cards.grpId, order = SortOrder.DESC)
+                    .firstOrNull()
                     ?.get(Cards.grpId)
             }
         } catch (e: Exception) {
