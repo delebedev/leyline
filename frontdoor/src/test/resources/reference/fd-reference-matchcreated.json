@@ -1,15 +1,20 @@
 {
   "Type": "",
-  "MatchInfoV3": {
+  "MatchInfoV4": {
+    "MatchType": "",
     "Battlefield": "",
+    "ClientMetadata": [],
     "EventId": "",
     "MatchEndpointHost": "",
     "MatchEndpointPort": "",
     "MatchId": "",
+    "MatchTypeInternal": "",
     "McFabricId": "",
     "PlayerInfos": [
       {
+        "Commanders": [],
         "CosmeticsSelection": "",
+        "RankingClass": "",
         "ScreenName": "",
         "SeatId": "",
         "TeamId": ""

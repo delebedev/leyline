@@ -486,17 +486,17 @@ object FdEnvelope {
             )
         return buildJsonObject {
             put("Type", "MatchCreated")
-            putJsonObject("MatchInfoV3") {
-                put("ControllerFabricUri", "wzmc://forge/$matchId")
+            putJsonObject("MatchInfoV4") {
+                put("MatchType", matchType)
                 put("MatchEndpointHost", matchDoorHost)
                 put("MatchEndpointPort", matchDoorPort)
                 put("MatchId", matchId)
                 put("McFabricId", "wzmc://forge/$matchId")
                 put("EventId", eventId)
-                put("MatchType", matchType)
-                put("MatchTypeInternal", matchTypeInternal)
                 put("Battlefield", BATTLEFIELDS.random())
+                put("MatchTypeInternal", matchTypeInternal)
                 put("YourSeat", yourSeat)
+                putJsonArray("ClientMetadata") {}
                 putJsonArray("PlayerInfos") {
                     for (p in players) {
                         add(playerInfoJson(p))
@@ -508,13 +508,16 @@ object FdEnvelope {
 
     private fun playerInfoJson(p: PlayerInfo) =
         buildJsonObject {
+            put("ScreenName", p.name)
+            put("RankingClass", "")
             put("SeatId", p.seatId)
             put("TeamId", p.teamId)
-            put("ScreenName", p.name)
             if (p.commanderGrpIds.isNotEmpty()) {
-                putJsonArray("CommanderGrpIds") {
+                putJsonArray("Commanders") {
                     p.commanderGrpIds.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) }
                 }
+            } else {
+                putJsonArray("Commanders") {}
             }
             putJsonObject("CosmeticsSelection") {
                 putJsonObject("Avatar") {

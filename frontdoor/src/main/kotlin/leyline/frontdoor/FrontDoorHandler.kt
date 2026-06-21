@@ -641,7 +641,7 @@ class FrontDoorHandler(
             yourSeat,
             commanderGrpIds.size,
         )
-        writer.send(ctx, null, FdResponse.Json(json))
+        writer.send(ctx, UUID.randomUUID().toString(), FdResponse.Json(json))
     }
 
     private fun handleGraphRequest(
