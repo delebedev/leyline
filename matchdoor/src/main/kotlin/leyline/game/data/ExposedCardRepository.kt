@@ -104,10 +104,12 @@ class ExposedCardRepository(
     override fun findNameByGrpId(grpId: Int): String? {
         grpIdToName[grpId]?.let { return it }
         return queryNameByGrpId(grpId)?.also { name ->
-            grpIdToName[grpId] = name
-            nameToGrpId[name] = grpId
-            missingNames.remove(name)
-            missingAnyFaceNames.remove(name)
+            rememberNameResolution(
+                name,
+                grpId,
+                clearPrimaryMiss = true,
+                clearAnyFaceMiss = true,
+            )
         }
     }
 
@@ -118,9 +120,7 @@ class ExposedCardRepository(
             if (grpId == null) {
                 missingNames.add(name)
             } else {
-                nameToGrpId[name] = grpId
-                grpIdToName[grpId] = name
-                missingAnyFaceNames.remove(name)
+                rememberNameResolution(name, grpId, clearAnyFaceMiss = true)
             }
         }
     }
@@ -132,9 +132,7 @@ class ExposedCardRepository(
             if (grpId == null) {
                 missingAnyFaceNames.add(name)
             } else {
-                nameToGrpId[name] = grpId
-                grpIdToName[grpId] = name
-                missingNames.remove(name)
+                rememberNameResolution(name, grpId, clearPrimaryMiss = true)
             }
         }
     }
@@ -157,11 +155,25 @@ class ExposedCardRepository(
         setCode: String,
     ): Int? =
         queryGrpIdByNameAndSet(name, setCode)?.also { grpId ->
-            nameToGrpId[name] = grpId
-            grpIdToName[grpId] = name
-            missingNames.remove(name)
-            missingAnyFaceNames.remove(name)
+            rememberNameResolution(
+                name,
+                grpId,
+                clearPrimaryMiss = true,
+                clearAnyFaceMiss = true,
+            )
         }
+
+    private fun rememberNameResolution(
+        name: String,
+        grpId: Int,
+        clearPrimaryMiss: Boolean = false,
+        clearAnyFaceMiss: Boolean = false,
+    ) {
+        nameToGrpId[name] = grpId
+        grpIdToName[grpId] = name
+        if (clearPrimaryMiss) missingNames.remove(name)
+        if (clearAnyFaceMiss) missingAnyFaceNames.remove(name)
+    }
 
     override fun findAllGrpIds(): List<Int> =
         try {
