@@ -525,8 +525,21 @@ enum class PromptSemantic {
     StaticParityChoice,
 }
 
+/**
+ * Engine-thread request for one blocking Forge choice.
+ *
+ * This is the handoff shape between Forge controller/gui overrides and the
+ * session layer. It is not the client protocol prompt. Producers fill in the
+ * source choice shape, option labels, selection cardinality, semantic route,
+ * and optional entity metadata while the engine is blocked in [requestChoice].
+ * The session layer classifies the request, emits the appropriate GRE request
+ * (`SelectNReq`, `SelectTargetsReq`, `PayCostsReq`, etc.), then maps the client
+ * response back to indices in [options].
+ */
 data class PromptRequest(
+    /** Coarse source shape from the Forge API override; routing should prefer [semantic]. */
     val promptType: String,
+    /** Source/debug text from Forge. MTGA UI text is selected by outbound GRE Prompt.promptId + parameters. */
     val message: String,
     val options: List<String>,
     val min: Int = 1,
