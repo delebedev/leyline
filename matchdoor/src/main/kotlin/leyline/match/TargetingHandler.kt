@@ -17,7 +17,7 @@ import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.PayCostsPromptRoute
 import leyline.game.bundle.RequestBuilder
-import leyline.game.bundle.SelectNEnvelope
+import leyline.game.bundle.SelectNPromptRoute
 import leyline.game.bundle.SelectNPromptRoutes
 import leyline.game.codes.ManaColorMapping
 import leyline.game.data.KeywordAbilityIds
@@ -810,18 +810,19 @@ class TargetingHandler(
             }
 
             is ClassifiedPrompt.SelectN -> {
+                val semantic = pendingPrompt.request.semantic
                 val label =
                     if (context == PromptDispatchContext.POST_CAST) {
-                        "post-cast selectN reason=${classified.reason} candidates=${pendingPrompt.request.candidateRefs.size}"
+                        "post-cast selectN semantic=$semantic candidates=${pendingPrompt.request.candidateRefs.size}"
                     } else {
-                        "select_n(${classified.reason}) candidates=${pendingPrompt.request.candidateRefs.size}"
+                        "select_n($semantic) candidates=${pendingPrompt.request.candidateRefs.size}"
                     }
                 tracer.traceEvent(
                     MatchEventType.TARGET_PROMPT,
                     ctx.game,
                     label,
                 )
-                sendSelectNPrompt(classified.pendingPrompt, classified.reason)
+                sendSelectNPrompt(classified.pendingPrompt)
                 true
             }
 
@@ -854,39 +855,16 @@ class TargetingHandler(
         }
     }
 
-    private fun sendSelectNPrompt(
-        pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        reason: SelectNReason,
-    ) {
+    private fun sendSelectNPrompt(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
         SelectNPromptRoutes.payCosts(pendingPrompt.request.semantic)?.let { route ->
             sendPayCostsReq(pendingPrompt, route)
             return
         }
 
-        when (reason) {
-            SelectNReason.LegendRule,
-            SelectNReason.Discard,
-            SelectNReason.SacrificeEffect,
-            SelectNReason.RevealChoose,
-            SelectNReason.Resolution,
-            SelectNReason.SuspectChoice,
-            SelectNReason.LibraryPutback,
-            SelectNReason.MutateTopBottom,
-            SelectNReason.LearnLesson,
-            SelectNReason.StaticColorChoice,
-            SelectNReason.StaticSubtypeChoice,
-            SelectNReason.StaticParityChoice,
-            -> sendSelectNReq(pendingPrompt, reason)
-            SelectNReason.Sacrifice,
-            SelectNReason.ExileFromGrave,
-            SelectNReason.CollectEvidenceCost,
-            SelectNReason.EnlistCost,
-            SelectNReason.StationTapCost,
-            SelectNReason.ReturnUnblockedAttackerCost,
-            SelectNReason.ConvokeCost,
-            SelectNReason.WaterbendCost,
-            -> error("missing PayCosts route for ${pendingPrompt.request.semantic}")
-        }
+        val route =
+            SelectNPromptRoutes.route(pendingPrompt.request.semantic)
+                ?: error("missing SelectN route for ${pendingPrompt.request.semantic}")
+        sendSelectNReq(pendingPrompt, route)
     }
 
     /**
@@ -1842,7 +1820,7 @@ class TargetingHandler(
 
     private fun sendSelectNReq(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        reason: SelectNReason,
+        route: SelectNPromptRoute,
     ) {
         val game = ctx.game
         val bb = bundles.bundleBuilder
@@ -1851,7 +1829,7 @@ class TargetingHandler(
                 game,
                 counters.counter,
                 pendingPrompt,
-            ) { req -> selectNEnvelope(pendingPrompt, reason, req) }
+            ) { req -> route.envelope(req) { learnPromptId(pendingPrompt) } }
         Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
@@ -1866,38 +1844,6 @@ class TargetingHandler(
         val hasHandChoice = pendingPrompt.request.candidateRefs.any { it.zone == "Hand" }
         return if (hasHandChoice) PromptIds.LEARN_LESSON_OR_DISCARD else PromptIds.LEARN_LESSON_ONLY
     }
-
-    private fun selectNEnvelope(
-        pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        reason: SelectNReason,
-        req: SelectNReq,
-    ): SelectNEnvelope =
-        when (reason) {
-            SelectNReason.Discard,
-            SelectNReason.SacrificeEffect,
-            SelectNReason.LegendRule,
-            SelectNReason.RevealChoose,
-            SelectNReason.Resolution,
-            SelectNReason.SuspectChoice,
-            SelectNReason.LibraryPutback,
-            SelectNReason.MutateTopBottom,
-            SelectNReason.LearnLesson,
-            SelectNReason.StaticColorChoice,
-            SelectNReason.StaticSubtypeChoice,
-            SelectNReason.StaticParityChoice,
-            ->
-                SelectNPromptRoutes.route(pendingPrompt.request.semantic)?.envelope(req) { learnPromptId(pendingPrompt) }
-                    ?: error("missing SelectN route for ${pendingPrompt.request.semantic}")
-            SelectNReason.Sacrifice,
-            SelectNReason.ExileFromGrave,
-            SelectNReason.CollectEvidenceCost,
-            SelectNReason.EnlistCost,
-            SelectNReason.StationTapCost,
-            SelectNReason.ReturnUnblockedAttackerCost,
-            SelectNReason.ConvokeCost,
-            SelectNReason.WaterbendCost,
-            -> error("cost SelectN uses PayCostsReq")
-        }
 
     private fun sendPayCostsReq(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,

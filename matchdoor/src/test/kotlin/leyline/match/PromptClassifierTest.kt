@@ -81,10 +81,10 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.LegendRule
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.SelectNLegendRule
         }
 
-        test("discard cost prompt classifies as select-n with Discard reason") {
+        test("discard prompt classifies as select-n") {
             val result =
                 classify(
                     promptType = "choose_cards",
@@ -93,10 +93,10 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.Discard
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.SelectNDiscard
         }
 
-        test("resolution-time multi-pick classifies as select-n with Resolution reason") {
+        test("resolution-time multi-pick classifies as select-n") {
             val result =
                 classify(
                     promptType = "choose_cards",
@@ -105,10 +105,10 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.Resolution
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.SelectNResolution
         }
 
-        test("suspect choice semantic classifies as select-n with SuspectChoice reason") {
+        test("suspect choice semantic classifies as select-n") {
             val result =
                 classify(
                     promptType = "choose_cards",
@@ -117,10 +117,10 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.SuspectChoice
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.SuspectChoice
         }
 
-        test("library putback semantic classifies as select-n with LibraryPutback reason") {
+        test("library putback semantic classifies as select-n") {
             val result =
                 classify(
                     promptType = "choose_cards",
@@ -129,10 +129,10 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.LibraryPutback
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.SelectNLibraryPutback
         }
 
-        test("sacrifice cost semantic classifies as select-n with Sacrifice reason") {
+        test("sacrifice cost semantic classifies as select-n") {
             val result =
                 classify(
                     promptType = "choose_cards",
@@ -141,10 +141,10 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.Sacrifice
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.SelectNCostSacrifice
         }
 
-        test("sacrifice effect semantic classifies as select-n without cost-payment reason") {
+        test("sacrifice effect semantic classifies as select-n") {
             val result =
                 classify(
                     promptType = "choose_cards",
@@ -153,7 +153,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.SacrificeEffect
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.SelectNSacrificeEffect
         }
 
         test("station tap-cost semantic classifies as station cost payment") {
@@ -165,7 +165,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.StationTapCost
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.StationTapCost
         }
 
         test("collect evidence semantic classifies as weighted cost payment") {
@@ -177,7 +177,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.CollectEvidenceCost
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.SelectNCostCollectEvidence
         }
 
         test("return-unblocked-attacker semantic classifies as cost payment") {
@@ -189,7 +189,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.ReturnUnblockedAttackerCost
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.ReturnUnblockedAttackerCost
         }
 
         test("convoke semantic classifies as cost payment") {
@@ -201,10 +201,10 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.ConvokeCost
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.ConvokeCost
         }
 
-        test("learn semantic classifies as select-n with LearnLesson reason") {
+        test("learn semantic classifies as select-n") {
             val result =
                 classify(
                     promptType = "choose_cards",
@@ -213,7 +213,7 @@ class PromptClassifierTest :
                     candidateRefs = listOf(cardRef),
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.LearnLesson
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.LearnLesson
         }
 
         test("static color semantic classifies as select-n") {
@@ -224,7 +224,7 @@ class PromptClassifierTest :
                     semantic = PromptSemantic.StaticColorChoice,
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.StaticColorChoice
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.StaticColorChoice
         }
 
         test("static subtype semantic classifies as select-n") {
@@ -235,7 +235,7 @@ class PromptClassifierTest :
                     semantic = PromptSemantic.StaticSubtypeChoice,
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.StaticSubtypeChoice
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.StaticSubtypeChoice
         }
 
         test("static parity semantic classifies as select-n") {
@@ -246,7 +246,7 @@ class PromptClassifierTest :
                     semantic = PromptSemantic.StaticParityChoice,
                 ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
-            result.reason shouldBe SelectNReason.StaticParityChoice
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.StaticParityChoice
         }
 
         test("library order semantic classifies as order even with card refs") {

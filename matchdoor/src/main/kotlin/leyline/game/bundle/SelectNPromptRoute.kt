@@ -297,6 +297,8 @@ internal object SelectNPromptRoutes {
 
     fun payCosts(semantic: PromptSemantic): PayCostsPromptRoute? = payCostsRoutesBySemantic[semantic]
 
+    fun handles(semantic: PromptSemantic): Boolean = route(semantic) != null || payCosts(semantic) != null
+
     fun staticChoice(semantic: PromptSemantic): StaticChoiceSelectNRoute? = route(semantic) as? StaticChoiceSelectNRoute
 
     fun staticChoiceEnvelope(

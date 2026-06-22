@@ -3,6 +3,7 @@ package leyline.match
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
+import leyline.game.bundle.SelectNPromptRoutes
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 
 /**
@@ -25,7 +26,6 @@ sealed interface ClassifiedPrompt {
 
     data class SelectN(
         override val pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        val reason: SelectNReason,
     ) : ClassifiedPrompt
 
     data class Targeting(
@@ -56,7 +56,7 @@ object PromptClassifier {
         p: InteractivePromptBridge.PendingPrompt,
         req: PromptRequest,
     ): ClassifiedPrompt? {
-        selectNReason(req.semantic)?.let { return ClassifiedPrompt.SelectN(p, it) }
+        if (SelectNPromptRoutes.handles(req.semantic)) return ClassifiedPrompt.SelectN(p)
         return when (req.semantic) {
             PromptSemantic.GroupingSurveil -> ClassifiedPrompt.Grouping(p, GroupingContext.Surveil)
             PromptSemantic.GroupingScry -> ClassifiedPrompt.Grouping(p, GroupingContext.Scry_a0f6)
@@ -90,74 +90,6 @@ object PromptClassifier {
             -> null
         }
     }
-
-    private fun selectNReason(semantic: PromptSemantic): SelectNReason? = staticChoiceReason(semantic) ?: selectNReasonBySemantic(semantic)
-
-    private fun staticChoiceReason(semantic: PromptSemantic): SelectNReason? =
-        when (semantic) {
-            PromptSemantic.StaticColorChoice -> SelectNReason.StaticColorChoice
-            PromptSemantic.StaticSubtypeChoice -> SelectNReason.StaticSubtypeChoice
-            PromptSemantic.StaticParityChoice -> SelectNReason.StaticParityChoice
-            PromptSemantic.GroupingSurveil,
-            PromptSemantic.GroupingScry,
-            PromptSemantic.ModalChoice,
-            PromptSemantic.SelectNLegendRule,
-            PromptSemantic.SelectNDiscard,
-            PromptSemantic.RevealChoose,
-            PromptSemantic.SelectNSacrificeEffect,
-            PromptSemantic.SelectNCostSacrifice,
-            PromptSemantic.SelectNCostExileFromGrave,
-            PromptSemantic.SelectNCostCollectEvidence,
-            PromptSemantic.EnlistCost,
-            PromptSemantic.StationTapCost,
-            PromptSemantic.ReturnUnblockedAttackerCost,
-            PromptSemantic.ConvokeCost,
-            PromptSemantic.WaterbendCost,
-            PromptSemantic.SelectNResolution,
-            PromptSemantic.SuspectChoice,
-            PromptSemantic.SelectNLibraryPutback,
-            PromptSemantic.MutateTopBottom,
-            PromptSemantic.LearnLesson,
-            PromptSemantic.Search,
-            PromptSemantic.OrderForBottom,
-            PromptSemantic.OrderForTop,
-            PromptSemantic.OrderGeneric,
-            PromptSemantic.Generic,
-            -> null
-        }
-
-    private fun selectNReasonBySemantic(semantic: PromptSemantic): SelectNReason? =
-        when (semantic) {
-            PromptSemantic.SelectNLegendRule -> SelectNReason.LegendRule
-            PromptSemantic.SelectNDiscard -> SelectNReason.Discard
-            PromptSemantic.RevealChoose -> SelectNReason.RevealChoose
-            PromptSemantic.SelectNSacrificeEffect -> SelectNReason.SacrificeEffect
-            PromptSemantic.SelectNCostSacrifice -> SelectNReason.Sacrifice
-            PromptSemantic.SelectNCostExileFromGrave -> SelectNReason.ExileFromGrave
-            PromptSemantic.SelectNCostCollectEvidence -> SelectNReason.CollectEvidenceCost
-            PromptSemantic.EnlistCost -> SelectNReason.EnlistCost
-            PromptSemantic.StationTapCost -> SelectNReason.StationTapCost
-            PromptSemantic.ReturnUnblockedAttackerCost -> SelectNReason.ReturnUnblockedAttackerCost
-            PromptSemantic.ConvokeCost -> SelectNReason.ConvokeCost
-            PromptSemantic.WaterbendCost -> SelectNReason.WaterbendCost
-            PromptSemantic.SelectNResolution -> SelectNReason.Resolution
-            PromptSemantic.SuspectChoice -> SelectNReason.SuspectChoice
-            PromptSemantic.SelectNLibraryPutback -> SelectNReason.LibraryPutback
-            PromptSemantic.MutateTopBottom -> SelectNReason.MutateTopBottom
-            PromptSemantic.LearnLesson -> SelectNReason.LearnLesson
-            PromptSemantic.GroupingSurveil,
-            PromptSemantic.GroupingScry,
-            PromptSemantic.ModalChoice,
-            PromptSemantic.Search,
-            PromptSemantic.OrderForBottom,
-            PromptSemantic.OrderForTop,
-            PromptSemantic.OrderGeneric,
-            PromptSemantic.StaticColorChoice,
-            PromptSemantic.StaticSubtypeChoice,
-            PromptSemantic.StaticParityChoice,
-            PromptSemantic.Generic,
-            -> null
-        }
 
     private fun classifyGeneric(
         p: InteractivePromptBridge.PendingPrompt,
