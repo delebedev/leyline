@@ -12,6 +12,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
@@ -684,7 +685,7 @@ object RequestBuilder {
                 forgeId to card
             }
         return ConvokeShardAssigner
-            .assign(candidates, prompt.request.waterbendManaCost.toConvokeShardCounts()) { (_, card) -> card.color }
+            .assign(candidates, ManaColorMapping.paymentShardCounts(prompt.request.waterbendManaCost)) { (_, card) -> card.color }
             .associate { (entry, shard) -> entry.first to shard }
     }
 
@@ -731,7 +732,7 @@ object RequestBuilder {
         convokeShard: ManaCostShard?,
     ): ManaColor {
         if (kind == ManaSourcePaymentKind.Waterbend) return ManaColor.Colorless_afc9
-        convokeShard?.let { return it.toConvokeWireColor() }
+        convokeShard?.let { return ManaColorMapping.paymentWireColor(it) }
         val colorsNeeded = prompt.request.waterbendManaCost.toMap()
         return when {
             cardColor.hasWhite() && colorsNeeded.getOrDefault(ManaColor.White_afc9, 0) > 0 -> ManaColor.White_afc9
@@ -742,35 +743,6 @@ object RequestBuilder {
             else -> ManaColor.Colorless_afc9
         }
     }
-
-    private fun List<Pair<ManaColor, Int>>.toConvokeShardCounts(): Map<ManaCostShard, Int> =
-        buildMap {
-            for ((color, count) in this@toConvokeShardCounts) {
-                val shard = color.toConvokeShard() ?: continue
-                put(shard, count)
-            }
-        }
-
-    private fun ManaColor.toConvokeShard(): ManaCostShard? =
-        when {
-            this == ManaColor.White_afc9 -> ManaCostShard.WHITE
-            this == ManaColor.Blue_afc9 -> ManaCostShard.BLUE
-            this == ManaColor.Black_afc9 -> ManaCostShard.BLACK
-            this == ManaColor.Red_afc9 -> ManaCostShard.RED
-            this == ManaColor.Green_afc9 -> ManaCostShard.GREEN
-            this == ManaColor.Generic -> ManaCostShard.GENERIC
-            else -> null
-        }
-
-    private fun ManaCostShard.toConvokeWireColor(): ManaColor =
-        when {
-            this == ManaCostShard.WHITE -> ManaColor.White_afc9
-            this == ManaCostShard.BLUE -> ManaColor.Blue_afc9
-            this == ManaCostShard.BLACK -> ManaColor.Black_afc9
-            this == ManaCostShard.RED -> ManaColor.Red_afc9
-            this == ManaCostShard.GREEN -> ManaColor.Green_afc9
-            else -> ManaColor.Colorless_afc9
-        }
 
     /**
      * Build a `PayCostsReq` for an additional cost paid by selecting N cards

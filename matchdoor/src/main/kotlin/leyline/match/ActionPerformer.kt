@@ -1,6 +1,5 @@
 package leyline.match
 
-import forge.card.MagicColor
 import forge.game.ability.ApiType
 import leyline.bridge.findCard
 import leyline.bridge.getAllCastableAbilities
@@ -11,6 +10,7 @@ import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.WubrgColorMapping
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.AbilityGrpIdMode
 import leyline.game.mapping.AltGrpIdSource
@@ -478,25 +478,7 @@ class ActionPerformer(
         return explicitSelections.singleOrNull()?.toMagicColorMask()
     }
 
-    private fun ManaColor.toMagicColorMask(): Byte? =
-        when (this) {
-            ManaColor.White_afc9 -> MagicColor.WHITE
-            ManaColor.Blue_afc9 -> MagicColor.BLUE
-            ManaColor.Black_afc9 -> MagicColor.BLACK
-            ManaColor.Red_afc9 -> MagicColor.RED
-            ManaColor.Green_afc9 -> MagicColor.GREEN
-            ManaColor.None_afc9,
-            ManaColor.Phyrexian_afc9,
-            ManaColor.Generic,
-            ManaColor.X,
-            ManaColor.Y,
-            ManaColor.TwoGeneric,
-            ManaColor.AnyColor,
-            ManaColor.Colorless_afc9,
-            ManaColor.Snow_afc9,
-            ManaColor.UNRECOGNIZED,
-            -> null
-        }
+    private fun ManaColor.toMagicColorMask(): Byte? = WubrgColorMapping.magicMaskForManaColor(this)
 
     private fun resolveCastAbilityIndex(
         action: Action,

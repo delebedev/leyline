@@ -5,15 +5,6 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 /**
  * Map a single mana symbol token (W/U/B/R/G/C/S/X or a positive integer) to a
  * (ManaColor, count) pair. Returns null for empty / unrecognized tokens.
- *
- * Shared by:
- *   - `leyline.game.data.parseManaCost` — tokenizes Arena card-DB
- *     OldSchoolManaText (`o1oU` → `["1", "U"]`)
- *   - `leyline.bridge.forge.parseForgeModeCost` — tokenizes Forge's
- *     `ModeCost$` SVar text (`"1 U"` → `["1", "U"]`)
- *
- * Both inputs converge on the same single-symbol vocabulary, so the
- * color-mapping table lives in one place.
  */
 internal fun manaTokenToPair(token: String): Pair<ManaColor, Int>? {
     if (token.isEmpty()) return null

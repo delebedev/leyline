@@ -1,4 +1,4 @@
-package leyline.game.codes
+package leyline.bridge.types
 
 import forge.card.mana.ManaCost
 import forge.card.mana.ManaCostShard
@@ -15,6 +15,15 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  * into the `List<Pair<ManaColor, Int>>` format used by [leyline.game.data.CardData].
  */
 object ManaColorMapping {
+    private val WUBRG_SHARDS =
+        listOf(
+            ManaCostShard.WHITE,
+            ManaCostShard.BLUE,
+            ManaCostShard.BLACK,
+            ManaCostShard.RED,
+            ManaCostShard.GREEN,
+        )
+
     /** ManaCostShard → proto ManaColor. Only simple shards mapped; hybrids skipped. */
     val SHARD_MAP: Map<ManaCostShard, ManaColor> =
         mapOf(
@@ -66,6 +75,54 @@ object ManaColorMapping {
             else -> null
         }
 
+    fun paymentShard(color: ManaColor): ManaCostShard? = if (color == ManaColor.Generic) ManaCostShard.GENERIC else monoColorShard(color)
+
+    fun paymentWireColor(shard: ManaCostShard): ManaColor =
+        when {
+            shard == ManaCostShard.WHITE -> ManaColor.White_afc9
+            shard == ManaCostShard.BLUE -> ManaColor.Blue_afc9
+            shard == ManaCostShard.BLACK -> ManaColor.Black_afc9
+            shard == ManaCostShard.RED -> ManaColor.Red_afc9
+            shard == ManaCostShard.GREEN -> ManaColor.Green_afc9
+            else -> ManaColor.Colorless_afc9
+        }
+
+    fun paymentCostColor(shard: ManaCostShard): ManaColor =
+        if (shard == ManaCostShard.GENERIC) ManaColor.Generic else paymentWireColor(shard)
+
+    fun paymentShardCounts(cost: List<Pair<ManaColor, Int>>): Map<ManaCostShard, Int> =
+        buildMap {
+            for ((color, count) in cost) {
+                val shard = paymentShard(color) ?: continue
+                put(shard, count)
+            }
+        }
+
+    fun colorCounts(cost: ManaCost): Map<ManaColor, Int> =
+        buildMap {
+            for (shard in cost) {
+                val color = fromShard(shard) ?: continue
+                put(color, getOrDefault(color, 0) + 1)
+            }
+        }
+
+    fun deriveManaCostWithGenericLast(cost: ManaCost): List<Pair<ManaColor, Int>> {
+        val result = colorCounts(cost).map { (color, count) -> color to count }.toMutableList()
+        val generic = cost.genericCost
+        if (generic > 0) result.add(ManaColor.Generic to generic)
+        return result
+    }
+
+    fun deriveWubrgCostWithGenericFirst(cost: ManaCost): List<Pair<ManaColor, Int>> =
+        buildList {
+            if (cost.genericCost > 0) add(ManaColor.Generic to cost.genericCost)
+            for (shard in WUBRG_SHARDS) {
+                val count = cost.getShardCount(shard)
+                val color = fromShard(shard) ?: continue
+                if (count > 0) add(color to count)
+            }
+        }
+
     /**
      * Derive `(ManaColor, count)` pairs from a Forge [ManaCost].
      * Shared by [PuzzleCardRegistrar] and test `CardDataDeriver`.
@@ -75,9 +132,8 @@ object ManaColorMapping {
         val counts = mutableMapOf<ManaColor, Int>()
         val generic = cost.genericCost
         if (generic > 0) counts[ManaColor.Generic] = generic
-        for (shard in cost) {
-            val color = SHARD_MAP[shard] ?: continue
-            counts.merge(color, 1, Int::plus)
+        for ((color, count) in colorCounts(cost)) {
+            counts.merge(color, count, Int::plus)
         }
         return counts.toList()
     }

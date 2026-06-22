@@ -3,7 +3,7 @@ package leyline.tooling.headless
 import forge.card.CardType.CoreType
 import forge.card.CardType.Supertype
 import forge.game.card.Card
-import leyline.game.codes.ManaColorMapping
+import leyline.bridge.types.ManaColorMapping
 import leyline.game.codes.SlotKind
 import leyline.game.data.CardData
 import leyline.game.data.TestCardFixtures
