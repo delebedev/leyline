@@ -176,10 +176,6 @@ class DiscardInteractionTest :
 
         // --- Cleanup discard (hand exceeds max hand size) ---
 
-        // TODO: cleanup discard is currently auto-resolved by TargetingHandler
-        // (picks first card). Real Arena sends a SelectNReq letting the player
-        // choose which card to discard. When we implement interactive cleanup
-        // discard, this test should assert the prompt and respond explicitly.
         test("cleanup discard — hand size enforced at end of turn") {
             startPuzzle(
                 """
@@ -206,10 +202,23 @@ class DiscardInteractionTest :
             passPriority()
             human.getZone(ForgeZoneType.Hand).size() shouldBe 8
 
-            // Pass through to cleanup where hand size is enforced (8 → 7)
+            // Pass through to cleanup and answer the discard prompt explicitly.
+            val cleanupStart = messageSnapshot()
             passUntil(maxPasses = 10) {
-                human.getZone(ForgeZoneType.Hand).size() <= 7
+                messagesSince(cleanupStart).any { it.hasSelectNReq() }
+            } shouldBe true
+
+            val req = messagesSince(cleanupStart).last { it.hasSelectNReq() }.selectNReq
+            assertSoftly {
+                req.context shouldBe SelectionContext.Discard_a163
+                req.listType shouldBe SelectionListType.Static
+                req.optionContext shouldBe OptionContext.Payment
+                req.minSel shouldBe 1
+                req.maxSel shouldBe 1
+                req.idsList shouldHaveSize 8
             }
+
+            respondToSelectN(listOf(req.idsList.first()))
 
             human.getZone(ForgeZoneType.Hand).size() shouldBe 7
             // Divination (resolved) + 1 discarded card
