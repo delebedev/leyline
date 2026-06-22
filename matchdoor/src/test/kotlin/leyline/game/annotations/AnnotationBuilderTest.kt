@@ -6,11 +6,11 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.types.ManaColorMapping
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.CounterTypes
 import leyline.game.codes.DetailKeys
-import leyline.game.codes.ManaColorMapping
 import leyline.game.codes.QualificationType
 import leyline.game.eid
 import leyline.game.grp

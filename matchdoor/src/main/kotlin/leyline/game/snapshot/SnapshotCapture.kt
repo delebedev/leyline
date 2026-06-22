@@ -6,13 +6,13 @@ import forge.game.player.Player
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
+import leyline.bridge.types.WubrgColorMapping
 import leyline.game.annotations.AbilityWordScanner
 import leyline.game.data.CardRepository
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
 import org.jetbrains.annotations.VisibleForTesting
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -538,38 +538,7 @@ object SnapshotCapture {
         val mask =
             card.rules.colorIdentity.color
                 .toInt()
-        return buildList {
-            if (mask and
-                forge.card.MagicColor.WHITE
-                    .toInt() != 0
-            ) {
-                add(ManaColor.White_afc9.number)
-            }
-            if (mask and
-                forge.card.MagicColor.BLUE
-                    .toInt() != 0
-            ) {
-                add(ManaColor.Blue_afc9.number)
-            }
-            if (mask and
-                forge.card.MagicColor.BLACK
-                    .toInt() != 0
-            ) {
-                add(ManaColor.Black_afc9.number)
-            }
-            if (mask and
-                forge.card.MagicColor.RED
-                    .toInt() != 0
-            ) {
-                add(ManaColor.Red_afc9.number)
-            }
-            if (mask and
-                forge.card.MagicColor.GREEN
-                    .toInt() != 0
-            ) {
-                add(ManaColor.Green_afc9.number)
-            }
-        }
+        return WubrgColorMapping.manaColorNumbersFromMagicMask(mask)
     }
 
     /**

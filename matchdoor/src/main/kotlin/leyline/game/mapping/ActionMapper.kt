@@ -21,8 +21,8 @@ import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.SeatId
-import leyline.game.codes.ManaColorMapping
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
@@ -1912,28 +1912,12 @@ object ActionMapper {
         return true
     }
 
-    /** Aggregate colored shards from a Forge [ManaCost] into a color→count map. */
-    private fun manaCostColorCounts(manaCost: forge.card.mana.ManaCost): Map<ManaColor, Int> {
-        val counts = mutableMapOf<ManaColor, Int>()
-        for (shard in manaCost) {
-            val color = ManaColorMapping.fromShard(shard) ?: continue
-            counts[color] = (counts[color] ?: 0) + 1
-        }
-        return counts
-    }
-
     /**
      * Convert a Forge [ManaCost][forge.card.mana.ManaCost] to `List<Pair<ManaColor, Int>>`
      * for use with [buildAutoTapSolution] which expects that format.
      */
-    internal fun forgeManaCostToPairs(manaCost: forge.card.mana.ManaCost): List<Pair<ManaColor, Int>> {
-        val result = manaCostColorCounts(manaCost).map { (color, count) -> color to count }.toMutableList()
-        val generic = manaCost.genericCost
-        if (generic > 0) {
-            result.add(ManaColor.Generic to generic)
-        }
-        return result
-    }
+    internal fun forgeManaCostToPairs(manaCost: forge.card.mana.ManaCost): List<Pair<ManaColor, Int>> =
+        ManaColorMapping.deriveManaCostWithGenericLast(manaCost)
 
     /**
      * Convert a Forge [ManaCost] into proto [ManaRequirement] entries on an action builder.
@@ -1981,7 +1965,7 @@ object ActionMapper {
         abilityGrpId: Int?,
     ): List<ManaRequirement> {
         val result = mutableListOf<ManaRequirement>()
-        for ((color, count) in manaCostColorCounts(manaCost)) {
+        for ((color, count) in ManaColorMapping.colorCounts(manaCost)) {
             val req = ManaRequirement.newBuilder().addColor(color).setCount(count)
             if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
             result.add(req.build())

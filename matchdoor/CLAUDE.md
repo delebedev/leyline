@@ -9,7 +9,7 @@ Game engine adapter — translates between Forge engine and the client protocol.
 ## Internal Packages
 
 ```
-bridge/             Forge adapter — the thread/process frontier with Forge.
+  bridge/             Forge adapter — the thread/process frontier with Forge.
   forge/            Forge inheritance seams — the only place matchdoor extends
                     Forge classes (PlayerController, HeadlessGuiBase,
                     ClientGuiGame, CostDecision).
@@ -25,7 +25,8 @@ bridge/             Forge adapter — the thread/process frontier with Forge.
   bootstrap/        Match + deck setup (GameBootstrap, DeckLoader, DeckConverter,
                     FormatService).
   types/            Pure-data shared types (Ids, PriorityDecision, PrioritySignal,
-                    PhaseStopProfile, MulliganPhase, ClientAutoPassState, BridgeDto).
+                    PhaseStopProfile, MulliganPhase, ClientAutoPassState, BridgeDto,
+                    mana/color adapters).
   (root)            Cross-cutting utilities — CardLookup, ResourceResolver,
                     BridgeTimeoutDiagnostic, PlayableActionQuery.
 
@@ -52,7 +53,7 @@ game/               Engine state → client protobuf.
                     AbilityIdDeriver).
   codes/            Arena protocol code tables + static mappings (CounterTypes,
                     DetailKeys, KeywordGrpIds, KeywordQualifications,
-                    ManaColorMapping, QualificationType, SlotLayout).
+                    QualificationType, SlotLayout).
   generator/        Pre-match generators (DraftPackGenerator, SealedPoolGenerator,
                     PuzzleSource).
   (root)            GamePlayback.

@@ -12,6 +12,8 @@ import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.ManaColorMapping
+import leyline.bridge.types.ManaCostText
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.BundleBuilder
@@ -19,7 +21,6 @@ import leyline.game.bundle.PayCostsPromptRoute
 import leyline.game.bundle.RequestBuilder
 import leyline.game.bundle.SelectNEnvelope
 import leyline.game.bundle.SelectNPromptRoutes
-import leyline.game.codes.ManaColorMapping
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.FrameIdResolver
@@ -474,7 +475,7 @@ class TargetingHandler(
                     max = (pendingPrompt.request.max - selectedIds.size).coerceAtLeast(0),
                     candidateRefs = remainingRefs.mapIndexed { index, ref -> ref.copy(index = index) },
                     waterbendManaCost = remainingManaCost,
-                    waterbendCostString = remainingManaCost.toArenaCostString().takeIf { it.isNotEmpty() },
+                    waterbendCostString = ManaCostText.clientText(remainingManaCost).takeIf { it.isNotEmpty() },
                 ),
         )
     }
@@ -513,7 +514,7 @@ class TargetingHandler(
                         selections.map { selection ->
                             PromptSideEffect.ConvokePayment(
                                 paymentForgeCardId = selection.forgeCardId,
-                                color = selection.shard.toConvokeWireColor().number,
+                                color = ManaColorMapping.paymentWireColor(selection.shard).number,
                             )
                         },
                 ),
@@ -543,7 +544,7 @@ class TargetingHandler(
     ): List<Pair<ManaColor, Int>> {
         val remaining = cost.associate { it.first to it.second }.toMutableMap()
         for (selection in selections) {
-            val color = selection.shard.toConvokeCostColor()
+            val color = ManaColorMapping.paymentCostColor(selection.shard)
             val next = (remaining[color] ?: 0) - 1
             if (next <= 0) remaining.remove(color) else remaining[color] = next
         }
@@ -563,7 +564,7 @@ class TargetingHandler(
                 forgeId to card
             }
         return ConvokeShardAssigner
-            .assign(candidates, cost.toConvokeShardCounts()) { (_, card) -> card.color }
+            .assign(candidates, ManaColorMapping.paymentShardCounts(cost)) { (_, card) -> card.color }
             .associate { (entry, shard) -> entry.first to shard }
     }
 
@@ -572,46 +573,9 @@ class TargetingHandler(
         cost: List<Pair<ManaColor, Int>>,
     ): ManaCostShard? =
         ConvokeShardAssigner
-            .assign(listOf(color), cost.toConvokeShardCounts()) { it }
+            .assign(listOf(color), ManaColorMapping.paymentShardCounts(cost)) { it }
             .firstOrNull()
             ?.second
-
-    private fun List<Pair<ManaColor, Int>>.toConvokeShardCounts(): Map<ManaCostShard, Int> =
-        buildMap {
-            for ((color, count) in this@toConvokeShardCounts) {
-                val shard = color.toConvokeShard() ?: continue
-                put(shard, count)
-            }
-        }
-
-    private fun ManaColor.toConvokeShard(): ManaCostShard? =
-        when {
-            this == ManaColor.White_afc9 -> ManaCostShard.WHITE
-            this == ManaColor.Blue_afc9 -> ManaCostShard.BLUE
-            this == ManaColor.Black_afc9 -> ManaCostShard.BLACK
-            this == ManaColor.Red_afc9 -> ManaCostShard.RED
-            this == ManaColor.Green_afc9 -> ManaCostShard.GREEN
-            this == ManaColor.Generic -> ManaCostShard.GENERIC
-            else -> null
-        }
-
-    private fun ManaCostShard.toConvokeWireColor(): ManaColor =
-        if (this == ManaCostShard.WHITE) {
-            ManaColor.White_afc9
-        } else if (this == ManaCostShard.BLUE) {
-            ManaColor.Blue_afc9
-        } else if (this == ManaCostShard.BLACK) {
-            ManaColor.Black_afc9
-        } else if (this == ManaCostShard.RED) {
-            ManaColor.Red_afc9
-        } else if (this == ManaCostShard.GREEN) {
-            ManaColor.Green_afc9
-        } else {
-            ManaColor.Colorless_afc9
-        }
-
-    private fun ManaCostShard.toConvokeCostColor(): ManaColor =
-        if (this == ManaCostShard.GENERIC) ManaColor.Generic else toConvokeWireColor()
 
     private fun isManaSourcePaymentSemantic(semantic: PromptSemantic): Boolean =
         semantic == PromptSemantic.WaterbendCost || semantic == PromptSemantic.ConvokeCost
@@ -635,19 +599,6 @@ class TargetingHandler(
             }
         }
     }
-
-    private fun List<Pair<ManaColor, Int>>.toArenaCostString(): String =
-        joinToString(separator = "") { (color, count) ->
-            when (color) {
-                ManaColor.Generic -> "o$count"
-                ManaColor.White_afc9 -> "oW".repeat(count)
-                ManaColor.Blue_afc9 -> "oU".repeat(count)
-                ManaColor.Black_afc9 -> "oB".repeat(count)
-                ManaColor.Red_afc9 -> "oR".repeat(count)
-                ManaColor.Green_afc9 -> "oG".repeat(count)
-                else -> ""
-            }
-        }
 
     private fun mapSelectedInstanceIdsToPromptIndices(
         selectedInstanceIds: List<Int>,

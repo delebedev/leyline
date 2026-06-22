@@ -18,8 +18,8 @@ import forge.game.zone.ZoneType
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.SeatId
-import leyline.game.codes.ManaColorMapping
 import leyline.game.codes.SlotKind
 import leyline.game.data.CardData
 import leyline.game.data.KeywordAbilityIds

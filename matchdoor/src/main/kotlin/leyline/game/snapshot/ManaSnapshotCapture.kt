@@ -4,7 +4,7 @@ import forge.card.MagicColor
 import forge.game.card.Card
 import forge.game.player.Player
 import leyline.bridge.types.ForgeCardId
-import leyline.game.codes.ManaColorMapping
+import leyline.bridge.types.ManaColorMapping
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor

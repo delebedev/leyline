@@ -22,6 +22,8 @@ import leyline.bridge.interaction.candidateRefs
 import leyline.bridge.interaction.shouldInclude
 import leyline.bridge.interaction.shouldRecord
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.ManaColorMapping
+import leyline.bridge.types.ManaCostText
 import leyline.bridge.types.PromptCandidateRefDto
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -100,8 +102,10 @@ class CostPaymentCoordinator(
         untappedCards: CardCollectionView,
         options: List<String>,
         plan: ConvokeOrImproviseCostPlan,
-    ): PromptRequest =
-        PromptRequest(
+    ): PromptRequest {
+        val includeManaFields = plan.manaFieldsPolicy.shouldInclude
+        val displayedCost = if (includeManaFields) manaCost.toColorCounts() else emptyList()
+        return PromptRequest(
             promptType = "choose_cards",
             message = "Choose cards to tap for ${plan.keyword}",
             options = options,
@@ -112,9 +116,10 @@ class CostPaymentCoordinator(
             candidateRefs = plan.candidateRefsPolicy.candidateRefs(buildCandidateRefs(untappedCards)),
             sourceEntityId = sa.hostCard?.id,
             sourceCardName = sa.hostCard?.name,
-            waterbendManaCost = if (plan.manaFieldsPolicy.shouldInclude) manaCost.toColorCounts() else emptyList(),
-            waterbendCostString = if (plan.manaFieldsPolicy.shouldInclude) manaCost.toArenaCostString() else null,
+            waterbendManaCost = displayedCost,
+            waterbendCostString = if (includeManaFields) ManaCostText.clientText(displayedCost) else null,
         )
+    }
 
     private fun buildCandidateRefs(cards: CardCollectionView): List<PromptCandidateRefDto> =
         cards.mapIndexed { index, card ->
@@ -134,7 +139,7 @@ class CostPaymentCoordinator(
                     payments.map { (card, shard) ->
                         PromptSideEffect.ConvokePayment(
                             paymentForgeCardId = ForgeCardId(card.id),
-                            color = shard.toConvokeWireColor().number,
+                            color = ManaColorMapping.paymentWireColor(shard).number,
                         )
                     },
             ),
@@ -333,48 +338,9 @@ class CostPaymentCoordinator(
         return paid
     }
 
-    private fun ManaCost.toColorCounts(): List<Pair<ManaColor, Int>> =
-        buildList {
-            if (genericCost > 0) add(ManaColor.Generic to genericCost)
-            val shards =
-                listOf(
-                    ManaCostShard.WHITE to ManaColor.White_afc9,
-                    ManaCostShard.BLUE to ManaColor.Blue_afc9,
-                    ManaCostShard.BLACK to ManaColor.Black_afc9,
-                    ManaCostShard.RED to ManaColor.Red_afc9,
-                    ManaCostShard.GREEN to ManaColor.Green_afc9,
-                )
-            for ((shard, color) in shards) {
-                val count = getShardCount(shard)
-                if (count > 0) add(color to count)
-            }
-        }
-
-    private fun ManaCost.toArenaCostString(): String =
-        toColorCounts().joinToString(separator = "") { (color, count) ->
-            when (color) {
-                ManaColor.Generic -> "o$count"
-                ManaColor.White_afc9 -> "oW".repeat(count)
-                ManaColor.Blue_afc9 -> "oU".repeat(count)
-                ManaColor.Black_afc9 -> "oB".repeat(count)
-                ManaColor.Red_afc9 -> "oR".repeat(count)
-                ManaColor.Green_afc9 -> "oG".repeat(count)
-                else -> ""
-            }
-        }
-
-    private fun ManaCostShard.toConvokeWireColor(): ManaColor = convokeWireColors[this] ?: ManaColor.Colorless_afc9
+    private fun ManaCost.toColorCounts(): List<Pair<ManaColor, Int>> = ManaColorMapping.deriveWubrgCostWithGenericFirst(this)
 
     companion object {
-        private val convokeWireColors =
-            mapOf(
-                ManaCostShard.WHITE to ManaColor.White_afc9,
-                ManaCostShard.BLUE to ManaColor.Blue_afc9,
-                ManaCostShard.BLACK to ManaColor.Black_afc9,
-                ManaCostShard.RED to ManaColor.Red_afc9,
-                ManaCostShard.GREEN to ManaColor.Green_afc9,
-            )
-
         /** Drain the optional cost stash from [bridge]'s journal, or null if none recorded. */
         fun consumeStashFor(bridge: InteractivePromptBridge): List<Int>? = bridge.journal.consumeOptionalCostStash()
 

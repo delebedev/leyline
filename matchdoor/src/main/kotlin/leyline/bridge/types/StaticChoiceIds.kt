@@ -1,6 +1,5 @@
 package leyline.bridge.types
 
-import forge.card.MagicColor
 import wotc.mtgo.gre.external.messaging.Messages.SubType
 
 /** Arena static-list ids used by enum-domain SelectN prompts. */
@@ -17,25 +16,9 @@ object StaticChoiceIds {
                 valueTransform = { it.number },
             )
 
-    fun colorIdForMask(mask: Byte): Int? =
-        when (mask.toInt()) {
-            MagicColor.WHITE.toInt() -> 1
-            MagicColor.BLUE.toInt() -> 2
-            MagicColor.BLACK.toInt() -> 3
-            MagicColor.RED.toInt() -> 4
-            MagicColor.GREEN.toInt() -> 5
-            else -> null
-        }
+    fun colorIdForMask(mask: Byte): Int? = WubrgColorMapping.staticIdForMagicMask(mask)
 
-    fun colorIdForName(name: String): Int? =
-        when (name.lowercase()) {
-            "white", "w" -> 1
-            "blue", "u" -> 2
-            "black", "b" -> 3
-            "red", "r" -> 4
-            "green", "g" -> 5
-            else -> null
-        }
+    fun colorIdForName(name: String): Int? = WubrgColorMapping.staticIdForName(name)
 
     fun parityIdForName(name: String): Int? =
         when (normalize(name)) {
