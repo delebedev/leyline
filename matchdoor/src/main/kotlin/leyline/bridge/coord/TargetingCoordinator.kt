@@ -354,7 +354,15 @@ class TargetingCoordinator(
             // reveal.allHandCardIds has the full hand for unfilteredIds.
             return chooseCardsViaBridgeForReveal(validCards, min, max, sa, reveal)
         }
-        return chooseCardsViaBridge(validCards, min, max, "Choose cards to discard")
+        return chooseCardsViaBridge(
+            validCards,
+            min,
+            max,
+            "Choose cards to discard",
+            semantic = PromptSemantic.SelectNDiscard,
+            candidateRefs = buildCandidateRefs(validCards),
+            sourceEntityId = sa?.hostCard?.id,
+        )
     }
 
     fun chooseCardsToDiscardFrom(
@@ -369,7 +377,15 @@ class TargetingCoordinator(
         if (reveal != null) {
             return chooseCardsViaBridgeForReveal(validCards, min, max, sa, reveal)
         }
-        return chooseCardsViaBridge(validCards, min, max, "Choose cards to discard")
+        return chooseCardsViaBridge(
+            validCards,
+            min,
+            max,
+            "Choose cards to discard",
+            semantic = PromptSemantic.SelectNDiscard,
+            candidateRefs = buildCandidateRefs(validCards),
+            sourceEntityId = sa?.hostCard?.id,
+        )
     }
 
     private fun revealFromVisibleHand(
@@ -392,6 +408,8 @@ class TargetingCoordinator(
             nDiscard,
             nDiscard,
             "Discard to hand size (select $nDiscard)",
+            semantic = PromptSemantic.SelectNDiscard,
+            candidateRefs = buildCandidateRefs(hand),
         )
 
     fun chooseCardsToDiscardUnlessType(
