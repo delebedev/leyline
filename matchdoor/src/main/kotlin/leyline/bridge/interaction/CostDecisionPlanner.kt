@@ -20,17 +20,27 @@ data class CollectEvidenceCostPlan(
         )
 }
 
+data class SacrificeCostPlan(
+    val requiredCount: Int,
+    val differentNames: Boolean = false,
+) {
+    fun toCardSelectionPlan(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.SelectNCostSacrifice)
+}
+
 object CostDecisionPlanner {
     fun collectEvidencePlan(
         total: Int,
         manaValues: List<Int>,
     ): CollectEvidenceCostPlan = CollectEvidenceCostPlan(total, manaValues)
 
+    fun sacrificePlan(
+        requiredCount: Int,
+        differentNames: Boolean = false,
+    ): SacrificeCostPlan = SacrificeCostPlan(requiredCount, differentNames)
+
     fun typedDiscard(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.SelectNDiscard)
 
     fun enlist(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.EnlistCost)
-
-    fun sacrifice(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.SelectNCostSacrifice)
 
     fun returnCost(
         type: String,

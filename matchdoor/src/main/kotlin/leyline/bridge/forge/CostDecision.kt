@@ -807,6 +807,7 @@ class CostDecision(
                 CardPredicates.canExiledBy(ability, isEffect),
             )
         if (!food.isEmpty() && confirmAction("Sacrifice Food")) {
+            val plan = CostDecisionPlanner.sacrificePlan(requiredCount = 1)
             val selected =
                 selectCardsWithPlan(
                     Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", "Food", "%d"),
@@ -814,7 +815,7 @@ class CostDecision(
                     1,
                     1,
                     cancelAllowed = !mandatory,
-                    plan = CostDecisionPlanner.sacrifice(),
+                    plan = plan.toCardSelectionPlan(),
                 ) ?: return null
             return PaymentDecision.card(selected)
         }
@@ -1245,6 +1246,7 @@ class CostDecision(
         if (c == 0) return PaymentDecision.number(0)
 
         if (differentNames) {
+            val plan = CostDecisionPlanner.sacrificePlan(requiredCount = c, differentNames = true)
             val chosen = CardCollection()
             while (c > 0) {
                 val selected =
@@ -1254,7 +1256,7 @@ class CostDecision(
                         1,
                         1,
                         cancelAllowed = true,
-                        plan = CostDecisionPlanner.sacrifice(),
+                        plan = plan.toCardSelectionPlan(),
                     ) ?: return null
                 val first = selected.first()
                 chosen.add(first)
@@ -1265,6 +1267,7 @@ class CostDecision(
         }
 
         if (list.size < c) return null
+        val plan = CostDecisionPlanner.sacrificePlan(requiredCount = c)
         val selected =
             selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", cost.descriptiveType, "%d"),
@@ -1272,7 +1275,7 @@ class CostDecision(
                 c,
                 c,
                 cancelAllowed = !mandatory,
-                plan = CostDecisionPlanner.sacrifice(),
+                plan = plan.toCardSelectionPlan(),
             ) ?: return null
         return PaymentDecision.card(selected)
     }
