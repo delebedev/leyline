@@ -8,22 +8,17 @@ import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
 import forge.game.card.CardLists
 import forge.game.card.CardPredicates
-import forge.game.cost.CostAdjustment
 import forge.game.keyword.Keyword
-import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
 import leyline.bridge.chooseCastAbility
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
-import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
-import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.SeatId
-import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
@@ -50,130 +45,15 @@ object ActionMapper {
         val action: Action,
     )
 
-    private const val INITIAL_MANA_ID = 10
-    private const val INITIAL_UNIQUE_ABILITY_ID = 50
-
-    private enum class ActivatedActionEnvelope(
-        val includesSourceIdentity: Boolean,
-        val activeShouldStop: Boolean,
-        val activeManaCost: Boolean,
-    ) {
-        PERMANENT_SOURCE(includesSourceIdentity = true, activeShouldStop = true, activeManaCost = true),
-        ABILITY_ONLY(includesSourceIdentity = false, activeShouldStop = false, activeManaCost = true),
-    }
-
-    private data class ManaSource(
-        val instanceId: Int,
-        val color: ManaColor,
-        val abilityGrpId: Int,
-        val fromSnow: Boolean,
-    )
-
     private fun canPayManaCost(
         sa: SpellAbility,
         player: Player,
-    ): Boolean =
-        try {
-            ComputerUtilMana.canPayManaCost(sa, player, 0, false) || canPayOrTwoGenericManaCost(sa, player)
-        } catch (_: Exception) {
-            canPayOrTwoGenericManaCost(sa, player)
-        }
+    ): Boolean = ActionManaCosts.canPayManaCost(sa, player)
 
     private fun canPlayAndPayManaCost(
         sa: SpellAbility,
         player: Player,
-    ): Boolean =
-        try {
-            sa.canPlay() && canPayManaCost(sa, player)
-        } catch (_: Exception) {
-            false
-        }
-
-    @Suppress("CyclomaticComplexMethod") // Bounded DFS over a small mana-source set; keeps hybrid affordability local.
-    private fun canPayOrTwoGenericManaCost(
-        sa: SpellAbility,
-        player: Player,
-    ): Boolean {
-        val cost = computeEffectiveCost(sa, player) ?: return false
-        val hybridColors = cost.mapNotNull { ManaColorMapping.fromOrTwoGenericShard(it) }
-        if (hybridColors.isEmpty()) return false
-
-        val coloredRequirements =
-            cost.mapNotNull { shard ->
-                if (ManaColorMapping.fromOrTwoGenericShard(shard) == null) ManaColorMapping.fromShard(shard) else null
-            }
-        val sourceColors = availableManaSourceColors(player)
-        if (sourceColors.isEmpty()) return false
-
-        fun canPayColor(
-            sourceIndex: Int,
-            color: ManaColor,
-        ): Boolean = ManaColor.Generic in sourceColors[sourceIndex] || color in sourceColors[sourceIndex]
-
-        fun payGeneric(
-            needed: Int,
-            used: BooleanArray,
-            then: () -> Boolean,
-        ): Boolean {
-            if (needed == 0) return then()
-            for (i in sourceColors.indices) {
-                if (used[i]) continue
-                used[i] = true
-                if (payGeneric(needed - 1, used, then)) return true
-                used[i] = false
-            }
-            return false
-        }
-
-        fun payHybrids(
-            index: Int,
-            used: BooleanArray,
-        ): Boolean {
-            if (index == hybridColors.size) {
-                return payGeneric(cost.genericCost, used) { true }
-            }
-            val color = hybridColors[index]
-            for (i in sourceColors.indices) {
-                if (used[i] || !canPayColor(i, color)) continue
-                used[i] = true
-                if (payHybrids(index + 1, used)) return true
-                used[i] = false
-            }
-            return payGeneric(2, used) { payHybrids(index + 1, used) }
-        }
-
-        fun payColored(
-            index: Int,
-            used: BooleanArray,
-        ): Boolean {
-            if (index == coloredRequirements.size) return payHybrids(0, used)
-            val color = coloredRequirements[index]
-            for (i in sourceColors.indices) {
-                if (used[i] || !canPayColor(i, color)) continue
-                used[i] = true
-                if (payColored(index + 1, used)) return true
-                used[i] = false
-            }
-            return false
-        }
-
-        return payColored(0, BooleanArray(sourceColors.size))
-    }
-
-    private fun availableManaSourceColors(player: Player): List<Set<ManaColor>> =
-        player
-            .getZone(ForgeZoneType.Battlefield)
-            .cards
-            .filterNot { it.isTapped }
-            .mapNotNull { card ->
-                getPlayableManaAbilities(card, player)
-                    .flatMap { sa ->
-                        val mana = sa.manaPart ?: return@flatMap emptyList()
-                        val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
-                        produced.split(" ").mapNotNull { producedToManaColor(it) }
-                    }.toSet()
-                    .takeIf { it.isNotEmpty() }
-            }
+    ): Boolean = ActionManaCosts.canPlayAndPayManaCost(sa, player)
 
     /**
      * Naive action list: Cast for all non-lands, Play for all lands in hand,
@@ -248,7 +128,7 @@ object ActionMapper {
                 val forgeCard = bridge.findCard(fid) ?: continue
                 val boundData = snap.boundCards[fid]?.data
                 builder.addAllActions(
-                    buildActivateManaAction(
+                    ActivatedActionEmitter.buildActivateManaAction(
                         forgeCard,
                         instanceId,
                         grpId,
@@ -262,14 +142,14 @@ object ActionMapper {
                 val forgeCard = bridge.findCard(fid) ?: continue
                 val player = bridge.getPlayer(SeatId(seatId)) ?: continue
                 val cardData = snap.boundCards[fid]?.data
-                emitPlayableNonManaActivatedAbilities(
+                ActivatedActionEmitter.emitPlayableNonManaActivatedAbilities(
                     builder = builder,
                     card = forgeCard,
                     player = player,
                     instanceId = { instanceId },
                     grpId = { grpId },
                     cardData = { _ -> cardData },
-                    envelope = ActivatedActionEnvelope.PERMANENT_SOURCE,
+                    envelope = ActivatedActionEmitter.Envelope.PERMANENT_SOURCE,
                     abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
                     autoTapSolution = { cost -> autoTapForCost(player, cost) },
                     skipDisguiseTurnFaceUp = true,
@@ -454,14 +334,14 @@ object ActionMapper {
             if (!cardSnap.hasNonManaActivatedAbilities) continue
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
-            emitPlayableNonManaActivatedAbilities(
+            ActivatedActionEmitter.emitPlayableNonManaActivatedAbilities(
                 builder = builder,
                 card = forgeCard,
                 player = player,
                 instanceId = { bridge.getOrAllocInstanceId(fid).value },
                 grpId = { cardSnap.grpId },
                 cardData = { _ -> snap.boundCards[fid]?.data },
-                envelope = ActivatedActionEnvelope.ABILITY_ONLY,
+                envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,
                 abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
                 autoTapSolution = { cost -> autoTapForCost(player, cost) },
             )
@@ -648,55 +528,17 @@ object ActionMapper {
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
                 val registry = bridge.abilityRegistryFor(forgeCard, cardData)
                 val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
-                emitActivatedAbilityAction(
+                ActivatedActionEmitter.emitActivatedAbilityAction(
                     builder = builder,
                     instanceId = instanceId,
                     grpId = cardSnap.grpId,
                     abilityGrpId = abilityGrpId,
-                    uniqueAbilityId = uniqueAbilityIdFor(cardData, abilityGrpId),
+                    uniqueAbilityId = ActivatedActionEmitter.uniqueAbilityIdFor(cardData, abilityGrpId),
                     abilityCost = ability.payCosts?.totalMana,
                     canPay = canPay,
-                    envelope = ActivatedActionEnvelope.ABILITY_ONLY,
+                    envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,
                 )
             }
-        }
-    }
-
-    @Suppress("LongParameterList") // mirrors the proto fields whose shape differs by activation zone.
-    private fun emitActivatedAbilityAction(
-        builder: ActionsAvailableReq.Builder,
-        instanceId: Int,
-        grpId: Int,
-        abilityGrpId: Int,
-        uniqueAbilityId: Int?,
-        abilityCost: ManaCost?,
-        autoTapSolution: AutoTapSolution? = null,
-        canPay: Boolean,
-        envelope: ActivatedActionEnvelope,
-    ) {
-        val actionBuilder =
-            Action
-                .newBuilder()
-                .setActionType(ActionType.Activate_add3)
-                .setInstanceId(instanceId)
-        if (envelope.includesSourceIdentity) {
-            actionBuilder
-                .setGrpId(grpId)
-                .setFacetId(instanceId)
-        }
-        if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-        uniqueAbilityId?.let(actionBuilder::setUniqueAbilityId)
-        if (canPay && envelope.activeShouldStop) {
-            actionBuilder.setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
-        }
-        if ((!canPay || envelope.activeManaCost) && abilityCost != null && !abilityCost.isNoCost) {
-            addManaCostFromForge(abilityCost, actionBuilder, abilityGrpId)
-        }
-        autoTapSolution?.let(actionBuilder::setAutoTapSolution)
-        if (canPay) {
-            builder.addActions(actionBuilder)
-        } else {
-            builder.addInactiveActions(actionBuilder)
         }
     }
 
@@ -717,49 +559,6 @@ object ActionMapper {
             builder.addActions(actionBuilder.setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Play_add3)))
         } else {
             builder.addInactiveActions(actionBuilder)
-        }
-    }
-
-    @Suppress("LongParameterList")
-    private fun emitPlayableNonManaActivatedAbilities(
-        builder: ActionsAvailableReq.Builder,
-        card: Card,
-        player: Player,
-        instanceId: () -> Int,
-        grpId: () -> Int,
-        cardData: (Int) -> CardData?,
-        envelope: ActivatedActionEnvelope,
-        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
-        autoTapSolution: (ManaCost) -> AutoTapSolution? = { null },
-        skipDisguiseTurnFaceUp: Boolean = false,
-    ) {
-        for (ability in getNonManaActivatedAbilities(card, player)) {
-            if (!ability.canPlay()) continue
-            if (skipDisguiseTurnFaceUp && ability.isDisguiseUp) continue
-            val canPay = canPayManaCost(ability, player)
-            val abilityCost = ability.payCosts?.totalMana
-            val autoTap =
-                if (canPay && abilityCost != null && !abilityCost.isNoCost) {
-                    autoTapSolution(abilityCost)
-                } else {
-                    null
-                }
-            val actionInstanceId = instanceId()
-            val actionGrpId = grpId()
-            val registry = abilityRegistryLookup(card, cardData(actionGrpId))
-            val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
-            val uniqueAbilityId = uniqueAbilityIdFor(cardData(actionGrpId), abilityGrpId)
-            emitActivatedAbilityAction(
-                builder = builder,
-                instanceId = actionInstanceId,
-                grpId = actionGrpId,
-                abilityGrpId = abilityGrpId,
-                uniqueAbilityId = uniqueAbilityId,
-                abilityCost = abilityCost,
-                autoTapSolution = autoTap,
-                canPay = canPay,
-                envelope = envelope,
-            )
         }
     }
 
@@ -905,20 +704,28 @@ object ActionMapper {
 
             // ActivateMana — untapped permanents with mana abilities
             if (!card.isTapped && card.manaAbilities.isNotEmpty()) {
-                builder.addAllActions(buildActivateManaAction(card, instanceId, grpId, cardDataLookup, abilityRegistryLookup))
+                builder.addAllActions(
+                    ActivatedActionEmitter.buildActivateManaAction(
+                        card,
+                        instanceId,
+                        grpId,
+                        cardDataLookup,
+                        abilityRegistryLookup,
+                    ),
+                )
             }
 
             // Activate — non-mana activated abilities (only with legality checks)
             if (checkLegality) {
                 val cardData = cardDataLookup(GrpId(grpId))
-                emitPlayableNonManaActivatedAbilities(
+                ActivatedActionEmitter.emitPlayableNonManaActivatedAbilities(
                     builder = builder,
                     card = card,
                     player = player,
                     instanceId = { instanceId },
                     grpId = { grpId },
                     cardData = { _ -> cardData },
-                    envelope = ActivatedActionEnvelope.PERMANENT_SOURCE,
+                    envelope = ActivatedActionEmitter.Envelope.PERMANENT_SOURCE,
                     abilityRegistryLookup = abilityRegistryLookup,
                     autoTapSolution = { cost ->
                         buildAutoTapSolution(
@@ -1004,14 +811,14 @@ object ActionMapper {
         // Including grpId causes the client to render card text instead of ability text.
         if (checkLegality) {
             for (card in handCards) {
-                emitPlayableNonManaActivatedAbilities(
+                ActivatedActionEmitter.emitPlayableNonManaActivatedAbilities(
                     builder = builder,
                     card = card,
                     player = player,
                     instanceId = { idResolver(ForgeCardId(card.id)).value },
                     grpId = { grpIdResolver(card).value },
                     cardData = { actionGrpId -> cardDataLookup(GrpId(actionGrpId)) },
-                    envelope = ActivatedActionEnvelope.ABILITY_ONLY,
+                    envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,
                     abilityRegistryLookup = abilityRegistryLookup,
                     autoTapSolution = { cost ->
                         buildAutoTapSolution(
@@ -1208,95 +1015,6 @@ object ActionMapper {
                     }
                 }
             }.build()
-
-    /** Build ActivateMana actions for an untapped permanent's playable mana abilities. */
-    private fun buildActivateManaAction(
-        card: Card,
-        instanceId: Int,
-        grpId: Int,
-        cardDataLookup: (GrpId) -> CardData?,
-        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
-    ): List<Action> {
-        val cardData = cardDataLookup(GrpId(grpId))
-        val registry = abilityRegistryLookup(card, cardData)
-        return getPlayableManaAbilities(card, card.controller).mapNotNull { sa ->
-            val abilityGrpId = registry?.forSpellAbility(sa.id) ?: basicLandAbilityGrpId(card)
-            val colors = producedManaColors(sa)
-            if (colors.isEmpty()) return@mapNotNull null
-
-            val actionBuilder =
-                Action
-                    .newBuilder()
-                    .setActionType(ActionType.ActivateMana)
-                    .setInstanceId(instanceId)
-                    .setGrpId(grpId)
-                    .setFacetId(instanceId)
-                    .setIsBatchable(true)
-            if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-            uniqueAbilityIdFor(cardData, abilityGrpId)?.let(actionBuilder::setUniqueAbilityId)
-
-            for ((idx, manaColor) in colors.withIndex()) {
-                val manaInfo =
-                    ManaInfo
-                        .newBuilder()
-                        .setManaId(INITIAL_MANA_ID + idx)
-                        .setColor(manaColor)
-                        .setSrcInstanceId(instanceId)
-                        .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
-                        .setAbilityGrpId(abilityGrpId)
-                        .setCount(1)
-                if (card.type.isSnow) {
-                    manaInfo.addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.FromSnow))
-                }
-                actionBuilder.addManaPaymentOptions(
-                    ManaPaymentOption.newBuilder().addMana(manaInfo),
-                )
-            }
-
-            val selection =
-                ManaSelection
-                    .newBuilder()
-                    .setInstanceId(instanceId)
-                    .setAbilityGrpId(abilityGrpId)
-                    .setSelectionCount(1)
-                    .setValidationType(SelectionValidationType.NonRepeatable)
-            for (manaColor in colors) {
-                selection.addOptions(
-                    ManaSelectionOption
-                        .newBuilder()
-                        .setSelectedColor(manaColor)
-                        .addMana(
-                            ManaColorCount.newBuilder().setColor(manaColor).setCount(1),
-                        ),
-                )
-            }
-            actionBuilder.addManaSelections(selection)
-
-            actionBuilder.build()
-        }
-    }
-
-    private fun basicLandAbilityGrpId(card: Card): Int = BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
-
-    /** Match the source object's UniqueAbilityInfo.id for the emitted ability row. */
-    private fun uniqueAbilityIdFor(
-        cardData: CardData?,
-        abilityGrpId: Int,
-    ): Int? {
-        if (abilityGrpId == 0) return null
-        if (cardData == null) return INITIAL_UNIQUE_ABILITY_ID
-        val index =
-            cardData.abilityIds.indexOfFirst { (grpId, _) ->
-                grpId == abilityGrpId
-            }
-        return index.takeIf { it >= 0 }?.let { INITIAL_UNIQUE_ABILITY_ID + it }
-    }
-
-    private fun producedManaColors(sa: SpellAbility): List<ManaColor> {
-        val mana = sa.manaPart ?: return emptyList()
-        val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
-        return produced.split(" ").mapNotNull { producedToManaColor(it) }.distinct()
-    }
 
     /**
      * Emit Adventure / Omen offers for a hand card. Both ride a Secondary
@@ -1642,256 +1360,15 @@ object ActionMapper {
         cardDataLookup: (GrpId) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ): AutoTapSolution? =
-        if (manaCost.any { ManaColorMapping.fromOrTwoGenericShard(it) != null }) {
-            buildOrTwoGenericAutoTapSolution(
-                manaCost,
-                player,
-                idResolver,
-                grpIdResolver,
-                cardDataLookup,
-                abilityRegistryLookup,
-            )
-        } else {
-            buildAutoTapSolution(
-                forgeManaCostToPairs(manaCost),
-                player,
-                idResolver,
-                grpIdResolver,
-                cardDataLookup,
-                abilityRegistryLookup,
-            )
-        }
+        ActionAutoTapSupport.build(
+            manaCost,
+            ActionBuildContext(player, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup),
+        )
 
-    /**
-     * Greedy auto-tap solver: maps mana cost requirements to untapped mana sources.
-     * Returns null if no complete solution found (spell still castable via manual tap).
-     */
-    @Suppress("CyclomaticComplexMethod") // greedy matching has inherent branching
-    private fun buildAutoTapSolution(
-        manaCost: List<Pair<ManaColor, Int>>,
-        player: Player,
-        idResolver: (ForgeCardId) -> InstanceId,
-        grpIdResolver: (Card) -> GrpId,
-        cardDataLookup: (GrpId) -> CardData?,
-        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
-    ): AutoTapSolution? {
-        if (manaCost.isEmpty()) return null
-        val sources = collectManaSources(player, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup)
-
-        // Greedy match: colored requirements first, then generic
-        val usedSourceInstanceIds = mutableSetOf<Int>()
-        val matched = mutableListOf<Pair<ManaSource, ManaColor>>() // (source, paying color)
-        val coloredReqs = manaCost.filter { it.first != ManaColor.Generic }
-        val genericReqs = manaCost.filter { it.first == ManaColor.Generic }
-
-        // Match colored requirements
-        for ((reqColor, reqCount) in coloredReqs) {
-            var remaining = reqCount
-            for (src in sources) {
-                if (remaining <= 0) break
-                if (src.instanceId in usedSourceInstanceIds) continue
-                if (canPayRequirement(src, reqColor)) {
-                    usedSourceInstanceIds.add(src.instanceId)
-                    matched.add(src to src.color)
-                    remaining--
-                }
-            }
-            if (remaining > 0) return null // can't fulfill colored requirement
-        }
-
-        // Match generic requirements (any color)
-        for ((_, reqCount) in genericReqs) {
-            var remaining = reqCount
-            for (src in sources) {
-                if (remaining <= 0) break
-                if (src.instanceId in usedSourceInstanceIds) continue
-                usedSourceInstanceIds.add(src.instanceId)
-                matched.add(src to src.color)
-                remaining--
-            }
-            if (remaining > 0) return null
-        }
-
-        return buildAutoTapSolution(matched)
-    }
-
-    @Suppress("LongParameterList", "CyclomaticComplexMethod")
-    private fun buildOrTwoGenericAutoTapSolution(
-        manaCost: ManaCost,
-        player: Player,
-        idResolver: (ForgeCardId) -> InstanceId,
-        grpIdResolver: (Card) -> GrpId,
-        cardDataLookup: (GrpId) -> CardData?,
-        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
-    ): AutoTapSolution? {
-        val sources = collectManaSources(player, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup)
-        if (sources.isEmpty()) return null
-
-        val coloredRequirements = mutableListOf<ManaColor>()
-        val hybridRequirements = mutableListOf<ManaColor>()
-        for (shard in manaCost) {
-            val hybridColor = ManaColorMapping.fromOrTwoGenericShard(shard)
-            if (hybridColor != null) {
-                hybridRequirements.add(hybridColor)
-            } else {
-                ManaColorMapping.fromShard(shard)?.let(coloredRequirements::add)
-            }
-        }
-
-        val used = mutableSetOf<Int>()
-        val matched = mutableListOf<Pair<ManaSource, ManaColor>>()
-
-        fun payColor(
-            color: ManaColor,
-            then: () -> Boolean,
-        ): Boolean {
-            for (src in sources) {
-                if (src.instanceId in used || !canPayRequirement(src, color)) continue
-                used.add(src.instanceId)
-                matched.add(src to src.color)
-                if (then()) return true
-                matched.removeAt(matched.lastIndex)
-                used.remove(src.instanceId)
-            }
-            return false
-        }
-
-        fun payGeneric(
-            needed: Int,
-            then: () -> Boolean,
-        ): Boolean {
-            if (needed == 0) return then()
-            for (src in sources) {
-                if (src.instanceId in used) continue
-                used.add(src.instanceId)
-                matched.add(src to src.color)
-                if (payGeneric(needed - 1, then)) return true
-                matched.removeAt(matched.lastIndex)
-                used.remove(src.instanceId)
-            }
-            return false
-        }
-
-        fun payHybrids(index: Int): Boolean {
-            if (index == hybridRequirements.size) {
-                return payGeneric(manaCost.genericCost) { true }
-            }
-            val color = hybridRequirements[index]
-            return payColor(color) { payHybrids(index + 1) } ||
-                payGeneric(2) { payHybrids(index + 1) }
-        }
-
-        fun payColored(index: Int): Boolean {
-            if (index == coloredRequirements.size) return payHybrids(0)
-            return payColor(coloredRequirements[index]) { payColored(index + 1) }
-        }
-
-        return if (payColored(0)) buildAutoTapSolution(matched) else null
-    }
-
-    private fun canPayRequirement(
-        src: ManaSource,
-        reqColor: ManaColor,
-    ): Boolean =
-        if (reqColor == ManaColor.Snow_afc9) {
-            src.fromSnow
-        } else {
-            reqColor == ManaColor.Generic || src.color == ManaColor.Generic || src.color == reqColor
-        }
-
-    @Suppress("LongParameterList")
-    private fun collectManaSources(
-        player: Player,
-        idResolver: (ForgeCardId) -> InstanceId,
-        grpIdResolver: (Card) -> GrpId,
-        cardDataLookup: (GrpId) -> CardData?,
-        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
-    ): List<ManaSource> {
-        val sources = mutableListOf<ManaSource>()
-        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
-            if (card.isTapped) continue
-            for (sa in getPlayableManaAbilities(card, player)) {
-                val colors = producedManaColors(sa)
-                if (colors.isEmpty()) continue
-                val instanceId = idResolver(ForgeCardId(card.id)).value
-                val grpId = grpIdResolver(card).value
-                val cardData = cardDataLookup(GrpId(grpId))
-                val registry = abilityRegistryLookup(card, cardData)
-                val abilityGrpId = registry?.forSpellAbility(sa.id) ?: basicLandAbilityGrpId(card)
-                for (color in colors) {
-                    sources.add(ManaSource(instanceId, color, abilityGrpId, fromSnow = card.type.isSnow))
-                }
-            }
-        }
-        return sources
-    }
-
-    private fun buildAutoTapSolution(matched: List<Pair<ManaSource, ManaColor>>): AutoTapSolution {
-        val builder = AutoTapSolution.newBuilder()
-        var manaIdCounter = INITIAL_MANA_ID
-        for ((src, payingColor) in matched) {
-            val manaId = manaIdCounter++
-            val manaInfo =
-                ManaInfo
-                    .newBuilder()
-                    .setManaId(manaId)
-                    .setColor(payingColor)
-                    .setSrcInstanceId(src.instanceId)
-                    .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
-                    .setAbilityGrpId(src.abilityGrpId)
-                    .setCount(1)
-            if (src.fromSnow) {
-                manaInfo.addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.FromSnow))
-            }
-            builder.addAutoTapActions(
-                AutoTapAction
-                    .newBuilder()
-                    .setInstanceId(src.instanceId)
-                    .setAbilityGrpId(src.abilityGrpId)
-                    .setManaPaymentOption(
-                        ManaPaymentOption.newBuilder().addMana(manaInfo),
-                    ),
-            )
-        }
-        return builder.build()
-    }
-
-    /**
-     * Compute the effective mana cost for a spell, including static cost reductions
-     * (e.g. "spells cost {1} less") and cost raises (commander tax, etc.).
-     *
-     * Uses Forge's [CostAdjustment] two-stage pipeline:
-     * 1. `adjust(Cost)` → commander tax + raise cost effects
-     * 2. `adjust(ManaCostBeingPaid)` → static cost reductions (ReduceCost abilities)
-     *
-     * Returns null if the spell has no mana cost.
-     */
     internal fun computeEffectiveCost(
         sa: SpellAbility,
         player: Player,
-    ): forge.card.mana.ManaCost? {
-        val baseCost = sa.payCosts ?: return null
-        val hostCard = sa.hostCard
-        val originalActivator = sa.activatingPlayer
-        if (originalActivator == null) sa.setActivatingPlayer(player)
-        val originalCastFrom = hostCard?.castFrom
-        val seededCastFrom =
-            hostCard?.isCommander == true &&
-                originalCastFrom == null &&
-                hostCard.zone?.zoneType == ForgeZoneType.Command
-        if (seededCastFrom) hostCard?.setCastFrom(hostCard.zone)
-        try {
-            val adjusted = CostAdjustment.adjust(baseCost, sa, false)
-            val manaCost = adjusted.totalMana ?: return null
-            if (manaCost.isNoCost) return null
-            val beingPaid = ManaCostBeingPaid(manaCost)
-            CostAdjustment.adjust(beingPaid, sa, player, null, true, false)
-            return beingPaid.toManaCost()
-        } finally {
-            if (seededCastFrom) hostCard?.setCastFrom(originalCastFrom)
-            if (originalActivator == null) sa.setActivatingPlayer(null)
-        }
-    }
+    ): forge.card.mana.ManaCost? = ActionManaCosts.computeEffectiveCost(sa, player)
 
     private fun usesPaymentSourceReducer(sa: SpellAbility): Boolean {
         val host = sa.hostCard ?: return false
@@ -1909,12 +1386,8 @@ object ActionMapper {
         return true
     }
 
-    /**
-     * Convert a Forge [ManaCost][forge.card.mana.ManaCost] to `List<Pair<ManaColor, Int>>`
-     * for use with [buildAutoTapSolution] which expects that format.
-     */
     internal fun forgeManaCostToPairs(manaCost: forge.card.mana.ManaCost): List<Pair<ManaColor, Int>> =
-        ManaColorMapping.deriveManaCostWithGenericLast(manaCost)
+        ActionManaCosts.forgeManaCostToPairs(manaCost)
 
     /**
      * Convert a Forge [ManaCost] into proto [ManaRequirement] entries on an action builder.
@@ -1927,57 +1400,14 @@ object ActionMapper {
         manaCost: forge.card.mana.ManaCost,
         actionBuilder: Action.Builder,
         abilityGrpId: Int? = null,
-    ) {
-        forgeManaCostToRequirements(manaCost, abilityGrpId).forEach(actionBuilder::addManaCost)
-    }
+    ) = ActionManaCosts.addManaCostFromForge(manaCost, actionBuilder, abilityGrpId)
 
     internal fun forgeManaCostToRequirements(
         manaCost: forge.card.mana.ManaCost,
         abilityGrpId: Int? = null,
-    ): List<ManaRequirement> {
-        if (manaCost.none { ManaColorMapping.fromOrTwoGenericShard(it) != null }) {
-            return aggregatedManaRequirements(manaCost, abilityGrpId)
-        }
-        val result = mutableListOf<ManaRequirement>()
-        for (shard in manaCost) {
-            val hybridColor = ManaColorMapping.fromOrTwoGenericShard(shard)
-            val color = hybridColor ?: ManaColorMapping.fromShard(shard) ?: continue
-            val req = ManaRequirement.newBuilder().setCount(1)
-            if (hybridColor != null) req.addColor(ManaColor.TwoGeneric)
-            req.addColor(color)
-            if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
-            result.add(req.build())
-        }
-        val generic = manaCost.genericCost
-        if (generic > 0) {
-            val req = ManaRequirement.newBuilder().addColor(ManaColor.Generic).setCount(generic)
-            if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
-            result.add(req.build())
-        }
-        return result
-    }
+    ): List<ManaRequirement> = ActionManaCosts.forgeManaCostToRequirements(manaCost, abilityGrpId)
 
-    private fun aggregatedManaRequirements(
-        manaCost: forge.card.mana.ManaCost,
-        abilityGrpId: Int?,
-    ): List<ManaRequirement> {
-        val result = mutableListOf<ManaRequirement>()
-        for ((color, count) in ManaColorMapping.colorCounts(manaCost)) {
-            val req = ManaRequirement.newBuilder().addColor(color).setCount(count)
-            if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
-            result.add(req.build())
-        }
-        val generic = manaCost.genericCost
-        if (generic > 0) {
-            val req = ManaRequirement.newBuilder().addColor(ManaColor.Generic).setCount(generic)
-            if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
-            result.add(req.build())
-        }
-        return result
-    }
-
-    /** Map Forge's produced-mana string (e.g. "G", "W", "Any") to proto ManaColor. */
-    internal fun producedToManaColor(produced: String): ManaColor? = ManaColorMapping.fromProduced(produced)
+    internal fun producedToManaColor(produced: String): ManaColor? = ActionManaCosts.producedToManaColor(produced)
 
     /**
      * Strip an Action down to the minimal format used inside GSM embedded actions.
