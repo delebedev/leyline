@@ -40,7 +40,7 @@ Introduce callback-family-local semantic cost plans, one family at a time.
 The cost planning boundary is:
 
 ```text
-Forge cost callback context -> semantic CostPlan -> PromptRequest / GRE request -> stored pending state -> Forge answer
+Forge cost callback context -> semantic CostPlan -> PromptRequest / GRE request -> Forge answer
 ```
 
 `CostDecision` and cost coordinators may gather Forge context and ask a planner
@@ -48,6 +48,12 @@ for a typed plan. The plan names one callback family's gameplay cost intent and
 the facts needed to materialize a prompt or consume an answer. It is not a
 protobuf request, not a match-layer lifecycle object, and not a shared taxonomy
 for every cost family.
+
+A callback-family plan may describe one prompt or a compound mechanic with more
+than one payment mode. Compound plans should name the available modes and their
+facts, then materialize each chosen mode through the existing prompt policy.
+They should not become cross-family registries or move response lifecycle state
+into the planner.
 
 Future cost plans should be intent-shaped. Possible families include:
 
@@ -58,6 +64,9 @@ Future cost plans should be intent-shaped. Possible families include:
 - `CollectEvidence`
 - `ManaSourcePayment`
 - `ChooseCostMode`
+
+Compound plans are valid when the mechanic itself offers multiple payment
+intents, such as choosing between a sacrifice mode and a graveyard-exile mode.
 
 Outcome cases such as auto-select or unsupported should stay local to the
 callback-family planner that needs them. They should not become broad buckets
@@ -100,6 +109,8 @@ The seam is paying for itself when these statements stay true:
 
 - Adding a new sacrifice-like mechanic extends a sacrifice or graveyard-exile
   plan branch before touching request emission.
+- Adding a compound cost exposes its payment modes in one callback-local plan
+  before changing prompt routing.
 - Changing a client UI shape for one cost intent does not change its Forge
   classification.
 - Answer consumption can use fields materialized into `PromptRequest` instead

@@ -505,12 +505,12 @@ class CostDecision(
             selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblSelectNMoreTargetTypeCardToDiscard", "%d", cost.descriptiveType),
                 hand,
-                c,
-                c,
+                plan.requiredCount,
+                plan.requiredCount,
                 cancelAllowed = !mandatory,
                 plan = plan.toCardSelectionPlan(),
             ) ?: return null
-        if (selected.size != c) return null
+        if (selected.size != plan.requiredCount) return null
         return PaymentDecision.card(selected)
     }
 
@@ -815,8 +815,8 @@ class CostDecision(
                 selectCardsWithPlan(
                     Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", "Food", "%d"),
                     food,
-                    1,
-                    1,
+                    foodSacrificePlan.requiredCount,
+                    foodSacrificePlan.requiredCount,
                     cancelAllowed = !mandatory,
                     plan = foodSacrificePlan.toCardSelectionPlan(),
                 ) ?: return null
@@ -939,8 +939,8 @@ class CostDecision(
             selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblNTypeCardsToHand", "%d", cost.descriptiveType),
                 validCards,
-                c,
-                c,
+                plan.requiredCount,
+                plan.requiredCount,
                 cancelAllowed = !mandatory,
                 plan = plan.toCardSelectionPlan(),
             ) ?: return null
@@ -1257,15 +1257,15 @@ class CostDecision(
         if (c == 0) return PaymentDecision.number(0)
 
         if (differentNames) {
-            val plan = CostDecisionPlanner.sacrificePlan(requiredCount = c, differentNames = true)
             val chosen = CardCollection()
             while (c > 0) {
+                val plan = CostDecisionPlanner.sacrificePlan(requiredCount = 1, differentNames = true)
                 val selected =
                     selectCardsWithPlan(
                         Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", cost.descriptiveType, c),
                         list,
-                        1,
-                        1,
+                        plan.requiredCount,
+                        plan.requiredCount,
                         cancelAllowed = true,
                         plan = plan.toCardSelectionPlan(),
                     ) ?: return null
@@ -1283,8 +1283,8 @@ class CostDecision(
             selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", cost.descriptiveType, "%d"),
                 list,
-                c,
-                c,
+                plan.requiredCount,
+                plan.requiredCount,
                 cancelAllowed = !mandatory,
                 plan = plan.toCardSelectionPlan(),
             ) ?: return null
