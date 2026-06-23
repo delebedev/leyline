@@ -8,16 +8,23 @@ data class CostCardSelectionPlan(
     val minSelectionWeight: Int? = null,
 )
 
-object CostDecisionPlanner {
-    fun collectEvidence(
-        total: Int,
-        manaValues: List<Int>,
-    ): CostCardSelectionPlan =
+data class CollectEvidenceCostPlan(
+    val total: Int,
+    val manaValues: List<Int>,
+) {
+    fun toCardSelectionPlan(): CostCardSelectionPlan =
         CostCardSelectionPlan(
             semantic = PromptSemantic.SelectNCostCollectEvidence,
             costSelectionWeights = manaValues.map { it.coerceAtLeast(0) },
             minSelectionWeight = total,
         )
+}
+
+object CostDecisionPlanner {
+    fun collectEvidencePlan(
+        total: Int,
+        manaValues: List<Int>,
+    ): CollectEvidenceCostPlan = CollectEvidenceCostPlan(total, manaValues)
 
     fun typedDiscard(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.SelectNDiscard)
 

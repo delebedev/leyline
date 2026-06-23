@@ -400,7 +400,7 @@ class CostDecision(
             )
         val total = AbilityUtils.calculateAmount(source, cost.amount, ability)
         bridge.journal.record(PromptSideEffect.CollectEvidenceCost(ForgeCardId(source.id), total))
-        val plan = CostDecisionPlanner.collectEvidence(total, list.map { it.getCMC() })
+        val plan = CostDecisionPlanner.collectEvidencePlan(total, list.map { it.getCMC() })
         val selected =
             selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblCollectEvidence", total),
@@ -408,7 +408,7 @@ class CostDecision(
                 0,
                 list.size,
                 cancelAllowed = true,
-                plan = plan,
+                plan = plan.toCardSelectionPlan(),
             ) ?: run {
                 bridge.journal.clearCollectEvidenceCost()
                 return null
