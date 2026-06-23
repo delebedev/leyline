@@ -5,10 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.game.InMemoryCardRepository
-import leyline.game.bundle.BundleBuilder
 import leyline.game.mapping.PromptIds
-import leyline.game.state.GameBridge
 import leyline.match.PendingClientInteraction
 import wotc.mtgo.gre.external.messaging.Messages.AllowFailToFind
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -23,9 +20,10 @@ class SearchReqTest :
 
         test("buildSearchReq populates inner SearchReq fields") {
             val msg =
-                BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), "test-match", 1).buildSearchReq(
+                RequestBuilder.buildSearchReq(
                     msgId = 42,
                     gsId = 10,
+                    systemSeatId = 1,
                     sourceInstanceId = 290,
                     hostCardInstanceId = 290,
                     searchingSeat = 1,
@@ -61,9 +59,10 @@ class SearchReqTest :
 
         test("buildSearchReq with typecycling promptId emits AB-distinct sourceId + host-card-anchored panel") {
             val msg =
-                BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), "test-match", 1).buildSearchReq(
+                RequestBuilder.buildSearchReq(
                     msgId = 22,
                     gsId = 12,
+                    systemSeatId = 1,
                     sourceInstanceId = 296, // AB instance iid
                     hostCardInstanceId = 297, // host card iid (Lórien Revealed)
                     searchingSeat = 1,

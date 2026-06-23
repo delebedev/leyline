@@ -7,7 +7,8 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.ManaColorMapping
-import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.CastingTimeOptionsBuilder
+import leyline.game.bundle.CastingTimeOptionsBuilder.ManaRequirementSpec
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PromptIds
 import org.slf4j.LoggerFactory
@@ -80,7 +81,7 @@ internal class DeferredCastCostInteractionHandler(
         val promptColors = promptCost.hybridOrTwoGenericColors()
 
         val (ctoReq, ctoIds) =
-            bundles.bundleBuilder.buildManaTypeCastingTimeOptionsReq(
+            CastingTimeOptionsBuilder.buildManaTypeCastingTimeOptionsReq(
                 instanceId = action.instanceId,
                 grpId = action.grpId,
                 playerIdToPrompt = counters.seatId.value,
@@ -172,7 +173,7 @@ internal class DeferredCastCostInteractionHandler(
 
         val combinedCostEntries = optionalCostEntries + keywordEntries.map { (ctoType, gid, _) -> ctoType to gid }
         val (ctoReq, costCtoIds) =
-            bundles.bundleBuilder.buildOptionalCostCastingTimeOptionsReq(
+            CastingTimeOptionsBuilder.buildOptionalCostCastingTimeOptionsReq(
                 instanceId = action.instanceId,
                 optionalCosts = combinedCostEntries,
                 playerIdToPrompt = counters.seatId.value,
@@ -218,9 +219,10 @@ internal class DeferredCastCostInteractionHandler(
 
         val optionPromptIds = alternateAdditionalCostPromptIds(castable)
         val (ctoReq, ctoIds) =
-            bundles.bundleBuilder.buildChooseOrCostCastingTimeOptionsReq(
+            CastingTimeOptionsBuilder.buildChooseOrCostCastingTimeOptionsReq(
                 instanceId = action.instanceId,
                 grpId = action.grpId,
+                playerIdToPrompt = counters.seatId.value,
                 optionCount = castable.size,
                 optionPromptIds = optionPromptIds,
             )
@@ -394,13 +396,13 @@ internal class DeferredCastCostInteractionHandler(
         }
     }
 
-    private fun ManaCost.toManaRequirementSpecs(): List<BundleBuilder.ManaRequirementSpec> =
+    private fun ManaCost.toManaRequirementSpecs(): List<ManaRequirementSpec> =
         buildList {
             for (shard in this@toManaRequirementSpecs) {
                 val hybridColor = ManaColorMapping.fromOrTwoGenericShard(shard)
                 val color = hybridColor ?: ManaColorMapping.fromShard(shard) ?: continue
                 add(
-                    BundleBuilder.ManaRequirementSpec(
+                    ManaRequirementSpec(
                         colors =
                             if (hybridColor !=
                                 null
@@ -413,7 +415,7 @@ internal class DeferredCastCostInteractionHandler(
                 )
             }
             if (genericCost > 0) {
-                add(BundleBuilder.ManaRequirementSpec(colors = listOf(ManaColor.Generic), count = genericCost))
+                add(ManaRequirementSpec(colors = listOf(ManaColor.Generic), count = genericCost))
             }
         }
 

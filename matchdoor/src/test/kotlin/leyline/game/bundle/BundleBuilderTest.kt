@@ -123,7 +123,7 @@ class BundleBuilderTest :
 
         test("buildModalCastingTimeOptionsReq — Charm shape (no costs, no excluded)") {
             val req =
-                pureBB().buildModalCastingTimeOptionsReq(
+                CastingTimeOptionsBuilder.buildModalCastingTimeOptionsReq(
                     parentGrpId = 200001,
                     childGrpIds = listOf(101, 102, 103),
                     minSel = 1,
@@ -148,7 +148,7 @@ class BundleBuilderTest :
 
         test("buildModalCastingTimeOptionsReq — Spree shape (modeCost + excludedOptions)") {
             val req =
-                pureBB().buildModalCastingTimeOptionsReq(
+                CastingTimeOptionsBuilder.buildModalCastingTimeOptionsReq(
                     parentGrpId = 173717,
                     childGrpIds = listOf(171803, 171804),
                     modalCosts =
@@ -218,7 +218,7 @@ class BundleBuilderTest :
 
         test("buildOptionalCostCastingTimeOptionsReq — Gift shape (single AdditionalCost + Done terminator)") {
             val (req, ids) =
-                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                CastingTimeOptionsBuilder.buildOptionalCostCastingTimeOptionsReq(
                     instanceId = 240,
                     optionalCosts = listOf(Messages.CastingTimeOptionType.AdditionalCost to 173850),
                     playerIdToPrompt = 1,
@@ -242,7 +242,7 @@ class BundleBuilderTest :
 
         test("buildManaTypeCastingTimeOptionsReq emits one required option per hybrid pip") {
             val (req, ids) =
-                pureBB().buildManaTypeCastingTimeOptionsReq(
+                CastingTimeOptionsBuilder.buildManaTypeCastingTimeOptionsReq(
                     instanceId = 236,
                     grpId = 95755,
                     playerIdToPrompt = 2,
@@ -254,13 +254,13 @@ class BundleBuilderTest :
                         ),
                     manaCost =
                         listOf(
-                            BundleBuilder.ManaRequirementSpec(
+                            CastingTimeOptionsBuilder.ManaRequirementSpec(
                                 listOf(Messages.ManaColor.TwoGeneric, Messages.ManaColor.Green_afc9),
                             ),
-                            BundleBuilder.ManaRequirementSpec(
+                            CastingTimeOptionsBuilder.ManaRequirementSpec(
                                 listOf(Messages.ManaColor.TwoGeneric, Messages.ManaColor.Blue_afc9),
                             ),
-                            BundleBuilder.ManaRequirementSpec(
+                            CastingTimeOptionsBuilder.ManaRequirementSpec(
                                 listOf(Messages.ManaColor.TwoGeneric, Messages.ManaColor.Red_afc9),
                             ),
                         ),
@@ -295,7 +295,7 @@ class BundleBuilderTest :
             // one combined modal. ctoIds are 1-based sequential; trailing
             // entry is the Done terminator.
             val (req, ids) =
-                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                CastingTimeOptionsBuilder.buildOptionalCostCastingTimeOptionsReq(
                     instanceId = 555,
                     optionalCosts =
                         listOf(
@@ -321,7 +321,7 @@ class BundleBuilderTest :
 
         test("buildOptionalCostCastingTimeOptionsReq — empty optionalCosts still emits Done terminator") {
             val (req, ids) =
-                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                CastingTimeOptionsBuilder.buildOptionalCostCastingTimeOptionsReq(
                     instanceId = 100,
                     optionalCosts = emptyList(),
                     playerIdToPrompt = 1,
@@ -338,7 +338,7 @@ class BundleBuilderTest :
             // Documents the parallel-list invariant: caller is expected to pass
             // a modalCosts of equal length to childGrpIds; shorter silently drops.
             val req =
-                pureBB().buildModalCastingTimeOptionsReq(
+                CastingTimeOptionsBuilder.buildModalCastingTimeOptionsReq(
                     parentGrpId = 1,
                     childGrpIds = listOf(10, 20, 30),
                     modalCosts =
@@ -362,7 +362,7 @@ class BundleBuilderTest :
 
         test("buildOptionalCostCastingTimeOptionsReq populates playerIdToPrompt + manaCost on every entry including Done") {
             val (req, costCtoIds) =
-                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                CastingTimeOptionsBuilder.buildOptionalCostCastingTimeOptionsReq(
                     instanceId = 100,
                     optionalCosts =
                         listOf(
@@ -413,7 +413,7 @@ class BundleBuilderTest :
 
         test("buildOptionalCostCastingTimeOptionsReq with empty baseManaCost leaves manaCost unset") {
             val (req, _) =
-                pureBB().buildOptionalCostCastingTimeOptionsReq(
+                CastingTimeOptionsBuilder.buildOptionalCostCastingTimeOptionsReq(
                     instanceId = 200,
                     optionalCosts = listOf(Messages.CastingTimeOptionType.AdditionalCost to 303),
                     playerIdToPrompt = 2,

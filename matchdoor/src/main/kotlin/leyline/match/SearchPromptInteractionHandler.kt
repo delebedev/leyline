@@ -5,6 +5,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptResponseMapper
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
+import leyline.game.bundle.RequestBuilder
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.SearchShape
@@ -90,9 +91,10 @@ internal class SearchPromptInteractionHandler(
             }
 
         val msg =
-            bundles.bundleBuilder.buildSearchReq(
+            RequestBuilder.buildSearchReq(
                 msgId = counters.counter.nextMsgId(),
                 gsId = counters.counter.currentGsId(),
+                systemSeatId = counters.seatId.value,
                 sourceInstanceId = sourceId,
                 hostCardInstanceId = hostCardIid,
                 searchingSeat = counters.seatId.value,

@@ -9,6 +9,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.CastingTimeOptionsBuilder
 import leyline.game.bundle.RequestBuilder
 import leyline.game.bundle.SelectNPromptRoute
 import leyline.game.bundle.SelectNPromptRoutes
@@ -719,7 +720,7 @@ class TargetingHandler(
         }
 
         val ctoReq =
-            bundles.bundleBuilder.buildModalCastingTimeOptionsReq(
+            CastingTimeOptionsBuilder.buildModalCastingTimeOptionsReq(
                 parentGrpId = modalInfo.parentGrpId,
                 childGrpIds = effectiveChildGrpIds,
                 modalCosts = effectiveModalCosts,
