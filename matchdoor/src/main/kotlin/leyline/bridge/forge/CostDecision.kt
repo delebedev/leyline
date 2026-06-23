@@ -25,6 +25,7 @@ import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.interaction.CostCardSelectionPlan
 import leyline.bridge.interaction.CostDecisionPlanner
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import org.slf4j.LoggerFactory
 import java.util.*
@@ -87,7 +88,7 @@ class CostDecision(
         val labels = cards.map { it.name }
         val refs =
             cards.mapIndexed { idx, card ->
-                PromptCandidateRefDto(idx, "card", card.id, card.zone?.zoneType?.name)
+                PromptCandidateRefDto(idx, PromptCandidateKind.Card, card.id, card.zone?.zoneType?.name)
             }
         val request =
             PromptRequest(
@@ -1021,7 +1022,7 @@ class CostDecision(
                 }
             val refs =
                 list.mapIndexed { idx, card ->
-                    PromptCandidateRefDto(idx, "card", card.id, card.zone?.zoneType?.name)
+                    PromptCandidateRefDto(idx, PromptCandidateKind.Card, card.id, card.zone?.zoneType?.name)
                 }
             val request =
                 PromptRequest(

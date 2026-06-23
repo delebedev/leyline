@@ -7,6 +7,7 @@ import leyline.bridge.coord.ConvokeShardAssigner
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.PromptResponseMapper
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
@@ -65,20 +66,7 @@ class TargetingHandler(
             selectedIds: List<Int>,
             pendingPrompt: InteractivePromptBridge.PendingPrompt,
             resolveForgeCardId: (Int) -> ForgeCardId?,
-        ): List<Int> =
-            if (pendingPrompt.request.staticOptionIds.isNotEmpty()) {
-                selectedIds
-                    .map { staticId -> pendingPrompt.request.staticOptionIds.indexOf(staticId) }
-                    .filter { it >= 0 }
-            } else {
-                selectedIds
-                    .mapNotNull { instanceId ->
-                        val cardId = resolveForgeCardId(instanceId) ?: return@mapNotNull null
-                        pendingPrompt.request.candidateRefs
-                            .firstOrNull { it.entityId == cardId.value }
-                            ?.index
-                    }.filter { it >= 0 }
-            }
+        ): List<Int> = PromptResponseMapper.selectNIdsToPromptIndices(selectedIds, pendingPrompt.request, resolveForgeCardId)
 
         internal fun choiceResultSideEffects(
             pendingPrompt: InteractivePromptBridge.PendingPrompt,
@@ -172,20 +160,12 @@ class TargetingHandler(
         val selectedInstanceIds: List<Int> = accumulated
 
         val selectedIndices =
-            selectedInstanceIds
-                .mapNotNull { instanceId ->
-                    val playerIdx = resolvePlayerTarget(instanceId, pendingPrompt)
-                    if (playerIdx != null) return@mapNotNull playerIdx
-                    val cardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@mapNotNull null
-                    // MUST filter by kind=="card" — Forge Card.id and Player.id share
-                    // the same int space and frequently collide (e.g. card.id=1 and
-                    // opp player.id=1). Without the kind guard, indexOfFirst hits the
-                    // wrong candidate (saw bolt-on-Gixian register as bolt-on-opponent).
-                    pendingPrompt.request.candidateRefs
-                        .firstOrNull {
-                            it.kind == "card" && it.entityId == cardId.value
-                        }?.index ?: -1
-                }.filter { it >= 0 }
+            PromptResponseMapper.targetIdsToPromptIndices(
+                selectedInstanceIds,
+                pendingPrompt.request,
+                resolveForgeCardId = { instanceId -> bridge.getForgeCardId(InstanceId(instanceId)) },
+                resolvePlayerEntityId = { seatId -> ctx.bridge.getPlayer(SeatId(seatId))?.id },
+            )
 
         log.info(
             "TargetingHandler: SelectTargetsResp tap={} accumulated iids={} indices={} (awaiting SubmitTargetsReq)",
@@ -460,7 +440,7 @@ class TargetingHandler(
     ): InteractivePromptBridge.PendingPrompt {
         val bridge = ctx.bridge
         val selectedForgeIds = selectedIds.mapNotNull { bridge.getForgeCardId(InstanceId(it))?.value }.toSet()
-        val remainingRefs = pendingPrompt.request.candidateRefs.filterNot { it.entityId in selectedForgeIds }
+        val remainingRefs = pendingPrompt.request.candidateRefs.filterNot { it.isCard() && it.entityId in selectedForgeIds }
         val remainingOptions = remainingRefs.map { ref -> pendingPrompt.request.options.getOrNull(ref.index) ?: "" }
         val remainingManaCost =
             if (pendingPrompt.request.semantic == PromptSemantic.ConvokeCost) {
@@ -982,15 +962,13 @@ class TargetingHandler(
                     listOf(prompt.request.options.size)
                 } else {
                     itemsFound.map { chosenInstanceId ->
-                        val cardId = bridge.getForgeCardId(InstanceId(chosenInstanceId))
                         val idx =
-                            if (cardId != null) {
-                                prompt.request.candidateRefs
-                                    .firstOrNull { it.entityId == cardId.value }
-                                    ?.index ?: -1
-                            } else {
-                                -1
-                            }
+                            PromptResponseMapper
+                                .cardInstanceIdsToPromptIndices(
+                                    listOf(chosenInstanceId),
+                                    prompt.request,
+                                ) { instanceId -> bridge.getForgeCardId(InstanceId(instanceId)) }
+                                .firstOrNull() ?: -1
                         if (idx >= 0) {
                             log.info("SearchResp: player chose instanceId={} → prompt index {}", chosenInstanceId, idx)
                             idx
@@ -1013,32 +991,6 @@ class TargetingHandler(
     }
 
     // --- Helpers ---
-
-    /**
-     * Resolve a player target: if [instanceId] is a seatId (1 or 2), find the
-     * matching `kind="player"` candidateRef in the pending prompt.
-     * Returns the candidateRef index, or null if this isn't a player target.
-     */
-    private fun resolvePlayerTarget(
-        instanceId: Int,
-        pendingPrompt: InteractivePromptBridge.PendingPrompt,
-    ): Int? {
-        // Arena uses seatId as instanceId for player targets (1 or 2)
-        val player = ctx.bridge.getPlayer(SeatId(instanceId)) ?: return null
-        val idx =
-            pendingPrompt.request.candidateRefs
-                .firstOrNull {
-                    it.kind == "player" && it.entityId == player.id
-                }?.index
-        if (idx != null) return idx
-
-        val seatIdx =
-            pendingPrompt.request.candidateRefs
-                .firstOrNull {
-                    it.kind == "player" && it.entityId == instanceId
-                }?.index
-        return seatIdx
-    }
 
     /**
      * Build and send CastingTimeOptionsReq for a modal prompt.

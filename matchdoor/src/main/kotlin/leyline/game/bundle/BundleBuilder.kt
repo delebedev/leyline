@@ -817,7 +817,7 @@ class BundleBuilder(
     ): StagedOrderMove? {
         val candidateFids =
             prompt.request.candidateRefs
-                .filter { it.kind == "card" }
+                .filter { it.isCard() }
                 .map { ForgeCardId(it.entityId) }
         val move = bridge.promptBridge(SeatId(seatId)).pollPendingOrderZoneMove(SeatId(seatId), candidateFids) ?: return null
         if (candidateFids.isEmpty()) return null
@@ -1837,7 +1837,7 @@ class BundleBuilder(
         val game = bridge.getGame() ?: return null
         val resolved =
             candidateRefs
-                .filter { it.kind == "card" }
+                .filter { it.isCard() }
                 .mapNotNull { ref ->
                     val card = game.findById(ref.entityId)
                     if (card != null) card to bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value else null

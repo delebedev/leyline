@@ -1,14 +1,28 @@
 package leyline.bridge.types
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+
+@Serializable
+enum class PromptCandidateKind {
+    @SerialName("card")
+    Card,
+
+    @SerialName("player")
+    Player,
+}
 
 @Serializable
 data class PromptCandidateRefDto(
     val index: Int, // maps to options[index]
-    val kind: String, // "card" | "player"
+    val kind: PromptCandidateKind,
     val entityId: Int, // game entity ID
     val zone: String? = null,
-)
+) {
+    fun isCard(): Boolean = kind == PromptCandidateKind.Card
+
+    fun isPlayer(): Boolean = kind == PromptCandidateKind.Player
+}
 
 @Serializable
 data class PromptChoiceDto(

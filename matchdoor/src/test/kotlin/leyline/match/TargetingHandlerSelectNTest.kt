@@ -5,9 +5,11 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptResponseMapper
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import java.util.concurrent.CompletableFuture
@@ -55,8 +57,8 @@ class TargetingHandlerSelectNTest :
                         options = listOf("A", "B"),
                         candidateRefs =
                             listOf(
-                                PromptCandidateRefDto(index = 0, kind = "card", entityId = 10),
-                                PromptCandidateRefDto(index = 1, kind = "card", entityId = 20),
+                                PromptCandidateRefDto(index = 0, kind = PromptCandidateKind.Card, entityId = 10),
+                                PromptCandidateRefDto(index = 1, kind = PromptCandidateKind.Card, entityId = 20),
                             ),
                     ),
                 )
@@ -76,7 +78,7 @@ class TargetingHandlerSelectNTest :
                         promptType = "choose_cards",
                         message = "Choose a target",
                         options = listOf("--CARDS ON BATTLEFIELD:--", "A", "[FINISH TARGETING]"),
-                        candidateRefs = listOf(PromptCandidateRefDto(index = 1, kind = "card", entityId = 10)),
+                        candidateRefs = listOf(PromptCandidateRefDto(index = 1, kind = PromptCandidateKind.Card, entityId = 10)),
                     ),
                 )
 
@@ -84,6 +86,30 @@ class TargetingHandlerSelectNTest :
                 TargetingHandler.mapSelectNIdsToPromptIndices(listOf(100), pending) { instanceId ->
                     mapOf(100 to ForgeCardId(10))[instanceId]
                 }
+
+            indices shouldBe listOf(1)
+        }
+
+        test("target mapping keeps card and player ids separate") {
+            val request =
+                PromptRequest(
+                    promptType = "target",
+                    message = "Choose target",
+                    options = listOf("Player", "Creature"),
+                    candidateRefs =
+                        listOf(
+                            PromptCandidateRefDto(index = 0, kind = PromptCandidateKind.Player, entityId = 10),
+                            PromptCandidateRefDto(index = 1, kind = PromptCandidateKind.Card, entityId = 10),
+                        ),
+                )
+
+            val indices =
+                PromptResponseMapper.targetIdsToPromptIndices(
+                    instanceIds = listOf(200),
+                    request = request,
+                    resolveForgeCardId = { ForgeCardId(10) },
+                    resolvePlayerEntityId = { null },
+                )
 
             indices shouldBe listOf(1)
         }
@@ -101,8 +127,8 @@ class TargetingHandlerSelectNTest :
                         sourceEntityId = 77,
                         candidateRefs =
                             listOf(
-                                PromptCandidateRefDto(index = 0, kind = "card", entityId = 10),
-                                PromptCandidateRefDto(index = 1, kind = "card", entityId = 20),
+                                PromptCandidateRefDto(index = 0, kind = PromptCandidateKind.Card, entityId = 10),
+                                PromptCandidateRefDto(index = 1, kind = PromptCandidateKind.Card, entityId = 20),
                             ),
                     ),
                 )

@@ -31,6 +31,7 @@ import leyline.bridge.interaction.shouldReturnAll
 import leyline.bridge.interaction.sourceEntityId
 import leyline.bridge.interaction.unfilteredRefs
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
@@ -896,12 +897,12 @@ class TargetingCoordinator(
             val candidateRefs =
                 filteredCards.mapIndexedNotNull { idx, card ->
                     (card as? Card)?.let {
-                        PromptCandidateRefDto(idx, "card", it.id, it.zone?.zoneType?.name)
+                        PromptCandidateRefDto(idx, PromptCandidateKind.Card, it.id, it.zone?.zoneType?.name)
                     }
                 }
             val unfilteredRefs =
                 reveal.allHandCardIds.mapIndexed { idx, forgeCardId ->
-                    PromptCandidateRefDto(idx, "card", forgeCardId.value)
+                    PromptCandidateRefDto(idx, PromptCandidateKind.Card, forgeCardId.value)
                 }
             val effectiveMin = if (filteredCards.isEmpty()) 0 else min.coerceAtLeast(0)
             val effectiveMax = if (filteredCards.isEmpty()) 0 else max.coerceAtMost(filteredCards.size)
@@ -974,8 +975,8 @@ class TargetingCoordinator(
     private fun buildCandidateRefs(entities: Iterable<GameEntity>): List<PromptCandidateRefDto> =
         entities.mapIndexedNotNull { idx, entity ->
             when (entity) {
-                is Card -> PromptCandidateRefDto(idx, "card", entity.id, entity.zone?.zoneType?.name)
-                is Player -> PromptCandidateRefDto(idx, "player", entity.id)
+                is Card -> PromptCandidateRefDto(idx, PromptCandidateKind.Card, entity.id, entity.zone?.zoneType?.name)
+                is Player -> PromptCandidateRefDto(idx, PromptCandidateKind.Player, entity.id)
                 else -> null
             }
         }

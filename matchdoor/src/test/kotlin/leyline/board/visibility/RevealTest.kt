@@ -14,6 +14,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.RequestBuilder
@@ -275,11 +276,11 @@ class RevealTest :
 
             val prompt =
                 revealChoosePrompt(
-                    candidateRefs = listOf(PromptCandidateRefDto(0, "card", bolt.id, "Hand")),
+                    candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, bolt.id, "Hand")),
                     unfilteredRefs =
                         listOf(
-                            PromptCandidateRefDto(0, "card", bolt.id),
-                            PromptCandidateRefDto(1, "card", bears.id),
+                            PromptCandidateRefDto(0, PromptCandidateKind.Card, bolt.id),
+                            PromptCandidateRefDto(1, PromptCandidateKind.Card, bears.id),
                         ),
                     min = 1,
                     max = 1,
@@ -318,7 +319,7 @@ class RevealTest :
             val prompt =
                 revealChoosePrompt(
                     candidateRefs = emptyList(),
-                    unfilteredRefs = listOf(PromptCandidateRefDto(0, "card", bears.id)),
+                    unfilteredRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, bears.id)),
                     min = 0,
                     max = 0,
                 )

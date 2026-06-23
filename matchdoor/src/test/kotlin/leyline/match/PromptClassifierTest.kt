@@ -7,6 +7,7 @@ import leyline.UnitTag
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.util.concurrent.CompletableFuture
@@ -38,7 +39,7 @@ class PromptClassifierTest :
             return PromptClassifier.classify(prompt)
         }
 
-        val cardRef = PromptCandidateRefDto(index = 0, kind = "card", entityId = 42)
+        val cardRef = PromptCandidateRefDto(index = 0, kind = PromptCandidateKind.Card, entityId = 42)
 
         test("surveil prompt classifies as grouping before generic targeting") {
             val result =
