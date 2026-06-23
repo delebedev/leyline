@@ -500,6 +500,7 @@ class CostDecision(
         val validType = discardType.split(";").toTypedArray()
         hand = CardLists.getValidCards(hand, validType, player, source, ability)
         if (hand.size < 1) return null
+        val plan = CostDecisionPlanner.discardPlan(requiredCount = c, discardType = discardType)
         val selected =
             selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblSelectNMoreTargetTypeCardToDiscard", "%d", cost.descriptiveType),
@@ -507,7 +508,7 @@ class CostDecision(
                 c,
                 c,
                 cancelAllowed = !mandatory,
-                plan = CostDecisionPlanner.typedDiscard(),
+                plan = plan.toCardSelectionPlan(),
             ) ?: return null
         if (selected.size != c) return null
         return PaymentDecision.card(selected)
@@ -1368,14 +1369,22 @@ class CostDecision(
             return null
         }
 
+        val minSelection = c ?: 1
+        val maxSelection = c ?: typeList.size
+        val plan =
+            CostDecisionPlanner.tapTypePlan(
+                minSelection = minSelection,
+                maxSelection = maxSelection,
+                isStation = ability.isKeyword(Keyword.STATION),
+            )
         val selected =
             selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblSelectATargetToTap", cost.descriptiveType, "%d"),
                 typeList,
-                c ?: 1,
-                c ?: typeList.size,
+                minSelection,
+                maxSelection,
                 cancelAllowed = !mandatory,
-                plan = CostDecisionPlanner.tapType(ability.isKeyword(Keyword.STATION)),
+                plan = plan.toCardSelectionPlan(),
             ) ?: return null
         return PaymentDecision.card(selected)
     }

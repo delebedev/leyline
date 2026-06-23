@@ -27,6 +27,22 @@ data class SacrificeCostPlan(
     fun toCardSelectionPlan(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.SelectNCostSacrifice)
 }
 
+data class DiscardCostPlan(
+    val requiredCount: Int,
+    val discardType: String,
+) {
+    fun toCardSelectionPlan(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.SelectNDiscard)
+}
+
+data class TapTypeCostPlan(
+    val minSelection: Int,
+    val maxSelection: Int,
+    val isStation: Boolean,
+) {
+    fun toCardSelectionPlan(): CostCardSelectionPlan =
+        CostCardSelectionPlan(if (isStation) PromptSemantic.StationTapCost else PromptSemantic.Generic)
+}
+
 object CostDecisionPlanner {
     fun collectEvidencePlan(
         total: Int,
@@ -38,7 +54,16 @@ object CostDecisionPlanner {
         differentNames: Boolean = false,
     ): SacrificeCostPlan = SacrificeCostPlan(requiredCount, differentNames)
 
-    fun typedDiscard(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.SelectNDiscard)
+    fun discardPlan(
+        requiredCount: Int,
+        discardType: String,
+    ): DiscardCostPlan = DiscardCostPlan(requiredCount, discardType)
+
+    fun tapTypePlan(
+        minSelection: Int,
+        maxSelection: Int,
+        isStation: Boolean,
+    ): TapTypeCostPlan = TapTypeCostPlan(minSelection, maxSelection, isStation)
 
     fun enlist(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.EnlistCost)
 
@@ -54,7 +79,4 @@ object CostDecisionPlanner {
                     PromptSemantic.Generic
                 },
         )
-
-    fun tapType(isStation: Boolean): CostCardSelectionPlan =
-        CostCardSelectionPlan(if (isStation) PromptSemantic.StationTapCost else PromptSemantic.Generic)
 }

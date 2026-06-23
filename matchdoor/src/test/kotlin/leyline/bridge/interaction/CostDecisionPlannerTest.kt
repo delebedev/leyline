@@ -2,7 +2,6 @@ package leyline.bridge.interaction
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.handoff.PromptSemantic
@@ -28,12 +27,18 @@ class CostDecisionPlannerTest :
             }
         }
 
-        test("typed discard plans discard cost semantic") {
-            assertSoftly(CostDecisionPlanner.typedDiscard()) {
-                semantic shouldBe PromptSemantic.SelectNDiscard
-                costSelectionWeights.shouldBeEmpty()
-                minSelectionWeight shouldBe null
-            }
+        test("typed discard plans semantic intent before card selection policy") {
+            val intent = CostDecisionPlanner.discardPlan(requiredCount = 2, discardType = "Creature")
+
+            intent.requiredCount shouldBe 2
+            intent.discardType shouldBe "Creature"
+        }
+
+        test("typed discard materializes discard cost semantic") {
+            CostDecisionPlanner
+                .discardPlan(requiredCount = 2, discardType = "Creature")
+                .toCardSelectionPlan()
+                .semantic shouldBe PromptSemantic.SelectNDiscard
         }
 
         test("enlist plans enlist cost semantic") {
@@ -72,8 +77,24 @@ class CostDecisionPlannerTest :
                 .semantic shouldBe PromptSemantic.Generic
         }
 
-        test("station tap plans station semantic only for station abilities") {
-            CostDecisionPlanner.tapType(isStation = true).semantic shouldBe PromptSemantic.StationTapCost
-            CostDecisionPlanner.tapType(isStation = false).semantic shouldBe PromptSemantic.Generic
+        test("tap type plans semantic intent before card selection policy") {
+            val intent = CostDecisionPlanner.tapTypePlan(minSelection = 1, maxSelection = 3, isStation = true)
+
+            assertSoftly(intent) {
+                minSelection shouldBe 1
+                maxSelection shouldBe 3
+                isStation shouldBe true
+            }
+        }
+
+        test("station tap materializes station semantic only for station abilities") {
+            CostDecisionPlanner
+                .tapTypePlan(minSelection = 1, maxSelection = 3, isStation = true)
+                .toCardSelectionPlan()
+                .semantic shouldBe PromptSemantic.StationTapCost
+            CostDecisionPlanner
+                .tapTypePlan(minSelection = 1, maxSelection = 3, isStation = false)
+                .toCardSelectionPlan()
+                .semantic shouldBe PromptSemantic.Generic
         }
     })
