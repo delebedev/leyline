@@ -4,14 +4,10 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import forge.ai.simulation.SpellAbilityPicker
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.builtins.nullable
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.config.RuntimeDecks
-import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.GsmBuilder
@@ -43,8 +39,6 @@ import java.util.concurrent.atomic.AtomicReference
  * - `POST /api/inject-full` → rebuild and push a full state update to the client
  * - `GET /api/puzzle`       → current puzzle state
  * - `POST /api/puzzle`      → set/clear/hot-swap puzzle
- * - `GET /api/match-config` → current match-scoped config by matchId
- * - `POST /api/match-config` → set match-scoped config by matchId
  * - `GET /api/events`       → SSE real-time event stream
  *
  * Server-to-server GRE match control is mounted by [GreMatchControlApi].
@@ -56,8 +50,6 @@ class DebugServer(
     private val eventBus: DebugEventBus? = null,
     /** Runtime puzzle holder — set/cleared by POST /api/puzzle. */
     private val runtimePuzzle: AtomicReference<String?>? = null,
-    /** Runtime constructed deck override — set/cleared by POST /api/decks. */
-    private val runtimeDecks: AtomicReference<RuntimeDecks?>? = null,
     /** MatchId-keyed runtime config for native Match Door starts. */
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
     /** Optional bearer token for server-to-server GRE match control. */
@@ -107,52 +99,7 @@ class DebugServer(
                 }
             }
         }
-        srv.createContext("/api/decks") { ex ->
-            try {
-                when (ex.requestMethod) {
-                    "GET" -> serveGetDecks(ex)
-                    "POST" -> serveDecks(ex)
-                    else -> {
-                        ex.sendResponseHeaders(405, -1)
-                        ex.close()
-                    }
-                }
-            } catch (t: Throwable) {
-                log.error("/api/decks error: {}", t.message, t)
-                try {
-                    respond(ex, 500, "text/plain", "Error: ${t.message}")
-                } catch (_: Throwable) {
-                    try {
-                        ex.close()
-                    } catch (_: Throwable) {
-                    }
-                }
-            }
-        }
         GreMatchControlApi(runtimeMatchConfigs, greMatchControlToken, ::resolvePuzzleReference).mount(srv)
-        srv.createContext("/api/match-config") { ex ->
-            try {
-                when (ex.requestMethod) {
-                    "GET" -> serveGetMatchConfig(ex)
-                    "POST" -> serveMatchConfig(ex)
-                    "DELETE" -> serveDeleteMatchConfig(ex)
-                    else -> {
-                        ex.sendResponseHeaders(405, -1)
-                        ex.close()
-                    }
-                }
-            } catch (t: Throwable) {
-                log.error("/api/match-config error: {}", t.message, t)
-                try {
-                    respond(ex, 500, "text/plain", "Error: ${t.message}")
-                } catch (_: Throwable) {
-                    try {
-                        ex.close()
-                    } catch (_: Throwable) {
-                    }
-                }
-            }
-        }
 
         srv.createContext("/api/events") { ex ->
             try {
@@ -514,87 +461,6 @@ class DebugServer(
         respondJson(ex, """{"puzzle":${if (current != null) "\"$current\"" else "null"}}""")
     }
 
-    private fun serveGetDecks(ex: HttpExchange) {
-        respondJson(ex, json.encodeToString(RuntimeDecks.serializer().nullable, runtimeDecks?.get()))
-    }
-
-    private fun serveDecks(ex: HttpExchange) {
-        val body =
-            ex.requestBody
-                .bufferedReader()
-                .readText()
-                .trim()
-        if (body.isEmpty()) {
-            runtimeDecks?.set(null)
-            respond(ex, 200, "text/plain", "Runtime decks cleared")
-            return
-        }
-        val decks = json.decodeFromString<RuntimeDecks>(body)
-        runtimeDecks?.set(decks)
-        respond(ex, 200, "application/json", json.encodeToString(RuntimeDecks.serializer(), decks))
-    }
-
-    private fun serveGetMatchConfig(ex: HttpExchange) {
-        val matchId = queryParam(ex, "matchId")?.trim()
-        if (matchId.isNullOrEmpty()) {
-            respond(ex, 400, "text/plain", "matchId is required")
-            return
-        }
-        respondJson(ex, json.encodeToString(RuntimeMatchConfig.serializer().nullable, runtimeMatchConfigs?.get(matchId)))
-    }
-
-    private fun serveMatchConfig(ex: HttpExchange) {
-        val config = readAndStoreMatchConfig(ex) ?: return
-        respond(ex, 200, "application/json", json.encodeToString(RuntimeMatchConfig.serializer(), config))
-    }
-
-    private fun readAndStoreMatchConfig(ex: HttpExchange): RuntimeMatchConfig? {
-        val request = readMatchConfig(ex) ?: return null
-        return runtimeMatchConfigs?.put(request) ?: run {
-            respond(ex, 503, "text/plain", "Runtime match config registry unavailable")
-            null
-        }
-    }
-
-    private fun readMatchConfig(ex: HttpExchange): RuntimeMatchConfig? {
-        val body =
-            ex.requestBody
-                .bufferedReader()
-                .readText()
-                .trim()
-        if (body.isEmpty()) {
-            respond(ex, 400, "text/plain", "Body is required")
-            return null
-        }
-
-        val request = json.decodeFromString<RuntimeMatchConfig>(body)
-        if (request.matchId.isBlank()) {
-            respond(ex, 400, "text/plain", "matchId is required")
-            return null
-        }
-        val puzzlePath =
-            request.puzzle
-                ?.trim()
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { puzzleRef ->
-                    resolvePuzzleReference(puzzleRef) ?: run {
-                        respond(ex, 404, "text/plain", "Puzzle not found: $puzzleRef")
-                        return null
-                    }
-                }
-        return request.copy(puzzle = puzzlePath)
-    }
-
-    private fun serveDeleteMatchConfig(ex: HttpExchange) {
-        val matchId = queryParam(ex, "matchId")?.trim()
-        if (matchId.isNullOrEmpty()) {
-            respond(ex, 400, "text/plain", "matchId is required")
-            return
-        }
-        runtimeMatchConfigs?.remove(matchId)
-        respond(ex, 200, "text/plain", "Runtime match config cleared")
-    }
-
     private fun servePuzzle(ex: HttpExchange) {
         val body =
             ex.requestBody
@@ -769,17 +635,6 @@ class DebugServer(
     }
 
     // --- Helpers ---
-
-    private fun queryParam(
-        ex: HttpExchange,
-        key: String,
-    ): String? =
-        ex.requestURI.query
-            ?.split("&")
-            ?.firstNotNullOfOrNull { entry ->
-                val parts = entry.split("=", limit = 2)
-                if (parts.firstOrNull() == key) parts.getOrNull(1) ?: "" else null
-            }
 
     private fun safe(
         ex: HttpExchange,

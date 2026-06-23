@@ -10,7 +10,8 @@ import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.GameConfig
 import leyline.config.MatchConfig
-import leyline.config.RuntimeDecks
+import leyline.config.RuntimeMatchConfig
+import leyline.config.RuntimeMatchConfigRegistry
 import leyline.config.ServerConfig
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
@@ -51,12 +52,14 @@ class MatchDoorMulliganFlowTest :
                 game = GameConfig(seed = 42L, dieRollWinner = 1, skipMulligan = false),
             )
 
+        val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
+
         fun handler(registry: MatchRegistry) =
             MatchHandler(
                 registry = registry,
                 matchConfig = matchConfig(),
                 cardRepository = TestCardRegistry.repo,
-                runtimeDecks = { RuntimeDecks(seat1Deck = deck, seat2Deck = deck) },
+                runtimeMatchConfigs = runtimeMatchConfigs,
             )
 
         fun serviceMessage(
@@ -137,6 +140,7 @@ class MatchDoorMulliganFlowTest :
             registry: MatchRegistry,
             matchId: String,
         ): Pair<EmbeddedChannel, EmbeddedChannel> {
+            runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, seat1Deck = deck, seat2Deck = deck))
             val local = EmbeddedChannel(handler(registry))
             val familiar = EmbeddedChannel(handler(registry))
 

@@ -4,12 +4,6 @@ import kotlinx.serialization.Serializable
 import java.util.concurrent.ConcurrentHashMap
 
 @Serializable
-data class RuntimeDecks(
-    val seat1Deck: String? = null,
-    val seat2Deck: String? = null,
-)
-
-@Serializable
 data class RuntimeMatchConfig(
     val matchId: String,
     val seat1Deck: String? = null,

@@ -140,7 +140,6 @@ private fun buildDebugServer(
     sessionProvider = { server.debugSink.sessionProvider?.invoke() as? leyline.match.MatchSession },
     eventBus = server.eventBus,
     runtimePuzzle = server.runtimePuzzle,
-    runtimeDecks = server.runtimeDecks,
     runtimeMatchConfigs = server.runtimeMatchConfigs,
     greMatchControlToken = System.getenv("LEYLINE_CONTROL_TOKEN")?.takeUnless { it.isBlank() },
 )

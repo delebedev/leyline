@@ -11,7 +11,7 @@ import leyline.bridge.bootstrap.CardEntry
 import leyline.bridge.bootstrap.DeckConverter
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
-import leyline.config.RuntimeDecks
+import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.bundle.GsmBuilder
@@ -47,8 +47,6 @@ class MatchHandler(
     private val recorderFactory: (() -> MatchRecorder)? = null,
     /** Runtime puzzle file path supplier — non-null activates puzzle mode. */
     private val puzzlePath: () -> String? = { null },
-    /** Runtime deck override supplier for local web clients. */
-    private val runtimeDecks: () -> RuntimeDecks? = { null },
     /** MatchId-keyed runtime config for web/native clients. */
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
@@ -173,16 +171,7 @@ class MatchHandler(
         return puzzlePath()
     }
 
-    private fun resolveRuntimeDecks(): RuntimeDecks? {
-        val config = runtimeMatchConfigs?.get(matchId)
-        if (config != null) {
-            return RuntimeDecks(
-                seat1Deck = config.seat1Deck,
-                seat2Deck = config.seat2Deck,
-            )
-        }
-        return runtimeDecks()
-    }
+    private fun resolveRuntimeMatchConfig(): RuntimeMatchConfig? = runtimeMatchConfigs?.get(matchId)
 
     private fun isSpectatorMode(): Boolean = runtimeMatchConfigs?.get(matchId)?.spectatorMode ?: matchConfig.game.spectatorMode
 
@@ -581,11 +570,11 @@ class MatchHandler(
 
     private fun resolveSeatDecks(): SeatDecks {
         val randomDecks = spectatorRandomDecksIfEnabled()
-        val runtimeDecks = resolveRuntimeDecks()
-        val seat1Deck = resolveSeat1Deck(randomDecks, runtimeDecks)
+        val runtimeMatchConfig = resolveRuntimeMatchConfig()
+        val seat1Deck = resolveSeat1Deck(randomDecks, runtimeMatchConfig)
         return SeatDecks(
             seat1 = seat1Deck,
-            seat2 = resolveSeat2Deck(randomDecks, runtimeDecks, seat1Deck),
+            seat2 = resolveSeat2Deck(randomDecks, runtimeMatchConfig, seat1Deck),
         )
     }
 
@@ -595,13 +584,13 @@ class MatchHandler(
      */
     private fun resolveSeat1Deck(
         randomDecks: Pair<String, String>?,
-        runtimeDecks: RuntimeDecks?,
+        runtimeMatchConfig: RuntimeMatchConfig?,
     ): String {
         randomDecks?.first?.let {
             log.info("Match Door: spectator seat 1 deck from random pair")
             return convertArenaCardsToDeckText(it)
         }
-        runtimeDecks?.seat1Deck?.takeIf { it.isNotBlank() }?.let {
+        runtimeMatchConfig?.seat1Deck?.takeIf { it.isNotBlank() }?.let {
             log.info("Match Door: seat 1 deck from runtime override")
             return it
         }
@@ -634,14 +623,14 @@ class MatchHandler(
      */
     private fun resolveSeat2Deck(
         randomDecks: Pair<String, String>?,
-        runtimeDecks: RuntimeDecks?,
+        runtimeMatchConfig: RuntimeMatchConfig?,
         seat1Deck: String,
     ): String {
         randomDecks?.second?.let {
             log.info("Match Door: spectator seat 2 deck from random pair")
             return convertArenaCardsToDeckText(it)
         }
-        runtimeDecks?.seat2Deck?.takeIf { it.isNotBlank() }?.let {
+        runtimeMatchConfig?.seat2Deck?.takeIf { it.isNotBlank() }?.let {
             log.info("Match Door: seat 2 deck from runtime override")
             return it
         }
