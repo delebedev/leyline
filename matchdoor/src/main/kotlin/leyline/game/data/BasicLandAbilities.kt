@@ -1,5 +1,7 @@
 package leyline.game.data
 
+import wotc.mtgo.gre.external.messaging.Messages.SubType
+
 /**
  * Well-known client ability identifiers for the five basic-land mana
  * abilities. The integer is the row's `Id` in the client's `Abilities` table
@@ -8,13 +10,30 @@ package leyline.game.data
  * activations.
  */
 object BasicLandAbilities {
-    /** (forge subtype name lowercase) → client ability id. */
-    val BY_SUBTYPE: List<Pair<String, Int>> =
+    private data class Entry(
+        val forgeSubtypeName: String,
+        val protoSubtype: SubType,
+        val abilityGrpId: Int,
+    )
+
+    private val entries =
         listOf(
-            "plains" to 1001,
-            "island" to 1002,
-            "swamp" to 1003,
-            "mountain" to 1004,
-            "forest" to 1005,
+            Entry("plains", SubType.Plains, 1001),
+            Entry("island", SubType.Island, 1002),
+            Entry("swamp", SubType.Swamp, 1003),
+            Entry("mountain", SubType.Mountain, 1004),
+            Entry("forest", SubType.Forest, 1005),
         )
+
+    /** Returns the implicit mana ability grpId for Forge subtype names. */
+    fun byForgeSubtypeNames(subtypes: Iterable<String>): Int? {
+        val normalized = subtypes.mapTo(mutableSetOf()) { it.lowercase() }
+        return entries.firstOrNull { it.forgeSubtypeName in normalized }?.abilityGrpId
+    }
+
+    /** Returns the implicit mana ability grpId for proto SubType ordinals. */
+    fun byProtoSubtypeOrdinals(subtypes: Iterable<Int>): Int? {
+        val values = subtypes.toSet()
+        return entries.firstOrNull { it.protoSubtype.number in values }?.abilityGrpId
+    }
 }

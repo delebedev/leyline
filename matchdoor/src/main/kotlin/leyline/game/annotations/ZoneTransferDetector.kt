@@ -200,10 +200,7 @@ object ZoneTransferDetector {
                             val card = bridge.getGame()?.let { findCard(it, fid) }
                             val abilityGrpId =
                                 if (card != null) {
-                                    val subtypes = card.type.subtypes.map { it.lowercase() }
-                                    BasicLandAbilities.BY_SUBTYPE
-                                        .firstOrNull { it.first in subtypes }
-                                        ?.second ?: 0
+                                    BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
                                 } else {
                                     0
                                 }

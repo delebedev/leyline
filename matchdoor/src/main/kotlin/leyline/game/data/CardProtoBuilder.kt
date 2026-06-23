@@ -14,22 +14,6 @@ class CardProtoBuilder(
     private val cards: CardRepository,
 ) {
     /**
-     * Basic land mana ability grpIds — implicit in the client, not stored in DB.
-     * SubType enum values: Plains=54, Island=43, Swamp=69, Mountain=49, Forest=29.
-     */
-    private val basicLandAbilities =
-        mapOf(
-            54 to 1001, // Plains → {T}: Add {W}
-            43 to 1002, // Island → {T}: Add {U}
-            69 to 1003, // Swamp → {T}: Add {B}
-            49 to 1004, // Mountain → {T}: Add {R}
-            29 to 1005, // Forest → {T}: Add {G}
-        )
-
-    /** Returns the implicit mana ability grpId for a basic land, or null. */
-    private fun basicLandAbility(subtypes: List<Int>): Int? = subtypes.firstNotNullOfOrNull { basicLandAbilities[it] }
-
-    /**
      * Door-state ability grpIds prefixed on every Room enchantment's
      * `uniqueAbilities` list (left door, right door). Constant across all rooms;
      * surfaces the locked/unlocked indicators the client renders. Without these
@@ -123,7 +107,7 @@ class CardProtoBuilder(
             if (isRoomCard(card.subtypes)) addAll(roomDoorAbilityGrpIds)
             val abilities =
                 card.abilityIds.ifEmpty {
-                    basicLandAbility(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()
+                    BasicLandAbilities.byProtoSubtypeOrdinals(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()
                 }
             addAll(
                 abilities.map { it.first },
@@ -185,7 +169,7 @@ class CardProtoBuilder(
         }
         val abilities =
             card.abilityIds.ifEmpty {
-                basicLandAbility(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()
+                BasicLandAbilities.byProtoSubtypeOrdinals(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()
             }
         abilities.forEach { (abilityGrpId, _) ->
             builder.addUniqueAbilities(

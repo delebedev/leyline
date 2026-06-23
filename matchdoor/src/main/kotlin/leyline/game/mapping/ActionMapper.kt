@@ -1276,10 +1276,7 @@ object ActionMapper {
         }
     }
 
-    private fun basicLandAbilityGrpId(card: Card): Int {
-        val subtypes = card.type.subtypes.map { it.lowercase() }
-        return BasicLandAbilities.BY_SUBTYPE.firstOrNull { it.first in subtypes }?.second ?: 0
-    }
+    private fun basicLandAbilityGrpId(card: Card): Int = BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
 
     /** Match the source object's UniqueAbilityInfo.id for the emitted ability row. */
     private fun uniqueAbilityIdFor(

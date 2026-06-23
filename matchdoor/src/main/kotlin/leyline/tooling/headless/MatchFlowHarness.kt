@@ -376,10 +376,7 @@ class MatchFlowHarness(
         return true
     }
 
-    private fun basicLandAbilityGrpId(card: Card): Int {
-        val subtypes = card.type.subtypes.map { it.lowercase() }
-        return BasicLandAbilities.BY_SUBTYPE.firstOrNull { it.first in subtypes }?.second ?: 0
-    }
+    private fun basicLandAbilityGrpId(card: Card): Int = BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
 
     /** Pass priority — sends a real Pass action through MatchSession. */
     fun passPriority() {

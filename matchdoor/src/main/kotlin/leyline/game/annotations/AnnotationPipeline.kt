@@ -641,10 +641,8 @@ object AnnotationPipeline {
                     val card = bridge.getGame()?.let { leyline.bridge.findCard(it, fid) }
                     val grpId =
                         if (card != null) {
-                            val subtypes = card.type.subtypes.map { it.lowercase() }
-                            leyline.game.data.BasicLandAbilities.BY_SUBTYPE
-                                .firstOrNull { it.first in subtypes }
-                                ?.second ?: 0
+                            leyline.game.data.BasicLandAbilities
+                                .byForgeSubtypeNames(card.type.subtypes) ?: 0
                         } else {
                             0
                         }
