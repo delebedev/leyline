@@ -13,6 +13,14 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.ManaRequirement
 import forge.game.zone.ZoneType as ForgeZoneType
 
+/**
+ * Shared mana-cost support for action emission.
+ *
+ * Owns affordability helpers, two-generic hybrid fallback, effective-cost
+ * calculation, and proto mana-requirement conversion. Cost adjustment may
+ * temporarily seed Forge activation context; [computeEffectiveCost] restores
+ * those fields before returning.
+ */
 internal object ActionManaCosts {
     fun canPayManaCost(
         sa: SpellAbility,

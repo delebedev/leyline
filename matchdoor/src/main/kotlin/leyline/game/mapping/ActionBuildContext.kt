@@ -10,6 +10,14 @@ import leyline.game.data.CardData
 import leyline.game.state.AbilityRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AutoTapSolution
 
+/**
+ * Narrow dependency carrier for action emitters.
+ *
+ * Keeps resolver plumbing explicit while preventing extracted helpers from
+ * reaching for broad bridge or snapshot state. Action-family policy stays in
+ * [ActionMapper]; this context only answers identity, card-data, ability, and
+ * auto-tap questions for an already-selected action source.
+ */
 internal data class ActionBuildContext(
     val player: Player,
     val idResolver: (ForgeCardId) -> InstanceId,

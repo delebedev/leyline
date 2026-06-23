@@ -21,6 +21,14 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaSelectionOption
 import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
 import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
 
+/**
+ * Emits activated-action families after [ActionMapper] selects eligible sources.
+ *
+ * The envelope is part of the action shape contract: battlefield activations
+ * include source identity and may stop priority, while hand/graveyard-style
+ * ability-only activations omit source identity fields. Mana abilities keep
+ * their predictive mana options and unique ability ids in this seam.
+ */
 internal object ActivatedActionEmitter {
     private const val INITIAL_MANA_ID = 10
     private const val INITIAL_UNIQUE_ABILITY_ID = 50

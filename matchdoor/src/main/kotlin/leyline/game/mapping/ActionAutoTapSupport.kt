@@ -11,6 +11,13 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaPaymentOption
 import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
 import forge.game.zone.ZoneType as ForgeZoneType
 
+/**
+ * Builds predictive auto-tap suggestions for payable action costs.
+ *
+ * Preserve the client-visible mana details here: predictive ids start at 10,
+ * snow sources carry `FromSnow`, mana ability ids match the tapped source, and
+ * two-generic hybrid costs may be paid either by color or by two generic mana.
+ */
 internal object ActionAutoTapSupport {
     private const val INITIAL_MANA_ID = 10
 
