@@ -9,11 +9,10 @@ read_when:
 
 ## Status
 
-Proposed for one staged refactor branch.
+Accepted.
 
-This ADR chooses a behavior-preserving refactor direction for
-`ActionMapper`. It does not require a rewrite before action behavior can ship,
-and it does not supersede the existing `CastRails` descriptor model.
+This ADR records the behavior-preserving `ActionMapper` boundary split. It does
+not supersede the existing `CastRails` descriptor model.
 
 ## Context
 
@@ -48,22 +47,22 @@ of truth for protocol-shaped facts:
 
 ## Decision
 
-Split `ActionMapper` incrementally in this order:
+Split `ActionMapper` by support responsibility and action family:
 
-1. Extract pure mana/cost support.
-2. Introduce a narrow action build context to remove repeated resolver plumbing.
-3. Move auto-tap support behind the context if Stage 1 deferred it.
-4. Extract activated-action emission.
-5. Reassess cast-family extraction after the first stages.
+1. Pure mana/cost support.
+2. A narrow action build context for resolver plumbing.
+3. Auto-tap support behind that context.
+4. Activated-action emission.
+5. Cast-family extraction only if a future slice proves it pays for itself.
 
-### Stage 1: Pure Mana And Cost Support
+### Pure Mana And Cost Support
 
 Introduce a focused helper for action cost computations and proto mana-cost
 translation. Start with pure or nearly pure cost logic; defer resolver-heavy
 auto-tap movement until the context exists unless forwarding APIs make the move
 trivial.
 
-Candidate name: `ActionCostMapper` or `ActionManaCosts`.
+Implemented as `ActionManaCosts`.
 
 It may own:
 
@@ -74,12 +73,11 @@ It may own:
 - Forge `ManaCost` to `ManaRequirement` translation.
 - Produced-mana string to `ManaColor` mapping wrappers.
 
-It should not initially own:
+It should not own:
 
 - Auto-tap source collection and auto-tap solution construction, unless they
-  move behind unchanged forwarding APIs. Those functions depend on id, grpId,
-  card-data, and ability-registry resolvers; moving them before the context can
-  preserve the worst parameter lists.
+  move behind `ActionBuildContext`. Those functions depend on id, grpId,
+  card-data, and ability-registry resolvers.
 - `usesPaymentSourceReducer`, which is cast display policy.
 - `addManaCostFromCardData`, which is printed-card-data fallback, not cost computation.
 
@@ -92,15 +90,14 @@ Do not replace every direct Forge `ComputerUtilMana.canPayManaCost` call with
 the shared `canPayManaCost` wrapper as part of this stage. Some action families
 intentionally use narrower direct checks today; changing them would be behavior.
 
-This stage is first because cost logic is the highest reuse point and recent
-source of churn. It can move as a pure extraction without changing action-family
-policy.
+Cost logic is the highest reuse point and a recurring source of churn. It can
+move as a pure extraction without changing action-family policy.
 
-### Stage 2: Action Build Context
+### Action Build Context
 
 Introduce a small context object for repeated resolver dependencies.
 
-Candidate name: `ActionBuildContext`.
+Implemented as `ActionBuildContext`.
 
 It may carry:
 
@@ -110,7 +107,7 @@ It may carry:
 - Card data lookup.
 - Ability registry lookup.
 - Card repository if needed for alt-cost binding lookup.
-- Auto-tap helper access after Stage 1.
+- Auto-tap helper access.
 
 It must not become a policy object. It should not decide which action families
 to emit, which rails apply, or active vs inactive placement. Its job is to make
@@ -120,10 +117,9 @@ Prefer resolver lambdas and narrow data over carrying broad `GameBridge` or
 `GsmSnapshot` references. The context should make dependencies explicit, not
 hide orchestration.
 
-### Stage 3: Auto-Tap Support
+### Auto-Tap Support
 
-If auto-tap stayed in `ActionMapper` during Stage 1, move it after
-`ActionBuildContext` exists.
+Implemented as `ActionAutoTapSupport` behind `ActionBuildContext`.
 
 It may own:
 
@@ -135,11 +131,11 @@ It may own:
 It must preserve snow specs, predictive mana ids, ability ids, and exact source
 selection behavior.
 
-### Stage 4: Activated Action Emitter
+### Activated Action Emitter
 
 Extract the activated-action family.
 
-Candidate name: `ActivatedActionEmitter`.
+Implemented as `ActivatedActionEmitter`.
 
 It may own:
 
@@ -165,10 +161,10 @@ Keep graveyard zone iteration in `ActionMapper` unless moving it clearly reduces
 coupling. The safer first extraction is for the emitter to build/emit the action
 for one already-selected graveyard ability.
 
-### Stage 5: Reassess Cast-Family Extraction
+### Cast-Family Extraction
 
-Do not extract all cast paths at the start. After Stages 1-3, reassess whether a
-cast emitter is still valuable.
+Do not extract all cast paths by default. Reassess whether a cast emitter is
+still valuable only after cost/context/auto-tap/activated boundaries have settled.
 
 Potential future candidate: `CastActionEmitter`.
 
@@ -181,10 +177,10 @@ facts, and several cast shapes intentionally diverge by action type.
 
 - Do not introduce a generic action DSL.
 - Do not table-route every action type.
-- Do not merge `buildFromSnapshot` and `buildActionList` in this branch.
+- Do not merge `buildFromSnapshot` and `buildActionList` as part of this boundary split.
 - Do not move `CastRails` back into `ActionMapper` or make rails own builder side effects.
 - Do not change can-pay, effective-cost, auto-tap, or active/inactive semantics.
-- Do not use this refactor to add a new mechanic rail.
+- Do not use this boundary split to add a new mechanic rail.
 
 ## Required Invariants
 
@@ -256,11 +252,12 @@ Acceptable for isolated fixes, but not the preferred architecture. Cost helpers
 and activated emitters are already cohesive enough to extract, and the file is a
 recurring collision point.
 
-## Testing Strategy
+## Verification Expectations
 
-Each stage should run focused tests before the full gate.
+Changes to these seams should run focused action-mapping tests before broader
+gates.
 
-Stage 1:
+Cost-support changes:
 
 - `ActionMapperPureTest`.
 - `ActionMapperSnapshotTest`.
@@ -269,15 +266,15 @@ Stage 1:
 - Hybrid/two-generic and snow action tests.
 - Tests that pin `computeEffectiveCost` side-effect restore if new seams expose it.
 
-Stage 2:
+Context-only migration changes:
 
-- Same as Stage 1, plus targeted compile checks around call-site migration.
+- Same focused action tests, plus targeted compile checks around call-site migration.
 
-Stage 3:
+Auto-tap changes:
 
-- Same as Stage 1 for auto-tap, snow, and hybrid/two-generic behavior.
+- Focused tests for auto-tap, snow, predictive mana ids, and hybrid/two-generic behavior.
 
-Stage 4:
+Activated-action changes:
 
 - `ActionMapperPureTest` activation cases.
 - `ActionMapperSnapshotTest` activation/uniqueAbilityId/snow cases.
@@ -288,21 +285,3 @@ Stage 4:
 
 If any cast-adjacent helper moves, also run relevant mechanic tests for Plot,
 Foretell, Flashback, Disturb, Escape, Room, Omen, and Adventure action shapes.
-
-Before merging the branch, run `:matchdoor:testGate` plus static checks.
-
-## Migration Plan
-
-1. Add the cost helper and move pure cost/mana functions with forwarding wrappers
-   only where they preserve existing internal API cheaply. Leave auto-tap in place
-   if moving it would just preserve long resolver parameter lists.
-2. Run focused tests and static checks.
-3. Add `ActionBuildContext` and migrate enough call sites to remove repeated
-   resolver parameter lists without changing orchestration.
-4. Move auto-tap support behind the context if it did not move in Stage 1.
-5. Extract activated action emission behind the context.
-6. Reassess whether cast-family extraction still pays for itself. File a follow-up
-   instead of continuing if the remaining cast code is clearer in place.
-
-Stop after any stage if the extraction increases the number of concepts needed
-to add a small action rail.
