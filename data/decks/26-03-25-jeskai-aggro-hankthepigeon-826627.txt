@@ -1,0 +1,36 @@
+Deck
+3 Ashling, Rekindled (ECL) 124
+1 Burst Lightning (SOA) 41
+4 Floodfarm Verge (DSK) 259
+4 Sage of the Skies (TDM) 22
+2 Go Ninja Go (TMT) 149
+1 Plains (ZNR) 380
+4 Momo, Friendly Flier (TLA) 29
+3 Sacred Foundry (GRN) 254
+4 Quantum Riddler (EOE) 72
+3 Riverpyre Verge (DFT) 260
+1 Gwen Stacy (SPM) 78
+3 Seam Rip (EOE) 34
+2 Shiko, Paragon of the Way (TDM) 223
+4 Sunbillow Verge (DFT) 264
+4 Springleaf Drum (LRW) 261
+3 Steam Vents (GRN) 257
+2 Parting Gust (BLB) 24
+3 Nova Hellkite (EOE) 148
+4 Hallowed Fountain (RNA) 251
+2 Aang, Swift Savior (TLA) 204
+1 Winternight Stories (TDM) 67
+1 Get Lost (LCI) 14
+1 Twinmaw Stormbrood (TDM) 232
+
+Sideboard
+1 Get Lost (LCI) 14
+1 Avatar's Wrath (TLA) 12
+1 Beza, the Bounding Spring (BLB) 2
+2 Spider-Sense (SPM) 46
+2 Rest in Peace (WOT) 12
+2 Disdainful Stroke (WOE) 47
+1 Frostcliff Siege (TDM) 187
+3 Pyroclasm (DSK) 149
+1 Soul-Guide Lantern (WOE) 251
+1 Kutzil's Flanker (LCI) 20
