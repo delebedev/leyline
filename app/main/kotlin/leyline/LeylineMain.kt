@@ -142,6 +142,7 @@ private fun buildDebugServer(
     runtimePuzzle = server.runtimePuzzle,
     runtimeDecks = server.runtimeDecks,
     runtimeMatchConfigs = server.runtimeMatchConfigs,
+    greMatchControlToken = System.getenv("LEYLINE_CONTROL_TOKEN")?.takeUnless { it.isBlank() },
 )
 
 private fun buildAccountServer(

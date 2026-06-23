@@ -46,6 +46,8 @@ import java.util.concurrent.atomic.AtomicReference
  * - `GET /api/match-config` → current match-scoped config by matchId
  * - `POST /api/match-config` → set match-scoped config by matchId
  * - `GET /api/events`       → SSE real-time event stream
+ *
+ * Server-to-server GRE match control is mounted by [GreMatchControlApi].
  */
 @Suppress("LargeClass") // Debug routes share the same local server and session providers.
 class DebugServer(
@@ -58,6 +60,8 @@ class DebugServer(
     private val runtimeDecks: AtomicReference<RuntimeDecks?>? = null,
     /** MatchId-keyed runtime config for native Match Door starts. */
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
+    /** Optional bearer token for server-to-server GRE match control. */
+    private val greMatchControlToken: String? = null,
 ) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null
@@ -125,6 +129,7 @@ class DebugServer(
                 }
             }
         }
+        GreMatchControlApi(runtimeMatchConfigs, greMatchControlToken, ::resolvePuzzleReference).mount(srv)
         srv.createContext("/api/match-config") { ex ->
             try {
                 when (ex.requestMethod) {
@@ -539,6 +544,19 @@ class DebugServer(
     }
 
     private fun serveMatchConfig(ex: HttpExchange) {
+        val config = readAndStoreMatchConfig(ex) ?: return
+        respond(ex, 200, "application/json", json.encodeToString(RuntimeMatchConfig.serializer(), config))
+    }
+
+    private fun readAndStoreMatchConfig(ex: HttpExchange): RuntimeMatchConfig? {
+        val request = readMatchConfig(ex) ?: return null
+        return runtimeMatchConfigs?.put(request) ?: run {
+            respond(ex, 503, "text/plain", "Runtime match config registry unavailable")
+            null
+        }
+    }
+
+    private fun readMatchConfig(ex: HttpExchange): RuntimeMatchConfig? {
         val body =
             ex.requestBody
                 .bufferedReader()
@@ -546,13 +564,13 @@ class DebugServer(
                 .trim()
         if (body.isEmpty()) {
             respond(ex, 400, "text/plain", "Body is required")
-            return
+            return null
         }
 
         val request = json.decodeFromString<RuntimeMatchConfig>(body)
         if (request.matchId.isBlank()) {
             respond(ex, 400, "text/plain", "matchId is required")
-            return
+            return null
         }
         val puzzlePath =
             request.puzzle
@@ -561,22 +579,10 @@ class DebugServer(
                 ?.let { puzzleRef ->
                     resolvePuzzleReference(puzzleRef) ?: run {
                         respond(ex, 404, "text/plain", "Puzzle not found: $puzzleRef")
-                        return
+                        return null
                     }
                 }
-        val config =
-            runtimeMatchConfigs?.put(
-                request.copy(
-                    seat1Deck = request.seat1Deck?.trim()?.takeIf { it.isNotEmpty() },
-                    seat2Deck = request.seat2Deck?.trim()?.takeIf { it.isNotEmpty() },
-                    puzzle = puzzlePath,
-                    spectatorMode = request.spectatorMode,
-                ),
-            ) ?: run {
-                respond(ex, 503, "text/plain", "Runtime match config registry unavailable")
-                return
-            }
-        respond(ex, 200, "application/json", json.encodeToString(RuntimeMatchConfig.serializer(), config))
+        return request.copy(puzzle = puzzlePath)
     }
 
     private fun serveDeleteMatchConfig(ex: HttpExchange) {
