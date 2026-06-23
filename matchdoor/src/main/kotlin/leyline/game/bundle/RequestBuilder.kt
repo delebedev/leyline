@@ -225,6 +225,76 @@ object RequestBuilder {
         return orderReq to promptProto
     }
 
+    /** Build a [SearchReq] GRE message with populated inner fields for library search.
+     *
+     *  [sourceInstanceId] — `searchReq.sourceId`.
+     *
+     *  [hostCardInstanceId] — first `prompt.parameters` CardId. Names the source
+     *  card so the picker header can use the card context.
+     *
+     *  [searchingSeat] — second `prompt.parameters` CardId. Both parameters are
+     *  required to anchor the picker header.
+     *
+     *  [promptId] — picker layout. [PromptIds.SEARCH_TYPECYCLING] for cycling,
+     *  typecycling, and basiccycling; [PromptIds.SEARCH] for generic tutors.
+     *
+     *  [allowCancel] — defaults to `No_a526`; generic tutors with optional
+     *  resolution may pass `Abort` instead. */
+    @Suppress("LongParameterList")
+    fun buildSearchReq(
+        msgId: Int,
+        gsId: Int,
+        systemSeatId: Int,
+        sourceInstanceId: Int,
+        hostCardInstanceId: Int,
+        searchingSeat: Int,
+        libraryZoneId: Int,
+        allLibraryIds: List<Int>,
+        validTargetIds: List<Int>,
+        maxFind: Int = 1,
+        allowFailToFind: Boolean = true,
+        promptId: Int = PromptIds.SEARCH,
+        allowCancel: AllowCancel = AllowCancel.No_a526,
+    ): GREToClientMessage {
+        val searchReq =
+            SearchReq
+                .newBuilder()
+                .setMaxFind(maxFind)
+                .addZonesToSearch(libraryZoneId)
+                .addAllItemsToSearch(allLibraryIds)
+                .addAllItemsSought(validTargetIds)
+                .setSourceId(sourceInstanceId)
+        if (allowFailToFind) {
+            searchReq.setAllowFailToFind(AllowFailToFind.Any)
+        }
+        return GREToClientMessage
+            .newBuilder()
+            .setType(GREMessageType.SearchReq_695e)
+            .setMsgId(msgId)
+            .setGameStateId(gsId)
+            .addSystemSeatIds(systemSeatId)
+            .setAllowCancel(allowCancel)
+            .setPrompt(
+                Prompt
+                    .newBuilder()
+                    .setPromptId(promptId)
+                    .addParameters(
+                        PromptParameter
+                            .newBuilder()
+                            .setParameterName("CardId")
+                            .setType(ParameterType.Number)
+                            .setNumberValue(hostCardInstanceId),
+                    ).addParameters(
+                        PromptParameter
+                            .newBuilder()
+                            .setParameterName("CardId")
+                            .setType(ParameterType.Number)
+                            .setNumberValue(searchingSeat),
+                    ),
+            ).setSearchReq(searchReq)
+            .build()
+    }
+
     private fun orderPromptId(semantic: PromptSemantic): Int =
         if (semantic == PromptSemantic.OrderForBottom) {
             PromptIds.ORDER_LIBRARY_BOTTOM
