@@ -9,11 +9,11 @@ read_when:
 
 ## Status
 
-Proposed for one staged refactor branch.
+Accepted.
 
-This ADR chooses a branch shape for behavior-preserving refactors around
-`TargetingHandler`. It does not require a rewrite before prompt behavior can
-ship, and it does not change ADR 0001's planner boundary.
+This ADR defines the match-layer ownership boundary for client interaction
+lifecycles around `TargetingHandler`. It does not change ADR 0001's planner
+boundary.
 
 ## Context
 
@@ -75,18 +75,15 @@ The target boundary is:
 
 ## Decision
 
-Split `TargetingHandler` incrementally by interaction lifecycle. Prefer three
-stages in one branch, with the cost stage allowed to land as two commits if the
-state movement is easier to review.
+Split `TargetingHandler` by stable client interaction lifecycle, not by prompt
+route or protocol message type. `TargetingHandler` remains the session-facing
+coordinator and public entry point; extracted handlers own lifecycle-local
+state and response sequencing.
 
-### Stage 1: Response Submission Helper
+### Response Submission
 
-Introduce a small match-layer helper for repeated prompt response mapping and
-submission.
-
-Candidate name: `PromptResponseSubmitter`.
-
-It may own:
+`PromptResponseSubmitter` owns repeated prompt response mapping and submission
+for simple non-target prompt responses:
 
 - Pending prompt lookup with the existing timeout/race warning behavior.
 - Client id to prompt-index mapping using `PromptResponseMapper`.
@@ -94,51 +91,33 @@ It may own:
 - Shared response paths for `SelectNResp`, `OrderResp`, and `EffectCostResp`.
 - Small choice-result side-effect recording if it remains local to Select-N responses.
 
-It must not own:
+It does not own:
 
 - Prompt classification.
 - GRE request construction.
 - Target echo re-prompt behavior.
 - Search cursor invalidation or playback draining.
 
-This stage should be first because it is the lowest-risk extraction and reduces
-boilerplate before moving larger lifecycles.
+### Search Interaction Lifecycle
 
-### Stage 2: Search Interaction Lifecycle
-
-Extract search-specific send/response handling.
-
-Candidate name: `SearchPromptInteractionHandler`.
-
-It may own:
+`SearchPromptInteractionHandler` owns search-specific send/response handling:
 
 - `sendSearchReq`.
 - `onSearchResp`.
 - Search source/host instance id resolution.
 - Search prompt id selection.
 - Search pending-state creation and consumption.
-- The exact post-search sequence: submit response, await priority, drain pending playback, invalidate the bundle cursor, send a real game state, then `autoPass`.
+- The post-search sequence: submit response, await priority, drain pending playback, invalidate the bundle cursor, send game state, then `autoPass`.
 
-It must not own:
+It does not own:
 
 - `PromptClassifier` search detection.
 - Generic library visibility policy outside the SearchReq lifecycle.
 - Non-search pending interactions.
 
-This stage is independent and gives search a lifecycle owner without disturbing
-target selection or cost prompts.
+### Cost Interaction Lifecycles
 
-### Stage 3: Cost Interaction Lifecycles
-
-Extract cost-specific client interactions. The stage is conceptually one branch
-milestone, but should be split internally if review gets broad.
-
-Candidate names:
-
-- `DeferredCastCostInteractionHandler` for pre-engine cast prompts.
-- `PayCostsInteractionHandler` for native `PayCostsReq` mana-source loops.
-
-`DeferredCastCostInteractionHandler` may own:
+`DeferredCastCostInteractionHandler` owns pre-engine cast prompts:
 
 - Optional-cost prompt checks and responses.
 - Hybrid mana type prompt checks and responses.
@@ -147,7 +126,7 @@ Candidate names:
 - Deferred cast replay through the pending action bridge.
 - Helpers for hybrid/two-generic mana color ordering and optional-cost slot lookup.
 
-`PayCostsInteractionHandler` may own:
+`PayCostsInteractionHandler` owns native `PayCostsReq` mana-source loops:
 
 - `PerformActionResp` handling for `MakePayment` / `Pass` on PayCosts prompts.
 - Mana-source payment accumulation.
@@ -155,10 +134,10 @@ Candidate names:
 - PayCosts re-prompt adjustment.
 - Convoke count persistent annotation injection for PayCosts bundles.
 
-Both handlers must preserve a single pending-interaction owner per seat. If
-moving cost-specific `PendingClientInteraction` variants immediately makes state
-ownership unclear, keep the sealed state where it is and delegate through a
-small accessor until the lifecycle split proves stable.
+Both handlers preserve a single pending-interaction owner per seat. Cost-specific
+`PendingClientInteraction` variants remain part of the shared session slot; the
+cost handlers access that slot through explicit getters/setters rather than
+creating independent pending state.
 
 ## Non-Goals
 
@@ -166,7 +145,7 @@ small accessor until the lifecycle split proves stable.
 - Do not move planner responsibilities from `bridge.interaction` into `match`.
 - Do not move GRE construction out of `RequestBuilder` / `BundleBuilder`.
 - Do not turn `SelectNPromptRoute` or `PayCostsPromptRoute` into route-owned response handlers.
-- Do not refactor target selection echo re-prompting in this branch unless a stage directly requires it.
+- Do not refactor target selection echo re-prompting under these handlers.
 - Do not split the file by protocol message type alone; send and response halves of one lifecycle should stay together.
 
 ## Risks And Required Invariants
@@ -174,10 +153,9 @@ small accessor until the lifecycle split proves stable.
 `pendingInteraction` is shared session state. Splitting handlers must not create
 multiple independent pending slots for the same seat.
 
-Cancel behavior crosses domains. `CancelActionReq` currently cancels deferred
-cast prompts, completes partial mana-source payments, or submits empty target
-lists. Cost extraction must either move the relevant cancel branches with the
-cost handlers or make the delegation explicit.
+Cancel behavior crosses domains. `CancelActionReq` cancels deferred cast
+prompts, completes partial mana-source payments, or submits empty target lists.
+Those branches must stay explicit at the coordinator boundary.
 
 Convoke payment state is distributed across in-memory selection maps and the
 prompt journal. The PayCosts extraction must move those pieces together.
@@ -196,19 +174,18 @@ client protocol and should not be mixed into the generic response helper.
 
 ## Alternatives Considered
 
-### Extract Cost Handling First
+### Cost Handlers As The Primary Split
 
-Rejected as the first stage. Cost handling is the highest-value extraction, but
-it moves the most state and crosses cancel handling, pending actions, journals,
-and PayCosts re-prompts. A small response-submission helper gives a safer first
-cut and reduces duplicated code before larger movement.
+Rejected as the top-level decomposition. Cost handling has high internal
+cohesion, but it also crosses cancel handling, pending actions, journals, and
+PayCosts re-prompts. Making cost the primary split would leave response
+submission and search lifecycles without clear owners.
 
 ### One CostPromptInteractionHandler
 
-Acceptable as a temporary file shape only if the implementation remains small,
-but not the preferred final boundary. Deferred cast prompts and native PayCosts
-loops have different lifecycles and different state. Keeping them separate makes
-review and later mechanic work cheaper.
+Rejected as the stable boundary. Deferred cast prompts and native PayCosts loops
+have different lifecycles and different state. Keeping them separate preserves
+the distinction between pre-engine cast replay and in-engine payment loops.
 
 ### Route-Owned Prompt Handlers
 
@@ -221,43 +198,10 @@ Acceptable for tiny fixes, but no longer the right direction. The file is a
 high-churn collision point, and its cost/search responsibilities are already
 coherent lifecycles that can move without changing protocol behavior.
 
-## Testing Strategy
+## Consequences
 
-Each stage should run focused tests before the full gate.
-
-Stage 1:
-
-- `TargetingHandlerSelectNTest`
-- Order and effect-cost session tests that exercise prompt-index response mapping.
-
-Stage 2:
-
-- Search prompt/session tests.
-- Search request builder tests.
-- Library-search conformance tests.
-
-Stage 3:
-
-- Optional-cost session tests.
-- Hybrid-mana session tests.
-- Stack targeting tests that include optional cost prompts.
-- Waterbend and Convoke lifecycle tests.
-- Prompt journal tests for optional, keyword, hybrid, and Convoke stashes.
-
-Before merging the branch, run `:matchdoor:testGate` plus static checks.
-
-## Migration Plan
-
-1. Add `PromptResponseSubmitter` and migrate the simplest response path first,
-   then Select-N, order, and effect-cost responses.
-2. Add `SearchPromptInteractionHandler` and move SearchReq/SearchResp as one
-   lifecycle-preserving slice.
-3. Add deferred cast cost handling. Keep public `TargetingHandler` methods as
-   delegating facades so callers do not churn.
-4. Add PayCosts handling and move the mana-source / Convoke maps with it.
-5. Only after the handlers are stable, consider narrowing
-   `PendingClientInteraction` into lifecycle-specific subtypes. Do not start
-   there.
-
-Stop after any stage if the extraction increases the number of concepts a
-mechanic change must understand.
+Mechanic changes should usually touch one lifecycle handler plus the shared
+coordinator, not the entire prompt surface. The cost of this split is that
+`TargetingHandler` remains an orchestration hub with explicit delegation; this
+is preferable to hiding prompt routing, request construction, and response
+side effects behind route-owned handlers.

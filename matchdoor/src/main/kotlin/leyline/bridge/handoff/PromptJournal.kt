@@ -21,8 +21,7 @@ import java.util.concurrent.ConcurrentLinkedDeque
  *   drains.
  * - `currentKeywordStash` — ambient singleton: last-writer-wins for the
  *   [PromptSideEffect.KeywordCostStash] decision (per-keyword pay/decline map
- *   recorded by `TargetingHandler.onOptionalCostResponse` after the player
- *   answers the combined CTO modal). Read with [peekKeywordCostDecision]
+ *   recorded after the player answers the combined CTO modal). Read with [peekKeywordCostDecision]
  *   (peek-only — Forge may call `chooseNumberForKeywordCost` more than once
  *   during cost-prep retries). Cleared at the start of every
  *   `checkOptionalCosts` so a previous cast's stash never leaks into the

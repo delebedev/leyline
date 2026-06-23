@@ -211,8 +211,8 @@ class CostPaymentCoordinator(
     /**
      * Binary keyword-cost prompt (max == 1, e.g. Offspring's "pay the
      * additional cost?"). When [keywordName] is supplied and a CTO-side
-     * decision is already stashed (set by `TargetingHandler.checkOptionalCosts`
-     * when the player picked from the cost modal), use it — that's the path
+     * decision is already stashed by the deferred cast-cost interaction handler
+     * when the player picked from the cost modal, use it — that's the path
      * that lets the client render a proper CastingTimeOptionsReq instead of a bare
      * confirm prompt. Fall back to the confirm prompt only when no CTO was
      * sent for this keyword (legacy / dev-harness paths). For max > 1 the
@@ -243,9 +243,8 @@ class CostPaymentCoordinator(
 
     /**
      * Optional cost resolution (kicker, buyback, flashback, cycling, warp,
-     * Madness alt-cost). Reads the stashed decision from [leyline.bridge.handoff.PromptJournal] (set by
-     * [TargetingHandler.onCastingTimeOptionsResp][leyline.match.TargetingHandler]
-     * after the client responded to `CastingTimeOptionsReq`). Falls back to
+     * Madness alt-cost). Reads the stashed decision from [leyline.bridge.handoff.PromptJournal]
+     * after the client responded to `CastingTimeOptionsReq`. Falls back to
      * auto-accepting all optional costs when no stash is present (e.g. test
      * harness paths that bypass the castingTimeOptions flow).
      */
