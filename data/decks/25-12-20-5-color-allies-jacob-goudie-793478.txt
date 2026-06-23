@@ -1,0 +1,29 @@
+Deck
+4 Earthen Ally (TLA) 177
+4 Earth Kingdom Protectors (TLA) 17
+4 Great Divide Guide (TLA) 181
+4 South Pole Voyager (TLA) 35
+4 Earth King's Lieutenant (TLA) 217
+3 Mai, Scornful Striker (TLA) 109
+4 Aang, Swift Savior (TLA) 204
+3 Katara, the Fearless (TLA) 230
+2 Hakoda, Selfless Commander (TLA) 23
+2 Wartime Protestors (TLA) 160
+3 Aang, at the Crossroads (TLA) 203
+1 Boiling Rock Rioter (TLA) 87
+4 Cavern of Souls (LCI) 269
+4 Secluded Courtyard (SPG) 63
+4 Jasmine Dragon Tea Shop (TLA) 270
+4 Starting Town (FIN) 289
+2 Multiversal Passage (SPM) 180
+4 Breeding Pool (RNA) 246
+1 Forest (ZNR) 384
+
+Sideboard
+2 Boiling Rock Rioter (TLA) 87
+2 Clarion Conqueror (TDM) 5
+4 Allies at Last (TLA) 164
+2 Origin of Metalbending (TLA) 187
+3 Spider-Sense (SPM) 46
+1 Hide on the Ceiling (SPM) 32
+1 Ghost Vacuum (DSK) 248
