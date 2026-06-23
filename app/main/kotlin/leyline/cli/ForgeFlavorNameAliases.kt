@@ -39,6 +39,15 @@ internal object ForgeFlavorNameAliases {
     private const val FLAVOR_NAME_MARKER = "FlavorName:"
 }
 
+/**
+ * Normalizes external decklist names before they become persisted grpIds.
+ *
+ * [findByName] and [findByNameAndSet] remain exact client card-database
+ * lookups. Flavor-name aliases are import fallback only: downloaded decklists
+ * can use alternate display names, while the local card database may expose the
+ * corresponding gameplay name. Keeping that translation here prevents generic
+ * card lookup from returning a different name/set than the caller requested.
+ */
 internal class ImportedCardNameResolver(
     private val findByName: (String) -> Int?,
     private val findByNameAndSet: (String, String) -> Int?,
