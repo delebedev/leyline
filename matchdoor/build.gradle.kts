@@ -142,12 +142,9 @@ val testGate by tasks.registering(Test::class) {
     // Exclude SimClientTag — those are slow log-generation tests. Broad deck
     // matrices run through the standalone `:matchdoor:simclient` tool.
     systemProperty("kotest.tags", "(UnitTag | BoardTag) & !SimClientTag")
-    systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: if (ciSerialism) "1" else "8"))
-    // Kotest spec-level parallelism: 136 small suites, JVM-fork overhead
-    // would dominate. In-JVM concurrency at 8 = ~25-27s (was ~33s serial).
-    // Forge's static MyRandom race guarded by BoardTestBase.RNG_LOCK.
-    // CI uses serial specs because several older board tests still touch Forge
-    // globals outside the seeded shuffle window.
+    systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "1"))
+    // Board-tier specs share Forge process globals. Keep the gate serial by default
+    // locally and in CI; use -PkotestParallelism=N only for intentional parallelism probes.
 }
 
 testIntegration.configure { mustRunAfter(testGate) }
