@@ -7,6 +7,12 @@ import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
 import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.LeftUnlockedDesignationKind
+import leyline.game.state.PersistentAnnotationKind
+import leyline.game.state.PlottedDesignationKind
+import leyline.game.state.RightUnlockedDesignationKind
+import leyline.game.state.SaddledDesignationKind
+import leyline.game.state.SuspectedDesignationKind
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -22,11 +28,11 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * designation (Saddled, Day/Night, Door states, …) is now one row plus the
  * BoundCard recognizer that populates [BoundCard.designations].
  *
- * The persistent-side Designation annotations (carried across GSMs) live in
- * [leyline.game.state.PersistentAnnotationStore] and are NOT part of this
- * table — per-kind persistent emit + identity rules live on
- * [leyline.game.state.PreparedDesignationKind] /
- * [leyline.game.state.PlottedDesignationKind] in the kind registry.
+ * Simple persistent-side Designation annotations (carried across GSMs) hang off
+ * the same row via [CardStateDesignationSpec.persistentKind] and
+ * [CardStateDesignationSpec.persistentEmitter]. Structural cases such as
+ * Prepared copy linkage and Commander player/object rows stay explicit in the
+ * persistent feed builder.
  */
 
 enum class DesignationKind {
@@ -64,6 +70,8 @@ data class CardStateDesignationSpec(
     val designationType: Int?,
     val mode: TransientMode,
     val readRole: (BoundCard) -> Boolean,
+    val persistentKind: PersistentAnnotationKind? = null,
+    val persistentEmitter: ((InstanceId) -> AnnotationInfo)? = null,
 )
 
 object CardStateDesignations {
@@ -80,6 +88,12 @@ object CardStateDesignations {
             designationType = AnnotationConstants.DESIGNATION_TYPE_PLOTTED,
             mode = TransientMode.GAIN_APPEND,
             readRole = { it.designations.isPlotted },
+            persistentKind = PlottedDesignationKind,
+            persistentEmitter = { iid ->
+                AnnotationBuilder.plottedDesignation(
+                    instanceId = iid,
+                )
+            },
         )
     val Saddled =
         CardStateDesignationSpec(
@@ -87,6 +101,12 @@ object CardStateDesignations {
             designationType = AnnotationConstants.DESIGNATION_TYPE_SADDLED,
             mode = TransientMode.GAIN_APPEND,
             readRole = { it.designations.isSaddled },
+            persistentKind = SaddledDesignationKind,
+            persistentEmitter = { iid ->
+                AnnotationBuilder.saddledDesignation(
+                    instanceId = iid,
+                )
+            },
         )
     val Suspected =
         CardStateDesignationSpec(
@@ -94,6 +114,12 @@ object CardStateDesignations {
             designationType = AnnotationConstants.DESIGNATION_TYPE_SUSPECTED,
             mode = TransientMode.GAIN_APPEND,
             readRole = { it.designations.isSuspected },
+            persistentKind = SuspectedDesignationKind,
+            persistentEmitter = { iid ->
+                AnnotationBuilder.suspectedDesignation(
+                    instanceId = iid,
+                )
+            },
         )
     val Foretold =
         CardStateDesignationSpec(
@@ -110,6 +136,12 @@ object CardStateDesignations {
             // for the room — the door's unlock effect runs at resolution.
             mode = TransientMode.GAIN_INSERT_BEFORE_RESOLVE_ZT,
             readRole = { it.designations.isLeftDoorUnlocked },
+            persistentKind = LeftUnlockedDesignationKind,
+            persistentEmitter = { iid ->
+                AnnotationBuilder.leftUnlockedDesignation(
+                    instanceId = iid,
+                )
+            },
         )
     val RightUnlocked =
         CardStateDesignationSpec(
@@ -117,9 +149,18 @@ object CardStateDesignations {
             designationType = AnnotationConstants.DESIGNATION_TYPE_RIGHT_UNLOCKED,
             mode = TransientMode.GAIN_INSERT_BEFORE_RESOLVE_ZT,
             readRole = { it.designations.isRightDoorUnlocked },
+            persistentKind = RightUnlockedDesignationKind,
+            persistentEmitter = { iid ->
+                AnnotationBuilder.rightUnlockedDesignation(
+                    instanceId = iid,
+                )
+            },
         )
 
-    val all: List<CardStateDesignationSpec> = listOf(Prepared, Plotted, Saddled, Suspected, Foretold, LeftUnlocked, RightUnlocked)
+    val all: List<CardStateDesignationSpec> =
+        listOf(Prepared, Plotted, Saddled, Suspected, Foretold, LeftUnlocked, RightUnlocked)
+
+    val simplePersistent: List<CardStateDesignationSpec> = all.filter { it.persistentKind != null }
 }
 
 /**

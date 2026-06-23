@@ -27,15 +27,10 @@ import leyline.game.state.DelayedTriggerAffecteesKind
 import leyline.game.state.FaceDownDisguiseKind
 import leyline.game.state.GameBridge
 import leyline.game.state.HolderRecord
-import leyline.game.state.LeftUnlockedDesignationKind
 import leyline.game.state.LinkInfoChoiceKind
 import leyline.game.state.PersistentAnnotationKind
-import leyline.game.state.PlottedDesignationKind
 import leyline.game.state.PreparedDesignationKind
 import leyline.game.state.QualificationKind
-import leyline.game.state.RightUnlockedDesignationKind
-import leyline.game.state.SaddledDesignationKind
-import leyline.game.state.SuspectedDesignationKind
 import leyline.game.state.TemporaryPermanentKind
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 
@@ -291,6 +286,16 @@ internal object PersistentFeedBuilder {
         snap: GsmSnapshot,
         context: PersistentFeedContext,
     ): Map<PersistentAnnotationKind, List<AnnotationInfo>> {
+        val simpleRows =
+            CardStateDesignations.simplePersistent.associate { spec ->
+                val kind = spec.persistentKind ?: error("simple persistent designation missing kind: ${spec.kind}")
+                val emit = spec.persistentEmitter ?: error("simple persistent designation missing emitter: ${spec.kind}")
+                kind to
+                    snap.boundCards.values.mapNotNull { bound ->
+                        if (!spec.readRole(bound)) return@mapNotNull null
+                        emit(context.allocatedCardIid(bound.forgeCardId))
+                    }
+            }
         val prepared =
             snap.boundCards.values
                 .mapNotNull { bound ->
@@ -298,30 +303,6 @@ internal object PersistentFeedBuilder {
                     AnnotationBuilder.preparedDesignation(
                         instanceId = context.allocatedCardIid(bound.forgeCardId),
                         preparedCopyInstanceId = context.allocatedCardIid(source.copyForgeCardId),
-                    )
-                }
-        val plotted =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.designations.isPlotted) return@mapNotNull null
-                    AnnotationBuilder.plottedDesignation(
-                        instanceId = context.allocatedCardIid(bound.forgeCardId),
-                    )
-                }
-        val saddled =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.designations.isSaddled) return@mapNotNull null
-                    AnnotationBuilder.saddledDesignation(
-                        instanceId = context.allocatedCardIid(bound.forgeCardId),
-                    )
-                }
-        val suspected =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.designations.isSuspected) return@mapNotNull null
-                    AnnotationBuilder.suspectedDesignation(
-                        instanceId = context.allocatedCardIid(bound.forgeCardId),
                     )
                 }
         val commander =
@@ -347,31 +328,11 @@ internal object PersistentFeedBuilder {
                         ),
                     )
                 }
-        val leftUnlocked =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.designations.isLeftDoorUnlocked) return@mapNotNull null
-                    AnnotationBuilder.leftUnlockedDesignation(
-                        instanceId = context.allocatedCardIid(bound.forgeCardId),
-                    )
-                }
-        val rightUnlocked =
-            snap.boundCards.values
-                .mapNotNull { bound ->
-                    if (!bound.designations.isRightDoorUnlocked) return@mapNotNull null
-                    AnnotationBuilder.rightUnlockedDesignation(
-                        instanceId = context.allocatedCardIid(bound.forgeCardId),
-                    )
-                }
-        return mapOf(
-            PreparedDesignationKind to prepared,
-            PlottedDesignationKind to plotted,
-            SaddledDesignationKind to saddled,
-            SuspectedDesignationKind to suspected,
-            CommanderDesignationKind to commander,
-            LeftUnlockedDesignationKind to leftUnlocked,
-            RightUnlockedDesignationKind to rightUnlocked,
-        )
+        return simpleRows +
+            mapOf(
+                PreparedDesignationKind to prepared,
+                CommanderDesignationKind to commander,
+            )
     }
 
     private fun buildDayNightDesignationAnnotations(snap: GsmSnapshot): List<AnnotationInfo> =

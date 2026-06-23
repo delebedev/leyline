@@ -20,6 +20,11 @@ import leyline.game.snapshot.DesignationSet
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PlottedRole
 import leyline.game.snapshot.PreparedRole
+import leyline.game.state.LeftUnlockedDesignationKind
+import leyline.game.state.PlottedDesignationKind
+import leyline.game.state.RightUnlockedDesignationKind
+import leyline.game.state.SaddledDesignationKind
+import leyline.game.state.SuspectedDesignationKind
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -225,5 +230,16 @@ class CardStateDesignationsTest :
                 CardStateDesignations.LeftUnlocked.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_LEFT_UNLOCKED
                 CardStateDesignations.RightUnlocked.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_RIGHT_UNLOCKED
             }
+        }
+
+        test("Simple persistent rows carry their store kind in table order") {
+            CardStateDesignations.simplePersistent.map { it.persistentKind } shouldContainExactly
+                listOf(
+                    PlottedDesignationKind,
+                    SaddledDesignationKind,
+                    SuspectedDesignationKind,
+                    LeftUnlockedDesignationKind,
+                    RightUnlockedDesignationKind,
+                )
         }
     })
