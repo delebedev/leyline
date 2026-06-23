@@ -14,18 +14,10 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustedKind
 import leyline.game.state.AbilityWireIdentity
-import leyline.game.state.AbilityWordActiveKind
-import leyline.game.state.ColorProductionKind
-import leyline.game.state.CommanderDesignationKind
 import leyline.game.state.CrewedThisTurnKind
-import leyline.game.state.DayNightDesignationKind
-import leyline.game.state.DelayedTriggerAffecteesKind
 import leyline.game.state.EffectTracker
-import leyline.game.state.FaceDownDisguiseKind
 import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
-import leyline.game.state.LeftUnlockedDesignationKind
-import leyline.game.state.LinkInfoChoiceKind
 import leyline.game.state.ManaCreatureDesignationKind
 import leyline.game.state.ManaDetailsKind
 import leyline.game.state.ModifiedTypeForCrewKind
@@ -33,15 +25,9 @@ import leyline.game.state.MutateLayeredEffectKind
 import leyline.game.state.PendingTargetSpecRecord
 import leyline.game.state.PersistentAnnotationKind
 import leyline.game.state.PersistentAnnotationStore
-import leyline.game.state.PlottedDesignationKind
-import leyline.game.state.PreparedDesignationKind
 import leyline.game.state.QualificationKind
-import leyline.game.state.RightUnlockedDesignationKind
-import leyline.game.state.SaddledDesignationKind
 import leyline.game.state.SaddledThisTurnKind
-import leyline.game.state.SuspectedDesignationKind
 import leyline.game.state.TargetSpecKind
-import leyline.game.state.TemporaryPermanentKind
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -641,10 +627,8 @@ object AnnotationPipeline {
                     val card = bridge.getGame()?.let { leyline.bridge.findCard(it, fid) }
                     val grpId =
                         if (card != null) {
-                            val subtypes = card.type.subtypes.map { it.lowercase() }
-                            leyline.game.data.BasicLandAbilities.BY_SUBTYPE
-                                .firstOrNull { it.first in subtypes }
-                                ?.second ?: 0
+                            leyline.game.data.BasicLandAbilities
+                                .byForgeSubtypeNames(card.type.subtypes) ?: 0
                         } else {
                             0
                         }
@@ -690,9 +674,6 @@ object AnnotationPipeline {
         annotations.addAll(otherMechanic)
         annotations.addAll(earthbendPowerToughnessMods)
         annotations.addAll(buildChoiceResultAnnotations(bridge, frameIds))
-
-        // AbilityWordActive: consumed from pre-computed snap entries
-        val abilityWordPersistent = persistentFeeds.abilityWord
 
         if (initEffectDiff.created.isNotEmpty()) {
             val (initTransient, _) = MechanicAnnotations.effectAnnotations(initEffectDiff)
@@ -746,17 +727,6 @@ object AnnotationPipeline {
             )
         annotations.addAll(effectTransient)
 
-        // Qualification pAnn for adventure-exiled cards (cast-from-exile eligibility marker)
-        val qualificationPersistent = persistentFeeds.qualification
-
-        // TemporaryPermanent pAnn for any token with EOT-sacrifice (copy or otherwise)
-        val temporaryPermanentPersistent = persistentFeeds.temporaryPermanent
-
-        // DelayedTriggerAffectees groups EOT-sacrifice tokens that share a
-        // delayed trigger (Mobilize, EOT-sacrifice copies). One annotation per
-        // group, persistent until the trigger resolves.
-        val delayedTriggerAffecteesPersistent = persistentFeeds.delayedTriggerAffectees
-
         // TargetSpec pAnn for each targeted spell/ability on the stack
         val pendingTargetSpecs = bridge.snapshotPendingTargetSpecs()
         val targetSpec = TargetSpecContributor.contribute(ctx)
@@ -775,31 +745,18 @@ object AnnotationPipeline {
             mechanicResult.copy(
                 perKindPersistent =
                     buildMap<PersistentAnnotationKind, List<AnnotationInfo>> {
-                        put(AbilityWordActiveKind, abilityWordPersistent)
+                        putAll(persistentFeeds.perKind)
                         put(
                             QualificationKind,
-                            qualificationPersistent +
+                            persistentFeeds[QualificationKind] +
                                 mechanicResult.perKindPersistent[QualificationKind].orEmpty(),
                         )
                         put(CrewedThisTurnKind, vehicleAttach.persistent[CrewedThisTurnKind].orEmpty())
                         put(SaddledThisTurnKind, vehicleAttach.persistent[SaddledThisTurnKind].orEmpty())
                         put(ModifiedTypeForCrewKind, vehicleAttach.persistent[ModifiedTypeForCrewKind].orEmpty())
-                        put(TemporaryPermanentKind, temporaryPermanentPersistent)
-                        put(DelayedTriggerAffecteesKind, delayedTriggerAffecteesPersistent)
                         put(TargetSpecKind, targetSpec.persistent[TargetSpecKind].orEmpty())
                         put(MutateLayeredEffectKind, mutateMerge.persistent[MutateLayeredEffectKind].orEmpty())
-                        put(PreparedDesignationKind, persistentFeeds.preparedDesignation)
-                        put(PlottedDesignationKind, persistentFeeds.plottedDesignation)
-                        put(CommanderDesignationKind, persistentFeeds.commanderDesignation)
-                        put(SaddledDesignationKind, persistentFeeds.saddledDesignation)
-                        put(SuspectedDesignationKind, persistentFeeds.suspectedDesignation)
-                        put(LeftUnlockedDesignationKind, persistentFeeds.leftUnlockedDesignation)
-                        put(RightUnlockedDesignationKind, persistentFeeds.rightUnlockedDesignation)
                         put(ManaCreatureDesignationKind, earthbendDesignations)
-                        put(DayNightDesignationKind, persistentFeeds.dayNightDesignation)
-                        put(FaceDownDisguiseKind, persistentFeeds.faceDownDisguise)
-                        put(ColorProductionKind, persistentFeeds.colorProduction)
-                        put(LinkInfoChoiceKind, persistentFeeds.linkInfo)
                         put(ManaDetailsKind, manaDetails.persistent[ManaDetailsKind].orEmpty())
                         put(AbilityExhaustedKind, abilityExhaustedPersistent)
                     },

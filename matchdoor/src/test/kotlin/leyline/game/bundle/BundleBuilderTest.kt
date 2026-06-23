@@ -14,6 +14,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
@@ -584,7 +585,7 @@ class BundleBuilderTest :
 
             val candidateRefs =
                 listOf(
-                    PromptCandidateRefDto(0, "card", 999, "Battlefield"),
+                    PromptCandidateRefDto(0, PromptCandidateKind.Card, 999, "Battlefield"),
                 )
             val prompt =
                 InteractivePromptBridge.PendingPrompt(
@@ -765,7 +766,7 @@ class BundleBuilderTest :
                             max = 1,
                             candidateRefs =
                                 handCards.mapIndexed { i, c ->
-                                    PromptCandidateRefDto(i, "card", c.id, "Hand")
+                                    PromptCandidateRefDto(i, PromptCandidateKind.Card, c.id, "Hand")
                                 },
                         ),
                     future = java.util.concurrent.CompletableFuture(),
@@ -808,7 +809,7 @@ class BundleBuilderTest :
                             options = listOf(creature.name),
                             min = 1,
                             max = 1,
-                            candidateRefs = listOf(PromptCandidateRefDto(0, "card", creature.id, "Battlefield")),
+                            candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, creature.id, "Battlefield")),
                         ),
                     future = java.util.concurrent.CompletableFuture(),
                 )

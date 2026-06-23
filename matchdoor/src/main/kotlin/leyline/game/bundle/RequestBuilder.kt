@@ -199,7 +199,7 @@ object RequestBuilder {
     ): Pair<OrderReq, Prompt> {
         val ids =
             prompt.request.candidateRefs
-                .filter { it.kind == "card" }
+                .filter { it.isCard() }
                 .map { bridge.getOrAllocInstanceId(ForgeCardId(it.entityId)).value }
         val orderReq =
             OrderReq
@@ -361,7 +361,7 @@ object RequestBuilder {
         bridge: GameBridge,
         game: Game,
     ): GameEntity? {
-        if (ref.kind == "player") {
+        if (ref.isPlayer()) {
             val seatId = playerEntityIdToSeatId(ref.entityId, bridge) ?: return null
             return bridge.getPlayer(SeatId(seatId))
         }
@@ -378,7 +378,7 @@ object RequestBuilder {
         bridge: GameBridge,
         opponentSeatId: Int,
     ): Pair<Int, HighlightType>? {
-        if (ref.kind == "player") {
+        if (ref.isPlayer()) {
             val seatId = playerEntityIdToSeatId(ref.entityId, bridge) ?: return null
             val hl = if (seatId == opponentSeatId) HighlightType.Hot else HighlightType.Cold
             return seatId to hl
@@ -443,7 +443,7 @@ object RequestBuilder {
         bridge: GameBridge,
         chooserSeatId: Int,
     ): Int {
-        val ref = refs.firstOrNull { it.kind == "card" && it.zone != null } ?: return 0
+        val ref = refs.firstOrNull { it.isCard() && it.zone != null } ?: return 0
         val card = bridge.findCard(ForgeCardId(ref.entityId))
         val ownerSeat = card?.owner?.let { owner -> if (owner == bridge.getPlayer(SeatId(1))) 1 else 2 } ?: chooserSeatId
         return when (ref.zone) {

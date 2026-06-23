@@ -8,6 +8,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.game.InMemoryCardRepository
 import leyline.game.mapping.PromptIds
@@ -163,7 +164,15 @@ class RequestBuilderStaticChoiceTest :
                             min = 1,
                             max = 1,
                             semantic = PromptSemantic.SuspectChoice,
-                            candidateRefs = listOf(PromptCandidateRefDto(index = 0, kind = "card", entityId = 200, zone = "Battlefield")),
+                            candidateRefs =
+                                listOf(
+                                    PromptCandidateRefDto(
+                                        index = 0,
+                                        kind = PromptCandidateKind.Card,
+                                        entityId = 200,
+                                        zone = "Battlefield",
+                                    ),
+                                ),
                             sourceEntityId = 100,
                         ),
                     ),

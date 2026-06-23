@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 
 class ChooseEntitiesPlannerTest :
@@ -100,9 +101,9 @@ class ChooseEntitiesPlannerTest :
 
 private val refs =
     listOf(
-        PromptCandidateRefDto(index = 0, kind = "card", entityId = 10, zone = "Hand"),
-        PromptCandidateRefDto(index = 1, kind = "card", entityId = 11, zone = "Hand"),
-        PromptCandidateRefDto(index = 2, kind = "card", entityId = 12, zone = "Hand"),
+        PromptCandidateRefDto(index = 0, kind = PromptCandidateKind.Card, entityId = 10, zone = "Hand"),
+        PromptCandidateRefDto(index = 1, kind = PromptCandidateKind.Card, entityId = 11, zone = "Hand"),
+        PromptCandidateRefDto(index = 2, kind = PromptCandidateKind.Card, entityId = 12, zone = "Hand"),
     )
 
 private fun planFor(

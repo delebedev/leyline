@@ -28,6 +28,7 @@ import forge.util.FSerializableFunction
 import forge.util.ITriggerEvent
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import org.slf4j.LoggerFactory
 
@@ -424,7 +425,7 @@ class ClientGuiGame(
                 }
             cardId?.let {
                 usedStackCardIds += it
-                PromptCandidateRefDto(index, "card", it, ZoneType.Stack.name)
+                PromptCandidateRefDto(index, PromptCandidateKind.Card, it, ZoneType.Stack.name)
             }
         }
     }

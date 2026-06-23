@@ -14,6 +14,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
@@ -69,7 +70,7 @@ class RequestBuilderEscapeCostTest :
                     semantic = PromptSemantic.SelectNCostExileFromGrave,
                     candidateRefs =
                         candidateForgeIds.mapIndexed { idx, forgeId ->
-                            PromptCandidateRefDto(idx, "card", forgeId)
+                            PromptCandidateRefDto(idx, PromptCandidateKind.Card, forgeId)
                         },
                     sourceEntityId = sourceForgeId,
                 )
@@ -143,7 +144,7 @@ class RequestBuilderEscapeCostTest :
                     max = 1,
                     candidateRefs =
                         candidateForgeIds.mapIndexed { idx, forgeId ->
-                            PromptCandidateRefDto(idx, "card", forgeId)
+                            PromptCandidateRefDto(idx, PromptCandidateKind.Card, forgeId)
                         },
                     sourceEntityId = sourceForgeId,
                 )
@@ -184,7 +185,7 @@ class RequestBuilderEscapeCostTest :
                     min = 1,
                     max = 1,
                     semantic = PromptSemantic.StationTapCost,
-                    candidateRefs = listOf(PromptCandidateRefDto(0, "card", creatureForgeId)),
+                    candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, creatureForgeId)),
                     sourceEntityId = stationAbilityForgeId,
                 )
             val pending =
@@ -223,7 +224,7 @@ class RequestBuilderEscapeCostTest :
                     min = 1,
                     max = 1,
                     semantic = PromptSemantic.EnlistCost,
-                    candidateRefs = listOf(PromptCandidateRefDto(0, "card", enlistedForgeId)),
+                    candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, enlistedForgeId)),
                     sourceEntityId = attackerForgeId,
                 )
             val pending =
@@ -270,8 +271,8 @@ class RequestBuilderEscapeCostTest :
                     semantic = PromptSemantic.ConvokeCost,
                     candidateRefs =
                         listOf(
-                            PromptCandidateRefDto(0, "card", blueCreature.id, ZoneType.Battlefield.name),
-                            PromptCandidateRefDto(1, "card", greenCreature.id, ZoneType.Battlefield.name),
+                            PromptCandidateRefDto(0, PromptCandidateKind.Card, blueCreature.id, ZoneType.Battlefield.name),
+                            PromptCandidateRefDto(1, PromptCandidateKind.Card, greenCreature.id, ZoneType.Battlefield.name),
                         ),
                     sourceEntityId = source.id,
                     waterbendManaCost = listOf(ManaColor.Blue_afc9 to 1, ManaColor.Generic to 2),
@@ -335,7 +336,7 @@ class RequestBuilderEscapeCostTest :
                     semantic = PromptSemantic.SelectNCostCollectEvidence,
                     candidateRefs =
                         candidateForgeIds.mapIndexed { idx, forgeId ->
-                            PromptCandidateRefDto(idx, "card", forgeId)
+                            PromptCandidateRefDto(idx, PromptCandidateKind.Card, forgeId)
                         },
                     costSelectionWeights = listOf(2, 4, 7),
                     minSelectionWeight = 6,

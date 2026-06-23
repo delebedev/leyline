@@ -24,6 +24,7 @@ import leyline.bridge.interaction.shouldRecord
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.ManaCostText
+import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -123,7 +124,7 @@ class CostPaymentCoordinator(
 
     private fun buildCandidateRefs(cards: CardCollectionView): List<PromptCandidateRefDto> =
         cards.mapIndexed { index, card ->
-            PromptCandidateRefDto(index = index, kind = "card", entityId = card.id, zone = card.zone?.zoneType?.name)
+            PromptCandidateRefDto(index = index, kind = PromptCandidateKind.Card, entityId = card.id, zone = card.zone?.zoneType?.name)
         }
 
     private fun recordConvokePayments(
