@@ -43,6 +43,40 @@ data class TapTypeCostPlan(
         CostCardSelectionPlan(if (isStation) PromptSemantic.StationTapCost else PromptSemantic.Generic)
 }
 
+data class EnlistCostPlan(
+    val requiredCount: Int,
+) {
+    fun toCardSelectionPlan(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.EnlistCost)
+}
+
+data class ReturnCostPlan(
+    val requiredCount: Int,
+    val type: String,
+    val descriptiveType: String,
+) {
+    val isUnblockedAttacker: Boolean =
+        type.contains("attacking+unblocked") || descriptiveType.contains("unblocked attacker", ignoreCase = true)
+
+    fun toCardSelectionPlan(): CostCardSelectionPlan =
+        CostCardSelectionPlan(
+            semantic = if (isUnblockedAttacker) PromptSemantic.ReturnUnblockedAttackerCost else PromptSemantic.Generic,
+        )
+}
+
+data class ForageGraveyardExilePlan(
+    val requiredCount: Int,
+) {
+    fun toCardSelectionPlan(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.Generic)
+}
+
+data class ForageCostPlan(
+    val foodSacrifice: SacrificeCostPlan?,
+    val graveyardExile: ForageGraveyardExilePlan?,
+) {
+    val canSacrificeFood: Boolean = foodSacrifice != null
+    val canExileFromGraveyard: Boolean = graveyardExile != null
+}
+
 object CostDecisionPlanner {
     fun collectEvidencePlan(
         total: Int,
@@ -65,18 +99,27 @@ object CostDecisionPlanner {
         isStation: Boolean,
     ): TapTypeCostPlan = TapTypeCostPlan(minSelection, maxSelection, isStation)
 
-    fun enlist(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.EnlistCost)
+    fun enlistPlan(requiredCount: Int): EnlistCostPlan = EnlistCostPlan(requiredCount)
 
-    fun returnCost(
+    fun returnCostPlan(
+        requiredCount: Int,
         type: String,
         descriptiveType: String,
-    ): CostCardSelectionPlan =
-        CostCardSelectionPlan(
-            semantic =
-                if (type.contains("attacking+unblocked") || descriptiveType.contains("unblocked attacker", ignoreCase = true)) {
-                    PromptSemantic.ReturnUnblockedAttackerCost
+    ): ReturnCostPlan = ReturnCostPlan(requiredCount, type, descriptiveType)
+
+    fun foragePlan(
+        foodCount: Int,
+        graveyardExileCount: Int,
+    ): ForageCostPlan =
+        ForageCostPlan(
+            foodSacrifice = if (foodCount > 0) sacrificePlan(requiredCount = 1) else null,
+            graveyardExile =
+                if (graveyardExileCount >= FORAGE_GRAVEYARD_EXILE_COUNT) {
+                    ForageGraveyardExilePlan(FORAGE_GRAVEYARD_EXILE_COUNT)
                 } else {
-                    PromptSemantic.Generic
+                    null
                 },
         )
+
+    private const val FORAGE_GRAVEYARD_EXILE_COUNT = 3
 }

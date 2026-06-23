@@ -776,6 +776,7 @@ class CostDecision(
     override fun visit(cost: CostEnlist): PaymentDecision? {
         val list = CostEnlist.getCardsForEnlisting(player)
         if (list.isEmpty()) return null
+        val plan = CostDecisionPlanner.enlistPlan(requiredCount = 1)
         val selected =
             selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblSelectACostToEnlist", cost.descriptiveType, "%d"),
@@ -783,7 +784,7 @@ class CostDecision(
                 1,
                 1,
                 cancelAllowed = true,
-                plan = CostDecisionPlanner.enlist(),
+                plan = plan.toCardSelectionPlan(),
             ) ?: return null
         if (selected.isEmpty()) return null
         bridge.journal.record(
@@ -807,8 +808,9 @@ class CostDecision(
                 player.getCardsIn(ZoneType.Graveyard),
                 CardPredicates.canExiledBy(ability, isEffect),
             )
-        if (!food.isEmpty() && confirmAction("Sacrifice Food")) {
-            val plan = CostDecisionPlanner.sacrificePlan(requiredCount = 1)
+        val plan = CostDecisionPlanner.foragePlan(foodCount = food.size, graveyardExileCount = exile.size)
+        val foodSacrificePlan = plan.foodSacrifice
+        if (foodSacrificePlan != null && confirmAction("Sacrifice Food")) {
             val selected =
                 selectCardsWithPlan(
                     Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", "Food", "%d"),
@@ -816,18 +818,20 @@ class CostDecision(
                     1,
                     1,
                     cancelAllowed = !mandatory,
-                    plan = plan.toCardSelectionPlan(),
+                    plan = foodSacrificePlan.toCardSelectionPlan(),
                 ) ?: return null
             return PaymentDecision.card(selected)
         }
-        if (exile.size >= 3) {
+        val graveyardExilePlan = plan.graveyardExile
+        if (graveyardExilePlan != null) {
             val selected =
-                selectCards(
-                    Localizer.getInstance().getMessage("lblSelectToExile", 3),
+                selectCardsWithPlan(
+                    Localizer.getInstance().getMessage("lblSelectToExile", graveyardExilePlan.requiredCount),
                     exile,
-                    3,
-                    3,
+                    graveyardExilePlan.requiredCount,
+                    graveyardExilePlan.requiredCount,
                     cancelAllowed = !mandatory,
+                    plan = graveyardExilePlan.toCardSelectionPlan(),
                 ) ?: return null
             return PaymentDecision.card(selected)
         }
@@ -925,6 +929,12 @@ class CostDecision(
                 ability,
             )
         if (validCards.size < c) return null
+        val plan =
+            CostDecisionPlanner.returnCostPlan(
+                requiredCount = c,
+                type = cost.type,
+                descriptiveType = cost.descriptiveType,
+            )
         val selected =
             selectCardsWithPlan(
                 Localizer.getInstance().getMessage("lblNTypeCardsToHand", "%d", cost.descriptiveType),
@@ -932,7 +942,7 @@ class CostDecision(
                 c,
                 c,
                 cancelAllowed = !mandatory,
-                plan = CostDecisionPlanner.returnCost(cost.type, cost.descriptiveType),
+                plan = plan.toCardSelectionPlan(),
             ) ?: return null
         return PaymentDecision.card(selected)
     }

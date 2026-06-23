@@ -41,8 +41,15 @@ class CostDecisionPlannerTest :
                 .semantic shouldBe PromptSemantic.SelectNDiscard
         }
 
-        test("enlist plans enlist cost semantic") {
-            CostDecisionPlanner.enlist().semantic shouldBe PromptSemantic.EnlistCost
+        test("enlist plans semantic intent before card selection policy") {
+            CostDecisionPlanner.enlistPlan(requiredCount = 1).requiredCount shouldBe 1
+        }
+
+        test("enlist materializes enlist cost semantic") {
+            CostDecisionPlanner
+                .enlistPlan(requiredCount = 1)
+                .toCardSelectionPlan()
+                .semantic shouldBe PromptSemantic.EnlistCost
         }
 
         test("sacrifice plans semantic intent before card selection policy") {
@@ -60,21 +67,65 @@ class CostDecisionPlannerTest :
         }
 
         test("return cost plans unblocked attacker semantic from cost type") {
-            CostDecisionPlanner
-                .returnCost(type = "Creature.attacking+unblocked", descriptiveType = "creature")
-                .semantic shouldBe PromptSemantic.ReturnUnblockedAttackerCost
+            val intent =
+                CostDecisionPlanner.returnCostPlan(
+                    requiredCount = 1,
+                    type = "Creature.attacking+unblocked",
+                    descriptiveType = "creature",
+                )
+
+            intent.isUnblockedAttacker shouldBe true
+            intent.toCardSelectionPlan().semantic shouldBe PromptSemantic.ReturnUnblockedAttackerCost
         }
 
         test("return cost plans unblocked attacker semantic from descriptive type") {
-            CostDecisionPlanner
-                .returnCost(type = "Creature", descriptiveType = "Unblocked Attacker you control")
-                .semantic shouldBe PromptSemantic.ReturnUnblockedAttackerCost
+            val intent =
+                CostDecisionPlanner.returnCostPlan(
+                    requiredCount = 1,
+                    type = "Creature",
+                    descriptiveType = "Unblocked Attacker you control",
+                )
+
+            intent.isUnblockedAttacker shouldBe true
+            intent.toCardSelectionPlan().semantic shouldBe PromptSemantic.ReturnUnblockedAttackerCost
         }
 
         test("return cost stays generic for adjacent attacker cost") {
+            val intent =
+                CostDecisionPlanner.returnCostPlan(
+                    requiredCount = 1,
+                    type = "Creature.attacking",
+                    descriptiveType = "attacking creature",
+                )
+
+            intent.isUnblockedAttacker shouldBe false
+            intent.toCardSelectionPlan().semantic shouldBe PromptSemantic.Generic
+        }
+
+        test("forage plans both payment modes when both are available") {
+            val intent = CostDecisionPlanner.foragePlan(foodCount = 2, graveyardExileCount = 5)
+
+            assertSoftly(intent) {
+                canSacrificeFood shouldBe true
+                canExileFromGraveyard shouldBe true
+                foodSacrifice?.requiredCount shouldBe 1
+                graveyardExile?.requiredCount shouldBe 3
+            }
+        }
+
+        test("forage omits unavailable payment modes") {
+            val intent = CostDecisionPlanner.foragePlan(foodCount = 0, graveyardExileCount = 2)
+
+            intent.canSacrificeFood shouldBe false
+            intent.canExileFromGraveyard shouldBe false
+        }
+
+        test("forage graveyard exile preserves generic prompt materialization") {
             CostDecisionPlanner
-                .returnCost(type = "Creature.attacking", descriptiveType = "attacking creature")
-                .semantic shouldBe PromptSemantic.Generic
+                .foragePlan(foodCount = 0, graveyardExileCount = 3)
+                .graveyardExile
+                ?.toCardSelectionPlan()
+                ?.semantic shouldBe PromptSemantic.Generic
         }
 
         test("tap type plans semantic intent before card selection policy") {
