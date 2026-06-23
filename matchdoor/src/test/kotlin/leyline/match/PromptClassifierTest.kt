@@ -9,6 +9,8 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
+import leyline.game.bundle.PromptRouteFamily
+import leyline.game.bundle.PromptSemanticRouteMetadata
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.util.concurrent.CompletableFuture
 
@@ -42,6 +44,8 @@ class PromptClassifierTest :
         val cardRef = PromptCandidateRefDto(index = 0, kind = PromptCandidateKind.Card, entityId = 42)
 
         test("surveil prompt classifies as grouping before generic targeting") {
+            PromptSemanticRouteMetadata.route(PromptSemantic.GroupingSurveil)?.family shouldBe PromptRouteFamily.Grouping
+
             val result =
                 classify(
                     promptType = "confirm",

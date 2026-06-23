@@ -7,6 +7,8 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
+import leyline.game.bundle.PromptRouteFamily
+import leyline.game.bundle.PromptSemanticRouteMetadata
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
 @Suppress("MissingAssertSoftly")
@@ -73,6 +75,8 @@ class PromptRouteAuditTest :
         }
 
         test("accepts routed SelectN semantics when SelectNReq is emitted") {
+            PromptSemanticRouteMetadata.route(PromptSemantic.SelectNResolution)?.family shouldBe PromptRouteFamily.SelectN
+
             val audit =
                 PromptRouteAuditor.audit(
                     history =

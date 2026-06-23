@@ -2,6 +2,7 @@ package leyline.tooling.simclient
 
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
+import leyline.game.bundle.PromptSemanticRouteMetadata
 import leyline.tooling.simclient.PromptRouteFinding
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
@@ -80,46 +81,17 @@ object PromptRouteAuditor {
     }
 
     private fun PromptSemantic.expectedGreType(record: InteractivePromptBridge.PromptRecord): String? =
-        when (this) {
-            PromptSemantic.GroupingSurveil,
-            PromptSemantic.GroupingScry,
-            -> "GroupReq"
-            PromptSemantic.ModalChoice -> "CastingTimeOptionsReq"
-            PromptSemantic.Search -> "SearchReq"
-            PromptSemantic.OrderForBottom,
-            PromptSemantic.OrderForTop,
-            -> "OrderReq"
-            PromptSemantic.OrderGeneric -> null
-            PromptSemantic.SelectNCostSacrifice,
-            PromptSemantic.SelectNCostExileFromGrave,
-            PromptSemantic.SelectNCostCollectEvidence,
-            PromptSemantic.EnlistCost,
-            PromptSemantic.StationTapCost,
-            PromptSemantic.ReturnUnblockedAttackerCost,
-            PromptSemantic.ConvokeCost,
-            PromptSemantic.WaterbendCost,
-            -> "PayCostsReq"
-            PromptSemantic.SelectNLegendRule,
-            PromptSemantic.SelectNDiscard,
-            PromptSemantic.RevealChoose,
-            PromptSemantic.SelectNResolution,
-            PromptSemantic.SuspectChoice,
-            PromptSemantic.SelectNLibraryPutback,
-            PromptSemantic.SelectNSacrificeEffect,
-            PromptSemantic.MutateTopBottom,
-            PromptSemantic.LearnLesson,
-            PromptSemantic.StaticColorChoice,
-            PromptSemantic.StaticSubtypeChoice,
-            PromptSemantic.StaticParityChoice,
-            -> "SelectNReq"
-            PromptSemantic.Generic ->
+        PromptSemanticRouteMetadata.route(this)?.family?.expectedGreFamily
+            ?: if (this == PromptSemantic.Generic) {
                 when {
                     record.promptType == "order" -> "OrderReq"
                     record.promptType == "choose_cards" && record.message.isLibraryOrderPrompt() -> "OrderReq"
                     record.candidateCount > 0 -> "SelectTargetsReq"
                     else -> null
                 }
-        }
+            } else {
+                null
+            }
 
     private fun classifyBucket(
         expectedCount: Int,

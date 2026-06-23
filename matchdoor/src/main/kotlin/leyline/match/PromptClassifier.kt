@@ -2,8 +2,8 @@ package leyline.match
 
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
-import leyline.bridge.handoff.PromptSemantic
-import leyline.game.bundle.SelectNPromptRoutes
+import leyline.game.bundle.PromptRouteFamily
+import leyline.game.bundle.PromptSemanticRouteMetadata
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 
 /**
@@ -51,43 +51,20 @@ object PromptClassifier {
         return classifyBySemantic(pendingPrompt, req) ?: classifyGeneric(pendingPrompt, req)
     }
 
-    // Exhaustive on PromptSemantic - adding a new variant fails compile until classified.
     private fun classifyBySemantic(
         p: InteractivePromptBridge.PendingPrompt,
         req: PromptRequest,
     ): ClassifiedPrompt? {
-        if (SelectNPromptRoutes.handles(req.semantic)) return ClassifiedPrompt.SelectN(p)
-        return when (req.semantic) {
-            PromptSemantic.GroupingSurveil -> ClassifiedPrompt.Grouping(p, GroupingContext.Surveil)
-            PromptSemantic.GroupingScry -> ClassifiedPrompt.Grouping(p, GroupingContext.Scry_a0f6)
-            PromptSemantic.ModalChoice -> ClassifiedPrompt.ModalChoice(p)
-            PromptSemantic.Search -> ClassifiedPrompt.Search(p)
-            PromptSemantic.OrderForBottom,
-            PromptSemantic.OrderForTop,
-            -> ClassifiedPrompt.Order(p)
-            PromptSemantic.OrderGeneric -> ClassifiedPrompt.AutoResolve(p)
-            PromptSemantic.SelectNLegendRule,
-            PromptSemantic.SelectNDiscard,
-            PromptSemantic.RevealChoose,
-            PromptSemantic.SelectNSacrificeEffect,
-            PromptSemantic.SelectNCostSacrifice,
-            PromptSemantic.SelectNCostExileFromGrave,
-            PromptSemantic.SelectNCostCollectEvidence,
-            PromptSemantic.EnlistCost,
-            PromptSemantic.StationTapCost,
-            PromptSemantic.ReturnUnblockedAttackerCost,
-            PromptSemantic.ConvokeCost,
-            PromptSemantic.WaterbendCost,
-            PromptSemantic.SelectNResolution,
-            PromptSemantic.SuspectChoice,
-            PromptSemantic.SelectNLibraryPutback,
-            PromptSemantic.MutateTopBottom,
-            PromptSemantic.LearnLesson,
-            PromptSemantic.StaticColorChoice,
-            PromptSemantic.StaticSubtypeChoice,
-            PromptSemantic.StaticParityChoice,
-            PromptSemantic.Generic,
-            -> null
+        val route = PromptSemanticRouteMetadata.route(req.semantic) ?: return null
+        return when (route.family) {
+            PromptRouteFamily.Grouping -> ClassifiedPrompt.Grouping(p, route.groupingContext ?: error("missing grouping context"))
+            PromptRouteFamily.ModalChoice -> ClassifiedPrompt.ModalChoice(p)
+            PromptRouteFamily.SelectN,
+            PromptRouteFamily.PayCosts,
+            -> ClassifiedPrompt.SelectN(p)
+            PromptRouteFamily.Search -> ClassifiedPrompt.Search(p)
+            PromptRouteFamily.Order -> ClassifiedPrompt.Order(p)
+            PromptRouteFamily.AutoResolve -> ClassifiedPrompt.AutoResolve(p)
         }
     }
 
