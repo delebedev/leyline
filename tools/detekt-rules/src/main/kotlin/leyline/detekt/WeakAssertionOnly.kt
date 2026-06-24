@@ -84,13 +84,21 @@ class WeakAssertionOnly(config: Config) : Rule(config) {
 
             override fun visitBinaryExpression(expression: KtBinaryExpression) {
                 val op = expression.operationReference.text
-                if (isAssertion(op)) {
+                if (isKotestMatcherInfix(expression)) {
+                    found += "${op}Matcher"
+                } else if (isAssertion(op)) {
                     found += op
                 }
                 super.visitBinaryExpression(expression)
             }
         })
         return found
+    }
+
+    private fun isKotestMatcherInfix(expression: KtBinaryExpression): Boolean {
+        val op = expression.operationReference.text
+        if (op != "should" && op != "shouldNot") return false
+        return expression.right is KtCallExpression
     }
 
     private companion object {
@@ -136,6 +144,8 @@ class WeakAssertionOnly(config: Config) : Rule(config) {
             "shouldNotThrow",
             "shouldNotThrowAny",
             "shouldNotThrowExactly",
+            "shouldMatcher",
+            "shouldNotMatcher",
             // ArchUnit: .check(classes) is the evaluation step of a rule.
             // Kotlin stdlib: check(cond) / checkNotNull(x) throw on false/null.
             "check",
