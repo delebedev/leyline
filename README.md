@@ -53,7 +53,7 @@ End-to-end client runs need local client setup. See [docs/local-client-setup.md]
 
 ```bash
 just test-gate         # lint + typecheck + all tests
-just test-one MyTest   # single test class
+just test-one MyTest   # single matchdoor test class; add module name for others
 just puzzle file.pzl   # run a puzzle scenario
 ```
 

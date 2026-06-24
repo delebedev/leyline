@@ -53,7 +53,7 @@ just fmt          # apply Kotlin formatting (spotless/ktlint). Pre-push runs fmt
 
 Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.
 
-- `just test-one <ClassName>` — single class
+- `just test-one <ClassName> [module]` — single class; defaults to `matchdoor`, e.g. `just test-one DeckServiceTest frontdoor`
 - `just test-gate` — pre-commit (all modules + fmt)
 - `just test-integration` — risky matchdoor changes
 - `just test-acceptance` — puzzle-backed scripted acceptance suites

@@ -20,11 +20,12 @@ Scope to the modules you changed. Don't run all modules when you touched one.
 | `matchdoor/` (risky: StateMapper, bridges, combat, annotations) | `./gradlew :matchdoor:testGate :matchdoor:testIntegration` |
 | `frontdoor/` | `./gradlew :frontdoor:test` |
 | `account/` | `./gradlew :account:test` |
-| Single class | `just test-one ClassName` |
-| Single class + stdout | `just test-debug ClassName` |
+| Single class | `just test-one ClassName` (defaults to `matchdoor`) |
+| Single class in another module | `just test-one ClassName frontdoor` |
+| Single class + stdout | `just test-debug ClassName` (defaults to `matchdoor`, accepts the same optional module arg) |
 | Pre-commit (all modules + fmt) | `just test-gate` |
 
-**Test-only changes** (amended assertion, new test case — no prod code touched): `just test-one Foo` is sufficient.
+**Test-only changes** (amended assertion, new test case — no prod code touched): `just test-one Foo` is sufficient for matchdoor. Use `just test-one Foo frontdoor` or `just test-one Foo account` for other modules.
 
 **Debugging test output:** `just test-debug` enables `-Pverbose` which passes `showStandardStreams` to Gradle. `println` from test code becomes visible. Logback root stays WARN — no engine noise.
 
@@ -35,7 +36,7 @@ Use this loop when a recent PR or `main` merge has intermittent failures:
 1. Review recent CI failures and reruns first. Pick likely suspects from repeated class names, failed task shape, and whether the failure was gate or integration.
 2. Refresh the worktree to latest `main`, update submodules, and run `just install-forge` if the Forge gitlink changed. Do not count setup repair as a stress pass.
 3. Local stress iterations use only `./gradlew --rerun-tasks :matchdoor:testGate :matchdoor:testIntegration`. Run 3-5 forced passes max, and stop on the first failure.
-4. After the first repro, switch to targeted repeats: `./gradlew --rerun-tasks :matchdoor:testIntegration -Pkotest.filter.specs='.*ClassName'`. If the targeted spec passes but the full graph flakes, suspect task/fork/shared-state interaction before changing game code.
+4. After the first repro, switch to targeted repeats: `./gradlew --rerun-tasks :matchdoor:testIntegration --tests "*ClassName"`. If the targeted class passes but the full graph flakes, suspect task/fork/shared-state interaction before changing game code.
 5. Fix the smallest concrete cause, then scan sibling helpers and tests for the same smell before opening the PR.
 
 When the fix touches test helpers, prefer tightening the helper contract over adding another wrapper. PR #136 is the pattern: a helper returned a generic nullable action, callers re-selected mutable zone state, and identity drift hid in the call site. Returning the concrete action type made the submitted identity explicit. After that kind of fix, look for sibling helpers with overly broad return types or optionality that lets callers reconstruct state instead of using the value already produced.

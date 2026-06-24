@@ -132,7 +132,7 @@ When you do add one:
 ## Cross-cutting reminders
 
 - **Detekt rules are part of the gate.** `:matchdoor:detekt` runs before tests in CI and as a pre-commit hook. A test that compiles but trips a rule will block the merge.
-- **Targeted tests during iteration:** `./gradlew :matchdoor:test --tests "leyline.mechanics.foretell.ForetellActionTest"` for one class, `--tests "leyline.mechanics.*.*Test"` for mechanics. `:matchdoor:testGate` (unit + board, excludes IntegrationTag) is the focused mid-iteration gate. `:matchdoor:test` is the full run including IntegrationTag — minutes, save for PR boundaries.
+- **Targeted tests during iteration:** `just test-one ForetellActionTest` for one matchdoor class, `./gradlew :matchdoor:test --tests "leyline.mechanics.*.*Test"` for mechanics. `:matchdoor:testGate` (unit + board, excludes IntegrationTag) is the focused mid-iteration gate. `:matchdoor:test` is the full run including IntegrationTag — minutes, save for PR boundaries.
 - **Test names** are sentences, not snake_case method names. `test("Foretell offer disappears when the {2} action cost is unpayable")` reads in the failure log as the assertion intent. Avoid `test("test foretell unpayable")` and `test("foretell_unpayable")`.
 - **One puzzle, one test class** is the wrong split. One *behavior surface* per test class — tests within can share setup. `ForetellActionTest` covers the foretell hand-cast rail; it has 5 tests for 5 different conditions, all on Demon Bolt. That's correct.
 - **Comments name invariants, not the test.** `// Pre-fix: zero SelectTargetsReq emitted, cast silently drops` documents the regression the test guards against. `// This test casts Foretell` does not — the test name and body already say that.
