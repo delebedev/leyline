@@ -250,12 +250,7 @@ object GsmBuilder {
                 Prompt
                     .newBuilder()
                     .setPromptId(PromptIds.GROUP_SCRY)
-                    .addParameters(
-                        PromptParameter
-                            .newBuilder()
-                            .setParameterName("CardId")
-                            .setType(ParameterType.Number),
-                    ),
+                    .addParameters(cardIdPromptParameter()),
             ).setGroupReq(
                 GroupReq
                     .newBuilder()
@@ -324,12 +319,7 @@ object GsmBuilder {
                 Prompt
                     .newBuilder()
                     .setPromptId(promptId)
-                    .addParameters(
-                        PromptParameter
-                            .newBuilder()
-                            .setParameterName("CardId")
-                            .setType(ParameterType.Number),
-                    ),
+                    .addParameters(cardIdPromptParameter()),
             ).setGroupReq(
                 GroupReq
                     .newBuilder()

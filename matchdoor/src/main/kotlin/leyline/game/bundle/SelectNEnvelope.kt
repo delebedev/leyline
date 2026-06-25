@@ -2,9 +2,7 @@ package leyline.game.bundle
 
 import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
-import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
-import wotc.mtgo.gre.external.messaging.Messages.PromptParameter
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
 data class SelectNEnvelope(
@@ -35,12 +33,8 @@ data class SelectNEnvelope(
                     Prompt
                         .newBuilder()
                         .setPromptId(PromptIds.SELECT_N_LEGEND_RULE)
-                        .addParameters(
-                            PromptParameter
-                                .newBuilder()
-                                .setParameterName("CardId")
-                                .setType(ParameterType.Number),
-                        ).build(),
+                        .addParameters(cardIdPromptParameter())
+                        .build(),
                 allowCancel = AllowCancel.No_a526,
             )
 
@@ -110,13 +104,8 @@ data class SelectNEnvelope(
             Prompt
                 .newBuilder()
                 .setPromptId(promptId)
-                .addParameters(
-                    PromptParameter
-                        .newBuilder()
-                        .setParameterName("CardId")
-                        .setType(ParameterType.Number)
-                        .setNumberValue(req.sourceId),
-                ).build()
+                .addParameters(cardIdPromptParameter(req.sourceId))
+                .build()
 
         private fun promptWithSourceAndCount(
             promptId: Int,
@@ -125,18 +114,8 @@ data class SelectNEnvelope(
             Prompt
                 .newBuilder()
                 .setPromptId(promptId)
-                .addParameters(
-                    PromptParameter
-                        .newBuilder()
-                        .setParameterName("CardId")
-                        .setType(ParameterType.Number)
-                        .setNumberValue(req.sourceId),
-                ).addParameters(
-                    PromptParameter
-                        .newBuilder()
-                        .setParameterName("CardId")
-                        .setType(ParameterType.Number)
-                        .setNumberValue(req.maxSel),
-                ).build()
+                .addParameters(cardIdPromptParameter(req.sourceId))
+                .addParameters(cardIdPromptParameter(req.maxSel))
+                .build()
     }
 }
