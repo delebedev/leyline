@@ -375,6 +375,12 @@ class MatchFlowHarness(
         drainSink()
     }
 
+    /** Submit an offered action without rebuilding or dropping action fields. */
+    fun submitAction(action: Action) {
+        session.onPerformAction(submitWithGsId(performAction(action)))
+        drainSink()
+    }
+
     /**
      * Advance through whichever default client response is appropriate for
      * the current stop. Priority uses Pass; combat declaration prompts need

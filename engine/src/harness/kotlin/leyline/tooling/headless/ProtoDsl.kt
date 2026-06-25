@@ -85,6 +85,15 @@ fun performAction(block: Action.Builder.() -> Unit): ClientToGREMessage =
         )
     }
 
+fun performAction(action: Action): ClientToGREMessage =
+    clientMessage(ClientMessageType.PerformActionResp_097b) {
+        setPerformActionResp(
+            PerformActionResp
+                .newBuilder()
+                .addActions(action),
+        )
+    }
+
 // ---------------------------------------------------------------------------
 // Attackers — two-phase protocol
 // ---------------------------------------------------------------------------

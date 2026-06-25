@@ -1,7 +1,6 @@
 package leyline.tooling.simclient
 
 import leyline.tooling.headless.MatchFlowHarness
-import leyline.tooling.headless.performAction
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -269,16 +268,7 @@ internal class SimDecisionSubmitter(
 
     private fun submitPerformAction(action: Action): SimSubmitResult {
         if (!harness.hasPendingAction()) return SimSubmitResult.NoPending
-        val response =
-            performAction {
-                actionType = action.actionType
-                instanceId = action.instanceId
-                grpId = action.grpId
-                abilityGrpId = action.abilityGrpId
-                alternativeGrpId = action.alternativeGrpId
-            }
-        harness.session.onPerformAction(harness.submitWithGsId(response))
-        harness.drainSink()
+        harness.submitAction(action)
         return SimSubmitResult.Submitted
     }
 
