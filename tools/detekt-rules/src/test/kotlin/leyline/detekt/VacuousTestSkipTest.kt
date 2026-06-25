@@ -53,6 +53,21 @@ class VacuousTestSkipTest : FunSpec({
         )
     }
 
+    test("flags missing environment variable with labeled return") {
+        val code = """
+            fun t() {
+                listOf(1).forEach {
+                    val cardDbPath = System.getenv("LEYLINE_CARD_DB")
+                    if (cardDbPath.isNullOrBlank()) return@forEach
+                }
+            }
+        """.trimIndent()
+        rule.lint(code).shouldHaveSingleFinding(
+            ruleId = "VacuousTestSkip",
+            messageContains = "bails out silently",
+        )
+    }
+
     test("passes on unlabeled return") {
         val code = """
             fun t() {
