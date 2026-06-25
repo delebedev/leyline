@@ -21,7 +21,10 @@ class MissingAssertSoftlyTest : FunSpec({
                 z shouldBe 1
             }
         """.trimIndent()
-        rule.lint(code) shouldHaveSize 1
+        rule.lint(code).shouldHaveSingleFinding(
+            ruleId = "MissingAssertSoftly",
+            messageContains = "3 consecutive assertions",
+        )
     }
 
     test("flags 3 consecutive .shouldBeTrue()") {
@@ -34,7 +37,10 @@ class MissingAssertSoftlyTest : FunSpec({
                 c.shouldBeTrue()
             }
         """.trimIndent()
-        rule.lint(code) shouldHaveSize 1
+        rule.lint(code).shouldHaveSingleFinding(
+            ruleId = "MissingAssertSoftly",
+            messageContains = "3 consecutive assertions",
+        )
     }
 
     test("flags 4 consecutive across a mix of infix and dot forms") {

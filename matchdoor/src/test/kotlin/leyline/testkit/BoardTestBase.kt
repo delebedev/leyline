@@ -22,18 +22,22 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
- * Helper for board-tier wire-shape tests.
+ * Internal helper behind [BoardTest] for board-tier wire-shape tests.
  *
  * Provides helpers to start deterministic games, play actions,
  * and capture outbound GRE messages via BundleBuilder.
  *
- * Usage from FunSpec:
+ * New tests should extend [BoardTest], which wires tags and lifecycle cleanup.
+ * Keep direct `BoardTestBase()` use only for legacy files while migrating them.
+ *
+ * Preferred usage:
  * ```
- * class MyTest : FunSpec({
- *     val base = BoardTestBase()
- *     beforeSpec { base.initCardDatabase() }
- *     afterEach { base.tearDown() }
- *     test("foo") { val (b, game, counter) = base.startWithBoard { ... } }
+ * class MyTest : BoardTest({
+ *     test("foo") {
+ *         val (b, game, counter) = startWithBoard { _, human, _ ->
+ *             addCard("Grizzly Bears", human)
+ *         }
+ *     }
  * })
  * ```
  */

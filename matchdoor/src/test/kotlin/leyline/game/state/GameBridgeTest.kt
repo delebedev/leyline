@@ -21,14 +21,12 @@ import leyline.config.GameConfig
 import leyline.config.MatchConfig
 import leyline.game.InMemoryCardRepository
 import leyline.game.advanceToMain1
-import leyline.game.advanceToPhase
 import leyline.game.awaitFreshPending
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.StateMapper
-import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -442,40 +440,6 @@ class GameBridgeTest :
 
         // --- Game loop contract tests ---
 
-        // TODO: flaky after forge submodule update — investigate separately
-        xtest("cast action has abilityGrpId and mana cost") {
-            val b = GameBridge(cardRepository = InMemoryCardRepository())
-            bridge = b
-            b.start(seed = 42L)
-            b.submitKeep(SeatId(1))
-            advanceToMain1(b)
-
-            val game = b.getGame()!!
-            // Play a land first so we have mana
-            val player = b.getPlayer(SeatId(1))!!
-            val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
-            if (land != null) {
-                val pending = awaitFreshPending(b, null) ?: return@xtest
-                b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
-                awaitFreshPending(b, pending.actionId)
-            }
-
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
-            val castActions =
-                actions.actionsList.filter {
-                    it.actionType == Messages.ActionType.Cast
-                }
-
-            if (castActions.isNotEmpty()) {
-                val cast = castActions.first()
-                // Real client Cast in AAR: no abilityGrpId, yes facetId=instanceId, yes manaCost
-                cast.abilityGrpId shouldBe 0
-                cast.manaCostCount shouldBeGreaterThan 0
-                cast.facetId shouldBe cast.instanceId
-            }
-            // If no castable spells (bad draw), test is a no-op — that's fine
-        }
-
         test("embedded actions have stripped format") {
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
@@ -563,51 +527,6 @@ class GameBridgeTest :
             zoneTransfers.shouldNotBeEmpty()
             val ann = zoneTransfers.first()
             ann.detailString("category") shouldBe "PlayLand"
-        }
-
-        // --- AI combat visibility tests ---
-
-        // Best-effort: AI behavior is seed-dependent. If AI doesn't produce
-        // creatures or reach combat, the test passes vacuously. This is acceptable
-        // because the behavior under test (attackState mapping) is also covered by
-        // CombatFlowTest with deterministic ScriptedPlayerController.
-        test("AI combat populates attack state") {
-            val b = GameBridge(cardRepository = InMemoryCardRepository())
-            bridge = b
-            b.start(seed = 100L)
-            b.submitKeep(SeatId(1))
-            advanceToMain1(b)
-
-            val game = b.getGame()!!
-            advanceToPhase(b, "MAIN1", maxPasses = 80)
-            if (game.isGameOver) {
-                println("SKIP: game over before reaching main1")
-                return@test
-            }
-
-            val ai = b.getPlayer(SeatId(2))!!
-            val aiCreatures = ai.getZone(ZoneType.Battlefield).cards.filter { it.isCreature }
-            if (aiCreatures.isEmpty()) {
-                println("SKIP: no AI creatures on battlefield")
-                return@test
-            }
-
-            advanceToPhase(b, "COMBAT_DECLARE_ATTACKERS", maxPasses = 80)
-            if (game.isGameOver || game.phaseHandler.phase != PhaseType.COMBAT_DECLARE_ATTACKERS) {
-                println("SKIP: game over or wrong phase for combat test")
-                return@test
-            }
-
-            val snapGb4 = GsmSnapshot.capture(game, b, "test-match", 1)
-            val gs = StateMapper.buildFromSnapshot(snapGb4, 1, "test-match", b).gsm
-            val combat = game.phaseHandler.combat
-            if (combat != null && combat.attackers.isNotEmpty()) {
-                val attacking =
-                    gs.gameObjectsList.filter {
-                        it.zoneId == ZoneIds.BATTLEFIELD && it.attackState == Messages.AttackState.Attacking
-                    }
-                attacking.shouldNotBeEmpty()
-            }
         }
 
         // --- Diff state tests ---

@@ -89,7 +89,7 @@ class FooTest : BoardTest({
 })
 ```
 
-Existing tests using `val base = BoardTestBase()` pattern still work — migrate to BoardTest when touching the file.
+Existing tests using `val base = BoardTestBase()` pattern still work, but `BoardTestBase` is a legacy implementation helper. Do not start new files with it. Migrate touched board-tier tests to `BoardTest` unless a specific legacy setup seam blocks the conversion.
 
 ## Style
 
@@ -105,7 +105,7 @@ Existing tests using `val base = BoardTestBase()` pattern still work — migrate
 - **Category assertions mandatory** on zone transfer tests. `zt.shouldNotBeNull()` alone is lax — always check `zt.category shouldBe "..."`.
 - **Bail-out loops need terminal assertions.** Always assert the condition after the loop, or use `passUntil` / `passThroughCombat` which fail on exhaustion.
 - **Use helpers, not raw proto access.** Check `TestExtensions.kt` (assertions) and `ProtoDsl.kt` (proto builders — actions, mana, GRE messages, stops) before writing inline builders. If a pattern appears 2+ times and no helper exists, add one to the appropriate file.
-- **Prefer domain matchers over structural assertions** for end-state checks. `"Grizzly Bears" should beInHandOf(human)` reads like MTG and fails with a self-describing message. Matchers live alongside `TestExtensions.kt` (e.g. `ZoneMatchers.kt`).
+- **Prefer domain matchers over structural assertions** for end-state checks. `"Grizzly Bears" should beInHandOf(human)` reads like MTG and fails with a self-describing message. Matcher-only tests are valid when the matcher message names the domain object and observed state; add matcher tests for positive, negative, and failure-message cases. Matchers live alongside `TestExtensions.kt` (e.g. `ZoneMatchers.kt`).
 - **Tests should read like specs.** Extract helpers that name the intent.
 - **No `when` with `else -> {}`** — silently ignores unknown variants. Filter by type explicitly.
 - **No tautological assertions.** `uint >= 0` is always true. Use `shouldBeGreaterThan 0` if value must be positive.
