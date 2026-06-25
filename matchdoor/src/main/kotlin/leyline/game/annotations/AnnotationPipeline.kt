@@ -41,9 +41,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  *   persistent-store batch computation, and final numbering.
  *
  * The shared annotation-time resolvers live on [AnnotationContext]; the
- * per-mechanic emitters live behind the [contributors] registry. The earthbend
- * layer emitters and `buildAbilityExhaustedAnnotations` stay as spine-called
- * functions in `AnnotationEmitters.kt` (see that file for why earthbend is
+ * per-mechanic emitters live behind the [contributors] registry.
+ * [EarthbendEmitter] and `buildAbilityExhaustedAnnotations` stay as spine-called
+ * emitters in `AnnotationEmitters.kt` (see that file for why earthbend is
  * effect-diff-channel coupled and does not fit the contributor contract).
  *
  * Transfer-model patchers (decayed-cleanup, delayed-trigger holders, reveal
@@ -640,14 +640,9 @@ object AnnotationPipeline {
                 castSpellTransferCardIds = castSpellTransferCardIds,
                 convokePaymentsBySource = convokePaymentsBySource,
             )
-        val earthbendFrame = bridge.drainEarthbendFrame()
-        val earthbendDestroyed = earthbendFrame.destroyedLayerIds.map { AnnotationBuilder.layeredEffectDestroyed(EffectId(it)) }
-        val earthbendCreated = earthbendCreatedAnnotations(earthbendFrame.created)
-        val earthbendPersistent = earthbendPersistentAnnotations(earthbendFrame.created)
-        val earthbendDesignations = earthbendDesignationAnnotations(earthbendFrame.active, snap)
-        val earthbendPowerToughnessMods = earthbendPowerToughnessMods(earthbendFrame.created, snap)
-        annotations.addAll(earthbendDestroyed)
-        annotations.addAll(earthbendCreated)
+        val earthbend = EarthbendEmitter.emit(bridge, snap)
+        annotations.addAll(earthbend.destroyed)
+        annotations.addAll(earthbend.created)
         // Token entries belong before combat damage: a Mobilize trigger that
         // resolves between attacker declaration and combat damage produces tokens
         // that themselves attack and deal damage. The client identity map needs
@@ -672,7 +667,7 @@ object AnnotationPipeline {
             }
         }
         annotations.addAll(otherMechanic)
-        annotations.addAll(earthbendPowerToughnessMods)
+        annotations.addAll(earthbend.powerToughnessMods)
         annotations.addAll(buildChoiceResultAnnotations(bridge, frameIds))
 
         if (initEffectDiff.created.isNotEmpty()) {
@@ -756,7 +751,7 @@ object AnnotationPipeline {
                         put(ModifiedTypeForCrewKind, vehicleAttach.persistent[ModifiedTypeForCrewKind].orEmpty())
                         put(TargetSpecKind, targetSpec.persistent[TargetSpecKind].orEmpty())
                         put(MutateLayeredEffectKind, mutateMerge.persistent[MutateLayeredEffectKind].orEmpty())
-                        put(ManaCreatureDesignationKind, earthbendDesignations)
+                        put(ManaCreatureDesignationKind, earthbend.designations)
                         put(ManaDetailsKind, manaDetails.persistent[ManaDetailsKind].orEmpty())
                         put(AbilityExhaustedKind, abilityExhaustedPersistent)
                     },
@@ -766,8 +761,8 @@ object AnnotationPipeline {
                 currentActive = persistSnapshot,
                 startPersistentId = startPersistentId,
                 frame = frameContext,
-                effectPersistent = effectPersistent + earthbendPersistent,
-                effectDiff = effectDiff.withDestroyedEarthbendLayers(earthbendFrame.destroyedLayerIds),
+                effectPersistent = effectPersistent + earthbend.effectPersistent,
+                effectDiff = effectDiff.withDestroyedEarthbendLayers(earthbend.destroyedLayerIds),
                 transferPersistent = transferPersistent,
                 mechanicResult = enrichedMechanicResult,
                 combatResult = combatResult,
