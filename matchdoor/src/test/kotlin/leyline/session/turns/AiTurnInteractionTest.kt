@@ -1,13 +1,11 @@
 package leyline.session.turns
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.assertions.fail
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
@@ -80,7 +78,6 @@ class AiTurnInteractionTest :
             val ptStart = gsms.indexOfFirst { it.type == GameStateType.Diff && it.hasGameInfo() }
 
             assertSoftly {
-                gsms.shouldNotBeEmpty()
                 fullWithZones.size shouldBeLessThanOrEqual 1
 
                 ptStart shouldBeGreaterThanOrEqual 0
@@ -165,7 +162,7 @@ class AiTurnInteractionTest :
                     phaseChanges.add(i)
                 }
             }
-            phaseChanges.shouldNotBeEmpty()
+            phaseChanges.map { gsmsWithTurnInfo[it].turnInfo.phase } shouldContain Phase.Combat_a549
 
             val missing =
                 phaseChanges.filter { i ->
@@ -263,17 +260,16 @@ class AiTurnInteractionTest :
                     .map { it.gameStateMessage }
                     .filter { it.hasTurnInfo() && it.turnInfo.activePlayer == OPPONENT_SEAT }
 
-            gsms.shouldNotBeEmpty()
+            gsms.map { it.turnInfo.phase } shouldContain Phase.Combat_a549
 
             // Filter to the combat turn only
             val combatTurn = gsms.first().turnInfo.turnNumber
             val sameTurnGsms = gsms.filter { it.turnInfo.turnNumber == combatTurn }
-            for (gsm in sameTurnGsms) {
-                val phase = gsm.turnInfo.phase
-                if (phase == Phase.Beginning_a549 || phase == Phase.Main1_a549) {
-                    fail("Stale phase during AI combat turn $combatTurn: $phase")
-                }
-            }
+            val stalePhases =
+                sameTurnGsms
+                    .map { it.turnInfo.phase }
+                    .filter { it == Phase.Beginning_a549 || it == Phase.Main1_a549 }
+            stalePhases shouldBe emptyList()
         }
 
         // ─── AI land-play diff discipline (scripted AI) ─────────────────────────

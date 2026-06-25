@@ -52,8 +52,8 @@ testkit/
 ├── TestExtensions.kt         non-matcher extensions: AnnotationInfo.detail*(), GSM.annotation(type), ActionsAvailableReq.ofType()
 ├── MessageWalk.kt            List<GREToClientMessage> walkers: allAnnotations(), firstGameObjectByIid(), etc.
 ├── ProtoDsl.kt               builder DSL for client→GRE messages (main-source; performAction { ... })
-├── BoardTestBase.kt          Board-tier setup (initCardDatabase, addCard, startWithBoard)
-├── BoardTest.kt              base class — wires BoardTestBase
+├── BoardTestBase.kt          legacy board-tier implementation helper; do not use directly in new tests
+├── BoardTest.kt              preferred board-tier base; wires BoardTestBase lifecycle + BoardTag
 ├── SessionTest.kt            base class — wires MatchFlowHarness, exposes selectTargets/passUntil/instanceIdOf, after { } slice builder, Player.{battlefield,hand,…}.iid(name) probe DSL
 ├── MessageSlice.kt           bounded slice of GREToClientMessage from after { } — typed expectOne*/expectNo* prompt assertions + block-form prompt-shape sub-DSL
 ├── PlayerZone.kt             (player, zone) probe handle for SessionTest's instance-probe DSL

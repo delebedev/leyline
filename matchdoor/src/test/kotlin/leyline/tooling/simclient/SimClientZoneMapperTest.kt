@@ -18,11 +18,11 @@ class SimClientZoneMapperTest :
         tags(SimClientTag)
 
         test("Cascade/Discover deck keeps zone-listed cards snapshot-backed") {
-            val cardDbPath = System.getenv("LEYLINE_CARD_DB")
-            if (cardDbPath.isNullOrBlank()) {
-                println("skipping: LEYLINE_CARD_DB is not set")
-                return@test
-            }
+            val cardDbPath =
+                requireNotNull(System.getenv("LEYLINE_CARD_DB")) {
+                    "LEYLINE_CARD_DB is not set. Point it at Raw_CardDatabase_*.mtga."
+                }
+            require(File(cardDbPath).exists()) { "Card database not found at: $cardDbPath" }
             val cardRepo =
                 ExposedCardRepository(
                     Database.connect(
@@ -53,18 +53,19 @@ class SimClientZoneMapperTest :
                 )
             val log = Files.createTempFile("simclient-zonemapper-", ".log").toFile()
             var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
-            val writer = log.bufferedWriter()
-            val playerLog =
-                PlayerLogWriter(
-                    out = writer,
-                    matchId = "simclient-zonemapper",
-                    clock = {
-                        fakeNow = fakeNow.plusSeconds(1)
-                        fakeNow
-                    },
-                )
-            val stats = SimClientDriver(harness, playerLog, maxTurns = 30).runOneGame()
-            writer.close()
+            val stats =
+                log.bufferedWriter().use { writer ->
+                    val playerLog =
+                        PlayerLogWriter(
+                            out = writer,
+                            matchId = "simclient-zonemapper",
+                            clock = {
+                                fakeNow = fakeNow.plusSeconds(1)
+                                fakeNow
+                            },
+                        )
+                    SimClientDriver(harness, playerLog, maxTurns = 30).runOneGame()
+                }
 
             assertSoftly {
                 stats.validationViolationsByCheck shouldBe emptyMap()

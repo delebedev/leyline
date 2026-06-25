@@ -17,7 +17,10 @@ class FunSpecMissingTagsTest : FunSpec({
                 test("something") { }
             })
         """.trimIndent()
-        rule.lint(code) shouldHaveSize 1
+        rule.lint(code).shouldHaveSingleFinding(
+            ruleId = "FunSpecMissingTags",
+            messageContains = "has no lane tag",
+        )
     }
 
     test("passes when tags() is called at top of init lambda") {
@@ -64,7 +67,10 @@ class FunSpecMissingTagsTest : FunSpec({
                 test("something") { }
             })
         """.trimIndent()
-        rule.lint(code) shouldHaveSize 1
+        rule.lint(code).shouldHaveSingleFinding(
+            ruleId = "FunSpecMissingTags",
+            messageContains = "has multiple lane tags",
+        )
     }
 
     test("passes when tags() is called deep inside the lambda") {
