@@ -4,7 +4,17 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
-import wotc.mtgo.gre.external.messaging.Messages.*
+import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostReq
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
+import wotc.mtgo.gre.external.messaging.Messages.IdType
+import wotc.mtgo.gre.external.messaging.Messages.OptionContext
+import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
+import wotc.mtgo.gre.external.messaging.Messages.Prompt
+import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
+import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
+import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
+import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
 
 internal object CollectEvidencePayCostsBuilder {
     fun build(
@@ -68,19 +78,4 @@ internal object CollectEvidencePayCostsBuilder {
         prompt.request.sourceEntityId?.let {
             bridge.getOrAllocInstanceId(ForgeCardId(it)).value
         } ?: 0
-
-    private fun promptWithCardId(
-        promptId: Int,
-        sourceInstanceId: Int,
-    ): Prompt =
-        Prompt
-            .newBuilder()
-            .setPromptId(promptId)
-            .addParameters(
-                PromptParameter
-                    .newBuilder()
-                    .setParameterName("CardId")
-                    .setType(ParameterType.Number)
-                    .setNumberValue(sourceInstanceId),
-            ).build()
 }

@@ -44,6 +44,26 @@ internal fun sourceInstanceId(
     bridge: GameBridge,
 ): Int = PromptSourceResolver.resolve(prompt, bridge).sourceInstanceId
 
+internal fun cardIdPromptParameter(numberValue: Int? = null): PromptParameter {
+    val builder =
+        PromptParameter
+            .newBuilder()
+            .setParameterName("CardId")
+            .setType(ParameterType.Number)
+    if (numberValue != null) builder.setNumberValue(numberValue)
+    return builder.build()
+}
+
+internal fun promptWithCardId(
+    promptId: Int,
+    cardId: Int,
+): Prompt =
+    Prompt
+        .newBuilder()
+        .setPromptId(promptId)
+        .addParameters(cardIdPromptParameter(cardId))
+        .build()
+
 internal fun SelectNReq.Builder.setSourceIdIfPresent(
     prompt: InteractivePromptBridge.PendingPrompt,
     bridge: GameBridge,

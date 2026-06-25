@@ -71,16 +71,11 @@ object RequestBuilder {
         selBuilder.setTargetingPlayer(chooserSeatId)
 
         // sourceId: map the spell's entity ID to its client instanceId
-        val sourceInstanceId = sourceInstanceId(prompt, bridge)
-        if (sourceInstanceId != 0) {
-            builder.setSourceId(sourceInstanceId)
-        }
-        val sourceEntityId = prompt.request.sourceEntityId
-        val sourceCard = sourceEntityId?.let { bridge.findCard(ForgeCardId(it)) }
-        val sourceGrpId = sourceCard?.let { bridge.resolveGrpId(it, sourceInstanceId) } ?: 0
-        if (sourceGrpId != 0) builder.setAbilityGrpId(sourceGrpId)
-        applyTargetSelectionMetadata(selBuilder, prompt, bridge, sourceInstanceId, sourceGrpId, chooserSeatId)
-        applyTargetPromptShape(prompt, bridge, builder, selBuilder, sourceInstanceId)
+        val source = targetSource(prompt, bridge)
+        if (source.instanceId != 0) builder.setSourceId(source.instanceId)
+        if (source.grpId != 0) builder.setAbilityGrpId(source.grpId)
+        applyTargetSelectionMetadata(selBuilder, prompt, bridge, source, chooserSeatId)
+        applyTargetPromptShape(prompt, bridge, builder, selBuilder, source.instanceId)
 
         for (ref in prompt.request.candidateRefs) {
             val (instanceId, highlight) = resolveRefToIidAndHighlight(ref, bridge, opponentSeatId) ?: continue
@@ -130,14 +125,11 @@ object RequestBuilder {
         selBuilder.setMaxTargets(prompt.request.max)
         selBuilder.setSelectedTargets(selectedInstanceIds.size)
 
-        val sourceInstanceId = sourceInstanceId(prompt, bridge)
-        if (sourceInstanceId != 0) builder.setSourceId(sourceInstanceId)
-        val sourceEntityId = prompt.request.sourceEntityId
-        val sourceCard = sourceEntityId?.let { bridge.findCard(ForgeCardId(it)) }
-        val sourceGrpId = sourceCard?.let { bridge.resolveGrpId(it, sourceInstanceId) } ?: 0
-        if (sourceGrpId != 0) builder.setAbilityGrpId(sourceGrpId)
-        applyTargetSelectionMetadata(selBuilder, prompt, bridge, sourceInstanceId, sourceGrpId, chooserSeatId)
-        applyTargetPromptShape(prompt, bridge, builder, selBuilder, sourceInstanceId)
+        val source = targetSource(prompt, bridge)
+        if (source.instanceId != 0) builder.setSourceId(source.instanceId)
+        if (source.grpId != 0) builder.setAbilityGrpId(source.grpId)
+        applyTargetSelectionMetadata(selBuilder, prompt, bridge, source, chooserSeatId)
+        applyTargetPromptShape(prompt, bridge, builder, selBuilder, source.instanceId)
 
         val selectedSet = selectedInstanceIds.toSet()
         val opponentSeatId = if (chooserSeatId == 1) 2 else 1
@@ -212,16 +204,7 @@ object RequestBuilder {
                 }.build()
         val sourceInstanceId = orderSourceInstanceId(prompt, bridge)
         val promptProto =
-            Prompt
-                .newBuilder()
-                .setPromptId(orderPromptId(prompt.request.semantic))
-                .addParameters(
-                    PromptParameter
-                        .newBuilder()
-                        .setParameterName("CardId")
-                        .setType(ParameterType.Number)
-                        .setNumberValue(sourceInstanceId),
-                ).build()
+            promptWithCardId(orderPromptId(prompt.request.semantic), sourceInstanceId)
         return orderReq to promptProto
     }
 
@@ -278,19 +261,8 @@ object RequestBuilder {
                 Prompt
                     .newBuilder()
                     .setPromptId(promptId)
-                    .addParameters(
-                        PromptParameter
-                            .newBuilder()
-                            .setParameterName("CardId")
-                            .setType(ParameterType.Number)
-                            .setNumberValue(hostCardInstanceId),
-                    ).addParameters(
-                        PromptParameter
-                            .newBuilder()
-                            .setParameterName("CardId")
-                            .setType(ParameterType.Number)
-                            .setNumberValue(searchingSeat),
-                    ),
+                    .addParameters(cardIdPromptParameter(hostCardInstanceId))
+                    .addParameters(cardIdPromptParameter(searchingSeat)),
             ).setSearchReq(searchReq)
             .build()
     }
@@ -332,19 +304,23 @@ object RequestBuilder {
         if (shape.targetingAbilityGrpId != 0) selection.setTargetingAbilityGrpId(shape.targetingAbilityGrpId)
         if (shape.targetSourceZoneId != 0) selection.setTargetSourceZoneId(shape.targetSourceZoneId)
         if (shape.promptId != null && sourceInstanceId != 0) {
-            selection.setPrompt(
-                Prompt
-                    .newBuilder()
-                    .setPromptId(shape.promptId)
-                    .addParameters(
-                        PromptParameter
-                            .newBuilder()
-                            .setParameterName("CardId")
-                            .setType(ParameterType.Number)
-                            .setNumberValue(sourceInstanceId),
-                    ),
-            )
+            selection.setPrompt(promptWithCardId(shape.promptId, sourceInstanceId))
         }
+    }
+
+    private data class TargetSource(
+        val instanceId: Int,
+        val grpId: Int,
+    )
+
+    private fun targetSource(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): TargetSource {
+        val instanceId = sourceInstanceId(prompt, bridge)
+        val sourceCard = prompt.request.sourceEntityId?.let { bridge.findCard(ForgeCardId(it)) }
+        val grpId = sourceCard?.let { bridge.resolveGrpId(it, instanceId) } ?: 0
+        return TargetSource(instanceId, grpId)
     }
 
     private data class TargetPromptShape(
@@ -461,24 +437,13 @@ object RequestBuilder {
         selBuilder: TargetSelection.Builder,
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
-        sourceInstanceId: Int,
-        sourceGrpId: Int,
+        source: TargetSource,
         chooserSeatId: Int,
     ) {
-        if (sourceInstanceId != 0) {
-            selBuilder.prompt =
-                Prompt
-                    .newBuilder()
-                    .setPromptId(PromptIds.SELECT_TARGETS)
-                    .addParameters(
-                        PromptParameter
-                            .newBuilder()
-                            .setParameterName("CardId")
-                            .setType(ParameterType.Number)
-                            .setNumberValue(sourceInstanceId),
-                    ).build()
+        if (source.instanceId != 0) {
+            selBuilder.prompt = promptWithCardId(PromptIds.SELECT_TARGETS, source.instanceId)
         }
-        val targetingAbilityGrpId = resolveTargetingAbilityGrpId(prompt.targetingSa, sourceGrpId, bridge)
+        val targetingAbilityGrpId = resolveTargetingAbilityGrpId(prompt.targetingSa, source.grpId, bridge)
         if (targetingAbilityGrpId != 0) selBuilder.targetingAbilityGrpId = targetingAbilityGrpId
         val sourceZoneId = targetSourceZoneId(prompt.request.candidateRefs, bridge, chooserSeatId)
         if (sourceZoneId != 0) selBuilder.targetSourceZoneId = sourceZoneId
@@ -883,16 +848,7 @@ object RequestBuilder {
                 ).build()
 
         val promptProto =
-            Prompt
-                .newBuilder()
-                .setPromptId(promptId)
-                .addParameters(
-                    PromptParameter
-                        .newBuilder()
-                        .setParameterName("CardId")
-                        .setType(ParameterType.Number)
-                        .setNumberValue(sourceInstanceId),
-                ).build()
+            promptWithCardId(promptId, sourceInstanceId)
         return req to promptProto
     }
 
