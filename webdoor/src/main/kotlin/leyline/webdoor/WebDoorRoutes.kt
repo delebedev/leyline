@@ -93,6 +93,23 @@ fun Application.installWebDoor(services: WebDoorServices) {
             post("/public/gre/start") {
                 call.respond(services.matchLauncher.launchGreMatch(null, call.receive<GreStartRequest>().copy(spectatorMode = true)))
             }
+            post("/public/spectator/start") {
+                val launched =
+                    services.matchLauncher.launchGreMatch(
+                        null,
+                        GreStartRequest(
+                            seat1Deck = "60 Plains",
+                            seat2Deck = "60 Mountain",
+                            spectatorMode = true,
+                        ),
+                    )
+                call.respond(
+                    PublicSpectatorResponse(launched.matchId, launched.wireMatchId, PublicSeatView("Seat One"), PublicSeatView("Seat Two")),
+                )
+            }
+            get("/public/spectate/viewers") {
+                call.respond(ViewerCountView(1))
+            }
             get("/collection") {
                 val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
                 call.respond(

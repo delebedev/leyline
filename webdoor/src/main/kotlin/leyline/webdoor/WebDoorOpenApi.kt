@@ -95,6 +95,18 @@ object WebDoorOpenApi {
                     put("post", operation(request = ref("GreStartRequest"), response = ref("DraftPlayResponse")))
                 },
             )
+            put(
+                "/api/public/spectator/start",
+                buildJsonObject {
+                    put("post", operation(response = ref("PublicSpectatorResponse")))
+                },
+            )
+            put(
+                "/api/public/spectate/viewers",
+                buildJsonObject {
+                    put("get", operation(response = ref("ViewerCountView")))
+                },
+            )
             put("/api/collection", buildJsonObject { put("get", operation(response = ref("CollectionView"), responses = authFailures())) })
             put("/api/cards/metadata", buildJsonObject { put("get", operation(response = ref("CardMetadataView"))) })
             put("/api/courses", buildJsonObject { put("get", operation(response = arrayRef("CourseView"), responses = authFailures())) })
@@ -256,6 +268,9 @@ object WebDoorOpenApi {
             component("DraftSessionView", DraftSessionView.serializer())
             component("CourseView", CourseView.serializer())
             component("DraftPlayResponse", DraftPlayResponse.serializer())
+            component("PublicSpectatorResponse", PublicSpectatorResponse.serializer())
+            component("PublicSeatView", PublicSeatView.serializer())
+            component("ViewerCountView", ViewerCountView.serializer())
             component("CreateDeckRequest", CreateDeckRequest.serializer())
             component("DeckView", DeckView.serializer())
             component("CollectionView", CollectionView.serializer())

@@ -142,6 +142,38 @@
                 }
             }
         },
+        "/api/public/spectator/start": {
+            "post": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PublicSpectatorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/public/spectate/viewers": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ViewerCountView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/collection": {
             "get": {
                 "responses": {
@@ -714,6 +746,72 @@
                 "required": [
                     "matchId",
                     "wireMatchId"
+                ],
+                "additionalProperties": false
+            },
+            "PublicSpectatorResponse": {
+                "type": "object",
+                "properties": {
+                    "matchId": {
+                        "type": "string"
+                    },
+                    "wireMatchId": {
+                        "type": "string"
+                    },
+                    "seat1": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "name"
+                        ],
+                        "additionalProperties": false
+                    },
+                    "seat2": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "name"
+                        ],
+                        "additionalProperties": false
+                    }
+                },
+                "required": [
+                    "matchId",
+                    "wireMatchId",
+                    "seat1",
+                    "seat2"
+                ],
+                "additionalProperties": false
+            },
+            "PublicSeatView": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name"
+                ],
+                "additionalProperties": false
+            },
+            "ViewerCountView": {
+                "type": "object",
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "count"
                 ],
                 "additionalProperties": false
             },

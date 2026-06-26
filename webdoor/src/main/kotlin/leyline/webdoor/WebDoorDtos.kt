@@ -66,6 +66,24 @@ data class DraftPlayResponse(
 )
 
 @Serializable
+data class PublicSpectatorResponse(
+    val matchId: String,
+    val wireMatchId: String,
+    val seat1: PublicSeatView,
+    val seat2: PublicSeatView,
+)
+
+@Serializable
+data class PublicSeatView(
+    val name: String,
+)
+
+@Serializable
+data class ViewerCountView(
+    val count: Int,
+)
+
+@Serializable
 data class GreStartRequest(
     val matchId: String? = null,
     val wireMatchId: String? = null,
