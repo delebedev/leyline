@@ -268,8 +268,6 @@ private object WebDoorRoutes
 private fun io.ktor.server.application.ApplicationCall.requiredQuery(name: String): String =
     requireNotNull(request.queryParameters[name]?.takeIf { it.isNotBlank() }) { "$name is required" }
 
-private fun String.toPlayerId(): PlayerId = PlayerId(this)
-
 private suspend fun io.ktor.server.application.ApplicationCall.authenticatedPlayerId(services: WebDoorServices): PlayerId {
     val player =
         services.authService.validate(request.cookies[WEB_SESSION_COOKIE])

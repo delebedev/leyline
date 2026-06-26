@@ -36,6 +36,7 @@ object WebDoorOpenApi {
             put("components", buildJsonObject { put("schemas", schemas()) })
         }
 
+    @Suppress("LongMethod")
     private fun paths(): JsonObject =
         buildJsonObject {
             put("/gre", buildJsonObject { put("get", operation(responses = mapOf("101" to null))) })
@@ -273,6 +274,7 @@ object WebDoorOpenApi {
         put(name, schema(serializer.descriptor))
     }
 
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun schema(descriptor: SerialDescriptor): JsonObject =
         when (descriptor.kind) {
             PrimitiveKind.STRING -> buildJsonObject { put("type", "string") }
@@ -284,6 +286,7 @@ object WebDoorOpenApi {
                     put("items", schema(descriptor.getElementDescriptor(0)))
                 }
             StructureKind.CLASS -> objectSchema(descriptor)
+            StructureKind.MAP -> buildJsonObject { put("type", "object") }
             else -> buildJsonObject { put("type", "string") }
         }.nullableIf(descriptor.isNullable)
 

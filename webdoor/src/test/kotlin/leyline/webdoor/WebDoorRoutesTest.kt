@@ -94,7 +94,9 @@ class WebDoorRoutesTest :
                         header(HttpHeaders.Cookie, login.cookie)
                         contentType(ContentType.Application.Json)
                         setBody(
-                            """{"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223","mainDeck":[{"grpId":100,"quantity":1}]}""",
+                            """
+                            {"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223","mainDeck":[{"grpId":100,"quantity":1}]}
+                            """.trimIndent(),
                         )
                     }
 
