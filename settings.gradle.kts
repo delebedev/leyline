@@ -5,6 +5,7 @@ plugins {
 rootProject.name = "leyline"
 include("account")
 include("domain")
+include("engine")
 include("frontdoor")
 include("matchdoor")
 include("tools:detekt-rules")
