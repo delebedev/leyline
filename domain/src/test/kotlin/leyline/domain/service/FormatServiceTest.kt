@@ -25,9 +25,11 @@ class FormatServiceTest :
         }
 
         test("mapArenaFormat returns null for unmapped formats") {
-            EventRegistry.mapArenaFormat("Timeless").shouldBeNull()
-            EventRegistry.mapArenaFormat("Alchemy").shouldBeNull()
-            EventRegistry.mapArenaFormat("TraditionalTimeless").shouldBeNull()
+            assertSoftly {
+                EventRegistry.mapArenaFormat("Timeless").shouldBeNull()
+                EventRegistry.mapArenaFormat("Alchemy").shouldBeNull()
+                EventRegistry.mapArenaFormat("TraditionalTimeless").shouldBeNull()
+            }
         }
 
         test("mapArenaFormat passes through base formats") {

@@ -1,7 +1,9 @@
 package leyline.architecture
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import java.nio.file.Files
@@ -19,14 +21,16 @@ class ModuleDependencyInvariantTest :
         }
 
         test("doors share domain without depending on frontdoor") {
-            projectDependencies("frontdoor") shouldContain "domain"
-            projectDependencies("matchdoor") shouldContain "domain"
-            projectDependencies("matchdoor") shouldContain "engine"
-            projectDependencies("engine") shouldContain "domain"
-            projectDependencies("webdoor") shouldContain "domain"
-            projectDependencies("webdoor") shouldContain "engine"
-            projectDependencies("matchdoor") shouldNotContain "frontdoor"
-            projectDependencies("webdoor") shouldNotContain "frontdoor"
+            assertSoftly {
+                projectDependencies("frontdoor") shouldContainExactlyInAnyOrder listOf("domain")
+                projectDependencies("matchdoor") shouldContain "domain"
+                projectDependencies("matchdoor") shouldContain "engine"
+                projectDependencies("engine") shouldContain "domain"
+                projectDependencies("webdoor") shouldContain "domain"
+                projectDependencies("webdoor") shouldContain "engine"
+                projectDependencies("matchdoor") shouldNotContain "frontdoor"
+                projectDependencies("webdoor") shouldNotContain "frontdoor"
+            }
         }
 
         test("frontdoor remains a leaf below the composition root") {

@@ -1,4 +1,4 @@
-package leyline.domain.service
+package leyline.frontdoor.service
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -9,6 +9,7 @@ import leyline.IntegrationTag
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.FormatService
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.domain.service.EventRegistry
 
 /**
  * Integration tests for [FormatService] deck validation with real card data.

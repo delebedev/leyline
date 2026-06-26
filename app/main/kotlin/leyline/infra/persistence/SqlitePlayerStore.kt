@@ -1,5 +1,6 @@
 package leyline.infra.persistence
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -137,10 +138,10 @@ class SqlitePlayerStore(
 
     @Serializable
     private data class CardsBlob(
-        val MainDeck: List<CardEntry> = emptyList(),
-        val Sideboard: List<CardEntry> = emptyList(),
-        val CommandZone: List<CardEntry> = emptyList(),
-        val Companions: List<CardEntry> = emptyList(),
+        @SerialName("MainDeck") val mainDeck: List<CardEntry> = emptyList(),
+        @SerialName("Sideboard") val sideboard: List<CardEntry> = emptyList(),
+        @SerialName("CommandZone") val commandZone: List<CardEntry> = emptyList(),
+        @SerialName("Companions") val companions: List<CardEntry> = emptyList(),
     )
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -498,10 +499,10 @@ class SqlitePlayerStore(
             name = this[Decks.name],
             format = Format.fromString(this[Decks.format]),
             tileId = this[Decks.tileId],
-            mainDeck = blob.MainDeck.map { DeckCard(it.cardId, it.quantity) },
-            sideboard = blob.Sideboard.map { DeckCard(it.cardId, it.quantity) },
-            commandZone = blob.CommandZone.map { DeckCard(it.cardId, it.quantity) },
-            companions = blob.Companions.map { DeckCard(it.cardId, it.quantity) },
+            mainDeck = blob.mainDeck.map { DeckCard(it.cardId, it.quantity) },
+            sideboard = blob.sideboard.map { DeckCard(it.cardId, it.quantity) },
+            commandZone = blob.commandZone.map { DeckCard(it.cardId, it.quantity) },
+            companions = blob.companions.map { DeckCard(it.cardId, it.quantity) },
             isFavorite = this[Decks.isFavorite],
         )
     }
@@ -544,10 +545,10 @@ class SqlitePlayerStore(
     private fun encodeCards(deck: Deck): String {
         val blob =
             CardsBlob(
-                MainDeck = deck.mainDeck.map { CardEntry(it.grpId, it.quantity) },
-                Sideboard = deck.sideboard.map { CardEntry(it.grpId, it.quantity) },
-                CommandZone = deck.commandZone.map { CardEntry(it.grpId, it.quantity) },
-                Companions = deck.companions.map { CardEntry(it.grpId, it.quantity) },
+                mainDeck = deck.mainDeck.map { CardEntry(it.grpId, it.quantity) },
+                sideboard = deck.sideboard.map { CardEntry(it.grpId, it.quantity) },
+                commandZone = deck.commandZone.map { CardEntry(it.grpId, it.quantity) },
+                companions = deck.companions.map { CardEntry(it.grpId, it.quantity) },
             )
         return json.encodeToString(blob)
     }

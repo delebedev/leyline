@@ -1,0 +1,39 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>CanBeNonNullable:PlayerController.kt$PlayerController$private val priorityLoopCoordinator: PriorityLoopCoordinator? = actionBridge?.let { ab -&gt; PriorityLoopCoordinator( owner = this, game = game, player = player, actionBridge = ab, phaseStopProfile = phaseStopProfile, smartPhaseSkip = smartPhaseSkip, spellExecutor = spellExecutor, ) }</ID>
+    <ID>CyclomaticComplexMethod:CostDecision.kt$CostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
+    <ID>CyclomaticComplexMethod:CostDecision.kt$CostDecision$override fun visit(cost: CostRemoveCounter): PaymentDecision?</ID>
+    <ID>CyclomaticComplexMethod:PriorityLoopCoordinator.kt$PriorityLoopCoordinator$fun chooseSpellAbility(): List&lt;SpellAbility&gt;?</ID>
+    <ID>CyclomaticComplexMethod:TargetingCoordinator.kt$TargetingCoordinator$fun selectTargets( validTargets: List&lt;Card&gt;, sa: SpellAbility, mandatory: Boolean, numTargets: Int?, divisionValues: Collection&lt;Int&gt;?, ): TargetSelectionResult</ID>
+    <ID>DoubleMutabilityForCollection:CombatHandler.kt$CombatHandler$var firstMap: MutableMap&lt;forge.game.card.Card?, Int&gt;? = null</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:ClientAutoPassState.kt$ClientAutoPassState$when (autoPassOption) { AutoPassOption.ResolveAll, AutoPassOption.ResolveMyStackEffects, -&gt; true else -&gt; false }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:GamePlayback.kt$GamePlayback$when (ev.phase()) { PhaseType.COMBAT_DECLARE_ATTACKERS, PhaseType.COMBAT_DECLARE_BLOCKERS, PhaseType.COMBAT_END, -&gt; COMBAT_DELAY else -&gt; PHASE_DELAY }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:GsmBuilder.kt$GsmBuilder$when (context) { GroupingContext.Surveil -&gt; PromptIds.GROUP_SURVEIL GroupingContext.Scry_a0f6 -&gt; PromptIds.GROUP_SCRY else -&gt; PromptIds.GROUP_SURVEIL }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:GsmBuilder.kt$GsmBuilder$when (context) { GroupingContext.Surveil -&gt; SubZoneType.None_a455 else -&gt; SubZoneType.Bottom }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:GsmBuilder.kt$GsmBuilder$when (context) { GroupingContext.Surveil -&gt; ZoneType.Graveyard else -&gt; ZoneType.Library // scry puts on bottom }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:InvariantChecker.kt$RuntimeAccumulator$when (gs.type) { GameStateType.Full -&gt; { objects.clear() zones.clear() gs.gameObjectsList.forEach { objects[it.instanceId] = it } gs.zonesList.forEach { zones[it.zoneId] = it } } GameStateType.Diff -&gt; { gs.diffDeletedInstanceIdsList.forEach { objects.remove(it) } gs.gameObjectsList.forEach { objects[it.instanceId] = it } gs.zonesList.forEach { zones[it.zoneId] = it } } else -&gt; {} }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:MatchHandler.kt$MatchHandler$when (msg.clientToMatchServiceMessageType) { ClientToMatchServiceMessageType.AuthenticateRequest_f487 -&gt; handleMatchAuth(ctx, msg) ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487 -&gt; handleMatchDoorConnect(ctx, msg) ClientToMatchServiceMessageType.ClientToGremessage -&gt; handleGREMessage(ctx, msg) ClientToMatchServiceMessageType.ClientToGreuimessage -&gt; handleGREMessage(ctx, msg) else -&gt; log.warn("Match Door: unhandled type: {}", msg.clientToMatchServiceMessageType) }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:MulliganHandler.kt$MulliganHandler$when (decision) { MulliganOption.AcceptHand -&gt; { bridge.submitKeep(seatId) bridge.awaitPriority() s.onMulliganKeep() } else -&gt; { mulliganCount++ bridge.submitMull(seatId) val deletedIds = bridge.ids.resetAll().map { it.value } seat1Hand = bridge.getHandGrpIds(SeatId(1)) sendDealHand(ctx!!, deletedIds) sendMulliganReq(reportedMulliganCount = 0, numCards = seat1Hand.size) } }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:ShouldStopEvaluator.kt$ShouldStopEvaluator$when (actionType) { ActionType.Cast, ActionType.CastLeft, ActionType.CastRight, ActionType.CastAdventure, ActionType.CastMdfc, ActionType.CastPrototype, ActionType.CastLeftRoom, ActionType.CastRightRoom, ActionType.CastOmen, ActionType.Play_add3, ActionType.PlayMdfc, ActionType.Activate_add3, ActionType.SpecialTurnFaceUp_add3, -&gt; true else -&gt; false }</ID>
+    <ID>LargeClass:CostDecision.kt$CostDecision : CostDecisionMakerBase</ID>
+    <ID>LargeClass:GameBridge.kt$GameBridge : IdMappingPlayerLookupAutoPassViewZoneTrackingAnnotationIdsEventDrain</ID>
+    <ID>LargeClass:TargetingHandler.kt$TargetingHandler</ID>
+    <ID>LongMethod:BundleBuilder.kt$BundleBuilder$fun gameOverBundle( winningTeam: Int, counter: MessageCounter, reason: ResultReason = ResultReason.Game_ae0a, losingPlayerSeatId: Int = 0, lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal, ): BundleResult</ID>
+    <ID>LongMethod:CostDecision.kt$CostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
+    <ID>MaxLineLength:StateMapper.kt$StateMapper.BuildResult$/** Ordering-sensitive bridge mutations computed during the build. Caller applies via [leyline.game.state.GameBridge.applyMutations]. */</ID>
+    <ID>NoNameShadowing:MatchSession.kt$MatchSession$filtered</ID>
+    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostDiscard): PaymentDecision?</ID>
+    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
+    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostPutCardToLib): PaymentDecision?</ID>
+    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostRemoveCounter): PaymentDecision?</ID>
+    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostReveal): PaymentDecision?</ID>
+    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostSacrifice): PaymentDecision?</ID>
+    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostTapType): PaymentDecision?</ID>
+    <ID>ReturnCount:PriorityLoopCoordinator.kt$PriorityLoopCoordinator$fun chooseSpellAbility(): List&lt;SpellAbility&gt;?</ID>
+    <ID>UnsafeCallOnNullableType:GameLoopController.kt$GameLoopController$gameThread!!</ID>
+    <ID>UnsafeCallOnNullableType:HandshakeMessages.kt$HandshakeMessages$bridge.getGame()!!</ID>
+    <ID>UnsafeCallOnNullableType:MulliganHandler.kt$MulliganHandler$ctx!!</ID>
+  </CurrentIssues>
+</SmellBaseline>
