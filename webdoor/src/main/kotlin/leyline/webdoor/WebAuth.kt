@@ -15,6 +15,7 @@ import javax.crypto.spec.SecretKeySpec
 
 const val WEB_SESSION_COOKIE = "web_session"
 const val WEB_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
+const val DEV_WEB_AUTH_SECRET = "dev-web-auth-secret"
 
 private const val LOGIN_CODE_MINUTES = 10
 const val MAX_AUTH_ATTEMPTS = 5
@@ -306,7 +307,7 @@ class InMemoryWebAuthStore : WebAuthStore {
 class WebAuthService(
     private val store: WebAuthStore,
     private val emailSender: EmailSender,
-    private val secret: String = "dev-web-auth-secret",
+    private val secret: String = DEV_WEB_AUTH_SECRET,
     private val rateLimiter: RequestRateLimiter = NoopRateLimiter,
     private val rateLimitConfig: AuthRateLimitConfig = AuthRateLimitConfig.disabled(),
     private val fixedLoginCode: String? = null,

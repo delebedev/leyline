@@ -17,10 +17,13 @@ import leyline.game.generator.ForgeBoosterDraftDriver
 import leyline.game.generator.SealedPoolGenerator
 import leyline.infra.AppMatchCoordinator
 import leyline.infra.persistence.SqlitePlayerStore
+import leyline.webdoor.AuthRateLimitConfig
+import leyline.webdoor.DEV_WEB_AUTH_SECRET
 import leyline.webdoor.DevEmailSender
 import leyline.webdoor.DraftPlayResponse
 import leyline.webdoor.EmbeddedWebGreEngineSession
 import leyline.webdoor.GreStartRequest
+import leyline.webdoor.InMemoryRateLimiter
 import leyline.webdoor.InProcessWebGreRelay
 import leyline.webdoor.ResendEmailSender
 import leyline.webdoor.SqliteWebAuthStore
@@ -107,7 +110,15 @@ fun main(args: Array<String>) {
             cardRepository = cardRepo,
             matchLauncher = launcher,
             greRelay = relay,
-            authService = WebAuthService(authStore, emailSender, fixedLoginCode = System.getenv("LEYLINE_WEB_LOGIN_CODE")),
+            authService =
+                WebAuthService(
+                    authStore,
+                    emailSender,
+                    secret = resolveWebAuthSecret(),
+                    rateLimiter = InMemoryRateLimiter(),
+                    rateLimitConfig = AuthRateLimitConfig.fromEnv(),
+                    fixedLoginCode = System.getenv("LEYLINE_WEB_LOGIN_CODE"),
+                ),
         )
 
     embeddedServer(Netty, host = "127.0.0.1", port = port) { installWebDoor(services) }.start(wait = true)
@@ -168,6 +179,14 @@ private fun resolveCardDb(): File {
     requireNotNull(detected) { "Card database not found. Set LEYLINE_CARD_DB." }
     require(detected.exists() && detected.length() > 1_000_000L) { "Card database is missing or too small: ${detected.absolutePath}" }
     return detected
+}
+
+private fun resolveWebAuthSecret(): String {
+    val secret = System.getenv("LEYLINE_WEB_AUTH_SECRET")?.takeIf { it.isNotBlank() }
+    require(secret != null) { "LEYLINE_WEB_AUTH_SECRET is required for the web profile" }
+    require(secret != DEV_WEB_AUTH_SECRET) { "LEYLINE_WEB_AUTH_SECRET must not use the dev default" }
+    require(secret.length >= 32) { "LEYLINE_WEB_AUTH_SECRET must be at least 32 characters" }
+    return secret
 }
 
 private fun detectLocalCardDb(): File? {
