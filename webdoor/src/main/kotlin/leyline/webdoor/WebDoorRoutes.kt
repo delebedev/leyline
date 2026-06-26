@@ -38,6 +38,7 @@ import leyline.domain.service.CourseService
 import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.EventRegistry
+import leyline.game.data.CardRepository
 import java.util.UUID
 
 data class WebDoorServices(
@@ -45,6 +46,7 @@ data class WebDoorServices(
     val courseService: CourseService,
     val deckService: DeckService,
     val collectionService: CollectionService,
+    val cardRepository: CardRepository,
     val matchLauncher: WebMatchLauncher,
     val greRelay: WebGreRelay = InProcessWebGreRelay(),
     val authService: WebAuthService = WebAuthService(InMemoryWebAuthStore(), DevEmailSender()),
@@ -121,7 +123,7 @@ fun Application.installWebDoor(services: WebDoorServices) {
                     ),
                 )
             }
-            get("/cards/metadata") { call.respond(CardMetadataView()) }
+            get("/cards/metadata") { call.respond(cardMetadataView(services.cardRepository)) }
             route("/courses") {
                 get {
                     val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
@@ -153,6 +155,14 @@ fun Application.installWebDoor(services: WebDoorServices) {
         }
     }
 }
+
+private fun cardMetadataView(cardRepository: CardRepository): CardMetadataView =
+    CardMetadataView(
+        cardRepository
+            .findAllGrpIds()
+            .sorted()
+            .map { grpId -> CardMetadataEntry(grpId = grpId, name = cardRepository.findNameByGrpId(grpId)) },
+    )
 
 private fun Route.installDraftRoutes(services: WebDoorServices) {
     route("/draft") {

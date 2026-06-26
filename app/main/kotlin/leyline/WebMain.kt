@@ -104,6 +104,7 @@ fun main(args: Array<String>) {
             courseService = courseService,
             deckService = deckService,
             collectionService = CollectionService { cardRepo.findAllGrpIds() },
+            cardRepository = cardRepo,
             matchLauncher = launcher,
             greRelay = relay,
             authService = WebAuthService(authStore, emailSender, fixedLoginCode = System.getenv("LEYLINE_WEB_LOGIN_CODE")),

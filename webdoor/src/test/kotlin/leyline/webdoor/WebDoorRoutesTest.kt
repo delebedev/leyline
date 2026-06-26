@@ -39,6 +39,7 @@ import leyline.domain.service.CourseService
 import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.GeneratedPool
+import leyline.game.InMemoryCardRepository
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.nio.file.Files
 
@@ -145,6 +146,22 @@ class WebDoorRoutesTest :
             }
         }
 
+        test("serves card metadata from card repository") {
+            withWebDoor { client, _ ->
+                val response = client.get("/api/cards/metadata")
+                val cards = json.parseToJsonElement(response.bodyAsText()).jsonObject["cards"]!!.jsonArray
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    cards.size shouldBe 2
+                    cards[0].jsonObject["grpId"]!!.jsonPrimitive.content shouldBe "100"
+                    cards[0].jsonObject["name"]!!.jsonPrimitive.content shouldBe "Alpha Card"
+                    cards[1].jsonObject["grpId"]!!.jsonPrimitive.content shouldBe "101"
+                    cards[1].jsonObject["name"]!!.jsonPrimitive.content shouldBe "Beta Card"
+                }
+            }
+        }
+
         test("auth creates and revokes opaque web session") {
             withWebDoor { client, repos ->
                 val request =
@@ -208,6 +225,7 @@ private fun withWebDoor(block: suspend (io.ktor.client.HttpClient, TestRepos) ->
                     ) { GeneratedPool(cards = emptyList(), byCollation = emptyList(), collationId = 0) },
                 deckService = DeckService(repos.deck),
                 collectionService = CollectionService { listOf(100, 101) },
+                cardRepository = repos.cards,
                 authService = WebAuthService(InMemoryWebAuthStore(), repos.emailSender),
                 matchLauncher =
                     object : WebMatchLauncher {
@@ -234,6 +252,11 @@ private class TestRepos {
     val emailSender = DevEmailSender()
     val enginePayloads = mutableListOf<ByteArray>()
     val relay = InProcessWebGreRelay()
+    val cards =
+        InMemoryCardRepository().also {
+            it.register(100, "Alpha Card")
+            it.register(101, "Beta Card")
+        }
 }
 
 private data class TestLogin(
