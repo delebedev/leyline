@@ -291,6 +291,25 @@ class WebDoorRoutesTest :
             }
         }
 
+        test("serves limited set list") {
+            withWebDoor { client, _ ->
+                val response = client.get("/api/sealed/sets")
+                val sets = json.parseToJsonElement(response.bodyAsText()).jsonArray
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    sets
+                        .single()
+                        .jsonObject["code"]!!
+                        .jsonPrimitive.content shouldBe "FDN"
+                    sets
+                        .single()
+                        .jsonObject["name"]!!
+                        .jsonPrimitive.content shouldBe "Foundations"
+                }
+            }
+        }
+
         test("auth creates and revokes opaque web session") {
             withWebDoor { client, repos ->
                 val request =

@@ -127,6 +127,9 @@ fun Application.installWebDoor(services: WebDoorServices) {
                     ),
                 )
             }
+            get("/sealed/sets") {
+                call.respond(listOf(LimitedSetView(code = "FDN", name = "Foundations", type = "draft", cardCount = 0)))
+            }
             get("/cards/metadata") { call.respond(cardMetadataView(services.cardRepository)) }
             route("/courses") {
                 get {

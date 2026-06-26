@@ -118,6 +118,25 @@ data class CollectionView(
 )
 
 @Serializable
+data class LimitedSetView(
+    val code: String,
+    val name: String,
+    val date: String? = null,
+    val type: String? = null,
+    val cardCount: Int? = null,
+    val description: String? = null,
+    val mechanics: List<String>? = null,
+    val archetypes: List<LimitedSetArchetypeView>? = null,
+)
+
+@Serializable
+data class LimitedSetArchetypeView(
+    val pair: String,
+    val name: String,
+    val strategy: String? = null,
+)
+
+@Serializable
 data class AuthView(
     val playerId: String?,
 )
