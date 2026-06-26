@@ -3,8 +3,6 @@ package leyline.game.mapping
 import forge.game.phase.PhaseType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
-import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
@@ -72,8 +70,10 @@ class StopTypeMappingTest :
         }
 
         test("phases without a StopType return null (UNTAP, CLEANUP)") {
-            StopTypeMapping.toStopType(PhaseType.UNTAP).shouldBeNull()
-            StopTypeMapping.toStopType(PhaseType.CLEANUP).shouldBeNull()
+            listOf(
+                StopTypeMapping.toStopType(PhaseType.UNTAP),
+                StopTypeMapping.toStopType(PhaseType.CLEANUP),
+            ) shouldBe listOf(null, null)
         }
 
         test("all 11 StopType values (excluding None) have a mapping") {
@@ -110,9 +110,8 @@ class StopTypeMappingTest :
                     stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Clear_a3fe),
                 )
             val enabled = StopTypeMapping.parseStops(stops, SettingScope.Team_ac6e)
-            enabled shouldContain PhaseType.MAIN1
-            enabled shouldContain PhaseType.MAIN2
-            enabled shouldNotContain PhaseType.UPKEEP
+
+            enabled shouldBe setOf(PhaseType.MAIN1, PhaseType.MAIN2)
         }
 
         test("only stops matching the requested scope are included") {
@@ -122,12 +121,10 @@ class StopTypeMappingTest :
                     stop(StopType.DeclareAttackersStep, SettingScope.Opponents, SettingStatus.Set),
                 )
             val teamStops = StopTypeMapping.parseStops(stops, SettingScope.Team_ac6e)
-            teamStops shouldContain PhaseType.MAIN1
-            teamStops shouldNotContain PhaseType.COMBAT_DECLARE_ATTACKERS
-
             val opponentStops = StopTypeMapping.parseStops(stops, SettingScope.Opponents)
-            opponentStops shouldContain PhaseType.COMBAT_DECLARE_ATTACKERS
-            opponentStops shouldNotContain PhaseType.MAIN1
+
+            teamStops shouldBe setOf(PhaseType.MAIN1)
+            opponentStops shouldBe setOf(PhaseType.COMBAT_DECLARE_ATTACKERS)
         }
 
         test("AnyPlayer scope matches both Team and Opponents queries") {
@@ -136,10 +133,10 @@ class StopTypeMappingTest :
                     stop(StopType.DrawStep, SettingScope.AnyPlayer, SettingStatus.Set),
                 )
             val teamStops = StopTypeMapping.parseStops(stops, SettingScope.Team_ac6e)
-            teamStops shouldContain PhaseType.DRAW
-
             val opponentStops = StopTypeMapping.parseStops(stops, SettingScope.Opponents)
-            opponentStops shouldContain PhaseType.DRAW
+
+            teamStops shouldBe setOf(PhaseType.DRAW)
+            opponentStops shouldBe setOf(PhaseType.DRAW)
         }
     })
 
