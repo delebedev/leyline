@@ -6,7 +6,7 @@ import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
-import leyline.frontdoor.service.MatchCoordinator
+import leyline.domain.service.MatchCoordinator
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter

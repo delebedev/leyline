@@ -13,7 +13,7 @@ import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
-import leyline.frontdoor.service.MatchCoordinator
+import leyline.domain.service.MatchCoordinator
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository

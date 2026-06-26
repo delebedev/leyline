@@ -1,9 +1,9 @@
 package leyline.frontdoor.service
 
-import leyline.frontdoor.domain.PlayerId
-import leyline.frontdoor.domain.Preferences
-import leyline.frontdoor.domain.SessionId
-import leyline.frontdoor.repo.PlayerRepository
+import leyline.domain.PlayerId
+import leyline.domain.Preferences
+import leyline.domain.SessionId
+import leyline.domain.repo.PlayerRepository
 import java.util.UUID
 
 class PlayerService(

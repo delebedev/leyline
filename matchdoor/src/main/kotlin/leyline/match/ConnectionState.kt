@@ -2,7 +2,7 @@ package leyline.match
 
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.SeatId
-import leyline.frontdoor.service.MatchCoordinator
+import leyline.domain.service.MatchCoordinator
 import leyline.infra.MessageSink
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 

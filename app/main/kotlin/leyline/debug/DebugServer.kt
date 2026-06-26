@@ -9,8 +9,8 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.RuntimeMatchConfigRegistry
-import leyline.frontdoor.service.CourseService
-import leyline.frontdoor.service.DraftService
+import leyline.domain.service.CourseService
+import leyline.domain.service.DraftService
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame

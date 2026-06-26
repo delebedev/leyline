@@ -11,23 +11,23 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import leyline.FdTag
-import leyline.frontdoor.domain.CollationPool
-import leyline.frontdoor.domain.Course
-import leyline.frontdoor.domain.CourseId
-import leyline.frontdoor.domain.Deck
-import leyline.frontdoor.domain.DeckCard
-import leyline.frontdoor.domain.DeckId
-import leyline.frontdoor.domain.DraftSession
-import leyline.frontdoor.domain.DraftSessionId
-import leyline.frontdoor.domain.DraftStatus
-import leyline.frontdoor.domain.Format
-import leyline.frontdoor.domain.PlayerId
-import leyline.frontdoor.repo.CourseRepository
-import leyline.frontdoor.repo.DeckRepository
-import leyline.frontdoor.repo.DraftSessionRepository
-import leyline.frontdoor.service.CourseService
-import leyline.frontdoor.service.DeckService
-import leyline.frontdoor.service.GeneratedPool
+import leyline.domain.CollationPool
+import leyline.domain.Course
+import leyline.domain.CourseId
+import leyline.domain.Deck
+import leyline.domain.DeckCard
+import leyline.domain.DeckId
+import leyline.domain.DraftSession
+import leyline.domain.DraftSessionId
+import leyline.domain.DraftStatus
+import leyline.domain.Format
+import leyline.domain.PlayerId
+import leyline.domain.repo.CourseRepository
+import leyline.domain.repo.DeckRepository
+import leyline.domain.repo.DraftSessionRepository
+import leyline.domain.service.CourseService
+import leyline.domain.service.DeckService
+import leyline.domain.service.GeneratedPool
 
 private class FakeDraftRepo : DraftSessionRepository {
     private val sessions = mutableMapOf<DraftSessionId, DraftSession>()

@@ -12,11 +12,11 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import leyline.frontdoor.FdTag
-import leyline.frontdoor.domain.Deck
-import leyline.frontdoor.domain.DeckCard
-import leyline.frontdoor.domain.DeckId
-import leyline.frontdoor.domain.Format
-import leyline.frontdoor.domain.PlayerId
+import leyline.domain.Deck
+import leyline.domain.DeckCard
+import leyline.domain.DeckId
+import leyline.domain.Format
+import leyline.domain.PlayerId
 
 class DeckWireBuilderTest :
     FunSpec({

@@ -6,8 +6,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
-import leyline.frontdoor.domain.DraftSession
-import leyline.frontdoor.domain.DraftStatus
+import leyline.domain.DraftSession
+import leyline.domain.DraftStatus
 
 /**
  * Serializes BotDraft responses as Course-wrapped double-encoded JSON.

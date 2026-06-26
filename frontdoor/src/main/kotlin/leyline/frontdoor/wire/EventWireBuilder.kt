@@ -7,11 +7,11 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
-import leyline.frontdoor.domain.Course
-import leyline.frontdoor.domain.DeckCard
-import leyline.frontdoor.service.AiBotMatchDef
-import leyline.frontdoor.service.EventDef
-import leyline.frontdoor.service.QueueEntry
+import leyline.domain.Course
+import leyline.domain.DeckCard
+import leyline.domain.service.AiBotMatchDef
+import leyline.domain.service.EventDef
+import leyline.domain.service.QueueEntry
 
 /**
  * Translates [EventDef] / [QueueEntry] config to Arena wire JSON shapes.

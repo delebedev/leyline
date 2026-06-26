@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory
  * Resolves Forge [GameFormat] by name and validates decks against formats.
  *
  * Arena → Forge format mapping (e.g. "TraditionalStandard" → "Standard") is
- * handled by [leyline.frontdoor.service.EventRegistry.mapArenaFormat] — this
+ * handled by [leyline.domain.service.EventRegistry.mapArenaFormat] — this
  * class only deals with resolved Forge format names.
  *
  * Requires card database initialization before [resolve]/[validateDeck].

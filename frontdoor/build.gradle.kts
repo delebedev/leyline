@@ -14,11 +14,9 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":domain"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)
-    implementation(libs.exposed.core)
-    implementation(libs.exposed.jdbc)
-    implementation(libs.sqlite.jdbc)
     implementation(libs.netty.handler)
     implementation(libs.logback.classic)
     implementation(libs.protobuf.java)

@@ -3,7 +3,7 @@ package leyline.frontdoor.wire
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import leyline.frontdoor.domain.Deck
+import leyline.domain.Deck
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter

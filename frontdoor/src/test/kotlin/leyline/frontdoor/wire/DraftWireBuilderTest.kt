@@ -10,10 +10,10 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import leyline.frontdoor.FdTag
-import leyline.frontdoor.domain.DraftSession
-import leyline.frontdoor.domain.DraftSessionId
-import leyline.frontdoor.domain.DraftStatus
-import leyline.frontdoor.domain.PlayerId
+import leyline.domain.DraftSession
+import leyline.domain.DraftSessionId
+import leyline.domain.DraftStatus
+import leyline.domain.PlayerId
 
 class DraftWireBuilderTest :
     FunSpec({

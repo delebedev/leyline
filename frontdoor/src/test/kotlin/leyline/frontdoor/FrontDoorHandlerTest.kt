@@ -27,28 +27,25 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import leyline.frontdoor.domain.CollationPool
-import leyline.frontdoor.domain.Deck
-import leyline.frontdoor.domain.DeckCard
-import leyline.frontdoor.domain.DeckId
-import leyline.frontdoor.domain.Format
-import leyline.frontdoor.domain.PlayerId
-import leyline.frontdoor.repo.InMemoryCourseRepository
-import leyline.frontdoor.repo.InMemoryDraftSessionRepository
-import leyline.frontdoor.repo.SqlitePlayerStore
-import leyline.frontdoor.service.CollectionService
-import leyline.frontdoor.service.CourseService
-import leyline.frontdoor.service.DeckService
-import leyline.frontdoor.service.DraftService
-import leyline.frontdoor.service.EventRegistry
-import leyline.frontdoor.service.GeneratedPool
-import leyline.frontdoor.service.MatchmakingService
+import leyline.domain.CollationPool
+import leyline.domain.Deck
+import leyline.domain.DeckCard
+import leyline.domain.DeckId
+import leyline.domain.Format
+import leyline.domain.PlayerId
+import leyline.domain.repo.InMemoryCourseRepository
+import leyline.domain.repo.InMemoryDraftSessionRepository
+import leyline.domain.service.CollectionService
+import leyline.domain.service.CourseService
+import leyline.domain.service.DeckService
+import leyline.domain.service.DraftService
+import leyline.domain.service.EventRegistry
+import leyline.domain.service.GeneratedPool
+import leyline.domain.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.FdEnvelope
 import leyline.frontdoor.wire.FdResponseWriter
 import leyline.frontdoor.wire.FdWireConstants
-import org.jetbrains.exposed.v1.jdbc.Database
-import java.io.File
 import java.util.UUID
 
 /**
@@ -70,12 +67,9 @@ class FrontDoorHandlerTest :
         val sampleMainDeck = listOf(DeckCard(75515, 4), DeckCard(75516, 56))
 
         val json = Json { ignoreUnknownKeys = true }
-        val tempDb = File.createTempFile("fd-test", ".db").also { it.deleteOnExit() }
         var channel: EmbeddedChannel? = null
 
-        // Shared services wired to test SQLite
-        val db = Database.connect("jdbc:sqlite:${tempDb.absolutePath}", "org.sqlite.JDBC")
-        val store = SqlitePlayerStore(db)
+        val store = InMemoryPlayerDeckRepository()
         val bootstrapData = FrontDoorBootstrapData.loadFromClasspath()
         val deckService = DeckService(store)
         val playerService = PlayerService(store)
@@ -83,7 +77,6 @@ class FrontDoorHandlerTest :
         val writer = FdResponseWriter()
 
         beforeSpec {
-            store.createTables()
             store.ensurePlayer(PlayerId(testPlayerId), "Tester")
             store.save(
                 Deck(

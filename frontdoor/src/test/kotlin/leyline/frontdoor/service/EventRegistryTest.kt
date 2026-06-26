@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import leyline.domain.service.EventRegistry
 import leyline.frontdoor.FdTag
 import leyline.frontdoor.wire.EventWireBuilder
 

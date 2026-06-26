@@ -6,7 +6,7 @@ package leyline.game.generator
  * Forge's `PaperCard` pack into Arena `grpId` lists (and back for `pick`).
  *
  * Sessions are held in-memory. Server restart drops them; see
- * [leyline.frontdoor.service.DraftService.discardIncompleteSessions].
+ * [leyline.domain.service.DraftService.discardIncompleteSessions].
  *
  * Holds Forge process-global state (`IBoosterDraft.LAND_SET_CODE`) — concurrent
  * drafts on different sets would race. Single-player server today; revisit when

@@ -2,7 +2,7 @@ package leyline.match
 
 import io.netty.channel.ChannelHandlerContext
 import leyline.config.MatchConfig
-import leyline.frontdoor.service.MatchCoordinator
+import leyline.domain.service.MatchCoordinator
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.state.GameBridge

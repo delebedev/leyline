@@ -88,6 +88,7 @@ configurations.all {
 dependencies {
     detektPlugins(project(":tools:detekt-rules"))
     implementation(project(":account"))
+    implementation(project(":domain"))
     implementation(project(":frontdoor"))
     implementation(project(":matchdoor"))
     implementation(libs.protobuf.java.util)
