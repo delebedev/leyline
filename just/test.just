@@ -22,10 +22,15 @@ test-gate: docs-lint
     if [ "$(git config --get core.hooksPath || echo)" != ".githooks" ]; then
         echo "⚠  pre-push hooks not installed — run 'just hooks-install' to enable fmt-check/detekt/docs-lint pre-push" >&2
     fi
-    ./gradlew --rerun-tasks ktlintCheck detekt \
-        :matchdoor:testGate :matchdoor:jacocoTestReport \
-        :frontdoor:test :frontdoor:jacocoTestReport \
-        :account:test :account:jacocoTestReport
+    ./gradlew ktlintCheck detekt
+    ./gradlew --rerun-tasks \
+        :matchdoor:testGate \
+        :frontdoor:test \
+        :account:test
+    ./gradlew \
+        :matchdoor:jacocoTestReport \
+        :frontdoor:jacocoTestReport \
+        :account:jacocoTestReport
 
 # matchdoor integration tests (boots engine per fork — run after risky matchdoor changes)
 [group('test')]
