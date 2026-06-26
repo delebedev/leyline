@@ -30,6 +30,9 @@ dependencies {
     implementation(libs.ktor.server.status.pages)
     implementation(libs.ktor.server.websockets)
     implementation(libs.logback.classic)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.sqlite.jdbc)
 
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)

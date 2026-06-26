@@ -3,7 +3,10 @@ package leyline.webdoor
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class StartDraftRequest(val playerId: String, val eventName: String)
+data class StartDraftRequest(
+    val playerId: String,
+    val eventName: String,
+)
 
 @Serializable
 data class PickDraftRequest(
@@ -25,10 +28,16 @@ data class SubmitDeckRequest(
 )
 
 @Serializable
-data class PlayDraftRequest(val playerId: String, val eventName: String)
+data class PlayDraftRequest(
+    val playerId: String,
+    val eventName: String,
+)
 
 @Serializable
-data class WebDeckCard(val grpId: Int, val quantity: Int)
+data class WebDeckCard(
+    val grpId: Int,
+    val quantity: Int,
+)
 
 @Serializable
 data class DraftSessionView(
@@ -51,7 +60,10 @@ data class CourseView(
 )
 
 @Serializable
-data class DraftPlayResponse(val matchId: String, val wireMatchId: String)
+data class DraftPlayResponse(
+    val matchId: String,
+    val wireMatchId: String,
+)
 
 @Serializable
 data class CreateDeckRequest(
@@ -73,13 +85,39 @@ data class DeckView(
 )
 
 @Serializable
-data class CollectionView(val grpIds: List<Int>)
+data class CollectionView(
+    val grpIds: List<Int>,
+)
 
 @Serializable
-data class AuthView(val playerId: String?)
+data class AuthView(
+    val playerId: String?,
+)
 
 @Serializable
-data class CardMetadataView(val cards: List<CardMetadataEntry> = emptyList())
+data class RequestLoginCodeRequest(
+    val email: String,
+)
 
 @Serializable
-data class CardMetadataEntry(val grpId: Int, val name: String? = null)
+data class VerifyLoginCodeRequest(
+    val email: String,
+    val code: String,
+)
+
+@Serializable
+data class LoginResponse(
+    val playerId: String,
+    val email: String,
+)
+
+@Serializable
+data class CardMetadataView(
+    val cards: List<CardMetadataEntry> = emptyList(),
+)
+
+@Serializable
+data class CardMetadataEntry(
+    val grpId: Int,
+    val name: String? = null,
+)

@@ -42,7 +42,9 @@ class InProcessWebGreRelay : WebGreRelay {
                     when (frame) {
                         is Frame.Binary -> dispatch(frame.readBytes())
                         is Frame.Close -> break
-                        else -> Unit
+                        is Frame.Text -> Unit
+                        is Frame.Ping -> Unit
+                        is Frame.Pong -> Unit
                     }
                 }
             } finally {

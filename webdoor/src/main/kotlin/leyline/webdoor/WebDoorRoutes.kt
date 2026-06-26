@@ -1,15 +1,18 @@
 package leyline.webdoor
 
+import io.ktor.http.Cookie
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.application.install
-import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.origin
+import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
+import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
@@ -44,6 +47,7 @@ data class WebDoorServices(
     val collectionService: CollectionService,
     val matchLauncher: WebMatchLauncher,
     val greRelay: WebGreRelay = InProcessWebGreRelay(),
+    val authService: WebAuthService = WebAuthService(InMemoryWebAuthStore(), DevEmailSender()),
 )
 
 interface WebMatchLauncher {
@@ -77,10 +81,17 @@ fun Application.installWebDoor(services: WebDoorServices) {
             call.respondText(schema ?: "{}", contentType = io.ktor.http.ContentType.Application.Json)
         }
         route("/api") {
-            get("/auth/me") { call.respond(AuthView(playerId = null)) }
+            installAuthRoutes(services)
             get("/collection") {
                 val playerId = call.requiredQuery("playerId").toPlayerId()
-                call.respond(CollectionView(services.collectionService.getCollection(playerId).keys.sorted()))
+                call.respond(
+                    CollectionView(
+                        services.collectionService
+                            .getCollection(playerId)
+                            .keys
+                            .sorted(),
+                    ),
+                )
             }
             get("/cards/metadata") { call.respond(CardMetadataView()) }
             route("/courses") {
@@ -101,61 +112,141 @@ fun Application.installWebDoor(services: WebDoorServices) {
                     call.respond(deckView(deck))
                 }
                 get("/{deckId}") {
-                    val deck = services.deckService.getById(DeckId(call.parameters["deckId"] ?: ""))
+                    val deck = services.deckService.getById(DeckId(call.parameters["deckId"].orEmpty()))
                     if (deck == null) call.respond(HttpStatusCode.NotFound) else call.respond(deckView(deck))
                 }
                 delete("/{deckId}") {
-                    services.deckService.delete(DeckId(call.parameters["deckId"] ?: ""))
+                    services.deckService.delete(DeckId(call.parameters["deckId"].orEmpty()))
                     call.respond(HttpStatusCode.NoContent)
                 }
             }
-            route("/draft") {
-                post("/start") {
-                    val request = call.receive<StartDraftRequest>()
-                    val playerId = request.playerId.toPlayerId()
-                    val existingCourse = services.courseService.getCourse(playerId, request.eventName)
-                    if (EventRegistry.isDraft(request.eventName) && existingCourse?.module == CourseModule.Complete) {
-                        services.draftService.drop(playerId, request.eventName)
-                    }
-                    services.courseService.join(playerId, request.eventName)
-                    call.respond(sessionView(services.draftService.startDraft(playerId, request.eventName)))
-                }
-                post("/pick") {
-                    val request = call.receive<PickDraftRequest>()
-                    val playerId = request.playerId.toPlayerId()
-                    val session = services.draftService.pick(playerId, request.eventName, request.cardId, request.packNumber, request.pickNumber)
-                    if (session.status == DraftStatus.Completed) {
-                        val collationId = EventRegistry.findEvent(request.eventName)?.collationId ?: 0
-                        services.courseService.completeDraft(playerId, request.eventName, session.pickedCards, collationId)
-                    }
-                    call.respond(sessionView(session))
-                }
-                get("/status") {
-                    val playerId = call.requiredQuery("playerId").toPlayerId()
-                    val eventName = call.requiredQuery("eventName")
-                    val session = services.draftService.getStatus(playerId, eventName)
-                    if (session == null) call.respond(HttpStatusCode.NotFound) else call.respond(sessionView(session))
-                }
-                post("/deck") {
-                    val request = call.receive<SubmitDeckRequest>()
-                    require(request.mainDeck.sumOf { it.quantity } >= 40) { "mainDeck must contain at least 40 cards" }
-                    val course = services.courseService.setDeck(request.playerId.toPlayerId(), request.eventName, request.toCourseDeck(), request.toCourseSummary())
-                    call.respond(courseView(course))
-                }
-                post("/play") {
-                    val request = call.receive<PlayDraftRequest>()
-                    call.respond(services.matchLauncher.launchCourseMatch(request.playerId.toPlayerId(), request.eventName))
-                }
-                delete {
-                    val playerId = call.requiredQuery("playerId").toPlayerId()
-                    val eventName = call.requiredQuery("eventName")
-                    services.draftService.drop(playerId, eventName)
-                    services.courseService.drop(playerId, eventName)
-                    call.respond(HttpStatusCode.NoContent)
-                }
-            }
+            installDraftRoutes(services)
         }
     }
+}
+
+private fun Route.installDraftRoutes(services: WebDoorServices) {
+    route("/draft") {
+        post("/start") {
+            val request = call.receive<StartDraftRequest>()
+            val playerId = request.playerId.toPlayerId()
+            val existingCourse = services.courseService.getCourse(playerId, request.eventName)
+            if (EventRegistry.isDraft(request.eventName) && existingCourse?.module == CourseModule.Complete) {
+                services.draftService.drop(playerId, request.eventName)
+            }
+            services.courseService.join(playerId, request.eventName)
+            call.respond(sessionView(services.draftService.startDraft(playerId, request.eventName)))
+        }
+        post("/pick") {
+            val request = call.receive<PickDraftRequest>()
+            val playerId = request.playerId.toPlayerId()
+            val session =
+                services.draftService.pick(
+                    playerId,
+                    request.eventName,
+                    request.cardId,
+                    request.packNumber,
+                    request.pickNumber,
+                )
+            if (session.status == DraftStatus.Completed) {
+                val collationId = EventRegistry.findEvent(request.eventName)?.collationId ?: 0
+                services.courseService.completeDraft(playerId, request.eventName, session.pickedCards, collationId)
+            }
+            call.respond(sessionView(session))
+        }
+        get("/status") {
+            val playerId = call.requiredQuery("playerId").toPlayerId()
+            val eventName = call.requiredQuery("eventName")
+            val session = services.draftService.getStatus(playerId, eventName)
+            if (session == null) call.respond(HttpStatusCode.NotFound) else call.respond(sessionView(session))
+        }
+        post("/deck") {
+            val request = call.receive<SubmitDeckRequest>()
+            require(request.mainDeck.sumOf { it.quantity } >= 40) { "mainDeck must contain at least 40 cards" }
+            val course =
+                services.courseService.setDeck(
+                    request.playerId.toPlayerId(),
+                    request.eventName,
+                    request.toCourseDeck(),
+                    request.toCourseSummary(),
+                )
+            call.respond(courseView(course))
+        }
+        post("/play") {
+            val request = call.receive<PlayDraftRequest>()
+            call.respond(services.matchLauncher.launchCourseMatch(request.playerId.toPlayerId(), request.eventName))
+        }
+        delete {
+            val playerId = call.requiredQuery("playerId").toPlayerId()
+            val eventName = call.requiredQuery("eventName")
+            services.draftService.drop(playerId, eventName)
+            services.courseService.drop(playerId, eventName)
+            call.respond(HttpStatusCode.NoContent)
+        }
+    }
+}
+
+private fun Route.installAuthRoutes(services: WebDoorServices) {
+    route("/auth") {
+        get("/me") {
+            val player = services.authService.validate(call.request.cookies[WEB_SESSION_COOKIE])
+            call.respond(AuthView(playerId = player?.playerId))
+        }
+        post("/request-code") {
+            val request = call.receive<RequestLoginCodeRequest>()
+            when (
+                services.authService.requestCode(
+                    request.email,
+                    call.request.origin.remoteHost,
+                    call.request.headers["User-Agent"],
+                )
+            ) {
+                StartLoginResult.Sent -> call.respond(HttpStatusCode.NoContent)
+                StartLoginResult.Cooldown,
+                StartLoginResult.RateLimited,
+                -> call.respond(HttpStatusCode.TooManyRequests)
+
+                StartLoginResult.EmailSendFailed -> call.respond(HttpStatusCode.ServiceUnavailable)
+            }
+        }
+        post("/verify") {
+            val request = call.receive<VerifyLoginCodeRequest>()
+            when (
+                val result =
+                    services.authService.verify(
+                        request.email,
+                        request.code,
+                        call.request.origin.remoteHost,
+                        call.request.headers["User-Agent"],
+                    )
+            ) {
+                VerifyLoginResult.InvalidOrExpired -> call.respond(HttpStatusCode.Unauthorized)
+                VerifyLoginResult.TooManyAttempts,
+                VerifyLoginResult.RateLimited,
+                -> call.respond(HttpStatusCode.TooManyRequests)
+
+                is VerifyLoginResult.Success -> call.respondLoginSuccess(result)
+            }
+        }
+        post("/logout") {
+            services.authService.logout(call.request.cookies[WEB_SESSION_COOKIE].orEmpty())
+            call.response.cookies.append(Cookie(WEB_SESSION_COOKIE, "", path = "/", maxAge = 0))
+            call.respond(HttpStatusCode.NoContent)
+        }
+    }
+}
+
+private suspend fun io.ktor.server.application.ApplicationCall.respondLoginSuccess(result: VerifyLoginResult.Success) {
+    response.cookies.append(
+        Cookie(
+            name = WEB_SESSION_COOKIE,
+            value = result.token,
+            path = "/",
+            httpOnly = true,
+            maxAge = WEB_SESSION_MAX_AGE_SECONDS,
+        ),
+    )
+    respond(LoginResponse(result.player.playerId, result.player.email))
 }
 
 private object WebDoorRoutes

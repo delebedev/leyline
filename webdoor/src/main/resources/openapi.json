@@ -4,6 +4,9 @@
   "paths": {
     "/gre": { "get": { "parameters": [{ "name": "matchId", "in": "query", "required": true, "schema": { "type": "string" } }], "responses": { "101": { "description": "Live GRE WebSocket" } } } },
     "/api/auth/me": { "get": { "responses": { "200": { "description": "Current web session" } } } },
+    "/api/auth/request-code": { "post": { "responses": { "204": { "description": "Login code sent" } } } },
+    "/api/auth/verify": { "post": { "responses": { "200": { "description": "Session created" }, "401": { "description": "Invalid code" } } } },
+    "/api/auth/logout": { "post": { "responses": { "204": { "description": "Session revoked" } } } },
     "/api/collection": { "get": { "parameters": [{ "name": "playerId", "in": "query", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Collection grpIds" } } } },
     "/api/cards/metadata": { "get": { "responses": { "200": { "description": "Card metadata" } } } },
     "/api/courses": { "get": { "parameters": [{ "name": "playerId", "in": "query", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Courses" } } } },
