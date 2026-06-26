@@ -70,11 +70,14 @@ class PromptClassifierTest :
         }
 
         test("modal prompt classifies as modal choice") {
-            classify(
-                promptType = "modal",
-                message = "Choose mode for Charming Prince",
-                semantic = PromptSemantic.ModalChoice,
-            ).shouldBeInstanceOf<ClassifiedPrompt.ModalChoice>()
+            val result =
+                classify(
+                    promptType = "modal",
+                    message = "Choose mode for Charming Prince",
+                    semantic = PromptSemantic.ModalChoice,
+                ).shouldBeInstanceOf<ClassifiedPrompt.ModalChoice>()
+
+            result.pendingPrompt.request.semantic shouldBe PromptSemantic.ModalChoice
         }
 
         test("legend rule prompt classifies as select-n") {
@@ -309,9 +312,12 @@ class PromptClassifierTest :
         }
 
         test("plain prompt without candidate refs classifies as auto-resolve") {
-            classify(
-                promptType = "confirm",
-                message = "Discard to hand size",
-            ).shouldBeInstanceOf<ClassifiedPrompt.AutoResolve>()
+            val result =
+                classify(
+                    promptType = "confirm",
+                    message = "Discard to hand size",
+                ).shouldBeInstanceOf<ClassifiedPrompt.AutoResolve>()
+
+            result.pendingPrompt.request.candidateRefs shouldBe emptyList()
         }
     })
