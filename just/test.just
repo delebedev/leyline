@@ -22,20 +22,25 @@ test-gate: docs-lint
     if [ "$(git config --get core.hooksPath || echo)" != ".githooks" ]; then
         echo "⚠  pre-push hooks not installed — run 'just hooks-install' to enable fmt-check/detekt/docs-lint pre-push" >&2
     fi
-    ./gradlew ktlintCheck detekt \
-        :matchdoor:testGate :matchdoor:jacocoTestReport \
-        :frontdoor:test :frontdoor:jacocoTestReport \
-        :account:test :account:jacocoTestReport
+    ./gradlew ktlintCheck detekt
+    ./gradlew --rerun-tasks \
+        :matchdoor:testGate \
+        :frontdoor:test \
+        :account:test
+    ./gradlew \
+        :matchdoor:jacocoTestReport \
+        :frontdoor:jacocoTestReport \
+        :account:jacocoTestReport
 
 # matchdoor integration tests (boots engine per fork — run after risky matchdoor changes)
 [group('test')]
 test-integration:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:testIntegration :matchdoor:jacocoTestReport
+    cd "{{project_dir}}" && ./gradlew --rerun-tasks :matchdoor:testIntegration :matchdoor:jacocoTestReport
 
 # puzzle-backed scripted acceptance suites
 [group('test')]
 test-acceptance:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:testAcceptance
+    cd "{{project_dir}}" && ./gradlew --rerun-tasks :matchdoor:testAcceptance
 
 # strict integration test for slice verification — bypasses gradle's test
 # build cache (which serves stale PASS results when forge jar inputs match
