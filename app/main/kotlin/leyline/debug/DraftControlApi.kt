@@ -10,6 +10,7 @@ import leyline.config.RuntimeMatchConfigRegistry
 import leyline.frontdoor.domain.Course
 import leyline.frontdoor.domain.CourseDeck
 import leyline.frontdoor.domain.CourseDeckSummary
+import leyline.frontdoor.domain.CourseModule
 import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.DraftSession
@@ -74,6 +75,10 @@ class DraftControlApi(
         val playerId = request.playerId.toPlayerId()
         val courseService = courseService(ex) ?: return
         val draftService = draftService(ex) ?: return
+        val existingCourse = courseService.getCourse(playerId, request.eventName)
+        if (EventRegistry.isDraft(request.eventName) && existingCourse?.module == CourseModule.Complete) {
+            draftService.drop(playerId, request.eventName)
+        }
         courseService.join(playerId, request.eventName)
         respondJson(ex, sessionView(draftService.startDraft(playerId, request.eventName)))
     }

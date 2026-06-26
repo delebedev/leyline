@@ -80,6 +80,26 @@ class DraftControlApiTest :
             }
         }
 
+        test("start clears stale completed draft when prior course is complete") {
+            withApi { client, courseRepo, _, _, _ ->
+                completeDraftAndSubmitDeck(client, playerId = "p1")
+                val completeCourse =
+                    checkNotNull(courseRepo.findByPlayerAndEvent(PlayerId("p1"), "QuickDraft_FDN_20260223"))
+                        .copy(module = CourseModule.Complete)
+                courseRepo.save(completeCourse)
+
+                val restarted = client.post("/api/draft/start", """{"playerId":"p1","eventName":"QuickDraft_FDN_20260223"}""")
+
+                assertSoftly {
+                    restarted.code shouldBe 200
+                    restarted.json()["status"]!!.jsonPrimitive.content shouldBe "PickNext"
+                    restarted.json()["pickNumber"]!!.jsonPrimitive.int shouldBe 0
+                    restarted.json()["pickedCards"]!!.jsonArray shouldBe emptyList<Any>()
+                    restarted.json()["draftPack"]!!.jsonArray.map { it.jsonPrimitive.int } shouldBe listOf(100, 101)
+                }
+            }
+        }
+
         test("deck submission stores course deck") {
             withApi { client, courseRepo, _, _, _ ->
                 client.post("/api/draft/start", """{"playerId":"p1","eventName":"QuickDraft_FDN_20260223"}""")
