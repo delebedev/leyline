@@ -1,4 +1,5 @@
 import leyline.build.CheckUpstreamTask
+import leyline.build.VerifyWebProfilePostureTask
 import leyline.build.WriteClasspathTask
 
 plugins {
@@ -109,6 +110,15 @@ dependencies {
     testImplementation(libs.kotest.assertions)
 }
 
+val webProfileRuntimeClasspath by configurations.creating {
+    isCanBeResolved = true
+    isCanBeConsumed = false
+}
+
+dependencies {
+    webProfileRuntimeClasspath(project(":webdoor"))
+}
+
 // --- Upstream JAR freshness check ---
 
 val checkUpstream by tasks.registering(CheckUpstreamTask::class) {
@@ -197,6 +207,18 @@ val writeClasspath by tasks.registering(WriteClasspathTask::class) {
     outputFile.set(layout.projectDirectory.file("target/classpath.txt"))
 }
 
+val writeWebProfileClasspath by tasks.registering(WriteClasspathTask::class) {
+    classpath.set(providers.provider { webProfileRuntimeClasspath.asPath })
+    outputFile.set(layout.projectDirectory.file("target/web-classpath.txt"))
+}
+
+val verifyWebProfilePosture by tasks.registering(VerifyWebProfilePostureTask::class) {
+    group = "verification"
+    description = "Verify the web profile classpath excludes local Front Door and account surfaces."
+    dependsOn(writeWebProfileClasspath)
+    classpath.from(webProfileRuntimeClasspath)
+}
+
 tasks.named("classes") {
-    finalizedBy(writeClasspath)
+    finalizedBy(writeClasspath, writeWebProfileClasspath)
 }
