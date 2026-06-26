@@ -22,9 +22,9 @@ import leyline.domain.service.CourseService
 import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.EventRegistry
-import leyline.frontdoor.service.LobbyStubs
 import leyline.domain.service.MatchCoordinator
 import leyline.domain.service.MatchmakingService
+import leyline.frontdoor.service.LobbyStubs
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.CmdType
 import leyline.frontdoor.wire.DeckWireBuilder

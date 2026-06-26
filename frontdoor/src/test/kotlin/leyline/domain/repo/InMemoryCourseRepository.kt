@@ -8,6 +8,7 @@ class InMemoryCourseRepository : CourseRepository {
     private val courses = mutableMapOf<CourseId, Course>()
 
     override fun findById(id: CourseId) = courses[id]
+
     override fun findByPlayer(playerId: PlayerId) = courses.values.filter { it.playerId == playerId }
 
     override fun findByPlayerAndEvent(

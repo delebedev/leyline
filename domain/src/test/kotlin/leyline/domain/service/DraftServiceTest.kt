@@ -66,8 +66,6 @@ private class ScriptedDraftDriver(
 
 class DraftServiceTest :
     FunSpec({
-
-
         val playerId = PlayerId("test-player")
         val eventName = "QuickDraft_FDN_20260223"
 

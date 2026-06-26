@@ -6,9 +6,9 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.*
-import leyline.frontdoor.FdTag
 import leyline.domain.*
 import leyline.domain.service.EventRegistry
+import leyline.frontdoor.FdTag
 
 class EventWireBuilderTest :
     FunSpec({
