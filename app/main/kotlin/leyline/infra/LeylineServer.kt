@@ -91,6 +91,18 @@ class LeylineServer(
     val runtimePuzzle = AtomicReference<String?>(null)
     val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
 
+    @Volatile
+    var courseServiceForControl: CourseService? = null
+        private set
+
+    @Volatile
+    var draftServiceForControl: DraftService? = null
+        private set
+
+    @Volatile
+    var matchCoordinatorForControl: AppMatchCoordinator? = null
+        private set
+
     /** Health probe: true when both server channels are bound and active. */
     fun isHealthy(): Boolean {
         val fd = frontDoorChannel
@@ -195,6 +207,8 @@ class LeylineServer(
                     }
                 },
             )
+        courseServiceForControl = courseService
+        draftServiceForControl = draftService
         draftService.discardIncompleteSessions()
         val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)
         val matchmakingService =
@@ -214,7 +228,9 @@ class LeylineServer(
                 deckService = deckService,
                 courseService = courseService,
                 draftRepo = draftRepo,
+                nameByGrpId = cardRepo::findNameByGrpId,
             )
+        matchCoordinatorForControl = coordinator
 
         frontDoorChannel =
             bindServer(fdSsl, frontDoorPort) { ch ->

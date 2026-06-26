@@ -617,7 +617,7 @@ class MatchSession(
 
         // Notify coordinator (e.g. CourseService for sealed events)
         try {
-            coordinator?.reportMatchResult(humanWon)
+            coordinator?.reportMatchResult(matchId, humanWon)
         } catch (e: Exception) {
             log.warn("MatchSession: reportMatchResult failed: {}", e.message)
         }
