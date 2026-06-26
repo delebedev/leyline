@@ -1,5 +1,6 @@
 package leyline.behavior.cards
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
@@ -40,16 +41,18 @@ class VehicleCrewPuzzleTest :
 
             startPuzzleRaw(pzl, validating = true)
 
-            // Auto-pass should stop at Main1 when crew ability is available
-            phase() shouldBe "MAIN1"
+            assertSoftly {
+                // Auto-pass should stop at Main1 when crew ability is available
+                phase() shouldBe "MAIN1"
 
-            // Activate crew ability on Brute Suit — engine auto-selects Centaur Courser
-            activateAbility("Brute Suit").shouldBeTrue()
+                // Activate crew ability on Brute Suit — engine auto-selects Centaur Courser
+                activateAbility("Brute Suit").shouldBeTrue()
 
-            // Pass priority until game over — auto-pass handles combat
-            passUntil(maxPasses = 40) { isGameOver() }.shouldBeTrue()
+                // Pass priority until game over — auto-pass handles combat
+                passUntil(maxPasses = 40) { isGameOver() }.shouldBeTrue()
 
-            isGameOver().shouldBeTrue()
-            human.hasWon().shouldBeTrue()
+                isGameOver().shouldBeTrue()
+                human.hasWon().shouldBeTrue()
+            }
         }
     })

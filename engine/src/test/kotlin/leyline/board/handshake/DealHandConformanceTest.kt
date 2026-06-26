@@ -55,14 +55,15 @@ class DealHandConformanceTest :
 
             val gsm = gre.gameStateMessage
             assertSoftly {
+                gre.type shouldBe GREMessageType.GameStateMessage_695e
+                gre.msgId shouldBe 6
                 gsm.type shouldBe GameStateType.Diff
                 gsm.update shouldBe GameStateUpdate.SendAndRecord
                 gsm.gameStateId shouldBe 2
                 gsm.prevGameStateId shouldBe 1
+                gsm.zonesCount shouldBe 4
+                gsm.gameObjectsCount shouldBeGreaterThan 0
             }
-
-            gsm.zonesCount shouldBe 4
-            gsm.gameObjectsCount shouldBeGreaterThan 0
 
             gsm.playersCount shouldBe 2
             for (player in gsm.playersList) {

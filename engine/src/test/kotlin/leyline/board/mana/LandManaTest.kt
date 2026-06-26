@@ -204,8 +204,8 @@ class LandManaTest :
                 playActions.shouldHaveSize(2)
                 for (a in playActions) {
                     a.shouldStop.shouldBeTrue()
-                    a.instanceId shouldNotBe 0
-                    a.grpId shouldNotBe 0
+                    a.instanceId shouldBeGreaterThan 0
+                    a.grpId shouldBeGreaterThan 0
                     a.facetId shouldBe a.instanceId
                     a.abilityGrpId shouldBe 0
                     a.manaCostCount shouldBe 0
@@ -398,9 +398,11 @@ class LandManaTest :
             val mana = actionStub(ActionType.ActivateMana)
             mana.shouldHaveSize(2)
             for (a in mana) {
-                a.instanceId shouldNotBe 0
-                a.grpId shouldBe 0
-                a.facetId shouldBe 0
+                assertSoftly {
+                    a.instanceId shouldNotBe 0
+                    a.grpId shouldBe 0
+                    a.facetId shouldBe 0
+                }
             }
 
             val pass = actionStub(ActionType.Pass)
@@ -423,13 +425,17 @@ class LandManaTest :
             val origId2 = b.getOrAllocInstanceId(ForgeCardId(lands[1].id))
 
             capture(b, game, counter) { moveToBattlefield(lands[0], game) }
-            b.getLimboInstanceIds().shouldHaveSize(1)
-            b.getLimboInstanceIds().shouldContain(origId1)
+            assertSoftly {
+                b.getLimboInstanceIds().shouldHaveSize(1)
+                b.getLimboInstanceIds().shouldContain(origId1)
+            }
 
             capture(b, game, counter) { moveToBattlefield(lands[1], game) }
-            b.getLimboInstanceIds().shouldHaveSize(2)
-            b.getLimboInstanceIds().shouldContain(origId1)
-            b.getLimboInstanceIds().shouldContain(origId2)
+            assertSoftly {
+                b.getLimboInstanceIds().shouldHaveSize(2)
+                b.getLimboInstanceIds().shouldContain(origId1)
+                b.getLimboInstanceIds().shouldContain(origId2)
+            }
         }
 
         // --- AutoTap preference ---

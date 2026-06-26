@@ -1,6 +1,7 @@
 package leyline.behavior.cards
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
@@ -80,30 +81,29 @@ class NoviceInspectorTest :
                     .cards
                     .toList()
                     .size
-            activateAbility(clueCard.name).shouldBeTrue()
+            assertSoftly {
+                activateAbility(clueCard.name).shouldBeTrue()
+            }
 
-            // 4. Pass until Clue is gone (cost paid + ability resolves)
-            passUntil(maxPasses = 15) {
+            assertSoftly {
+                passUntil(maxPasses = 15) {
+                    human
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .toList()
+                        .none { it.name.contains("Clue", ignoreCase = true) }
+                }.shouldBeTrue()
                 human
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .toList()
                     .none { it.name.contains("Clue", ignoreCase = true) }
-            }.shouldBeTrue()
-
-            // Clue sacrificed — no longer on battlefield
-            human
-                .getZone(ZoneType.Battlefield)
-                .cards
-                .toList()
-                .none { it.name.contains("Clue", ignoreCase = true) }
-                .shouldBeTrue()
-
-            // Draw happened — library shrank by 1
-            human
-                .getZone(ZoneType.Library)
-                .cards
-                .toList()
-                .size shouldBe libBefore - 1
+                    .shouldBeTrue()
+                human
+                    .getZone(ZoneType.Library)
+                    .cards
+                    .toList()
+                    .size shouldBe libBefore - 1
+            }
         }
     })

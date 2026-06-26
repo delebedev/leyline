@@ -2,7 +2,6 @@ package leyline.game.codes
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -31,6 +30,6 @@ class KeywordQualificationsTest :
         }
 
         test("knownKeywords includes Menace") {
-            KeywordQualifications.knownKeywords() shouldContain "Menace"
+            KeywordQualifications.knownKeywords() shouldBe setOf("Menace")
         }
     })

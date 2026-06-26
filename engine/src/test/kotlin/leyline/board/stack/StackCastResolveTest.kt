@@ -5,6 +5,7 @@ import forge.game.event.GameEventSpellResolved
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -77,13 +78,17 @@ class StackCastResolveTest :
             val types = gsm.annotationsList.map { it.typeList.first() }
 
             assertSoftly {
-                types shouldContain AnnotationType.ObjectIdChanged
-                types shouldContain AnnotationType.ZoneTransfer_af5a
-                types shouldContain AnnotationType.AbilityInstanceCreated
-                types shouldContain AnnotationType.TappedUntappedPermanent
-                types shouldContain AnnotationType.ManaPaid
-                types shouldContain AnnotationType.AbilityInstanceDeleted
-                types shouldContain AnnotationType.UserActionTaken
+                types shouldContainAll
+                    listOf(
+                        AnnotationType.ObjectIdChanged,
+                        AnnotationType.ZoneTransfer_af5a,
+                        AnnotationType.AbilityInstanceCreated,
+                        AnnotationType.TappedUntappedPermanent,
+                        AnnotationType.ManaPaid,
+                        AnnotationType.AbilityInstanceDeleted,
+                        AnnotationType.UserActionTaken,
+                    )
+                types.first() shouldBe AnnotationType.ObjectIdChanged
             }
         }
 

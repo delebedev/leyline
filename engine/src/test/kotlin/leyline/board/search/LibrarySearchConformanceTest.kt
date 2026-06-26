@@ -89,29 +89,24 @@ class LibrarySearchConformanceTest :
 
             // --- Field-by-field comparison against reference ---
 
-            // Structure
             assertSoftly {
+                // Structure
                 mountain.type shouldBe GameObjectType.Card
                 mountain.visibility shouldBe Visibility.Private
                 mountain.viewersList shouldBe listOf(1)
                 mountain.ownerSeatId shouldBe 1
                 mountain.controllerSeatId shouldBe 1
                 mountain.zoneId shouldBe ZoneIds.P1_LIBRARY
-            }
 
-            // Card identity
-            assertSoftly {
+                // Card identity
                 mountain.cardTypesList shouldBe listOf(CardType.Land_a80b)
                 mountain.superTypesList shouldBe listOf(SuperType.Basic)
                 mountain.subtypesList.map { it.name } shouldBe listOf("Mountain")
+
+                mountain.uniqueAbilitiesList.size shouldBe 1
+                mountain.hasPower() shouldBe false
+                mountain.hasToughness() shouldBe false
             }
-
-            // Abilities — reference shows uniqueAbilityCount=1 (mana ability)
-            mountain.uniqueAbilitiesList.size shouldBe 1
-
-            // Fields that should NOT be present on a land
-            mountain.hasPower() shouldBe false
-            mountain.hasToughness() shouldBe false
 
             // Write full object fields to file for diff against reference
             val outputDir = java.io.File("build/conformance").also { it.mkdirs() }
@@ -171,15 +166,15 @@ class LibrarySearchConformanceTest :
             val libraryObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.P1_LIBRARY }
 
             for (obj in libraryObjects) {
-                // Every library object during search must be:
-                obj.type shouldBe GameObjectType.Card
-                obj.visibility shouldBe Visibility.Private
-                obj.viewersList shouldBe listOf(1)
-                obj.ownerSeatId shouldBe 1
-                obj.controllerSeatId shouldBe 1
-                obj.zoneId shouldBe ZoneIds.P1_LIBRARY
-                // Must have card types
-                obj.cardTypesList.shouldNotBeEmpty()
+                assertSoftly {
+                    obj.type shouldBe GameObjectType.Card
+                    obj.visibility shouldBe Visibility.Private
+                    obj.viewersList shouldBe listOf(1)
+                    obj.ownerSeatId shouldBe 1
+                    obj.controllerSeatId shouldBe 1
+                    obj.zoneId shouldBe ZoneIds.P1_LIBRARY
+                    obj.cardTypesList.shouldNotBeEmpty()
+                }
             }
         }
     })

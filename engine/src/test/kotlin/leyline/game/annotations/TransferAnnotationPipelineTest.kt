@@ -70,10 +70,10 @@ class TransferAnnotationPipelineTest :
                 )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
-            // ObjectIdChanged should reference origId in affectedIds
-            annotations[0].affectedIdsList shouldContain 100
-            // ZoneTransfer should reference newId
-            annotations[1].affectedIdsList shouldContain 200
+            assertSoftly {
+                annotations[0].affectedIdsList shouldBe listOf(100)
+                annotations[1].affectedIdsList shouldBe listOf(200)
+            }
         }
 
         test("playLandProducesPersistentAnnotation") {

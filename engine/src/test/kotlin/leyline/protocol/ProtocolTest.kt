@@ -40,12 +40,10 @@ class ProtocolTest :
                 cards.findNameByGrpId(67890) shouldBe "Counterspell"
                 cards.findGrpIdByName("Lightning Bolt") shouldBe 12345
                 cards.findGrpIdByName("Counterspell") shouldBe 67890
+                cards.findNameByGrpId(99999).shouldBeNull()
+                cards.findGrpIdByName("Nonexistent Card").shouldBeNull()
+                cards.registeredCount shouldBe 2
             }
-
-            cards.findNameByGrpId(99999).shouldBeNull()
-            cards.findGrpIdByName("Nonexistent Card").shouldBeNull()
-
-            cards.registeredCount shouldBe 2
         }
 
         test("card repository clear") {
@@ -136,9 +134,11 @@ class ProtocolTest :
             cards.register(93940, "Llanowar Elves")
             cards.register(93860, "Serra Angel")
 
-            cards.findGrpIdByName("Llanowar Elves") shouldBe 93940
-            cards.findGrpIdByName("Serra Angel") shouldBe 93860
-            cards.findGrpIdByName("Nonexistent Card").shouldBeNull()
+            assertSoftly {
+                cards.findGrpIdByName("Llanowar Elves") shouldBe 93940
+                cards.findGrpIdByName("Serra Angel") shouldBe 93860
+                cards.findGrpIdByName("Nonexistent Card").shouldBeNull()
+            }
         }
 
         test("build deck message from grp id list") {

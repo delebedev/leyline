@@ -1,5 +1,6 @@
 package leyline.match
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -93,14 +94,15 @@ class ClientSettingsMergeTest :
                 }
 
             val merged = MatchSession.mergeSettings(s1, s2)
-            merged.stopsCount shouldBe 2
-            // Different scopes — both preserved
-            merged.stopsList.any {
-                it.stopType == StopType.PrecombatMainPhase && it.appliesTo == SettingScope.Team_ac6e
-            } shouldBe true
-            merged.stopsList.any {
-                it.stopType == StopType.EndStep_ad1f && it.appliesTo == SettingScope.Opponents
-            } shouldBe true
+            assertSoftly {
+                merged.stopsCount shouldBe 2
+                merged.stopsList.any {
+                    it.stopType == StopType.PrecombatMainPhase && it.appliesTo == SettingScope.Team_ac6e
+                } shouldBe true
+                merged.stopsList.any {
+                    it.stopType == StopType.EndStep_ad1f && it.appliesTo == SettingScope.Opponents
+                } shouldBe true
+            }
         }
 
         test("merge replaces same stop type but different scope independently") {
@@ -115,16 +117,16 @@ class ClientSettingsMergeTest :
                 }
 
             val merged = MatchSession.mergeSettings(s1, s2)
-            merged.stopsCount shouldBe 2
-            // Team scope still Set
-            merged.stopsList
-                .first {
-                    it.appliesTo == SettingScope.Team_ac6e
-                }.status shouldBe SettingStatus.Set
-            // Opponents scope now Clear
-            merged.stopsList
-                .first {
-                    it.appliesTo == SettingScope.Opponents
-                }.status shouldBe SettingStatus.Clear_a3fe
+            assertSoftly {
+                merged.stopsCount shouldBe 2
+                merged.stopsList
+                    .first {
+                        it.appliesTo == SettingScope.Team_ac6e
+                    }.status shouldBe SettingStatus.Set
+                merged.stopsList
+                    .first {
+                        it.appliesTo == SettingScope.Opponents
+                    }.status shouldBe SettingStatus.Clear_a3fe
+            }
         }
     })

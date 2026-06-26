@@ -3,8 +3,7 @@ package leyline.session.rules
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.InstanceId
 import leyline.testkit.SessionTest
@@ -100,11 +99,9 @@ class LegendRuleTest :
                 resolution.messages.flatMap { msg ->
                     if (msg.hasGameStateMessage()) msg.gameStateMessage.annotationsList else emptyList()
                 }
-            val zt =
-                allAnnotations
-                    .filter { it.typeList.any { t -> t == AnnotationType.ZoneTransfer_af5a } }
-                    .firstOrNull { it.detailString("category") == "SBA_LegendRule" }
-            zt.shouldNotBeNull()
+            allAnnotations
+                .filter { AnnotationType.ZoneTransfer_af5a in it.typeList }
+                .count { it.detailString("category") == "SBA_LegendRule" } shouldBe 1
         }
 
         test("keeps chosen legendary on battlefield") {
@@ -132,10 +129,7 @@ class LegendRuleTest :
                 resolution.messages.flatMap { msg ->
                     if (msg.hasGameStateMessage()) msg.gameStateMessage.annotationsList else emptyList()
                 }
-            allAnnotations
-                .filter {
-                    it.typeList.any { t -> t == AnnotationType.ObjectIdChanged }
-                }.shouldNotBeEmpty()
+            allAnnotations.count { AnnotationType.ObjectIdChanged in it.typeList } shouldBeGreaterThan 0
         }
 
         test("state validity after legend rule") {
@@ -143,8 +137,10 @@ class LegendRuleTest :
 
             castAndResolveLegendRule()
 
-            harness.accumulator.assertConsistent("after legend rule")
-            assertGsIdChain(allMessages, context = "legend rule flow")
-            isGameOver().shouldBeFalse()
+            assertSoftly {
+                harness.accumulator.assertConsistent("after legend rule")
+                assertGsIdChain(allMessages, context = "legend rule flow")
+                isGameOver().shouldBeFalse()
+            }
         }
     })

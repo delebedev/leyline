@@ -82,10 +82,11 @@ class GamePlaybackCounterTest :
             val bridge = GameBridge(cardRepository = InMemoryCardRepository(), messageCounter = counter)
             val playback = GamePlayback(bridge, "test", 1, counter)
 
-            playback.drainQueue().shouldBeEmpty()
-            playback.hasPendingMessages().shouldBeFalse()
-
-            counter.nextGsId() shouldBe 11
-            counter.currentGsId() shouldBe 11
+            assertSoftly {
+                playback.drainQueue().shouldBeEmpty()
+                playback.hasPendingMessages().shouldBeFalse()
+                counter.nextGsId() shouldBe 11
+                counter.currentGsId() shouldBe 11
+            }
         }
     })

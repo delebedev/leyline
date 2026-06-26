@@ -3,7 +3,6 @@ package leyline.game.generator
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.bootstrap.GameBootstrap
@@ -57,15 +56,17 @@ class PuzzleSourceTest :
                 """.trimIndent()
 
             val meta = PuzzleSource.parseMetadata(content)
-            meta.name shouldBe "Minimal"
-            meta.goal.shouldBeNull()
-            meta.turns.shouldBeNull()
-            meta.difficulty.shouldBeNull()
+            assertSoftly {
+                meta.name shouldBe "Minimal"
+                meta.goal.shouldBeNull()
+                meta.turns.shouldBeNull()
+                meta.difficulty.shouldBeNull()
+            }
         }
 
         test("loadFromResource returns valid puzzle") {
             val puzzle = PuzzleSource.loadFromResource("puzzles/lands-only.pzl")
-            puzzle.shouldNotBeNull()
+            puzzle.name shouldBe "Lands Only"
         }
 
         test("loadFromText returns valid puzzle") {
@@ -86,6 +87,6 @@ class PuzzleSourceTest :
                 """.trimIndent()
 
             val puzzle = PuzzleSource.loadFromText(content, "inline-test")
-            puzzle.shouldNotBeNull()
+            puzzle.name shouldBe "Inline Test"
         }
     })

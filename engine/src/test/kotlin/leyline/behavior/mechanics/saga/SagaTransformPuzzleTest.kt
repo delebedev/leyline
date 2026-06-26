@@ -1,6 +1,7 @@
 package leyline.behavior.mechanics.saga
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
@@ -132,8 +133,9 @@ class SagaTransformPuzzleTest :
                                 ?.valueStringList
                                 ?.firstOrNull()
                         }
-                ("Exile" in zoneCategories).shouldBeTrue()
-                ("Return" in zoneCategories).shouldBeTrue()
+                assertSoftly {
+                    zoneCategories.containsAll(listOf("Exile", "Return")).shouldBeTrue()
+                }
 
                 // --- Layer 3: client-accumulator (client reconstruction) ---
                 // The critical assertions: if the wire emissions are buggy,

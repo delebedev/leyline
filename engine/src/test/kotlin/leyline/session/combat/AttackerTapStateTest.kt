@@ -1,5 +1,6 @@
 package leyline.session.combat
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -37,12 +38,15 @@ class AttackerTapStateTest :
                 ),
             )
 
-            // Turn 1: play Mountain, cast Raging Goblin (haste)
-            playLand("Mountain").shouldBeTrue()
-            harness.resolveSpell("Raging Goblin").shouldBeTrue()
+            assertSoftly {
+                playLand("Mountain").shouldBeTrue()
+                harness.resolveSpell("Raging Goblin").shouldBeTrue()
+            }
 
-            turn() shouldBe 1
-            isAiTurn().shouldBeFalse()
+            assertSoftly {
+                turn() shouldBe 1
+                isAiTurn().shouldBeFalse()
+            }
 
             val creatures = humanBattlefieldCreatures()
             creatures.shouldNotBeEmpty()
@@ -64,8 +68,10 @@ class AttackerTapStateTest :
                     .allGameObjects()
                     .firstOrNull { it.instanceId == attackerIid && it.attackState == AttackState.Attacking }
 
-            attackerObj.shouldNotBeNull()
-            attackerObj.isTapped.shouldBeTrue()
+            assertSoftly {
+                attackerObj.shouldNotBeNull()
+                attackerObj.isTapped.shouldBeTrue()
+            }
         }
 
         test("TappedUntappedPermanent annotation emitted for attacker") {
@@ -79,9 +85,10 @@ class AttackerTapStateTest :
                 ),
             )
 
-            // Turn 1: play Mountain, cast Raging Goblin (haste)
-            playLand("Mountain").shouldBeTrue()
-            harness.resolveSpell("Raging Goblin").shouldBeTrue()
+            assertSoftly {
+                playLand("Mountain").shouldBeTrue()
+                harness.resolveSpell("Raging Goblin").shouldBeTrue()
+            }
 
             val creatures = humanBattlefieldCreatures()
             creatures.shouldNotBeEmpty()
@@ -97,9 +104,9 @@ class AttackerTapStateTest :
                     .annotationsOfType(AnnotationType.TappedUntappedPermanent)
                     .firstOrNull { attackerIid in it.affectedIdsList }
 
-            tapAnnotation.shouldNotBeNull()
-
-            // Conformance: tapped detail should be 1 (int32, matching reference)
-            tapAnnotation.detailInt("tapped") shouldBe 1
+            assertSoftly {
+                tapAnnotation.shouldNotBeNull()
+                tapAnnotation.detailInt("tapped") shouldBe 1
+            }
         }
     })

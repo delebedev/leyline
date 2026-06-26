@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -192,17 +193,14 @@ class EffectLifecycleTest :
             // affectorId set
             ptEffect.affectorId shouldBe swiftspearIid
 
-            // effect_id detail present
             val effectIdDetail = ptEffect.detailsList.firstOrNull { it.key == "effect_id" }
-            effectIdDetail.shouldNotBeNull()
-            effectIdDetail.getValueInt32(0) shouldBeGreaterThan 0
-
-            // No spurious LayeredEffectType
-            ptEffect.detailsList.none { it.key == "LayeredEffectType" } shouldBe true
-
-            // sourceAbilityGRPID present (prowess keyword mapped)
             val sourceAbility = ptEffect.detailsList.firstOrNull { it.key == "sourceAbilityGRPID" }
-            sourceAbility.shouldNotBeNull()
-            sourceAbility.getValueInt32(0) shouldBeGreaterThan 0
+            assertSoftly {
+                effectIdDetail.shouldNotBeNull()
+                effectIdDetail.getValueInt32(0) shouldBeGreaterThan 0
+                ptEffect.detailsList.map { it.key } shouldNotContain "LayeredEffectType"
+                sourceAbility.shouldNotBeNull()
+                sourceAbility.getValueInt32(0) shouldBeGreaterThan 0
+            }
         }
     })

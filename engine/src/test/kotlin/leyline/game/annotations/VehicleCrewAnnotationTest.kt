@@ -6,7 +6,6 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -55,8 +54,7 @@ class VehicleCrewAnnotationTest :
                         obj.cardTypesList.contains(CardType.Artifact_a80b)
                 }
 
-            vehicleObj.cardTypesList shouldContain CardType.Creature
-            vehicleObj.cardTypesList shouldContain CardType.Artifact_a80b
+            vehicleObj.cardTypesList shouldBe listOf(CardType.Artifact_a80b, CardType.Creature)
         }
 
         test("non-vehicle artifact does not gain Creature type") {
@@ -74,7 +72,7 @@ class VehicleCrewAnnotationTest :
                         obj.cardTypesList.contains(CardType.Artifact_a80b)
                 }
 
-            artifactObj.cardTypesList shouldNotContain CardType.Creature
+            artifactObj.cardTypesList shouldBe listOf(CardType.Artifact_a80b)
         }
 
         test("creature on battlefield has correct type without overlay changes") {

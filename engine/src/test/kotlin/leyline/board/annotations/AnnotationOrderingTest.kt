@@ -1,5 +1,6 @@
 package leyline.board.annotations
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
@@ -25,9 +26,11 @@ class AnnotationOrderingTest :
 
         fun assertAnnotationIdsSequential(gsm: GameStateMessage) {
             val ids = gsm.annotationsList.map { it.id }
-            ids.shouldNotBeEmpty()
-            ids shouldBe ids.sorted()
-            ids.toSet().size shouldBe ids.size
+            assertSoftly {
+                ids.shouldNotBeEmpty()
+                ids shouldBe ids.sorted()
+                ids.toSet().size shouldBe ids.size
+            }
         }
 
         // PlayLand ordering tests moved to LandManaTest

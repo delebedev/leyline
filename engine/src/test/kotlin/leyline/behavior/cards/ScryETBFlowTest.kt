@@ -13,6 +13,7 @@ import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detail
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList
+import leyline.testkit.detailString
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -71,15 +72,16 @@ class ScryETBFlowTest :
                     ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
                         ann.detailsList.any { it.key == "category" && it.valueStringList.firstOrNull() == "PlayLand" }
                 }
-            zt.shouldNotBeNull()
-            zt.affectedIdsList.shouldNotBeEmpty()
-
-            // UserActionTaken (reference: affectorId=1 (seat), actionType=3)
             val uat =
                 allAnnotations.firstOrNull { ann ->
                     ann.typeList.any { it == AnnotationType.UserActionTaken }
                 }
-            uat.shouldNotBeNull()
+            assertSoftly {
+                allAnnotations.count { ann -> ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } } shouldBe 1
+                zt.shouldNotBeNull()
+                zt.affectedIdsList.shouldNotBeEmpty()
+                uat.shouldNotBeNull()
+            }
         }
 
         test("cast Wall of Runes produces CastSpell annotations with mana payment") {
@@ -104,22 +106,21 @@ class ScryETBFlowTest :
                     ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
                         ann.detailsList.any { it.key == "category" && it.valueStringList.firstOrNull() == "CastSpell" }
                 }
-            castZt.shouldNotBeNull()
-
-            // TappedUntappedPermanent (reference: Island tapped for mana)
             val tap =
                 allAnnotations.firstOrNull { ann ->
                     ann.typeList.any { it == AnnotationType.TappedUntappedPermanent }
                 }
-            tap.shouldNotBeNull()
-            tap.detail("tapped").shouldNotBeNull()
-
-            // ManaPaid (reference: Island → Wall of Runes, color=2 blue)
             val manaPaid =
                 allAnnotations.firstOrNull { ann ->
                     ann.typeList.any { it == AnnotationType.ManaPaid }
                 }
-            manaPaid.shouldNotBeNull()
+            assertSoftly {
+                castZt.shouldNotBeNull()
+                tap.shouldNotBeNull()
+                tap.detail("tapped").shouldNotBeNull()
+                manaPaid.shouldNotBeNull()
+                manaPaid.detailInt("color") shouldBe ManaColor.Blue_afc9.number
+            }
         }
 
         test("Wall of Runes resolution produces Resolve transfer and ETB trigger") {
@@ -145,32 +146,27 @@ class ScryETBFlowTest :
                 allAnnotations.firstOrNull { ann ->
                     ann.typeList.any { it == AnnotationType.ResolutionStart }
                 }
-            resStart.shouldNotBeNull()
-
             val resComplete =
                 allAnnotations.firstOrNull { ann ->
                     ann.typeList.any { it == AnnotationType.ResolutionComplete }
                 }
-            resComplete.shouldNotBeNull()
-
-            // ZoneTransfer with Resolve category (reference: stack → battlefield)
             val resolveZt =
                 allAnnotations.firstOrNull { ann ->
                     ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
                         ann.detailsList.any { it.key == "category" && it.valueStringList.firstOrNull() == "Resolve" }
                 }
-            resolveZt.shouldNotBeNull()
-
-            // AbilityInstanceCreated for ETB trigger
-            // Note: with deferred resolution, the CastSpell AbilityInstanceCreated
-            // fires during cast, and the ETB trigger's AbilityInstanceCreated
-            // may be absorbed into the same annotation batch.
             val triggerCreated =
                 allAnnotations.firstOrNull { ann ->
                     ann.typeList.any { it == AnnotationType.AbilityInstanceCreated }
                 }
-            triggerCreated.shouldNotBeNull()
-            triggerCreated.detail("source_zone").shouldNotBeNull()
+            assertSoftly {
+                resStart.shouldNotBeNull()
+                resComplete.shouldNotBeNull()
+                resolveZt.shouldNotBeNull()
+                resolveZt.detailString("category") shouldBe "Resolve"
+                triggerCreated.shouldNotBeNull()
+                triggerCreated.detail("source_zone").shouldNotBeNull()
+            }
         }
 
         test("scry ETB emits GroupReq with Scry context and correct specs") {
@@ -242,7 +238,10 @@ class ScryETBFlowTest :
 
             // Card should still be on top of library, not bottom
             val libCards = human.getZone(ForgeZoneType.Library).cards
-            libCards.shouldNotBeEmpty()
+            assertSoftly {
+                libCards.shouldNotBeEmpty()
+                libCards.first().name shouldBe "Island"
+            }
         }
 
         test("ETB trigger emits TriggeringObject persistent annotation, deleted on resolve") {
@@ -289,13 +288,12 @@ class ScryETBFlowTest :
 
             // Wall of Runes should be on battlefield
             val bf = human.getZone(ForgeZoneType.Battlefield).cards
-            bf.any { it.name == "Wall of Runes" }.shouldBeTrue()
-
-            // Island should be on battlefield (tapped)
-            bf.any { it.isLand }.shouldBeTrue()
-
-            harness.accumulator.assertConsistent("after scry ETB flow")
-            assertGsIdChain(allMessages, context = "scry ETB flow")
-            isGameOver().shouldBeFalse()
+            assertSoftly {
+                bf.any { it.name == "Wall of Runes" }.shouldBeTrue()
+                bf.any { it.isLand }.shouldBeTrue()
+                harness.accumulator.assertConsistent("after scry ETB flow")
+                assertGsIdChain(allMessages, context = "scry ETB flow")
+                isGameOver().shouldBeFalse()
+            }
         }
     })

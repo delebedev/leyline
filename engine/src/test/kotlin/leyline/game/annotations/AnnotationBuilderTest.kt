@@ -321,11 +321,11 @@ class AnnotationBuilderTest :
 
         test("phaseOrStepModifiedHasContent") {
             val ann = AnnotationBuilder.phaseOrStepModified(activeSeat = 2.sid, phase = 1, step = 2)
-            ann.typeList shouldContain AnnotationType.PhaseOrStepModified
-            ann.affectedIdsList shouldContain 2
-            val detailKeys = ann.detailsList.map { it.key }.toSet()
-            detailKeys shouldContain "phase"
-            detailKeys shouldContain "step"
+            assertSoftly {
+                ann.typeList shouldBe listOf(AnnotationType.PhaseOrStepModified)
+                ann.affectedIdsList shouldBe listOf(2)
+                ann.detailsList.map { it.key }.toSet() shouldBe setOf("phase", "step")
+            }
         }
 
         // --- ManaPaid ---
@@ -481,10 +481,11 @@ class AnnotationBuilderTest :
 
         test("modifiedLifePositiveDelta") {
             val ann = AnnotationBuilder.modifiedLife(playerSeatId = 1.sid, lifeDelta = 3)
-            ann.typeList shouldContain AnnotationType.ModifiedLife
-            ann.affectedIdsList shouldContain 1
-
-            ann.detailInt("life") shouldBe 3
+            assertSoftly {
+                ann.typeList shouldBe listOf(AnnotationType.ModifiedLife)
+                ann.affectedIdsList shouldBe listOf(1)
+                ann.detailInt("life") shouldBe 3
+            }
         }
 
         test("modifiedLifeNegativeDelta") {
@@ -601,8 +602,10 @@ class AnnotationBuilderTest :
 
         test("shuffleFields") {
             val ann = AnnotationBuilder.shuffle(seatId = 1.sid)
-            ann.typeList shouldContain AnnotationType.Shuffle
-            ann.affectedIdsList shouldContain 1
+            assertSoftly {
+                ann.typeList shouldBe listOf(AnnotationType.Shuffle)
+                ann.affectedIdsList shouldBe listOf(1)
+            }
         }
 
         // --- ModifiedPower (Group B) ---
@@ -1423,10 +1426,9 @@ class AnnotationBuilderTest :
                 ann.affectorId shouldBe 1
                 ann.affectedIdsList shouldBe listOf(303)
                 ann.detailString("AbilityWordName") shouldBe "Descended"
+                ann.detail("value") shouldBe null
+                ann.detail("threshold") shouldBe null
             }
-            // No value/threshold/abilityGrpId details for keyword-only variants
-            ann.detail("value") shouldBe null
-            ann.detail("threshold") shouldBe null
         }
 
         test("qualification annotation shape") {

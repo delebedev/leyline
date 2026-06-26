@@ -1,9 +1,9 @@
 package leyline.session.settings
 
 import forge.game.phase.PhaseType
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 import leyline.testkit.clientMessage
@@ -56,7 +56,17 @@ class ClientSettingsTest :
             // Send settings with Upkeep = Set for Team scope
             sendSettings(stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Set))
 
-            profile.isEnabled(humanId, PhaseType.UPKEEP).shouldBeTrue()
+            assertSoftly {
+                profile.isEnabled(humanId, PhaseType.UPKEEP).shouldBeTrue()
+                profile.getEnabled(humanId) shouldBe
+                    setOf(
+                        PhaseType.UPKEEP,
+                        PhaseType.MAIN1,
+                        PhaseType.COMBAT_DECLARE_ATTACKERS,
+                        PhaseType.COMBAT_DECLARE_BLOCKERS,
+                        PhaseType.MAIN2,
+                    )
+            }
         }
 
         test("disabling Main1 stop via Team scope updates the profile") {
@@ -71,7 +81,15 @@ class ClientSettingsTest :
             // Send settings with PrecombatMainPhase = Clear for Team scope
             sendSettings(stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Clear_a3fe))
 
-            profile.isEnabled(humanId, PhaseType.MAIN1).shouldBeFalse()
+            assertSoftly {
+                profile.isEnabled(humanId, PhaseType.MAIN1).shouldBeFalse()
+                profile.getEnabled(humanId) shouldBe
+                    setOf(
+                        PhaseType.COMBAT_DECLARE_ATTACKERS,
+                        PhaseType.COMBAT_DECLARE_BLOCKERS,
+                        PhaseType.MAIN2,
+                    )
+            }
         }
 
         test("multiple stops can be toggled in a single settings message") {
@@ -86,10 +104,18 @@ class ClientSettingsTest :
                 stop(StopType.PostcombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Clear_a3fe),
             )
 
-            profile.isEnabled(humanId, PhaseType.DRAW).shouldBeTrue()
-            profile.isEnabled(humanId, PhaseType.MAIN2).shouldBeFalse()
-            // Unchanged defaults still hold
-            profile.isEnabled(humanId, PhaseType.MAIN1).shouldBeTrue()
+            assertSoftly {
+                profile.isEnabled(humanId, PhaseType.DRAW).shouldBeTrue()
+                profile.isEnabled(humanId, PhaseType.MAIN2).shouldBeFalse()
+                profile.isEnabled(humanId, PhaseType.MAIN1).shouldBeTrue()
+                profile.getEnabled(humanId) shouldBe
+                    setOf(
+                        PhaseType.DRAW,
+                        PhaseType.MAIN1,
+                        PhaseType.COMBAT_DECLARE_ATTACKERS,
+                        PhaseType.COMBAT_DECLARE_BLOCKERS,
+                    )
+            }
         }
 
         test("opponents scope does not affect human") {
@@ -117,7 +143,17 @@ class ClientSettingsTest :
 
             sendSettings(stop(StopType.EndStep_ad1f, SettingScope.AnyPlayer, SettingStatus.Set))
 
-            profile.isEnabled(humanId, PhaseType.END_OF_TURN).shouldBeTrue()
+            assertSoftly {
+                profile.isEnabled(humanId, PhaseType.END_OF_TURN).shouldBeTrue()
+                profile.getEnabled(humanId) shouldBe
+                    setOf(
+                        PhaseType.MAIN1,
+                        PhaseType.COMBAT_DECLARE_ATTACKERS,
+                        PhaseType.COMBAT_DECLARE_BLOCKERS,
+                        PhaseType.MAIN2,
+                        PhaseType.END_OF_TURN,
+                    )
+            }
         }
 
         test("settings response is echoed back as raw message") {
@@ -126,13 +162,10 @@ class ClientSettingsTest :
             sendSettings(stop(StopType.DrawStep, SettingScope.Team_ac6e, SettingStatus.Set))
             harness.drainSink()
 
-            // SettingsResp goes via sendRaw → GreToClientEvent wrapper
-            harness.allRawMessages.shouldNotBeEmpty()
-            val last = harness.allRawMessages.last()
-            last.hasGreToClientEvent().shouldBeTrue()
-            val hasSettingsResp =
-                last.greToClientEvent.greToClientMessagesList
-                    .any { it.type == GREMessageType.SetSettingsResp_695e }
-            hasSettingsResp.shouldBeTrue()
+            val last = harness.allRawMessages.single()
+            assertSoftly {
+                last.hasGreToClientEvent().shouldBeTrue()
+                last.greToClientEvent.greToClientMessagesList.map { it.type } shouldBe listOf(GREMessageType.SetSettingsResp_695e)
+            }
         }
     })

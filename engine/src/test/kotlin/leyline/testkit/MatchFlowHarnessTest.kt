@@ -71,10 +71,11 @@ class MatchFlowHarnessTest :
             h.passPriority()
 
             // After auto-pass through AI turn, should be back at human's turn
-            h.isGameOver().shouldBeFalse()
-
             val missingAfterTurn = h.accumulator.actionInstanceIdsMissingFromObjects()
-            missingAfterTurn.shouldBeEmpty()
+            assertSoftly {
+                h.isGameOver().shouldBeFalse()
+                missingAfterTurn.shouldBeEmpty()
+            }
         }
 
         test("cast creature tracks object through zones") {
@@ -132,13 +133,15 @@ class MatchFlowHarnessTest :
             harness = h
             h.connectAndKeep()
 
-            // After connectAndKeep + autoPass, we should have valid state
-            h.isGameOver().shouldBeFalse()
+            assertSoftly {
+                // After connectAndKeep + autoPass, we should have valid state
+                h.isGameOver().shouldBeFalse()
 
-            h.accumulator.assertConsistent("after AI-first connect")
+                h.accumulator.assertConsistent("after AI-first connect")
 
-            // Should have received at least game-start bundle (4 messages)
-            h.allMessages.size shouldBeGreaterThanOrEqualTo 4
+                // Should have received at least game-start bundle (4 messages)
+                h.allMessages.size shouldBeGreaterThanOrEqualTo 4
+            }
         }
 
         test("gsId chain valid through phases") {
@@ -170,14 +173,16 @@ class MatchFlowHarnessTest :
             harness = h
             h.connectAndKeep()
 
-            // After connectAndKeep, AI went first and we auto-passed through
-            h.isGameOver().shouldBeFalse()
+            assertSoftly {
+                // After connectAndKeep, AI went first and we auto-passed through
+                h.isGameOver().shouldBeFalse()
 
-            // Validate full gsId chain from game start
-            assertGsIdChain(h.allMessages, context = "AI-first game start")
+                // Validate full gsId chain from game start
+                assertGsIdChain(h.allMessages, context = "AI-first game start")
 
-            // Validate accumulated state consistency
-            h.accumulator.assertConsistent("after AI-first turn")
+                // Validate accumulated state consistency
+                h.accumulator.assertConsistent("after AI-first turn")
+            }
         }
 
         test("AI-first multi-turn gsId chain unique") {

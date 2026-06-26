@@ -192,11 +192,11 @@ class ModalETBFlowTest :
             // parentId = source card instanceId on the battlefield
             val cardInstanceId = human.battlefield.iid("Trufflesnout")
 
-            abilityObj.parentId shouldBe cardInstanceId
-            // objectSourceGrpId = card grpId (not ability grpId)
-            abilityObj.objectSourceGrpId shouldBe trufflesnoutGrpId
-            // grpId = ability grpId
-            abilityObj.grpId shouldBe parentAbilityGrpId
+            assertSoftly {
+                abilityObj.parentId shouldBe cardInstanceId
+                abilityObj.objectSourceGrpId shouldBe trufflesnoutGrpId
+                abilityObj.grpId shouldBe parentAbilityGrpId
+            }
         }
 
         test("synthesized ability cleaned up after modal resolves (leyline-l1tc)") {

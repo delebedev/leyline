@@ -241,16 +241,16 @@ class CopyTokenIntegrationTest :
             """.trimIndent()
 
         fun castQuickStudyAndWaitForCopy(): Pair<forge.game.card.Card, Int> {
-            human
-                .getZone(ZoneType.Hand)
-                .cards
-                .any { it.name == "Quick Study" }
-                .shouldBeTrue()
-            human
-                .getZone(ZoneType.Battlefield)
-                .cards
-                .any { it.name == "Homunculus Horde" }
-                .shouldBeTrue()
+            assertSoftly {
+                human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .map { it.name } shouldContain "Quick Study"
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .map { it.name } shouldContain "Homunculus Horde"
+            }
 
             castSpellByName("Quick Study").shouldBeTrue()
 

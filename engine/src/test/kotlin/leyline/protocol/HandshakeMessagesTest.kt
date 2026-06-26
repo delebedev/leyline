@@ -61,9 +61,11 @@ class HandshakeMessagesTest :
             repeat(10) { i ->
                 MyRandom.setRandom(Random(i.toLong()))
                 val rolls = extractDieRolls(b, winner = 2)
-                rolls.getValue(1) shouldBeInRange 1..20
-                rolls.getValue(2) shouldBeInRange 1..20
-                rolls.getValue(2) shouldBeGreaterThan rolls.getValue(1)
+                assertSoftly {
+                    rolls.getValue(1) shouldBeInRange 1..20
+                    rolls.getValue(2) shouldBeInRange 1..20
+                    rolls.getValue(2) shouldBeGreaterThan rolls.getValue(1)
+                }
             }
         }
 
@@ -101,7 +103,8 @@ class HandshakeMessagesTest :
 
             val messages = bundle.first.greToClientEvent.greToClientMessagesList
             assertSoftly {
-                messages.any { it.type == GREMessageType.ChooseStartingPlayerReq_695e } shouldBe false
+                messages.map { it.type } shouldBe
+                    listOf(GREMessageType.DieRollResultsResp_695e, GREMessageType.GameStateMessage_695e)
                 messages
                     .single { it.type == GREMessageType.GameStateMessage_695e }
                     .gameStateMessage

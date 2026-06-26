@@ -91,13 +91,16 @@ class GameEndTest :
             // Verify FinalMatchResult
             val finalResult = matchCompleted.matchGameRoomStateChangedEvent.gameRoomInfo.finalMatchResult
             assertSoftly {
+                matchCompleted.hasMatchGameRoomStateChangedEvent().shouldBeTrue()
                 finalResult.matchCompletedReason shouldBe MatchCompletedReasonType.Success_a26d
                 finalResult.resultListCount shouldBeGreaterThan 0
                 finalResult.getResultList(0).result shouldBe ResultType.WinLoss
             }
 
-            harness.registry.getMatch("test-match").shouldBeNull()
-            harness.registry.getPeer("test-match", SeatId(1)).shouldBeNull()
+            assertSoftly {
+                harness.registry.getMatch("test-match").shouldBeNull()
+                harness.registry.getPeer("test-match", SeatId(1)).shouldBeNull()
+            }
         }
 
         test("lethal damage produces MatchCompleted room state") {
@@ -177,11 +180,11 @@ class GameEndTest :
                 gameOverGsms[0]
                     .annotationsList
                     .firstOrNull { it.typeList.contains(AnnotationType.LossOfGame_af5a) }
-            lossAnnotation.shouldNotBeNull()
-
-            // prevGameStateId chain
-            gameOverGsms[1].prevGameStateId shouldBe gameOverGsms[0].gameStateId
-            gameOverGsms[2].prevGameStateId shouldBe gameOverGsms[1].gameStateId
+            assertSoftly {
+                lossAnnotation.shouldNotBeNull()
+                gameOverGsms[1].prevGameStateId shouldBe gameOverGsms[0].gameStateId
+                gameOverGsms[2].prevGameStateId shouldBe gameOverGsms[1].gameStateId
+            }
         }
 
         test("lethal poison produces poison loss annotation") {

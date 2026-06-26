@@ -637,12 +637,12 @@ class BundleBuilderTest :
             }
 
             val gsm = result.messages[0].gameStateMessage
-            gsm.type shouldBe GameStateType.Diff
-            gsm.gameObjectsCount shouldBeGreaterThan 0
-
-            // Conformance: client uses SendAndRecord, no pendingMessageCount
-            gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
-            gsm.pendingMessageCount shouldBe 0
+            assertSoftly {
+                gsm.type shouldBe GameStateType.Diff
+                gsm.gameObjectsCount shouldBeGreaterThan 0
+                gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
+                gsm.pendingMessageCount shouldBe 0
+            }
 
             val selected = gsm.gameObjectsList.first { it.instanceId == selectedIds.first() }
             selected.attackState shouldBe Messages.AttackState.None_a3a9
@@ -680,11 +680,12 @@ class BundleBuilderTest :
             }
 
             val gsm = result.messages[0].gameStateMessage
-            gsm.gameObjectsCount shouldBeGreaterThan 0
-
-            // Conformance: client uses SendAndRecord, no pendingMessageCount
-            gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
-            gsm.pendingMessageCount shouldBe 0
+            assertSoftly {
+                gsm.type shouldBe GameStateType.Diff
+                gsm.gameObjectsCount shouldBeGreaterThan 0
+                gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
+                gsm.pendingMessageCount shouldBe 0
+            }
 
             // Conformance: no blockState on echo objects
             for (obj in gsm.gameObjectsList) {

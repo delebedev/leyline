@@ -140,9 +140,11 @@ class MechanicAnnotationPipelineTest :
                 )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
-            annotations.size shouldBe 1
-            annotations[0].typeList shouldContain AnnotationType.Shuffle
-            annotations[0].affectedIdsList shouldContain 1
+            assertSoftly {
+                annotations.size shouldBe 1
+                annotations[0].typeList shouldContain AnnotationType.Shuffle
+                annotations[0].affectedIdsList shouldContain 1
+            }
         }
 
         // -- Scry --
@@ -171,10 +173,12 @@ class MechanicAnnotationPipelineTest :
                 )
             val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
-            annotations.size shouldBe 1
-            annotations[0].typeList shouldContain AnnotationType.Scry_af5a
-            annotations[0].detailIntList("topIds") shouldBe listOf(21)
-            annotations[0].detailIntList("bottomIds") shouldBe listOf(22)
+            assertSoftly {
+                annotations.size shouldBe 1
+                annotations[0].typeList shouldContain AnnotationType.Scry_af5a
+                annotations[0].detailIntList("topIds") shouldBe listOf(21)
+                annotations[0].detailIntList("bottomIds") shouldBe listOf(22)
+            }
         }
 
         // -- TokenCreated --

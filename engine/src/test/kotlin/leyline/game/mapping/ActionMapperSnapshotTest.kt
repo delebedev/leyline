@@ -66,10 +66,7 @@ class ActionMapperSnapshotTest :
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
 
-            val hasPlay =
-                fromSnap.actionsList.any { it.actionType == ActionType.Play_add3 } ||
-                    fromSnap.inactiveActionsList.any { it.actionType == ActionType.Play_add3 }
-            hasPlay.shouldBeTrue()
+            (fromSnap.actionsList + fromSnap.inactiveActionsList).count { it.actionType == ActionType.Play_add3 } shouldBe 1
         }
 
         // -----------------------------------------------------------------------
@@ -85,10 +82,7 @@ class ActionMapperSnapshotTest :
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
 
-            val hasCast =
-                fromSnap.actionsList.any { it.actionType == ActionType.Cast } ||
-                    fromSnap.inactiveActionsList.any { it.actionType == ActionType.Cast }
-            hasCast.shouldBeTrue()
+            (fromSnap.actionsList + fromSnap.inactiveActionsList).count { it.actionType == ActionType.Cast } shouldBe 1
         }
 
         // -----------------------------------------------------------------------

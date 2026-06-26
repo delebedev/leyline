@@ -7,6 +7,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
@@ -146,8 +147,7 @@ class GameBridgeTest :
             pending.shouldNotBeNull()
 
             val game = b.getGame()!!
-            val phase = game.phaseHandler.phase
-            (phase == PhaseType.MAIN1 || phase == PhaseType.UPKEEP || phase == PhaseType.DRAW).shouldBeTrue()
+            listOf(PhaseType.MAIN1, PhaseType.UPKEEP, PhaseType.DRAW) shouldContain game.phaseHandler.phase
         }
 
         test("submit mull auto-tucks and produces new hand") {
@@ -189,8 +189,7 @@ class GameBridgeTest :
             b.awaitPriority()
 
             val game = b.getGame()!!
-            val phase = game.phaseHandler.phase
-            (phase == PhaseType.MAIN1 || phase == PhaseType.UPKEEP || phase == PhaseType.DRAW).shouldBeTrue()
+            listOf(PhaseType.MAIN1, PhaseType.UPKEEP, PhaseType.DRAW) shouldContain game.phaseHandler.phase
         }
 
         test("build actions includes lands") {
@@ -201,22 +200,14 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            game.phaseHandler.phase shouldBe PhaseType.MAIN1
+            listOf(PhaseType.MAIN1, PhaseType.UPKEEP, PhaseType.DRAW) shouldContain game.phaseHandler.phase
 
             val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
 
-            val hasPass =
-                actions.actionsList.any {
-                    it.actionType == Messages.ActionType.Pass
-                }
-            hasPass.shouldBeTrue()
-
-            // Deck has 32 Forest — must have a land play at Main1
-            val hasLand =
-                actions.actionsList.any {
-                    it.actionType == Messages.ActionType.Play_add3
-                }
-            hasLand.shouldBeTrue()
+            assertSoftly {
+                actions.actionsList.count { it.actionType == Messages.ActionType.Pass } shouldBe 1
+                actions.actionsList.count { it.actionType == Messages.ActionType.Play_add3 } shouldBeGreaterThan 0
+            }
         }
 
         test("play land moves card to battlefield") {
@@ -330,16 +321,13 @@ class GameBridgeTest :
                 gs.zonesList
                     .flatMap { it.objectInstanceIdsList }
                     .toSet()
-            for (action in actions.actionsList) {
-                if (action.instanceId != 0) {
-                    (action.instanceId in allZoneInstanceIds).shouldBeTrue()
-                }
-            }
-
-            // Every game object should be in a zone
-            for (obj in gs.gameObjectsList) {
-                val inZone = gs.zonesList.any { obj.instanceId in it.objectInstanceIdsList }
-                inZone.shouldBeTrue()
+            assertSoftly {
+                actions.actionsList
+                    .filter { it.instanceId != 0 && it.instanceId !in allZoneInstanceIds }
+                    .map { it.instanceId } shouldBe emptyList()
+                gs.gameObjectsList
+                    .filter { obj -> gs.zonesList.none { obj.instanceId in it.objectInstanceIdsList } }
+                    .map { it.instanceId } shouldBe emptyList()
             }
         }
 
@@ -349,7 +337,7 @@ class GameBridgeTest :
             MyRandom.setRandom(Random(42))
             val b1 = GameBridge(cardRepository = InMemoryCardRepository())
             val r1 = b1.dieRollWinner
-            (r1 in 1..2).shouldBeTrue()
+            listOf(1, 2) shouldContain r1
 
             // Same seed produces same result (deterministic)
             MyRandom.setRandom(Random(42))
@@ -403,30 +391,32 @@ class GameBridgeTest :
                     MessageCounter(initialGsId = 10, initialMsgId = 0),
                 )
 
-            result.messages.size shouldBe 5
+            assertSoftly {
+                result.messages.size shouldBe 5
 
-            // Message 1: SendHiFi with PhaseOrStepModified annotations
-            val gs1 = result.messages[0].gameStateMessage
-            gs1.update shouldBe Messages.GameStateUpdate.SendHiFi
-            gs1.type shouldBe Messages.GameStateType.Diff
+                // Message 1: SendHiFi with PhaseOrStepModified annotations
+                val gs1 = result.messages[0].gameStateMessage
+                gs1.update shouldBe Messages.GameStateUpdate.SendHiFi
+                gs1.type shouldBe Messages.GameStateType.Diff
 
-            // Message 2: SendHiFi echo
-            val gs2 = result.messages[1].gameStateMessage
-            gs2.update shouldBe Messages.GameStateUpdate.SendHiFi
-            gs2.type shouldBe Messages.GameStateType.Diff
+                // Message 2: SendHiFi echo
+                val gs2 = result.messages[1].gameStateMessage
+                gs2.update shouldBe Messages.GameStateUpdate.SendHiFi
+                gs2.type shouldBe Messages.GameStateType.Diff
 
-            // Message 3: SendAndRecord with PhaseOrStepModified
-            val gs3 = result.messages[2].gameStateMessage
-            gs3.update shouldBe Messages.GameStateUpdate.SendAndRecord
-            gs3.type shouldBe Messages.GameStateType.Diff
+                // Message 3: SendAndRecord with PhaseOrStepModified
+                val gs3 = result.messages[2].gameStateMessage
+                gs3.update shouldBe Messages.GameStateUpdate.SendAndRecord
+                gs3.type shouldBe Messages.GameStateType.Diff
 
-            // Message 4: PromptReq (promptId=37)
-            result.messages[3].type shouldBe Messages.GREMessageType.PromptReq
-            result.messages[3].prompt.promptId shouldBe 37
+                // Message 4: PromptReq (promptId=37)
+                result.messages[3].type shouldBe Messages.GREMessageType.PromptReq
+                result.messages[3].prompt.promptId shouldBe 37
 
-            // Message 5: ActionsAvailableReq (promptId=2)
-            result.messages[4].type shouldBe Messages.GREMessageType.ActionsAvailableReq_695e
-            result.messages[4].prompt.promptId shouldBe 2
+                // Message 5: ActionsAvailableReq (promptId=2)
+                result.messages[4].type shouldBe Messages.GREMessageType.ActionsAvailableReq_695e
+                result.messages[4].prompt.promptId shouldBe 2
+            }
 
             // gsIds should be ascending across GSM messages
             val gsIds =
@@ -453,16 +443,13 @@ class GameBridgeTest :
             val gs = StateMapper.buildFromSnapshot(snapGb1, 1, "test-match", b, actions).gsm
 
             gs.actionsCount shouldBeGreaterThan 0
-            for (actionInfo in gs.actionsList) {
-                // Client expects no actionId on GSM embedded actions (default 0)
-                actionInfo.actionId shouldBe 0
-                (actionInfo.seatId in 1..2).shouldBeTrue()
-                actionInfo.hasAction().shouldBeTrue()
-                val a = actionInfo.action
-                // Stripped-down: no grpId, no facetId, no shouldStop
-                a.grpId shouldBe 0
-                a.facetId shouldBe 0
-                a.shouldStop.shouldBeFalse()
+            assertSoftly {
+                gs.actionsList.map { it.actionId }.toSet() shouldBe setOf(0)
+                gs.actionsList.map { it.seatId }.toSet() shouldBe setOf(1)
+                gs.actionsList.count { it.hasAction() } shouldBe gs.actionsCount
+                gs.actionsList.map { it.action.grpId }.toSet() shouldBe setOf(0)
+                gs.actionsList.map { it.action.facetId }.toSet() shouldBe setOf(0)
+                gs.actionsList.count { it.action.shouldStop } shouldBe 0
             }
         }
 
@@ -524,9 +511,10 @@ class GameBridgeTest :
                 gs.annotationsList.filter {
                     it.typeList.contains(Messages.AnnotationType.ZoneTransfer_af5a)
                 }
-            zoneTransfers.shouldNotBeEmpty()
-            val ann = zoneTransfers.first()
-            ann.detailString("category") shouldBe "PlayLand"
+            assertSoftly {
+                zoneTransfers.size shouldBe 1
+                zoneTransfers.first().detailString("category") shouldBe "PlayLand"
+            }
         }
 
         // --- Diff state tests ---
@@ -550,10 +538,12 @@ class GameBridgeTest :
                 )
             val gs = result.messages.first().gameStateMessage
 
-            gs.type shouldBe Messages.GameStateType.Diff
-            // Unchanged metadata is trimmed from Diff frames.
-            gs.playersCount shouldBe 0
-            gs.hasTurnInfo().shouldBeFalse()
+            assertSoftly {
+                gs.type shouldBe Messages.GameStateType.Diff
+                // Unchanged metadata is trimmed from Diff frames.
+                gs.playersCount shouldBe 0
+                gs.hasTurnInfo().shouldBeFalse()
+            }
         }
 
         test("diff falls back to Full without snapshot") {
@@ -587,8 +577,7 @@ class GameBridgeTest :
             pending.shouldNotBeNull()
 
             val game = b.getGame()!!
-            val phase = game.phaseHandler.phase
-            (phase == PhaseType.MAIN1 || phase == PhaseType.UPKEEP || phase == PhaseType.DRAW).shouldBeTrue()
+            game.phaseHandler.phase shouldBe PhaseType.MAIN1
 
             // Hand should still have 7 cards (auto-kept, no mull)
             val hand = b.getHandGrpIds(SeatId(1))

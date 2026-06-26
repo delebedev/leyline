@@ -3,7 +3,6 @@ package leyline.game.state
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
@@ -19,10 +18,10 @@ class GameBridgeApiContractTest :
         test("zero-arg seat-1 bridge aliases stay removed") {
             val methodNames = GameBridge::class.java.declaredMethods.map { it.name }
 
-            // seat(SeatId) is mangled by Kotlin's inline-class name encoding; check by prefix
-            methodNames.any { it == "seat" || it.startsWith("seat-") }.shouldBeTrue()
-            methodNames shouldNotContain "getActionBridge"
-            methodNames shouldNotContain "getPromptBridge"
+            assertSoftly {
+                methodNames.any { it == "seat" || it.startsWith("seat-") }.shouldBeTrue()
+                methodNames.filter { it == "getActionBridge" || it == "getPromptBridge" } shouldBe emptyList()
+            }
         }
 
         test("reveal draining is seat-aware and seat zero drains remaining queues") {

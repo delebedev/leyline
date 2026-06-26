@@ -1,5 +1,6 @@
 package leyline.session.actions
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
@@ -28,16 +29,23 @@ class ActivatedAbilityInteractionTest :
                 name = "Tap to Ping",
             )
 
-            phase() shouldBe "MAIN1"
+            assertSoftly {
+                phase() shouldBe "MAIN1"
+                ai.life shouldBe 5
+            }
 
             // Activate tap ability → wait for SelectTargetsReq before responding
             // (drainSink returns before the engine emits the prompt under load).
-            activateAbility("Goblin Fireslinger").shouldBeTrue()
-            passUntil(maxPasses = 5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
+            assertSoftly {
+                activateAbility("Goblin Fireslinger").shouldBeTrue()
+                passUntil(maxPasses = 5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
+            }
             selectTargets(listOf(OPPONENT_SEAT))
 
-            passUntil(maxPasses = 10) { ai.life < 5 }.shouldBeTrue()
-            ai.life shouldBe 4
+            assertSoftly {
+                passUntil(maxPasses = 10) { ai.life < 5 }.shouldBeTrue()
+                ai.life shouldBe 4
+            }
         }
 
         test("modal activated sacrifice ability asks mode before target and costs") {

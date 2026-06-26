@@ -1,5 +1,6 @@
 package leyline.game.state
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.nulls.shouldBeNull
@@ -27,10 +28,11 @@ class InstanceIdRegistryTest :
 
             val deleted = reg.resetAll()
 
-            deleted.shouldContainExactlyInAnyOrder(id1, id2, id3)
-            // After reset, same forgeCardIds get fresh IDs
-            reg.getOrAlloc(ForgeCardId(1)) shouldNotBe id1
-            reg.getOrAlloc(ForgeCardId(2)) shouldNotBe id2
+            assertSoftly {
+                deleted.shouldContainExactlyInAnyOrder(id1, id2, id3)
+                reg.getOrAlloc(ForgeCardId(1)) shouldNotBe id1
+                reg.getOrAlloc(ForgeCardId(2)) shouldNotBe id2
+            }
         }
 
         test("resetAll clears reverse map") {

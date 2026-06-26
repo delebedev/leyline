@@ -4,6 +4,7 @@ import forge.game.GameStage
 import forge.game.GameType
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
@@ -87,8 +88,11 @@ class PuzzleBridgeTest :
 
         test("start puzzle has pending actions") {
             val b = startPuzzle("puzzles/lands-only.pzl")
-            val pending = b.actionBridge(SeatId(1)).getPending()
-            pending.shouldNotBeNull()
+            val pending = checkNotNull(b.actionBridge(SeatId(1)).getPending())
+            assertSoftly {
+                pending.state.phase shouldBe "MAIN1"
+                pending.state.turn shouldBe 1
+            }
         }
 
         test("puzzle cards registered in repository") {
@@ -123,15 +127,14 @@ class PuzzleBridgeTest :
             val b = startPuzzle("puzzles/simple-attack.pzl")
             val human = b.getPlayer(SeatId(1))!!
             val battlefield = human.getZone(ZoneType.Battlefield).cards.map { it.name }
-            battlefield shouldContain "Grizzly Bears"
-            battlefield shouldContain "Forest"
+            battlefield.groupingBy { it }.eachCount() shouldBe mapOf("Forest" to 2, "Grizzly Bears" to 1)
         }
 
         test("puzzle hand matches spec") {
             val b = startPuzzle("puzzles/simple-attack.pzl")
             val human = b.getPlayer(SeatId(1))!!
             val hand = human.getZone(ZoneType.Hand).cards.map { it.name }
-            hand shouldContain "Giant Growth"
+            hand shouldBe listOf("Giant Growth")
         }
 
         test("puzzle buildFromSnapshot has stage Play") {
@@ -163,14 +166,14 @@ class PuzzleBridgeTest :
 
         test("puzzle can perform action") {
             val b = startPuzzle("puzzles/lands-only.pzl")
-            // The puzzle should have actions available (at least Pass)
-            val pending = b.actionBridge(SeatId(1)).getPending()
-            pending.shouldNotBeNull()
-            // Pass priority
+            val pending = checkNotNull(b.actionBridge(SeatId(1)).getPending())
+            assertSoftly {
+                pending.state.phase shouldBe "MAIN1"
+                pending.state.turn shouldBe 1
+            }
             b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PassPriority)
             b.awaitPriority()
-            // Should reach another priority stop or advance phases
-            // (just verifying the engine doesn't crash)
+            b.getGame().shouldNotBeNull()
         }
 
         // --- WEB_ puzzle smoke tests ---
@@ -213,8 +216,7 @@ class PuzzleBridgeTest :
             val b = startPuzzle("puzzles/bolt-face.pzl")
             val game = b.getGame()!!
             val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
-            val actionTypes = actions.actionsList.map { it.actionType.name }
-            actionTypes.any { it == "Cast" }.shouldBeTrue()
+            actions.actionsList.count { it.actionType.name == "Cast" } shouldBe 1
         }
 
         // --- Puzzle race bug (seat 2 auto-passes seat 1's pending action) ---
@@ -270,10 +272,10 @@ class PuzzleBridgeTest :
             session2.onPuzzleStart()
 
             // Turn must not have advanced — seat 2 must not consume seat 1's actions
-            b.getGame()!!.phaseHandler.turn shouldBe turnBefore
-            // Phase must still be Main1
-            b.getGame()!!.phaseHandler.phase shouldBe PhaseType.MAIN1
-            // Seat 1's pending action must still be available
-            b.actionBridge(SeatId(1)).getPending().shouldNotBeNull()
+            assertSoftly {
+                b.getGame()!!.phaseHandler.turn shouldBe turnBefore
+                b.getGame()!!.phaseHandler.phase shouldBe PhaseType.MAIN1
+                b.actionBridge(SeatId(1)).getPending().shouldNotBeNull()
+            }
         }
     })

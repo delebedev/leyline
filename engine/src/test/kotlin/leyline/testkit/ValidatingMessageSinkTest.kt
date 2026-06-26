@@ -103,9 +103,11 @@ class ValidatingMessageSinkTest :
             sink.send(listOf(greMessage(msgId = 2, gsm = gsm2)))
             sink.send(listOf(greMessage(msgId = 3, gsm = gsm3)))
 
-            sink.violations.shouldBeEmpty()
-            sink.messages.size shouldBe 3
-            sink.assertClean()
+            assertSoftly {
+                sink.violations.shouldBeEmpty()
+                sink.messages.size shouldBe 3
+                sink.assertClean()
+            }
         }
 
         // --- gsId monotonicity ---
@@ -119,7 +121,7 @@ class ValidatingMessageSinkTest :
             sink.send(listOf(greMessage(msgId = 1, gsm = gsm1)))
             sink.send(listOf(greMessage(msgId = 2, gsm = gsm2)))
 
-            sink.violations.shouldExist { "gsId not monotonic" in it }
+            sink.violations shouldBe listOf("gsId=3 gsId not monotonic: got 3, expected > 5")
         }
 
         test("Lenient validation records violations by check") {

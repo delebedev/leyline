@@ -108,8 +108,11 @@ class MatchRegistryTest :
             val old = registry.getOrCreateMatch("old-match") { Match("old-match", stubBridge()) }
             registry.getOrCreateMatch("current") { Match("current", stubBridge()) }
             val evicted = registry.evictStale("current")
-            evicted.size shouldBe 1
-            old.state shouldBe MatchState.FINISHED
+            assertSoftly {
+                evicted.size shouldBe 1
+                evicted.single() shouldBe old
+                old.state shouldBe MatchState.FINISHED
+            }
         }
 
         // --- Match lifecycle tests ---
@@ -254,10 +257,12 @@ class MatchRegistryTest :
 
             registry.teardownMatch("m1", MatchTeardownReason.Disconnect)
 
-            match.state shouldBe MatchState.FINISHED
-            registry.getMatch("m1").shouldBeNull()
-            registry.getPeer("m1", SeatId(2)).shouldBeNull()
-            registry.getHandler("m1", SeatId(1)).shouldBeNull()
+            assertSoftly {
+                match.state shouldBe MatchState.FINISHED
+                registry.getMatch("m1").shouldBeNull()
+                registry.getPeer("m1", SeatId(2)).shouldBeNull()
+                registry.getHandler("m1", SeatId(1)).shouldBeNull()
+            }
         }
 
         test("channelInactive tears down state and next session can recreate match") {
@@ -285,11 +290,13 @@ class MatchRegistryTest :
 
             EmbeddedChannel(handler).close()
 
-            match.state shouldBe MatchState.FINISHED
-            handler.session.shouldBeNull()
-            registry.getMatch(matchId).shouldBeNull()
-            registry.getHandler(matchId, SeatId(1)).shouldBeNull()
-            registry.activeSession().shouldBeNull()
+            assertSoftly {
+                match.state shouldBe MatchState.FINISHED
+                handler.session.shouldBeNull()
+                registry.getMatch(matchId).shouldBeNull()
+                registry.getHandler(matchId, SeatId(1)).shouldBeNull()
+                registry.activeSession().shouldBeNull()
+            }
 
             val recreated = registry.getOrCreateMatch(matchId) { Match(matchId, stubBridge()) }
             val replacement =

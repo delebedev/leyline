@@ -1,9 +1,11 @@
 package leyline.mechanics.madness
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
@@ -102,8 +104,8 @@ class MadnessLifecycleTest :
                         fieryTemperGrpId,
                         leyline.game.data.KeywordAbilityIds.MADNESS,
                     )
-                madnessAbilityGrpId shouldNotBe null
-                madnessAbilityGrpId!! shouldBeGreaterThan 0
+                val resolvedMadnessAbilityGrpId = madnessAbilityGrpId.shouldNotBeNull()
+                resolvedMadnessAbilityGrpId shouldBeGreaterThan 0
 
                 // Cast Tormenting Voice. Forge issues a SelectNReq for the
                 // additional-cost discard before the spell goes on stack.
@@ -116,10 +118,13 @@ class MadnessLifecycleTest :
                         .asReversed()
                         .firstOrNull { it.hasSelectNReq() }
                         ?.selectNReq
-                selectNReq shouldNotBe null
-                val discardChoiceId = selectNReq!!.idsList.firstOrNull()
-                discardChoiceId shouldNotBe null
-                h.respondToSelectN(listOf(discardChoiceId!!))
+                val discardChoiceId =
+                    selectNReq
+                        .shouldNotBeNull()
+                        .idsList
+                        .firstOrNull()
+                        .shouldNotBeNull()
+                h.respondToSelectN(listOf(discardChoiceId))
 
                 // Tormenting Voice on stack with discard cost paid; Fiery Temper
                 // exiled via madness replacement; the madness trigger resolves
@@ -143,12 +148,17 @@ class MadnessLifecycleTest :
                 h.selectTargets(listOf(2))
 
                 // Drain until the stack empties or we run out of the passes budget.
-                h
-                    .passUntil(maxPasses = 6) {
-                        h.bridge
-                            .getGame()!!
-                            .stack.isEmpty
-                    }.shouldBeTrue()
+                assertSoftly {
+                    h
+                        .passUntil(maxPasses = 6) {
+                            h.bridge
+                                .getGame()!!
+                                .stack.isEmpty
+                        }.shouldBeTrue()
+                    h.bridge
+                        .getGame()!!
+                        .stack.isEmpty shouldBe true
+                }
 
                 // Fiery Temper resolves into Graveyard with damage to opponent.
                 player
@@ -168,10 +178,12 @@ class MadnessLifecycleTest :
                     allGsms
                         .flatMap { it.persistentAnnotationsList }
                         .firstOrNull { it.typeList.contains(AnnotationType.CastingTimeOption) }
-                cto shouldNotBe null
-                cto!!.detailInt("type") shouldBe 13
-                cto.detailInt("alternateCostGrpId") shouldBe madnessAbilityGrpId
-                cto.detailInt("castAbilityGrpId") shouldBe madnessAbilityGrpId
+                assertSoftly {
+                    cto.shouldNotBeNull()
+                    cto.detailInt("type") shouldBe 13
+                    cto.detailInt("alternateCostGrpId") shouldBe madnessAbilityGrpId
+                    cto.detailInt("castAbilityGrpId") shouldBe madnessAbilityGrpId
+                }
 
                 // (2) UserActionTaken on the cast carries alternativeGrpId = madness ability.
                 val castUat =
@@ -181,7 +193,7 @@ class MadnessLifecycleTest :
                         .firstOrNull {
                             it.detail("alternativeGrpId")?.getValueInt32(0) == madnessAbilityGrpId
                         }
-                castUat shouldNotBe null
+                castUat.shouldNotBeNull()
 
                 // (3) Fiery Temper resolved (deals 3 damage to AI player).
                 val resolveZt =
@@ -189,7 +201,7 @@ class MadnessLifecycleTest :
                         .flatMap { it.annotationsList }
                         .filter { it.typeList.contains(AnnotationType.ZoneTransfer_af5a) }
                         .firstOrNull { it.detailString("category") == "Resolve" }
-                resolveZt shouldNotBe null
+                resolveZt.shouldNotBeNull()
 
                 // (4) OptionalActionMessage was emitted for the madness choice.
                 //     SHORTCUT — the production client can render this moment from
@@ -201,7 +213,7 @@ class MadnessLifecycleTest :
                 val optionalPrompt =
                     h.allMessages
                         .firstOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
-                optionalPrompt shouldNotBe null
+                optionalPrompt.shouldNotBeNull()
 
                 // Known gap: Hand→Exile ZoneTransfer category is currently mis-tagged
                 // (CastSpell instead of Discard) because Forge fires a SpellCast for
@@ -296,16 +308,18 @@ class MadnessLifecycleTest :
 
                 // Fiery Temper went to graveyard via the declined madness branch,
                 // NOT via cast — should not be in exile either.
-                player
-                    .getZone(ZoneType.Graveyard)
-                    .cards
-                    .any { it.name == "Fiery Temper" }
-                    .shouldBeTrue()
-                player
-                    .getZone(ZoneType.Exile)
-                    .cards
-                    .none { it.name == "Fiery Temper" }
-                    .shouldBeTrue()
+                assertSoftly {
+                    player
+                        .getZone(ZoneType.Graveyard)
+                        .cards
+                        .any { it.name == "Fiery Temper" }
+                        .shouldBeTrue()
+                    player
+                        .getZone(ZoneType.Exile)
+                        .cards
+                        .none { it.name == "Fiery Temper" }
+                        .shouldBeTrue()
+                }
 
                 val allGsms = h.allMessages.mapNotNull { msgGsm(it) }
 

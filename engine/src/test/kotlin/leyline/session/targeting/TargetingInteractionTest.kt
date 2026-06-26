@@ -675,8 +675,8 @@ class TargetingInteractionTest :
             // Before the fix, castCreature() would leave the creature on the stack
             // (ActionsAvailableReq shown as "Resolve" button) instead of auto-resolving.
             assertSoftly {
-                humanBattlefieldCreatures().any { it.second == "Llanowar Elves" }.shouldBeTrue()
-                game().stack.isEmpty.shouldBeTrue()
+                humanBattlefieldCreatures().map { it.second } shouldContain "Llanowar Elves"
+                game().stack.size() shouldBe 0
             }
         }
     })

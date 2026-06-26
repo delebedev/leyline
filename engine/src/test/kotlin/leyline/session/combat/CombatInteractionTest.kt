@@ -107,12 +107,14 @@ class CombatInteractionTest :
                     ),
             )
             // Turn 1: play Mountain, cast Raging Goblin (R)
-            playLand("Mountain").shouldBeTrue()
-            resolveSpell("Raging Goblin").shouldBeTrue()
+            assertSoftly {
+                playLand("Mountain").shouldBeTrue()
+                resolveSpell("Raging Goblin").shouldBeTrue()
 
-            // Still turn 1 — Raging Goblin has haste, can attack this turn
-            turn() shouldBe 1
-            isAiTurn().shouldBeFalse()
+                // Still turn 1 — Raging Goblin has haste, can attack this turn
+                turn() shouldBe 1
+                isAiTurn().shouldBeFalse()
+            }
 
             val creatures = humanBattlefieldCreatures()
             creatures shouldHaveSize 1
@@ -194,17 +196,16 @@ class CombatInteractionTest :
 
             // The Raging Goblin (haste) should be among eligible attackers
             val eligibleIds = req.attackersList.map { it.attackerInstanceId }
-            (attackerIid in eligibleIds).shouldBeTrue()
+            eligibleIds.count { it == attackerIid } shouldBe 1
 
             // Declare the attack
             val postAttack = after { declareAttackers(listOf(attackerIid)) }.messages
 
-            // Should get confirmation messages
-            postAttack.shouldNotBeEmpty()
-
-            // Validate accumulated state
-            assertAccumulatorConsistent("after single attacker declared")
-            isGameOver().shouldBeFalse()
+            assertSoftly {
+                postAttack.shouldNotBeEmpty()
+                assertAccumulatorConsistent("after single attacker declared")
+                isGameOver().shouldBeFalse()
+            }
         }
 
         test("human declares multiple attackers") {
@@ -241,16 +242,21 @@ class CombatInteractionTest :
 
             // Keep passing until we see DeclareAttackersReq
             val snap = messageSnapshot()
-            passUntil(maxPasses = 15) {
-                messagesSince(snap).any { it.hasDeclareAttackersReq() }
-            }.shouldBeTrue()
+            val reachedAttackers =
+                passUntil(maxPasses = 15) {
+                    messagesSince(snap).any { it.hasDeclareAttackersReq() }
+                }
+            assertSoftly {
+                reachedAttackers.shouldBeTrue()
+                messagesSince(snap).count { it.hasDeclareAttackersReq() } shouldBe 1
+            }
 
-            // Declare our attack — auto-pass advances through AI blocking
-            after { declareAttackers(listOf(iid)) }.messages.shouldNotBeEmpty()
-
-            // Game state should remain valid through combat
-            assertAccumulatorConsistent("after combat with AI blocker")
-            isGameOver().shouldBeFalse()
+            val attackMessages = after { declareAttackers(listOf(iid)) }.messages
+            assertSoftly {
+                attackMessages.shouldNotBeEmpty()
+                assertAccumulatorConsistent("after combat with AI blocker")
+                isGameOver().shouldBeFalse()
+            }
         }
 
         test("combat damage frame carries persistent DamagedThisTurn badge") {
@@ -280,8 +286,8 @@ class CombatInteractionTest :
             val badge = damageGsm.persistentAnnotationsList.single { AnnotationType.DamagedThisTurn in it.typeList }
             assertSoftly {
                 badge.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR.value
-                badge.affectedIdsList.shouldNotBeEmpty()
-                damageGsm.annotationsList.none { AnnotationType.DamagedThisTurn in it.typeList }.shouldBeTrue()
+                badge.affectedIdsList.last() shouldBe attackerIid
+                damageGsm.annotationsList.count { AnnotationType.DamagedThisTurn in it.typeList } shouldBe 0
             }
         }
 
@@ -344,18 +350,21 @@ class CombatInteractionTest :
             val startTurn = turn()
 
             val promptSnap = messageSnapshot()
-            passUntil(maxPasses = 5) {
-                messagesSince(promptSnap).any { it.hasDeclareAttackersReq() }
-            }.shouldBeTrue()
-            val req = messagesSince(promptSnap).last { it.hasDeclareAttackersReq() }.declareAttackersReq
+            val sawPrompt =
+                passUntil(maxPasses = 5) {
+                    messagesSince(promptSnap).any { it.hasDeclareAttackersReq() }
+                }
+            val attackerPrompts = messagesSince(promptSnap).filter { it.hasDeclareAttackersReq() }
+            assertSoftly {
+                sawPrompt.shouldBeTrue()
+                attackerPrompts.size shouldBe 1
+            }
+            val req = attackerPrompts.last().declareAttackersReq
             val attackerPrompt = req.attackersList.first { it.attackerInstanceId == attackerIid }
             assertSoftly {
-                attackerPrompt.legalDamageRecipientsList
-                    .any { it.type == DamageRecType.Player_a0e5 && it.playerSystemSeatId == OPPONENT_SEAT }
-                    .shouldBeTrue()
-                attackerPrompt.legalDamageRecipientsList
-                    .any { it.type == DamageRecType.PlanesWalker && it.planeswalkerInstanceId == planeswalkerIid }
-                    .shouldBeTrue()
+                attackerPrompt.legalDamageRecipientsList.map { it.type } shouldBe
+                    listOf(DamageRecType.Player_a0e5, DamageRecType.PlanesWalker)
+                attackerPrompt.legalDamageRecipientsList.last().planeswalkerInstanceId shouldBe planeswalkerIid
             }
 
             val recipient = planeswalkerDamageRecipient(planeswalkerIid)
@@ -416,16 +425,18 @@ class CombatInteractionTest :
                     gsm.annotationsList.any { ann ->
                         ann.typeList.any { it == AnnotationType.DamageDealt_af5a }
                     }
-                }
-            damageGsm.shouldNotBeNull()
+                } ?: error("Expected combat damage GSM")
+            assertSoftly {
+                damageGsm.shouldNotBeNull()
 
-            // turnInfo must report CombatDamage phase (not Main2)
-            damageGsm.turnInfo.phase shouldBe Phase.Combat_a549
-            damageGsm.turnInfo.step shouldBe Step.CombatDamage_a2cb
+                // turnInfo must report CombatDamage phase (not Main2)
+                damageGsm.turnInfo.phase shouldBe Phase.Combat_a549
+                damageGsm.turnInfo.step shouldBe Step.CombatDamage_a2cb
 
-            // Annotation ordering: PhaseOrStepModified first
-            val annTypes = damageGsm.annotationsList.map { ann -> ann.typeList.first() }
-            annTypes.first() shouldBe AnnotationType.PhaseOrStepModified
+                // Annotation ordering: PhaseOrStepModified first
+                val annTypes = damageGsm.annotationsList.map { ann -> ann.typeList.first() }
+                annTypes.first() shouldBe AnnotationType.PhaseOrStepModified
+            }
 
             val phaseAnnotations =
                 damageGsm.annotationsList.filter { ann ->
@@ -456,13 +467,10 @@ class CombatInteractionTest :
                 lifeAnn.affectorId shouldBeGreaterThan 0
             }
 
-            damageGsm.annotationsList
-                .none { ann ->
-                    ann.typeList.any { it == AnnotationType.DamagedThisTurn }
-                }.shouldBeTrue()
-
-            // Human-turn combat animation checkpoint must not reopen priority.
-            allMessages.none { it.hasActionsAvailableReq() && it.gameStateId == damageGsm.gameStateId }.shouldBeTrue()
+            assertSoftly {
+                damageGsm.annotationsList.count { ann -> AnnotationType.DamagedThisTurn in ann.typeList } shouldBe 0
+                allMessages.count { it.hasActionsAvailableReq() && it.gameStateId == damageGsm.gameStateId } shouldBe 0
+            }
 
             val damageIndex = allGsms.indexOfFirst { it.gameStateId == damageGsm.gameStateId }
             damageIndex shouldBeGreaterThanOrEqualTo 0
@@ -481,9 +489,11 @@ class CombatInteractionTest :
                                 detail.key == "step" && detail.valueInt32List.contains(Step.EndCombat_a2cb.number)
                             }
                     }
-                }
-            endCombatGsm.shouldNotBeNull()
-            endCombatGsm.annotationsList.none { ann -> ann.typeList.any { it == AnnotationType.DamageDealt_af5a } }.shouldBeTrue()
+                } ?: error("Expected end combat GSM")
+            assertSoftly {
+                endCombatGsm.shouldNotBeNull()
+                endCombatGsm.annotationsList.count { ann -> AnnotationType.DamageDealt_af5a in ann.typeList } shouldBe 0
+            }
         }
 
         test("first strike combat damage uses first-strike damage step") {
@@ -505,16 +515,18 @@ class CombatInteractionTest :
                     .map { it.gameStateMessage }
                     .firstOrNull { gsm ->
                         gsm.annotationsList.any { AnnotationType.DamageDealt_af5a in it.typeList }
-                    }
-            damageGsm.shouldNotBeNull()
-            damageGsm.turnInfo.phase shouldBe Phase.Combat_a549
-            damageGsm.turnInfo.step shouldBe Step.FirstStrikeDamage_a2cb
-            damageGsm.annotationsList
-                .single { AnnotationType.PhaseOrStepModified in it.typeList }
-                .detailsList
-                .first { it.key == "step" }
-                .valueInt32List
-                .single() shouldBe Step.FirstStrikeDamage_a2cb.number
+                    } ?: error("Expected first-strike damage GSM")
+            assertSoftly {
+                damageGsm.shouldNotBeNull()
+                damageGsm.turnInfo.phase shouldBe Phase.Combat_a549
+                damageGsm.turnInfo.step shouldBe Step.FirstStrikeDamage_a2cb
+                damageGsm.annotationsList
+                    .single { AnnotationType.PhaseOrStepModified in it.typeList }
+                    .detailsList
+                    .first { it.key == "step" }
+                    .valueInt32List
+                    .single() shouldBe Step.FirstStrikeDamage_a2cb.number
+            }
         }
 
         test("double strike combat damage uses first-strike and regular damage steps") {
@@ -600,11 +612,12 @@ class CombatInteractionTest :
                     .allAnnotations()
 
             // Either ZoneTransfer (trade) or damage annotations should be present
-            val hasZoneTransfer = allAnnotations.any { AnnotationType.ZoneTransfer_af5a in it.typeList }
-            val hasDamage = allAnnotations.any { AnnotationType.DamageDealt_af5a in it.typeList }
-            (hasZoneTransfer || hasDamage || combatMsgs.isNotEmpty()).shouldBeTrue()
-
-            isGameOver().shouldBeFalse()
+            assertSoftly {
+                combatMsgs.shouldNotBeEmpty()
+                allAnnotations.count { AnnotationType.ZoneTransfer_af5a in it.typeList } +
+                    allAnnotations.count { AnnotationType.DamageDealt_af5a in it.typeList } shouldBeGreaterThanOrEqualTo 1
+                isGameOver().shouldBeFalse()
+            }
         }
 
         test("full combat turn cycle") {
@@ -618,11 +631,11 @@ class CombatInteractionTest :
                     declareAttackers(listOf(attackerIid))
                     passThroughCombat(startTurn)
                 }.messages
-            allMsgs.size shouldBeGreaterThanOrEqualTo 3
-
-            // gsId chain must be valid across all combat phases
-            assertGsIdChain(allMessages, context = "full combat turn cycle")
-            assertAccumulatorConsistent("after full combat cycle")
+            assertSoftly {
+                allMsgs.size shouldBeGreaterThanOrEqualTo 3
+                assertGsIdChain(allMessages, context = "full combat turn cycle")
+                assertAccumulatorConsistent("after full combat cycle")
+            }
         }
 
         // ─── Iterative attacker toggle (echo back) ────────────────────────────
@@ -632,7 +645,7 @@ class CombatInteractionTest :
 
             // Advance to combat — DeclareAttackersReq emitted
             passPriority()
-            allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
+            allMessages.count { it.hasDeclareAttackersReq() } shouldBe 1
 
             // Send iterative toggle (DeclareAttackersResp only, no Submit)
             val echoMsgs = toggleAttackers(listOf(attackerIid))
@@ -645,16 +658,18 @@ class CombatInteractionTest :
             val objects = gsm.gameObjectsList
             objects.shouldNotBeEmpty()
 
-            val attackerObj = objects.firstOrNull { it.instanceId == attackerIid }
-            attackerObj.shouldNotBeNull()
+            val attackerObj = objects.firstOrNull { it.instanceId == attackerIid } ?: error("Expected attacker object")
+            assertSoftly {
+                attackerObj.shouldNotBeNull()
 
-            // Conformance: client echo carries NO combat state.
-            attackerObj.attackState shouldBe AttackState.None_a3a9
-            attackerObj.blockState shouldBe BlockState.None_aa2d
+                // Conformance: client echo carries NO combat state.
+                attackerObj.attackState shouldBe AttackState.None_a3a9
+                attackerObj.blockState shouldBe BlockState.None_aa2d
 
-            // Conformance: SendAndRecord, no pendingMessageCount
-            gsm.update shouldBe GameStateUpdate.SendAndRecord
-            gsm.pendingMessageCount shouldBe 0
+                // Conformance: SendAndRecord, no pendingMessageCount
+                gsm.update shouldBe GameStateUpdate.SendAndRecord
+                gsm.pendingMessageCount shouldBe 0
+            }
 
             // Echo should also contain a fresh DeclareAttackersReq
             val echoReq = echoMsgs.firstOrNull { it.hasDeclareAttackersReq() }
@@ -686,25 +701,19 @@ class CombatInteractionTest :
             // Toggle ON (XOR: not committed → committed)
             val onMsgs = toggleAttackers(listOf(attackerIid))
             val onReq = onMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
-            onReq.attackersList
-                .first()
-                .hasSelectedDamageRecipient()
-                .shouldBeTrue()
+            onReq.attackersList.map { it.hasSelectedDamageRecipient() } shouldBe listOf(true)
 
             // Toggle OFF (XOR same ID: committed → deselected)
             val offMsgs = toggleAttackers(listOf(attackerIid))
             val offReq = offMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
-            offReq.attackersList
-                .first()
-                .hasSelectedDamageRecipient()
-                .shouldBeFalse()
+            offReq.attackersList.map { it.hasSelectedDamageRecipient() } shouldBe listOf(false)
         }
 
         test("echo back deselect restores state") {
             val attackerIid = setupSingleAttacker()
 
             passPriority() // advance to combat
-            allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
+            allMessages.count { it.hasDeclareAttackersReq() } shouldBe 1
 
             // Toggle ON
             toggleAttackers(listOf(attackerIid))
@@ -763,7 +772,7 @@ class CombatInteractionTest :
             // Verify DeclareAttackersReq was sent with our creature
             val daReq = checkNotNull(allMessages.lastOrNull { it.hasDeclareAttackersReq() }) { "Should receive DeclareAttackersReq" }
             val eligible = daReq.declareAttackersReq.attackersList.map { it.attackerInstanceId }
-            (attackerIid in eligible).shouldBeTrue()
+            eligible.count { it == attackerIid } shouldBe 1
 
             // Toggle creature ON (iterative DeclareAttackersResp)
             toggleAttackers(listOf(attackerIid))
@@ -787,7 +796,7 @@ class CombatInteractionTest :
             passPriority()
 
             // Verify DeclareAttackersReq was sent
-            allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
+            allMessages.count { it.hasDeclareAttackersReq() } shouldBe 1
 
             // Send "Attack All" (DeclareAttackersResp with auto_declare=true)
             declareAllAttackers()
@@ -811,10 +820,12 @@ class CombatInteractionTest :
             allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
             // Declare no attackers — should advance past combat
-            after { declareNoAttackers() }.messages.shouldNotBeEmpty()
-
-            assertAccumulatorConsistent("after declining combat")
-            isGameOver().shouldBeFalse()
+            val messages = after { declareNoAttackers() }.messages
+            assertSoftly {
+                messages.shouldNotBeEmpty()
+                assertAccumulatorConsistent("after declining combat")
+                isGameOver().shouldBeFalse()
+            }
         }
 
         // ─── Assign damage (multi-blocker / trample) ──────────────────────────
@@ -844,6 +855,7 @@ class CombatInteractionTest :
 
             // Pass to combat → DeclareAttackersReq
             passUntil(maxPasses = 5) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
+            allMessages.count { it.hasDeclareAttackersReq() } shouldBe 1
 
             // Attack. After submit, engine processes AI blockers → COMBAT_DAMAGE →
             // WPC.assignCombatDamage blocks on dedicated future →
@@ -1011,10 +1023,10 @@ class CombatInteractionTest :
             val aiTurnAars = aiTurnActionsAvailableReqs(allMessages)
 
             assertSoftly {
-                aiTurnAars.shouldNotBeEmpty()
+                aiTurnAars.size shouldBe 1
                 aiTurnAars
                     .flatMap { it.actionsAvailableReq.actionsList }
-                    .any { it.actionType == ActionType.Cast } shouldBe true
+                    .count { it.actionType == ActionType.Cast } shouldBe 1
                 human.life shouldBe 20
             }
         }

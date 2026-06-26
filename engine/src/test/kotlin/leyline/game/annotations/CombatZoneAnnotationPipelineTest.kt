@@ -95,18 +95,19 @@ class CombatZoneAnnotationPipelineTest :
 
             assertSoftly {
                 annotations.size shouldBe 7
-                annotations[0].typeList.first() shouldBe AnnotationType.AbilityInstanceCreated
-                annotations[1].typeList.first() shouldBe AnnotationType.TappedUntappedPermanent
-                annotations[2].typeList.first() shouldBe AnnotationType.ObjectIdChanged
-                annotations[3].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-                annotations[4].typeList.first() shouldBe AnnotationType.UserActionTaken
-                annotations[5].typeList.first() shouldBe AnnotationType.ManaPaid
-                annotations[6].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted
+                annotations.map { it.typeList.first() } shouldBe
+                    listOf(
+                        AnnotationType.AbilityInstanceCreated,
+                        AnnotationType.TappedUntappedPermanent,
+                        AnnotationType.ObjectIdChanged,
+                        AnnotationType.ZoneTransfer_af5a,
+                        AnnotationType.UserActionTaken,
+                        AnnotationType.ManaPaid,
+                        AnnotationType.AbilityInstanceDeleted,
+                    )
+                annotations[5].affectorId shouldBe 100
+                annotations[5].affectedIdsList shouldContain 300
             }
-
-            // ManaPaid: affectorId = land (origId=100), affectedIds contains spellInstanceId
-            annotations[5].affectorId shouldBe 100
-            annotations[5].affectedIdsList shouldContain 300
         }
 
         test("Sacrifice without mana payment emits standard annotations") {

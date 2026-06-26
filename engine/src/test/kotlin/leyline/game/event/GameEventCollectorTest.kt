@@ -43,7 +43,9 @@ class GameEventCollectorTest :
 
         test("collector is wired after wrapGame") {
             val (b, _, _) = base.startWithBoard { _, _, _ -> }
-            b.eventCollector.shouldNotBeNull()
+            val collector = b.eventCollector.shouldNotBeNull()
+
+            collector.closeFrame().events shouldBe emptyList()
         }
 
         test("drain events returns and clears") {

@@ -1,6 +1,7 @@
 package leyline.testkit
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
@@ -41,17 +42,19 @@ class CardInjectionTest :
                 checkNotNull(
                     gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId },
                 ) { "Injected card should appear in gameObjectsList" }
-            obj.grpId shouldBe injected.grpId
-            obj.cardTypesList.shouldContain(CardType.Creature)
-            obj.hasPower().shouldBeTrue()
-            obj.power.value shouldBe 4
-            obj.hasToughness().shouldBeTrue()
-            obj.toughness.value shouldBe 4
-            obj.uniqueAbilitiesCount shouldBeGreaterThanOrEqual 2
+            assertSoftly {
+                obj.grpId shouldBe injected.grpId
+                obj.cardTypesList.shouldContain(CardType.Creature)
+                obj.hasPower().shouldBeTrue()
+                obj.power.value shouldBe 4
+                obj.hasToughness().shouldBeTrue()
+                obj.toughness.value shouldBe 4
+                obj.uniqueAbilitiesCount shouldBeGreaterThanOrEqual 2
 
-            b.getForgeCardId(InstanceId(injected.instanceId))?.value shouldBe injected.forgeCardId
-            b.cardRepository.findByGrpId(injected.grpId).shouldNotBeNull()
-            b.cardRepository.findNameByGrpId(injected.grpId) shouldBe "Serra Angel"
+                b.getForgeCardId(InstanceId(injected.instanceId))?.value shouldBe injected.forgeCardId
+                b.cardRepository.findByGrpId(injected.grpId).shouldNotBeNull()
+                b.cardRepository.findNameByGrpId(injected.grpId) shouldBe "Serra Angel"
+            }
 
             val acc = ClientAccumulator()
             acc.seedFull(gsm)
@@ -88,9 +91,11 @@ class CardInjectionTest :
             val first = TestCardInjector.inject(b, 1, "Grizzly Bears", ZoneType.Battlefield)
             val second = TestCardInjector.inject(b, 1, "Grizzly Bears", ZoneType.Battlefield)
 
-            first.grpId shouldBe second.grpId
-            first.instanceId shouldNotBe second.instanceId
-            first.forgeCardId shouldNotBe second.forgeCardId
+            assertSoftly {
+                first.grpId shouldBe second.grpId
+                first.instanceId shouldNotBe second.instanceId
+                first.forgeCardId shouldNotBe second.forgeCardId
+            }
         }
 
         test("auto-register deck list populates repository for all cards") {

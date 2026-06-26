@@ -146,10 +146,11 @@ class StateMapperShapeTest :
             gs.gameObjectsCount shouldBeGreaterThan 0
 
             val handZone = gs.zonesList.find { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
-            handZone.shouldNotBeNull()
-            handZone.objectInstanceIdsCount shouldBe 3
-
-            gs.hasTurnInfo().shouldBeTrue()
+            assertSoftly {
+                handZone.shouldNotBeNull()
+                handZone.objectInstanceIdsCount shouldBe 3
+                gs.hasTurnInfo().shouldBeTrue()
+            }
         }
 
         test("game objects have card type fields") {

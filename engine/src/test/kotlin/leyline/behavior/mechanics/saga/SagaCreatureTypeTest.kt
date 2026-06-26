@@ -1,6 +1,7 @@
 package leyline.behavior.mechanics.saga
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
@@ -78,13 +79,13 @@ class SagaCreatureTypeTest :
                         .type.coreTypes
                         .map { it.name }
                         .toSet()
-                types shouldContain "Enchantment"
-                types shouldContain "Creature"
-
-                // Sanity: creature stats are live (printed 2/1).
-                saga.isCreature.shouldBeTrue()
-                saga.currentPower shouldBeGreaterThanOrEqualTo 2
-                saga.currentToughness shouldBeGreaterThanOrEqualTo 1
+                assertSoftly {
+                    types shouldContain "Enchantment"
+                    types shouldContain "Creature"
+                    saga.isCreature.shouldBeTrue()
+                    saga.currentPower shouldBeGreaterThanOrEqualTo 2
+                    saga.currentToughness shouldBeGreaterThanOrEqualTo 1
+                }
 
                 // Client-accumulator assertion: the BF gameObject for the
                 // saga carries both Enchantment and Creature card types live.
@@ -97,8 +98,10 @@ class SagaCreatureTypeTest :
                         }
                 sagaAccObj.shouldNotBeNull()
                 val accTypes = sagaAccObj!!.cardTypesList.map { it.name }
-                (accTypes.any { it.startsWith("Enchantment") }).shouldBeTrue()
-                (accTypes.any { it == "Creature" }).shouldBeTrue()
+                assertSoftly {
+                    accTypes shouldContain "Enchantment"
+                    accTypes shouldContain "Creature"
+                }
             } finally {
                 harness.shutdown()
             }

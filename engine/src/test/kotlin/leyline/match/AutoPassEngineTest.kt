@@ -68,8 +68,10 @@ class AutoPassEngineTest :
 
             val decision = engine.checkHumanActions(game, isAiTurn = true)
 
-            decision.shouldBeInstanceOf<PriorityDecision.Skip>()
-            (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.OnlyPassActions
+            assertSoftly {
+                decision.shouldBeInstanceOf<PriorityDecision.Skip>()
+                (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.OnlyPassActions
+            }
         }
 
         test("checkHumanActions — AI turn with real action grants priority") {
@@ -98,8 +100,10 @@ class AutoPassEngineTest :
 
             val decision = engine.checkHumanActions(game, isAiTurn = true)
 
-            decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-            ops.hasTraceContaining("opponentTurn") shouldBe true
+            assertSoftly {
+                decision.shouldBeInstanceOf<PriorityDecision.Grant>()
+                ops.hasTraceContaining("opponentTurn") shouldBe true
+            }
         }
 
         test("shouldCheckHumanActions — AI turn waits for pending human priority") {
@@ -183,9 +187,11 @@ class AutoPassEngineTest :
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
-            decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-            ops.hasTrace(MatchEventType.SEND_STATE) shouldBe true
-            ops.hasTraceContaining("fullControl") shouldBe true
+            assertSoftly {
+                decision.shouldBeInstanceOf<PriorityDecision.Grant>()
+                ops.hasTrace(MatchEventType.SEND_STATE) shouldBe true
+                ops.hasTraceContaining("fullControl") shouldBe true
+            }
         }
 
         test("checkHumanActions — AI turn full control grants priority even with pass-only actions") {
@@ -212,9 +218,11 @@ class AutoPassEngineTest :
 
             val decision = engine.checkHumanActions(game, isAiTurn = true)
 
-            decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-            ops.hasTraceContaining("fullControl") shouldBe true
-            ops.hasTraceContaining("opponentTurn") shouldBe true
+            assertSoftly {
+                decision.shouldBeInstanceOf<PriorityDecision.Grant>()
+                ops.hasTraceContaining("fullControl") shouldBe true
+                ops.hasTraceContaining("opponentTurn") shouldBe true
+            }
         }
 
         // --- checkHumanActions: client autoPass ---
@@ -241,12 +249,13 @@ class AutoPassEngineTest :
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
-            decision.shouldBeInstanceOf<PriorityDecision.Skip>()
-            (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.ClientAutoPass
-            ops.hasTrace(MatchEventType.AUTO_PASS) shouldBe true
+            assertSoftly {
+                decision.shouldBeInstanceOf<PriorityDecision.Skip>()
+                (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.ClientAutoPass
+                ops.hasTrace(MatchEventType.AUTO_PASS) shouldBe true
+            }
         }
 
-        @Suppress("WeakAssertionOnly") // Type check is the contract; Grant has no other observable state.
         test("checkHumanActions — client autoPass + real actions → Grant") {
             val (bridge, game, counter) =
                 base.startWithBoard { _, human, _ ->
@@ -274,7 +283,10 @@ class AutoPassEngineTest :
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
-            decision.shouldBeInstanceOf<PriorityDecision.Grant>()
+            assertSoftly {
+                decision.shouldBeInstanceOf<PriorityDecision.Grant>()
+                ops.hasTrace(MatchEventType.SEND_STATE) shouldBe true
+            }
         }
 
         // --- checkHumanActions: no autoPass ---

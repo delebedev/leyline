@@ -2,7 +2,6 @@ package leyline.game.annotations
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
@@ -341,7 +340,7 @@ class PurePipelineTest :
                 )
 
             val lifeAnnotation = result.annotations.first { it.getType(0) == AnnotationType.ModifiedLife }
-            lifeAnnotation.affectedIdsList shouldContain 2
+            lifeAnnotation.affectedIdsList shouldBe listOf(2)
         }
 
         test("assembleTransferAndCombatAnnotations defers lethal-damage destroy transfer until after DamageDealt") {
@@ -396,7 +395,7 @@ class PurePipelineTest :
                 oicIdx shouldBe 1
                 ztIdx shouldBe 2
             }
-            types.none { it == AnnotationType.DamagedThisTurn }.shouldBeTrue()
+            types.filter { it == AnnotationType.DamagedThisTurn } shouldBe emptyList()
         }
 
         test("assembleTransferAndCombatAnnotations keeps non-damage destroy transfer before combat block") {

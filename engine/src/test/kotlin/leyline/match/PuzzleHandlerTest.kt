@@ -5,7 +5,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.netty.channel.ChannelHandlerContext
@@ -97,15 +96,17 @@ class PuzzleHandlerTest :
                 handler.sendPuzzleInitialBundle(ctx, session, "puzzle-bolt-face", 1)
                 val gre = outbound(channel).flatMap(::greMessages)
 
-                gre.map { it.type } shouldContain GREMessageType.ConnectResp_695e
-                gre.map { it.type } shouldContain GREMessageType.GameStateMessage_695e
-                gre.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
-                gre
-                    .first { it.hasGameStateMessage() }
-                    .gameStateMessage.actionsList
-                    .shouldNotBeEmpty()
-                sink.messages.shouldNotBeEmpty()
-                session.gameBridge shouldBeSameInstanceAs bridge
+                assertSoftly {
+                    gre.map { it.type }.take(3) shouldBe
+                        listOf(
+                            GREMessageType.ConnectResp_695e,
+                            GREMessageType.GameStateMessage_695e,
+                            GREMessageType.ActionsAvailableReq_695e,
+                        )
+                    gre.first { it.hasGameStateMessage() }.gameStateMessage.actionsCount shouldBe 4
+                    sink.messages.size shouldBe 3
+                    session.gameBridge shouldBeSameInstanceAs bridge
+                }
                 channel.close()
                 bridge.shutdown()
             } finally {
@@ -153,10 +154,12 @@ class PuzzleHandlerTest :
                 val (channel2, ctx2) = channelCtx()
                 handler.sendPuzzleInitialBundle(ctx2, session2, "puzzle-lands-only", 1)
 
-                first shouldBeSameInstanceAs second
-                registry.getMatch("puzzle-lands-only")!!.bridge shouldBeSameInstanceAs first
-                outbound(channel1).flatMap(::greMessages).map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
-                outbound(channel2).flatMap(::greMessages).map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
+                assertSoftly {
+                    first shouldBeSameInstanceAs second
+                    registry.getMatch("puzzle-lands-only")!!.bridge shouldBeSameInstanceAs first
+                    outbound(channel1).flatMap(::greMessages).map { it.type }.last() shouldBe GREMessageType.ActionsAvailableReq_695e
+                    outbound(channel2).flatMap(::greMessages).map { it.type }.last() shouldBe GREMessageType.ActionsAvailableReq_695e
+                }
                 channel1.close()
                 channel2.close()
                 first.shutdown()

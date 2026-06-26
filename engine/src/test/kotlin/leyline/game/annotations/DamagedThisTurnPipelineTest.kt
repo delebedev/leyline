@@ -121,7 +121,10 @@ class DamagedThisTurnPipelineTest :
                     currentLifeTotals = emptyMap(),
                 )
 
-            result.clearDamagedThisTurn.shouldBeFalse()
+            assertSoftly {
+                result.clearDamagedThisTurn.shouldBeFalse()
+                result.damagedThisTurnPersistent shouldBe emptyList()
+            }
         }
 
         // -- PersistentAnnotationStore: grow-or-create + clear --

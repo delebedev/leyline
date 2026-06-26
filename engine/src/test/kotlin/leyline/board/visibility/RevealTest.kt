@@ -4,7 +4,6 @@ import forge.game.card.CardCollection
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
@@ -69,7 +68,7 @@ class RevealTest :
 
             gsm
                 .annotation(AnnotationType.RevealedCardCreated)
-                .affectedIdsList shouldContain instanceId.value
+                .affectedIdsList shouldBe listOf(instanceId.value)
         }
 
         test("multi-card reveal produces one annotation per card") {
