@@ -10,24 +10,8 @@ import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.game.data.CardData
-import leyline.game.data.CardRepository
+import leyline.game.data.AutoMappingCardRepository
 import java.util.concurrent.atomic.AtomicInteger
-
-private class AutoMappingCardRepository : CardRepository {
-    private val counter = AtomicInteger(500_000)
-    private val nameToGrpId = mutableMapOf<String, Int>()
-    private val grpIdToName = mutableMapOf<Int, String>()
-
-    override fun findGrpIdByName(name: String): Int =
-        nameToGrpId.getOrPut(name) { counter.getAndIncrement().also { grpIdToName[it] = name } }
-
-    override fun findByGrpId(grpId: Int): CardData? = null
-
-    override fun findNameByGrpId(grpId: Int): String? = grpIdToName[grpId]
-
-    override fun findAllGrpIds(): List<Int> = nameToGrpId.values.toList()
-}
 
 class ForgeBoosterDraftDriverTest :
     FunSpec({

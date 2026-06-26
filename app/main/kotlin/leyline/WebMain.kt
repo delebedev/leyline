@@ -12,6 +12,8 @@ import leyline.domain.service.CourseService
 import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.GeneratedPool
+import leyline.game.data.AutoMappingCardRepository
+import leyline.game.data.CardRepository
 import leyline.game.data.ExposedCardRepository
 import leyline.game.generator.ForgeBoosterDraftDriver
 import leyline.game.generator.SealedPoolGenerator
@@ -39,7 +41,7 @@ fun main(args: Array<String>) {
     val options = parseArgs(args)
     val port = options["--web-port"]?.toIntOrNull() ?: System.getenv("LEYLINE_WEBDOOR_PORT")?.toIntOrNull() ?: 8080
     val config = MatchConfig.load(options["--config"]?.let(::File) ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME))
-    val cardRepo = ExposedCardRepository(Database.connect("jdbc:sqlite:${resolveCardDb().absolutePath}", "org.sqlite.JDBC"))
+    val cardRepo = resolveCardRepository()
     val playerDb = resolvePlayerDb(config)
     val playerDatabase = Database.connect("jdbc:sqlite:${playerDb.absolutePath}", "org.sqlite.JDBC")
     val playerStore = SqlitePlayerStore(playerDatabase).also { it.createTables() }
@@ -127,7 +129,7 @@ fun main(args: Array<String>) {
 private class WebRuntimeMatchLauncher(
     private val config: MatchConfig,
     private val coordinator: AppMatchCoordinator,
-    private val cardRepo: ExposedCardRepository,
+    private val cardRepo: CardRepository,
     private val runtimeMatches: RuntimeMatchConfigRegistry,
     private val relay: InProcessWebGreRelay,
 ) : WebMatchLauncher {
@@ -186,6 +188,16 @@ private fun resolveCardDb(): File {
     require(detected.exists() && detected.length() > 1_000_000L) { "Card database is missing or too small: ${detected.absolutePath}" }
     return detected
 }
+
+private fun resolveCardRepository(): CardRepository =
+    when (System.getenv("LEYLINE_CARD_MODE")?.lowercase()) {
+        "auto" -> AutoMappingCardRepository(useFixtures = true)
+        null,
+        "sqlite",
+        -> ExposedCardRepository(Database.connect("jdbc:sqlite:${resolveCardDb().absolutePath}", "org.sqlite.JDBC"))
+
+        else -> error("LEYLINE_CARD_MODE must be 'sqlite' or 'auto'")
+    }
 
 private fun resolveWebAuthSecret(): String {
     val secret = System.getenv("LEYLINE_WEB_AUTH_SECRET")?.takeIf { it.isNotBlank() }
