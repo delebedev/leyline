@@ -1,0 +1,18 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Leyline Web Door", "version": "0.1.0" },
+  "paths": {
+    "/api/auth/me": { "get": { "responses": { "200": { "description": "Current web session" } } } },
+    "/api/collection": { "get": { "parameters": [{ "name": "playerId", "in": "query", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Collection grpIds" } } } },
+    "/api/cards/metadata": { "get": { "responses": { "200": { "description": "Card metadata" } } } },
+    "/api/courses": { "get": { "parameters": [{ "name": "playerId", "in": "query", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Courses" } } } },
+    "/api/decks": { "get": { "responses": { "200": { "description": "Deck list" } } }, "post": { "responses": { "200": { "description": "Created deck" } } } },
+    "/api/decks/{deckId}": { "get": { "responses": { "200": { "description": "Deck" }, "404": { "description": "Missing" } } }, "delete": { "responses": { "204": { "description": "Deleted" } } } },
+    "/api/draft/start": { "post": { "responses": { "200": { "description": "Draft session" } } } },
+    "/api/draft/pick": { "post": { "responses": { "200": { "description": "Draft session" } } } },
+    "/api/draft/status": { "get": { "responses": { "200": { "description": "Draft session" }, "404": { "description": "Missing" } } } },
+    "/api/draft/deck": { "post": { "responses": { "200": { "description": "Course" }, "400": { "description": "Invalid deck" } } } },
+    "/api/draft/play": { "post": { "responses": { "200": { "description": "Match launch" } } } },
+    "/api/draft": { "delete": { "responses": { "204": { "description": "Dropped" } } } }
+  }
+}

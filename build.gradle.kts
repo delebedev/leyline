@@ -92,6 +92,7 @@ dependencies {
     implementation(project(":engine"))
     implementation(project(":frontdoor"))
     implementation(project(":matchdoor"))
+    implementation(project(":webdoor"))
     implementation(libs.protobuf.java.util)
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)

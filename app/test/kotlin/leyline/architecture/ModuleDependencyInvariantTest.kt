@@ -23,11 +23,14 @@ class ModuleDependencyInvariantTest :
             projectDependencies("matchdoor") shouldContain "domain"
             projectDependencies("matchdoor") shouldContain "engine"
             projectDependencies("engine") shouldContain "domain"
+            projectDependencies("webdoor") shouldContain "domain"
+            projectDependencies("webdoor") shouldContain "engine"
             projectDependencies("matchdoor") shouldNotContain "frontdoor"
+            projectDependencies("webdoor") shouldNotContain "frontdoor"
         }
 
         test("frontdoor remains a leaf below the composition root") {
-            val modules = listOf("account", "domain", "engine", "frontdoor", "matchdoor")
+            val modules = listOf("account", "domain", "engine", "frontdoor", "matchdoor", "webdoor")
             val dependents = modules.filter { projectDependencies(it).contains("frontdoor") }
             dependents shouldBe emptyList()
         }
