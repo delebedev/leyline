@@ -51,6 +51,7 @@ import org.jetbrains.exposed.v1.jdbc.Database
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.LockSupport
 
 class WebDoorRoutesTest :
     FunSpec({
@@ -461,7 +462,7 @@ private class ConcurrentProbeGreEngineSession : WebGreEngineSession {
         val nowActive = active.incrementAndGet()
         maxConcurrent.updateAndGet { current -> maxOf(current, nowActive) }
         try {
-            Thread.sleep(50)
+            LockSupport.parkNanos(50_000_000)
             receivedCount.incrementAndGet()
             return listOf(payload)
         } finally {

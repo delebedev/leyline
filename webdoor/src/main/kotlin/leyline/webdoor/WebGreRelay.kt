@@ -129,9 +129,11 @@ class InProcessWebGreRelay : WebGreRelay {
                 lock.withLock {
                     if (closed || browsers.isNotEmpty()) return false
                     closed = true
-                    engine.also { engine = null }
+                    val current = engine ?: return false
+                    engine = null
+                    current
                 }
-            engineToClose?.close()
+            engineToClose.close()
             onClose()
             return true
         }
