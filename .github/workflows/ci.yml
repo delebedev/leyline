@@ -79,6 +79,7 @@ jobs:
 
   integration:
     name: Integration
+    needs: gate
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, ARM64]
     continue-on-error: true
@@ -139,6 +140,7 @@ jobs:
 
   acceptance:
     name: Acceptance
+    needs: integration
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, ARM64]
     continue-on-error: true
