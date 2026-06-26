@@ -21,7 +21,11 @@ import io.ktor.server.testing.testApplication
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readBytes
 import io.ktor.websocket.send
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -45,6 +49,8 @@ import leyline.domain.service.GeneratedPool
 import leyline.game.InMemoryCardRepository
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.nio.file.Files
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 class WebDoorRoutesTest :
     FunSpec({
@@ -128,14 +134,96 @@ class WebDoorRoutesTest :
 
         test("relays GRE WebSocket frames through engine session") {
             withWebDoor { client, repos ->
-                repos.relay.register("m1", StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(9, 8, 7)), publicAccess = true)
+                val login = client.login(repos)
+                repos.relay.register(
+                    "m1",
+                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(9, 8, 7)),
+                    ownerPlayerId = PlayerId(login.playerId),
+                )
                 val wsClient = client.config { install(WebSockets) }
-                wsClient.webSocket("/gre?matchId=m1") {
+                wsClient.webSocket({
+                    url.takeFrom("/gre?matchId=m1")
+                    header(HttpHeaders.Cookie, login.cookie)
+                }) {
                     send(Frame.Binary(fin = true, data = byteArrayOf(1, 2, 3)))
                     val frame = incoming.receive() as Frame.Binary
 
                     repos.enginePayloads.single().contentEquals(byteArrayOf(1, 2, 3)) shouldBe true
                     frame.readBytes().contentEquals(byteArrayOf(9, 8, 7)) shouldBe true
+                }
+            }
+        }
+
+        test("public GRE WebSocket attachments are read-only") {
+            withWebDoor { client, repos ->
+                repos.relay.register(
+                    "public",
+                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(9, 8, 7)),
+                    ownerPlayerId = PlayerId("owner"),
+                    publicAccess = true,
+                )
+                val wsClient = client.config { install(WebSockets) }
+
+                wsClient.webSocket("/gre?matchId=public") {
+                    send(Frame.Binary(fin = true, data = byteArrayOf(1, 2, 3)))
+
+                    withTimeoutOrNull(100) { incoming.receive() } shouldBe null
+                    repos.enginePayloads shouldBe emptyList()
+                }
+            }
+        }
+
+        test("GRE relay closes idle sessions") {
+            withWebDoor { client, repos ->
+                val login = client.login(repos)
+                val closed = AtomicBoolean(false)
+                var cleanupCount = 0
+                repos.relay.register(
+                    "close-me",
+                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(1), closed = closed),
+                    ownerPlayerId = PlayerId(login.playerId),
+                    onClose = { cleanupCount++ },
+                )
+                val wsClient = client.config { install(WebSockets) }
+
+                wsClient.webSocket({
+                    url.takeFrom("/gre?matchId=close-me")
+                    header(HttpHeaders.Cookie, login.cookie)
+                }) {
+                    send(Frame.Binary(fin = true, data = byteArrayOf(1)))
+                    incoming.receive()
+                }
+
+                assertSoftly {
+                    closed.get() shouldBe true
+                    cleanupCount shouldBe 1
+                }
+            }
+        }
+
+        test("GRE relay serializes engine access per match") {
+            withWebDoor { client, repos ->
+                val login = client.login(repos)
+                val engine = ConcurrentProbeGreEngineSession()
+                repos.relay.register("serialized", engine, ownerPlayerId = PlayerId(login.playerId))
+                val wsClient = client.config { install(WebSockets) }
+                val attached = AtomicInteger(0)
+                val bothAttached = CompletableDeferred<Unit>()
+                val replies = AtomicInteger(0)
+                val bothReplied = CompletableDeferred<Unit>()
+
+                coroutineScope {
+                    val first =
+                        async { wsClient.roundTrip(login, "serialized", byteArrayOf(1), attached, bothAttached, replies, bothReplied) }
+                    val second =
+                        async { wsClient.roundTrip(login, "serialized", byteArrayOf(2), attached, bothAttached, replies, bothReplied) }
+                    first.await()
+                    second.await()
+                }
+
+                assertSoftly {
+                    engine.receivedCount.get() shouldBe 2
+                    engine.maxConcurrent.get() shouldBe 1
                 }
             }
         }
@@ -324,13 +412,61 @@ private suspend fun io.ktor.client.HttpClient.login(repos: TestRepos): TestLogin
     return TestLogin(cookie, playerId)
 }
 
+private suspend fun io.ktor.client.HttpClient.roundTrip(
+    login: TestLogin,
+    matchId: String,
+    payload: ByteArray,
+    attached: AtomicInteger,
+    bothAttached: CompletableDeferred<Unit>,
+    replies: AtomicInteger,
+    bothReplied: CompletableDeferred<Unit>,
+) {
+    webSocket({
+        url.takeFrom("/gre?matchId=$matchId")
+        header(HttpHeaders.Cookie, login.cookie)
+    }) {
+        if (attached.incrementAndGet() == 2) bothAttached.complete(Unit)
+        bothAttached.await()
+        send(Frame.Binary(fin = true, data = payload))
+        while (true) {
+            val reply = incoming.receive() as Frame.Binary
+            if (reply.readBytes().contentEquals(payload)) break
+        }
+        if (replies.incrementAndGet() == 2) bothReplied.complete(Unit)
+        bothReplied.await()
+    }
+}
+
 private class StaticGreEngineSession(
     private val received: MutableList<ByteArray>,
     private val reply: ByteArray,
+    private val closed: AtomicBoolean = AtomicBoolean(false),
 ) : WebGreEngineSession {
     override fun receiveFromBrowser(payload: ByteArray): List<ByteArray> {
         received += payload
         return listOf(reply)
+    }
+
+    override fun close() {
+        closed.set(true)
+    }
+}
+
+private class ConcurrentProbeGreEngineSession : WebGreEngineSession {
+    val receivedCount = AtomicInteger(0)
+    val maxConcurrent = AtomicInteger(0)
+    private val active = AtomicInteger(0)
+
+    override fun receiveFromBrowser(payload: ByteArray): List<ByteArray> {
+        val nowActive = active.incrementAndGet()
+        maxConcurrent.updateAndGet { current -> maxOf(current, nowActive) }
+        try {
+            Thread.sleep(50)
+            receivedCount.incrementAndGet()
+            return listOf(payload)
+        } finally {
+            active.decrementAndGet()
+        }
     }
 
     override fun close() = Unit
