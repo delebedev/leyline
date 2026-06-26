@@ -76,6 +76,8 @@ tasks.named<Test>("test") {
     systemProperty("kotest.tags", "!SimClientTag & !AcceptanceTag")
 }
 
+val integrationForks = (project.findProperty("integrationForks") as String?)?.toIntOrNull() ?: 1
+
 val testUnit by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "UnitTag")
@@ -93,6 +95,30 @@ val testGate by tasks.registering(Test::class) {
     systemProperty("kotest.tags", "(UnitTag | BoardTag) & !SimClientTag")
     systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "1"))
 }
+
+val testIntegration by tasks.registering(Test::class) {
+    configureTestDefaults()
+    systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
+    maxParallelForks = integrationForks
+}
+
+val testIntegrationStrict by tasks.registering(Test::class) {
+    configureTestDefaults()
+    systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
+    maxParallelForks = integrationForks
+    outputs.cacheIf { false }
+    outputs.upToDateWhen { false }
+}
+
+val testAcceptance by tasks.registering(Test::class) {
+    configureTestDefaults()
+    systemProperty("kotest.tags", "AcceptanceTag")
+    maxParallelForks = 1
+    inputs.dir(rootProject.layout.projectDirectory.dir("puzzles"))
+}
+
+testIntegration.configure { mustRunAfter(testGate) }
+testIntegrationStrict.configure { mustRunAfter(testGate) }
 
 val simclient by tasks.registering(JavaExec::class) {
     group = "simclient"

@@ -1,14 +1,14 @@
 # Test recipes
 # Imported by justfile — all variables available from parent.
 
-# single test class, matchdoor by default (e.g. `just test-one ShouldStopEvaluatorTest`, `just test-one DeckServiceTest frontdoor`)
+# single test class, engine by default (e.g. `just test-one ShouldStopEvaluatorTest`, `just test-one DeckServiceTest frontdoor`)
 [group('test')]
-test-one class module='matchdoor':
+test-one class module='engine':
     cd "{{project_dir}}" && ./gradlew :{{module}}:test --tests "*{{class}}"
 
-# single test class with stdout/stderr visible, matchdoor by default (e.g. `just test-debug BiteDownTest`)
+# single test class with stdout/stderr visible, engine by default (e.g. `just test-debug BiteDownTest`)
 [group('test')]
-test-debug class module='matchdoor':
+test-debug class module='engine':
     cd "{{project_dir}}" && ./gradlew :{{module}}:test --tests "*{{class}}" -Pverbose
 
 # pre-commit gate: unit + board + fmt check + coverage (all modules)
@@ -22,20 +22,24 @@ test-gate: docs-lint
     if [ "$(git config --get core.hooksPath || echo)" != ".githooks" ]; then
         echo "⚠  pre-push hooks not installed — run 'just hooks-install' to enable fmt-check/detekt/docs-lint pre-push" >&2
     fi
-    ./gradlew ktlintCheck detekt \
+    ./gradlew ktlintCheck detekt verifyWebProfilePosture :webdoor:generateOpenApi \
+        :domain:test :domain:jacocoTestReport \
+        :engine:testGate :engine:jacocoTestReport \
         :matchdoor:testGate :matchdoor:jacocoTestReport \
         :frontdoor:test :frontdoor:jacocoTestReport \
-        :account:test :account:jacocoTestReport
+        :account:test :account:jacocoTestReport \
+        :webdoor:test :webdoor:jacocoTestReport
+    git diff --exit-code -- webdoor/src/main/resources/openapi.json
 
 # matchdoor integration tests (boots engine per fork — run after risky matchdoor changes)
 [group('test')]
 test-integration:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:testIntegration :matchdoor:jacocoTestReport
+    cd "{{project_dir}}" && ./gradlew :engine:testIntegration :engine:jacocoTestReport
 
 # puzzle-backed scripted acceptance suites
 [group('test')]
 test-acceptance:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:testAcceptance
+    cd "{{project_dir}}" && ./gradlew :engine:testAcceptance
 
 # strict integration test for slice verification — bypasses gradle's test
 # build cache (which serves stale PASS results when forge jar inputs match
@@ -76,7 +80,7 @@ slice-verify:
     echo "  COMBAT_DECK:    $deck_hash"
     echo "  forge-gui jar:  $jar_hash"
     echo
-    ./gradlew :matchdoor:testIntegrationStrict --console=plain
+    ./gradlew :engine:testIntegrationStrict --console=plain
 
 # JaCoCo coverage report (per-module, merged summary)
 [group('test')]
@@ -84,9 +88,12 @@ coverage:
     #!/usr/bin/env bash
     set +e
     cd "{{project_dir}}"
-    ./gradlew :matchdoor:testGate :matchdoor:jacocoTestReport \
+    ./gradlew :domain:test :domain:jacocoTestReport \
+              :engine:testGate :engine:jacocoTestReport \
+              :matchdoor:testGate :matchdoor:jacocoTestReport \
               :frontdoor:test :frontdoor:jacocoTestReport \
-              :account:test :account:jacocoTestReport; rc=$?
+              :account:test :account:jacocoTestReport \
+              :webdoor:test :webdoor:jacocoTestReport; rc=$?
     xmls=$(find . -path '*/build/reports/jacoco/*/jacocoTestReport.xml' -not -path '*/forge/*' 2>/dev/null | tr '\n' ' ')
     if [ -n "$xmls" ]; then
         echo ""
