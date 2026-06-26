@@ -28,6 +28,7 @@ dependencies {
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.server.status.pages)
+    implementation(libs.ktor.server.websockets)
     implementation(libs.logback.classic)
 
     testImplementation(libs.kotest.runner)

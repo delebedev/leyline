@@ -15,6 +15,9 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import io.ktor.server.websocket.WebSockets
+import io.ktor.server.websocket.webSocket
+import io.ktor.websocket.close
 import kotlinx.serialization.json.Json
 import leyline.domain.Course
 import leyline.domain.CourseDeck
@@ -40,6 +43,7 @@ data class WebDoorServices(
     val deckService: DeckService,
     val collectionService: CollectionService,
     val matchLauncher: WebMatchLauncher,
+    val greRelay: WebGreRelay = InProcessWebGreRelay(),
 )
 
 interface WebMatchLauncher {
@@ -58,7 +62,16 @@ fun Application.installWebDoor(services: WebDoorServices) {
             call.respond(HttpStatusCode.BadRequest, cause.message ?: "Bad request")
         }
     }
+    install(WebSockets)
     routing {
+        webSocket("/gre") {
+            val matchId = call.request.queryParameters["matchId"]?.takeIf { it.isNotBlank() }
+            if (matchId == null) {
+                close(io.ktor.websocket.CloseReason(io.ktor.websocket.CloseReason.Codes.CANNOT_ACCEPT, "matchId is required"))
+                return@webSocket
+            }
+            services.greRelay.attach(matchId, this)
+        }
         get("/openapi.json") {
             val schema = WebDoorRoutes::class.java.getResource("/openapi.json")?.readText()
             call.respondText(schema ?: "{}", contentType = io.ktor.http.ContentType.Application.Json)

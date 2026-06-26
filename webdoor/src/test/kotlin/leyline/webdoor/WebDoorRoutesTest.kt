@@ -8,11 +8,16 @@ import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
+import io.ktor.websocket.Frame
+import io.ktor.websocket.readBytes
+import io.ktor.websocket.send
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -93,6 +98,17 @@ class WebDoorRoutesTest :
 
                 response.status shouldBe HttpStatusCode.NoContent
                 repos.draft.findByPlayerAndEvent(PlayerId("p1"), "QuickDraft_FDN_20260223") shouldBe null
+            }
+        }
+
+        test("relays GRE WebSocket frames in process") {
+            withWebDoor { client, _ ->
+                val wsClient = client.config { install(WebSockets) }
+                wsClient.webSocket("/gre?matchId=m1") {
+                    send(Frame.Binary(fin = true, data = byteArrayOf(1, 2, 3)))
+                    val echoed = incoming.receive() as Frame.Binary
+                    echoed.readBytes().contentEquals(byteArrayOf(1, 2, 3)) shouldBe true
+                }
             }
         }
     })
