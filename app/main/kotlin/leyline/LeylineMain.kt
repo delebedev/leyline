@@ -142,6 +142,9 @@ private fun buildDebugServer(
     runtimePuzzle = server.runtimePuzzle,
     runtimeMatchConfigs = server.runtimeMatchConfigs,
     greMatchControlToken = System.getenv("LEYLINE_CONTROL_TOKEN")?.takeUnless { it.isBlank() },
+    draftServiceProvider = { server.draftServiceForControl },
+    courseServiceProvider = { server.courseServiceForControl },
+    matchCoordinatorProvider = { server.matchCoordinatorForControl },
 )
 
 private fun buildAccountServer(
