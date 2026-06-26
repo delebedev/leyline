@@ -9,6 +9,8 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.RuntimeMatchConfigRegistry
+import leyline.domain.service.CourseService
+import leyline.domain.service.DraftService
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
@@ -18,6 +20,7 @@ import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
+import leyline.infra.AppMatchCoordinator
 import leyline.match.MatchSession
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -42,6 +45,7 @@ import java.util.concurrent.atomic.AtomicReference
  * - `GET /api/events`       → SSE real-time event stream
  *
  * Server-to-server GRE match control is mounted by [GreMatchControlApi].
+ * Web-client draft/course control is mounted by [DraftControlApi].
  */
 @Suppress("LargeClass") // Debug routes share the same local server and session providers.
 class DebugServer(
@@ -54,6 +58,9 @@ class DebugServer(
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
     /** Optional bearer token for server-to-server GRE match control. */
     private val greMatchControlToken: String? = null,
+    private val draftServiceProvider: (() -> DraftService?)? = null,
+    private val courseServiceProvider: (() -> CourseService?)? = null,
+    private val matchCoordinatorProvider: (() -> AppMatchCoordinator?)? = null,
 ) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null
@@ -100,6 +107,13 @@ class DebugServer(
             }
         }
         GreMatchControlApi(runtimeMatchConfigs, greMatchControlToken, ::resolvePuzzleReference).mount(srv)
+        DraftControlApi(
+            draftServiceProvider = { draftServiceProvider?.invoke() },
+            courseServiceProvider = { courseServiceProvider?.invoke() },
+            matchCoordinatorProvider = { matchCoordinatorProvider?.invoke() },
+            runtimeMatchConfigs = runtimeMatchConfigs,
+            controlToken = greMatchControlToken,
+        ).mount(srv)
 
         srv.createContext("/api/events") { ex ->
             try {

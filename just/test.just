@@ -22,24 +22,32 @@ test-gate: docs-lint
     if [ "$(git config --get core.hooksPath || echo)" != ".githooks" ]; then
         echo "⚠  pre-push hooks not installed — run 'just hooks-install' to enable fmt-check/detekt/docs-lint pre-push" >&2
     fi
-    ./gradlew ktlintCheck detekt verifyWebProfilePosture :webdoor:generateOpenApi \
-        :domain:test :domain:jacocoTestReport \
-        :engine:testGate :engine:jacocoTestReport \
-        :matchdoor:testGate :matchdoor:jacocoTestReport \
-        :frontdoor:test :frontdoor:jacocoTestReport \
-        :account:test :account:jacocoTestReport \
-        :webdoor:test :webdoor:jacocoTestReport
+    ./gradlew ktlintCheck detekt verifyWebProfilePosture :webdoor:generateOpenApi
+    ./gradlew --rerun-tasks \
+        :domain:test \
+        :engine:testGate \
+        :matchdoor:testGate \
+        :frontdoor:test \
+        :account:test \
+        :webdoor:test
+    ./gradlew \
+        :domain:jacocoTestReport \
+        :engine:jacocoTestReport \
+        :matchdoor:jacocoTestReport \
+        :frontdoor:jacocoTestReport \
+        :account:jacocoTestReport \
+        :webdoor:jacocoTestReport
     git diff --exit-code -- webdoor/src/main/resources/openapi.json
 
 # matchdoor integration tests (boots engine per fork — run after risky matchdoor changes)
 [group('test')]
 test-integration:
-    cd "{{project_dir}}" && ./gradlew :engine:testIntegration :engine:jacocoTestReport
+    cd "{{project_dir}}" && ./gradlew --rerun-tasks :engine:testIntegration :engine:jacocoTestReport
 
 # puzzle-backed scripted acceptance suites
 [group('test')]
 test-acceptance:
-    cd "{{project_dir}}" && ./gradlew :engine:testAcceptance
+    cd "{{project_dir}}" && ./gradlew --rerun-tasks :engine:testAcceptance
 
 # strict integration test for slice verification — bypasses gradle's test
 # build cache (which serves stale PASS results when forge jar inputs match
@@ -71,7 +79,7 @@ slice-verify:
     leyline_sha=$(git rev-parse HEAD)
     forge_sha=$(git -C forge rev-parse HEAD)
     edition_hash=$(shasum forge/forge-gui/res/editions/Secrets\ of\ Strixhaven*.txt forge/forge-gui/res/editions/Special\ Guests.txt 2>/dev/null | shasum | awk '{print $1}')
-    deck_hash=$(grep -A6 'COMBAT_DECK = ' matchdoor/src/test/kotlin/leyline/session/combat/CombatInteractionTest.kt | head -8 | shasum | awk '{print $1}')
+    deck_hash=$(grep -A6 'COMBAT_DECK = ' engine/src/test/kotlin/leyline/session/combat/CombatInteractionTest.kt | head -8 | shasum | awk '{print $1}')
     jar_hash=$(shasum forge/.m2-local/forge/forge-gui/2.0.10-SNAPSHOT/forge-gui-2.0.10-SNAPSHOT.jar 2>/dev/null | awk '{print $1}' || echo "missing")
     echo "slice-verify input manifest:"
     echo "  leyline:        $leyline_sha"
@@ -80,7 +88,7 @@ slice-verify:
     echo "  COMBAT_DECK:    $deck_hash"
     echo "  forge-gui jar:  $jar_hash"
     echo
-    ./gradlew :engine:testIntegrationStrict --console=plain
+    ./gradlew --rerun-tasks :engine:testIntegrationStrict --console=plain
 
 # JaCoCo coverage report (per-module, merged summary)
 [group('test')]
