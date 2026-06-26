@@ -134,7 +134,12 @@ private class WebRuntimeMatchLauncher(
                 spectatorMode = request.spectatorMode,
             ),
         )
-        relay.register(matchId, EmbeddedWebGreEngineSession(config, coordinator, cardRepo, runtimeMatches))
+        relay.register(
+            matchId,
+            EmbeddedWebGreEngineSession(config, coordinator, cardRepo, runtimeMatches),
+            ownerPlayerId = playerId,
+            publicAccess = playerId == null && request.spectatorMode == true,
+        )
         return DraftPlayResponse(matchId, matchId)
     }
 
@@ -145,7 +150,7 @@ private class WebRuntimeMatchLauncher(
         val matchId = "web-${UUID.randomUUID()}"
         val (seat1, seat2) = coordinator.configureCourseMatch(matchId, playerId, eventName)
         runtimeMatches.configure(RuntimeMatchConfig(matchId = matchId, seat1Deck = seat1, seat2Deck = seat2))
-        relay.register(matchId, EmbeddedWebGreEngineSession(config, coordinator, cardRepo, runtimeMatches))
+        relay.register(matchId, EmbeddedWebGreEngineSession(config, coordinator, cardRepo, runtimeMatches), ownerPlayerId = playerId)
         return DraftPlayResponse(matchId, matchId)
     }
 }

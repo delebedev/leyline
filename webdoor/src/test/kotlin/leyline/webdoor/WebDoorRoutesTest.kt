@@ -1,6 +1,7 @@
 package leyline.webdoor
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.ktor.client.plugins.websocket.WebSockets
@@ -15,10 +16,12 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.http.takeFrom
 import io.ktor.server.testing.testApplication
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readBytes
 import io.ktor.websocket.send
+import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -125,7 +128,7 @@ class WebDoorRoutesTest :
 
         test("relays GRE WebSocket frames through engine session") {
             withWebDoor { client, repos ->
-                repos.relay.register("m1", StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(9, 8, 7)))
+                repos.relay.register("m1", StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(9, 8, 7)), publicAccess = true)
                 val wsClient = client.config { install(WebSockets) }
                 wsClient.webSocket("/gre?matchId=m1") {
                     send(Frame.Binary(fin = true, data = byteArrayOf(1, 2, 3)))
@@ -133,6 +136,43 @@ class WebDoorRoutesTest :
 
                     repos.enginePayloads.single().contentEquals(byteArrayOf(1, 2, 3)) shouldBe true
                     frame.readBytes().contentEquals(byteArrayOf(9, 8, 7)) shouldBe true
+                }
+            }
+        }
+
+        test("GRE WebSocket rejects private match without owner session") {
+            withWebDoor { client, repos ->
+                repos.relay.register(
+                    "private",
+                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf()),
+                    ownerPlayerId = PlayerId("owner"),
+                )
+                val wsClient = client.config { install(WebSockets) }
+
+                wsClient.webSocket("/gre?matchId=private") {
+                    shouldThrow<ClosedReceiveChannelException> { incoming.receive() }
+                }
+            }
+        }
+
+        test("GRE WebSocket accepts private match owner session") {
+            withWebDoor { client, repos ->
+                val login = client.login(repos)
+                repos.relay.register(
+                    "private",
+                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(4, 5, 6)),
+                    ownerPlayerId = PlayerId(login.playerId),
+                )
+                val wsClient = client.config { install(WebSockets) }
+
+                wsClient.webSocket({
+                    url.takeFrom("/gre?matchId=private")
+                    header(HttpHeaders.Cookie, login.cookie)
+                }) {
+                    send(Frame.Binary(fin = true, data = byteArrayOf(1, 2, 3)))
+                    val frame = incoming.receive() as Frame.Binary
+
+                    frame.readBytes().contentEquals(byteArrayOf(4, 5, 6)) shouldBe true
                 }
             }
         }

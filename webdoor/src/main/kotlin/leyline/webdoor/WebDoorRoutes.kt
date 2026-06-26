@@ -82,7 +82,11 @@ fun Application.installWebDoor(services: WebDoorServices) {
                 close(io.ktor.websocket.CloseReason(io.ktor.websocket.CloseReason.Codes.CANNOT_ACCEPT, "matchId is required"))
                 return@webSocket
             }
-            services.greRelay.attach(matchId, this)
+            val playerId = services.authService.validate(call.request.cookies[WEB_SESSION_COOKIE])?.let { PlayerId(it.playerId) }
+            val attached = services.greRelay.attach(matchId, playerId, this)
+            if (!attached) {
+                close(io.ktor.websocket.CloseReason(io.ktor.websocket.CloseReason.Codes.CANNOT_ACCEPT, "match access denied"))
+            }
         }
         get("/openapi.json") {
             call.respondText(WebDoorOpenApi.generate(), contentType = io.ktor.http.ContentType.Application.Json)

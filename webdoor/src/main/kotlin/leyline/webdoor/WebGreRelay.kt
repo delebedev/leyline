@@ -9,6 +9,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import leyline.config.MatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
+import leyline.domain.PlayerId
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
 import leyline.match.MatchHandler
@@ -20,12 +21,15 @@ interface WebGreRelay {
     fun register(
         matchId: String,
         engine: WebGreEngineSession,
+        ownerPlayerId: PlayerId? = null,
+        publicAccess: Boolean = false,
     )
 
     suspend fun attach(
         matchId: String,
+        playerId: PlayerId?,
         session: io.ktor.server.websocket.DefaultWebSocketServerSession,
-    )
+    ): Boolean
 }
 
 interface WebGreEngineSession {
@@ -40,15 +44,21 @@ class InProcessWebGreRelay : WebGreRelay {
     override fun register(
         matchId: String,
         engine: WebGreEngineSession,
+        ownerPlayerId: PlayerId?,
+        publicAccess: Boolean,
     ) {
-        sessions.computeIfAbsent(matchId) { RelaySession() }.engine = engine
+        sessions.computeIfAbsent(matchId) { RelaySession() }.configure(engine, ownerPlayerId, publicAccess)
     }
 
     override suspend fun attach(
         matchId: String,
+        playerId: PlayerId?,
         session: io.ktor.server.websocket.DefaultWebSocketServerSession,
-    ) {
-        sessions.computeIfAbsent(matchId) { RelaySession() }.attach(session)
+    ): Boolean {
+        val relaySession = sessions[matchId] ?: return false
+        if (!relaySession.canAttach(playerId)) return false
+        relaySession.attach(session)
+        return true
     }
 
     private class RelaySession {
@@ -56,6 +66,22 @@ class InProcessWebGreRelay : WebGreRelay {
         private val browsers = mutableSetOf<io.ktor.server.websocket.DefaultWebSocketServerSession>()
 
         @Volatile var engine: WebGreEngineSession? = null
+
+        @Volatile private var ownerPlayerId: PlayerId? = null
+
+        @Volatile private var publicAccess: Boolean = false
+
+        fun configure(
+            engine: WebGreEngineSession,
+            ownerPlayerId: PlayerId?,
+            publicAccess: Boolean,
+        ) {
+            this.engine = engine
+            this.ownerPlayerId = ownerPlayerId
+            this.publicAccess = publicAccess
+        }
+
+        fun canAttach(playerId: PlayerId?): Boolean = publicAccess || (ownerPlayerId != null && ownerPlayerId == playerId)
 
         suspend fun attach(session: io.ktor.server.websocket.DefaultWebSocketServerSession) {
             lock.withLock { browsers.add(session) }
