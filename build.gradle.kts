@@ -102,6 +102,7 @@ dependencies {
     implementation(libs.sqlite.jdbc)
     implementation(libs.netty.handler)
     implementation(libs.netty.codec)
+    implementation(libs.ktor.server.netty)
 
     implementation(libs.logback.classic)
     implementation(libs.sentry.logback)
@@ -116,7 +117,17 @@ val webProfileRuntimeClasspath by configurations.creating {
 }
 
 dependencies {
+    webProfileRuntimeClasspath(sourceSets.main.get().output)
+    webProfileRuntimeClasspath(project(":domain"))
+    webProfileRuntimeClasspath(project(":engine"))
     webProfileRuntimeClasspath(project(":webdoor"))
+    webProfileRuntimeClasspath(libs.kotlin.stdlib)
+    webProfileRuntimeClasspath(libs.serialization.json)
+    webProfileRuntimeClasspath(libs.exposed.core)
+    webProfileRuntimeClasspath(libs.exposed.jdbc)
+    webProfileRuntimeClasspath(libs.sqlite.jdbc)
+    webProfileRuntimeClasspath(libs.ktor.server.netty)
+    webProfileRuntimeClasspath(libs.logback.classic)
 }
 
 // --- Upstream JAR freshness check ---

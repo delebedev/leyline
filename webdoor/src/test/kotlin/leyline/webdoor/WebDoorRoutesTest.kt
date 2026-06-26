@@ -57,13 +57,18 @@ class WebDoorRoutesTest :
         }
 
         test("starts and reads draft status") {
-            withWebDoor { client, _ ->
+            withWebDoor { client, repos ->
+                val login = client.login(repos)
                 val start =
                     client.post("/api/draft/start") {
+                        header(HttpHeaders.Cookie, login.cookie)
                         contentType(ContentType.Application.Json)
-                        setBody("""{"playerId":"p1","eventName":"QuickDraft_FDN_20260223"}""")
+                        setBody("""{"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223"}""")
                     }
-                val status = client.get("/api/draft/status?playerId=p1&eventName=QuickDraft_FDN_20260223")
+                val status =
+                    client.get("/api/draft/status?playerId=${login.playerId}&eventName=QuickDraft_FDN_20260223") {
+                        header(HttpHeaders.Cookie, login.cookie)
+                    }
 
                 assertSoftly {
                     start.status shouldBe HttpStatusCode.OK
@@ -77,16 +82,19 @@ class WebDoorRoutesTest :
         }
 
         test("rejects undersized draft deck") {
-            withWebDoor { client, _ ->
+            withWebDoor { client, repos ->
+                val login = client.login(repos)
                 client.post("/api/draft/start") {
+                    header(HttpHeaders.Cookie, login.cookie)
                     contentType(ContentType.Application.Json)
-                    setBody("""{"playerId":"p1","eventName":"QuickDraft_FDN_20260223"}""")
+                    setBody("""{"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223"}""")
                 }
                 val response =
                     client.post("/api/draft/deck") {
+                        header(HttpHeaders.Cookie, login.cookie)
                         contentType(ContentType.Application.Json)
                         setBody(
-                            """{"playerId":"p1","eventName":"QuickDraft_FDN_20260223","mainDeck":[{"grpId":100,"quantity":1}]}""",
+                            """{"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223","mainDeck":[{"grpId":100,"quantity":1}]}""",
                         )
                     }
 
@@ -96,25 +104,42 @@ class WebDoorRoutesTest :
 
         test("drops draft and course") {
             withWebDoor { client, repos ->
+                val login = client.login(repos)
                 client.post("/api/draft/start") {
+                    header(HttpHeaders.Cookie, login.cookie)
                     contentType(ContentType.Application.Json)
-                    setBody("""{"playerId":"p1","eventName":"QuickDraft_FDN_20260223"}""")
+                    setBody("""{"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223"}""")
                 }
-                val response = client.delete("/api/draft?playerId=p1&eventName=QuickDraft_FDN_20260223")
+                val response =
+                    client.delete("/api/draft?playerId=${login.playerId}&eventName=QuickDraft_FDN_20260223") {
+                        header(HttpHeaders.Cookie, login.cookie)
+                    }
 
                 response.status shouldBe HttpStatusCode.NoContent
-                repos.draft.findByPlayerAndEvent(PlayerId("p1"), "QuickDraft_FDN_20260223") shouldBe null
+                repos.draft.findByPlayerAndEvent(PlayerId(login.playerId), "QuickDraft_FDN_20260223") shouldBe null
             }
         }
 
-        test("relays GRE WebSocket frames in process") {
-            withWebDoor { client, _ ->
+        test("relays GRE WebSocket frames through engine session") {
+            withWebDoor { client, repos ->
+                repos.relay.register("m1", StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(9, 8, 7)))
                 val wsClient = client.config { install(WebSockets) }
                 wsClient.webSocket("/gre?matchId=m1") {
                     send(Frame.Binary(fin = true, data = byteArrayOf(1, 2, 3)))
-                    val echoed = incoming.receive() as Frame.Binary
-                    echoed.readBytes().contentEquals(byteArrayOf(1, 2, 3)) shouldBe true
+                    val frame = incoming.receive() as Frame.Binary
+
+                    repos.enginePayloads.single().contentEquals(byteArrayOf(1, 2, 3)) shouldBe true
+                    frame.readBytes().contentEquals(byteArrayOf(9, 8, 7)) shouldBe true
                 }
+            }
+        }
+
+        test("owned routes reject mismatched player id") {
+            withWebDoor { client, repos ->
+                val login = client.login(repos)
+                val response = client.get("/api/collection?playerId=other") { header(HttpHeaders.Cookie, login.cookie) }
+
+                response.status shouldBe HttpStatusCode.Forbidden
             }
         }
 
@@ -184,11 +209,17 @@ private fun withWebDoor(block: suspend (io.ktor.client.HttpClient, TestRepos) ->
                 authService = WebAuthService(InMemoryWebAuthStore(), repos.emailSender),
                 matchLauncher =
                     object : WebMatchLauncher {
+                        override fun launchGreMatch(
+                            playerId: PlayerId?,
+                            request: GreStartRequest,
+                        ) = DraftPlayResponse("match-1", "wire-1")
+
                         override fun launchCourseMatch(
                             playerId: PlayerId,
                             eventName: String,
                         ) = DraftPlayResponse("match-1", "wire-1")
                     },
+                greRelay = repos.relay,
             )
         application { installWebDoor(services) }
         block(client, repos)
@@ -199,6 +230,45 @@ private class TestRepos {
     val draft = MemoryDraftRepo()
     val deck = MemoryDeckRepo()
     val emailSender = DevEmailSender()
+    val enginePayloads = mutableListOf<ByteArray>()
+    val relay = InProcessWebGreRelay()
+}
+
+private data class TestLogin(
+    val cookie: String,
+    val playerId: String,
+)
+
+private suspend fun io.ktor.client.HttpClient.login(repos: TestRepos): TestLogin {
+    post("/api/auth/request-code") {
+        contentType(ContentType.Application.Json)
+        setBody("""{"email":"player@example.test"}""")
+    }
+    val code = checkNotNull(repos.emailSender.latestCode("player@example.test"))
+    val verify =
+        post("/api/auth/verify") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"email":"player@example.test","code":"$code"}""")
+        }
+    val cookie = checkNotNull(verify.headers[HttpHeaders.SetCookie]).substringBefore(";")
+    val playerId =
+        Json
+            .parseToJsonElement(verify.bodyAsText())
+            .jsonObject["playerId"]!!
+            .jsonPrimitive.content
+    return TestLogin(cookie, playerId)
+}
+
+private class StaticGreEngineSession(
+    private val received: MutableList<ByteArray>,
+    private val reply: ByteArray,
+) : WebGreEngineSession {
+    override fun receiveFromBrowser(payload: ByteArray): List<ByteArray> {
+        received += payload
+        return listOf(reply)
+    }
+
+    override fun close() = Unit
 }
 
 private class StaticDraftDriver : DraftService.Driver {

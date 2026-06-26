@@ -39,6 +39,19 @@ dependencies {
     testImplementation(libs.ktor.server.test.host)
 }
 
+val generateOpenApi by tasks.registering(JavaExec::class) {
+    group = "build"
+    description = "Generate the webdoor OpenAPI contract from Kotlin DTO descriptors."
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("leyline.webdoor.WebDoorOpenApiKt")
+    args(
+        layout.projectDirectory
+            .file("src/main/resources/openapi.json")
+            .asFile.absolutePath,
+    )
+}
+
 powerAssert {
     functions =
         listOf(

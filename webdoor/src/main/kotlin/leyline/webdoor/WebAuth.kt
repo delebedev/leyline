@@ -309,6 +309,7 @@ class WebAuthService(
     private val secret: String = "dev-web-auth-secret",
     private val rateLimiter: RequestRateLimiter = NoopRateLimiter,
     private val rateLimitConfig: AuthRateLimitConfig = AuthRateLimitConfig.disabled(),
+    private val fixedLoginCode: String? = null,
 ) {
     private val random = SecureRandom()
 
@@ -319,7 +320,7 @@ class WebAuthService(
     ): StartLoginResult {
         if (!allow("login:${normalizeEmail(email)}:${ip.orEmpty()}")) return StartLoginResult.RateLimited
         val normalized = normalizeEmail(email)
-        val code = (random.nextInt(900_000) + 100_000).toString()
+        val code = fixedLoginCode?.takeIf { Regex("^[0-9]{6}$").matches(it) } ?: (random.nextInt(900_000) + 100_000).toString()
         val now = Instant.now()
         val id = UUID.randomUUID().toString()
         val challenge =

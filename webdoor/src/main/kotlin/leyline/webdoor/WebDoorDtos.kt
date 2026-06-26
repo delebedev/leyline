@@ -66,6 +66,16 @@ data class DraftPlayResponse(
 )
 
 @Serializable
+data class GreStartRequest(
+    val matchId: String? = null,
+    val wireMatchId: String? = null,
+    val seat1Deck: String? = null,
+    val seat2Deck: String? = null,
+    val puzzle: String? = null,
+    val spectatorMode: Boolean? = null,
+)
+
+@Serializable
 data class CreateDeckRequest(
     val playerId: String,
     val name: String,

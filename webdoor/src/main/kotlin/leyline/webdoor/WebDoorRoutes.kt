@@ -51,6 +51,11 @@ data class WebDoorServices(
 )
 
 interface WebMatchLauncher {
+    fun launchGreMatch(
+        playerId: PlayerId?,
+        request: GreStartRequest,
+    ): DraftPlayResponse
+
     fun launchCourseMatch(
         playerId: PlayerId,
         eventName: String,
@@ -65,6 +70,7 @@ fun Application.installWebDoor(services: WebDoorServices) {
         exception<IllegalArgumentException> { call, cause ->
             call.respond(HttpStatusCode.BadRequest, cause.message ?: "Bad request")
         }
+        exception<UnauthorizedPlayer> { _, _ -> }
     }
     install(WebSockets)
     routing {
@@ -77,13 +83,18 @@ fun Application.installWebDoor(services: WebDoorServices) {
             services.greRelay.attach(matchId, this)
         }
         get("/openapi.json") {
-            val schema = WebDoorRoutes::class.java.getResource("/openapi.json")?.readText()
-            call.respondText(schema ?: "{}", contentType = io.ktor.http.ContentType.Application.Json)
+            call.respondText(WebDoorOpenApi.generate(), contentType = io.ktor.http.ContentType.Application.Json)
         }
         route("/api") {
             installAuthRoutes(services)
+            post("/gre/start") {
+                call.respond(services.matchLauncher.launchGreMatch(call.authenticatedPlayerId(services), call.receive()))
+            }
+            post("/public/gre/start") {
+                call.respond(services.matchLauncher.launchGreMatch(null, call.receive<GreStartRequest>().copy(spectatorMode = true)))
+            }
             get("/collection") {
-                val playerId = call.requiredQuery("playerId").toPlayerId()
+                val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
                 call.respond(
                     CollectionView(
                         services.collectionService
@@ -96,18 +107,19 @@ fun Application.installWebDoor(services: WebDoorServices) {
             get("/cards/metadata") { call.respond(CardMetadataView()) }
             route("/courses") {
                 get {
-                    val playerId = call.requiredQuery("playerId").toPlayerId()
+                    val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
                     call.respond(services.courseService.getCoursesForPlayer(playerId).map(::courseView))
                 }
             }
             route("/decks") {
                 get {
-                    val playerId = call.requiredQuery("playerId").toPlayerId()
+                    val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
                     call.respond(services.deckService.listForPlayer(playerId).map(::deckView))
                 }
                 post {
                     val request = call.receive<CreateDeckRequest>()
-                    val deck = request.toDeck()
+                    val playerId = call.ownedPlayerId(services, request.playerId)
+                    val deck = request.toDeck(playerId)
                     services.deckService.save(deck)
                     call.respond(deckView(deck))
                 }
@@ -129,7 +141,7 @@ private fun Route.installDraftRoutes(services: WebDoorServices) {
     route("/draft") {
         post("/start") {
             val request = call.receive<StartDraftRequest>()
-            val playerId = request.playerId.toPlayerId()
+            val playerId = call.ownedPlayerId(services, request.playerId)
             val existingCourse = services.courseService.getCourse(playerId, request.eventName)
             if (EventRegistry.isDraft(request.eventName) && existingCourse?.module == CourseModule.Complete) {
                 services.draftService.drop(playerId, request.eventName)
@@ -139,7 +151,7 @@ private fun Route.installDraftRoutes(services: WebDoorServices) {
         }
         post("/pick") {
             val request = call.receive<PickDraftRequest>()
-            val playerId = request.playerId.toPlayerId()
+            val playerId = call.ownedPlayerId(services, request.playerId)
             val session =
                 services.draftService.pick(
                     playerId,
@@ -155,17 +167,18 @@ private fun Route.installDraftRoutes(services: WebDoorServices) {
             call.respond(sessionView(session))
         }
         get("/status") {
-            val playerId = call.requiredQuery("playerId").toPlayerId()
+            val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
             val eventName = call.requiredQuery("eventName")
             val session = services.draftService.getStatus(playerId, eventName)
             if (session == null) call.respond(HttpStatusCode.NotFound) else call.respond(sessionView(session))
         }
         post("/deck") {
             val request = call.receive<SubmitDeckRequest>()
+            val playerId = call.ownedPlayerId(services, request.playerId)
             require(request.mainDeck.sumOf { it.quantity } >= 40) { "mainDeck must contain at least 40 cards" }
             val course =
                 services.courseService.setDeck(
-                    request.playerId.toPlayerId(),
+                    playerId,
                     request.eventName,
                     request.toCourseDeck(),
                     request.toCourseSummary(),
@@ -174,10 +187,11 @@ private fun Route.installDraftRoutes(services: WebDoorServices) {
         }
         post("/play") {
             val request = call.receive<PlayDraftRequest>()
-            call.respond(services.matchLauncher.launchCourseMatch(request.playerId.toPlayerId(), request.eventName))
+            val playerId = call.ownedPlayerId(services, request.playerId)
+            call.respond(services.matchLauncher.launchCourseMatch(playerId, request.eventName))
         }
         delete {
-            val playerId = call.requiredQuery("playerId").toPlayerId()
+            val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
             val eventName = call.requiredQuery("eventName")
             services.draftService.drop(playerId, eventName)
             services.courseService.drop(playerId, eventName)
@@ -256,6 +270,30 @@ private fun io.ktor.server.application.ApplicationCall.requiredQuery(name: Strin
 
 private fun String.toPlayerId(): PlayerId = PlayerId(this)
 
+private suspend fun io.ktor.server.application.ApplicationCall.authenticatedPlayerId(services: WebDoorServices): PlayerId {
+    val player =
+        services.authService.validate(request.cookies[WEB_SESSION_COOKIE])
+            ?: run {
+                respond(HttpStatusCode.Unauthorized)
+                throw UnauthorizedPlayer()
+            }
+    return PlayerId(player.playerId)
+}
+
+private suspend fun io.ktor.server.application.ApplicationCall.ownedPlayerId(
+    services: WebDoorServices,
+    requested: String?,
+): PlayerId {
+    val playerId = authenticatedPlayerId(services)
+    if (requested != null && requested != playerId.value) {
+        respond(HttpStatusCode.Forbidden)
+        throw UnauthorizedPlayer()
+    }
+    return playerId
+}
+
+private class UnauthorizedPlayer : RuntimeException()
+
 private fun sessionView(session: DraftSession) =
     DraftSessionView(session.eventName, session.status.name, session.packNumber, session.pickNumber, session.draftPack, session.pickedCards)
 
@@ -272,10 +310,10 @@ private fun deckView(deck: Deck) =
         sideboard = deck.sideboard.map { WebDeckCard(it.grpId, it.quantity) },
     )
 
-private fun CreateDeckRequest.toDeck() =
+private fun CreateDeckRequest.toDeck(playerId: PlayerId) =
     Deck(
         id = DeckId(UUID.randomUUID().toString()),
-        playerId = playerId.toPlayerId(),
+        playerId = playerId,
         name = name,
         format = Format.valueOf(format),
         tileId = mainDeck.firstOrNull()?.grpId ?: 0,
