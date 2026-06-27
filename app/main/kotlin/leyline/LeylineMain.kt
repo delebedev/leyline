@@ -34,8 +34,7 @@ fun main(args: Array<String>) {
             ?: System.getenv("LEYLINE_FD_HOST")
             ?: "localhost:$fdPort"
 
-    val playerDbPath = System.getenv("LEYLINE_PLAYER_DB") ?: sc.playerDb.ifEmpty { LeylinePaths.PLAYER_DB.absolutePath }
-    val playerDbFile = File(playerDbPath).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), playerDbPath) }
+    val playerDbFile = resolvePlayerDb(config)
 
     val server =
         LeylineServer(
@@ -75,6 +74,14 @@ private fun loadConfig(a: Map<String, String>): MatchConfig {
         a["--config"]?.let { File(it) }
             ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME)
     return MatchConfig.load(configFile)
+}
+
+/** Resolve the player DB file from env → config → default, coercing relative paths and ensuring the parent dir exists. */
+internal fun resolvePlayerDb(config: MatchConfig): File {
+    val path = System.getenv("LEYLINE_PLAYER_DB") ?: config.server.playerDb.ifEmpty { LeylinePaths.PLAYER_DB.absolutePath }
+    val file = File(path).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), path) }
+    file.parentFile?.mkdirs()
+    return file
 }
 
 private fun resolveTls(a: Map<String, String>): Pair<File?, File?> {
@@ -256,7 +263,7 @@ private fun printBanner(
 
 // -- Utilities ----------------------------------------------------------------
 
-private fun detectArenaCardDb(): String? {
+internal fun detectArenaCardDb(): String? {
     val rawDir = detectArenaDownloadsDir()?.resolve("Raw") ?: return null
     if (!rawDir.isDirectory) return null
     return rawDir
@@ -299,7 +306,7 @@ internal fun detectArenaDownloadsDir(): File? {
     return null
 }
 
-private fun parseArgs(args: Array<String>): Map<String, String> {
+internal fun parseArgs(args: Array<String>): Map<String, String> {
     val map = mutableMapOf<String, String>()
     var i = 0
     while (i < args.size) {

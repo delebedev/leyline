@@ -65,6 +65,10 @@ interface WebMatchLauncher {
 }
 
 fun Application.installWeb(services: WebServices) {
+    // Both are immutable for the server lifetime: the OpenAPI spec is derived from
+    // static DTO descriptors and the card metadata from the read-only card DB.
+    val openApiJson = WebOpenApi.generate()
+    val cardMetadata = cardMetadataView(services.cardRepository)
     install(ContentNegotiation) {
         json(Json { encodeDefaults = true })
     }
@@ -76,20 +80,9 @@ fun Application.installWeb(services: WebServices) {
     }
     install(WebSockets)
     routing {
-        webSocket("/gre") {
-            val matchId = call.request.queryParameters["matchId"]?.takeIf { it.isNotBlank() }
-            if (matchId == null) {
-                close(io.ktor.websocket.CloseReason(io.ktor.websocket.CloseReason.Codes.CANNOT_ACCEPT, "matchId is required"))
-                return@webSocket
-            }
-            val playerId = services.authService.validate(call.request.cookies[WEB_SESSION_COOKIE])?.let { PlayerId(it.playerId) }
-            val attached = services.greRelay.attach(matchId, playerId, this)
-            if (!attached) {
-                close(io.ktor.websocket.CloseReason(io.ktor.websocket.CloseReason.Codes.CANNOT_ACCEPT, "match access denied"))
-            }
-        }
+        installGreSocket(services)
         get("/openapi.json") {
-            call.respondText(WebOpenApi.generate(), contentType = io.ktor.http.ContentType.Application.Json)
+            call.respondText(openApiJson, contentType = io.ktor.http.ContentType.Application.Json)
         }
         route("/api") {
             installAuthRoutes(services)
@@ -130,7 +123,7 @@ fun Application.installWeb(services: WebServices) {
             get("/sealed/sets") {
                 call.respond(listOf(LimitedSetView(code = "FDN", name = "Foundations", type = "draft", cardCount = 0)))
             }
-            get("/cards/metadata") { call.respond(cardMetadataView(services.cardRepository)) }
+            get("/cards/metadata") { call.respond(cardMetadata) }
             route("/courses") {
                 get {
                     val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
@@ -170,6 +163,21 @@ private fun cardMetadataView(cardRepository: CardRepository): CardMetadataView =
             .sorted()
             .map { grpId -> CardMetadataEntry(grpId = grpId, name = cardRepository.findNameByGrpId(grpId)) },
     )
+
+private fun Route.installGreSocket(services: WebServices) {
+    webSocket("/gre") {
+        val matchId = call.request.queryParameters["matchId"]?.takeIf { it.isNotBlank() }
+        if (matchId == null) {
+            close(io.ktor.websocket.CloseReason(io.ktor.websocket.CloseReason.Codes.CANNOT_ACCEPT, "matchId is required"))
+            return@webSocket
+        }
+        val playerId = services.authService.validate(call.request.cookies[WEB_SESSION_COOKIE])?.let { PlayerId(it.playerId) }
+        val attached = services.greRelay.attach(matchId, playerId, this)
+        if (!attached) {
+            close(io.ktor.websocket.CloseReason(io.ktor.websocket.CloseReason.Codes.CANNOT_ACCEPT, "match access denied"))
+        }
+    }
+}
 
 private fun Route.installDraftRoutes(services: WebServices) {
     route("/draft") {
@@ -296,8 +304,6 @@ private suspend fun io.ktor.server.application.ApplicationCall.respondLoginSucce
     )
     respond(LoginResponse(result.player.playerId, result.player.email))
 }
-
-private object WebRoutes
 
 private fun io.ktor.server.application.ApplicationCall.requiredQuery(name: String): String =
     requireNotNull(request.queryParameters[name]?.takeIf { it.isNotBlank() }) { "$name is required" }
