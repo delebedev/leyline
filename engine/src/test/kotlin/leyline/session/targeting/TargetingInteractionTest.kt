@@ -148,6 +148,13 @@ class TargetingInteractionTest :
                 h.castSpellByName("Giant Growth").shouldBeTrue()
                 waitFor(timeoutMs = 5_000L) {
                     h.drainSink()
+                    if (
+                        h.allMessages.none { it.hasSelectTargetsReq() } &&
+                        h.bridge.promptBridge(SeatId(1)).getPendingPrompt() != null
+                    ) {
+                        h.triggerAutoPass()
+                        h.drainSink()
+                    }
                     h.allMessages.any { it.hasSelectTargetsReq() }
                 }.shouldBeTrue()
                 val promptGsId = h.allMessages.last { it.hasSelectTargetsReq() }.gameStateId
