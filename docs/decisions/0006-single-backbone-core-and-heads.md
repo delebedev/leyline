@@ -3,7 +3,7 @@ summary: "ADR: leyline is a single stateful backbone — a domain core plus a Fo
 read_when:
   - "adding or reshaping a protocol/transport head (native-client or web)"
   - "deciding whether code belongs in domain, engine, a head, or app"
-  - "changing the web-profile posture exclusion or the module dependency invariant"
+  - "changing the web-profile native-exclusion or the module dependency invariant"
 ---
 # ADR 0006: Single Backbone — Core with Native and Web Heads
 
@@ -50,13 +50,13 @@ match from a parsed message and knows nothing about a port.
 
 Build-enforced invariant: nothing depends on `native`, and the **web launch
 profile build-excludes `native`**, so the deployed web artifact contains no
-native-client or account apparatus. This is a single, testable rule.
+native-client or account code. This is a single, testable rule.
 
 ## Consequences
 
 Both clients drive the same services, engine, and database — one stateful runtime
 owner, no duplicated draft or game logic — so a new front-end is a new head over
-the core, not a fork. The posture boundary is one assertion. Forge's
+the core, not a fork. That boundary is a single assertion. Forge's
 process-global state and single-writer SQLite keep this to one process for now,
 which is acceptable; the per-match launch leaves horizontal scaling open without
 building it. The native head stays a clean leaf, so it could move to its own
