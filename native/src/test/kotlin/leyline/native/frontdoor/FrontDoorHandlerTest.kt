@@ -270,7 +270,7 @@ class FrontDoorHandlerTest :
             pushJson shouldContain "MatchCreated"
             val pushObj = json.parseToJsonElement(pushJson).jsonObject
             pushObj["Type"]?.jsonPrimitive?.content shouldBe "MatchCreated"
-            val matchInfo = pushObj["MatchInfoV3"]?.jsonObject
+            val matchInfo = pushObj["MatchInfoV4"]?.jsonObject
             assertSoftly {
                 matchInfo.shouldNotBeNull()
                 matchInfo["MatchEndpointHost"].shouldNotBeNull()
@@ -289,7 +289,7 @@ class FrontDoorHandlerTest :
             val matchInfo =
                 json
                     .parseToJsonElement(responses[1].jsonPayload!!)
-                    .jsonObject["MatchInfoV3"]
+                    .jsonObject["MatchInfoV4"]
                     ?.jsonObject
             matchInfo.shouldNotBeNull()
             matchInfo["EventId"]?.jsonPrimitive?.content shouldBe "AIBotMatch"
@@ -335,8 +335,8 @@ class FrontDoorHandlerTest :
             val responses = ch.sendCmdAll(603, """{"EventName":"SparkyStarterDeckDuel"}""")
             responses.size shouldBe 2
             val pushObj = json.parseToJsonElement(responses[1].jsonPayload.shouldNotBeNull()).jsonObject
-            pushObj["MatchInfoV3"]!!.jsonObject["MatchId"]!!.jsonPrimitive.content shouldBe "puzzle-bolt-face"
-            pushObj["MatchInfoV3"]!!.jsonObject["EventId"]!!.jsonPrimitive.content shouldBe "SparkyStarterDeckDuel"
+            pushObj["MatchInfoV4"]!!.jsonObject["MatchId"]!!.jsonPrimitive.content shouldBe "puzzle-bolt-face"
+            pushObj["MatchInfoV4"]!!.jsonObject["EventId"]!!.jsonPrimitive.content shouldBe "SparkyStarterDeckDuel"
         }
 
         test("CmdType 1700 - GraphDefinitions returns JSON") {
