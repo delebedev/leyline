@@ -16,7 +16,7 @@ kotlin {
 dependencies {
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)
-    implementation(libs.logback.classic)
+    implementation(libs.slf4j.api)
 
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
