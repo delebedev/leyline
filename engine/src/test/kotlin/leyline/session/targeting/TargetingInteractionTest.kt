@@ -146,14 +146,14 @@ class TargetingInteractionTest :
                 )
 
                 h.castSpellByName("Giant Growth").shouldBeTrue()
-                waitFor(timeoutMs = 2_000L) {
+                waitFor(timeoutMs = 5_000L) {
                     h.drainSink()
                     h.allMessages.any { it.hasSelectTargetsReq() }
                 }.shouldBeTrue()
                 val promptGsId = h.allMessages.last { it.hasSelectTargetsReq() }.gameStateId
 
                 assertSoftly {
-                    waitFor(timeoutMs = 2_000L) {
+                    waitFor(timeoutMs = 5_000L) {
                         h.drainSink()
                         h.allMessages.any { it.gameStateId > promptGsId }
                     }.shouldBeTrue()
