@@ -9,8 +9,8 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.RuntimeMatchConfigRegistry
-import leyline.frontdoor.service.CourseService
-import leyline.frontdoor.service.DraftService
+import leyline.domain.service.CourseService
+import leyline.domain.service.DraftService
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
@@ -500,7 +500,7 @@ class DebugServer(
                         ex,
                         404,
                         "text/plain",
-                        "Puzzle not found: $fileParam (checked matchdoor test resources, root puzzles/, and classpath)",
+                        "Puzzle not found: $fileParam (checked engine test resources, root puzzles/, and classpath)",
                     )
                     return
                 }
@@ -630,7 +630,7 @@ class DebugServer(
 
     /** Resolve a puzzle file name to an absolute path. Checks test resources, root puzzles/, then classpath. */
     private fun resolvePuzzleFile(name: String): String? {
-        val testRes = File("matchdoor/src/test/resources/puzzles", "$name.pzl")
+        val testRes = File("engine/src/test/resources/puzzles", "$name.pzl")
         if (testRes.exists()) return testRes.absolutePath
 
         val rootPuzzles = File("puzzles", "$name.pzl")

@@ -48,7 +48,7 @@ SIMCLIENT_CONTINUE_ON_EXCEPTION=true just simclient "Deck A,Deck B,Deck C" 1..20
 Fast tool wiring smoke:
 
 ```bash
-./gradlew :matchdoor:simclientSmoke
+./gradlew :engine:simclientSmoke
 ```
 
 Differential policy audit smoke:
@@ -58,19 +58,19 @@ SIMCLIENT_DECKS="forest-only,bears" \
 SIMCLIENT_SEEDS=1..2 \
 SIMCLIENT_MAX_TURNS=8 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=30 \
-  ./gradlew :matchdoor:simRef \
-    -PsimrefArgs="--out-dir matchdoor/build/sim-ref-shadow-smoke"
+  ./gradlew :engine:simRef \
+    -PsimrefArgs="--out-dir engine/build/sim-ref-shadow-smoke"
 
 SIMCLIENT_DECKS="forest-only,bears" \
 SIMCLIENT_SEEDS=1..2 \
 SIMCLIENT_POLICY=shadow-ai \
 SIMCLIENT_MAX_TURNS=8 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=30 \
-  ./gradlew :matchdoor:simclient \
-    -PsimclientArgs="--out-dir matchdoor/build/simclient-shadow-smoke"
+  ./gradlew :engine:simclient \
+    -PsimclientArgs="--out-dir engine/build/simclient-shadow-smoke"
 
-./gradlew :matchdoor:simDiffReport \
-  -PsimDiffReportArgs="--ref-dir matchdoor/build/sim-ref-shadow-smoke --cand-dir matchdoor/build/simclient-shadow-smoke --out-dir matchdoor/build/sim-diff-shadow-smoke"
+./gradlew :engine:simDiffReport \
+  -PsimDiffReportArgs="--ref-dir engine/build/sim-ref-shadow-smoke --cand-dir engine/build/simclient-shadow-smoke --out-dir engine/build/sim-diff-shadow-smoke"
 ```
 
 Read `coverage-report.md` as a priority list, not a verdict. Prefer aggregate
@@ -80,12 +80,12 @@ coverage gaps with high `healthyRows` and low `issueRows`. Use advisor-gap
 Resume or shard a sweep without changing row identity:
 
 ```bash
-./gradlew :matchdoor:simclient --args="--decks 'Deck A,Deck B' --seeds 1..200 --resume"
-./gradlew :matchdoor:simclient --args="--decks 'Deck A,Deck B' --seeds 1..200 --shard-index 0 --shard-count 4"
+./gradlew :engine:simclient --args="--decks 'Deck A,Deck B' --seeds 1..200 --resume"
+./gradlew :engine:simclient --args="--decks 'Deck A,Deck B' --seeds 1..200 --shard-index 0 --shard-count 4"
 ```
 
 Use an absolute `--out-dir` for ad hoc inspection from Gradle until relative
-path handling is tightened; the default `matchdoor/build/simclient/` path is
+path handling is tightened; the default `engine/build/simclient/` path is
 safe through `just simclient`.
 
 Quarantine known-bad cards during discovery without editing deck files:
@@ -111,7 +111,7 @@ SIMCLIENT_GAME_TIMEOUT_SECONDS=120 \
 just simclient-puzzle extinction-event-choice.pzl 1
 ```
 
-Simclient writes per-game artifacts under `matchdoor/build/simclient/`:
+Simclient writes per-game artifacts under `engine/build/simclient/`:
 
 - `*.stats.json` is the first stop.
 - `*.log` is useful after the stats identify the first repeated prompt, action, or object id pattern.
@@ -209,14 +209,14 @@ Useful quick summary once a deck pair has run:
 
 ```bash
 jq -r '[.seed,.completionReason,.winnerSeat,.turn,.iterations] | @tsv' \
-  matchdoor/build/simclient/Control-Sample-vs-Aggro-Sample-s*.stats.json
+  engine/build/simclient/Control-Sample-vs-Aggro-Sample-s*.stats.json
 ```
 
 For a specific repeated card source:
 
 ```bash
 jq -r '.targetChoiceCounts // {} | to_entries[] | select(.key | contains("59671"))' \
-  matchdoor/build/simclient/*.stats.json
+  engine/build/simclient/*.stats.json
 ```
 
 ## Deck Runs Versus Puzzles

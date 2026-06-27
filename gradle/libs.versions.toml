@@ -5,6 +5,7 @@ protobuf = "3.25.5"
 netty = "4.1.101.Final"
 ktor = "3.2.0"
 logback = "1.5.13"
+slf4j = "2.0.16"
 sentry = "8.21.1"
 tomlkt = "0.4.0"
 jbcrypt = "0.4"
@@ -31,6 +32,7 @@ sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 netty-handler = { module = "io.netty:netty-handler", version.ref = "netty" }
 netty-codec = { module = "io.netty:netty-codec", version.ref = "netty" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 sentry-logback = { module = "io.sentry:sentry-logback", version.ref = "sentry" }
 forge-core = { module = "forge:forge-core", version.ref = "forge" }
 forge-game = { module = "forge:forge-game", version.ref = "forge" }
@@ -43,6 +45,7 @@ ktor-server-netty = { module = "io.ktor:ktor-server-netty", version.ref = "ktor"
 ktor-server-content-negotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
 ktor-server-status-pages = { module = "io.ktor:ktor-server-status-pages", version.ref = "ktor" }
+ktor-server-websockets = { module = "io.ktor:ktor-server-websockets", version.ref = "ktor" }
 ktor-network-tls-certificates = { module = "io.ktor:ktor-network-tls-certificates", version.ref = "ktor" }
 ktor-server-test-host = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
 jbcrypt = { module = "org.mindrot:jbcrypt", version.ref = "jbcrypt" }

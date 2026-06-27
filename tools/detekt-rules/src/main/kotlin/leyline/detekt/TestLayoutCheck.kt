@@ -10,7 +10,7 @@ import io.gitlab.arturbosch.detekt.api.Severity
 import org.jetbrains.kotlin.psi.KtFile
 
 /**
- * Keeps matchdoor tests in their lane packages as the suite grows.
+ * Keeps engine tests in their lane packages as the suite grows.
  *
  * Enforced shape:
  * - board/<domain> files do not use Session-tier markers

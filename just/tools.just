@@ -13,13 +13,13 @@ puzzle file="":
     # Support bare names: "bolt-face" → look in test resources, then root puzzles/
     f="{{file}}"
     if [ ! -f "$f" ]; then
-        f="matchdoor/src/test/resources/puzzles/${f%.pzl}.pzl"
+        f="engine/src/test/resources/puzzles/${f%.pzl}.pzl"
     fi
     if [ ! -f "$f" ]; then
         f="puzzles/${f%.pzl}.pzl"
     fi
     if [ ! -f "$f" ]; then
-        echo "Puzzle not found: {{file}} (checked matchdoor test resources and root puzzles/)" >&2
+        echo "Puzzle not found: {{file}} (checked engine test resources and root puzzles/)" >&2
         exit 1
     fi
     name=$(basename "${f%.pzl}")

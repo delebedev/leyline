@@ -1,11 +1,11 @@
 ---
 paths:
-  - "matchdoor/src/main/**"
+  - "engine/src/main/**"
 ---
 
 # Forge Boundary APIs
 
-Read `docs/forge-api-concepts.md` before changing Forge-facing matchdoor code.
+Read `docs/forge-api-concepts.md` before changing Forge-facing engine code.
 
 Hard reminders:
 

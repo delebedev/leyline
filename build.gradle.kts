@@ -1,4 +1,5 @@
 import leyline.build.CheckUpstreamTask
+import leyline.build.VerifyWebProfilePostureTask
 import leyline.build.WriteClasspathTask
 
 plugins {
@@ -87,9 +88,10 @@ configurations.all {
 
 dependencies {
     detektPlugins(project(":tools:detekt-rules"))
-    implementation(project(":account"))
-    implementation(project(":frontdoor"))
-    implementation(project(":matchdoor"))
+    implementation(project(":domain"))
+    implementation(project(":engine"))
+    implementation(project(":native"))
+    implementation(project(":web"))
     implementation(libs.protobuf.java.util)
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)
@@ -98,12 +100,32 @@ dependencies {
     implementation(libs.sqlite.jdbc)
     implementation(libs.netty.handler)
     implementation(libs.netty.codec)
+    implementation(libs.ktor.server.netty)
 
     implementation(libs.logback.classic)
     implementation(libs.sentry.logback)
 
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
+}
+
+val webProfileRuntimeClasspath by configurations.creating {
+    isCanBeResolved = true
+    isCanBeConsumed = false
+}
+
+dependencies {
+    webProfileRuntimeClasspath(sourceSets.main.get().output)
+    webProfileRuntimeClasspath(project(":domain"))
+    webProfileRuntimeClasspath(project(":engine"))
+    webProfileRuntimeClasspath(project(":web"))
+    webProfileRuntimeClasspath(libs.kotlin.stdlib)
+    webProfileRuntimeClasspath(libs.serialization.json)
+    webProfileRuntimeClasspath(libs.exposed.core)
+    webProfileRuntimeClasspath(libs.exposed.jdbc)
+    webProfileRuntimeClasspath(libs.sqlite.jdbc)
+    webProfileRuntimeClasspath(libs.ktor.server.netty)
+    webProfileRuntimeClasspath(libs.logback.classic)
 }
 
 // --- Upstream JAR freshness check ---
@@ -194,6 +216,18 @@ val writeClasspath by tasks.registering(WriteClasspathTask::class) {
     outputFile.set(layout.projectDirectory.file("target/classpath.txt"))
 }
 
+val writeWebProfileClasspath by tasks.registering(WriteClasspathTask::class) {
+    classpath.set(providers.provider { webProfileRuntimeClasspath.asPath })
+    outputFile.set(layout.projectDirectory.file("target/web-classpath.txt"))
+}
+
+val verifyWebProfilePosture by tasks.registering(VerifyWebProfilePostureTask::class) {
+    group = "verification"
+    description = "Verify the web profile classpath excludes the native client head."
+    dependsOn(writeWebProfileClasspath)
+    classpath.from(webProfileRuntimeClasspath)
+}
+
 tasks.named("classes") {
-    finalizedBy(writeClasspath)
+    finalizedBy(writeClasspath, writeWebProfileClasspath)
 }
