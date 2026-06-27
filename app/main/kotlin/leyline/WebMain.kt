@@ -119,7 +119,7 @@ fun main(args: Array<String>) {
                     secret = resolveWebAuthSecret(),
                     rateLimiter = InMemoryRateLimiter(),
                     rateLimitConfig = AuthRateLimitConfig.fromEnv(),
-                    fixedLoginCode = System.getenv("LEYLINE_WEB_LOGIN_CODE"),
+                    fixedLoginCode = resolveFixedLoginCode(System.getenv()),
                 ),
         )
 
@@ -205,6 +205,15 @@ private fun resolveWebAuthSecret(): String {
     require(secret != DEV_WEB_AUTH_SECRET) { "LEYLINE_WEB_AUTH_SECRET must not use the dev default" }
     require(secret.length >= 32) { "LEYLINE_WEB_AUTH_SECRET must be at least 32 characters" }
     return secret
+}
+
+internal fun resolveFixedLoginCode(env: Map<String, String>): String? {
+    val code = env["LEYLINE_WEB_LOGIN_CODE"]?.takeIf { it.isNotBlank() } ?: return null
+    require(env["LEYLINE_ALLOW_FIXED_LOGIN_CODE"] == "true") {
+        "LEYLINE_WEB_LOGIN_CODE requires LEYLINE_ALLOW_FIXED_LOGIN_CODE=true"
+    }
+    require(Regex("^[0-9]{6}$").matches(code)) { "LEYLINE_WEB_LOGIN_CODE must be a six-digit code" }
+    return code
 }
 
 private fun detectLocalCardDb(): File? {
