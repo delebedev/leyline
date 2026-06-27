@@ -138,7 +138,7 @@ class FrontDoorHandler(
                     FdEnvelope.decode(payload)
                 } catch (e: Exception) {
                     log.error("Front Door: envelope decode FAILED ({}B payload): {}", payload.size, e.message)
-                    writer.sendEmpty(ctx, null)
+                    writer.send(ctx, null, FdResponse.Empty)
                     return
                 }
             val json = decoded.jsonPayload

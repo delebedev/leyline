@@ -85,4 +85,26 @@ class FdRequestsParseSetDeckTest :
         test("missing EventName returns null") {
             FdRequests.parseSetDeck("""{"Summary":{"DeckId":"x"}}""") shouldBe null
         }
+
+        test("set-deck parser skips missing card ids and defaults missing quantity") {
+            val json =
+                """
+                {
+                  "EventName": "QuickDraft_FDN_20260223",
+                  "Summary": {"DeckId":"def-456","Name":"Draft Deck"},
+                  "Deck": {
+                    "MainDeck": [{"cardId":93947,"quantity":1},{"quantity":4},{"cardId":102738}],
+                    "Sideboard": []
+                  }
+                }
+                """.trimIndent()
+
+            val parsed = FdRequests.parseSetDeck(json)
+
+            parsed.shouldNotBeNull()
+            parsed.mainDeck shouldHaveSize 2
+            parsed.mainDeck[0].grpId shouldBe 93947
+            parsed.mainDeck[1].grpId shouldBe 102738
+            parsed.mainDeck[1].quantity shouldBe 1
+        }
     })

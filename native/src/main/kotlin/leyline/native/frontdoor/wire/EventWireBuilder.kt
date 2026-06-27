@@ -64,32 +64,21 @@ object EventWireBuilder {
             }
         }.toString()
 
-    fun toDefaultCoursesJson(courses: List<Pair<String, String>>): String =
-        buildJsonObject {
-            putJsonArray("Courses") {
-                for ((eventName, module) in courses) {
-                    add(buildCourseJson(eventName, module))
-                }
-            }
-        }.toString()
-
-    fun toCoursesJson(courses: List<Course>): String =
-        buildJsonObject {
-            putJsonArray("Courses") {
-                for (course in courses) {
-                    add(buildCourseJson(course))
-                }
-            }
-        }.toString()
+    fun toDefaultCoursesJson(courses: List<Pair<String, String>>): String = buildCoursesJson(realCourses = emptyList(), defaults = courses)
 
     /** Merge real Course objects with default seed courses (Ladder, Play, etc.). */
     fun toMergedCoursesJson(
         courses: List<Course>,
         defaults: List<Pair<String, String>>,
+    ): String = buildCoursesJson(realCourses = courses, defaults = defaults)
+
+    private fun buildCoursesJson(
+        realCourses: List<Course>,
+        defaults: List<Pair<String, String>>,
     ): String =
         buildJsonObject {
             putJsonArray("Courses") {
-                for (course in courses) {
+                for (course in realCourses) {
                     add(buildCourseJson(course))
                 }
                 for ((eventName, module) in defaults) {
