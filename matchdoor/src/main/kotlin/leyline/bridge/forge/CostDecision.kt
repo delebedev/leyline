@@ -902,6 +902,18 @@ class CostDecision(
         return PaymentDecision.card(selected)
     }
 
+    override fun visit(cost: CostPutCounterYou): PaymentDecision? {
+        val c = cost.getAbilityAmount(ability)
+        return if (confirmAction(
+                Localizer.getInstance().getMessage("lblPutNTypeCounterOnTarget", c, cost.counter.name, player.toString()),
+            )
+        ) {
+            PaymentDecision.number(c)
+        } else {
+            null
+        }
+    }
+
     override fun visit(cost: CostReturn): PaymentDecision? {
         val c = cost.getAbilityAmount(ability)
         if (cost.payCostFromSource()) {
